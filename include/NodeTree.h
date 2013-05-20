@@ -3,7 +3,7 @@
 
 #ifndef NULL
 #define NULL 0
-#endif NULL
+#endif
 
 #include <vector>
 #include <string>
@@ -37,4 +37,4 @@ class NodeTree {
 		std::vector<NodeTree*> children;
 };
 
-#endif //NODETREE_H
+#endif

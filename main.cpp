@@ -1,4 +1,5 @@
 #include "NodeTree.h"
+#include "Parser.h"
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -27,7 +28,23 @@ int main(int argc, char* argv[]) {
 	root.addChild(new NodeTree("SomeOtherChild"));
 	root.get(0)->addChild(new NodeTree("Grandchildren"));
 
-	outFile << root.DOTGraphString() << std::endl;
+	//outFile << root.DOTGraphString() << std::endl;
+
+
+	//Read the input file into a string
+	std::string inputFileString;
+	std::string line;
+	while(inFile.good()) {
+		getline(inFile, line);
+		inputFileString.append(line+"\n");
+	}
+
+	Parser parser;
+	parser.loadGrammer(inputFileString);
+	std::cout << inputFileString << std::endl;
+	std::cout << parser.grammerToString();
+
+	outFile << "digraph Kraken { \n" + parser.grammerToString() + "\n}" << std::endl;
 
 	inFile.close();
 	outFile.close();
