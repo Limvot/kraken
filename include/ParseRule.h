@@ -14,10 +14,15 @@
 class ParseRule {
 	public:
 		ParseRule();
+		ParseRule(Symbol* leftHandle, int pointerIndex, std::vector<Symbol*> &rightSide);
 		~ParseRule();
+
+		ParseRule* clone();
 
 		void setLeftHandle(Symbol* leftHandle);
 		void appendToRight(Symbol* appendee);
+
+		bool advancePointer();
 
 		std::string toString();
 		std::string toDOT();
