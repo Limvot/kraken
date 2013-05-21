@@ -21,6 +21,7 @@ class Parser {
 
 		void loadGrammer(std::string grammerInputString);
 		std::string grammerToString();
+		std::string grammerToDOT();
 	private:
 		StringReader reader;
 		std::map<std::string, Symbol*> symbols;

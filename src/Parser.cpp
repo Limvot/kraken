@@ -57,8 +57,18 @@ std::string Parser::grammerToString() {
 	std::cout << "About to toString\n";
 	std::string concat = "";
 	for (int i = 0; i < loadedGrammer.size(); i++) {
-		concat += loadedGrammer[i]->toString() + "\n";//->toString();// + std::endl;
+		concat += loadedGrammer[i]->toString() + "\n";
 	}
 	return(concat);
+}
+
+std::string Parser::grammerToDOT() {
+	//Iterate through the vector, adding DOT representation of each grammer rule
+	std::cout << "About to DOT export\n";
+	std::string concat = "";
+	for (int i = 0; i < loadedGrammer.size(); i++) {
+		concat += loadedGrammer[i]->toDOT();
+	}
+	return("digraph Kraken_Grammer { \n" + concat + "}");
 }
 

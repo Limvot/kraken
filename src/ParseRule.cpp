@@ -22,6 +22,14 @@ std::string ParseRule::toString() {
 	for (int i = 0; i < rightSide.size(); i++) {
 		concat += rightSide[i]->toString() + " ";
 	}
-	return(concat + ";");
+	return(concat);
+}
+
+std::string ParseRule::toDOT() {
+	std::string concat = "";
+	for (int i = 0; i < rightSide.size(); i++) {
+		concat += leftHandle->toString() + " -> " + rightSide[i]->toString() + ";\n";
+	}
+	return(concat);
 }
 

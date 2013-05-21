@@ -20,6 +20,7 @@ class ParseRule {
 		void appendToRight(Symbol* appendee);
 
 		std::string toString();
+		std::string toDOT();
 
 	private:
 		int pointerIndex;

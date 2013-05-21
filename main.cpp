@@ -41,15 +41,16 @@ int main(int argc, char* argv[]) {
 
 	Parser parser;
 	parser.loadGrammer(inputFileString);
-	std::cout << inputFileString << std::endl;
-	std::cout << parser.grammerToString();
 
-	outFile << "digraph Kraken { \n" + parser.grammerToString() + "\n}" << std::endl;
+	std::cout << inputFileString << std::endl;
+	std::cout << parser.grammerToString() << std::endl;
+	std::cout << parser.grammerToDOT() << std::endl;
+
+	outFile << parser.grammerToDOT() << std::endl;
 
 	inFile.close();
 	outFile.close();
 
 	return(0);
-
 }
  
