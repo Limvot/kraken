@@ -22,6 +22,9 @@ class ParseRule {
 		void setLeftHandle(Symbol* leftHandle);
 		void appendToRight(Symbol* appendee);
 
+		Symbol* getLeftSide();
+		std::vector<Symbol*> getRightSide();
+
 		bool advancePointer();
 
 		std::string toString();

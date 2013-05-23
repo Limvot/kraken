@@ -27,6 +27,14 @@ void ParseRule::appendToRight(Symbol* appendee) {
 	rightSide.push_back(appendee);
 }
 
+Symbol* ParseRule::getLeftSide() {
+	return leftHandle;
+}
+
+std::vector<Symbol*> ParseRule::getRightSide() {
+	return rightSide;
+}
+
 bool ParseRule::advancePointer() {
 	if (pointerIndex < rightSide.size()) {
 		pointerIndex++;

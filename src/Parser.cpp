@@ -8,7 +8,6 @@ Parser::~Parser() {
 
 }
 
-
 Symbol* Parser::getOrAddSymbol(std::string symbolString, bool isTerminal) {
 	Symbol* symbol;
 	if (symbols.find(symbolString) == symbols.end()) {
@@ -50,6 +49,57 @@ void Parser::loadGrammer(std::string grammerInputString) {
 		currToken = reader.word();
 	}
 	std::cout << "Parsed!\n";
+}
+
+int Parser::gotoTable(int state, Symbol* token) {
+	return 0;
+}
+
+ParseAction* Parser::actionTable(int state, Symbol* token) {
+	return NULL;
+}
+
+void Parser::parseInput(std::string inputString) {
+	StringReader inputReader;
+	inputReader.setString(inputString);
+
+	Symbol* token = new Symbol(reader.word(), false);
+	ParseAction* action;
+
+	stateStack.push(0);
+	symbolStack.push(new Symbol("INVALID", false));
+
+	while (true) {
+		action = actionTable(stateStack.top(), token);
+		switch (action->action) {
+			case ParseAction::REDUCE:
+			{
+				int rightSideLength = action->reduceRule->getRightSide().size();
+				for (int i = 0; i < rightSideLength; i++) {
+					stateStack.pop();
+					symbolStack.pop();
+				}
+				symbolStack.push(action->reduceRule->getLeftSide());
+				stateStack.push(gotoTable(stateStack.top(), symbolStack.top()));
+				std::cout << "Reduce by " << action->reduceRule->toString() << std::endl;
+				break;
+			}
+			case ParseAction::SHIFT:
+				symbolStack.push(token);
+				token = new Symbol(inputReader.word(), false);
+				stateStack.push(action->shiftState);
+				std::cout << "Shift " << symbolStack.top()->toString() << std::endl;
+				break;
+			case ParseAction::ACCEPT:
+				std::cout << "ACCEPTED!" << std::endl;
+				return;
+				break;
+			case ParseAction::REJECT:
+				std::cout << "REJECTED!" << std::endl;
+				return;
+				break;
+		}
+	}
 }
 
 std::string Parser::grammerToString() {
