@@ -8,6 +8,12 @@ Parser::~Parser() {
 
 }
 
+std::string Parser::intToString(int theInt) {
+	std::stringstream converter;
+	converter << theInt;
+	return converter.str();
+}
+
 Symbol* Parser::getOrAddSymbol(std::string symbolString, bool isTerminal) {
 	Symbol* symbol;
 	if (symbols.find(symbolString) == symbols.end()) {
@@ -49,6 +55,93 @@ void Parser::loadGrammer(std::string grammerInputString) {
 		currToken = reader.word();
 	}
 	std::cout << "Parsed!\n";
+}
+
+void Parser::createStateSet() {
+	stateSets.push_back( new std::vector<ParseRule*> );
+	stateSets[0]->push_back(loadedGrammer[0]);
+	for (std::vector< std::vector<ParseRule*>* >::iterator i = stateSets.begin(); i != stateSets.end(); i++) {
+		closure(*i);
+		for (std::vector<ParseRule*>::iterator j = (*i)->begin(); j != (*i)->end(); j++) {
+			addState(&stateSets, *i, (*j)->getRightSide()[(*j)->getIndex()]);
+			//Closure will be called in the outer loop
+		}
+	}
+}
+
+void Parser::closure(std::vector<ParseRule*>* state) {
+	//Add all the applicable rules.
+	for (std::vector<ParseRule*>::iterator i = state->begin(); i != state->end(); i++) {
+		for (std::vector<ParseRule*>::iterator j = loadedGrammer.begin(); j != loadedGrammer.end(); j++) {
+			if ((*i)->getRightSide()[(*i)->getIndex()] == (*j)->getLeftSide()) {
+				//Check to make sure not already in
+				bool isAlreadyInState = false;
+				for (std::vector<ParseRule*>::iterator k = state->begin(); k != state->end(); k++) {
+					if ((*k) == (*i)) {
+						isAlreadyInState = true;
+						break;
+					}
+				}
+				if (!isAlreadyInState)
+					state->push_back(*j);
+			}
+		}
+	}
+}
+
+//Adds state if it doesn't already exist.
+void Parser::addState(std::vector< std::vector<ParseRule*>* >* stateSets, std::vector<ParseRule*>* state, Symbol* symbol) {
+	std::vector<std::vector<ParseRule*>* > newStates;
+	//For each rule in the state we already have
+	for (std::vector<ParseRule*>::iterator i = state->begin(); i != state->end(); i++) {
+		//Clone the current rule
+		ParseRule* advancedRule = (*i)->clone();
+		//Try to advance the pointer
+		if (advancedRule->advancePointer()) { 
+			//If sucessful, check to see if this the advanced symbol is the basis for any of our new states
+			bool symbolAlreadyInState = false;
+			for (std::vector<std::vector<ParseRule*>* >::iterator j = newStates.begin(); j != newStates.end(); j++) {
+				if ((**j)[0]->getRightSide()[(**j)[0]->getIndex()] == advancedRule->getRightSide()[advancedRule->getIndex()]) {
+					symbolAlreadyInState = true;
+					//So now check to see if this exact rule is in this state
+					bool ruleAlreadyInState = false;
+					for (std::vector<ParseRule*>::iterator k = (*j)->begin(); k != (*j)->end(); k++) {
+						if (*(*k) == (*advancedRule) ) {
+							ruleAlreadyInState = true;
+							break;
+						}
+					}
+					if (!ruleAlreadyInState) {
+						(*j)->push_back(advancedRule);
+					}
+					//We found a state with the same symbol, so stop searching
+					break;
+				}
+			}
+			if (!symbolAlreadyInState) {
+				std::vector<ParseRule*>* newState = new std::vector<ParseRule*>;
+				newState->push_back(advancedRule);
+				newStates.push_back(newState);
+			}
+		}
+	}
+	//Put all our new states in the set of states
+	for (std::vector< std::vector<ParseRule*> * >::iterator i = newStates.begin(); i != newStates.end(); i++) {
+		stateSets->push_back((*i));
+	}
+}
+
+std::string Parser::stateSetToString() {
+	std::string concat = "";
+	int currentNum = 0;
+	for (std::vector< std::vector<ParseRule*> *>::iterator i = stateSets.begin(); i != stateSets.end(); i++) {
+		concat += "State " + intToString(currentNum) + ":\n";
+		for (std::vector<ParseRule*>::iterator j = (*i)->begin(); j != (*i)->end(); j++) {
+			concat += "\t" + (*j)->toString() + "\n";
+		}
+		concat += "\n";
+	}
+	return concat;
 }
 
 int Parser::gotoTable(int state, Symbol* token) {

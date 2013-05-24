@@ -41,6 +41,8 @@ int main(int argc, char* argv[]) {
 
 	Parser parser;
 	parser.loadGrammer(inputFileString);
+	parser.createStateSet();
+	std::cout << parser.stateSetToString() << std::endl;
 
 	std::cout << inputFileString << std::endl;
 	std::cout << parser.grammerToString() << std::endl;

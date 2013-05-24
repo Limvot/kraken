@@ -14,6 +14,7 @@
 #include <vector>
 #include <stack>
 #include <string>
+#include <sstream>
 #include <iostream>
 
 class Parser {
@@ -21,7 +22,13 @@ class Parser {
 		Parser();
 		~Parser();
 
+		std::string intToString(int theInt);
+
 		void loadGrammer(std::string grammerInputString);
+		void createStateSet();
+		void closure(std::vector<ParseRule*>* state);
+		void addState(std::vector< std::vector<ParseRule*>* >* stateSets, std::vector<ParseRule*>* state, Symbol*);
+		std::string stateSetToString();
 		int gotoTable(int state, Symbol* token);
 		ParseAction* actionTable(int state, Symbol* token);
 		void parseInput(std::string inputString);
@@ -32,6 +39,8 @@ class Parser {
 		StringReader reader;
 		std::map<std::string, Symbol*> symbols;
 		std::vector<ParseRule*> loadedGrammer;
+
+		std::vector< std::vector<ParseRule*>* > stateSets;
 
 		std::stack<int> stateStack;
 		std::stack<Symbol*> symbolStack;
