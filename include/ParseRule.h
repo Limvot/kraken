@@ -18,6 +18,7 @@ class ParseRule {
 		~ParseRule();
 
 		bool const operator==(const ParseRule &other);
+		bool const operator!=(const ParseRule &other);
 
 		ParseRule* clone();
 
@@ -26,6 +27,9 @@ class ParseRule {
 
 		Symbol* getLeftSide();
 		std::vector<Symbol*> getRightSide();
+		Symbol* getAtNextIndex();
+		Symbol* getAtIndex();
+		int getRightSize();
 		int getIndex();
 
 		bool advancePointer();

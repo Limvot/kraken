@@ -19,6 +19,10 @@ const bool ParseRule::operator==(const ParseRule &other) {
 	return( leftHandle == other.leftHandle && rightSide == other.rightSide && pointerIndex == other.pointerIndex );
 }
 
+const bool ParseRule::operator!=(const ParseRule &other) {
+	return !(this->operator==(other));
+}
+
 ParseRule* ParseRule::clone() {
 	return( new ParseRule(leftHandle, pointerIndex, rightSide) );
 }
@@ -39,8 +43,24 @@ std::vector<Symbol*> ParseRule::getRightSide() {
 	return rightSide;
 }
 
+Symbol* ParseRule::getAtNextIndex() {
+	if (pointerIndex >= rightSide.size())
+		return NULL;
+	return rightSide[pointerIndex];
+}
+
+Symbol* ParseRule::getAtIndex() {
+	if (pointerIndex < 1)
+		return NULL;
+	return rightSide[pointerIndex-1];
+}
+
+int ParseRule::getRightSize() {
+	return rightSide.size();
+}
+
 int ParseRule::getIndex() {
-	return pointerIndex;
+	return pointerIndex-1;
 }
 
 bool ParseRule::advancePointer() {
