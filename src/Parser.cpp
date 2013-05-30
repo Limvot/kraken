@@ -171,14 +171,22 @@ int Parser::gotoTable(int state, Symbol* token) {
 ParseAction* Parser::actionTable(int state, Symbol* token) {
 	std::vector<ParseRule*>* allStateRules = stateSets[state]->getTotal();
 	ParseRule* currentRule;
+
+	//Get the completed Goal rule for comparision to see if we need to accept
+	ParseRule* completedGoal = stateSets[0]->basis[0]->clone();
+	while (completedGoal->advancePointer()) {}
+
 	for (std::vector<ParseRule*>::size_type i = 0; i < allStateRules->size(); i++) {
 		currentRule = (*allStateRules)[i];
+
 		//If the current rule in the state is completed, then do a reduce action
 		if (currentRule->isAtEnd()) {
-			if (*currentRule == *(stateSets[0]->basis[0]))
+			//But first, if our advanced rule is equal to the completedGoal, we accept
+			if (*currentRule == *completedGoal)
 				return new ParseAction(ParseAction::ACCEPT);
 			return new ParseAction(ParseAction::REDUCE, currentRule);
 		}
+
 		//If the current rule in the state is not completed, see if it has the next correct token
 		std::cout << currentRule->getAtNextIndex()->toString() << " comp to " << token->toString() << std::endl;
 		if ( *(currentRule->getAtNextIndex()) == *token){
@@ -186,6 +194,7 @@ ParseAction* Parser::actionTable(int state, Symbol* token) {
 			//Goes to n^2 here, really need that table
 			ParseRule* advancedCurrent = currentRule->clone();
 			advancedCurrent->advancePointer();
+
 			for (std::vector<State*>::size_type j = 0; j < stateSets.size(); j++) {
 				for (std::vector<ParseRule*>::size_type k = 0; k < stateSets[j]->basis.size(); k++ ) {
 					if ( *(stateSets[j]->basis[k]) == *advancedCurrent)
@@ -193,6 +202,7 @@ ParseAction* Parser::actionTable(int state, Symbol* token) {
 				}
 			}
 		}
+
 	}
 	return new ParseAction(ParseAction::REJECT);
 }
