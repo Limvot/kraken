@@ -14,6 +14,6 @@ const bool Symbol::operator==(const Symbol &other) {
 }
 
 std::string Symbol::toString() {
-	return(name);
+	return(name + "(" + (isTerminal ? "T" : "NT") + ")");
 }
 

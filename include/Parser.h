@@ -40,6 +40,8 @@ class Parser {
 
 		std::vector< State* > stateSets;
 
+		//std::vector< std::vector<ParseAction*> > 
+
 		std::stack<int> stateStack;
 		std::stack<Symbol*> symbolStack;
 

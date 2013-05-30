@@ -150,18 +150,57 @@ std::string Parser::stateSetToString() {
 }
 
 int Parser::gotoTable(int state, Symbol* token) {
-	return 0;
+	std::vector<ParseRule*> allInState = *(stateSets[state]->getTotal());
+	ParseRule* currentRule;
+	for (std::vector<ParseRule*>::size_type i = 0; i < allInState.size(); i++) {
+		currentRule = allInState[i];
+		if (*(currentRule->getAtNextIndex()) == *token) {
+			ParseRule* advancedCurrent = currentRule->clone();
+			advancedCurrent->advancePointer();
+			for (std::vector<State*>::size_type j = 0; j < stateSets.size(); j++) {
+				for (std::vector<ParseRule*>::size_type k = 0; k < stateSets[j]->basis.size(); k++ ) {
+					if ( *(stateSets[j]->basis[k]) == *advancedCurrent)
+						return(j);
+				}
+			}
+		}
+	}
+	return(-1);
 }
 
 ParseAction* Parser::actionTable(int state, Symbol* token) {
-	return NULL;
+	std::vector<ParseRule*>* allStateRules = stateSets[state]->getTotal();
+	ParseRule* currentRule;
+	for (std::vector<ParseRule*>::size_type i = 0; i < allStateRules->size(); i++) {
+		currentRule = (*allStateRules)[i];
+		//If the current rule in the state is completed, then do a reduce action
+		if (currentRule->isAtEnd()) {
+			if (*currentRule == *(stateSets[0]->basis[0]))
+				return new ParseAction(ParseAction::ACCEPT);
+			return new ParseAction(ParseAction::REDUCE, currentRule);
+		}
+		//If the current rule in the state is not completed, see if it has the next correct token
+		std::cout << currentRule->getAtNextIndex()->toString() << " comp to " << token->toString() << std::endl;
+		if ( *(currentRule->getAtNextIndex()) == *token){
+			//If it does have the correct next token, then find the state that has this rule advanced as basis, that is the state we shift to
+			//Goes to n^2 here, really need that table
+			ParseRule* advancedCurrent = currentRule->clone();
+			advancedCurrent->advancePointer();
+			for (std::vector<State*>::size_type j = 0; j < stateSets.size(); j++) {
+				for (std::vector<ParseRule*>::size_type k = 0; k < stateSets[j]->basis.size(); k++ ) {
+					if ( *(stateSets[j]->basis[k]) == *advancedCurrent)
+						return new ParseAction(ParseAction::SHIFT, j);
+				}
+			}
+		}
+	}
+	return new ParseAction(ParseAction::REJECT);
 }
 
 void Parser::parseInput(std::string inputString) {
 	StringReader inputReader;
 	inputReader.setString(inputString);
-
-	Symbol* token = new Symbol(reader.word(), false);
+	Symbol* token = new Symbol(inputReader.word(), true);
 	ParseAction* action;
 
 	stateStack.push(0);
@@ -184,7 +223,7 @@ void Parser::parseInput(std::string inputString) {
 			}
 			case ParseAction::SHIFT:
 				symbolStack.push(token);
-				token = new Symbol(inputReader.word(), false);
+				token = new Symbol(inputReader.word(), true);
 				stateStack.push(action->shiftState);
 				std::cout << "Shift " << symbolStack.top()->toString() << std::endl;
 				break;

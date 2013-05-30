@@ -7,18 +7,24 @@
 
 int main(int argc, char* argv[]) {
 	
-	std::ifstream inFile;
+	std::ifstream programInFile, grammerInFile;
 	std::ofstream outFile;
 
-	inFile.open(argv[1]);
-	if (!inFile.is_open()) {
-		std::cout << "Problem opening input file " << argv[1] << "\n";
+	programInFile.open(argv[1]);
+	if (!programInFile.is_open()) {
+		std::cout << "Problem opening programInFile " << argv[1] << "\n";
 		return(1);
 	}
 
-	outFile.open(argv[2]);
+	grammerInFile.open(argv[2]);
+	if (!grammerInFile.is_open()) {
+		std::cout << "Problem opening grammerInFile " << argv[2] << "\n";
+		return(1);
+	}
+
+	outFile.open(argv[3]);
 	if (!outFile.is_open()) {
-		std::cout << "Probelm opening output file " << argv[2] << "\n";
+		std::cout << "Probelm opening output file " << argv[3] << "\n";
 		return(1);
 	}
 
@@ -32,15 +38,20 @@ int main(int argc, char* argv[]) {
 
 
 	//Read the input file into a string
-	std::string inputFileString;
+	std::string programInputFileString, grammerInputFileString;
 	std::string line;
-	while(inFile.good()) {
-		getline(inFile, line);
-		inputFileString.append(line+"\n");
+	while(grammerInFile.good()) {
+		getline(grammerInFile, line);
+		grammerInputFileString.append(line+"\n");
+	}
+
+	while(programInFile.good()) {
+		getline(programInFile, line);
+		programInputFileString.append(line+"\n");
 	}
 
 	Parser parser;
-	parser.loadGrammer(inputFileString);
+	parser.loadGrammer(grammerInputFileString);
 	std::cout << "Creating State Set from Main" << std::endl;
 	parser.createStateSet();
 	std::cout << "finished State Set from Main" << std::endl;
@@ -48,13 +59,17 @@ int main(int argc, char* argv[]) {
 	std::cout << parser.stateSetToString() << std::endl;
 	std::cout << "finished stateSetToString from Main" << std::endl;
 
-	std::cout << inputFileString << std::endl;
+	std::cout << grammerInputFileString << std::endl;
 	std::cout << parser.grammerToString() << std::endl;
 	std::cout << parser.grammerToDOT() << std::endl;
 
 	outFile << parser.grammerToDOT() << std::endl;
 
-	inFile.close();
+	std::cout << programInputFileString << std::endl;
+	parser.parseInput(programInputFileString);
+
+	programInFile.close();
+	grammerInFile.close();
 	outFile.close();
 
 	return(0);

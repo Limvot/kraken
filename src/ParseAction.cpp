@@ -1,8 +1,20 @@
 #include "ParseAction.h"
 
-ParseAction::ParseAction(ActionType action, ParseRule* reduceRule, int shiftState) {
+ParseAction::ParseAction(ActionType action) {
+	this->action = action;
+	this->reduceRule = NULL;
+	this->shiftState = -1;
+}
+
+ParseAction::ParseAction(ActionType action, ParseRule* reduceRule) {
 	this->action = action;
 	this->reduceRule = reduceRule;
+	this->shiftState = -1;
+}
+
+ParseAction::ParseAction(ActionType action, int shiftState) {
+	this->action = action;
+	this->reduceRule = NULL;
 	this->shiftState = shiftState;
 }
 

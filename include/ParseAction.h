@@ -13,7 +13,9 @@
 class ParseAction {
 	public:
 		enum ActionType { INVALID, REDUCE, SHIFT, ACCEPT, REJECT };
-		ParseAction(ActionType action, ParseRule* reduceRule = NULL, int shiftState = 0);
+		ParseAction(ActionType action);
+		ParseAction(ActionType action, ParseRule* reduceRule);
+		ParseAction(ActionType action, int shiftState);
 		~ParseAction();
 		std::string toString();
 		static std::string actionToString(ActionType action);

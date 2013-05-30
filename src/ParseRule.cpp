@@ -71,6 +71,10 @@ bool ParseRule::advancePointer() {
 	return false;
 }
 
+bool ParseRule::isAtEnd() {
+	return pointerIndex == rightSide.size();
+}
+
 std::string ParseRule::toString() {
 	std::string concat = leftHandle->toString() + " -> ";
 	for (int i = 0; i < rightSide.size(); i++) {

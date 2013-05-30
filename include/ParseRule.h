@@ -33,6 +33,7 @@ class ParseRule {
 		int getIndex();
 
 		bool advancePointer();
+		bool isAtEnd();
 
 		std::string toString();
 		std::string toDOT();
