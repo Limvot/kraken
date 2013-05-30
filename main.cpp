@@ -52,21 +52,26 @@ int main(int argc, char* argv[]) {
 
 	Parser parser;
 	parser.loadGrammer(grammerInputFileString);
-	std::cout << "Creating State Set from Main" << std::endl;
+	//std::cout << "Creating State Set from Main" << std::endl;
 	parser.createStateSet();
-	std::cout << "finished State Set from Main" << std::endl;
-	std::cout << "Doing stateSetToString from Main" << std::endl;
+	//std::cout << "finished State Set from Main" << std::endl;
+	//std::cout << "Doing stateSetToString from Main" << std::endl;
 	std::cout << parser.stateSetToString() << std::endl;
-	std::cout << "finished stateSetToString from Main" << std::endl;
+	//std::cout << "finished stateSetToString from Main" << std::endl;
 
 	std::cout << grammerInputFileString << std::endl;
 	std::cout << parser.grammerToString() << std::endl;
-	std::cout << parser.grammerToDOT() << std::endl;
+	//std::cout << parser.grammerToDOT() << std::endl;
 
-	outFile << parser.grammerToDOT() << std::endl;
+	//outFile << parser.grammerToDOT() << std::endl;
 
 	std::cout << programInputFileString << std::endl;
-	parser.parseInput(programInputFileString);
+	NodeTree* parseTree = parser.parseInput(programInputFileString);
+
+	if (parseTree) {
+		std::cout << parseTree->DOTGraphString() << std::endl;
+		outFile << parseTree->DOTGraphString() << std::endl;
+	}
 
 	programInFile.close();
 	grammerInFile.close();

@@ -54,15 +54,15 @@ void Parser::loadGrammer(std::string grammerInputString) {
 void Parser::createStateSet() {
 	std::cout << "Begining creation of stateSet" << std::endl;
 	stateSets.push_back( new State(0, loadedGrammer[0]) );
-	std::cout << "Begining for main set for loop" << std::endl;
+	//std::cout << "Begining for main set for loop" << std::endl;
 	for (std::vector< State* >::size_type i = 0; i < stateSets.size(); i++) {
-		std::cout << "calling closure on " << stateSets[i]->toString() << std::endl;
+		//std::cout << "calling closure on " << stateSets[i]->toString() << std::endl;
 		closure(stateSets[i]);
-		std::cout << "finished closure" << std::endl;
-		std::cout << "Starting inner for loop that adds states" << std::endl;
+		//std::cout << "finished closure" << std::endl;
+		//std::cout << "Starting inner for loop that adds states" << std::endl;
 		std::vector<ParseRule*>* allRules = stateSets[i]->getTotal();
 		for (std::vector<ParseRule*>::size_type j = 0; j < allRules->size(); j++) {
-			std::cout << "about to call addState" << std::endl;
+			//std::cout << "about to call addState" << std::endl;
 			addState(&stateSets, stateSets[i], (*allRules)[j]->getAtNextIndex());
 			//Closure will be called in the outer loop
 		}
@@ -71,12 +71,12 @@ void Parser::createStateSet() {
 
 void Parser::closure(State* state) {
 	//Add all the applicable rules.
-	std::cout << "Closure on " << state->toString() << " is" << std::endl;
+	//std::cout << "Closure on " << state->toString() << " is" << std::endl;
 	for (std::vector<ParseRule*>::size_type i = 0; i < state->getTotal()->size(); i++) {
 		for (std::vector<ParseRule*>::size_type j = 0; j < loadedGrammer.size(); j++) {
 			//If the current symbol in the rule is not null (rule completed) and it equals a grammer's left side
 			if ((*state->getTotal())[i]->getAtNextIndex() != NULL && *((*state->getTotal())[i]->getAtNextIndex()) == *(loadedGrammer[j]->getLeftSide())) {
-				std::cout << (*state->getTotal())[i]->getAtNextIndex()->toString() << " has an applicable production " << loadedGrammer[j]->toString() << std::endl;
+				//std::cout << (*state->getTotal())[i]->getAtNextIndex()->toString() << " has an applicable production " << loadedGrammer[j]->toString() << std::endl;
 				//Check to make sure not already in
 				bool isAlreadyInState = false;
 				for (std::vector<ParseRule*>::size_type k = 0; k < state->getTotal()->size(); k++) {
@@ -90,7 +90,7 @@ void Parser::closure(State* state) {
 			}
 		}
 	}
-	std::cout << state->toString() << std::endl;
+	//std::cout << state->toString() << std::endl;
 }
 
 //Adds state if it doesn't already exist.
@@ -188,7 +188,7 @@ ParseAction* Parser::actionTable(int state, Symbol* token) {
 		}
 
 		//If the current rule in the state is not completed, see if it has the next correct token
-		std::cout << currentRule->getAtNextIndex()->toString() << " comp to " << token->toString() << std::endl;
+		//std::cout << currentRule->getAtNextIndex()->toString() << " comp to " << token->toString() << std::endl;
 		if ( *(currentRule->getAtNextIndex()) == *token){
 			//If it does have the correct next token, then find the state that has this rule advanced as basis, that is the state we shift to
 			//Goes to n^2 here, really need that table
@@ -207,10 +207,10 @@ ParseAction* Parser::actionTable(int state, Symbol* token) {
 	return new ParseAction(ParseAction::REJECT);
 }
 
-void Parser::parseInput(std::string inputString) {
+NodeTree* Parser::parseInput(std::string inputString) {
 	StringReader inputReader;
 	inputReader.setString(inputString);
-	Symbol* token = new Symbol(inputReader.word(), true);
+	Symbol* token = new Symbol("\""+inputReader.word()+"\"", true);
 	ParseAction* action;
 
 	stateStack.push(0);
@@ -222,31 +222,49 @@ void Parser::parseInput(std::string inputString) {
 			case ParseAction::REDUCE:
 			{
 				int rightSideLength = action->reduceRule->getRightSide().size();
+				//Keep track of symbols popped for parse tree
+				std::vector<Symbol*> poppedSymbols;
 				for (int i = 0; i < rightSideLength; i++) {
+					poppedSymbols.push_back(symbolStack.top());
 					stateStack.pop();
 					symbolStack.pop();
 				}
-				symbolStack.push(action->reduceRule->getLeftSide());
+				std::reverse(poppedSymbols.begin(), poppedSymbols.end()); //To put in order
+				//Assign the new tree to the new Symbol
+				Symbol* newSymbol = action->reduceRule->getLeftSide()->clone();
+				newSymbol->setSubTree(reduceTreeCombine(newSymbol, poppedSymbols));
+				symbolStack.push(newSymbol);
 				stateStack.push(gotoTable(stateStack.top(), symbolStack.top()));
 				std::cout << "Reduce by " << action->reduceRule->toString() << std::endl;
 				break;
 			}
 			case ParseAction::SHIFT:
 				symbolStack.push(token);
-				token = new Symbol(inputReader.word(), true);
+				token = new Symbol("\""+inputReader.word()+"\"", true);
 				stateStack.push(action->shiftState);
 				std::cout << "Shift " << symbolStack.top()->toString() << std::endl;
 				break;
 			case ParseAction::ACCEPT:
 				std::cout << "ACCEPTED!" << std::endl;
-				return;
+				return(symbolStack.top()->getSubTree());
 				break;
 			case ParseAction::REJECT:
 				std::cout << "REJECTED!" << std::endl;
-				return;
+				return(NULL);
 				break;
 		}
 	}
+}
+
+NodeTree* Parser::reduceTreeCombine(Symbol* newSymbol, std::vector<Symbol*> &symbols) {
+	NodeTree* newTree = new NodeTree(newSymbol->toString());
+	for (std::vector<Symbol*>::size_type i = 0; i < symbols.size(); i++) {
+		if (symbols[i]->isTerminal())
+			newTree->addChild(new NodeTree(symbols[i]->toString()));
+		else
+			newTree->addChild(symbols[i]->getSubTree());
+	}
+	return(newTree);
 }
 
 std::string Parser::grammerToString() {
@@ -261,7 +279,7 @@ std::string Parser::grammerToString() {
 
 std::string Parser::grammerToDOT() {
 	//Iterate through the vector, adding DOT representation of each grammer rule
-	std::cout << "About to DOT export\n";
+	//std::cout << "About to DOT export\n";
 	std::string concat = "";
 	for (int i = 0; i < loadedGrammer.size(); i++) {
 		concat += loadedGrammer[i]->toDOT();

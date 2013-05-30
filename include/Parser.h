@@ -10,9 +10,11 @@
 #include "Symbol.h"
 #include "State.h"
 #include "StringReader.h"
+#include "NodeTree.h"
 
 #include <map>
 #include <vector>
+#include <algorithm>
 #include <stack>
 #include <string>
 #include <iostream>
@@ -29,7 +31,7 @@ class Parser {
 		std::string stateSetToString();
 		int gotoTable(int state, Symbol* token);
 		ParseAction* actionTable(int state, Symbol* token);
-		void parseInput(std::string inputString);
+		NodeTree* parseInput(std::string inputString);
 
 		std::string grammerToString();
 		std::string grammerToDOT();
@@ -46,6 +48,7 @@ class Parser {
 		std::stack<Symbol*> symbolStack;
 
 		Symbol* getOrAddSymbol(std::string symbolString, bool isTerminal);
+		NodeTree* reduceTreeCombine(Symbol* newSymbol, std::vector<Symbol*> &symbols);
 };
 
 #endif
