@@ -5,6 +5,7 @@
 #define NULL 0
 #endif
 
+#include "util.h"
 #include "ParseRule.h"
 #include "ParseAction.h"
 #include "Symbol.h"
@@ -27,14 +28,17 @@ class Parser {
 		void loadGrammer(std::string grammerInputString);
 		void createStateSet();
 		void closure(State* state);
-		void addState(std::vector< State* >* stateSets, State* state, Symbol*);
+		void addStates(std::vector< State* >* stateSets, State* state);
 		std::string stateSetToString();
-		int gotoTable(int state, Symbol* token);
-		ParseAction* actionTable(int state, Symbol* token);
+		void addToTable(State* fromState, Symbol* tranSymbol, ParseAction* action);
+		ParseAction* getTable(int state, Symbol* token);
 		NodeTree* parseInput(std::string inputString);
 
 		std::string grammerToString();
 		std::string grammerToDOT();
+
+		std::string tableToString();
+
 	private:
 		StringReader reader;
 		std::map<std::string, Symbol*> symbols;
@@ -42,7 +46,8 @@ class Parser {
 
 		std::vector< State* > stateSets;
 
-		//std::vector< std::vector<ParseAction*> > 
+		std::vector< std::vector<ParseAction*>* >  table;
+		std::vector<Symbol*> symbolIndexVec;
 
 		std::stack<int> stateStack;
 		std::stack<Symbol*> symbolStack;

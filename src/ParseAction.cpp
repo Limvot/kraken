@@ -22,6 +22,15 @@ ParseAction::~ParseAction() {
 
 }
 
+
+const bool ParseAction::operator==(const ParseAction &other) {
+	return( action == other.action && ( reduceRule == other.reduceRule || *reduceRule == *(other.reduceRule) ) && shiftState == other.shiftState);
+}
+
+const bool ParseAction::operator!=(const ParseAction &other) {
+	return !(this->operator==(other));
+}
+
 std::string ParseAction::actionToString(ActionType action) {
 	switch (action) {
 		case REDUCE:
@@ -40,10 +49,11 @@ std::string ParseAction::actionToString(ActionType action) {
 }
 
 std::string ParseAction::toString() {
-	std::string outputString = actionToString(action);
-	if (reduceRule)
-		outputString += " " + reduceRule->toString();
-	if (shiftState)
-		outputString += " " + shiftState;
+	std::string outputString = "";
+	outputString += actionToString(action);
+	if (reduceRule != NULL)
+		outputString += " " + reduceRule->toString(); 
+	if (shiftState != -1)
+		outputString += " " + intToString(shiftState); 
 	return(outputString);
 }

@@ -42,6 +42,12 @@ std::vector<ParseRule*>* State::getTotal() {
 	}
 	return(&total);
 }
+std::vector<ParseRule*>* State::getBasis() {
+	return &basis;
+}
+std::vector<ParseRule*>* State::getRemaining() {
+	return &remaining;
+}
 
 bool State::containsRule(ParseRule* rule) {
 	for (std::vector<ParseRule*>::size_type i = 0; i < basis.size(); i++) {
@@ -53,12 +59,6 @@ bool State::containsRule(ParseRule* rule) {
 			return true;
 	}
 	return false;
-}
-
-std::string State::intToString(int theInt) {
-	std::stringstream converter;
-	converter << theInt;
-	return converter.str();
 }
 
 std::string State::toString() {

@@ -56,16 +56,10 @@ void Parser::createStateSet() {
 	stateSets.push_back( new State(0, loadedGrammer[0]) );
 	//std::cout << "Begining for main set for loop" << std::endl;
 	for (std::vector< State* >::size_type i = 0; i < stateSets.size(); i++) {
-		//std::cout << "calling closure on " << stateSets[i]->toString() << std::endl;
+		//closure
 		closure(stateSets[i]);
-		//std::cout << "finished closure" << std::endl;
-		//std::cout << "Starting inner for loop that adds states" << std::endl;
-		std::vector<ParseRule*>* allRules = stateSets[i]->getTotal();
-		for (std::vector<ParseRule*>::size_type j = 0; j < allRules->size(); j++) {
-			//std::cout << "about to call addState" << std::endl;
-			addState(&stateSets, stateSets[i], (*allRules)[j]->getAtNextIndex());
-			//Closure will be called in the outer loop
-		}
+		//Add the new states
+		addStates(&stateSets, stateSets[i]);
 	}
 }
 
@@ -94,13 +88,14 @@ void Parser::closure(State* state) {
 }
 
 //Adds state if it doesn't already exist.
-void Parser::addState(std::vector< State* >* stateSets, State* state, Symbol* symbol) {
+void Parser::addStates(std::vector< State* >* stateSets, State* state) {
 	std::vector< State* > newStates;
 	//For each rule in the state we already have
-	for (std::vector<ParseRule*>::size_type i = 0; i < state->getTotal()->size(); i++) {
+	std::vector<ParseRule*>* currStateTotal = state->getTotal();
+	for (std::vector<ParseRule*>::size_type i = 0; i < currStateTotal->size(); i++) {
 		//Clone the current rule
-		ParseRule* advancedRule = (*state->getTotal())[i]->clone();
-		//Try to advance the pointer
+		ParseRule* advancedRule = (*currStateTotal)[i]->clone();
+		//Try to advance the pointer, if sucessful see if it is the correct next symbol
 		if (advancedRule->advancePointer()) { 
 			//Technically, it should be the set of rules sharing this symbol advanced past in the basis for new state
 
@@ -112,9 +107,8 @@ void Parser::addState(std::vector< State* >* stateSets, State* state, Symbol* sy
 				if (*(newStates[j]->basis[0]->getAtIndex()) == *(advancedRule->getAtIndex())) {
 					symbolAlreadyInState = true;
 					//So now check to see if this exact rule is in this state
-					if (!newStates[j]->containsRule(advancedRule)) {
+					if (!newStates[j]->containsRule(advancedRule))
 						newStates[j]->basis.push_back(advancedRule);
-					}
 					//We found a state with the same symbol, so stop searching
 					break;
 				}
@@ -124,19 +118,36 @@ void Parser::addState(std::vector< State* >* stateSets, State* state, Symbol* sy
 				newStates.push_back(newState);
 			}
 		}
+		//Also add any completed rules as reduces in the action table
+		//See if reduce
+		//Also, this really only needs to be done for the state's basis, but we're already iterating through, so...
+		if ((*currStateTotal)[i]->isAtEnd()) {
+			std::cout << (*currStateTotal)[i]->toString() << " is at end, adding reduce to table" << std::endl;
+			//This should iterate through the follow set, but right now is LR(0), so all symbols
+			for (std::vector<Symbol*>::size_type j = 0; j < symbolIndexVec.size(); j++)
+				addToTable(state, symbolIndexVec[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
+		} else {
+			std::cout << (*currStateTotal)[i]->toString() << " is NOT at end" << std::endl;
+		}
 	}
 	//Put all our new states in the set of states only if they're not already there.
 	bool stateAlreadyInAllStates = false;
+	Symbol* currStateSymbol;
 	for (std::vector< State * >::size_type i = 0; i < newStates.size(); i++) {
+		currStateSymbol = (*(newStates[i]->getBasis()))[0]->getAtIndex();
 		for (std::vector< State * >::size_type j = 0; j < stateSets->size(); j++) {
 			if (*(newStates[i]) == *((*stateSets)[j])) {
 				stateAlreadyInAllStates = true;
-				//std::cout << newStates[i]->toString() << " is equal to\n" << (*stateSets)[j]->toString() << std::endl;
+				//If it does exist, we should add it as the shift/goto in the action table
+				addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
+				break;
 			}
 		}
 		if (!stateAlreadyInAllStates) {
 			stateSets->push_back(newStates[i]);
 			stateAlreadyInAllStates = false;
+			//If the state does not already exist, add it and add it as the shift/goto in the action table
+			addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
 		}
 	}
 }
@@ -149,62 +160,116 @@ std::string Parser::stateSetToString() {
 	return concat;
 }
 
-int Parser::gotoTable(int state, Symbol* token) {
-	std::vector<ParseRule*> allInState = *(stateSets[state]->getTotal());
-	ParseRule* currentRule;
-	for (std::vector<ParseRule*>::size_type i = 0; i < allInState.size(); i++) {
-		currentRule = allInState[i];
-		if (*(currentRule->getAtNextIndex()) == *token) {
-			ParseRule* advancedCurrent = currentRule->clone();
-			advancedCurrent->advancePointer();
-			for (std::vector<State*>::size_type j = 0; j < stateSets.size(); j++) {
-				for (std::vector<ParseRule*>::size_type k = 0; k < stateSets[j]->basis.size(); k++ ) {
-					if ( *(stateSets[j]->basis[k]) == *advancedCurrent)
-						return(j);
-				}
-			}
+void Parser::addToTable(State* fromState, Symbol* tranSymbol, ParseAction* action) {
+
+	//find what state num the from state is
+	int stateNum = -1;
+	for (std::vector<State*>::size_type i = 0; i < stateSets.size(); i++) {
+		if (*(stateSets[i]) == *fromState) {
+			stateNum = i;
+			break;
 		}
 	}
-	return(-1);
+
+	//std::cout << "stateNum is " << stateNum << std::endl;
+
+	//If state not in table, add up to and it.
+	//std::cout << "table size is " << table.size() <<std::endl;
+	while (stateNum >= table.size()) {
+		//std::cout << "Pushing back table" << std::endl;
+		table.push_back(new std::vector<ParseAction*>);
+	}
+
+	//find out what index this symbol is on
+	int symbolIndex = -1;
+	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
+		if ( *(symbolIndexVec[i]) == *tranSymbol ) {
+			//Has been found
+			symbolIndex = i;
+			break;
+		}
+	}
+	//std::cout << "symbolIndex is " << symbolIndex << std::endl;
+
+	//If we've never done this symbol, add it
+	if (symbolIndex < 0) {
+	//	std::cout << "pushing back symbolIndexVec" <<std::endl;
+		symbolIndex = symbolIndexVec.size();
+		symbolIndexVec.push_back(tranSymbol);
+	}
+
+	//std::cout << "symbolIndex is " << symbolIndex << " which is " << symbolIndexVec[symbolIndex]->toString() << std::endl;
+
+	//std::cout << table[stateNum] << " ";
+	while (symbolIndex >= table[stateNum]->size()) {
+		table[stateNum]->push_back(NULL);
+	}
+
+	//If this table slot is empty
+	//std::cout << "table[stateNum] is " << table[stateNum] << std::endl;
+	//std::cout << "blank is " << (*(table[stateNum]))[symbolIndex] << std::endl;
+	
+	if ( (*(table[stateNum]))[symbolIndex] == NULL ) {
+		std::cout << "Null, adding " << action->toString() << std::endl;
+		(*(table[stateNum]))[symbolIndex] = action;
+	}
+	//If the slot is not empty and does not contain ourself, then it is a conflict
+	else if ( *((*(table[stateNum]))[symbolIndex]) != *action) {
+		std::cout << "not Null!" << std::endl;
+		std::cout << "Conflict between old: " << (*(table[stateNum]))[symbolIndex]->toString() << " and new: " << action->toString() << std::endl; 
+		//Don't overwrite
+		//(*(table[stateNum]))[symbolIndex] = action;
+	}
 }
 
-ParseAction* Parser::actionTable(int state, Symbol* token) {
-	std::vector<ParseRule*>* allStateRules = stateSets[state]->getTotal();
-	ParseRule* currentRule;
+std::string Parser::tableToString() {
+	std::string concat = "";
+	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++)
+		concat += "\t" + symbolIndexVec[i]->toString();
+	concat += "\n";
 
-	//Get the completed Goal rule for comparision to see if we need to accept
-	ParseRule* completedGoal = stateSets[0]->basis[0]->clone();
-	while (completedGoal->advancePointer()) {}
-
-	for (std::vector<ParseRule*>::size_type i = 0; i < allStateRules->size(); i++) {
-		currentRule = (*allStateRules)[i];
-
-		//If the current rule in the state is completed, then do a reduce action
-		if (currentRule->isAtEnd()) {
-			//But first, if our advanced rule is equal to the completedGoal, we accept
-			if (*currentRule == *completedGoal)
-				return new ParseAction(ParseAction::ACCEPT);
-			return new ParseAction(ParseAction::REDUCE, currentRule);
+	for (std::vector< std::vector< ParseRule* > >::size_type i = 0; i < table.size(); i++) {
+		concat += intToString(i) + "\t";
+		for (std::vector< ParseRule* >::size_type j = 0; j < table[i]->size(); j++) {
+			if ( (*(table[i]))[j] != NULL)
+				concat += (*(table[i]))[j]->toString() + "\t";
+			else
+				concat += "NULL\t";
 		}
-
-		//If the current rule in the state is not completed, see if it has the next correct token
-		//std::cout << currentRule->getAtNextIndex()->toString() << " comp to " << token->toString() << std::endl;
-		if ( *(currentRule->getAtNextIndex()) == *token){
-			//If it does have the correct next token, then find the state that has this rule advanced as basis, that is the state we shift to
-			//Goes to n^2 here, really need that table
-			ParseRule* advancedCurrent = currentRule->clone();
-			advancedCurrent->advancePointer();
-
-			for (std::vector<State*>::size_type j = 0; j < stateSets.size(); j++) {
-				for (std::vector<ParseRule*>::size_type k = 0; k < stateSets[j]->basis.size(); k++ ) {
-					if ( *(stateSets[j]->basis[k]) == *advancedCurrent)
-						return new ParseAction(ParseAction::SHIFT, j);
-				}
-			}
-		}
-
+		concat += "\n";
 	}
-	return new ParseAction(ParseAction::REJECT);
+	return(concat);
+}
+
+ParseAction* Parser::getTable(int state, Symbol* token) {
+	int symbolIndex = -1;
+	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
+		if ( *(symbolIndexVec[i]) == *token) {
+			symbolIndex = i;
+			break;
+		}
+	}
+
+	//This is the accepting state, as it is the 1th's state's reduction on EOF, which is not in the symbolIndexVec
+	//(This assumes singular goal assignment, a simplification for now)
+	if (state == 1 && symbolIndex == -1)
+		return(new ParseAction(ParseAction::ACCEPT));
+
+	//Quick hack, since there is not right now an EOF token, we'll just check for an unrecognized character (-1) and just apply reductions as if it were the first symbol
+	if (symbolIndex == -1)
+		symbolIndex = 0;
+
+	//If ourside the symbol range of this state (same as NULL), reject
+	if ( symbolIndex >= table[state]->size() )
+		return(new ParseAction(ParseAction::REJECT));
+
+	ParseAction* action = (*(table[state]))[symbolIndex];
+	//If null, reject. (this is a space with no other action)
+	if (action == NULL)
+		return(new ParseAction(ParseAction::REJECT));
+
+	//Otherwise, we have something, so return it
+	return (action);
 }
 
 NodeTree* Parser::parseInput(std::string inputString) {
@@ -217,10 +282,13 @@ NodeTree* Parser::parseInput(std::string inputString) {
 	symbolStack.push(new Symbol("INVALID", false));
 
 	while (true) {
-		action = actionTable(stateStack.top(), token);
+		std::cout << "In state: " << intToString(stateStack.top()) << std::endl;
+		action = getTable(stateStack.top(), token);
 		switch (action->action) {
 			case ParseAction::REDUCE:
 			{
+				std::cout << "Reduce by " << action->reduceRule->toString() << std::endl;
+				
 				int rightSideLength = action->reduceRule->getRightSide().size();
 				//Keep track of symbols popped for parse tree
 				std::vector<Symbol*> poppedSymbols;
@@ -234,15 +302,18 @@ NodeTree* Parser::parseInput(std::string inputString) {
 				Symbol* newSymbol = action->reduceRule->getLeftSide()->clone();
 				newSymbol->setSubTree(reduceTreeCombine(newSymbol, poppedSymbols));
 				symbolStack.push(newSymbol);
-				stateStack.push(gotoTable(stateStack.top(), symbolStack.top()));
-				std::cout << "Reduce by " << action->reduceRule->toString() << std::endl;
+				std::cout << "top of state is " << intToString(stateStack.top()) << " symbolStack top is " << symbolStack.top()->toString() << std::endl;
+				stateStack.push(getTable(stateStack.top(), symbolStack.top())->shiftState);
+				std::cout << "Reduced, now condition is" << std::endl;
+				std::cout << "top of state is " << intToString(stateStack.top()) << " symbolStack top is " << symbolStack.top()->toString() << std::endl;
 				break;
 			}
 			case ParseAction::SHIFT:
+				std::cout << "Shift " << token->toString() << std::endl;
+
 				symbolStack.push(token);
 				token = new Symbol("\""+inputReader.word()+"\"", true);
 				stateStack.push(action->shiftState);
-				std::cout << "Shift " << symbolStack.top()->toString() << std::endl;
 				break;
 			case ParseAction::ACCEPT:
 				std::cout << "ACCEPTED!" << std::endl;

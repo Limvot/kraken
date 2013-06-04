@@ -5,6 +5,7 @@
 #define NULL 0
 #endif
 
+#include "util.h"
 #include "ParseRule.h"
 
 #include <vector>
@@ -16,7 +17,6 @@ class State {
 	public:
 		State(int number, ParseRule* basis);
 		~State();
-		std::string intToString(int theInt);
 		bool const operator==(const State &other);
 		bool const operator!=(const State &other);
 		std::vector<ParseRule*>* getBasis();

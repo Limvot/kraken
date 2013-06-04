@@ -5,6 +5,7 @@
 #define NULL 0
 #endif
 
+#include "util.h"
 #include "ParseRule.h"
 
 #include <vector>
@@ -17,6 +18,8 @@ class ParseAction {
 		ParseAction(ActionType action, ParseRule* reduceRule);
 		ParseAction(ActionType action, int shiftState);
 		~ParseAction();
+		bool const operator==(const ParseAction &other);
+		bool const operator!=(const ParseAction &other);
 		std::string toString();
 		static std::string actionToString(ActionType action);
 

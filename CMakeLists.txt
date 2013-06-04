@@ -4,7 +4,7 @@ project(Kraken)
 
 set( MY_INCLUDES ${PROJECT_SOURCE_DIR}/include)
 
-set( MY_SOURCES main.cpp src/Parser.cpp src/ParseAction.cpp src/ParseRule.cpp src/Symbol.cpp src/StringReader.cpp src/NodeTree.cpp src/State.cpp )
+set( MY_SOURCES main.cpp src/Parser.cpp src/ParseAction.cpp src/ParseRule.cpp src/Symbol.cpp src/StringReader.cpp src/NodeTree.cpp src/State.cpp src/util.cpp )
 
 include_directories( ${MY_INCLUDES} )
 
