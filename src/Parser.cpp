@@ -162,6 +162,10 @@ std::string Parser::stateSetToString() {
 
 void Parser::addToTable(State* fromState, Symbol* tranSymbol, ParseAction* action) {
 
+	//If this is the first time we're adding to the table, add the EOF character
+	if (symbolIndexVec.size() == 0)
+		symbolIndexVec.push_back(new Symbol("$EOF$", false));
+
 	//find what state num the from state is
 	int stateNum = -1;
 	for (std::vector<State*>::size_type i = 0; i < stateSets.size(); i++) {
@@ -250,14 +254,10 @@ ParseAction* Parser::getTable(int state, Symbol* token) {
 		}
 	}
 
-	//This is the accepting state, as it is the 1th's state's reduction on EOF, which is not in the symbolIndexVec
+	//This is the accepting state, as it is the 1th's state's reduction on EOF, which is 0 in the symbolIndexVec
 	//(This assumes singular goal assignment, a simplification for now)
-	if (state == 1 && symbolIndex == -1)
+	if (state == 1 && symbolIndex == 0)
 		return(new ParseAction(ParseAction::ACCEPT));
-
-	//Quick hack, since there is not right now an EOF token, we'll just check for an unrecognized character (-1) and just apply reductions as if it were the first symbol
-	if (symbolIndex == -1)
-		symbolIndex = 0;
 
 	//If ourside the symbol range of this state (same as NULL), reject
 	if ( symbolIndex >= table[state]->size() )
@@ -272,10 +272,8 @@ ParseAction* Parser::getTable(int state, Symbol* token) {
 	return (action);
 }
 
-NodeTree* Parser::parseInput(std::string inputString) {
-	StringReader inputReader;
-	inputReader.setString(inputString);
-	Symbol* token = new Symbol("\""+inputReader.word()+"\"", true);
+NodeTree* Parser::parseInput(Lexer* lexer) {
+	Symbol* token = lexer->next();
 	ParseAction* action;
 
 	stateStack.push(0);
@@ -284,6 +282,7 @@ NodeTree* Parser::parseInput(std::string inputString) {
 	while (true) {
 		std::cout << "In state: " << intToString(stateStack.top()) << std::endl;
 		action = getTable(stateStack.top(), token);
+		std::cout << "Doing ParseAction: " << action->toString() << std::endl;
 		switch (action->action) {
 			case ParseAction::REDUCE:
 			{
@@ -312,7 +311,7 @@ NodeTree* Parser::parseInput(std::string inputString) {
 				std::cout << "Shift " << token->toString() << std::endl;
 
 				symbolStack.push(token);
-				token = new Symbol("\""+inputReader.word()+"\"", true);
+				token = lexer->next();
 				stateStack.push(action->shiftState);
 				break;
 			case ParseAction::ACCEPT:
@@ -321,6 +320,7 @@ NodeTree* Parser::parseInput(std::string inputString) {
 				break;
 			case ParseAction::REJECT:
 				std::cout << "REJECTED!" << std::endl;
+				std::cout << "REJECTED Symbol was " << token->toString() << std::endl;
 				return(NULL);
 				break;
 		}

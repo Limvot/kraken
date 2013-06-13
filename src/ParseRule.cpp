@@ -5,10 +5,11 @@ ParseRule::ParseRule() {
 	leftHandle = NULL;
 }
 
-ParseRule::ParseRule(Symbol* leftHandle, int pointerIndex, std::vector<Symbol*> &rightSide) {
+ParseRule::ParseRule(Symbol* leftHandle, int pointerIndex, std::vector<Symbol*> &rightSide, Symbol* lookahead) {
 	this->leftHandle = leftHandle;
 	this->pointerIndex = pointerIndex;
 	this->rightSide = rightSide;
+	this->lookahead = lookahead;
 }
 
 ParseRule::~ParseRule() {

@@ -1,16 +1,13 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#ifndef NULL
-#define NULL 0
-#endif
-
 #include "util.h"
 #include "ParseRule.h"
 #include "ParseAction.h"
 #include "Symbol.h"
 #include "State.h"
 #include "StringReader.h"
+#include "Lexer.h"
 #include "NodeTree.h"
 
 #include <map>
@@ -32,7 +29,7 @@ class Parser {
 		std::string stateSetToString();
 		void addToTable(State* fromState, Symbol* tranSymbol, ParseAction* action);
 		ParseAction* getTable(int state, Symbol* token);
-		NodeTree* parseInput(std::string inputString);
+		NodeTree* parseInput(Lexer* lexer);
 
 		std::string grammerToString();
 		std::string grammerToDOT();

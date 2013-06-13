@@ -14,7 +14,7 @@
 class ParseRule {
 	public:
 		ParseRule();
-		ParseRule(Symbol* leftHandle, int pointerIndex, std::vector<Symbol*> &rightSide);
+		ParseRule(Symbol* leftHandle, int pointerIndex, std::vector<Symbol*> &rightSide, Symbol* lookahead = NULL);
 		~ParseRule();
 
 		bool const operator==(const ParseRule &other);
@@ -41,6 +41,7 @@ class ParseRule {
 	private:
 		int pointerIndex;
 		Symbol* leftHandle;
+		Symbol* lookahead;
 		std::vector<Symbol*> rightSide;
 
 };

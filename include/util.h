@@ -1,6 +1,10 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+#ifndef NULL
+#define NULL 0
+#endif
+
 #include <string>
 #include <sstream>
 
