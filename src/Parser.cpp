@@ -51,6 +51,44 @@ void Parser::loadGrammer(std::string grammerInputString) {
 	std::cout << "Parsed!\n";
 }
 
+std::vector<Symbol*>* Parser::firstSet(Symbol* token) {
+	std::vector<Symbol*>* first = new std::vector<Symbol*>();
+	//First, if the symbol is a terminal, than it's first set is just itself.
+	if (token->isTerminal()) {
+		first->push_back(token);
+		return(first);
+	}
+	//Otherwise....
+	//Ok, to make a first set, go through the grammer, if the token is part of the left side, add it's production's first token's first set.
+	//Theoretically, if that one includes mull, do the next one too. However, null productions have not yet been implemented.
+	Symbol* rightToken = NULL;
+	std::vector<Symbol*>* recursiveFirstSet = NULL;
+	for (std::vector<ParseRule*>::size_type i = 0; i < loadedGrammer.size(); i++) {
+		if (*token == *(loadedGrammer[i]->getLeftSide())) {
+			rightToken = loadedGrammer[i]->getRightSide()[0]; //Get the first token of the right side of this rule
+			if (rightToken->isTerminal())
+				first->push_back(rightToken);
+			else {
+				//Add the entire set
+				recursiveFirstSet = firstSet(rightToken);
+				first->insert(first->end(), recursiveFirstSet->begin(), recursiveFirstSet->end());
+			}
+		}
+	}
+	return(first);
+}
+
+void Parser::printFirstSets() {
+	std::vector<Symbol*>* first = NULL;
+	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
+		first = firstSet(symbolIndexVec[i]);
+		std::cout << "First set of " << symbolIndexVec[i]->toString() << " is: ";
+		for (std::vector<Symbol*>::size_type j = 0; j < first->size(); j++)
+			std::cout << (*first)[j]->toString() << " ";
+		std::cout << std::endl;
+	}
+}
+
 void Parser::createStateSet() {
 	std::cout << "Begining creation of stateSet" << std::endl;
 	stateSets.push_back( new State(0, loadedGrammer[0]) );
