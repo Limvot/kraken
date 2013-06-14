@@ -89,6 +89,56 @@ void Parser::printFirstSets() {
 	}
 }
 
+std::vector<Symbol*>* Parser::followSet(Symbol* token) {
+	std::vector<Symbol*>* follow = new std::vector<Symbol*>();
+	//First, if the symbol is a terminal, than it's follow set is the empty set.
+	if (token->isTerminal()) {
+		return(follow);
+	}
+	//Otherwise....
+	//Ok, to make a follow set, go through the grammer looking for the terminal in the right side. If it exists
+	//Then add to it's follow set the first set of the next token, or if it is at the end, the follow set of the left side.
+	//Theoretically, if that one includes mull, do the next one too. However, null productions have not yet been implemented.
+	Symbol* rightToken = NULL;
+	std::vector<Symbol*>* recursiveFollowSet = NULL;
+	std::vector<Symbol*> rightSide;
+	for (std::vector<ParseRule*>::size_type i = 0; i < loadedGrammer.size(); i++) {
+		rightSide = loadedGrammer[i]->getRightSide();
+		for (std::vector<Symbol*>::size_type j = 0; j < rightSide.size(); j++) {
+			if (*token == *(rightSide[j])) {
+				//If this is the first grammer rule, that is the goal rule, add $EOF$ and move on
+				if (i == 0) {
+					follow->push_back(new Symbol("$EOF$", false));
+					break;
+				}
+				if (j < rightSide.size()-1) {
+					if (rightSide[j+1]->isTerminal())
+						follow->push_back(rightSide[j+1]);
+					else {
+						recursiveFollowSet = firstSet(rightSide[j+1]);
+						follow->insert(follow->begin(), recursiveFollowSet->begin(), recursiveFollowSet->end());
+					}
+				} else {
+					recursiveFollowSet = followSet(loadedGrammer[i]->getLeftSide());
+					follow->insert(follow->begin(), recursiveFollowSet->begin(), recursiveFollowSet->end());
+				}
+			}
+		}
+	}
+	return(follow);
+}
+
+void Parser::printFollowSets() {
+	std::vector<Symbol*>* follow = NULL;
+	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
+		follow = followSet(symbolIndexVec[i]);
+		std::cout << "Follow set of " << symbolIndexVec[i]->toString() << " is: ";
+		for (std::vector<Symbol*>::size_type j = 0; j < follow->size(); j++)
+			std::cout << (*follow)[j]->toString() << " ";
+		std::cout << std::endl;
+	}
+}
+
 void Parser::createStateSet() {
 	std::cout << "Begining creation of stateSet" << std::endl;
 	stateSets.push_back( new State(0, loadedGrammer[0]) );
