@@ -243,20 +243,22 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state) {
 		stateAlreadyInAllStates = false;
 		currStateSymbol = (*(newStates[i]->getBasis()))[0]->getAtIndex();
 		for (std::vector< State * >::size_type j = 0; j < stateSets->size(); j++) {
-			if (*(newStates[i]) == *((*stateSets)[j])) {
+			if (newStates[i]->basisEquals(*((*stateSets)[j]))) {
 				stateAlreadyInAllStates = true;
 				//If it does exist, we should add it as the shift/goto in the action table
-				addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
 				std::cout << "State exists, is " << j << std::endl;
+				addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
 				break;
-			}
+			}/* else {
+				std::cout << "State " << newStates[i]->toString() << " does not equal " << (*stateSets)[j]->toString() << std::endl;
+			}*/
 		}
 		if (!stateAlreadyInAllStates) {
 			stateSets->push_back(newStates[i]);
 			//If the state does not already exist, add it and add it as the shift/goto in the action table
-			addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
 			std::cout << "State does not exist" << std::endl;
 			std::cout << "State is " << newStates[i]->toString() << std::endl;
+			addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
 		}
 	}
 }
@@ -329,7 +331,7 @@ void Parser::addToTable(State* fromState, Symbol* tranSymbol, ParseAction* actio
 	//If the slot is not empty and does not contain ourself, then it is a conflict
 	else if ( *((*(table[stateNum]))[symbolIndex]) != *action) {
 		//std::cout << "not Null!" << std::endl;
-		std::cout << "Conflict between old: " << (*(table[stateNum]))[symbolIndex]->toString() << " and new: " << action->toString() << std::endl; 
+		std::cout << "State: " << stateNum << " Conflict between old: " << (*(table[stateNum]))[symbolIndex]->toString() << " and new: " << action->toString() << std::endl; 
 		//Don't overwrite
 		//(*(table[stateNum]))[symbolIndex] = action;
 	}

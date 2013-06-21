@@ -32,6 +32,18 @@ const bool State::operator!=(const State &other) {
 	return !(this->operator==(other));
 }
 
+const bool State::basisEquals(const State &other) {
+	//return (basis == other.basis && remaining == other.remaining);
+	if (basis.size() != other.basis.size())
+		return false;
+
+	for (std::vector< ParseRule* >::size_type i = 0; i < basis.size(); i++) {
+		if (*(basis[i]) != *(other.basis[i]))
+			return false;
+	}
+	return true;
+}
+
 std::vector<ParseRule*>* State::getTotal() {
 	total.clear();
 	for (std::vector<ParseRule*>::size_type i = 0; i < basis.size(); i++) {

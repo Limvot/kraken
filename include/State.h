@@ -18,6 +18,7 @@ class State {
 		State(int number, ParseRule* basis);
 		~State();
 		bool const operator==(const State &other);
+		bool const basisEquals(const State &other);
 		bool const operator!=(const State &other);
 		std::vector<ParseRule*>* getBasis();
 		std::vector<ParseRule*>* getRemaining();
