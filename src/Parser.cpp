@@ -89,14 +89,31 @@ void Parser::printFirstSets() {
 	}
 }
 
-std::vector<Symbol*>* Parser::followSet(Symbol* token) {
+
+//follow set created from grammer instead of an individual state
+//May not be totally correct, but works for now. Should be simialr to LALR(1)
+//To avoid infinite recursion, we call a function with an avoid list, adding ourselves to it as we go.
+
+std::vector<Symbol*>* Parser::gramFollowSet(Symbol* token) {
+	std::vector<Symbol*>* avoidList = new std::vector<Symbol*>();
+	return gramFollowSetAvoid(token, avoidList);
+}
+std::vector<Symbol*>* Parser::gramFollowSetAvoid(Symbol* token, std::vector<Symbol*>* avoidList) {
 	std::vector<Symbol*>* follow = new std::vector<Symbol*>();
 	//First, if the symbol is a terminal, than it's follow set is the empty set.
 	if (token->isTerminal()) {
 		return(follow);
 	}
+	//If the token is in the avoid list, just return
+	for (std::vector<Symbol*>::size_type i = 0; i < avoidList->size(); i++) {
+		if (*token == *((*avoidList)[i]))
+			return(follow);
+	}
+	//If not, we're about to process it, so add it to the avoid list
+	avoidList->push_back(token);
+
 	//Otherwise....
-	//Ok, to make a follow set, go through the grammer looking for the terminal in the right side. If it exists
+	//Ok, to make a follow set, go through the state (indicated by stateNum) looking for the terminal in the right side. If it exists
 	//Then add to it's follow set the first set of the next token, or if it is at the end, the follow set of the left side.
 	//Theoretically, if that one includes mull, do the next one too. However, null productions have not yet been implemented.
 	Symbol* rightToken = NULL;
@@ -119,7 +136,7 @@ std::vector<Symbol*>* Parser::followSet(Symbol* token) {
 						follow->insert(follow->begin(), recursiveFollowSet->begin(), recursiveFollowSet->end());
 					}
 				} else {
-					recursiveFollowSet = followSet(loadedGrammer[i]->getLeftSide());
+					recursiveFollowSet = gramFollowSetAvoid(loadedGrammer[i]->getLeftSide(), avoidList);
 					follow->insert(follow->begin(), recursiveFollowSet->begin(), recursiveFollowSet->end());
 				}
 			}
@@ -131,7 +148,7 @@ std::vector<Symbol*>* Parser::followSet(Symbol* token) {
 void Parser::printFollowSets() {
 	std::vector<Symbol*>* follow = NULL;
 	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
-		follow = followSet(symbolIndexVec[i]);
+		follow = gramFollowSet(symbolIndexVec[i]);
 		std::cout << "Follow set of " << symbolIndexVec[i]->toString() << " is: ";
 		for (std::vector<Symbol*>::size_type j = 0; j < follow->size(); j++)
 			std::cout << (*follow)[j]->toString() << " ";
@@ -210,32 +227,36 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state) {
 		//See if reduce
 		//Also, this really only needs to be done for the state's basis, but we're already iterating through, so...
 		if ((*currStateTotal)[i]->isAtEnd()) {
-			std::cout << (*currStateTotal)[i]->toString() << " is at end, adding reduce to table" << std::endl;
-			//This should iterate through the follow set, but right now is LR(0), so all symbols
-			for (std::vector<Symbol*>::size_type j = 0; j < symbolIndexVec.size(); j++)
-				addToTable(state, symbolIndexVec[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
+			//std::cout << (*currStateTotal)[i]->toString() << " is at end, adding reduce to table" << std::endl;
+			//Iterates through follow set (not quite the correct follow set though. I believe it to be close to LALR(1))
+			std::vector<Symbol*>* followSet = gramFollowSet((*currStateTotal)[i]->getLeftSide());
+			for (std::vector<Symbol*>::size_type j = 0; j < followSet->size(); j++)
+				addToTable(state, (*followSet)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
 		} else {
-			std::cout << (*currStateTotal)[i]->toString() << " is NOT at end" << std::endl;
+			//std::cout << (*currStateTotal)[i]->toString() << " is NOT at end" << std::endl;
 		}
 	}
 	//Put all our new states in the set of states only if they're not already there.
 	bool stateAlreadyInAllStates = false;
 	Symbol* currStateSymbol;
 	for (std::vector< State * >::size_type i = 0; i < newStates.size(); i++) {
+		stateAlreadyInAllStates = false;
 		currStateSymbol = (*(newStates[i]->getBasis()))[0]->getAtIndex();
 		for (std::vector< State * >::size_type j = 0; j < stateSets->size(); j++) {
 			if (*(newStates[i]) == *((*stateSets)[j])) {
 				stateAlreadyInAllStates = true;
 				//If it does exist, we should add it as the shift/goto in the action table
 				addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
+				std::cout << "State exists, is " << j << std::endl;
 				break;
 			}
 		}
 		if (!stateAlreadyInAllStates) {
 			stateSets->push_back(newStates[i]);
-			stateAlreadyInAllStates = false;
 			//If the state does not already exist, add it and add it as the shift/goto in the action table
 			addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
+			std::cout << "State does not exist" << std::endl;
+			std::cout << "State is " << newStates[i]->toString() << std::endl;
 		}
 	}
 }
@@ -302,12 +323,12 @@ void Parser::addToTable(State* fromState, Symbol* tranSymbol, ParseAction* actio
 	//std::cout << "blank is " << (*(table[stateNum]))[symbolIndex] << std::endl;
 	
 	if ( (*(table[stateNum]))[symbolIndex] == NULL ) {
-		std::cout << "Null, adding " << action->toString() << std::endl;
+		//std::cout << "Null, adding " << action->toString() << std::endl;
 		(*(table[stateNum]))[symbolIndex] = action;
 	}
 	//If the slot is not empty and does not contain ourself, then it is a conflict
 	else if ( *((*(table[stateNum]))[symbolIndex]) != *action) {
-		std::cout << "not Null!" << std::endl;
+		//std::cout << "not Null!" << std::endl;
 		std::cout << "Conflict between old: " << (*(table[stateNum]))[symbolIndex]->toString() << " and new: " << action->toString() << std::endl; 
 		//Don't overwrite
 		//(*(table[stateNum]))[symbolIndex] = action;

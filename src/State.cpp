@@ -22,7 +22,7 @@ const bool State::operator==(const State &other) {
 	if (remaining.size() != other.remaining.size()) 
 		return false;
 	for (std::vector< ParseRule* >::size_type i = 0; i < remaining.size(); i++) {
-		if (remaining[i] != other.remaining[i]) 
+		if ( *(remaining[i]) != *(other.remaining[i]) ) 
 			return false;
 	}
 	return true;
