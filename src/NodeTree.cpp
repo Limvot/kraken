@@ -1,13 +1,19 @@
 #include "NodeTree.h"
 
+int NodeTree::idCounter;
+
 NodeTree::NodeTree() {
 	parent = NULL;
 	name = "UnnamedNode";
+	
+	id = idCounter++;
 }
 
 NodeTree::NodeTree(std::string name) {
 	parent = NULL;
 	this->name = name;
+
+	id = idCounter++;
 }
 
 NodeTree::~NodeTree() {
@@ -78,7 +84,13 @@ std::string NodeTree::DOTGraphString() {
 std::string NodeTree::DOTGraphStringHelper() {
 	std::string ourDOTRelation = "";
 	for (int i = 0; i < children.size(); i++) {
-		ourDOTRelation += name + " -> " + children[i]->name + ";\n" + children[i]->DOTGraphStringHelper();
+		ourDOTRelation += getDOTName() + " -> " + children[i]->getDOTName() + ";\n" + children[i]->DOTGraphStringHelper();
 	}
 	return(ourDOTRelation);
+}
+
+std::string NodeTree::getDOTName() {
+	if (name.at(0) == '\"')
+		return truncateEnd(name) + "_" + intToString(id) + "\""; //Note that terminals already have a quote in the front of their name, so we don't need to add one
+	return "\"" + name + "_" + intToString(id) + "\"";
 }

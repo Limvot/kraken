@@ -5,8 +5,11 @@
 #define NULL 0
 #endif
 
+#include <util.h>
+
 #include <vector>
 #include <string>
+#include <iostream>
 
 class NodeTree {
 	public:
@@ -32,9 +35,13 @@ class NodeTree {
 
 	private:
 		std::string DOTGraphStringHelper();
+		std::string getDOTName();
 		std::string name;
 		NodeTree* parent;
 		std::vector<NodeTree*> children;
+
+		static int idCounter;
+		int id;
 };
 
 #endif
