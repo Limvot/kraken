@@ -16,6 +16,7 @@
 class State {
 	public:
 		State(int number, ParseRule* basis);
+		State(int number, ParseRule* basis, State* parent);
 		~State();
 		bool const operator==(const State &other);
 		bool const basisEquals(const State &other);
@@ -26,10 +27,15 @@ class State {
 		bool containsRule(ParseRule* rule);
 		std::string toString();
 
+		void addParents(std::vector<State*>* parents);
+		std::vector<State*>* getParents();
+		std::vector<State*>* getDeepParents(int depth);
+
 
 		std::vector<ParseRule*> basis;
 		std::vector<ParseRule*> remaining;
 	private:
+		std::vector<State*> parents;
 		std::vector<ParseRule*> total;
 		int number;
 };

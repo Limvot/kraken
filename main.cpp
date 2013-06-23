@@ -69,8 +69,6 @@ int main(int argc, char* argv[]) {
 
 	std::cout << programInputFileString << std::endl;
 	NodeTree* parseTree = parser.parseInput(new Lexer(programInputFileString));
-	parser.printFirstSets();
-	parser.printFollowSets();
 
 	if (parseTree) {
 		std::cout << parseTree->DOTGraphString() << std::endl;

@@ -5,6 +5,12 @@ State::State(int number, ParseRule* basis) {
 	this->basis.push_back(basis);
 }
 
+State::State(int number, ParseRule* basis, State* parent) {
+	this->number = number;
+	this->basis.push_back(basis);
+	parents.push_back(parent);
+}
+
 State::~State() {
 
 }
@@ -83,4 +89,34 @@ std::string State::toString() {
 		concat += "\t+\t" + remaining[j]->toString() + "\n";
 	}
 	return concat;
+}
+
+void State::addParents(std::vector<State*>* parents) {
+	bool alreadyIn = false;
+	for (std::vector<State*>::size_type i = 0; i < parents->size(); i++) {
+		alreadyIn = false;
+		for (std::vector<State*>::size_type j = 0; j < this->parents.size(); j++) {
+			if (this->parents[j]->basisEquals(*((*parents)[i]))) {
+				alreadyIn = true;
+				break;
+			}
+		}
+		if (!alreadyIn)
+			this->parents.push_back((*parents)[i]);
+	}
+}
+std::vector<State*>* State::getParents() {
+	return &parents;
+}
+
+std::vector<State*>* State::getDeepParents(int depth) {
+	if (depth == 1)
+		return &parents;
+	std::vector<State*>* recursiveParents = new std::vector<State*>();
+	std::vector<State*>* recursiveParentsToAdd;
+	for (std::vector<State*>::size_type i = 0; i < parents.size(); i++) {
+		recursiveParentsToAdd = parents[i]->getDeepParents(depth-1);
+		recursiveParents->insert(recursiveParents->end(), recursiveParentsToAdd->begin(), recursiveParentsToAdd->end());
+	}
+	return recursiveParents;
 }
