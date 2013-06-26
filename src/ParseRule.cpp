@@ -3,9 +3,10 @@
 ParseRule::ParseRule() {
 	pointerIndex = 0;
 	leftHandle = NULL;
+	lookahead = NULL;
 }
 
-ParseRule::ParseRule(Symbol* leftHandle, int pointerIndex, std::vector<Symbol*> &rightSide, Symbol* lookahead) {
+ParseRule::ParseRule(Symbol* leftHandle, int pointerIndex, std::vector<Symbol*> &rightSide, std::vector<Symbol*>* lookahead) {
 	this->leftHandle = leftHandle;
 	this->pointerIndex = pointerIndex;
 	this->rightSide = rightSide;
@@ -16,8 +17,12 @@ ParseRule::~ParseRule() {
 
 }
 
+const bool ParseRule::equalsExceptLookahead(const ParseRule &other) {
+	return(leftHandle == other.leftHandle && rightSide == other.rightSide && pointerIndex == other.pointerIndex);
+}
+
 const bool ParseRule::operator==(const ParseRule &other) {
-	return( leftHandle == other.leftHandle && rightSide == other.rightSide && pointerIndex == other.pointerIndex );
+	return(equalsExceptLookahead(other) && (lookahead == NULL ? other.lookahead == NULL : (*lookahead) == *(other.lookahead)));
 }
 
 const bool ParseRule::operator!=(const ParseRule &other) {
@@ -25,7 +30,7 @@ const bool ParseRule::operator!=(const ParseRule &other) {
 }
 
 ParseRule* ParseRule::clone() {
-	return( new ParseRule(leftHandle, pointerIndex, rightSide) );
+	return( new ParseRule(leftHandle, pointerIndex, rightSide, lookahead) );
 }
 
 void ParseRule::setLeftHandle(Symbol* leftHandle) {
@@ -61,7 +66,7 @@ int ParseRule::getRightSize() {
 }
 
 int ParseRule::getIndex() {
-	return pointerIndex-1;
+	return pointerIndex;
 }
 
 bool ParseRule::advancePointer() {
@@ -76,6 +81,14 @@ bool ParseRule::isAtEnd() {
 	return pointerIndex == rightSide.size();
 }
 
+void ParseRule::setLookahead(std::vector<Symbol*>* lookahead) {
+	this->lookahead = lookahead;
+}
+
+std::vector<Symbol*>* ParseRule::getLookahead() {
+	return lookahead;
+}
+
 std::string ParseRule::toString() {
 	std::string concat = leftHandle->toString() + " -> ";
 	for (int i = 0; i < rightSide.size(); i++) {
@@ -85,6 +98,12 @@ std::string ParseRule::toString() {
 	}
 	if (pointerIndex >= rightSide.size())
 		concat += "(*)";
+	if (lookahead != NULL) {
+		concat += "**";
+		for (std::vector<Symbol*>::size_type i = 0; i < lookahead->size(); i++)
+			concat += (*lookahead)[i]->toString();
+		concat += "**";
+	}
 	return(concat);
 }
 

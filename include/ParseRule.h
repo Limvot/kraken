@@ -14,9 +14,9 @@
 class ParseRule {
 	public:
 		ParseRule();
-		ParseRule(Symbol* leftHandle, int pointerIndex, std::vector<Symbol*> &rightSide, Symbol* lookahead = NULL);
+		ParseRule(Symbol* leftHandle, int pointerIndex, std::vector<Symbol*> &rightSide, std::vector<Symbol*>* lookahead);
 		~ParseRule();
-
+		const bool equalsExceptLookahead(const ParseRule &other);
 		bool const operator==(const ParseRule &other);
 		bool const operator!=(const ParseRule &other);
 
@@ -35,13 +35,16 @@ class ParseRule {
 		bool advancePointer();
 		bool isAtEnd();
 
+		void setLookahead(std::vector<Symbol*>* lookahead);
+		std::vector<Symbol*>* getLookahead();
+
 		std::string toString();
 		std::string toDOT();
 
 	private:
 		int pointerIndex;
 		Symbol* leftHandle;
-		Symbol* lookahead;
+		std::vector<Symbol*>* lookahead;
 		std::vector<Symbol*> rightSide;
 
 };

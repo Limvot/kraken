@@ -90,84 +90,27 @@ void Parser::printFirstSets() {
 }
 
 
-//follow set created from grammer instead of an individual state
-//May not be totally correct, but works for now. Should be simialr to LALR(1)
-//To avoid infinite recursion, we call a function with an avoid list, adding ourselves to it as we go.
+//Return the correct lookahead. This followSet is built based on the current rule's lookahead if at end, or the next Symbol's first set.
+std::vector<Symbol*>* Parser::incrementiveFollowSet(ParseRule* rule) {
+	//Advance the pointer past the current Symbol (the one we want the followset for) to the next symbol (which might be in our follow set, or might be the end)
+	rule = rule->clone();
+	rule->advancePointer();
+	if (rule->isAtEnd())
+		return rule->getLookahead();
+	return firstSet(rule->getAtNextIndex());
 
-std::vector<Symbol*>* Parser::gramFollowSet(State* state, Symbol* token) {
-	std::vector<Symbol*>* avoidList = new std::vector<Symbol*>();
-	return gramFollowSetAvoid(state, token, avoidList);
-}
-std::vector<Symbol*>* Parser::gramFollowSetAvoid(State* state, Symbol* token, std::vector<Symbol*>* avoidList) {
-	std::vector<Symbol*>* follow = new std::vector<Symbol*>();
-	//First, if the symbol is a terminal, than it's follow set is the empty set.
-	if (token->isTerminal()) {
-		return(follow);
-	}
-	//If the token is in the avoid list, just return
-	for (std::vector<Symbol*>::size_type i = 0; i < avoidList->size(); i++) {
-		if (*token == *((*avoidList)[i]))
-			return(follow);
-	}
-	//If not, we're about to process it, so add it to the avoid list
-	avoidList->push_back(token);
-
-	//Otherwise....
-	//Ok, to make a follow set, go through the state looking for the token in the right side. If it exists
-	//Then add to it's follow set the first set of the next token, or if it is at the end, the follow set of the left side.
-	//Theoretically, if that one includes null, do the next one too. However, null productions have not yet been implemented.
-	std::vector<ParseRule*> stateRules = *state->getTotal();
-	Symbol* rightToken = NULL;
-	std::vector<Symbol*>* recursiveFollowSet = NULL;
-	std::vector<Symbol*> rightSide;
-	for (std::vector<ParseRule*>::size_type i = 0; i < stateRules.size(); i++) {
-		rightSide = stateRules[i]->getRightSide();
-		for (std::vector<Symbol*>::size_type j = 0; j < rightSide.size(); j++) {
-			if (*token == *(rightSide[j])) {
-				//If this is the first rule in the state with no parents (the first state), that is the goal rule, add $EOF$ and move on
-				if (i == 0 && state->getParents()->size()==0) {
-					follow->push_back(new Symbol("$EOF$", false));
-					break;
-				}
-				//If we're not at the end
-				if (j < rightSide.size()-1) {
-					//If we're a terminal, that is our follow set
-					if (rightSide[j+1]->isTerminal())
-						follow->push_back(rightSide[j+1]);
-					//If a non-terminal, our follow set is this non-terminal's first set.
-					else {
-						recursiveFollowSet = firstSet(rightSide[j+1]);
-						follow->insert(follow->begin(), recursiveFollowSet->begin(), recursiveFollowSet->end());
-					}
-				//We're at the end, so try to find the follow set of the left side of this rule in the parent states
-				} else {
-					//If this state has no parents, we are the first state, and thus, since we are at the end of the rule and need the follow set of the left side, it can only be EOF.
-					if (state->getParents()->size()==0) {
-						follow->push_back(new Symbol("$EOF$", false));
-					} else {
-						//Otherwise, go back the length of this rule in states to get to where the left side is in right sides
-						std::vector<State*> stateParents = *(state->getDeepParents(rightSide.size()));
-						//std::cout << "For symbol " << token->toString() << " size is " << stateParents.size() << std::endl;
-						//std::cout << "This symbol is for state: " << state->toString() << std::endl;
-						for (std::vector<State*>::size_type k = 0; k <  stateParents.size(); k++) {
-							recursiveFollowSet = gramFollowSetAvoid(stateParents[k],stateRules[i]->getLeftSide(), avoidList);
-							follow->insert(follow->begin(), recursiveFollowSet->begin(), recursiveFollowSet->end());
-						}
-						/*for (std::vector<Symbol*>::size_type k = 0; k < follow->size(); k++)
-							std::cout << (*follow)[k]->toString() << " ";
-						std::cout << std::endl;*/
-					}
-				}
-			}
-		}
-	}
-	return(follow);
 }
 
 void Parser::createStateSet() {
 	std::cout << "Begining creation of stateSet" << std::endl;
 	//First state has no parents
-	stateSets.push_back( new State(0, loadedGrammer[0]));
+
+	//Set the first state's basis to be the goal rule with lookahead EOF
+	ParseRule* goalRule = loadedGrammer[0]->clone();
+	std::vector<Symbol*>* goalRuleLookahead = new std::vector<Symbol*>();
+	goalRuleLookahead->push_back(new Symbol("$EOF$", false));
+	goalRule->setLookahead(goalRuleLookahead);
+	stateSets.push_back( new State(0, goalRule));
 	//std::cout << "Begining for main set for loop" << std::endl;
 	for (std::vector< State* >::size_type i = 0; i < stateSets.size(); i++) {
 		//closure
@@ -180,21 +123,31 @@ void Parser::createStateSet() {
 void Parser::closure(State* state) {
 	//Add all the applicable rules.
 	//std::cout << "Closure on " << state->toString() << " is" << std::endl;
-	for (std::vector<ParseRule*>::size_type i = 0; i < state->getTotal()->size(); i++) {
+	std::vector<ParseRule*>* stateTotal = state->getTotal();
+	for (std::vector<ParseRule*>::size_type i = 0; i < stateTotal->size(); i++) {
+		ParseRule* currentStateRule = (*stateTotal)[i];
 		for (std::vector<ParseRule*>::size_type j = 0; j < loadedGrammer.size(); j++) {
 			//If the current symbol in the rule is not null (rule completed) and it equals a grammer's left side
-			if ((*state->getTotal())[i]->getAtNextIndex() != NULL && *((*state->getTotal())[i]->getAtNextIndex()) == *(loadedGrammer[j]->getLeftSide())) {
-				//std::cout << (*state->getTotal())[i]->getAtNextIndex()->toString() << " has an applicable production " << loadedGrammer[j]->toString() << std::endl;
+			ParseRule* currentGramRule = loadedGrammer[j]->clone();
+			if ( !currentStateRule->isAtEnd() && *(currentStateRule->getAtNextIndex()) == *(currentGramRule->getLeftSide())) {
+				//std::cout << (*stateTotal)[i]->getAtNextIndex()->toString() << " has an applicable production " << loadedGrammer[j]->toString() << std::endl;
+				//Now, add the correct lookahead. This followSet is built based on the current rule's lookahead if at end, or the next Symbol's first set.
+				currentGramRule->setLookahead(incrementiveFollowSet(currentStateRule));
+
+				std::vector<Symbol*>* gramRuleLookahead = currentGramRule->getLookahead();
+				//std::cout << "Current lookahead for  " << currentGramRule->toString() << std::endl;
 				//Check to make sure not already in
 				bool isAlreadyInState = false;
-				for (std::vector<ParseRule*>::size_type k = 0; k < state->getTotal()->size(); k++) {
-					if ((*state->getTotal())[k] == loadedGrammer[j]) {
+				for (std::vector<ParseRule*>::size_type k = 0; k < stateTotal->size(); k++) {
+					if (*((*stateTotal)[k]) == *currentGramRule) {
 						isAlreadyInState = true;
 						break;
 					}
 				}
-				if (!isAlreadyInState)
-					state->remaining.push_back(loadedGrammer[j]);
+				if (!isAlreadyInState) {
+					state->remaining.push_back(currentGramRule);
+					stateTotal = state->getTotal();
+				}
 			}
 		}
 	}
@@ -236,16 +189,9 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state) {
 		//See if reduce
 		//Also, this really only needs to be done for the state's basis, but we're already iterating through, so...
 		if ((*currStateTotal)[i]->isAtEnd()) {
-			std::vector<Symbol*> followSet;
-			std::vector<Symbol*>* followSetToAppend;
-			std::vector<State*> stateParents = *state->getDeepParents((*currStateTotal)[i]->getRightSide().size());
-			for (std::vector<State*>::size_type j = 0; j <  stateParents.size(); j++) {
-				followSetToAppend = gramFollowSet(stateParents[j],(*currStateTotal)[i]->getLeftSide());
-				followSet.insert(followSet.end(), followSetToAppend->begin(), followSetToAppend->end());
-
-			}
-			for (std::vector<Symbol*>::size_type j = 0; j < followSet.size(); j++)
-				addToTable(state, followSet[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
+			std::vector<Symbol*>* lookahead = (*currStateTotal)[i]->getLookahead();
+			for (std::vector<Symbol*>::size_type j = 0; j < lookahead->size(); j++)
+				addToTable(state, (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
 		} else {
 			//std::cout << (*currStateTotal)[i]->toString() << " is NOT at end" << std::endl;
 		}
@@ -260,7 +206,7 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state) {
 			if (newStates[i]->basisEquals(*((*stateSets)[j]))) {
 				stateAlreadyInAllStates = true;
 				//If it does exist, we should add it as the shift/goto in the action table
-				std::cout << "State exists, is " << j << std::endl;
+				//std::cout << "State exists, is " << j << std::endl;
 				(*stateSets)[j]->addParents(newStates[i]->getParents());
 				addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
 				break;
@@ -271,8 +217,8 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state) {
 		if (!stateAlreadyInAllStates) {
 			stateSets->push_back(newStates[i]);
 			//If the state does not already exist, add it and add it as the shift/goto in the action table
-			std::cout << "State does not exist" << std::endl;
-			std::cout << "State is " << newStates[i]->toString() << std::endl;
+			//std::cout << "State does not exist" << std::endl;
+			//std::cout << "State is " << newStates[i]->toString() << std::endl;
 			addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
 		}
 	}
@@ -408,7 +354,7 @@ NodeTree* Parser::parseInput(Lexer* lexer) {
 	while (true) {
 		std::cout << "In state: " << intToString(stateStack.top()) << std::endl;
 		action = getTable(stateStack.top(), token);
-		std::cout << "Doing ParseAction: " << action->toString() << std::endl;
+		//std::cout << "Doing ParseAction: " << action->toString() << std::endl;
 		switch (action->action) {
 			case ParseAction::REDUCE:
 			{
@@ -427,10 +373,10 @@ NodeTree* Parser::parseInput(Lexer* lexer) {
 				Symbol* newSymbol = action->reduceRule->getLeftSide()->clone();
 				newSymbol->setSubTree(reduceTreeCombine(newSymbol, poppedSymbols));
 				symbolStack.push(newSymbol);
-				std::cout << "top of state is " << intToString(stateStack.top()) << " symbolStack top is " << symbolStack.top()->toString() << std::endl;
+				//std::cout << "top of state is " << intToString(stateStack.top()) << " symbolStack top is " << symbolStack.top()->toString() << std::endl;
 				stateStack.push(getTable(stateStack.top(), symbolStack.top())->shiftState);
-				std::cout << "Reduced, now condition is" << std::endl;
-				std::cout << "top of state is " << intToString(stateStack.top()) << " symbolStack top is " << symbolStack.top()->toString() << std::endl;
+				//std::cout << "Reduced, now condition is" << std::endl;
+				//std::cout << "top of state is " << intToString(stateStack.top()) << " symbolStack top is " << symbolStack.top()->toString() << std::endl;
 				break;
 			}
 			case ParseAction::SHIFT:

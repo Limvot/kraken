@@ -81,7 +81,7 @@ bool State::containsRule(ParseRule* rule) {
 
 std::string State::toString() {
 	std::string concat = "";
-	concat += "State " + intToString(number) + ":\n";
+	concat += "State " + intToString(number) + " with " + intToString(parents.size()) + " parents:\n";
 	for (std::vector<ParseRule*>::size_type j = 0; j < basis.size(); j++) {
 		concat += "\t" + basis[j]->toString() + "\n";
 	}
@@ -110,8 +110,11 @@ std::vector<State*>* State::getParents() {
 }
 
 std::vector<State*>* State::getDeepParents(int depth) {
-	if (depth == 1)
-		return &parents;
+	if (depth <= 0) {
+		std::vector<State*>* returnSelf = new std::vector<State*>();
+		returnSelf->push_back(this);
+		return returnSelf;
+	}
 	std::vector<State*>* recursiveParents = new std::vector<State*>();
 	std::vector<State*>* recursiveParentsToAdd;
 	for (std::vector<State*>::size_type i = 0; i < parents.size(); i++) {
