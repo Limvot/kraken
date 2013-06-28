@@ -400,10 +400,10 @@ NodeTree* Parser::parseInput(Lexer* lexer) {
 }
 
 NodeTree* Parser::reduceTreeCombine(Symbol* newSymbol, std::vector<Symbol*> &symbols) {
-	NodeTree* newTree = new NodeTree(newSymbol->toString());
+	NodeTree* newTree = new NodeTree(newSymbol->getName(), newSymbol);
 	for (std::vector<Symbol*>::size_type i = 0; i < symbols.size(); i++) {
 		if (symbols[i]->isTerminal())
-			newTree->addChild(new NodeTree(symbols[i]->toString()));
+			newTree->addChild(new NodeTree(symbols[i]->getName(), symbols[i]));
 		else
 			newTree->addChild(symbols[i]->getSubTree());
 	}

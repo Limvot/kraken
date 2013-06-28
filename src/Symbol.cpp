@@ -4,6 +4,7 @@ Symbol::Symbol(std::string name, bool isTerminal) {
 	this->name = name;
 	this->terminal = isTerminal;
 	this->subTree = NULL;
+	value = "HAHAHA VALUE";
 }
 
 Symbol::Symbol(std::string name, bool isTerminal, NodeTree* tree) {
@@ -20,8 +21,12 @@ const bool Symbol::operator==(const Symbol &other) {
 	return( name == other.name && terminal == other.terminal);
 }
 
+std::string Symbol::getName() {
+	return(name);
+}
+
 std::string Symbol::toString() {
-	return(name); //+ "(" + (terminal ? "T" : "NT") + ")");
+	return(name + (terminal ? " " + value : ""));
 }
 
 Symbol* Symbol::clone() {

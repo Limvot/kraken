@@ -5,14 +5,16 @@ int NodeTree::idCounter;
 NodeTree::NodeTree() {
 	parent = NULL;
 	name = "UnnamedNode";
+	symbol = NULL;
 	
 	id = idCounter++;
 }
 
-NodeTree::NodeTree(std::string name) {
+NodeTree::NodeTree(std::string name, Symbol* inSymbol) {
 	parent = NULL;
+	symbol = NULL;
 	this->name = name;
-
+	this->symbol = inSymbol;
 	id = idCounter++;
 }
 
@@ -77,6 +79,14 @@ void NodeTree::setName(std::string name) {
 	this->name = name;
 }
 
+Symbol* NodeTree::getSymbol() {
+	return symbol;
+}
+
+void NodeTree::setSymbol(Symbol* symbol) {
+	this->symbol = symbol;
+}
+
 std::string NodeTree::DOTGraphString() {
 	return( "digraph Kraken { \n" + DOTGraphStringHelper() + "}");
 }
@@ -90,7 +100,7 @@ std::string NodeTree::DOTGraphStringHelper() {
 }
 
 std::string NodeTree::getDOTName() {
-	if (name.at(0) == '\"')
-		return truncateEnd(name) + "_" + intToString(id) + "\""; //Note that terminals already have a quote in the front of their name, so we don't need to add one
+	if (symbol != NULL)
+		return "\"" + name + "-" + symbol->toString() + "_" + intToString(id) + "\""; //Note that terminals already have a quote in the front of their name, so we don't need to add one
 	return "\"" + name + "_" + intToString(id) + "\"";
 }

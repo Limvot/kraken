@@ -6,15 +6,19 @@
 #endif
 
 #include <util.h>
+#include <Symbol.h>
 
 #include <vector>
 #include <string>
 #include <iostream>
 
+//Circular references
+class Symbol;
+
 class NodeTree {
 	public:
 		NodeTree();
-		NodeTree(std::string name);
+		NodeTree(std::string name, Symbol* inSymbol);
 		~NodeTree();
 
 		void setParent(NodeTree* parent);
@@ -26,9 +30,12 @@ class NodeTree {
 		void removeChild(int index);
 
 		NodeTree* get(int index);
-		std::string getName();
 
+		std::string getName();
 		void setName(std::string);
+
+		Symbol* getSymbol();
+		void setSymbol(Symbol* symbol);
 
 		int size();
 		std::string DOTGraphString();
@@ -37,6 +44,7 @@ class NodeTree {
 		std::string DOTGraphStringHelper();
 		std::string getDOTName();
 		std::string name;
+		Symbol* symbol;
 		NodeTree* parent;
 		std::vector<NodeTree*> children;
 

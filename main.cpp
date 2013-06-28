@@ -29,15 +29,6 @@ int main(int argc, char* argv[]) {
 		return(1);
 	}
 
-	NodeTree root;
-	root.setName("Root");
-	root.addChild(new NodeTree("SomeChild"));
-	root.addChild(new NodeTree("SomeOtherChild"));
-	root.get(0)->addChild(new NodeTree("Grandchildren"));
-
-	//outFile << root.DOTGraphString() << std::endl;
-
-
 	//Read the input file into a string
 	std::string programInputFileString, grammerInputFileString;
 	std::string line;
