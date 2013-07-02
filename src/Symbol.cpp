@@ -7,6 +7,13 @@ Symbol::Symbol(std::string name, bool isTerminal) {
 	value = "HAHAHA VALUE";
 }
 
+Symbol::Symbol(std::string name, bool isTerminal, std::string value) {
+	this->name = name;
+	this->terminal = isTerminal;
+	this->subTree = NULL;
+	this->value = value;
+}
+
 Symbol::Symbol(std::string name, bool isTerminal, NodeTree* tree) {
 	this->name = name;
 	this->terminal = isTerminal;

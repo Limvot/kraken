@@ -3,6 +3,7 @@
 
 #include "util.h"
 #include "StringReader.h"
+#include "RegEx.h"
 #include "Symbol.h"
 
 #include <string>
@@ -12,9 +13,12 @@ class Lexer {
 		Lexer();
 		Lexer(std::string inputString);
 		~Lexer();
+		void addRegexString(std::string regExString);
 		void setInput(std::string inputString);
 		Symbol* next();
 	private:
-		StringReader reader;
+		std::vector<RegEx*> regExs;
+		std::string input;
+		int currentPosition;
 };
 #endif

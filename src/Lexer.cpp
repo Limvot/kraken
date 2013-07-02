@@ -5,7 +5,8 @@ Lexer::Lexer() {
 }
 
 Lexer::Lexer(std::string inputString) {
-	reader.setString(inputString);
+	input = inputString;
+	currentPosition = 0;
 }
 
 Lexer::~Lexer() {
@@ -13,12 +14,24 @@ Lexer::~Lexer() {
 }
 
 void Lexer::setInput(std::string inputString) {
-	reader.setString(inputString);
+	input = inputString;
+}
+
+void Lexer::addRegexString(std::string regExString) {
+	regExs.push_back(new RegEx(regExString));
 }
 
 Symbol* Lexer::next() {
-	std::string token = reader.word();
-	if (token != "")
-		return new Symbol("\""+token+"\"", true);
-	return new Symbol("$EOF$", false);
+	int longestMatch = 0;
+	RegEx * longestRegEx = NULL;
+	std::string remainingString = input.substr(currentPosition,input.length()-1);
+	for (std::vector<RegEx*>::size_type i = 0; i < regExs.size(); i++) {
+		int currentMatch = regExs[i]->longMatch(remainingString);
+		if (currentMatch > longestMatch) {
+			longestMatch = currentMatch;
+			longestRegEx = regExs[i];
+		}
+	}
+	currentPosition += longestMatch;
+	return new Symbol(longestRegEx->getPattern(), true);
 }

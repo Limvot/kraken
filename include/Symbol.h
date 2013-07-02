@@ -16,6 +16,7 @@ class NodeTree;
 class Symbol {
 	public:
 		Symbol(std::string name, bool isTerminal);
+		Symbol(std::string name, bool isTerminal, std::string value);
 		Symbol(std::string name, bool isTerminal, NodeTree* tree);
 		~Symbol();
 		bool const operator==(const Symbol &other);
@@ -30,8 +31,6 @@ class Symbol {
 		std::string value;
 		bool terminal;
 		NodeTree* subTree;
-
-
 };
 
 #endif
