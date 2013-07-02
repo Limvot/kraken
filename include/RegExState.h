@@ -11,6 +11,7 @@ class RegExState {
 	public:
 		RegExState(RegExState* inInnerState);
 		RegExState(char inCharacter);
+		RegExState();
 
 		~RegExState();
 

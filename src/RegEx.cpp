@@ -3,10 +3,10 @@
 RegEx::RegEx(std::string inPattern) {
 	pattern = inPattern;
 	RegExState* current;
-	begin = new RegExState(pattern[0]);
+	begin = new RegExState();
 	current = begin;
-	for (int i = 1; i < pattern.length(); i++) {
-		RegExState* next = new RegExState(pattern.at(i));
+	for (int i = 0; i < pattern.length(); i++) {
+		RegExState* next = new RegExState(pattern[i]);
 		current->addNext(next);
 		current = next;
 	}
@@ -18,14 +18,11 @@ RegEx::~RegEx() {
 
 int RegEx::longMatch(std::string stringToMatch) {
 	//If the beginning character is wrong, exit immediantly. Otherwise, get all the states we can get from adding the second character to the state where we accepted the first
-	if (!begin->characterIs(stringToMatch[0]))
-		return -1;
-	std::cout << "Matched first character: " << stringToMatch[0] << std::endl;
-	int lastMatch = 0;
-	currentStates = *(begin->advance(stringToMatch[1]));
+	int lastMatch = -1;
+	currentStates = *(begin->advance(stringToMatch[0]));
 	std::vector<RegExState*> nextStates;
 
-	for (int i = 2; i < stringToMatch.size(); i++) {
+	for (int i = 1; i < stringToMatch.size(); i++) {
 		//Go through every current state. Check to see if it is goal, if so update last goal.
 		//Also, add each state's advance to nextStates
 		for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++) {

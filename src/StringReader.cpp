@@ -66,6 +66,10 @@ std::string StringReader::getTokens(std::vector<std::string> stop_chars, bool tr
         }
     }
 
+    if (rd_string[str_pos] == '\"') {
+        found_pos = rd_string.find("\"", str_pos+1);
+    }
+
     if (found_pos == str_pos)                                   //We are at the endline
     {
         str_pos++;
@@ -78,15 +82,24 @@ std::string StringReader::getTokens(std::vector<std::string> stop_chars, bool tr
         return "";
     } else {
 
-        std::string string_section;
-
         if (truncateEnd)                                       //If we want to get rid of the delimiting character, which is the default, don't add the last char. Note we have to increase str_pos by one manually later
             found_pos -= 1;
+
+        if (rd_string[str_pos] == '\"')
+            found_pos++;
+
+        std::string string_section;
 
         for (; str_pos <= found_pos; str_pos++)
         {
             string_section += rd_string[str_pos];
         }
+
+        // if (str_pos <= found_pos) {
+        //     string_section = rd_string.substr(str_pos, found_pos+1);
+        //     str_pos = found_pos+1;
+        // }
+        // std::cout << string_section << " - " << str_pos << " - " << found_pos << std::endl;
 
         if (truncateEnd)                                       //Ok, we didn't add the last char, but str_pos now points at that char. So we move it one ahead.
             str_pos++;

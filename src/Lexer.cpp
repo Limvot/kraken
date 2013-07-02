@@ -27,7 +27,7 @@ Symbol* Lexer::next() {
 	//If we're at the end, return an eof
 	if (currentPosition == input.length()-1)
 		return new Symbol("$EOF$", false);
-	int longestMatch = 0;
+	int longestMatch = -1;
 	RegEx* longestRegEx = NULL;
 	std::string remainingString = input.substr(currentPosition,input.length()-1);
 	for (std::vector<RegEx*>::size_type i = 0; i < regExs.size(); i++) {

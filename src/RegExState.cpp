@@ -9,6 +9,11 @@ RegExState::RegExState(char inCharacter) {
 	inner = NULL;
 }
 
+RegExState::RegExState() {
+	character = 0;
+	inner = NULL;
+}
+
 RegExState::~RegExState() {
 	//No cleanup necessary
 }
@@ -36,7 +41,7 @@ bool RegExState::isGoal() {
 
 std::string RegExState::toString() {
 	std::string string = "";
-	string += character;
+	string += std::string("\"") + character + "\"";
 	for (std::vector<RegExState*>::size_type i = 0; i < nextStates.size(); i++)
 		string += "->" + nextStates[i]->toString() + " EC ";
 	//std::cout << "inner = " << inner << " nextStates size = " << nextStates.size() <<std::endl;
