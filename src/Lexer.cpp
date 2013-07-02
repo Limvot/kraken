@@ -2,6 +2,7 @@
 
 Lexer::Lexer() {
 	//Do nothing
+	currentPosition = 0;
 }
 
 Lexer::Lexer(std::string inputString) {
@@ -17,21 +18,33 @@ void Lexer::setInput(std::string inputString) {
 	input = inputString;
 }
 
-void Lexer::addRegexString(std::string regExString) {
+void Lexer::addRegEx(std::string regExString) {
 	regExs.push_back(new RegEx(regExString));
 }
 
 Symbol* Lexer::next() {
+	std::cout << "Current at is " << input.substr(currentPosition,input.length()-1) << " currentPos is " << currentPosition <<std::endl;
+	//If we're at the end, return an eof
+	if (currentPosition == input.length()-1)
+		return new Symbol("$EOF$", false);
 	int longestMatch = 0;
-	RegEx * longestRegEx = NULL;
+	RegEx* longestRegEx = NULL;
 	std::string remainingString = input.substr(currentPosition,input.length()-1);
 	for (std::vector<RegEx*>::size_type i = 0; i < regExs.size(); i++) {
+		std::cout << "Trying regex " << regExs[i]->toString() << std::endl;
 		int currentMatch = regExs[i]->longMatch(remainingString);
 		if (currentMatch > longestMatch) {
 			longestMatch = currentMatch;
 			longestRegEx = regExs[i];
 		}
 	}
-	currentPosition += longestMatch;
-	return new Symbol(longestRegEx->getPattern(), true);
+	if (longestRegEx != NULL) {
+		currentPosition += longestMatch + 1;
+		std::cout << "Current at is " << input.substr(currentPosition,input.length()-1) << " currentPos is " << currentPosition <<std::endl;
+		return new Symbol(longestRegEx->getPattern(), true);
+	} else {
+		std::cout << "Found no applicable regex" << std::endl;
+		std::cout << "Remaining is " << input.substr(currentPosition,input.length()-1) << std::endl;
+		return NULL;
+	}
 }

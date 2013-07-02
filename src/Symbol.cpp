@@ -4,7 +4,7 @@ Symbol::Symbol(std::string name, bool isTerminal) {
 	this->name = name;
 	this->terminal = isTerminal;
 	this->subTree = NULL;
-	value = "HAHAHA VALUE";
+	value = "NoValue";
 }
 
 Symbol::Symbol(std::string name, bool isTerminal, std::string value) {

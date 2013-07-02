@@ -33,7 +33,15 @@ void Parser::loadGrammer(std::string grammerInputString) {
 		//Add the right side, adding new Symbols to symbol map.
 		currToken = reader.word();
 		while (currToken != ";") {
-			currentRule->appendToRight(getOrAddSymbol(currToken, currToken.at(0)=='\"')); //If first character is a ", then is a terminal
+			if (currToken[0] == '\"') {
+				//Remove the quotes
+				currToken = currToken.substr(1,currToken.length()-2);
+				lexer.addRegEx(currToken);
+				currentRule->appendToRight(getOrAddSymbol(currToken, true)); //If first character is a ", then is a terminal
+			} else {
+				currentRule->appendToRight(getOrAddSymbol(currToken, false));
+			}
+
 			currToken = reader.word();
 			//If there are multiple endings to this rule, finish this rule and start a new one with same left handle
 			if (currToken == "|") {
@@ -344,8 +352,9 @@ ParseAction* Parser::getTable(int state, Symbol* token) {
 	return (action);
 }
 
-NodeTree* Parser::parseInput(Lexer* lexer) {
-	Symbol* token = lexer->next();
+NodeTree* Parser::parseInput(std::string inputString) {
+	lexer.setInput(inputString);
+	Symbol* token = lexer.next();
 	ParseAction* action;
 
 	stateStack.push(0);
@@ -383,7 +392,7 @@ NodeTree* Parser::parseInput(Lexer* lexer) {
 				std::cout << "Shift " << token->toString() << std::endl;
 
 				symbolStack.push(token);
-				token = lexer->next();
+				token = lexer.next();
 				stateStack.push(action->shiftState);
 				break;
 			case ParseAction::ACCEPT:

@@ -13,7 +13,7 @@ class Lexer {
 		Lexer();
 		Lexer(std::string inputString);
 		~Lexer();
-		void addRegexString(std::string regExString);
+		void addRegEx(std::string regExString);
 		void setInput(std::string inputString);
 		Symbol* next();
 	private:

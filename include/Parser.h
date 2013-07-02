@@ -32,7 +32,7 @@ class Parser {
 		std::string stateSetToString();
 		void addToTable(State* fromState, Symbol* tranSymbol, ParseAction* action);
 		ParseAction* getTable(int state, Symbol* token);
-		NodeTree* parseInput(Lexer* lexer);
+		NodeTree* parseInput(std::string inputString);
 
 		std::string grammerToString();
 		std::string grammerToDOT();
@@ -41,6 +41,7 @@ class Parser {
 
 	private:
 		StringReader reader;
+		Lexer lexer;
 		std::map<std::string, Symbol*> symbols;
 		std::vector<ParseRule*> loadedGrammer;
 

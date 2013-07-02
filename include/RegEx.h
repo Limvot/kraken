@@ -15,6 +15,7 @@ class RegEx {
 
 		int longMatch(std::string stringToMatch);
 		std::string getPattern();
+		std::string toString();
 	private:
 		std::string pattern;
 		RegExState* begin;

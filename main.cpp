@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
 	//outFile << parser.grammerToDOT() << std::endl;
 
 	std::cout << programInputFileString << std::endl;
-	NodeTree* parseTree = parser.parseInput(new Lexer(programInputFileString));
+	NodeTree* parseTree = parser.parseInput(programInputFileString);
 
 	if (parseTree) {
 		std::cout << parseTree->DOTGraphString() << std::endl;
