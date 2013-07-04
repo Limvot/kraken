@@ -2,14 +2,65 @@
 
 RegEx::RegEx(std::string inPattern) {
 	pattern = inPattern;
-	RegExState* current;
+	std::vector<RegExState*> previousStates;
+	std::vector<RegExState*> currentStates;
 	begin = new RegExState();
-	current = begin;
+	currentStates.push_back(begin);
 	for (int i = 0; i < pattern.length(); i++) {
-		RegExState* next = new RegExState(pattern[i]);
-		current->addNext(next);
-		current = next;
+		switch (pattern[i]) {
+			case '*':
+			{
+				std::cout << "Star at " << i << " in " << pattern << std::endl;
+				for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++)
+					for (std::vector<RegExState*>::size_type k = 0; k < currentStates.size(); k++)
+						currentStates[j]->addNext(currentStates[k]);
+				//add all previous states to current states to enable skipping over the starred item
+				currentStates.insert(currentStates.end(), previousStates.begin(), previousStates.end());
+			}
+				break;
+			case '+':
+			{
+				std::cout << "Plus at " << i << " in " << pattern << std::endl;
+				//OtherThingy
+				//current->addNext(current);
+				for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++)
+					for (std::vector<RegExState*>::size_type k = 0; k < currentStates.size(); k++)
+						currentStates[j]->addNext(currentStates[k]);
+			}
+				break;
+			case '?':
+			{
+				std::cout << "Question at " << i << " in " << pattern << std::endl;
+				//add all previous states to current states to enable skipping over the questioned item
+				currentStates.insert(currentStates.end(), previousStates.begin(), previousStates.end());
+			}
+				break;
+			case '|':
+				std::cout << "Alternation at " << i << " in " << pattern << std::endl;
+				//alternation
+				break;
+			case '(':
+				std::cout << "Begin peren at " << i << " in " << pattern << std::endl;
+				//perentheses
+				break;
+			default:
+			{
+				std::cout << "Regular" << std::endl;
+				//Ahh, it's regular
+				RegExState* next = new RegExState(pattern[i]);
+				for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++)
+					currentStates[j]->addNext(next);
+
+				previousStates.clear();
+				previousStates.insert(previousStates.begin(), currentStates.begin(), currentStates.end());
+				currentStates.clear();
+				currentStates.push_back(next);
+			}
+		}
 	}
+	//last one is goal state
+	for (std::vector<RegExState*>::size_type i = 0; i < currentStates.size(); i++)
+		currentStates[i]->addNext(NULL);
 }
 
 RegEx::~RegEx() {
