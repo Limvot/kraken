@@ -11,9 +11,10 @@ RegEx::RegEx(std::string inPattern) {
 			case '*':
 			{
 				std::cout << "Star at " << i << " in " << pattern << std::endl;
-				for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++)
-					for (std::vector<RegExState*>::size_type k = 0; k < currentStates.size(); k++)
-						currentStates[j]->addNext(currentStates[k]);
+				// for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++)
+				// 	for (std::vector<RegExState*>::size_type k = 0; k < currentStates.size(); k++)
+				// 		currentStates[j]->addNext(currentStates[k]);
+				currentStates[currentStates.size()-1]->addNext(currentStates[currentStates.size()-1]);
 				//add all previous states to current states to enable skipping over the starred item
 				currentStates.insert(currentStates.end(), previousStates.begin(), previousStates.end());
 			}
@@ -23,9 +24,10 @@ RegEx::RegEx(std::string inPattern) {
 				std::cout << "Plus at " << i << " in " << pattern << std::endl;
 				//OtherThingy
 				//current->addNext(current);
-				for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++)
-					for (std::vector<RegExState*>::size_type k = 0; k < currentStates.size(); k++)
-						currentStates[j]->addNext(currentStates[k]);
+				// for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++)
+				// 	for (std::vector<RegExState*>::size_type k = 0; k < currentStates.size(); k++)
+				// 		currentStates[j]->addNext(currentStates[k]);
+				currentStates[currentStates.size()-1]->addNext(currentStates[currentStates.size()-1]);
 			}
 				break;
 			case '?':
@@ -36,8 +38,16 @@ RegEx::RegEx(std::string inPattern) {
 			}
 				break;
 			case '|':
+			{
 				std::cout << "Alternation at " << i << " in " << pattern << std::endl;
 				//alternation
+				i++;
+				RegExState* next = new RegExState(pattern[i]);
+				for (std::vector<RegExState*>::size_type j = 0; j < previousStates.size(); j++)
+					previousStates[j]->addNext(next);
+				currentStates.push_back(next);
+			}
+
 				break;
 			case '(':
 				std::cout << "Begin peren at " << i << " in " << pattern << std::endl;
