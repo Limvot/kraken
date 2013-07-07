@@ -6,6 +6,9 @@
 #include "Symbol.h"
 
 #include <string>
+#include <utility>
+#include <stack>
+#include <vector>
 
 class RegEx {
 	public:

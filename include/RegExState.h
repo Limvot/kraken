@@ -18,8 +18,16 @@ class RegExState {
 		void addNext(RegExState* nextState);
 		bool characterIs(char inCharacter);
 		std::vector<RegExState*>* advance(char advanceCharacter);
+		std::vector<RegExState*>* getNextStates();
+
+		RegExState* getInner();
+		
 		bool isGoal();
 		std::string toString();
+		std::string toString(RegExState* avoid);
+		std::string toString(std::vector<RegExState*>* avoid);
+
+		char getCharacter();
 
 	private:
 		std::vector<RegExState*> nextStates;
