@@ -26,6 +26,7 @@ class ParseRule {
 		void appendToRight(Symbol* appendee);
 
 		Symbol* getLeftSide();
+		void setRightSide(std::vector<Symbol*> &rightSide);
 		std::vector<Symbol*> getRightSide();
 		Symbol* getAtNextIndex();
 		Symbol* getAtIndex();

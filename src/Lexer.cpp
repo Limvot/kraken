@@ -26,7 +26,7 @@ Symbol* Lexer::next() {
 	std::cout << "Current at is " << input.substr(currentPosition,input.length()-1) << " currentPos is " << currentPosition <<std::endl;
 	//If we're at the end, return an eof
 	if (currentPosition == input.length()-1)
-		return new Symbol("$EOF$", false);
+		return new Symbol("$EOF$", true);
 	int longestMatch = -1;
 	RegEx* longestRegEx = NULL;
 	std::string remainingString = input.substr(currentPosition,input.length()-1);

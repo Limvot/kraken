@@ -45,6 +45,10 @@ Symbol* ParseRule::getLeftSide() {
 	return leftHandle;
 }
 
+void ParseRule::setRightSide(std::vector<Symbol*> &rightSide) {
+	this->rightSide = rightSide;
+}
+
 std::vector<Symbol*> ParseRule::getRightSide() {
 	return rightSide;
 }

@@ -47,6 +47,11 @@ class Parser {
 
 		std::vector< State* > stateSets;
 
+		//The EOFSymbol, a pointer because of use in table, etc
+		Symbol* EOFSymbol;
+		//The nullSymbol, ditto with above. Also used in comparisons
+		Symbol* nullSymbol;
+
 		std::vector< std::vector<ParseAction*>* >  table;
 		std::vector<Symbol*> symbolIndexVec;
 
