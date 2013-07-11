@@ -73,6 +73,21 @@ void Parser::loadGrammer(std::string grammerInputString) {
 }
 
 std::vector<Symbol*>* Parser::firstSet(Symbol* token) {
+	//std::cout << "Simple first set for " << token->toString() << std::endl;
+	std::vector<Symbol*> avoidList;
+	return firstSet(token, avoidList);
+}
+
+std::vector<Symbol*>* Parser::firstSet(Symbol* token, std::vector<Symbol*> &avoidList) {
+	//If we've already done this token, don't do it again
+	for (std::vector<Symbol*>::size_type i = 0; i < avoidList.size(); i++)
+		if (*(avoidList[i]) == *token) {
+			return new std::vector<Symbol*>();
+			//std::cout << "Avoiding firstSet for " << token->toString() << std::endl;
+		}
+	avoidList.push_back(token);
+	//std::cout << "Cpx first set for " << token->toString() << std::endl;
+	//std::cout << "Doing first set for " << token->toString() << std::endl;
 	std::vector<Symbol*>* first = new std::vector<Symbol*>();
 	//First, if the symbol is a terminal, than it's first set is just itself.
 	if (token->isTerminal()) {
@@ -96,7 +111,7 @@ std::vector<Symbol*>* Parser::firstSet(Symbol* token) {
 					recursiveFirstSet->push_back(rightToken);
 				} else {
 					//Add the entire set
-					recursiveFirstSet = firstSet(rightToken);
+					recursiveFirstSet = firstSet(rightToken, avoidList);
 				}
 				first->insert(first->end(), recursiveFirstSet->begin(), recursiveFirstSet->end());
 				//Check to see if the current recursiveFirstSet contains NULL, if so, then go through again with the next token. (if there is one)
@@ -106,6 +121,7 @@ std::vector<Symbol*>* Parser::firstSet(Symbol* token) {
 						recFirstSetHasNull = true;
 					}
 				}
+				delete recursiveFirstSet;
 				j++;
 			} while (recFirstSetHasNull && loadedGrammer[i]->getRightSide().size() > j);
 		}
@@ -159,6 +175,7 @@ std::vector<Symbol*>* Parser::incrementiveFollowSet(ParseRule* rule) {
 		for (std::vector<Symbol*>::size_type i = 0; i < symbolFirstSet->size(); i++) {
 			if (*((*symbolFirstSet)[i]) == *nullSymbol) {
 				symbolFirstSetHasNull = true;
+				symbolFirstSet->erase(symbolFirstSet->begin()+i);
 				break;
 			}
 		}
@@ -170,7 +187,17 @@ std::vector<Symbol*>* Parser::incrementiveFollowSet(ParseRule* rule) {
 		symbolFirstSet = rule->getLookahead();
 		followSet->insert(followSet->end(), symbolFirstSet->begin(), symbolFirstSet->end());
 	}
-	return followSet;
+	std::vector<Symbol*>* followSetReturn = new std::vector<Symbol*>();
+	for (std::vector<Symbol*>::size_type i = 0; i < followSet->size(); i++) {
+		bool alreadyIn = false;
+		for (std::vector<Symbol*>::size_type j = 0; j < followSetReturn->size(); j++)
+			if (*((*followSet)[i]) == *((*followSetReturn)[j]))
+				alreadyIn = true;
+		if (!alreadyIn)
+			followSetReturn->push_back((*followSet)[i]);
+	}
+	delete followSet;
+	return followSetReturn;
 }
 
 void Parser::closure(State* state) {
@@ -185,6 +212,7 @@ void Parser::closure(State* state) {
 			if ( !currentStateRule->isAtEnd() && *(currentStateRule->getAtNextIndex()) == *(currentGramRule->getLeftSide())) {
 				//std::cout << (*stateTotal)[i]->getAtNextIndex()->toString() << " has an applicable production " << loadedGrammer[j]->toString() << std::endl;
 				//Now, add the correct lookahead. This followSet is built based on the current rule's lookahead if at end, or the next Symbol's first set.
+				//std::cout << "Setting lookahead for " << currentGramRule->toString() << " in state " << state->toString() << std::endl;
 				currentGramRule->setLookahead(incrementiveFollowSet(currentStateRule));
 
 				//Check to make sure not already in
@@ -340,7 +368,7 @@ void Parser::addToTable(State* fromState, Symbol* tranSymbol, ParseAction* actio
 		(*(table[stateNum]))[symbolIndex] = action;
 	}
 	//If the slot is not empty and does not contain ourself, then it is a conflict
-	else if ( *((*(table[stateNum]))[symbolIndex]) != *action) {
+	else if ( !(*(table[stateNum]))[symbolIndex]->equalsExceptLookahead(*action)) {
 		//std::cout << "not Null!" << std::endl;
 		std::cout << "State: " << stateNum << " Conflict between old: " << (*(table[stateNum]))[symbolIndex]->toString() << " and new: " << action->toString() << std::endl; 
 		//Don't overwrite

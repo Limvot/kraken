@@ -18,6 +18,7 @@ class ParseAction {
 		ParseAction(ActionType action, ParseRule* reduceRule);
 		ParseAction(ActionType action, int shiftState);
 		~ParseAction();
+		bool const equalsExceptLookahead(const ParseAction &other);
 		bool const operator==(const ParseAction &other);
 		bool const operator!=(const ParseAction &other);
 		std::string toString();

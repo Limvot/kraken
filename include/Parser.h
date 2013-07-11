@@ -24,6 +24,7 @@ class Parser {
 
 		void loadGrammer(std::string grammerInputString);
 		std::vector<Symbol*>* firstSet(Symbol* token);
+		std::vector<Symbol*>* firstSet(Symbol* token, std::vector<Symbol*> &avoidList);
 		void printFirstSets();
 		std::vector<Symbol*>* incrementiveFollowSet(ParseRule* rule);
 		void createStateSet();

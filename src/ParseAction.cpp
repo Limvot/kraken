@@ -22,6 +22,9 @@ ParseAction::~ParseAction() {
 
 }
 
+const bool ParseAction::equalsExceptLookahead(const ParseAction &other) {
+	return( action == other.action && ( reduceRule == other.reduceRule || reduceRule->equalsExceptLookahead(*(other.reduceRule)) ) && shiftState == other.shiftState);
+}
 
 const bool ParseAction::operator==(const ParseAction &other) {
 	return( action == other.action && ( reduceRule == other.reduceRule || *reduceRule == *(other.reduceRule) ) && shiftState == other.shiftState);

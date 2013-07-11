@@ -79,7 +79,7 @@ std::string RegExState::toString(std::vector<RegExState*>* avoid) {
 			}
 		}
 		if (inAvoid) {
-			string += "->LoopDetected";
+			string += "->loop";
 			continue;
 		}
 
