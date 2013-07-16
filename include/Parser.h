@@ -9,6 +9,7 @@
 #include "StringReader.h"
 #include "Lexer.h"
 #include "NodeTree.h"
+#include "Table.h"
 
 #include <map>
 #include <vector>
@@ -25,14 +26,13 @@ class Parser {
 		void loadGrammer(std::string grammerInputString);
 		std::vector<Symbol*>* firstSet(Symbol* token);
 		std::vector<Symbol*>* firstSet(Symbol* token, std::vector<Symbol*> &avoidList);
-		void printFirstSets();
 		std::vector<Symbol*>* incrementiveFollowSet(ParseRule* rule);
 		void createStateSet();
 		void closure(State* state);
 		void addStates(std::vector< State* >* stateSets, State* state);
+		int stateNum(State* state);
 		std::string stateSetToString();
-		void addToTable(State* fromState, Symbol* tranSymbol, ParseAction* action);
-		ParseAction* getTable(int state, Symbol* token);
+
 		NodeTree* parseInput(std::string inputString);
 
 		std::string grammerToString();
@@ -53,8 +53,8 @@ class Parser {
 		//The nullSymbol, ditto with above. Also used in comparisons
 		Symbol* nullSymbol;
 
-		std::vector< std::vector<ParseAction*>* >  table;
-		std::vector<Symbol*> symbolIndexVec;
+		Table table;
+
 
 		std::stack<int> stateStack;
 		std::stack<Symbol*> symbolStack;

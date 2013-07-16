@@ -3,6 +3,7 @@
 Parser::Parser() {
 	EOFSymbol = new Symbol("$EOF$", true);
 	nullSymbol = new Symbol("$NULL$", true);
+	table.setSymbols(EOFSymbol, nullSymbol);
 }
 
 Parser::~Parser() {
@@ -129,17 +130,6 @@ std::vector<Symbol*>* Parser::firstSet(Symbol* token, std::vector<Symbol*> &avoi
 	return(first);
 }
 
-void Parser::printFirstSets() {
-	std::vector<Symbol*>* first = NULL;
-	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
-		first = firstSet(symbolIndexVec[i]);
-		std::cout << "First set of " << symbolIndexVec[i]->toString() << " is: ";
-		for (std::vector<Symbol*>::size_type j = 0; j < first->size(); j++)
-			std::cout << (*first)[j]->toString() << " ";
-		std::cout << std::endl;
-	}
-}
-
 void Parser::createStateSet() {
 	std::cout << "Begining creation of stateSet" << std::endl;
 	//First state has no parents
@@ -157,6 +147,15 @@ void Parser::createStateSet() {
 		//Add the new states
 		addStates(&stateSets, stateSets[i]);
 	}
+}
+
+int Parser::stateNum(State* state) {
+	for (std::vector<State*>::size_type i = 0; i < stateSets.size(); i++) {
+		if (*(stateSets[i]) == *state) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 //Return the correct lookahead. This followSet is built based on the current rule's lookahead if at end, or the next Symbol's first set.
@@ -270,13 +269,13 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state) {
 		std::vector<Symbol*>* lookahead = (*currStateTotal)[i]->getLookahead();
 		if ((*currStateTotal)[i]->isAtEnd()) {
 			for (std::vector<Symbol*>::size_type j = 0; j < lookahead->size(); j++)
-				addToTable(state, (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
+				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
 		} else if (*((*currStateTotal)[i]->getAtNextIndex()) == *nullSymbol) {
 			//If is a rule that produces only NULL, add in the approprite reduction, but use a new rule with a right side of length 0. (so we don't pop off stack)
 			ParseRule* nullRule = (*currStateTotal)[i]->clone();
 			nullRule->setRightSide(* new std::vector<Symbol*>());
 			for (std::vector<Symbol*>::size_type j = 0; j < lookahead->size(); j++)
-				addToTable(state, (*lookahead)[j], new ParseAction(ParseAction::REDUCE, nullRule));
+				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, nullRule));
 		}
 	}
 	//Put all our new states in the set of states only if they're not already there.
@@ -290,14 +289,14 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state) {
 				stateAlreadyInAllStates = true;
 				//If it does exist, we should add it as the shift/goto in the action table
 				(*stateSets)[j]->addParents(newStates[i]->getParents());
-				addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
+				table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
 				break;
 			}
 		}
 		if (!stateAlreadyInAllStates) {
 			//If the state does not already exist, add it and add it as the shift/goto in the action table
 			stateSets->push_back(newStates[i]);
-			addToTable(state, currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
+			table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
 		}
 	}
 }
@@ -310,116 +309,9 @@ std::string Parser::stateSetToString() {
 	return concat;
 }
 
-void Parser::addToTable(State* fromState, Symbol* tranSymbol, ParseAction* action) {
-
-	//If this is the first time we're adding to the table, add the EOF character
-	if (symbolIndexVec.size() == 0)
-		symbolIndexVec.push_back(EOFSymbol);
-
-	//find what state num the from state is
-	int stateNum = -1;
-	for (std::vector<State*>::size_type i = 0; i < stateSets.size(); i++) {
-		if (*(stateSets[i]) == *fromState) {
-			stateNum = i;
-			break;
-		}
-	}
-
-	//std::cout << "stateNum is " << stateNum << std::endl;
-
-	//If state not in table, add up to and it.
-	//std::cout << "table size is " << table.size() <<std::endl;
-	while (stateNum >= table.size()) {
-		//std::cout << "Pushing back table" << std::endl;
-		table.push_back(new std::vector<ParseAction*>);
-	}
-
-	//find out what index this symbol is on
-	int symbolIndex = -1;
-	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
-		if ( *(symbolIndexVec[i]) == *tranSymbol ) {
-			//Has been found
-			symbolIndex = i;
-			break;
-		}
-	}
-	//std::cout << "symbolIndex is " << symbolIndex << std::endl;
-
-	//If we've never done this symbol, add it
-	if (symbolIndex < 0) {
-	//	std::cout << "pushing back symbolIndexVec" <<std::endl;
-		symbolIndex = symbolIndexVec.size();
-		symbolIndexVec.push_back(tranSymbol);
-	}
-
-	//std::cout << "symbolIndex is " << symbolIndex << " which is " << symbolIndexVec[symbolIndex]->toString() << std::endl;
-
-	//std::cout << table[stateNum] << " ";
-	while (symbolIndex >= table[stateNum]->size()) {
-		table[stateNum]->push_back(NULL);
-	}
-
-	//If this table slot is empty
-	//std::cout << "table[stateNum] is " << table[stateNum] << std::endl;
-	//std::cout << "blank is " << (*(table[stateNum]))[symbolIndex] << std::endl;
-	
-	if ( (*(table[stateNum]))[symbolIndex] == NULL ) {
-		//std::cout << "Null, adding " << action->toString() << std::endl;
-		(*(table[stateNum]))[symbolIndex] = action;
-	}
-	//If the slot is not empty and does not contain ourself, then it is a conflict
-	else if ( !(*(table[stateNum]))[symbolIndex]->equalsExceptLookahead(*action)) {
-		//std::cout << "not Null!" << std::endl;
-		std::cout << "State: " << stateNum << " Conflict between old: " << (*(table[stateNum]))[symbolIndex]->toString() << " and new: " << action->toString() << std::endl; 
-		//Don't overwrite
-		//(*(table[stateNum]))[symbolIndex] = action;
-	}
-}
 
 std::string Parser::tableToString() {
-	std::string concat = "";
-	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++)
-		concat += "\t" + symbolIndexVec[i]->toString();
-	concat += "\n";
-
-	for (std::vector< std::vector< ParseRule* > >::size_type i = 0; i < table.size(); i++) {
-		concat += intToString(i) + "\t";
-		for (std::vector< ParseRule* >::size_type j = 0; j < table[i]->size(); j++) {
-			if ( (*(table[i]))[j] != NULL)
-				concat += (*(table[i]))[j]->toString() + "\t";
-			else
-				concat += "NULL\t";
-		}
-		concat += "\n";
-	}
-	return(concat);
-}
-
-ParseAction* Parser::getTable(int state, Symbol* token) {
-	int symbolIndex = -1;
-	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
-		if ( *(symbolIndexVec[i]) == *token) {
-			symbolIndex = i;
-			break;
-		}
-	}
-
-	//This is the accepting state, as it is the 1th's state's reduction on EOF, which is 0 in the symbolIndexVec
-	//(This assumes singular goal assignment, a simplification for now)
-	if (state == 1 && symbolIndex == 0)
-		return(new ParseAction(ParseAction::ACCEPT));
-
-	//If ourside the symbol range of this state (same as NULL), reject
-	if ( symbolIndex >= table[state]->size() )
-		return(new ParseAction(ParseAction::REJECT));
-
-	ParseAction* action = (*(table[state]))[symbolIndex];
-	//If null, reject. (this is a space with no other action)
-	if (action == NULL)
-		return(new ParseAction(ParseAction::REJECT));
-
-	//Otherwise, we have something, so return it
-	return (action);
+	return table.toString();
 }
 
 NodeTree* Parser::parseInput(std::string inputString) {
@@ -432,7 +324,7 @@ NodeTree* Parser::parseInput(std::string inputString) {
 
 	while (true) {
 		std::cout << "In state: " << intToString(stateStack.top()) << std::endl;
-		action = getTable(stateStack.top(), token);
+		action = table.get(stateStack.top(), token);
 		//std::cout << "Doing ParseAction: " << action->toString() << std::endl;
 		switch (action->action) {
 			case ParseAction::REDUCE:
@@ -453,7 +345,7 @@ NodeTree* Parser::parseInput(std::string inputString) {
 				newSymbol->setSubTree(reduceTreeCombine(newSymbol, poppedSymbols));
 				symbolStack.push(newSymbol);
 				//std::cout << "top of state is " << intToString(stateStack.top()) << " symbolStack top is " << symbolStack.top()->toString() << std::endl;
-				stateStack.push(getTable(stateStack.top(), symbolStack.top())->shiftState);
+				stateStack.push(table.get(stateStack.top(), symbolStack.top())->shiftState);
 				//std::cout << "Reduced, now condition is" << std::endl;
 				//std::cout << "top of state is " << intToString(stateStack.top()) << " symbolStack top is " << symbolStack.top()->toString() << std::endl;
 				break;
