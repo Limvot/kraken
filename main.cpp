@@ -1,4 +1,5 @@
 #include "NodeTree.h"
+#include "Symbol.h"
 #include "Lexer.h"
 #include "Parser.h"
 #include <string>
@@ -64,7 +65,7 @@ int main(int argc, char* argv[]) {
 	std::cout << "\n\n\n\n\n\n\n\n\n\nParsing" << std::endl;
 
 	std::cout << programInputFileString << std::endl;
-	NodeTree* parseTree = parser.parseInput(programInputFileString);
+	NodeTree<Symbol*>* parseTree = parser.parseInput(programInputFileString);
 
 	if (parseTree) {
 		std::cout << parseTree->DOTGraphString() << std::endl;

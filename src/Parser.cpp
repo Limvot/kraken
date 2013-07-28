@@ -74,7 +74,6 @@ void Parser::loadGrammer(std::string grammerInputString) {
 }
 
 std::vector<Symbol*>* Parser::firstSet(Symbol* token) {
-	//std::cout << "Simple first set for " << token->toString() << std::endl;
 	std::vector<Symbol*> avoidList;
 	return firstSet(token, avoidList);
 }
@@ -84,11 +83,8 @@ std::vector<Symbol*>* Parser::firstSet(Symbol* token, std::vector<Symbol*> &avoi
 	for (std::vector<Symbol*>::size_type i = 0; i < avoidList.size(); i++)
 		if (*(avoidList[i]) == *token) {
 			return new std::vector<Symbol*>();
-			//std::cout << "Avoiding firstSet for " << token->toString() << std::endl;
 		}
 	avoidList.push_back(token);
-	//std::cout << "Cpx first set for " << token->toString() << std::endl;
-	//std::cout << "Doing first set for " << token->toString() << std::endl;
 	std::vector<Symbol*>* first = new std::vector<Symbol*>();
 	//First, if the symbol is a terminal, than it's first set is just itself.
 	if (token->isTerminal()) {
@@ -314,7 +310,7 @@ std::string Parser::tableToString() {
 	return table.toString();
 }
 
-NodeTree* Parser::parseInput(std::string inputString) {
+NodeTree<Symbol*>* Parser::parseInput(std::string inputString) {
 	lexer.setInput(inputString);
 	Symbol* token = lexer.next();
 	ParseAction* action;
@@ -370,11 +366,11 @@ NodeTree* Parser::parseInput(std::string inputString) {
 	}
 }
 
-NodeTree* Parser::reduceTreeCombine(Symbol* newSymbol, std::vector<Symbol*> &symbols) {
-	NodeTree* newTree = new NodeTree(newSymbol->getName(), newSymbol);
+NodeTree<Symbol*>* Parser::reduceTreeCombine(Symbol* newSymbol, std::vector<Symbol*> &symbols) {
+	NodeTree<Symbol*>* newTree = new NodeTree<Symbol*>(newSymbol->getName(), newSymbol);
 	for (std::vector<Symbol*>::size_type i = 0; i < symbols.size(); i++) {
 		if (symbols[i]->isTerminal())
-			newTree->addChild(new NodeTree(symbols[i]->getName(), symbols[i]));
+			newTree->addChild(new NodeTree<Symbol*>(symbols[i]->getName(), symbols[i]));
 		else
 			newTree->addChild(symbols[i]->getSubTree());
 	}

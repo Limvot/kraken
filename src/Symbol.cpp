@@ -14,7 +14,7 @@ Symbol::Symbol(std::string name, bool isTerminal, std::string value) {
 	this->value = value;
 }
 
-Symbol::Symbol(std::string name, bool isTerminal, NodeTree* tree) {
+Symbol::Symbol(std::string name, bool isTerminal, NodeTree<Symbol*>* tree) {
 	this->name = name;
 	this->terminal = isTerminal;
 	this->subTree = tree;
@@ -40,11 +40,11 @@ Symbol* Symbol::clone() {
 	return new Symbol(name, terminal, subTree);
 }
 
-void Symbol::setSubTree(NodeTree* tree) {
+void Symbol::setSubTree(NodeTree<Symbol*>* tree) {
 	subTree = tree;
 }
 
-NodeTree* Symbol::getSubTree() {
+NodeTree<Symbol*>* Symbol::getSubTree() {
 	return subTree;
 }
 

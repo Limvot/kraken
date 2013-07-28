@@ -33,7 +33,7 @@ class Parser {
 		int stateNum(State* state);
 		std::string stateSetToString();
 
-		NodeTree* parseInput(std::string inputString);
+		NodeTree<Symbol*>* parseInput(std::string inputString);
 
 		std::string grammerToString();
 		std::string grammerToDOT();
@@ -60,7 +60,7 @@ class Parser {
 		std::stack<Symbol*> symbolStack;
 
 		Symbol* getOrAddSymbol(std::string symbolString, bool isTerminal);
-		NodeTree* reduceTreeCombine(Symbol* newSymbol, std::vector<Symbol*> &symbols);
+		NodeTree<Symbol*>* reduceTreeCombine(Symbol* newSymbol, std::vector<Symbol*> &symbols);
 };
 
 #endif
