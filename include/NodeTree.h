@@ -22,15 +22,18 @@ class NodeTree {
 		NodeTree(std::string name, T inData);
 		~NodeTree();
 
-		void setParent(NodeTree* parent);
-		NodeTree* getParent();
+		void setParent(NodeTree<T>* parent);
+		void addParent(NodeTree<T>* parent);
+		NodeTree<T>* getParent();
+		std::vector<NodeTree<T>*> getParents();
 
-		void addChild(NodeTree* child);
-		int findChild(NodeTree* child);
-		void removeChild(NodeTree* child);
+		void addChild(NodeTree<T>* child);
+		int findChild(NodeTree<T>* child);
+		void removeChild(NodeTree<T>* child);
 		void removeChild(int index);
+		std::vector<NodeTree<T>*> getChildren();
 
-		NodeTree* get(int index);
+		NodeTree<T>* get(int index);
 
 		std::string getName();
 		void setName(std::string);
@@ -46,8 +49,8 @@ class NodeTree {
 		std::string getDOTName();
 		std::string name;
 		T data;
-		NodeTree* parent;
-		std::vector<NodeTree*> children;
+		std::vector<NodeTree<T>*> parents;
+		std::vector<NodeTree<T>*> children;
 
 		static int idCounter;
 		int id;
@@ -59,7 +62,6 @@ int NodeTree<T>::idCounter;
 
 template<class T>
 NodeTree<T>::NodeTree() {
-	parent = NULL;
 	name = "UnnamedNode";
 	data = NULL;
 	
@@ -68,7 +70,6 @@ NodeTree<T>::NodeTree() {
 
 template<class T>
 NodeTree<T>::NodeTree(std::string name, T inData) {
-	parent = NULL;
 	data = NULL;
 	this->name = name;
 	this->data = inData;
@@ -78,20 +79,32 @@ NodeTree<T>::NodeTree(std::string name, T inData) {
 template<class T>
 NodeTree<T>::~NodeTree() {
 	children.clear();
+	parents.clear(); //? Will this segfault?
 }
 
 template<class T>
 void NodeTree<T>::setParent(NodeTree<T>* parent) {
-	if (this->parent != NULL) {
-		this->parent->removeChild(this);
-	}
-	this->parent = parent;
+	parents.clear();
+	parents.push_back(parent);
+}
+
+template<class T>
+void NodeTree<T>::addParent(NodeTree<T>* parent) {
+	parents.push_back(parent);
 }
 
 template<class T>
 NodeTree<T>* NodeTree<T>::getParent() {
-	return parent;
+	if (parents.size() > 0)
+		return parents[0];
+	return NULL;
 }
+
+template<class T>
+std::vector<NodeTree<T>*> NodeTree<T>::getParents() {
+	return parents;
+}
+
 
 template<class T>
 void NodeTree<T>::addChild(NodeTree<T>* child) {
@@ -118,9 +131,14 @@ void NodeTree<T>::removeChild(int index) {
 template<class T>
 void NodeTree<T>::removeChild(NodeTree<T>* child) {
 	int index = findChild(child);
-	if (index != 0) {
+	if (index != -1) {
 		removeChild(index);
 	}
+}
+
+template<class T>
+std::vector<NodeTree<T>*> NodeTree<T>::getChildren() {
+	return &children;
 }
 
 template<class T>

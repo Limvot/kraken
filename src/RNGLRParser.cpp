@@ -21,7 +21,7 @@ RNGLRParser::parseInput(std::string inputString) {
 	}
 
 	//Frontier 0, new node with state 0
-	GSSNode* v0 = gss.newNode(0);
+	NodeTree<int>* v0 = gss.newNode(0);
 	gss.addToFrontier(0,v0);
 
 	std::vector<ParseAction*> firstActions = table.get(0, input[0]);
@@ -48,13 +48,13 @@ RNGLRParser::parseInput(std::string inputString) {
 }
 
 RNGLRParser::reducer(int i) {
-	std::pair< std::pair<GSSNode*, Symbol*>, int > reduction = toReduce.front();
+	std::pair< std::pair<NodeTree<int>*, Symbol*>, int > reduction = toReduce.front();
 	int pathLength = reduction.second > 0 : reduction.second -1 ? 0;
-	std::vector<GSSNode*>* reachable = gss.getReachable(reduction.first.first, pathLength);
-	for (std::vector<GSSNode*>::size_type j = 0; j < reachable->size(); j++) {
-		GSSNode* currentReached = (*reachable)[j];
+	std::vector<NodeTree<int>*>* reachable = gss.getReachable(reduction.first.first, pathLength);
+	for (std::vector<NodeTree<int>*>::size_type j = 0; j < reachable->size(); j++) {
+		NodeTree<int>* currentReached = (*reachable)[j];
 		int toState = table.getShift(currentReached->state(), reduction.first.second);
-		GSSNode* toStateNode = gss.inFrontier(i, toState);
+		NodeTree<int>* toStateNode = gss.inFrontier(i, toState);
 		if (toStateNode) {
 			if (!gss.hasEdge(toStateNode, currentReached)) {
 				gss.addEdge(toStateNode, currentReached);
@@ -86,8 +86,8 @@ RNGLRParser::shifter(int i) {
 	if (i != input.length()-1) {
 		std::queue<ParseAction*> nextShifts;
 		while (!toShift.empty()) {
-			std::pair<GSSNode*, int> shift = toShift.front();
-			GSSNode* shiftTo = gss.inFrontier(i+1, shift.second);
+			std::pair<NodeTree<int>*, int> shift = toShift.front();
+			NodeTree<int>* shiftTo = gss.inFrontier(i+1, shift.second);
 			if (shiftTo) {
 				gss.addEdge(shiftTo, shift.first);
 				std::vector<ParseAction*> actions = table.get(shift.second, input[i+2]);

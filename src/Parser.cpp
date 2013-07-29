@@ -313,6 +313,7 @@ std::string Parser::tableToString() {
 NodeTree<Symbol*>* Parser::parseInput(std::string inputString) {
 	lexer.setInput(inputString);
 	Symbol* token = lexer.next();
+	std::vector<ParseAction*>* actionList;
 	ParseAction* action;
 
 	stateStack.push(0);
@@ -320,7 +321,8 @@ NodeTree<Symbol*>* Parser::parseInput(std::string inputString) {
 
 	while (true) {
 		std::cout << "In state: " << intToString(stateStack.top()) << std::endl;
-		action = table.get(stateStack.top(), token);
+		actionList = table.get(stateStack.top(), token);
+		action = (*(actionList))[actionList->size()-1];
 		//std::cout << "Doing ParseAction: " << action->toString() << std::endl;
 		switch (action->action) {
 			case ParseAction::REDUCE:
@@ -340,8 +342,12 @@ NodeTree<Symbol*>* Parser::parseInput(std::string inputString) {
 				Symbol* newSymbol = action->reduceRule->getLeftSide()->clone();
 				newSymbol->setSubTree(reduceTreeCombine(newSymbol, poppedSymbols));
 				symbolStack.push(newSymbol);
-				//std::cout << "top of state is " << intToString(stateStack.top()) << " symbolStack top is " << symbolStack.top()->toString() << std::endl;
-				stateStack.push(table.get(stateStack.top(), symbolStack.top())->shiftState);
+				std::cout << "top of state is " << intToString(stateStack.top()) << " symbolStack top is " << symbolStack.top()->toString() << std::endl;
+		
+				actionList = table.get(stateStack.top(), symbolStack.top());
+				action = (*(actionList))[actionList->size()-1];
+		
+				stateStack.push(action->shiftState);
 				//std::cout << "Reduced, now condition is" << std::endl;
 				//std::cout << "top of state is " << intToString(stateStack.top()) << " symbolStack top is " << symbolStack.top()->toString() << std::endl;
 				break;
