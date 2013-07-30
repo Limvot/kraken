@@ -23,24 +23,24 @@ class Parser {
 		Parser();
 		~Parser();
 
-		void loadGrammer(std::string grammerInputString);
-		std::vector<Symbol*>* firstSet(Symbol* token);
-		std::vector<Symbol*>* firstSet(Symbol* token, std::vector<Symbol*> &avoidList);
-		std::vector<Symbol*>* incrementiveFollowSet(ParseRule* rule);
-		void createStateSet();
-		void closure(State* state);
-		void addStates(std::vector< State* >* stateSets, State* state);
-		int stateNum(State* state);
-		std::string stateSetToString();
-
-		NodeTree<Symbol*>* parseInput(std::string inputString);
-
-		std::string grammerToString();
-		std::string grammerToDOT();
+		virtual void loadGrammer(std::string grammerInputString);
+		virtual void createStateSet();
+		virtual std::string stateSetToString();
+		virtual NodeTree<Symbol*>* parseInput(std::string inputString) = 0;
+		virtual std::string grammerToString();
+		virtual std::string grammerToDOT();
 
 		std::string tableToString();
 
-	private:
+	protected:
+		std::vector<Symbol*>* firstSet(Symbol* token);
+		std::vector<Symbol*>* firstSet(Symbol* token, std::vector<Symbol*> &avoidList);
+		std::vector<Symbol*>* incrementiveFollowSet(ParseRule* rule);
+		virtual void closure(State* state);
+		virtual void addStates(std::vector< State* >* stateSets, State* state);
+		int stateNum(State* state);
+
+
 		StringReader reader;
 		Lexer lexer;
 		std::map<std::string, Symbol*> symbols;

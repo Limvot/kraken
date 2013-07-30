@@ -1,7 +1,7 @@
 #include "NodeTree.h"
 #include "Symbol.h"
 #include "Lexer.h"
-#include "Parser.h"
+#include "LALRParser.h"
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
 		programInputFileString.append(line+"\n");
 	}
 
-	Parser parser;
+	LALRParser parser;
 	parser.loadGrammer(grammerInputFileString);
 	//std::cout << "Creating State Set from Main" << std::endl;
 	std::cout << "\n\n\n\n\n\n\n\n\n\nState Set" << std::endl;
