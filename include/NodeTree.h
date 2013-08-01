@@ -70,7 +70,6 @@ NodeTree<T>::NodeTree() {
 
 template<class T>
 NodeTree<T>::NodeTree(std::string name, T inData) {
-	data = NULL;
 	this->name = name;
 	this->data = inData;
 	id = idCounter++;
@@ -138,7 +137,7 @@ void NodeTree<T>::removeChild(NodeTree<T>* child) {
 
 template<class T>
 std::vector<NodeTree<T>*> NodeTree<T>::getChildren() {
-	return &children;
+	return children;
 }
 
 template<class T>

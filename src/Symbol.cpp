@@ -28,6 +28,10 @@ const bool Symbol::operator==(const Symbol &other) {
 	return( name == other.name && terminal == other.terminal);
 }
 
+const bool Symbol::operator!=(const Symbol &other) {
+	return(!this->operator==(other));
+}
+
 std::string Symbol::getName() {
 	return(name);
 }

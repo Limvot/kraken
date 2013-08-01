@@ -80,10 +80,17 @@ std::vector<ParseAction*>* Table::get(int state, Symbol* token) {
 		}
 	}
 
-	//This is the accepting state, as it is the 1th's state's reduction on EOF, which is 0 in the symbolIndexVec
-	//(This assumes singular goal assignment, a simplification for now)
+	if (symbolIndex == -1) {
+		std::cout << "Unrecognized symbol: " << token->toString() << ", cannot get from table!" << std::endl;
+		return NULL;
+	}
+
+	std::cout << "Get for state: " << state << ", and Symbol: " << token->toString() << std::endl;
+
 	std::vector<ParseAction*>* action = (*(table[state]))[symbolIndex];
 
+	//This is the accepting state, as it is the 1th's state's reduction on EOF, which is 0 in the symbolIndexVec
+	//(This assumes singular goal assignment, a simplification for now)
 	if (state == 1 && symbolIndex == 0) {
 		if (action == NULL)
 			action = new std::vector<ParseAction*>();
@@ -104,6 +111,18 @@ std::vector<ParseAction*>* Table::get(int state, Symbol* token) {
 
 	//Otherwise, we have something, so return it
 	return (action);
+}
+
+ParseAction* Table::getShift(int state, Symbol* token) {
+	std::vector<ParseAction*>* actions = get(state, token);
+	ParseAction* shift = NULL;
+	for (int i = 0; i < actions->size(); i++) {
+		if ((*actions)[i]->action == ParseAction::SHIFT) {
+			shift = (*actions)[i];
+			break;
+		}
+	}
+	return shift;
 }
 
 std::string Table::toString() {

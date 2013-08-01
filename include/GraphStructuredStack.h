@@ -1,6 +1,8 @@
 #include <iostream>
 #include <vector>
-#include "NodeTree<int>.h"
+#include <queue>
+#include "NodeTree.h"
+#include "util.h"
 
 #ifndef GRAPH_STRUCTURED_STACK
 #define GRAPH_STRUCTURED_STACK
@@ -17,7 +19,10 @@ class GraphStructuredStack {
 		std::vector<NodeTree<int>*>* getReachable(NodeTree<int>* start, int lenght);
 		bool hasEdge(NodeTree<int>* start, NodeTree<int>* end);
 		void addEdge(NodeTree<int>* start, NodeTree<int>* end);
+
+		std::string toString();
 	private:
 		std::vector<std::vector<NodeTree<int>*>*> gss;
-		//
 };
+
+#endif

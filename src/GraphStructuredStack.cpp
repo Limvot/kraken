@@ -14,14 +14,16 @@ NodeTree<int>* GraphStructuredStack::newNode(int stateNum) {
 
 void GraphStructuredStack::addToFrontier(int frontier, NodeTree<int>* node) {
 	//First, make sure our vector has this and lesser frontiers. If not, add it and up to it
-	while (frontier >= gss.size()) {
+	while (gss.size() <= frontier) {
+		std::cout << "Adding a new frontier: " << gss.size() << std::endl;
 		gss.push_back(new std::vector<NodeTree<int>*>());
 	}
+	std::cout << "Adding " << node << " (" << node->getData() << ") to frontier " << frontier << std::endl;
 	gss[frontier]->push_back(node);
 }
 
 NodeTree<int>* GraphStructuredStack::inFrontier(int frontier, int state) {
-	if (frontierIsEmpty())
+	if (frontierIsEmpty(frontier))
 		return NULL;
 	for (std::vector<NodeTree<int>*>::size_type i = 0; i < gss[frontier]->size(); i++) {
 		if ((*(gss[frontier]))[i]->getData() == state)
@@ -39,24 +41,31 @@ bool GraphStructuredStack::frontierHasAccState(int frontier) {
 	return inFrontier(frontier, 1);
 }
 
-std::vector<NodeTree<int>*>* GraphStructuredStack::getReachable(NodeTree<int>* start, int lenght) {
+std::vector<NodeTree<int>*>* GraphStructuredStack::getReachable(NodeTree<int>* start, int length) {
 	std::vector<NodeTree<int>*>* reachableList = new std::vector<NodeTree<int>*>();
 	std::queue<NodeTree<int>*> currentNodes;
 	std::queue<NodeTree<int>*> nextNodes;
-	currentNodes.push_back(start);
-	for (int i = 0; i < lenght; i++) {
+	currentNodes.push(start);
+	for (int i = 0; i < length; i++) {
 		while (!currentNodes.empty()) {
 			NodeTree<int>* currentNode = currentNodes.front();
 			currentNodes.pop();
-			std::vector<NodeTree<T>*> children = currentNode->getChildren();
-			for (std::vector<NodeTree<T>*>::size_type j = 0; j < children.size(); j++)
-				nextNodes.push_back(children[j]);
+			std::vector<NodeTree<int>*> children = currentNode->getChildren();
+			std::cout << currentNode->getData() << " has children ";
+			for (std::vector<NodeTree<int>*>::size_type j = 0; j < children.size(); j++) {
+				std::cout << children[j]->getData() << " ";
+				nextNodes.push(children[j]);
+			}
+			std::cout << std::endl;
 		}
 		currentNodes = nextNodes;
-		nextNodes.clear();
+		//No clear function, so go through and remove
+		while(!nextNodes.empty())
+			nextNodes.pop();
 	}
 	while (!currentNodes.empty()) {
 		reachableList->push_back(currentNodes.front());
+		std::cout << currentNodes.front()->getData() << " is reachable from " << start->getData() << " by length " << length << std::endl;
 		currentNodes.pop();
 	}
 	return reachableList;
@@ -70,4 +79,16 @@ bool GraphStructuredStack::hasEdge(NodeTree<int>* start, NodeTree<int>* end) {
 void GraphStructuredStack::addEdge(NodeTree<int>* start, NodeTree<int>* end) {
 	start->addChild(end);
 	end->addChild(start);
+}
+
+std::string GraphStructuredStack::toString() {
+	std::string tostring = "";
+	for (std::vector<std::vector<NodeTree<int>*>*>::size_type i = 0; i < gss.size(); i++) {
+		tostring += "Frontier: " + intToString(i) + "\n";
+		for (std::vector<NodeTree<int>*>::size_type j = 0; j < gss[i]->size(); j++) {
+			tostring += "|" + intToString((*(gss[i]))[j]->getData()) + "| ";
+		}
+		tostring += "\n";
+	}
+	return tostring;
 }

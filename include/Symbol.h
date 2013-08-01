@@ -20,6 +20,7 @@ class Symbol {
 		Symbol(std::string name, bool isTerminal, NodeTree<Symbol*>* tree);
 		~Symbol();
 		bool const operator==(const Symbol &other);
+		bool const operator!=(const Symbol &other);
 		std::string getName();
 		std::string toString();
 		Symbol* clone();

@@ -2,6 +2,7 @@
 #include "Symbol.h"
 #include "Lexer.h"
 #include "LALRParser.h"
+#include "RNGLRParser.h"
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -43,7 +44,8 @@ int main(int argc, char* argv[]) {
 		programInputFileString.append(line+"\n");
 	}
 
-	LALRParser parser;
+	//LALRParser parser;
+	RNGLRParser parser;
 	parser.loadGrammer(grammerInputFileString);
 	//std::cout << "Creating State Set from Main" << std::endl;
 	std::cout << "\n\n\n\n\n\n\n\n\n\nState Set" << std::endl;
