@@ -71,6 +71,19 @@ void Table::add(int stateNum, Symbol* tranSymbol, ParseAction* action) {
 	}
 }
 
+void Table::remove(int stateNum, Symbol* tranSymbol) {
+	//find out what index this symbol is on
+	int symbolIndex = -1;
+	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
+		if ( *(symbolIndexVec[i]) == *tranSymbol ) {
+			//Has been found
+			symbolIndex = i;
+			break;
+		}
+	}
+	(*(table[stateNum]))[symbolIndex] = NULL;
+}
+
 std::vector<ParseAction*>* Table::get(int state, Symbol* token) {
 	int symbolIndex = -1;
 	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {

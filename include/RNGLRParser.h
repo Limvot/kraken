@@ -10,6 +10,7 @@ class RNGLRParser: public Parser {
 		NodeTree<Symbol*>* parseInput(std::string inputString);
 		void reducer(int i);
 		void shifter(int i);
+		void addStates(std::vector< State* >* stateSets, State* state);
 	private:
 		std::vector<Symbol*> input;
 		GraphStructuredStack gss;

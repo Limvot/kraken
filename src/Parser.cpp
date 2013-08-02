@@ -143,6 +143,7 @@ void Parser::createStateSet() {
 		//Add the new states
 		addStates(&stateSets, stateSets[i]);
 	}
+	table.remove(1, EOFSymbol);
 }
 
 int Parser::stateNum(State* state) {

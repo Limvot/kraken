@@ -168,3 +168,76 @@ void RNGLRParser::shifter(int i) {
 		toShift = nextShifts;
 	}
 }
+
+//Have to use own add states function in order to construct RN table instead of LALR table
+void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
+	std::cout << "RNGLR ADD STATES" << std::endl;
+	std::vector< State* > newStates;
+	//For each rule in the state we already have
+	std::vector<ParseRule*>* currStateTotal = state->getTotal();
+	for (std::vector<ParseRule*>::size_type i = 0; i < currStateTotal->size(); i++) {
+		//Clone the current rule
+		ParseRule* advancedRule = (*currStateTotal)[i]->clone();
+		//Try to advance the pointer, if sucessful see if it is the correct next symbol
+		if (advancedRule->advancePointer()) { 
+			//Technically, it should be the set of rules sharing this symbol advanced past in the basis for new state
+
+			//So search our new states to see if any of them use this advanced symbol as a base.
+			//If so, add this rule to them.
+			//If not, create it.
+			bool symbolAlreadyInState = false;
+			for (std::vector< State* >::size_type j = 0; j < newStates.size(); j++) {
+				if (*(newStates[j]->basis[0]->getAtIndex()) == *(advancedRule->getAtIndex())) {
+					symbolAlreadyInState = true;
+					//So now check to see if this exact rule is in this state
+					if (!newStates[j]->containsRule(advancedRule))
+						newStates[j]->basis.push_back(advancedRule);
+					//We found a state with the same symbol, so stop searching
+					break;
+				}
+			}
+			if (!symbolAlreadyInState) {
+				State* newState = new State(stateSets->size()+newStates.size(),advancedRule, state);
+				newStates.push_back(newState);
+			}
+		}
+		//Also add any completed rules as reduces in the action table
+		//See if reduce
+		//Also, this really only needs to be done for the state's basis, but we're already iterating through, so...
+		std::vector<Symbol*>* lookahead = (*currStateTotal)[i]->getLookahead();
+		if ((*currStateTotal)[i]->isAtEnd()) {
+			for (std::vector<Symbol*>::size_type j = 0; j < lookahead->size(); j++)
+				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
+		// } else if (*((*currStateTotal)[i]->getAtNextIndex()) == *nullSymbol) {
+		//If this has an appropriate ruduction to null, get the reduce trees out
+		} else if (std::vector<NodeTree<Symbol*>*>* reduceTrees = (*currStateTotal)[i]->nullReductions(), reduceTrees) {
+			std::cout << "REDUCE TREES" << std::endl;
+			//If is a rule that produces only NULL, add in the approprite reduction, but use a new rule with a right side of length 0. (so we don't pop off stack)
+			ParseRule* nullRule = (*currStateTotal)[i]->clone();
+			nullRule->setRightSide(* new std::vector<Symbol*>());
+			for (std::vector<Symbol*>::size_type j = 0; j < lookahead->size(); j++)
+				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, nullRule));
+		}
+	}
+	//Put all our new states in the set of states only if they're not already there.
+	bool stateAlreadyInAllStates = false;
+	Symbol* currStateSymbol;
+	for (std::vector< State * >::size_type i = 0; i < newStates.size(); i++) {
+		stateAlreadyInAllStates = false;
+		currStateSymbol = (*(newStates[i]->getBasis()))[0]->getAtIndex();
+		for (std::vector< State * >::size_type j = 0; j < stateSets->size(); j++) {
+			if (newStates[i]->basisEquals(*((*stateSets)[j]))) {
+				stateAlreadyInAllStates = true;
+				//If it does exist, we should add it as the shift/goto in the action table
+				(*stateSets)[j]->addParents(newStates[i]->getParents());
+				table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
+				break;
+			}
+		}
+		if (!stateAlreadyInAllStates) {
+			//If the state does not already exist, add it and add it as the shift/goto in the action table
+			stateSets->push_back(newStates[i]);
+			table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
+		}
+	}
+}

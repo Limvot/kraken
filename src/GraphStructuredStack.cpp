@@ -78,7 +78,7 @@ bool GraphStructuredStack::hasEdge(NodeTree<int>* start, NodeTree<int>* end) {
 
 void GraphStructuredStack::addEdge(NodeTree<int>* start, NodeTree<int>* end) {
 	start->addChild(end);
-	end->addChild(start);
+	end->addParent(start);
 }
 
 std::string GraphStructuredStack::toString() {

@@ -13,6 +13,7 @@ class Table {
 		~Table();
 		void setSymbols(Symbol* EOFSymbol, Symbol* nullSymbol);
 		void add(int stateNum, Symbol* tranSymbol, ParseAction* action);
+		void remove(int stateNum, Symbol* tranSymbol);
 		std::vector<ParseAction*>* get(int state, Symbol* token);
 		ParseAction* getShift(int state, Symbol* token);
 		std::string toString();
