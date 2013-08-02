@@ -33,8 +33,6 @@ class ParseRule {
 		int getRightSize();
 		int getIndex();
 
-		std::vector<NodeTree<Symbol*>*>* nullReductions();
-
 		bool advancePointer();
 		bool isAtEnd();
 

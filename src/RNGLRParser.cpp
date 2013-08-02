@@ -33,7 +33,12 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 	while (*currentToken != *EOFSymbol) {
 		std::cout << EOFSymbol->toString() << " " << currentToken->toString() << std::endl;
 		currentToken = lexer.next();
-		input.push_back(currentToken);
+		if (currentToken != NULL) {
+			input.push_back(currentToken);
+		} else {
+			std::cout << "Rejected, lexer unable to fully tokenize sentence" << std::endl;
+			return new NodeTree<Symbol*>();
+		}
 	}
 
 	std::cout << "\n\n\nDone with Lexing\n\n\n" << std::endl;
@@ -210,8 +215,8 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
 				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
 		// } else if (*((*currStateTotal)[i]->getAtNextIndex()) == *nullSymbol) {
 		//If this has an appropriate ruduction to null, get the reduce trees out
-		} else if (std::vector<NodeTree<Symbol*>*>* reduceTrees = (*currStateTotal)[i]->nullReductions(), reduceTrees) {
-			std::cout << "REDUCE TREES" << std::endl;
+		} else if (reducesToNull((*currStateTotal)[i])) {
+			std::cout << (*currStateTotal)[i]->toString() << " REDUCES TO NULL" << std::endl;
 			//If is a rule that produces only NULL, add in the approprite reduction, but use a new rule with a right side of length 0. (so we don't pop off stack)
 			ParseRule* nullRule = (*currStateTotal)[i]->clone();
 			nullRule->setRightSide(* new std::vector<Symbol*>());
@@ -241,3 +246,42 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
 		}
 	}
 }
+
+bool RNGLRParser::reducesToNull(ParseRule* rule) {
+	std::vector<Symbol*> avoidList;
+	return reducesToNull(rule, avoidList);
+}
+
+bool RNGLRParser::reducesToNull(ParseRule* rule, std::vector<Symbol*> avoidList) {
+	for (std::vector<Symbol*>::size_type i = 0; i < avoidList.size(); i++)
+		if (*(rule->getLeftSide()) == *(avoidList[i]))
+			return false;
+
+	avoidList.push_back(rule->getLeftSide());
+
+	std::vector<Symbol*> rightSide = rule->getRightSide();
+	bool reduces = true;
+	for (std::vector<Symbol*>::size_type i = 0; i < rightSide.size(); i++) {
+		if (*rightSide[i] == *nullSymbol)
+			continue;
+		if (rightSide[i]->isTerminal()) {
+			reduces = false;
+			break;
+		}
+		bool subSymbolReduces = false;
+		for (std::vector<ParseRule*>::size_type j = 0; j < loadedGrammer.size(); j++) {
+			if (*(loadedGrammer[j]->getLeftSide()) == *(rightSide[i])) {
+				if(reducesToNull(loadedGrammer[j], avoidList)) {
+					subSymbolReduces = true;
+					break;
+				}
+			}
+		}
+		if (!subSymbolReduces) {
+			reduces = false;
+			break;
+		}
+	}
+	return reduces;
+}
+

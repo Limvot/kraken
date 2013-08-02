@@ -73,10 +73,6 @@ int ParseRule::getIndex() {
 	return pointerIndex;
 }
 
-std::vector<NodeTree<Symbol*>*>* ParseRule::nullReductions() {
-	//Return a vector of null reduction trees
-}
-
 bool ParseRule::advancePointer() {
 	if (pointerIndex < rightSide.size()) {
 		pointerIndex++;

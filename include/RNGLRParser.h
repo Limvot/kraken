@@ -11,6 +11,8 @@ class RNGLRParser: public Parser {
 		void reducer(int i);
 		void shifter(int i);
 		void addStates(std::vector< State* >* stateSets, State* state);
+		bool reducesToNull(ParseRule* rule);
+		bool reducesToNull(ParseRule* rule, std::vector<Symbol*> avoidList);
 	private:
 		std::vector<Symbol*> input;
 		GraphStructuredStack gss;
