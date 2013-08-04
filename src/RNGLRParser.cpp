@@ -74,6 +74,7 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 		std::cout << "Checking if frontier " << i << " is empty" << std::endl;
 		if (gss.frontierIsEmpty(i)) {
 			std::cout << "Frontier " << i << " is empty." << std::endl;
+			std::cout << "Failed on " << input[i]->toString() << " next: " << input[i+1]->toString() << std::endl;
 			break;
 		}
 		while (toReduce.size() != 0) {
@@ -176,7 +177,6 @@ void RNGLRParser::shifter(int i) {
 
 //Have to use own add states function in order to construct RN table instead of LALR table
 void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
-	std::cout << "RNGLR ADD STATES" << std::endl;
 	std::vector< State* > newStates;
 	//For each rule in the state we already have
 	std::vector<ParseRule*>* currStateTotal = state->getTotal();

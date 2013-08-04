@@ -13,11 +13,12 @@ Parser::~Parser() {
 
 Symbol* Parser::getOrAddSymbol(std::string symbolString, bool isTerminal) {
 	Symbol* symbol;
-	if (symbols.find(symbolString) == symbols.end()) {
+	std::pair<std::string, bool> entry = std::make_pair(symbolString, isTerminal);
+	if (symbols.find(entry) == symbols.end()) {
 		symbol = new Symbol(symbolString, isTerminal);
-		symbols[symbolString] = symbol;
+		symbols[entry] = symbol;
 	} else {
-		symbol = symbols[symbolString];
+		symbol = symbols[entry];
 	}
 	return(symbol);
 }
@@ -36,18 +37,9 @@ void Parser::loadGrammer(std::string grammerInputString) {
 		//Add the right side, adding new Symbols to symbol map.
 		currToken = reader.word();
 		while (currToken != ";") {
-			if (currToken[0] == '\"') {
-				//Remove the quotes
-				currToken = currToken.substr(1,currToken.length()-2);
-				lexer.addRegEx(currToken);
-				currentRule->appendToRight(getOrAddSymbol(currToken, true)); //If first character is a ", then is a terminal
-			} else {
-				currentRule->appendToRight(getOrAddSymbol(currToken, false));
-			}
 
-			currToken = reader.word();
 			//If there are multiple endings to this rule, finish this rule and start a new one with same left handle
-			if (currToken == "|") {
+			while (currToken == "|") {
 				//If we haven't added anything, that means that this is a null rule
 				if (currentRule->getRightSide().size() == 0)
 					currentRule->appendToRight(nullSymbol);
@@ -57,6 +49,19 @@ void Parser::loadGrammer(std::string grammerInputString) {
 				currentRule->setLeftHandle(leftSide);
 				currToken = reader.word();
 			}
+
+			if (currToken == ";")
+				break;
+
+			if (currToken[0] == '\"') {
+				//Remove the quotes
+				currToken = currToken.substr(1,currToken.length()-2);
+				lexer.addRegEx(currToken);
+				currentRule->appendToRight(getOrAddSymbol(currToken, true)); //If first character is a ", then is a terminal
+			} else {
+				currentRule->appendToRight(getOrAddSymbol(currToken, false));
+			}
+			currToken = reader.word();
 		}
 		//Add new rule to grammer
 		//If we haven't added anything, that means that this is a null rule
@@ -78,7 +83,7 @@ std::vector<Symbol*>* Parser::firstSet(Symbol* token) {
 	return firstSet(token, avoidList);
 }
 
-std::vector<Symbol*>* Parser::firstSet(Symbol* token, std::vector<Symbol*> &avoidList) {
+std::vector<Symbol*>* Parser::firstSet(Symbol* token, std::vector<Symbol*> avoidList) {
 	//If we've already done this token, don't do it again
 	for (std::vector<Symbol*>::size_type i = 0; i < avoidList.size(); i++)
 		if (*(avoidList[i]) == *token) {
@@ -114,7 +119,7 @@ std::vector<Symbol*>* Parser::firstSet(Symbol* token, std::vector<Symbol*> &avoi
 				//Check to see if the current recursiveFirstSet contains NULL, if so, then go through again with the next token. (if there is one)
 				recFirstSetHasNull = false;
 				for (std::vector<Symbol*>::size_type k = 0; k < recursiveFirstSet->size(); k++) {
-					if ((*(*recursiveFirstSet)[j]) == *nullSymbol) {
+					if ((*(*recursiveFirstSet)[k]) == *nullSymbol) {
 						recFirstSetHasNull = true;
 					}
 				}

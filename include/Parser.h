@@ -34,7 +34,7 @@ class Parser {
 
 	protected:
 		std::vector<Symbol*>* firstSet(Symbol* token);
-		std::vector<Symbol*>* firstSet(Symbol* token, std::vector<Symbol*> &avoidList);
+		std::vector<Symbol*>* firstSet(Symbol* token, std::vector<Symbol*> avoidList);
 		std::vector<Symbol*>* incrementiveFollowSet(ParseRule* rule);
 		virtual void closure(State* state);
 		virtual void addStates(std::vector< State* >* stateSets, State* state);
@@ -43,7 +43,7 @@ class Parser {
 
 		StringReader reader;
 		Lexer lexer;
-		std::map<std::string, Symbol*> symbols;
+		std::map<std::pair<std::string, bool>, Symbol*> symbols;
 		std::vector<ParseRule*> loadedGrammer;
 
 		std::vector< State* > stateSets;
