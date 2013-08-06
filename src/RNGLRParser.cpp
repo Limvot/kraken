@@ -112,6 +112,7 @@ void RNGLRParser::reducer(int i) {
 				gss.addEdge(toStateNode, currentReached);
 				if (reduction.second != 0) {
 					//Do all non null reduction
+					std::cout << "Checking for non-null reductions in states that already existed" << std::endl;
 					std::vector<ParseAction*> actions = *(table.get(toState, input[i]));
 					for (std::vector<ParseAction*>::size_type k = 0; k < actions.size(); k++)
 						if (actions[k]->action == ParseAction::REDUCE && actions[k]->reduceRule->getRightSize() != 0)
@@ -123,9 +124,10 @@ void RNGLRParser::reducer(int i) {
 			gss.addToFrontier(i, toStateNode);
 			gss.addEdge(toStateNode, currentReached);
 			
+			std::cout << "Adding shifts and reductions for a state that did not exist" << std::endl;
 			std::vector<ParseAction*> actions = *(table.get(toState, input[i]));
 			for (std::vector<ParseAction*>::size_type k = 0; k < actions.size(); k++) {
-				//Shift
+				std::cout << "Action is " << actions[k]->toString() << std::endl;
 				if (actions[k]->action == ParseAction::SHIFT)
 					toShift.push(std::make_pair(toStateNode, actions[k]->shiftState));
 				else if (actions[k]->action == ParseAction::REDUCE && actions[k]->reduceRule->getRightSize() != 0)
@@ -174,6 +176,48 @@ void RNGLRParser::shifter(int i) {
 		toShift = nextShifts;
 	}
 }
+
+void RNGLRParser::addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Symbol*>*>* children, int nullablePartsIndex) {
+	if (nullablePartsIndex != 0)
+		children->push_back(nullableParts[nullablePartsIndex]);
+	if (!belongsToFamily(parent, children)) {
+		if (parent->getChildren().size() == 0) {
+			parent->addChildren(children);
+		} else {
+			if (!arePacked(parent->getChildren())) {
+				NodeTree<Symbol*>* subParent = new NodeTree<Symbol*>();
+				setPacked(subParent, true);
+				subParent->addChildren(&(parent->getChildren());
+				parent->clearChildren();
+				parent->addChild(subParent);
+			}
+			NodeTree<Symbol*>* t = new NodeTree<Symbol*>();
+			setPacked(t, true);
+			parent->addChild(t);
+			t->addChildren(children);
+		}
+	}
+}
+
+bool RNGLRParser::belongsToFamily(NodeTree<Symbol*>* node, std::vector<NodeTree<Symbol*>*>* nodes) {
+	//
+}
+
+bool RNGLRParser::arePacked(std::vector<NodeTree<Symbol*>*>* nodes) {
+	bool packed = true;
+	for (std::vector<NodeTree<Symbol*>*>::size_type i = 0; i < nodes->size(); i++)
+		packed &= packedMap[node];
+	return packed;
+}
+
+bool RNGLRParser::isPacked(NodeTree<Symbol*>* node) {
+	return packedMap[node];
+}
+
+void RNGLRParser::setPacked(NodeTree<Symbol*>* node, bool isPacked) {
+	packedMap[node] = isPacked;
+}
+
 
 //Have to use own add states function in order to construct RN table instead of LALR table
 void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {

@@ -243,9 +243,9 @@ int RegEx::longMatch(std::string stringToMatch) {
 		for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++) {
 			if (currentStates[j]->isGoal()) {
 				lastMatch = i-1;
-				std::cout << "Hit goal at " << i << " character: " << stringToMatch[i-1] << std::endl;
+				//std::cout << "Hit goal at " << i << " character: " << stringToMatch[i-1] << std::endl;
 			} else {
-				std::cout << "currentState " << j << ", " << currentStates[j]->toString() << " is not goal" <<std::endl;
+				//std::cout << "currentState " << j << ", " << currentStates[j]->toString() << " is not goal" <<std::endl;
 			}
 			std::vector<RegExState*>* addStates = currentStates[j]->advance(stringToMatch.at(i));
 			nextStates.insert(nextStates.end(), addStates->begin(), addStates->end());

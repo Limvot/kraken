@@ -78,6 +78,35 @@ void Parser::loadGrammer(std::string grammerInputString) {
 		std::cout << loadedGrammer[i]->toString() << std::endl;
 }
 
+void Parser::createStateSet() {
+	std::cout << "Begining creation of stateSet" << std::endl;
+	//First state has no parents
+
+	//Set the first state's basis to be the goal rule with lookahead EOF
+	ParseRule* goalRule = loadedGrammer[0]->clone();
+	std::vector<Symbol*>* goalRuleLookahead = new std::vector<Symbol*>();
+	goalRuleLookahead->push_back(EOFSymbol);
+	goalRule->setLookahead(goalRuleLookahead);
+	stateSets.push_back( new State(0, goalRule));
+	//std::cout << "Begining for main set for loop" << std::endl;
+	for (std::vector< State* >::size_type i = 0; i < stateSets.size(); i++) {
+		//closure
+		closure(stateSets[i]);
+		//Add the new states
+		addStates(&stateSets, stateSets[i]);
+	}
+	table.remove(1, EOFSymbol);
+}
+
+int Parser::stateNum(State* state) {
+	for (std::vector<State*>::size_type i = 0; i < stateSets.size(); i++) {
+		if (*(stateSets[i]) == *state) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 std::vector<Symbol*>* Parser::firstSet(Symbol* token) {
 	std::vector<Symbol*> avoidList;
 	return firstSet(token, avoidList);
@@ -131,35 +160,6 @@ std::vector<Symbol*>* Parser::firstSet(Symbol* token, std::vector<Symbol*> avoid
 	return(first);
 }
 
-void Parser::createStateSet() {
-	std::cout << "Begining creation of stateSet" << std::endl;
-	//First state has no parents
-
-	//Set the first state's basis to be the goal rule with lookahead EOF
-	ParseRule* goalRule = loadedGrammer[0]->clone();
-	std::vector<Symbol*>* goalRuleLookahead = new std::vector<Symbol*>();
-	goalRuleLookahead->push_back(EOFSymbol);
-	goalRule->setLookahead(goalRuleLookahead);
-	stateSets.push_back( new State(0, goalRule));
-	//std::cout << "Begining for main set for loop" << std::endl;
-	for (std::vector< State* >::size_type i = 0; i < stateSets.size(); i++) {
-		//closure
-		closure(stateSets[i]);
-		//Add the new states
-		addStates(&stateSets, stateSets[i]);
-	}
-	table.remove(1, EOFSymbol);
-}
-
-int Parser::stateNum(State* state) {
-	for (std::vector<State*>::size_type i = 0; i < stateSets.size(); i++) {
-		if (*(stateSets[i]) == *state) {
-			return i;
-		}
-	}
-	return -1;
-}
-
 //Return the correct lookahead. This followSet is built based on the current rule's lookahead if at end, or the next Symbol's first set.
 std::vector<Symbol*>* Parser::incrementiveFollowSet(ParseRule* rule) {
 	//Advance the pointer past the current Symbol (the one we want the followset for) to the next symbol (which might be in our follow set, or might be the end)
@@ -181,7 +181,7 @@ std::vector<Symbol*>* Parser::incrementiveFollowSet(ParseRule* rule) {
 			}
 		}
 		followSet->insert(followSet->end(), symbolFirstSet->begin(), symbolFirstSet->end());
-		delete symbolFirstSet;
+		//delete symbolFirstSet;
 		rule->advancePointer();
 	}
 	if (rule->isAtEnd()) {
@@ -192,8 +192,10 @@ std::vector<Symbol*>* Parser::incrementiveFollowSet(ParseRule* rule) {
 	for (std::vector<Symbol*>::size_type i = 0; i < followSet->size(); i++) {
 		bool alreadyIn = false;
 		for (std::vector<Symbol*>::size_type j = 0; j < followSetReturn->size(); j++)
-			if (*((*followSet)[i]) == *((*followSetReturn)[j]))
+			if (*((*followSet)[i]) == *((*followSetReturn)[j])) {
 				alreadyIn = true;
+				break;
+			}
 		if (!alreadyIn)
 			followSetReturn->push_back((*followSet)[i]);
 	}
@@ -219,7 +221,9 @@ void Parser::closure(State* state) {
 				//Check to make sure not already in
 				bool isAlreadyInState = false;
 				for (std::vector<ParseRule*>::size_type k = 0; k < stateTotal->size(); k++) {
-					if (*((*stateTotal)[k]) == *currentGramRule) {
+					if ((*stateTotal)[k]->equalsExceptLookahead(*currentGramRule)) {
+						std::cout << (*stateTotal)[k]->toString() << std::endl;
+						(*stateTotal)[k]->addLookahead(currentGramRule->getLookahead());
 						isAlreadyInState = true;
 						break;
 					}

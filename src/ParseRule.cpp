@@ -89,6 +89,20 @@ void ParseRule::setLookahead(std::vector<Symbol*>* lookahead) {
 	this->lookahead = lookahead;
 }
 
+void ParseRule::addLookahead(std::vector<Symbol*>* lookahead) {
+	for (std::vector<Symbol*>::size_type i = 0; i < lookahead->size(); i++) {
+		bool alreadyIn = false;
+		for (std::vector<Symbol*>::size_type j = 0; j < this->lookahead->size(); j++) {
+			if (*((*lookahead)[i]) == *((*(this->lookahead))[j])) {
+				alreadyIn = true;
+				break;
+			}
+		}
+		if (!alreadyIn)
+			this->lookahead->push_back((*lookahead)[i]);
+	}
+}
+
 std::vector<Symbol*>* ParseRule::getLookahead() {
 	return lookahead;
 }

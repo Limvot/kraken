@@ -37,6 +37,7 @@ class ParseRule {
 		bool isAtEnd();
 
 		void setLookahead(std::vector<Symbol*>* lookahead);
+		void addLookahead(std::vector<Symbol*>* lookahead);
 		std::vector<Symbol*>* getLookahead();
 
 		std::string toString();

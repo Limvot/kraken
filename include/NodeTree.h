@@ -28,9 +28,11 @@ class NodeTree {
 		std::vector<NodeTree<T>*> getParents();
 
 		void addChild(NodeTree<T>* child);
+		void addChildren(std::vector<NodeTree<T>*>* children);
 		int findChild(NodeTree<T>* child);
 		void removeChild(NodeTree<T>* child);
 		void removeChild(int index);
+		void clearChildren();
 		std::vector<NodeTree<T>*> getChildren();
 
 		NodeTree<T>* get(int index);
@@ -112,6 +114,12 @@ void NodeTree<T>::addChild(NodeTree<T>* child) {
 }
 
 template<class T>
+void NodeTree<T>::addChildren(std::vector<NodeTree<T>*>* children) {
+	for (std::vector<NodeTree<T>*>::size_type i = 0; i < children->size(); i++)
+		addChild((*children)[i]);
+}
+
+template<class T>
 int NodeTree<T>::findChild(NodeTree<T>* child) {
 	for (int i = 0; i < children.size(); i++) {
 		if (children[i] == child) {
@@ -133,6 +141,13 @@ void NodeTree<T>::removeChild(NodeTree<T>* child) {
 	if (index != -1) {
 		removeChild(index);
 	}
+}
+
+template<class T>
+void NodeTree<T>::clearChildren() {
+	for (std::vector<T>::size_type i = 0; i < children.size(); i++)
+		children[i] = NULL;
+	children.clear();
 }
 
 template<class T>

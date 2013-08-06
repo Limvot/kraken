@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
 	//std::cout << "Doing stateSetToString from Main" << std::endl;
 	std::cout << "\n\n\n\n\n\n\n\n\n\nState Set toString" << std::endl;
 	std::cout << parser.stateSetToString() << std::endl;
-	//std::cout << "finished stateSetToString from Main" << std::endl;
+	std::cout << "finished stateSetToString from Main" << std::endl;
 	std::cout << "\n\n\n\n\n\n\n\n\n\nTable" << std::endl;
 	std::cout << parser.tableToString() << std::endl;
 	std::cout << "\n\n\n\n\n\n\n\n\n\nGrammer Input File" << std::endl;
