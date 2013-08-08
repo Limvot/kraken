@@ -115,7 +115,7 @@ void NodeTree<T>::addChild(NodeTree<T>* child) {
 
 template<class T>
 void NodeTree<T>::addChildren(std::vector<NodeTree<T>*>* children) {
-	for (std::vector<NodeTree<T>*>::size_type i = 0; i < children->size(); i++)
+	for (typename std::vector<NodeTree<T>*>::size_type i = 0; i < children->size(); i++)
 		addChild((*children)[i]);
 }
 
@@ -145,7 +145,7 @@ void NodeTree<T>::removeChild(NodeTree<T>* child) {
 
 template<class T>
 void NodeTree<T>::clearChildren() {
-	for (std::vector<T>::size_type i = 0; i < children.size(); i++)
+	for (typename std::vector<T>::size_type i = 0; i < children.size(); i++)
 		children[i] = NULL;
 	children.clear();
 }

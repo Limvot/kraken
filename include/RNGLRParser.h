@@ -3,9 +3,11 @@
 
 #include <iostream>
 #include <queue>
+#include <map>
 #include <vector>
 #include <algorithm>
 #include "Parser.h"
+#include "Symbol.h"
 #include "GraphStructuredStack.h"
 
 class RNGLRParser: public Parser {
@@ -45,7 +47,7 @@ class RNGLRParser: public Parser {
 			int nullablePartsIndex;
 			NodeTree<Symbol*>* label;
 		} ;
-		std::queue<reduction> toReduce;
+		std::queue<Reduction> toReduce;
 		//Node coming from, state going to
 		std::queue< std::pair<NodeTree<int>*, int> > toShift;
 		std::vector<std::pair<NodeTree<Symbol*>*, int> > SPPFStepNodes;

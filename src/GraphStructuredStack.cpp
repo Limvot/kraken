@@ -34,10 +34,10 @@ NodeTree<int>* GraphStructuredStack::inFrontier(int frontier, int state) {
 
 int GraphStructuredStack::getContainingFrontier(NodeTree<int>* node) {
 	for (std::vector<std::vector<NodeTree<int>*>*>::size_type i = 0; i < gss.size(); i++) {
-		if (frontierIsEmpty(frontier))
+		if (frontierIsEmpty(i))
 			continue;
 		for (std::vector<NodeTree<int>*>::size_type j = 0; j < gss[i]->size(); j++) {
-			if (*((*(gss[i]))[j]) == *node)
+			if ((*(gss[i]))[j] == node)
 				return i;
 		}
 	}
@@ -96,9 +96,9 @@ void GraphStructuredStack::recursivePathFind(NodeTree<int>* start, int length, s
 		paths->push_back(currentPath);
 		return;
 	}
-	std::vector<NodeTree<int>*>* children = start->getChildren();
-	for (std::vector<NodeTree<int>*>::size_type i = 0; i < children->size(); i++) {
-		recursivePathFind((*children)[i], length-1, currentPath, paths);
+	std::vector<NodeTree<int>*> children = start->getChildren();
+	for (std::vector<NodeTree<int>*>::size_type i = 0; i < children.size(); i++) {
+		recursivePathFind(children[i], length-1, currentPath, paths);
 	}
 }
 
@@ -108,10 +108,10 @@ bool GraphStructuredStack::hasEdge(NodeTree<int>* start, NodeTree<int>* end) {
 }
 
 NodeTree<Symbol*>* GraphStructuredStack::getEdge(NodeTree<int>* start, NodeTree<int>* end) {
-	return edges.get(std::make_pair(start, end), NULL);
+	return edges[std::make_pair(start, end)];
 }
 
-void GraphStructuredStack::addEdge(NodeTree<int>* start, NodeTree<int>* end, NodeTree<Symbol*> edge) {
+void GraphStructuredStack::addEdge(NodeTree<int>* start, NodeTree<int>* end, NodeTree<Symbol*>* edge) {
 	start->addChild(end);
 	end->addParent(start);
 	edges[std::make_pair(start, end)] = edge;

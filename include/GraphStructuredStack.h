@@ -1,7 +1,9 @@
 #include <iostream>
 #include <vector>
 #include <queue>
+#include <map>
 #include "NodeTree.h"
+#include "Symbol.h"
 #include "util.h"
 
 #ifndef GRAPH_STRUCTURED_STACK
@@ -27,7 +29,7 @@ class GraphStructuredStack {
 		std::string toString();
 	private:
 		std::vector<std::vector<NodeTree<int>*>*> gss;
-		std::map<std::pair<NodeTree<int>*, NodeTree<int>*>, NodeTree<Symbol*> edges;
+		std::map< std::pair< NodeTree<int>*, NodeTree<int>* >, NodeTree<Symbol*>* > edges;
 };
 
 #endif
