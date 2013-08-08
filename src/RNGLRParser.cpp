@@ -18,10 +18,12 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 			if ((*zeroStateActions)[i]->action == ParseAction::REDUCE)
 				accepting = true;
 		}
-		if (accepting)
+		if (accepting) {
 			std::cout << "Accepted!" << std::endl;
-		else
+			return getNullableParts(stateSets[0]->getBasis()->operator[0]->getLeftSide());
+		} else {
 			std::cout << "Rejected, no input (with no accepting state)" << std::endl;
+		}
 		return new NodeTree<Symbol*>();
 	}
 
@@ -62,7 +64,9 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 		if (firstActions[i]->action == ParseAction::SHIFT)
 			toShift.push(std::make_pair(v0,firstActions[i]->shiftState));
 		else if (firstActions[i]->action == ParseAction::REDUCE && firstActions[i]->reduceRule->getRightSide().size() == 0) {
-			toReduce.push(std::make_pair(std::make_pair(v0, firstActions[i]->reduceRule->getLeftSide()), 0));
+			Reduction newReduction = {v0, firstActions[i]->reduceRule->getLeftSide(), 0, getNullableIndex(firstActions[i]->reduceRule), new NodeTree<Symbol*>("null", nullSymbol)}
+			toReduce.push(newReduction);
+			//toReduce.push(std::make_pair(std::make_pair(v0, firstActions[i]->reduceRule->getLeftSide()), 0));
 		}
 	}
 
@@ -77,6 +81,12 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 			std::cout << "Failed on " << input[i]->toString() << " next: " << input[i+1]->toString() << std::endl;
 			break;
 		}
+
+		//Clear the vector of SPPF nodes created every step
+		for (std::vector<NodeTree<Symbol*>*>::size_type j = 0; j < SPPFStepNodes.size(); j++)
+			SPPFStepNodes[j] = NULL;
+		SPPFStepNodes.clear();
+
 		while (toReduce.size() != 0) {
 			std::cout << "Reducing for " << i << std::endl;
 			//std::cout << "GSS:\n" << gss.toString() << std::endl;
@@ -87,61 +97,108 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 		std::cout << "GSS:\n" << gss.toString() << std::endl;
 	}
 	std::cout << "Done with parsing loop, checking for acceptance" << std::endl;
-	if (gss.frontierHasAccState(input.size()-1))
+	NodeTree<int>* accState = gss.frontierHasAccState(input.size()-1);
+	if (accState) {
 		std::cout << "Accepted!" << std::endl;
-	else
+		return gss.getEdge(accState, v0);
+	} else {
 		std::cout << "Rejected!" << std::endl;
+	}
 
 	std::cout << "GSS:\n" << gss.toString() << std::endl;
-	return new NodeTree<Symbol*>();
+	return NULL;
 }
 
 void RNGLRParser::reducer(int i) {
-	std::pair< std::pair<NodeTree<int>*, Symbol*>, int > reduction = toReduce.front();
+	Reduction reduction = toReduce.front();
 	toReduce.pop();
-	std::cout << "Doing reduction of length " << reduction.second << " from state " << reduction.first.first->getData() << " to symbol " << reduction.first.second->toString() << std::endl;
-	int pathLength = reduction.second > 0 ? reduction.second -1 : 0;
-	std::vector<NodeTree<int>*>* reachable = gss.getReachable(reduction.first.first, pathLength);
-	for (std::vector<NodeTree<int>*>::size_type j = 0; j < reachable->size(); j++) {
-		NodeTree<int>* currentReached = (*reachable)[j];
-		std::cout << "Getting the shfit state for state " << currentReached->getData() << " and symbol " << reduction.first.second->toString() << std::endl;
-		int toState = table.getShift(currentReached->getData(), reduction.first.second)->shiftState;
+	std::cout << "Doing reduction of length " << reduction.length << " from state " << reduction.from->getData() << " to symbol " << reduction.first.second->toString() << std::endl;
+	int pathLength = reduction.length > 0 ? reduction.length -1 : 0;
+	//Get every reachable path
+	std::vector<std::vector<NodeTree<int>*> >* paths =  gss.getReachablePaths(reduction.from, pathLength);
+
+	for (std::vector<std::vector<NodeTree<int>*> >::size_type j = 0; j < paths->size(); j++) {
+
+		//Algorithm expects path in reverse order
+		std::vector<NodeTree<int>*> currentPath = (*paths)[j];
+		std::reverse(currentPath.begin(), currentPath.end());
+		//Add label of first edge to the end, (since reversed, this is the correct place)
+
+		//Get the edges for the current path
+		std::vector<NodeTree<Symbol*>*> pathEdges = getPathEdges(currentPath);
+		//If the reduction length is 0, label as passed in is null
+		if (reduction.length != 0)
+			pathEdges.push_back(reduction.label);
+		//The end of the current path (remember reversed)
+		NodeTree<int>* currentReached = currentPath[0];
+
+		std::cout << "Getting the shfit state for state " << currentReached->getData() << " and symbol " << reduction.symbol->toString() << std::endl;
+		int toState = table.getShift(currentReached->getData(), reduction.symbol)->shiftState;
+
+		//If reduction length is 0, then we make the new label the appropriate nullable parts
+		NodeTree<Symbol*>* newLabel = NULL;
+		if (reduction.length == 0) {
+			newLabel = getNullableParts(reduction.nullablePartsIndex);
+		} else {
+			//Otherwise, we create the new label if we haven't already
+			int reachedFrontier = gss.getContainingFrontier(currentReached);
+			for (std::vector<std::pair<NodeTree<Symbol*>*, int> >::size_type k = 0; k < SPPFStepNodes.size(); k++) {
+				if ( SPPFStepNodes[k].second == reachedFrontier && *(SPPFStepNodes[k].first->data) == *(reduction.symbol)) {
+					newLabel = SPPFStepNodes[k].first;
+					break;
+				}
+			}
+			if (!newLabel) {
+				newLabel = new NodeTree<Symbol*>("frontier: " + intToString(reachedFrontier), reduction.symbol);
+				SPPFStepNodes.push_back(std::make_pair(newLabel, reachedFrontier));
+			}
+		}
+
 		NodeTree<int>* toStateNode = gss.inFrontier(i, toState);
 		if (toStateNode) {
 			if (!gss.hasEdge(toStateNode, currentReached)) {
-				gss.addEdge(toStateNode, currentReached);
-				if (reduction.second != 0) {
+				gss.addEdge(toStateNode, currentReached, newLabel);
+				if (reduction.length != 0) {
 					//Do all non null reduction
 					std::cout << "Checking for non-null reductions in states that already existed" << std::endl;
 					std::vector<ParseAction*> actions = *(table.get(toState, input[i]));
-					for (std::vector<ParseAction*>::size_type k = 0; k < actions.size(); k++)
-						if (actions[k]->action == ParseAction::REDUCE && actions[k]->reduceRule->getRightSize() != 0)
-							toReduce.push(std::make_pair(std::make_pair(currentReached, actions[k]->reduceRule->getLeftSide()), actions[k]->reduceRule->getRightSize()));
+					for (std::vector<ParseAction*>::size_type k = 0; k < actions.size(); k++) {
+						if (actions[k]->action == ParseAction::REDUCE && actions[k]->reduceRule->getRightSize() != 0) {
+							Reduction newReduction = {currentReached, actions[k]->reduceRule->getLeftSide(), actions[k]->reduceRule->getRightSize(), getNullableIndex(actions[k]->reduceRule), newLabel}
+							toReduce.push(newReduction);
+						}
+					}
 				}
 			}
 		} else {
 			toStateNode = gss.newNode(toState);
 			gss.addToFrontier(i, toStateNode);
-			gss.addEdge(toStateNode, currentReached);
+			gss.addEdge(toStateNode, currentReached, newLabel);
 			
 			std::cout << "Adding shifts and reductions for a state that did not exist" << std::endl;
 			std::vector<ParseAction*> actions = *(table.get(toState, input[i]));
 			for (std::vector<ParseAction*>::size_type k = 0; k < actions.size(); k++) {
 				std::cout << "Action is " << actions[k]->toString() << std::endl;
-				if (actions[k]->action == ParseAction::SHIFT)
+				if (actions[k]->action == ParseAction::SHIFT) {
 					toShift.push(std::make_pair(toStateNode, actions[k]->shiftState));
-				else if (actions[k]->action == ParseAction::REDUCE && actions[k]->reduceRule->getRightSize() != 0)
-					toReduce.push(std::make_pair(std::make_pair(currentReached, actions[k]->reduceRule->getLeftSide()), actions[k]->reduceRule->getRightSize()));
-				else if (actions[k]->action == ParseAction::REDUCE && actions[k]->reduceRule->getRightSize() == 0)
-					toReduce.push(std::make_pair(std::make_pair(toStateNode, actions[k]->reduceRule->getLeftSide()), actions[k]->reduceRule->getRightSize()));
+				} else if (actions[k]->action == ParseAction::REDUCE && actions[k]->reduceRule->getRightSize() == 0) {
+					Reduction newReduction = {toStateNode, actions[k]->reduceRule->getLeftSide(), 0, getNullableIndex(actions[k]->reduceRule), new NodeTree<Symbol*>("null", nullSymbol)}
+					toReduce.push(newReduction);
+				} else if (reduction.length != 0 && actions[k]->action == ParseAction::REDUCE && actions[k]->reduceRule->getRightSize() != 0) {
+					Reduction newReduction = {currentReached, actions[k]->reduceRule->getLeftSide(), actions[k]->reduceRule->getRightSize(), getNullableIndex(actions[k]->reduceRule), newLabel}
+					toReduce.push(newReduction);
+				}
 			}
 		}
+		if (reduction.length != 0)
+			addChildren(newLabel, &pathEdges, reduction.nullablePartsIndex);
 	}
 }
 
 void RNGLRParser::shifter(int i) {
 	if (i != input.size()-1) {
 		std::queue< std::pair<NodeTree<int>*, int> > nextShifts;
+		NodeTree<Symbol*> nextLabel = new NodeTree<Symbol*>("frontier: " + intToString(i), input[i]);
 		while (!toShift.empty()) {
 			std::pair<NodeTree<int>*, int> shift = toShift.front();
 			toShift.pop();
@@ -149,27 +206,32 @@ void RNGLRParser::shifter(int i) {
 			NodeTree<int>* shiftTo = gss.inFrontier(i+1, shift.second);
 			if (shiftTo) {
 				std::cout << "State already existed, just adding edge" << std::endl;
-				gss.addEdge(shiftTo, shift.first);
+				gss.addEdge(shiftTo, shift.first, nextLabel);
 				std::vector<ParseAction*> actions = *(table.get(shift.second, input[i+1]));
 				for (std::vector<ParseAction*>::size_type j = 0; j < actions.size(); j++) {
-					if (actions[j]->action == ParseAction::REDUCE && actions[j]->reduceRule->getRightSize() != 0)
-						toReduce.push(std::make_pair(std::make_pair(shift.first, actions[j]->reduceRule->getLeftSide()), actions[j]->reduceRule->getRightSize()));
+					if (actions[j]->action == ParseAction::REDUCE && actions[j]->reduceRule->getRightSize() != 0) {
+						Reduction newReduction = {shift.first, actions[j]->reduceRule->getLeftSide(), actions[j]->reduceRule->getRightSize(), getNullableIndex(actions[j]->reduceRule), newLabel}
+						toReduce.push(newReduction);
+					}
 				}
 			} else {
 				std::cout << "State did not already exist, adding" << std::endl;
 				shiftTo = gss.newNode(shift.second);
 				gss.addToFrontier(i+1, shiftTo);
-				gss.addEdge(shiftTo, shift.first);
+				gss.addEdge(shiftTo, shift.first, newLabel);
 				std::vector<ParseAction*> actions = *(table.get(shift.second, input[i+1]));
 				for (std::vector<ParseAction*>::size_type j = 0; j < actions.size(); j++) {
 					std::cout << "Adding action " << actions[j]->toString() << " to either nextShifts or toReduce" << std::endl;
 					//Shift
-					if (actions[j]->action == ParseAction::SHIFT)
+					if (actions[j]->action == ParseAction::SHIFT) {
 						nextShifts.push(std::make_pair(shiftTo, actions[j]->shiftState));
-					else if (actions[j]->action == ParseAction::REDUCE && actions[j]->reduceRule->getRightSize() != 0)
-						toReduce.push(std::make_pair(std::make_pair(shift.first, actions[j]->reduceRule->getLeftSide()), actions[j]->reduceRule->getRightSize()));
-					else if (actions[j]->action == ParseAction::REDUCE && actions[j]->reduceRule->getRightSize() == 0)
-						toReduce.push(std::make_pair(std::make_pair(shiftTo, actions[j]->reduceRule->getLeftSide()), actions[j]->reduceRule->getRightSize()));
+					} else if (actions[j]->action == ParseAction::REDUCE && actions[j]->reduceRule->getRightSize() != 0) {
+						Reduction newReduction = {shift.first, actions[j]->reduceRule->getLeftSide(), actions[j]->reduceRule->getRightSize(), getNullableIndex(actions[j]->reduceRule), newLabel}
+						toReduce.push(newReduction);
+					} else if (actions[j]->action == ParseAction::REDUCE && actions[j]->reduceRule->getRightSize() == 0) {
+						Reduction newReduction = {shiftTo, actions[j]->reduceRule->getLeftSide(), 0, getNullableIndex(actions[j]->reduceRule), new NodeTree<Symbol*>("null", nullSymbol)}
+						toReduce.push(newReduction);
+					}
 				}
 			}
 		}
@@ -179,7 +241,7 @@ void RNGLRParser::shifter(int i) {
 
 void RNGLRParser::addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Symbol*>*>* children, int nullablePartsIndex) {
 	if (nullablePartsIndex != 0)
-		children->push_back(nullableParts[nullablePartsIndex]);
+		children->push_back(getNullableParts(nullablePartsIndex);
 	if (!belongsToFamily(parent, children)) {
 		if (parent->getChildren().size() == 0) {
 			parent->addChildren(children);
@@ -200,7 +262,20 @@ void RNGLRParser::addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Sy
 }
 
 bool RNGLRParser::belongsToFamily(NodeTree<Symbol*>* node, std::vector<NodeTree<Symbol*>*>* nodes) {
-	//
+	std::vector<NodeTree<Symbol*>*> children = node->getChildren();
+	for (std::vector<NodeTree<Symbol*>*>::size_type i = 0; i < nodes->size(); i++) {
+		bool containsOne = false;
+		for (std::vector<NodeTree<Symbol*>*>::size_type j = 0; j < children.size(); j++) {
+			if ((*(*nodes)[i]) == *(children[j])) {
+				containsOne = true;
+				break;
+			}
+		}
+		if (!containsOne) {
+			return false;
+		}
+	}
+	return true;
 }
 
 bool RNGLRParser::arePacked(std::vector<NodeTree<Symbol*>*>* nodes) {
@@ -327,5 +402,30 @@ bool RNGLRParser::reducesToNull(ParseRule* rule, std::vector<Symbol*> avoidList)
 		}
 	}
 	return reduces;
+}
+
+int RNGLRParser::getNullableIndex(ParseRule* rule) {
+	return 1;
+}
+
+NodeTree<Symbol*> RNGLRParser::getNullableParts(ParseRule* rule) {
+	return new NodeTree<Symbol*>("null", nullSymbol);
+}
+
+NodeTree<Symbol*> RNGLRParser::getNullableParts(Symbol* symbol) {
+	return new NodeTree<Symbol*>("null", nullSymbol);
+}
+
+NodeTree<Symbol*> RNGLRParser::getNullableParts(int index) {
+	if (index == 0)
+		return new NodeTree<Symbol*>("not_null", nullSymbol);
+	return new NodeTree<Symbol*>("null", nullSymbol);
+}
+
+std::vector<NodeTree<Symbol*>*> RNGLRParser::getPathEdges(std::vector<NodeTree<int>*> path) {
+	std::vector<NodeTree<Symbol*>*> pathEdges;
+	for (std::vector<NodeTree<int>*>::size_type i < path.size()-1; i++)
+		pathEdges.push_back(gss.getEdge(path[i], path[i+1]));
+	return pathEdges;
 }
 

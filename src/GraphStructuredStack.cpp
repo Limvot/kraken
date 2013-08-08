@@ -32,11 +32,23 @@ NodeTree<int>* GraphStructuredStack::inFrontier(int frontier, int state) {
 	return NULL;
 }
 
+int GraphStructuredStack::getContainingFrontier(NodeTree<int>* node) {
+	for (std::vector<std::vector<NodeTree<int>*>*>::size_type i = 0; i < gss.size(); i++) {
+		if (frontierIsEmpty(frontier))
+			continue;
+		for (std::vector<NodeTree<int>*>::size_type j = 0; j < gss[i]->size(); j++) {
+			if (*((*(gss[i]))[j]) == *node)
+				return i;
+		}
+	}
+	return -1;
+}
+
 bool GraphStructuredStack::frontierIsEmpty(int frontier) {
 	return frontier >= gss.size() || gss[frontier]->size() == 0;
 }
 
-bool GraphStructuredStack::frontierHasAccState(int frontier) {
+NodeTree<int>* GraphStructuredStack::frontierGetAccState(int frontier) {
 	//The acc state is always state 1, for now
 	return inFrontier(frontier, 1);
 }
@@ -71,14 +83,38 @@ std::vector<NodeTree<int>*>* GraphStructuredStack::getReachable(NodeTree<int>* s
 	return reachableList;
 }
 
+std::vector<std::vector<NodeTree<int>*> >* GraphStructuredStack::getReachablePaths(NodeTree<int>* start, int length) {
+	std::vector<std::vector<NodeTree<int>*> >* paths = new std::vector<std::vector<NodeTree<int>*> >();
+	std::vector<NodeTree<int>*> currentPath;
+	recursivePathFind(start, length, currentPath, paths);
+	return paths;
+}
+
+void GraphStructuredStack::recursivePathFind(NodeTree<int>* start, int length, std::vector<NodeTree<int>*> currentPath, std::vector<std::vector<NodeTree<int>*> >* paths) {
+	currentPath.push_back(start);
+	if (length == 0) {
+		paths->push_back(currentPath);
+		return;
+	}
+	std::vector<NodeTree<int>*>* children = start->getChildren();
+	for (std::vector<NodeTree<int>*>::size_type i = 0; i < children->size(); i++) {
+		recursivePathFind((*children)[i], length-1, currentPath, paths);
+	}
+}
+
 bool GraphStructuredStack::hasEdge(NodeTree<int>* start, NodeTree<int>* end) {
 	//Really, either testing for parent or child should work.
 	return start->findChild(end) != -1;
 }
 
-void GraphStructuredStack::addEdge(NodeTree<int>* start, NodeTree<int>* end) {
+NodeTree<Symbol*>* GraphStructuredStack::getEdge(NodeTree<int>* start, NodeTree<int>* end) {
+	return edges.get(std::make_pair(start, end), NULL);
+}
+
+void GraphStructuredStack::addEdge(NodeTree<int>* start, NodeTree<int>* end, NodeTree<Symbol*> edge) {
 	start->addChild(end);
 	end->addParent(start);
+	edges[std::make_pair(start, end)] = edge;
 }
 
 std::string GraphStructuredStack::toString() {
