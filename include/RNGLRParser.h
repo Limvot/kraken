@@ -9,6 +9,7 @@
 #include "Parser.h"
 #include "Symbol.h"
 #include "GraphStructuredStack.h"
+#include "util.h"
 
 class RNGLRParser: public Parser {
 	public:
@@ -19,21 +20,21 @@ class RNGLRParser: public Parser {
 	private:
 		void reducer(int i);
 		void shifter(int i);
-		void addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Symbol*>*> children, int nullablePartsIndex);
+		void addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Symbol*>*>* children, int nullablePartsIndex);
 
 		void addStates(std::vector< State* >* stateSets, State* state);
 		bool reducesToNull(ParseRule* rule);
 		bool reducesToNull(ParseRule* rule, std::vector<Symbol*> avoidList);
 
 		bool belongsToFamily(NodeTree<Symbol*>* node, std::vector<NodeTree<Symbol*>*>* nodes);
-		bool arePacked(std::vector<NodeTree<Symbol*>*>* nodes);
+		bool arePacked(std::vector<NodeTree<Symbol*>*> nodes);
 		bool isPacked(NodeTree<Symbol*>* node);
 		void setPacked(NodeTree<Symbol*>* node, bool isPacked);
 
 		int getNullableIndex(ParseRule* rule);
-		NodeTree<Symbol*> getNullableParts(ParseRule* rule);
-		NodeTree<Symbol*> getNullableParts(Symbol* symbol);
-		NodeTree<Symbol*> getNullableParts(int index);
+		NodeTree<Symbol*>* getNullableParts(ParseRule* rule);
+		NodeTree<Symbol*>* getNullableParts(Symbol* symbol);
+		NodeTree<Symbol*>* getNullableParts(int index);
 
 		std::vector<NodeTree<Symbol*>*> getPathEdges(std::vector<NodeTree<int>*> path);
 
@@ -53,7 +54,7 @@ class RNGLRParser: public Parser {
 		std::vector<std::pair<NodeTree<Symbol*>*, int> > SPPFStepNodes;
 
 		std::vector<NodeTree<Symbol*>*> nullableParts;
-		std::map<NodeTree<Symbol*>*, bool> packedMap;
+		std::map<NodeTree<Symbol*>, bool> packedMap;
 };
 
 #endif

@@ -22,6 +22,9 @@ class NodeTree {
 		NodeTree(std::string name, T inData);
 		~NodeTree();
 
+		bool const operator==(NodeTree &other);
+		bool const operator<(const NodeTree &other) const;
+
 		void setParent(NodeTree<T>* parent);
 		void addParent(NodeTree<T>* parent);
 		NodeTree<T>* getParent();
@@ -36,11 +39,10 @@ class NodeTree {
 		std::vector<NodeTree<T>*> getChildren();
 
 		NodeTree<T>* get(int index);
-
 		std::string getName();
 		void setName(std::string);
 
-		T getData();
+		T getData() const;
 		void setData(T data);
 
 		int size();
@@ -81,6 +83,23 @@ template<class T>
 NodeTree<T>::~NodeTree() {
 	children.clear();
 	parents.clear(); //? Will this segfault?
+}
+
+template<class T>
+const bool NodeTree<T>::operator==(NodeTree &other) {
+	if (!(data == other.data))
+		return false;
+	if (children.size() != other.getChildren().size())
+		return false;
+	for (typename std::vector<NodeTree<T>*>::size_type i = 0; i < children.size(); i++)
+		if (! (*(children[i]) == *(other.getChildren()[i])))
+			return false;
+	return true;
+}
+
+template<class T>
+const bool NodeTree<T>::operator<(const NodeTree &other) const {
+	return data < other.getData();
 }
 
 template<class T>
@@ -180,7 +199,7 @@ void NodeTree<T>::setName(std::string name) {
 }
 
 template<class T>
-T NodeTree<T>::getData() {
+T NodeTree<T>::getData() const {
 	return data;
 }
 
@@ -198,7 +217,10 @@ template<class T>
 std::string NodeTree<T>::DOTGraphStringHelper() {
 	std::string ourDOTRelation = "";
 	for (int i = 0; i < children.size(); i++) {
-		ourDOTRelation += getDOTName() + " -> " + children[i]->getDOTName() + ";\n" + children[i]->DOTGraphStringHelper();
+		if (children[i] != NULL)
+			ourDOTRelation += getDOTName() + " -> " + children[i]->getDOTName() + ";\n" + children[i]->DOTGraphStringHelper();
+		else
+			ourDOTRelation += getDOTName() + " -> BAD_NULL_" + getDOTName();
 	}
 	return(ourDOTRelation);
 }
