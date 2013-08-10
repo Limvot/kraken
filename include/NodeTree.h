@@ -220,7 +220,7 @@ std::string NodeTree<T>::DOTGraphStringHelper() {
 		if (children[i] != NULL)
 			ourDOTRelation += getDOTName() + " -> " + children[i]->getDOTName() + ";\n" + children[i]->DOTGraphStringHelper();
 		else
-			ourDOTRelation += getDOTName() + " -> BAD_NULL_" + getDOTName();
+			ourDOTRelation += getDOTName() + " -> BAD_NULL_" + getDOTName() + "\n";
 	}
 	return(ourDOTRelation);
 }

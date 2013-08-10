@@ -101,10 +101,9 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 	if (accState) {
 		std::cout << "Accepted!" << std::endl;
 		return gss.getEdge(accState, v0);
-	} else {
-		std::cout << "Rejected!" << std::endl;
 	}
 
+	std::cout << "Rejected!" << std::endl;
 	std::cout << "GSS:\n" << gss.toString() << std::endl;
 	return NULL;
 }
@@ -119,18 +118,16 @@ void RNGLRParser::reducer(int i) {
 
 	for (std::vector<std::vector<NodeTree<int>*> >::size_type j = 0; j < paths->size(); j++) {
 
-		//Algorithm expects path in reverse order
 		std::vector<NodeTree<int>*> currentPath = (*paths)[j];
-		std::reverse(currentPath.begin(), currentPath.end());
-		//Add label of first edge to the end, (since reversed, this is the correct place)
 
 		//Get the edges for the current path
 		std::vector<NodeTree<Symbol*>*> pathEdges = getPathEdges(currentPath);
+		std::reverse(pathEdges.begin(), pathEdges.end());
 		//If the reduction length is 0, label as passed in is null
 		if (reduction.length != 0)
 			pathEdges.push_back(reduction.label);
-		//The end of the current path (remember reversed)
-		NodeTree<int>* currentReached = currentPath[0];
+		//The end of the current path
+		NodeTree<int>* currentReached = currentPath[currentPath.size()-1];
 
 		std::cout << "Getting the shfit state for state " << currentReached->getData() << " and symbol " << reduction.symbol->toString() << std::endl;
 		int toState = table.getShift(currentReached->getData(), reduction.symbol)->shiftState;
@@ -408,11 +405,14 @@ bool RNGLRParser::reducesToNull(ParseRule* rule, std::vector<Symbol*> avoidList)
 }
 
 int RNGLRParser::getNullableIndex(ParseRule* rule) {
-	return 1;
+	if (reducesToNull(rule))
+		return 1;
+	else
+		return 0;
 }
 
 NodeTree<Symbol*>* RNGLRParser::getNullableParts(ParseRule* rule) {
-	return new NodeTree<Symbol*>("null", nullSymbol);
+	return getNullableParts(getNullableIndex(rule));
 }
 
 NodeTree<Symbol*>* RNGLRParser::getNullableParts(Symbol* symbol) {
