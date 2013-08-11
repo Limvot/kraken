@@ -20,3 +20,16 @@ std::string removeBeginning(std::string to_remove)
         to_return = to_return + to_remove[i];
     return to_return;
 }
+
+std::string replace(std::string first, std::string search, std::string replace) {
+    size_t pos = 0;
+    while (pos < first.size()-search.size()) {
+        pos = first.find(search, pos);
+        if (pos == std::string::npos)
+            break;
+        //std::cout << "Position is " << pos << " size of first is " << first.size() << " size of replace is " << replace.size() << std::endl;
+        first = first.replace(pos, search.size(), replace);
+        pos++;
+    }
+    return first;
+}

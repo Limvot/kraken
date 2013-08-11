@@ -78,7 +78,7 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 		std::cout << "Checking if frontier " << i << " is empty" << std::endl;
 		if (gss.frontierIsEmpty(i)) {
 			std::cout << "Frontier " << i << " is empty." << std::endl;
-			std::cout << "Failed on " << input[i]->toString() << " next: " << input[i+1]->toString() << std::endl;
+			std::cout << "Failed on " << input[i]->toString() << std::endl;
 			break;
 		}
 

@@ -5,15 +5,11 @@
 #define NULL 0
 #endif
 
-#include <util.h>
-//#include <Symbol.h>
-
 #include <vector>
 #include <string>
 #include <iostream>
 
-//Circular references
-//class Symbol;
+#include "util.h"
 
 template<class T>
 class NodeTree {
@@ -227,9 +223,12 @@ std::string NodeTree<T>::DOTGraphStringHelper() {
 
 template<class T>
 std::string NodeTree<T>::getDOTName() {
+	std::string DOTName = "";
 	if (data != NULL)
-		return "\"" + name + "-" + data->toString() + "_" + intToString(id) + "\""; //Note that terminals already have a quote in the front of their name, so we don't need to add one
-	return "\"" + name + "_" + intToString(id) + "\"";
+		DOTName = "\"" + name + "-" + data->toString() + "_" + intToString(id) + "\""; //Note that terminals already have a quote in the front of their name, so we don't need to add one
+	else
+		DOTName = "\"" + name + "_" + intToString(id) + "\"";
+	return(replace(DOTName, "\n", "\\n"));
 }
 
 #endif
