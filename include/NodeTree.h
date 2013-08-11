@@ -225,10 +225,10 @@ template<class T>
 std::string NodeTree<T>::getDOTName() {
 	std::string DOTName = "";
 	if (data != NULL)
-		DOTName = "\"" + name + "-" + data->toString() + "_" + intToString(id) + "\""; //Note that terminals already have a quote in the front of their name, so we don't need to add one
+		DOTName = "\"" + replaceExEscape(name + "-" + data->toString(), "\"", "\\\"") + "_" + intToString(id) + "\""; //Note that terminals already have a quote in the front of their name, so we don't need to add one
 	else
-		DOTName = "\"" + name + "_" + intToString(id) + "\"";
-	return(replace(DOTName, "\n", "\\n"));
+		DOTName = "\"" + replaceExEscape(name, "\"", " \\\"") + "_" + intToString(id) + "\"";
+	return(replaceExEscape(DOTName, "\n", "\\n"));
 }
 
 #endif

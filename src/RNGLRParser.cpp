@@ -83,8 +83,6 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 		}
 
 		//Clear the vector of SPPF nodes created every step
-		// for (std::vector<NodeTree<Symbol*>*>::size_type j = 0; j < SPPFStepNodes.size(); j++)
-		// 	SPPFStepNodes[j] = NULL;
 		SPPFStepNodes.clear();
 
 		while (toReduce.size() != 0) {
@@ -244,14 +242,14 @@ void RNGLRParser::addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Sy
 			parent->addChildren(children);
 		} else {
 			if (!arePacked(parent->getChildren())) {
-				NodeTree<Symbol*>* subParent = new NodeTree<Symbol*>();
+				NodeTree<Symbol*>* subParent = new NodeTree<Symbol*>("AmbiguityPackInner", NULL);
 				setPacked(subParent, true);
 				std::vector<NodeTree<Symbol*>*> tmp = parent->getChildren();
 				subParent->addChildren(&tmp);
 				parent->clearChildren();
 				parent->addChild(subParent);
 			}
-			NodeTree<Symbol*>* t = new NodeTree<Symbol*>();
+			NodeTree<Symbol*>* t = new NodeTree<Symbol*>("AmbiguityPackOuter", NULL);
 			setPacked(t, true);
 			parent->addChild(t);
 			t->addChildren(children);
