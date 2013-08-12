@@ -64,7 +64,7 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 		if (firstActions[i]->action == ParseAction::SHIFT)
 			toShift.push(std::make_pair(v0,firstActions[i]->shiftState));
 		else if (firstActions[i]->action == ParseAction::REDUCE && firstActions[i]->reduceRule->getRightSide().size() == 0) {
-			Reduction newReduction = {v0, firstActions[i]->reduceRule->getLeftSide(), 0, getNullableIndex(firstActions[i]->reduceRule), new NodeTree<Symbol*>("null", nullSymbol)};
+			Reduction newReduction = {v0, firstActions[i]->reduceRule->getLeftSide(), 0, getNullableParts(firstActions[i]->reduceRule), NULL};
 			toReduce.push(newReduction);
 			//toReduce.push(std::make_pair(std::make_pair(v0, firstActions[i]->reduceRule->getLeftSide()), 0));
 		}
@@ -133,7 +133,7 @@ void RNGLRParser::reducer(int i) {
 		//If reduction length is 0, then we make the new label the appropriate nullable parts
 		NodeTree<Symbol*>* newLabel = NULL;
 		if (reduction.length == 0) {
-			newLabel = getNullableParts(reduction.nullablePartsIndex);
+			newLabel = reduction.nullableParts;
 		} else {
 			//Otherwise, we create the new label if we haven't already
 			int reachedFrontier = gss.getContainingFrontier(currentReached);
@@ -159,7 +159,7 @@ void RNGLRParser::reducer(int i) {
 					std::vector<ParseAction*> actions = *(table.get(toState, input[i]));
 					for (std::vector<ParseAction*>::size_type k = 0; k < actions.size(); k++) {
 						if (actions[k]->action == ParseAction::REDUCE && actions[k]->reduceRule->getRightSize() != 0) {
-							Reduction newReduction = {currentReached, actions[k]->reduceRule->getLeftSide(), actions[k]->reduceRule->getRightSize(), getNullableIndex(actions[k]->reduceRule), newLabel};
+							Reduction newReduction = {currentReached, actions[k]->reduceRule->getLeftSide(), actions[k]->reduceRule->getRightSize(), getNullableParts(actions[k]->reduceRule), newLabel};
 							toReduce.push(newReduction);
 						}
 					}
@@ -177,16 +177,16 @@ void RNGLRParser::reducer(int i) {
 				if (actions[k]->action == ParseAction::SHIFT) {
 					toShift.push(std::make_pair(toStateNode, actions[k]->shiftState));
 				} else if (actions[k]->action == ParseAction::REDUCE && actions[k]->reduceRule->getRightSize() == 0) {
-					Reduction newReduction = {toStateNode, actions[k]->reduceRule->getLeftSide(), 0, getNullableIndex(actions[k]->reduceRule), new NodeTree<Symbol*>("null", nullSymbol)};
+					Reduction newReduction = {toStateNode, actions[k]->reduceRule->getLeftSide(), 0, getNullableParts(actions[k]->reduceRule), NULL};
 					toReduce.push(newReduction);
 				} else if (reduction.length != 0 && actions[k]->action == ParseAction::REDUCE && actions[k]->reduceRule->getRightSize() != 0) {
-					Reduction newReduction = {currentReached, actions[k]->reduceRule->getLeftSide(), actions[k]->reduceRule->getRightSize(), getNullableIndex(actions[k]->reduceRule), newLabel};
+					Reduction newReduction = {currentReached, actions[k]->reduceRule->getLeftSide(), actions[k]->reduceRule->getRightSize(), getNullableParts(actions[k]->reduceRule), newLabel};
 					toReduce.push(newReduction);
 				}
 			}
 		}
 		if (reduction.length != 0)
-			addChildren(newLabel, &pathEdges, reduction.nullablePartsIndex);
+			addChildren(newLabel, &pathEdges, reduction.nullableParts);
 	}
 }
 
@@ -205,7 +205,7 @@ void RNGLRParser::shifter(int i) {
 				std::vector<ParseAction*> actions = *(table.get(shift.second, input[i+1]));
 				for (std::vector<ParseAction*>::size_type j = 0; j < actions.size(); j++) {
 					if (actions[j]->action == ParseAction::REDUCE && actions[j]->reduceRule->getRightSize() != 0) {
-						Reduction newReduction = {shift.first, actions[j]->reduceRule->getLeftSide(), actions[j]->reduceRule->getRightSize(), getNullableIndex(actions[j]->reduceRule), newLabel};
+						Reduction newReduction = {shift.first, actions[j]->reduceRule->getLeftSide(), actions[j]->reduceRule->getRightSize(), getNullableParts(actions[j]->reduceRule), newLabel};
 						toReduce.push(newReduction);
 					}
 				}
@@ -221,10 +221,10 @@ void RNGLRParser::shifter(int i) {
 					if (actions[j]->action == ParseAction::SHIFT) {
 						nextShifts.push(std::make_pair(shiftTo, actions[j]->shiftState));
 					} else if (actions[j]->action == ParseAction::REDUCE && actions[j]->reduceRule->getRightSize() != 0) {
-						Reduction newReduction = {shift.first, actions[j]->reduceRule->getLeftSide(), actions[j]->reduceRule->getRightSize(), getNullableIndex(actions[j]->reduceRule), newLabel};
+						Reduction newReduction = {shift.first, actions[j]->reduceRule->getLeftSide(), actions[j]->reduceRule->getRightSize(), getNullableParts(actions[j]->reduceRule), newLabel};
 						toReduce.push(newReduction);
 					} else if (actions[j]->action == ParseAction::REDUCE && actions[j]->reduceRule->getRightSize() == 0) {
-						Reduction newReduction = {shiftTo, actions[j]->reduceRule->getLeftSide(), 0, getNullableIndex(actions[j]->reduceRule), new NodeTree<Symbol*>("null", nullSymbol)};
+						Reduction newReduction = {shiftTo, actions[j]->reduceRule->getLeftSide(), 0, getNullableParts(actions[j]->reduceRule), NULL};
 						toReduce.push(newReduction);
 					}
 				}
@@ -234,9 +234,9 @@ void RNGLRParser::shifter(int i) {
 	}
 }
 
-void RNGLRParser::addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Symbol*>*>* children, int nullablePartsIndex) {
-	if (nullablePartsIndex != 0)
-		children->push_back(getNullableParts(nullablePartsIndex));
+void RNGLRParser::addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Symbol*>*>* children, NodeTree<Symbol*>* nullableParts) {
+	if (nullableParts)
+		children->push_back(nullableParts);
 	if (!belongsToFamily(parent, children)) {
 		if (parent->getChildren().size() == 0) {
 			parent->addChildren(children);
@@ -334,9 +334,12 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
 		//If this has an appropriate ruduction to null, get the reduce trees out
 		} else if (reducesToNull((*currStateTotal)[i])) {
 			std::cout << (*currStateTotal)[i]->toString() << " REDUCES TO NULL" << std::endl;
-			//If is a rule that produces only NULL, add in the approprite reduction, but use a new rule with a right side of length 0. (so we don't pop off stack)
+			//If is a rule that produces only NULL, add in the approprite reduction, but use a new rule with a right side that is equal to
+			//the part that we've already gone through in the rule. (so we don't pop extra off stack)
 			ParseRule* nullRule = (*currStateTotal)[i]->clone();
-			nullRule->setRightSide(* new std::vector<Symbol*>());
+			std::vector<Symbol*> oldRightSide = nullRule->getRightSide();
+			oldRightSide.erase(oldRightSide.begin()+nullRule->getIndex(), oldRightSide.end());
+			nullRule->setRightSide(oldRightSide);
 			for (std::vector<Symbol*>::size_type j = 0; j < lookahead->size(); j++)
 				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, nullRule));
 		}
@@ -370,6 +373,10 @@ bool RNGLRParser::reducesToNull(ParseRule* rule) {
 }
 
 bool RNGLRParser::reducesToNull(ParseRule* rule, std::vector<Symbol*> avoidList) {
+	//If the rule is completed and not null, it doesn't reduce to null, it's just completed.
+	if (rule->isAtEnd() && rule->getRightSize() != 0)
+		return false;
+
 	for (std::vector<Symbol*>::size_type i = 0; i < avoidList.size(); i++)
 		if (*(rule->getLeftSide()) == *(avoidList[i]))
 			return false;
@@ -378,7 +385,7 @@ bool RNGLRParser::reducesToNull(ParseRule* rule, std::vector<Symbol*> avoidList)
 
 	std::vector<Symbol*> rightSide = rule->getRightSide();
 	bool reduces = true;
-	for (std::vector<Symbol*>::size_type i = 0; i < rightSide.size(); i++) {
+	for (std::vector<Symbol*>::size_type i = rule->getIndex(); i < rightSide.size(); i++) {
 		if (*rightSide[i] == *nullSymbol)
 			continue;
 		if (rightSide[i]->isTerminal()) {
@@ -402,25 +409,33 @@ bool RNGLRParser::reducesToNull(ParseRule* rule, std::vector<Symbol*> avoidList)
 	return reduces;
 }
 
-int RNGLRParser::getNullableIndex(ParseRule* rule) {
-	if (reducesToNull(rule))
-		return 1;
-	else
-		return 0;
-}
-
 NodeTree<Symbol*>* RNGLRParser::getNullableParts(ParseRule* rule) {
-	return getNullableParts(getNullableIndex(rule));
+	//return new NodeTree<Symbol*>("FAKE_PARTS_FOR_NO_CRASH", nullSymbol);
+	if (reducesToNull(rule)) {
+		std::cout << "Reduces to null so adding parts " << rule->toString() << std::endl;
+		//return new NodeTree<Symbol*>("FAKE_PARTS_FOR_NO_CRASH", nullSymbol);
+		Symbol* symbol = rule->getLeftSide();
+		NodeTree<Symbol*>* symbolNode = new NodeTree<Symbol*>(symbol->getName(), symbol);
+		if (rule->getRightSize() == 0) {
+			symbolNode->addChild(new NodeTree<Symbol*>(nullSymbol->getName(), nullSymbol));
+		} else {
+			//Do something recursive
+			//Be careful of cycles
+			ParseRule* iterate = rule->clone();
+			while (!iterate->isAtEnd()) {
+				for (std::vector<ParseRule*>::size_type i = 0; i < loadedGrammer.size(); i++)
+					if (*(iterate->getAtNextIndex()) == *(loadedGrammer[i]->getLeftSide()))
+						symbolNode->addChild(getNullableParts(loadedGrammer[i]));
+				rule->advancePointer();
+			}
+		}
+		return symbolNode;
+	}
+	return NULL;
 }
 
 NodeTree<Symbol*>* RNGLRParser::getNullableParts(Symbol* symbol) {
-	return new NodeTree<Symbol*>("null", nullSymbol);
-}
-
-NodeTree<Symbol*>* RNGLRParser::getNullableParts(int index) {
-	if (index == 0)
-		return new NodeTree<Symbol*>("not_null", nullSymbol);
-	return new NodeTree<Symbol*>("null", nullSymbol);
+	return new NodeTree<Symbol*>("CRAZY_SYMBOL", nullSymbol);
 }
 
 std::vector<NodeTree<Symbol*>*> RNGLRParser::getPathEdges(std::vector<NodeTree<int>*> path) {
@@ -429,4 +444,3 @@ std::vector<NodeTree<Symbol*>*> RNGLRParser::getPathEdges(std::vector<NodeTree<i
 		pathEdges.push_back(gss.getEdge(path[i], path[i+1]));
 	return pathEdges;
 }
-
