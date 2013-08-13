@@ -45,7 +45,7 @@ class NodeTree {
 		std::string DOTGraphString();
 
 	private:
-		std::string DOTGraphStringHelper();
+		std::string DOTGraphStringHelper(std::vector<NodeTree<T>*> avoidList);
 		std::string getDOTName();
 		std::string name;
 		T data;
@@ -124,6 +124,8 @@ std::vector<NodeTree<T>*> NodeTree<T>::getParents() {
 
 template<class T>
 void NodeTree<T>::addChild(NodeTree<T>* child) {
+	if (!child)
+		throw "Help, NULL child";
 	if (findChild(child) == -1) 
 		children.push_back(child);
 }
@@ -206,15 +208,20 @@ void NodeTree<T>::setData(T data) {
 
 template<class T>
 std::string NodeTree<T>::DOTGraphString() {
-	return( "digraph Kraken { \n" + DOTGraphStringHelper() + "}");
+	return( "digraph Kraken { \n" + DOTGraphStringHelper(std::vector<NodeTree<T>*>()) + "}");
 }
 
 template<class T>
-std::string NodeTree<T>::DOTGraphStringHelper() {
+std::string NodeTree<T>::DOTGraphStringHelper(std::vector<NodeTree<T>*> avoidList) {
+	for (typename std::vector<NodeTree<T>*>::size_type i = 0; i < avoidList.size(); i++)
+		if (this == avoidList[i])
+			return "";
+	avoidList.push_back(this);
+
 	std::string ourDOTRelation = "";
 	for (int i = 0; i < children.size(); i++) {
 		if (children[i] != NULL)
-			ourDOTRelation += getDOTName() + " -> " + children[i]->getDOTName() + ";\n" + children[i]->DOTGraphStringHelper();
+			ourDOTRelation += getDOTName() + " -> " + children[i]->getDOTName() + ";\n" + children[i]->DOTGraphStringHelper(avoidList);
 		else
 			ourDOTRelation += getDOTName() + " -> BAD_NULL_" + getDOTName() + "\n";
 	}

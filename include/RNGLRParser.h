@@ -23,6 +23,7 @@ class RNGLRParser: public Parser {
 		void addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Symbol*>*>* children, NodeTree<Symbol*>* nullableParts);
 
 		void addStates(std::vector< State* >* stateSets, State* state);
+		bool fullyReducesToNull(ParseRule* rule);
 		bool reducesToNull(ParseRule* rule);
 		bool reducesToNull(ParseRule* rule, std::vector<Symbol*> avoidList);
 
@@ -32,6 +33,7 @@ class RNGLRParser: public Parser {
 		void setPacked(NodeTree<Symbol*>* node, bool isPacked);
 
 		NodeTree<Symbol*>* getNullableParts(ParseRule* rule);
+		NodeTree<Symbol*>* getNullableParts(ParseRule* rule, std::vector<NodeTree<Symbol*>*> avoidList);
 		NodeTree<Symbol*>* getNullableParts(Symbol* symbol);
 
 		std::vector<NodeTree<Symbol*>*> getPathEdges(std::vector<NodeTree<int>*> path);
