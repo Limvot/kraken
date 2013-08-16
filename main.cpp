@@ -48,29 +48,29 @@ int main(int argc, char* argv[]) {
 	RNGLRParser parser;
 	parser.loadGrammer(grammerInputFileString);
 	//std::cout << "Creating State Set from Main" << std::endl;
-	std::cout << "\n\n\n\n\n\n\n\n\n\nState Set" << std::endl;
+	std::cout << "\nState Set" << std::endl;
 	parser.createStateSet();
 	//std::cout << "finished State Set from Main" << std::endl;
 	//std::cout << "Doing stateSetToString from Main" << std::endl;
-	std::cout << "\n\n\n\n\n\n\n\n\n\nState Set toString" << std::endl;
+	// std::cout << "\n\n\n\n\n\n\n\n\n\nState Set toString" << std::endl;
 	std::cout << parser.stateSetToString() << std::endl;
 	std::cout << "finished stateSetToString from Main" << std::endl;
-	std::cout << "\n\n\n\n\n\n\n\n\n\nTable" << std::endl;
-	std::cout << parser.tableToString() << std::endl;
-	std::cout << "\n\n\n\n\n\n\n\n\n\nGrammer Input File" << std::endl;
-	std::cout << grammerInputFileString << std::endl;
-	std::cout << "\n\n\n\n\n\n\n\n\n\nGrammer toString" << std::endl;
-	std::cout << parser.grammerToString() << std::endl;
+	 std::cout << "\n\n\n\n\n\n\n\n\n\nTable" << std::endl;
+	 std::cout << parser.tableToString() << std::endl;
+	// std::cout << "\n\n\n\n\n\n\n\n\n\nGrammer Input File" << std::endl;
+	// std::cout << grammerInputFileString << std::endl;
+	// std::cout << "\n\n\n\n\n\n\n\n\n\nGrammer toString" << std::endl;
+	// std::cout << parser.grammerToString() << std::endl;
 	//std::cout << parser.grammerToDOT() << std::endl;
 
 	//outFile << parser.grammerToDOT() << std::endl;
-	std::cout << "\n\n\n\n\n\n\n\n\n\nParsing" << std::endl;
+	std::cout << "\nParsing" << std::endl;
 
 	std::cout << programInputFileString << std::endl;
 	NodeTree<Symbol*>* parseTree = parser.parseInput(programInputFileString);
 
 	if (parseTree) {
-		std::cout << parseTree->DOTGraphString() << std::endl;
+		//std::cout << parseTree->DOTGraphString() << std::endl;
 		outFile << parseTree->DOTGraphString() << std::endl;
 	}
 

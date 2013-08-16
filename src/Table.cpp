@@ -67,7 +67,13 @@ void Table::add(int stateNum, Symbol* tranSymbol, ParseAction* action) {
 		//std::cout << "not Null!" << std::endl;
 		//std::cout << "State: " << stateNum << " Conflict between old: " << (*(table[stateNum]))[symbolIndex]->toString() << " and new: " << action->toString() << " on " << tranSymbol->toString() << std::endl; 
 
-		(*(table[stateNum]))[symbolIndex]->push_back(action);
+		//Check to see if this action is already in the list
+		bool alreadyIn = false;
+		for (std::vector<ParseAction*>::size_type i = 0; i < (*(table[stateNum]))[symbolIndex]->size(); i++)
+			if (*((*((*(table[stateNum]))[symbolIndex]))[i]) == *action)
+				alreadyIn = true;
+		if (!alreadyIn)
+			(*(table[stateNum]))[symbolIndex]->push_back(action);
 	}
 }
 
@@ -98,8 +104,15 @@ std::vector<ParseAction*>* Table::get(int state, Symbol* token) {
 		return NULL;
 	}
 
-	std::cout << "Get for state: " << state << ", and Symbol: " << token->toString() << std::endl;
-
+	//std::cout << "Get for state: " << state << ", and Symbol: " << token->toString() << std::endl;
+	if (state < 0 || state >= table.size()) {
+		std::cout << "State bad: " << state << std::endl;
+		return NULL;
+	}
+	if (symbolIndex < 0 || symbolIndex >= table[state]->size()) {
+		std::cout << "Symbol bad for this state: " << token->toString() << std::endl;
+		return NULL;
+	}
 	std::vector<ParseAction*>* action = (*(table[state]))[symbolIndex];
 
 	//This is the accepting state, as it is the 1th's state's reduction on EOF, which is 0 in the symbolIndexVec

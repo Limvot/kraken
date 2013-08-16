@@ -23,6 +23,7 @@ class RNGLRParser: public Parser {
 		void addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Symbol*>*>* children, NodeTree<Symbol*>* nullableParts);
 
 		void addStates(std::vector< State* >* stateSets, State* state);
+		void addStateReductionsToTable(State* state);
 		bool fullyReducesToNull(ParseRule* rule);
 		bool reducesToNull(ParseRule* rule);
 		bool reducesToNull(ParseRule* rule, std::vector<Symbol*> avoidList);

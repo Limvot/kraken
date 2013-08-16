@@ -20,13 +20,16 @@ class State {
 		~State();
 		bool const operator==(const State &other);
 		bool const basisEquals(const State &other);
+		bool const basisEqualsExceptLookahead(const State &other);
 		bool const operator!=(const State &other);
 		std::vector<ParseRule*>* getBasis();
 		std::vector<ParseRule*>* getRemaining();
 		std::vector<ParseRule*>* getTotal();
 		bool containsRule(ParseRule* rule);
+		void addRuleCombineLookahead(ParseRule* rule);
 		std::string toString();
 
+		void combineStates(State &other);
 		void addParents(std::vector<State*>* parents);
 		std::vector<State*>* getParents();
 		std::vector<State*>* getDeepParents(int depth);

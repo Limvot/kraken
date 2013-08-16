@@ -74,8 +74,8 @@ void Parser::loadGrammer(std::string grammerInputString) {
 	}
 	std::cout << "Parsed!\n";
 
-	for (std::vector<ParseRule*>::size_type i = 0; i < loadedGrammer.size(); i++)
-		std::cout << loadedGrammer[i]->toString() << std::endl;
+	// for (std::vector<ParseRule*>::size_type i = 0; i < loadedGrammer.size(); i++)
+	// 	std::cout << loadedGrammer[i]->toString() << std::endl;
 }
 
 void Parser::createStateSet() {
@@ -222,7 +222,7 @@ void Parser::closure(State* state) {
 				bool isAlreadyInState = false;
 				for (std::vector<ParseRule*>::size_type k = 0; k < stateTotal->size(); k++) {
 					if ((*stateTotal)[k]->equalsExceptLookahead(*currentGramRule)) {
-						std::cout << (*stateTotal)[k]->toString() << std::endl;
+						//std::cout << (*stateTotal)[k]->toString() << std::endl;
 						(*stateTotal)[k]->addLookahead(currentGramRule->getLookahead());
 						isAlreadyInState = true;
 						break;

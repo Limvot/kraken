@@ -44,10 +44,37 @@ const bool State::basisEquals(const State &other) {
 		return false;
 
 	for (std::vector< ParseRule* >::size_type i = 0; i < basis.size(); i++) {
-		if (*(basis[i]) != *(other.basis[i]))
+		if (*(basis[i]) != (*(other.basis[i])))
 			return false;
 	}
 	return true;
+}
+
+const bool State::basisEqualsExceptLookahead(const State &other) {
+	//return (basis == other.basis && remaining == other.remaining);
+	if (basis.size() != other.basis.size())
+		return false;
+
+	for (std::vector< ParseRule* >::size_type i = 0; i < basis.size(); i++) {
+		if (!basis[i]->equalsExceptLookahead(*(other.basis[i])))
+			return false;
+	}
+	return true;
+}
+
+void State::combineStates(State &other) {
+	for (std::vector< ParseRule* >::size_type i = 0; i < other.basis.size(); i++) {
+		bool alreadyIn = false;
+		for (std::vector< ParseRule* >::size_type j = 0; j < basis.size(); j++) {
+			if (basis[j]->equalsExceptLookahead(*(other.basis[i]))) {
+				basis[j]->addLookahead(other.basis[i]->getLookahead());
+				alreadyIn = true;
+			}
+		}
+		if (!alreadyIn)
+			basis.push_back(other.basis[i]);
+	}
+	addParents(other.getParents());
 }
 
 std::vector<ParseRule*>* State::getTotal() {
@@ -68,15 +95,26 @@ std::vector<ParseRule*>* State::getRemaining() {
 }
 
 bool State::containsRule(ParseRule* rule) {
-	for (std::vector<ParseRule*>::size_type i = 0; i < basis.size(); i++) {
-		if (*rule == *(basis[i]))
+	getTotal();
+	for (std::vector<ParseRule*>::size_type i = 0; i < total.size(); i++) {
+		if (*rule  == *(total[i])) {
 			return true;
-	}
-	for (std::vector<ParseRule*>::size_type i = 0; i < remaining.size(); i++) {
-		if (*rule == *(remaining[i]))
-			return true;
+		}
 	}
 	return false;
+}
+
+void State::addRuleCombineLookahead(ParseRule* rule) {
+	getTotal();
+	bool alreadyIn = false;
+	for (std::vector<ParseRule*>::size_type i = 0; i < total.size(); i++) {
+		if (rule->equalsExceptLookahead(*(total[i]))) {
+			total[i]->addLookahead(rule->getLookahead());
+			alreadyIn = true;
+		}
+	}
+	if (!alreadyIn)
+		basis.push_back(rule);
 }
 
 std::string State::toString() {

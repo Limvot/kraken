@@ -263,8 +263,8 @@ int RegEx::longMatch(std::string stringToMatch) {
 			if (!inCurrStates)
 				currentStates.push_back(nextStates[j]);
 		}
-		if (currentStates.size() != 0)
-			std::cout << "Matched " << i << " character: " << stringToMatch[i-1] << std::endl;
+		// if (currentStates.size() != 0)
+		// 	std::cout << "Matched " << i << " character: " << stringToMatch[i-1] << std::endl;
 
 		nextStates.clear();
 		//If we can't continue matching, just return our last matched

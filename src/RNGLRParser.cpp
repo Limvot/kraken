@@ -33,7 +33,7 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 	Symbol* currentToken = lexer.next();
 	input.push_back(currentToken);
 	while (*currentToken != *EOFSymbol) {
-		std::cout << EOFSymbol->toString() << " " << currentToken->toString() << std::endl;
+		//std::cout << EOFSymbol->toString() << " " << currentToken->toString() << std::endl;
 		currentToken = lexer.next();
 		if (currentToken != NULL) {
 			input.push_back(currentToken);
@@ -43,12 +43,12 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 		}
 	}
 
-	std::cout << "\n\n\nDone with Lexing\n\n\n" << std::endl;
+	std::cout << "\nDone with Lexing\n" << std::endl;
 
 	
-	for (int i = 0; i < input.size(); i++)
-		std::cout << "|" << input[i]->toString() << "|";
-	std::cout << std::endl;
+	// for (int i = 0; i < input.size(); i++)
+	// 	std::cout << "|" << input[i]->toString() << "|";
+	// std::cout << std::endl;
 
 
 	std::cout << "Setting up 0th frontier, first actions, toShift, toReduce" << std::endl;
@@ -70,12 +70,12 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 		}
 	}
 
-	std::cout << "GSS:\n" << gss.toString() << std::endl;
+	// std::cout << "GSS:\n" << gss.toString() << std::endl;
 
 	std::cout << "Starting parse loop" << std::endl;
 
 	for (int i = 0; i < input.size(); i++) {
-		std::cout << "Checking if frontier " << i << " is empty" << std::endl;
+		// std::cout << "Checking if frontier " << i << " is empty" << std::endl;
 		if (gss.frontierIsEmpty(i)) {
 			std::cout << "Frontier " << i << " is empty." << std::endl;
 			std::cout << "Failed on " << input[i]->toString() << std::endl;
@@ -86,13 +86,13 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 		SPPFStepNodes.clear();
 
 		while (toReduce.size() != 0) {
-			std::cout << "Reducing for " << i << std::endl;
+			//std::cout << "Reducing for " << i << std::endl;
 			//std::cout << "GSS:\n" << gss.toString() << std::endl;
 			reducer(i);
 		}
-		std::cout << "Shifting for " << i << std::endl;
+		// std::cout << "Shifting for " << i << std::endl;
 		shifter(i);
-		std::cout << "GSS:\n" << gss.toString() << std::endl;
+		//std::cout << "GSS:\n" << gss.toString() << std::endl;
 	}
 	std::cout << "Done with parsing loop, checking for acceptance" << std::endl;
 	NodeTree<int>* accState = gss.frontierGetAccState(input.size()-1);
@@ -109,7 +109,7 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 void RNGLRParser::reducer(int i) {
 	Reduction reduction = toReduce.front();
 	toReduce.pop();
-	std::cout << "Doing reduction of length " << reduction.length << " from state " << reduction.from->getData() << " to symbol " << reduction.symbol->toString() << std::endl;
+	//std::cout << "Doing reduction of length " << reduction.length << " from state " << reduction.from->getData() << " to symbol " << reduction.symbol->toString() << std::endl;
 	int pathLength = reduction.length > 0 ? reduction.length -1 : 0;
 	//Get every reachable path
 	std::vector<std::vector<NodeTree<int>*> >* paths =  gss.getReachablePaths(reduction.from, pathLength);
@@ -155,7 +155,7 @@ void RNGLRParser::reducer(int i) {
 				gss.addEdge(toStateNode, currentReached, newLabel);
 				if (reduction.length != 0) {
 					//Do all non null reduction
-					std::cout << "Checking for non-null reductions in states that already existed" << std::endl;
+					//std::cout << "Checking for non-null reductions in states that already existed" << std::endl;
 					std::vector<ParseAction*> actions = *(table.get(toState, input[i]));
 					for (std::vector<ParseAction*>::size_type k = 0; k < actions.size(); k++) {
 						if (actions[k]->action == ParseAction::REDUCE && !fullyReducesToNull(actions[k]->reduceRule)) {
@@ -170,7 +170,7 @@ void RNGLRParser::reducer(int i) {
 			gss.addToFrontier(i, toStateNode);
 			gss.addEdge(toStateNode, currentReached, newLabel);
 			
-			std::cout << "Adding shifts and reductions for a state that did not exist" << std::endl;
+			//std::cout << "Adding shifts and reductions for a state that did not exist" << std::endl;
 			std::vector<ParseAction*> actions = *(table.get(toState, input[i]));
 			for (std::vector<ParseAction*>::size_type k = 0; k < actions.size(); k++) {
 				std::cout << "Action is " << actions[k]->toString() << std::endl;
@@ -200,7 +200,7 @@ void RNGLRParser::shifter(int i) {
 			std::cout << "Current potential shift from " << shift.first->getData() << " to " << shift.second << std::endl;
 			NodeTree<int>* shiftTo = gss.inFrontier(i+1, shift.second);
 			if (shiftTo) {
-				std::cout << "State already existed, just adding edge" << std::endl;
+				//std::cout << "State already existed, just adding edge" << std::endl;
 				gss.addEdge(shiftTo, shift.first, newLabel);
 				std::vector<ParseAction*> actions = *(table.get(shift.second, input[i+1]));
 				for (std::vector<ParseAction*>::size_type j = 0; j < actions.size(); j++) {
@@ -210,7 +210,7 @@ void RNGLRParser::shifter(int i) {
 					}
 				}
 			} else {
-				std::cout << "State did not already exist, adding" << std::endl;
+				//std::cout << "State did not already exist, adding" << std::endl;
 				shiftTo = gss.newNode(shift.second);
 				gss.addToFrontier(i+1, shiftTo);
 				gss.addEdge(shiftTo, shift.first, newLabel);
@@ -259,7 +259,7 @@ void RNGLRParser::addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Sy
 }
 
 bool RNGLRParser::belongsToFamily(NodeTree<Symbol*>* node, std::vector<NodeTree<Symbol*>*>* nodes) {
-	std::cout << "Checking " << node->getData()->toString() << "'s family" << std::endl;
+	//std::cout << "Checking " << node->getData()->toString() << "'s family" << std::endl;
 	std::vector<NodeTree<Symbol*>*> children = node->getChildren();
 	for (std::vector<NodeTree<Symbol*>*>::size_type i = 0; i < nodes->size(); i++) {
 		bool containsOne = false;
@@ -312,9 +312,8 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
 			for (std::vector< State* >::size_type j = 0; j < newStates.size(); j++) {
 				if (*(newStates[j]->basis[0]->getAtIndex()) == *(advancedRule->getAtIndex())) {
 					symbolAlreadyInState = true;
-					//So now check to see if this exact rule is in this state
-					if (!newStates[j]->containsRule(advancedRule))
-						newStates[j]->basis.push_back(advancedRule);
+					//Add rule to state, combining with idenical rule except lookahead if exists
+					newStates[j]->addRuleCombineLookahead(advancedRule);
 					//We found a state with the same symbol, so stop searching
 					break;
 				}
@@ -324,7 +323,36 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
 				newStates.push_back(newState);
 			}
 		}
-		//Also add any completed rules as reduces in the action table
+	}
+	//Put all our new states in the set of states only if they're not already there.
+	bool stateAlreadyInAllStates = false;
+	Symbol* currStateSymbol;
+	for (std::vector< State * >::size_type i = 0; i < newStates.size(); i++) {
+		stateAlreadyInAllStates = false;
+		currStateSymbol = (*(newStates[i]->getBasis()))[0]->getAtIndex();
+		for (std::vector< State * >::size_type j = 0; j < stateSets->size(); j++) {
+			if (newStates[i]->basisEqualsExceptLookahead(*((*stateSets)[j]))) {
+				stateAlreadyInAllStates = true;
+				//If it does exist, we should add it as the shift/goto in the action table
+				(*stateSets)[j]->combineStates(*(newStates[i]));
+				addStateReductionsToTable((*stateSets)[j]);
+				table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
+				break;
+			}
+		}
+		if (!stateAlreadyInAllStates) {
+			//If the state does not already exist, add it and add it as the shift/goto in the action table
+			stateSets->push_back(newStates[i]);
+			table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
+		}
+	}
+	//Also add any completed rules as reduces in the action table
+	addStateReductionsToTable(state);
+}
+
+void RNGLRParser::addStateReductionsToTable(State* state) {
+	std::vector<ParseRule*>* currStateTotal = state->getTotal();
+	for (std::vector<ParseRule*>::size_type i = 0; i < currStateTotal->size(); i++) {
 		//See if reduce
 		//Also, this really only needs to be done for the state's basis, but we're already iterating through, so...
 		std::vector<Symbol*>* lookahead = (*currStateTotal)[i]->getLookahead();
@@ -333,7 +361,7 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
 				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
 		//If this has an appropriate ruduction to null, get the reduce trees out
 		} else if (reducesToNull((*currStateTotal)[i])) {
-			std::cout << (*currStateTotal)[i]->toString() << " REDUCES TO NULL" << std::endl;
+			//std::cout << (*currStateTotal)[i]->toString() << " REDUCES TO NULL" << std::endl;
 			//If is a rule that produces only NULL, add in the approprite reduction, but use a new rule with a right side that is equal to
 			//the part that we've already gone through in the rule. (so we don't pop extra off stack)
 			//Now we use the same rule and make sure that the index location is used
@@ -344,27 +372,6 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
 			for (std::vector<Symbol*>::size_type j = 0; j < lookahead->size(); j++)
 				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
 				//table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, nullRule));
-		}
-	}
-	//Put all our new states in the set of states only if they're not already there.
-	bool stateAlreadyInAllStates = false;
-	Symbol* currStateSymbol;
-	for (std::vector< State * >::size_type i = 0; i < newStates.size(); i++) {
-		stateAlreadyInAllStates = false;
-		currStateSymbol = (*(newStates[i]->getBasis()))[0]->getAtIndex();
-		for (std::vector< State * >::size_type j = 0; j < stateSets->size(); j++) {
-			if (newStates[i]->basisEquals(*((*stateSets)[j]))) {
-				stateAlreadyInAllStates = true;
-				//If it does exist, we should add it as the shift/goto in the action table
-				(*stateSets)[j]->addParents(newStates[i]->getParents());
-				table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
-				break;
-			}
-		}
-		if (!stateAlreadyInAllStates) {
-			//If the state does not already exist, add it and add it as the shift/goto in the action table
-			stateSets->push_back(newStates[i]);
-			table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
 		}
 	}
 }
@@ -421,8 +428,7 @@ NodeTree<Symbol*>* RNGLRParser::getNullableParts(ParseRule* rule) {
 
 NodeTree<Symbol*>* RNGLRParser::getNullableParts(ParseRule* rule, std::vector<NodeTree<Symbol*>*> avoidList) {
 	if (reducesToNull(rule)) {
-		std::cout << "Reduces to null so adding parts " << rule->toString() << std::endl;
-		//return new NodeTree<Symbol*>("FAKE_PARTS_FOR_NO_CRASH", nullSymbol);
+		//std::cout << "Reduces to null so adding parts " << rule->toString() << std::endl;
 		Symbol* symbol = rule->getLeftSide();
 		NodeTree<Symbol*>* symbolNode = new NodeTree<Symbol*>(symbol->getName(), symbol);
 		if (*(rule->getAtNextIndex()) == *nullSymbol) {
