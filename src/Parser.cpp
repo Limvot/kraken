@@ -87,13 +87,17 @@ void Parser::createStateSet() {
 	std::vector<Symbol*>* goalRuleLookahead = new std::vector<Symbol*>();
 	goalRuleLookahead->push_back(EOFSymbol);
 	goalRule->setLookahead(goalRuleLookahead);
-	stateSets.push_back( new State(0, goalRule));
+	State* zeroState = new State(0, goalRule);
+	stateSets.push_back(zeroState);
+	std::queue<State*>* toDo = new std::queue<State*>();
+	toDo->push(zeroState);
 	//std::cout << "Begining for main set for loop" << std::endl;
-	for (std::vector< State* >::size_type i = 0; i < stateSets.size(); i++) {
+	while (toDo->front()) {
 		//closure
-		closure(stateSets[i]);
+		closure(toDo->front());
 		//Add the new states
-		addStates(&stateSets, stateSets[i]);
+		addStates(&stateSets, toDo->front(), toDo);
+		toDo->pop();
 	}
 	table.remove(1, EOFSymbol);
 }
@@ -239,7 +243,7 @@ void Parser::closure(State* state) {
 }
 
 //Adds state if it doesn't already exist.
-void Parser::addStates(std::vector< State* >* stateSets, State* state) {
+void Parser::addStates(std::vector< State* >* stateSets, State* state, std::queue<State*>* toDo) {
 	std::vector< State* > newStates;
 	//For each rule in the state we already have
 	std::vector<ParseRule*>* currStateTotal = state->getTotal();
@@ -302,6 +306,7 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state) {
 		if (!stateAlreadyInAllStates) {
 			//If the state does not already exist, add it and add it as the shift/goto in the action table
 			stateSets->push_back(newStates[i]);
+			toDo->push(newStates[i]);
 			table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
 		}
 	}

@@ -294,7 +294,7 @@ void RNGLRParser::setPacked(NodeTree<Symbol*>* node, bool isPacked) {
 
 
 //Have to use own add states function in order to construct RN table instead of LALR table
-void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
+void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std::queue<State*>* toDo) {
 	std::vector< State* > newStates;
 	//For each rule in the state we already have
 	std::vector<ParseRule*>* currStateTotal = state->getTotal();
@@ -314,6 +314,7 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
 					symbolAlreadyInState = true;
 					//Add rule to state, combining with idenical rule except lookahead if exists
 					newStates[j]->addRuleCombineLookahead(advancedRule);
+					//newStates[j]->addRuleCombineLookaheadWithLookahead(advancedRule);
 					//We found a state with the same symbol, so stop searching
 					break;
 				}
@@ -334,6 +335,9 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
 			if (newStates[i]->basisEqualsExceptLookahead(*((*stateSets)[j]))) {
 				stateAlreadyInAllStates = true;
 				//If it does exist, we should add it as the shift/goto in the action table
+				if (*((*stateSets)[j]) != *(newStates[i]))
+					toDo->push((*stateSets)[j]);
+				
 				(*stateSets)[j]->combineStates(*(newStates[i]));
 				addStateReductionsToTable((*stateSets)[j]);
 				table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
@@ -343,6 +347,7 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state) {
 		if (!stateAlreadyInAllStates) {
 			//If the state does not already exist, add it and add it as the shift/goto in the action table
 			stateSets->push_back(newStates[i]);
+			toDo->push(newStates[i]);
 			table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
 		}
 	}

@@ -11,6 +11,7 @@
 #include "NodeTree.h"
 #include "Table.h"
 
+#include <queue>
 #include <map>
 #include <vector>
 #include <algorithm>
@@ -37,7 +38,7 @@ class Parser {
 		std::vector<Symbol*>* firstSet(Symbol* token, std::vector<Symbol*> avoidList);
 		std::vector<Symbol*>* incrementiveFollowSet(ParseRule* rule);
 		virtual void closure(State* state);
-		virtual void addStates(std::vector< State* >* stateSets, State* state);
+		virtual void addStates(std::vector< State* >* stateSets, State* state, std::queue<State*>* toDo);
 		int stateNum(State* state);
 
 

@@ -22,7 +22,7 @@ class RNGLRParser: public Parser {
 		void shifter(int i);
 		void addChildren(NodeTree<Symbol*>* parent, std::vector<NodeTree<Symbol*>*>* children, NodeTree<Symbol*>* nullableParts);
 
-		void addStates(std::vector< State* >* stateSets, State* state);
+		void addStates(std::vector< State* >* stateSets, State* state, std::queue<State*>* toDo);
 		void addStateReductionsToTable(State* state);
 		bool fullyReducesToNull(ParseRule* rule);
 		bool reducesToNull(ParseRule* rule);
