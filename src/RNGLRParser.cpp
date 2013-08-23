@@ -335,7 +335,8 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std:
 			if (newStates[i]->basisEqualsExceptLookahead(*((*stateSets)[j]))) {
 				stateAlreadyInAllStates = true;
 				//If it does exist, we should add it as the shift/goto in the action table
-				if (*((*stateSets)[j]) != *(newStates[i]))
+				
+				if (!((*stateSets)[j]->basisEquals(*(newStates[i]))))
 					toDo->push((*stateSets)[j]);
 				
 				(*stateSets)[j]->combineStates(*(newStates[i]));
