@@ -117,19 +117,6 @@ void State::addRuleCombineLookahead(ParseRule* rule) {
 		basis.push_back(rule);
 }
 
-void State::addRuleCombineLookaheadWithLookahead(ParseRule* rule) {
-	getTotal();
-	bool alreadyIn = false;
-	for (std::vector<ParseRule*>::size_type i = 0; i < total.size(); i++) {
-		if (*rule == (*(total[i]))) {
-			total[i]->addLookahead(rule->getLookahead());
-			alreadyIn = true;
-		}
-	}
-	if (!alreadyIn)
-		basis.push_back(rule);
-}
-
 std::string State::toString() {
 	std::string concat = "";
 	concat += "State " + intToString(number) + " with " + intToString(parents.size()) + " parents:\n";

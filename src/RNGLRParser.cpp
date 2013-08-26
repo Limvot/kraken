@@ -314,7 +314,6 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std:
 					symbolAlreadyInState = true;
 					//Add rule to state, combining with idenical rule except lookahead if exists
 					newStates[j]->addRuleCombineLookahead(advancedRule);
-					//newStates[j]->addRuleCombineLookaheadWithLookahead(advancedRule);
 					//We found a state with the same symbol, so stop searching
 					break;
 				}
@@ -333,6 +332,7 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std:
 		currStateSymbol = (*(newStates[i]->getBasis()))[0]->getAtIndex();
 		for (std::vector< State * >::size_type j = 0; j < stateSets->size(); j++) {
 			if (newStates[i]->basisEqualsExceptLookahead(*((*stateSets)[j]))) {
+			//if (newStates[i]->basisEquals(*((*stateSets)[j]))) {
 				stateAlreadyInAllStates = true;
 				//If it does exist, we should add it as the shift/goto in the action table
 				
@@ -342,6 +342,7 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std:
 				(*stateSets)[j]->combineStates(*(newStates[i]));
 				addStateReductionsToTable((*stateSets)[j]);
 				table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
+
 				break;
 			}
 		}
@@ -352,9 +353,9 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std:
 			table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, stateSets->size()-1));
 		}
 	}
-	//Also add any completed rules as reduces in the action table
 	addStateReductionsToTable(state);
 }
+
 
 void RNGLRParser::addStateReductionsToTable(State* state) {
 	std::vector<ParseRule*>* currStateTotal = state->getTotal();
@@ -368,16 +369,11 @@ void RNGLRParser::addStateReductionsToTable(State* state) {
 		//If this has an appropriate ruduction to null, get the reduce trees out
 		} else if (reducesToNull((*currStateTotal)[i])) {
 			//std::cout << (*currStateTotal)[i]->toString() << " REDUCES TO NULL" << std::endl;
-			//If is a rule that produces only NULL, add in the approprite reduction, but use a new rule with a right side that is equal to
+			//It used to be that if is a rule that produces only NULL, add in the approprite reduction, but use a new rule with a right side that is equal to
 			//the part that we've already gone through in the rule. (so we don't pop extra off stack)
 			//Now we use the same rule and make sure that the index location is used
-			//ParseRule* nullRule = (*currStateTotal)[i]->clone();
-			// std::vector<Symbol*> oldRightSide = nullRule->getRightSide();
-			// oldRightSide.erase(oldRightSide.begin()+nullRule->getIndex(), oldRightSide.end());
-			// nullRule->setRightSide(oldRightSide);
 			for (std::vector<Symbol*>::size_type j = 0; j < lookahead->size(); j++)
 				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
-				//table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, nullRule));
 		}
 	}
 }

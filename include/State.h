@@ -27,7 +27,6 @@ class State {
 		std::vector<ParseRule*>* getTotal();
 		bool containsRule(ParseRule* rule);
 		void addRuleCombineLookahead(ParseRule* rule);
-		void addRuleCombineLookaheadWithLookahead(ParseRule* rule);
 		std::string toString();
 
 		void combineStates(State &other);
