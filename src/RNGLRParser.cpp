@@ -79,6 +79,11 @@ NodeTree<Symbol*>* RNGLRParser::parseInput(std::string inputString) {
 		if (gss.frontierIsEmpty(i)) {
 			std::cout << "Frontier " << i << " is empty." << std::endl;
 			std::cout << "Failed on " << input[i]->toString() << std::endl;
+			std::cout << "Nearby is:" << std::endl;
+			int range = 4;
+			for (int j = (i-range >= 0 ? i-range : 0); j < (i+range < input.size() ? i+range : input.size()); j++)
+				std::cout << input[j]->toString() << " ";
+			std::cout << std::endl;
 			break;
 		}
 
