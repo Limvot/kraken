@@ -8,6 +8,11 @@ Currently, it consists of a RNGLALR parser written in C++ and a very experimenta
 When compiled, the kraken program (as it is not yet a compiler) will take in a text file to be parsed, the grammer file to use, and a filename to output a DOT file to.
 Kraken will then generate the RN parsing tables from the grammer and then parse the input and export a DOT file that can be renderd into a graph using Graphviz.
 
+It is invoked in this way:
+kraken inputTextFile inputGrammerFile outputFile.dot
+
+It is built using CMake, which is also its only dependency.
+
 It has the following design goals:
 	-Compiled
 	-Clean
