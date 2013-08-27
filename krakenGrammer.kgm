@@ -32,7 +32,7 @@ parameter = expression ;
 
 code_block = "{" WS statement_list WS "}" ;
 statement_list = statement_list WS statement | statement ;
-statement = function_call WS ";" | if_statement | return_statement | expression | booleang_expression | assignment_statement | code_block ;
+statement = if_statement | return_statement | expression WS ";" | boolean_expression WS ";" | assignment_statement WS ";" | code_block ;
 function_call = scope identifier "\(" WS opt_parameter_list WS "\)" ;
 scope = scope identifier "::" | ;
 
@@ -40,26 +40,25 @@ if_statement = "if" WS boolean_expression WS statement | "if" WS "\(" WS boolean
 
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;
 and_boolean_expression = and_boolean_expression "&&" bool_exp | bool_exp ;
-bool_exp = "!" WS bool_exp | statement WS "==" WS statement | bool ;
+bool_exp = "!" WS bool_exp | expression WS "==" WS expression | bool ;
 
 return_statement = "return" WS "\(" WS expression WS "\)" WS ";" | "return" WS expression WS ";" ;
 
 expression = expression WS "-" WS term | expression WS "\+" WS term | term ;
 term = term WS forward_slash WS factor | term WS "\*" WS factor | factor ;
-factor = number | identifier | function_call | bool | pointer | string ;
+factor = number | identifier | function_call | bool | string ;
 number = integer | float | double ;
 
-assignment_statement = identifier WS "=" WS statement ;
+assignment_statement = identifier WS "=" WS expression ;
 
-alpha = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|_|-)+" ;
-numeric = "(0|1|2|3|4|5|6|7|8|9)+" ;
 alphanumeric = alphanumeric numeric | alphanumeric alpha | numeric | alpha ;
 hexadecimal = sign WS "0x(1|2|3|4|5|6|7|8|9|a|b|c|d|e|f)+" ;
-sign = "\+|-" | ;
-integer = sign WS numeric | hexadecimal ;
+sign = "\+|-" WS | ;
+integer = sign numeric | hexadecimal | "null" ;
 float = sign numeric "." numeric "f" ;
 double = sign numeric "." numeric | sign numeric "." numeric "d" ;
-bool = "true" | "false" ;
-pointer = hexadecimal | "null" ;
+bool = "true" | "false" | "True" | "False" ;
+alpha = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|_)+" ;
+numeric = "(0|1|2|3|4|5|6|7|8|9)+" ;
 string = "\"(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|!|_|-| |	|\\|/|\||0|1|2|3|4|5|6|7|8|9)+\"" ;
 
