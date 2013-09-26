@@ -48,6 +48,8 @@ std::string ParseAction::actionToString(ActionType action) {
 		case REJECT:
 			return "reject";
 			break;
+		default:
+			return "INVALID PARSE ACTION";
 	}
 }
 

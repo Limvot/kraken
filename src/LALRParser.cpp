@@ -65,6 +65,9 @@ NodeTree<Symbol*>* LALRParser::parseInput(std::string inputString) {
 				std::cout << "REJECTED Symbol was " << token->toString() << std::endl;
 				return(NULL);
 				break;
+			default:
+				std::cout << "INVALID PARSE ACTION!" << std::endl;
+				break;
 		}
 	}
 }

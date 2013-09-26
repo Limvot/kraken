@@ -1,17 +1,21 @@
+#include <string>
+#include <iostream>
+#include <fstream>
+
 #include "NodeTree.h"
 #include "Symbol.h"
 #include "Lexer.h"
 #include "LALRParser.h"
 #include "RNGLRParser.h"
-#include <string>
-#include <iostream>
-#include <fstream>
+
+#include "NodeTransformation.h"
+#include "RemovalTransformation.h"
 
 
 int main(int argc, char* argv[]) {
 	
 	std::ifstream programInFile, grammerInFile;
-	std::ofstream outFile;
+	std::ofstream outFile, outFileTransformed;
 
 	programInFile.open(argv[1]);
 	if (!programInFile.is_open()) {
@@ -28,6 +32,12 @@ int main(int argc, char* argv[]) {
 	outFile.open(argv[3]);
 	if (!outFile.is_open()) {
 		std::cout << "Probelm opening output file " << argv[3] << "\n";
+		return(1);
+	}
+
+	outFileTransformed.open((std::string(argv[3]) + ".transformed.dot").c_str());
+	if (!outFileTransformed.is_open()) {
+		std::cout << "Probelm opening second output file " << std::string(argv[3]) + ".transformed.dot" << "\n";
 		return(1);
 	}
 
@@ -72,11 +82,25 @@ int main(int argc, char* argv[]) {
 	if (parseTree) {
 		//std::cout << parseTree->DOTGraphString() << std::endl;
 		outFile << parseTree->DOTGraphString() << std::endl;
+	} else {
+		std::cout << "ParseTree returned from parser is NULL!" << std::endl;
 	}
+
+	NodeTransformation<Symbol*, Symbol*>* removeWS = new RemovalTransformation<Symbol*>(new Symbol("WS", false));
+	NodeTree<Symbol*>* noWhiteSpace = removeWS->transform(parseTree);
+	delete removeWS;
+
+	if (noWhiteSpace) {
+		outFileTransformed << noWhiteSpace->DOTGraphString() << std::endl;
+	} else {
+		std::cout << "Tree returned from transformation is NULL!" << std::endl;
+	}
+
 
 	programInFile.close();
 	grammerInFile.close();
 	outFile.close();
+	outFileTransformed.close();
 
 	return(0);
 }

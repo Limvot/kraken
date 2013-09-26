@@ -270,7 +270,7 @@ bool RNGLRParser::belongsToFamily(NodeTree<Symbol*>* node, std::vector<NodeTree<
 		bool containsOne = false;
 		for (std::vector<NodeTree<Symbol*>*>::size_type j = 0; j < children.size(); j++) {
 			//Not sure where null comes from. For right now, just check to be sure we don't segfault
-			if ((*nodes)[i] == children[j] || (*nodes)[i] != NULL && children[j] != NULL && (*(*nodes)[i]) == *(children[j])) {
+			if ((*nodes)[i] == children[j] || ( (*nodes)[i] != NULL && children[j] != NULL && (*(*nodes)[i]) == *(children[j]) )) {
 				containsOne = true;
 				break;
 			}
