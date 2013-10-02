@@ -1,16 +1,16 @@
 #ifndef ASTTRANSFORMATION_H
 #define ASTTRANSFORMATION_H
 
+#include "ASTData.h"
 #include "NodeTransformation.h"
 
-class ASTTransformation: public Transformation<Symbol*,ASTData> {
+class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 	public:
 		ASTTransformation();
 		~ASTTransformation();
-		virtual NodeTree<Symbol*>* transform(NodeTree<ASTData>* from);
+		virtual NodeTree<ASTData>* transform(NodeTree<Symbol>* from);
 
 	private:
 		//Nothing
 };
-
 #endif

@@ -8,12 +8,12 @@ Table::~Table() {
 	//
 }
 
-void Table::setSymbols(Symbol* EOFSymbol, Symbol* nullSymbol) {
+void Table::setSymbols(Symbol EOFSymbol, Symbol nullSymbol) {
 	this->EOFSymbol = EOFSymbol;
 	this->nullSymbol = nullSymbol;
 }
 
-void Table::add(int stateNum, Symbol* tranSymbol, ParseAction* action) {
+void Table::add(int stateNum, Symbol tranSymbol, ParseAction* action) {
 
 	//If this is the first time we're adding to the table, add the EOF character
 	if (symbolIndexVec.size() == 0)
@@ -28,8 +28,8 @@ void Table::add(int stateNum, Symbol* tranSymbol, ParseAction* action) {
 
 	//find out what index this symbol is on
 	int symbolIndex = -1;
-	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
-		if ( *(symbolIndexVec[i]) == *tranSymbol ) {
+	for (std::vector<Symbol>::size_type i = 0; i < symbolIndexVec.size(); i++) {
+		if ( symbolIndexVec[i] == tranSymbol ) {
 			//Has been found
 			symbolIndex = i;
 			break;
@@ -79,11 +79,11 @@ void Table::add(int stateNum, Symbol* tranSymbol, ParseAction* action) {
 	}
 }
 
-void Table::remove(int stateNum, Symbol* tranSymbol) {
+void Table::remove(int stateNum, Symbol tranSymbol) {
 	//find out what index this symbol is on
 	int symbolIndex = -1;
-	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
-		if ( *(symbolIndexVec[i]) == *tranSymbol ) {
+	for (std::vector<Symbol>::size_type i = 0; i < symbolIndexVec.size(); i++) {
+		if ( symbolIndexVec[i] == tranSymbol ) {
 			//Has been found
 			symbolIndex = i;
 			break;
@@ -92,21 +92,21 @@ void Table::remove(int stateNum, Symbol* tranSymbol) {
 	(*(table[stateNum]))[symbolIndex] = NULL;
 }
 
-std::vector<ParseAction*>* Table::get(int state, Symbol* token) {
+std::vector<ParseAction*>* Table::get(int state, Symbol token) {
 	int symbolIndex = -1;
-	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++) {
-		if ( *(symbolIndexVec[i]) == *token) {
+	for (std::vector<Symbol>::size_type i = 0; i < symbolIndexVec.size(); i++) {
+		if ( symbolIndexVec[i] == token) {
 			symbolIndex = i;
 			break;
 		}
 	}
 
 	if (symbolIndex == -1) {
-		std::cout << "Unrecognized symbol: " << token->toString() << ", cannot get from table!" << std::endl;
+		std::cout << "Unrecognized symbol: " << token.toString() << ", cannot get from table!" << std::endl;
 		return NULL;
 	}
 
-	std::cout << "Get for state: " << state << ", and Symbol: " << token->toString() << std::endl;
+	std::cout << "Get for state: " << state << ", and Symbol: " << token.toString() << std::endl;
 	if (state < 0 || state >= table.size()) {
 		std::cout << "State bad: " << state << std::endl;
 		return NULL;
@@ -115,7 +115,7 @@ std::vector<ParseAction*>* Table::get(int state, Symbol* token) {
 	std::vector<ParseAction*>* action = NULL;
 
 	if (symbolIndex < 0 || symbolIndex >= table[state]->size()) {
-		std::cout << "Symbol bad for this state: " << token->toString() << ". This is a reject." << std::endl;
+		std::cout << "Symbol bad for this state: " << token.toString() << ". This is a reject." << std::endl;
 	} else {
 		action = (*(table[state]))[symbolIndex];
 	}
@@ -144,7 +144,7 @@ std::vector<ParseAction*>* Table::get(int state, Symbol* token) {
 	return (action);
 }
 
-ParseAction* Table::getShift(int state, Symbol* token) {
+ParseAction* Table::getShift(int state, Symbol token) {
 	std::vector<ParseAction*>* actions = get(state, token);
 	ParseAction* shift = NULL;
 	for (int i = 0; i < actions->size(); i++) {
@@ -158,8 +158,8 @@ ParseAction* Table::getShift(int state, Symbol* token) {
 
 std::string Table::toString() {
 	std::string concat = "";
-	for (std::vector<Symbol*>::size_type i = 0; i < symbolIndexVec.size(); i++)
-		concat += "\t" + symbolIndexVec[i]->toString();
+	for (std::vector<Symbol>::size_type i = 0; i < symbolIndexVec.size(); i++)
+		concat += "\t" + symbolIndexVec[i].toString();
 	concat += "\n";
 
 	for (std::vector< std::vector< std::vector< ParseRule* >* >* >::size_type i = 0; i < table.size(); i++) {

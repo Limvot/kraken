@@ -2,11 +2,10 @@
 
 ParseRule::ParseRule() {
 	pointerIndex = 0;
-	leftHandle = NULL;
 	lookahead = NULL;
 }
 
-ParseRule::ParseRule(Symbol* leftHandle, int pointerIndex, std::vector<Symbol*> &rightSide, std::vector<Symbol*>* lookahead) {
+ParseRule::ParseRule(Symbol leftHandle, int pointerIndex, std::vector<Symbol> &rightSide, std::vector<Symbol>* lookahead) {
 	this->leftHandle = leftHandle;
 	this->pointerIndex = pointerIndex;
 	this->rightSide = rightSide;
@@ -33,35 +32,35 @@ ParseRule* ParseRule::clone() {
 	return( new ParseRule(leftHandle, pointerIndex, rightSide, lookahead) );
 }
 
-void ParseRule::setLeftHandle(Symbol* leftHandle) {
+void ParseRule::setLeftHandle(Symbol leftHandle) {
 	this->leftHandle = leftHandle;
 }
 
-void ParseRule::appendToRight(Symbol* appendee) {
+void ParseRule::appendToRight(Symbol appendee) {
 	rightSide.push_back(appendee);
 }
 
-Symbol* ParseRule::getLeftSide() {
+Symbol ParseRule::getLeftSide() {
 	return leftHandle;
 }
 
-void ParseRule::setRightSide(std::vector<Symbol*> rightSide) {
+void ParseRule::setRightSide(std::vector<Symbol> rightSide) {
 	this->rightSide = rightSide;
 }
 
-std::vector<Symbol*> ParseRule::getRightSide() {
+std::vector<Symbol> ParseRule::getRightSide() {
 	return rightSide;
 }
 
-Symbol* ParseRule::getAtNextIndex() {
+Symbol ParseRule::getAtNextIndex() {
 	if (pointerIndex >= rightSide.size())
-		return NULL;
+		return Symbol();
 	return rightSide[pointerIndex];
 }
 
-Symbol* ParseRule::getAtIndex() {
+Symbol ParseRule::getAtIndex() {
 	if (pointerIndex < 1)
-		return NULL;
+		return Symbol();
 	return rightSide[pointerIndex-1];
 }
 
@@ -85,15 +84,15 @@ bool ParseRule::isAtEnd() {
 	return pointerIndex == rightSide.size();
 }
 
-void ParseRule::setLookahead(std::vector<Symbol*>* lookahead) {
+void ParseRule::setLookahead(std::vector<Symbol>* lookahead) {
 	this->lookahead = lookahead;
 }
 
-void ParseRule::addLookahead(std::vector<Symbol*>* lookahead) {
-	for (std::vector<Symbol*>::size_type i = 0; i < lookahead->size(); i++) {
+void ParseRule::addLookahead(std::vector<Symbol>* lookahead) {
+	for (std::vector<Symbol>::size_type i = 0; i < lookahead->size(); i++) {
 		bool alreadyIn = false;
-		for (std::vector<Symbol*>::size_type j = 0; j < this->lookahead->size(); j++) {
-			if (*((*lookahead)[i]) == *((*(this->lookahead))[j])) {
+		for (std::vector<Symbol>::size_type j = 0; j < this->lookahead->size(); j++) {
+			if ((*lookahead)[i] == (*(this->lookahead))[j]) {
 				alreadyIn = true;
 				break;
 			}
@@ -103,23 +102,23 @@ void ParseRule::addLookahead(std::vector<Symbol*>* lookahead) {
 	}
 }
 
-std::vector<Symbol*>* ParseRule::getLookahead() {
+std::vector<Symbol>* ParseRule::getLookahead() {
 	return lookahead;
 }
 
 std::string ParseRule::toString() {
-	std::string concat = leftHandle->toString() + " -> ";
+	std::string concat = leftHandle.toString() + " -> ";
 	for (int i = 0; i < rightSide.size(); i++) {
 		if (i == pointerIndex)
 			concat += "(*) ";
-		concat += rightSide[i]->toString() + " ";
+		concat += rightSide[i].toString() + " ";
 	}
 	if (pointerIndex >= rightSide.size())
 		concat += "(*)";
 	if (lookahead != NULL) {
 		concat += "**";
-		for (std::vector<Symbol*>::size_type i = 0; i < lookahead->size(); i++)
-			concat += (*lookahead)[i]->toString();
+		for (std::vector<Symbol>::size_type i = 0; i < lookahead->size(); i++)
+			concat += (*lookahead)[i].toString();
 		concat += "**";
 	}
 	return(concat);
@@ -128,7 +127,7 @@ std::string ParseRule::toString() {
 std::string ParseRule::toDOT() {
 	std::string concat = "";
 	for (int i = 0; i < rightSide.size(); i++) {
-		concat += leftHandle->toString() + " -> " + rightSide[i]->toString() + ";\n";
+		concat += leftHandle.toString() + " -> " + rightSide[i].toString() + ";\n";
 	}
 	return(concat);
 }

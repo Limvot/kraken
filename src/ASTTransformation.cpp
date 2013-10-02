@@ -8,6 +8,6 @@ ASTTransformation::~ASTTransformation() {
 	//
 }
 
-virtual NodeTree<Symbol*>* ASTTransformation::transform(NodeTree<ASTData>* from) {
+NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 	return NULL;
 }

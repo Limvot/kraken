@@ -23,13 +23,13 @@ class GraphStructuredStack {
 		std::vector<std::vector<NodeTree<int>*> >* getReachablePaths(NodeTree<int>* start, int lenght);
 		void recursivePathFind(NodeTree<int>* start, int length, std::vector<NodeTree<int>*> currentPath, std::vector<std::vector<NodeTree<int>*> >* paths);
 		bool hasEdge(NodeTree<int>* start, NodeTree<int>* end);
-		NodeTree<Symbol*>* getEdge(NodeTree<int>* start, NodeTree<int>* end);
-		void addEdge(NodeTree<int>* start, NodeTree<int>* end, NodeTree<Symbol*>* edge);
+		NodeTree<Symbol>* getEdge(NodeTree<int>* start, NodeTree<int>* end);
+		void addEdge(NodeTree<int>* start, NodeTree<int>* end, NodeTree<Symbol>* edge);
 
 		std::string toString();
 	private:
 		std::vector<std::vector<NodeTree<int>*>*> gss;
-		std::map< std::pair< NodeTree<int>*, NodeTree<int>* >, NodeTree<Symbol*>* > edges;
+		std::map< std::pair< NodeTree<int>*, NodeTree<int>* >, NodeTree<Symbol>* > edges;
 };
 
 #endif

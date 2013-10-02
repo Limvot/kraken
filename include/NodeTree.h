@@ -28,6 +28,7 @@ class NodeTree {
 
 		void addChild(NodeTree<T>* child);
 		void addChildren(std::vector<NodeTree<T>*>* children);
+		void addChildren(std::vector<NodeTree<T>*> children);
 		int findChild(NodeTree<T>* child);
 		void removeChild(NodeTree<T>* child);
 		void removeChild(int index);
@@ -63,8 +64,6 @@ int NodeTree<T>::idCounter;
 template<class T>
 NodeTree<T>::NodeTree() {
 	name = "UnnamedNode";
-	data = NULL;
-	
 	id = idCounter++;
 }
 
@@ -93,6 +92,7 @@ const bool NodeTree<T>::operator==(NodeTree &other) {
 	return true;
 }
 
+//Used when making a map of NodeTrees
 template<class T>
 const bool NodeTree<T>::operator<(const NodeTree &other) const {
 	return data < other.getData();
@@ -134,6 +134,12 @@ template<class T>
 void NodeTree<T>::addChildren(std::vector<NodeTree<T>*>* children) {
 	for (typename std::vector<NodeTree<T>*>::size_type i = 0; i < children->size(); i++)
 		addChild((*children)[i]);
+}
+
+template<class T>
+void NodeTree<T>::addChildren(std::vector<NodeTree<T>*> children) {
+	for (typename std::vector<NodeTree<T>*>::size_type i = 0; i < children.size(); i++)
+		addChild(children[i]);
 }
 
 template<class T>
@@ -231,10 +237,11 @@ std::string NodeTree<T>::DOTGraphStringHelper(std::vector<NodeTree<T>*> avoidLis
 template<class T>
 std::string NodeTree<T>::getDOTName() {
 	std::string DOTName = "";
-	if (data != NULL)
-		DOTName = "\"" + replaceExEscape(name + "-" + data->toString(), "\"", "\\\"") + "_" + intToString(id) + "\""; //Note that terminals already have a quote in the front of their name, so we don't need to add one
-	else
-		DOTName = "\"" + replaceExEscape(name, "\"", " \\\"") + "_" + intToString(id) + "\"";
+	DOTName = "\"" + replaceExEscape(name + "-" + data.toString(), "\"", "\\\"") + "_" + intToString(id) + "\""; //Note that terminals already have a quote in the front of their name, so we don't need to add one
+	// if (data != NULL)
+	// 	DOTName = "\"" + replaceExEscape(name + "-" + data->toString(), "\"", "\\\"") + "_" + intToString(id) + "\""; //Note that terminals already have a quote in the front of their name, so we don't need to add one
+	// else
+	// 	DOTName = "\"" + replaceExEscape(name, "\"", " \\\"") + "_" + intToString(id) + "\"";
 	return(replaceExEscape(DOTName, "\n", "\\n"));
 }
 

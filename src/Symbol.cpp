@@ -1,5 +1,12 @@
 #include "Symbol.h"
 
+Symbol::Symbol() {
+	this->name = "UninitlizedSymbol";
+	this->terminal = false;
+	this->subTree = NULL;
+	value = "NoValue";
+}
+
 Symbol::Symbol(std::string name, bool isTerminal) {
 	this->name = name;
 	this->terminal = isTerminal;
@@ -14,7 +21,7 @@ Symbol::Symbol(std::string name, bool isTerminal, std::string value) {
 	this->value = value;
 }
 
-Symbol::Symbol(std::string name, bool isTerminal, NodeTree<Symbol*>* tree) {
+Symbol::Symbol(std::string name, bool isTerminal, NodeTree<Symbol>* tree) {
 	this->name = name;
 	this->terminal = isTerminal;
 	this->subTree = tree;
@@ -24,31 +31,31 @@ Symbol::~Symbol() {
 
 }
 
-const bool Symbol::operator==(const Symbol &other) {
+const bool Symbol::operator==(const Symbol &other) const {
 	return( name == other.name && terminal == other.terminal);
 }
 
-const bool Symbol::operator!=(const Symbol &other) {
+const bool Symbol::operator!=(const Symbol &other) const {
 	return(!this->operator==(other));
 }
 
-std::string Symbol::getName() {
+const bool Symbol::operator<(const Symbol &other) const {
+	return name < other.getName();
+}
+
+std::string Symbol::getName() const {
 	return(name);
 }
 
-std::string Symbol::toString() {
+std::string Symbol::toString() const {
 	return(name + (terminal ? " " + value : ""));
 }
 
-Symbol* Symbol::clone() {
-	return new Symbol(name, terminal, subTree);
-}
-
-void Symbol::setSubTree(NodeTree<Symbol*>* tree) {
+void Symbol::setSubTree(NodeTree<Symbol>* tree) {
 	subTree = tree;
 }
 
-NodeTree<Symbol*>* Symbol::getSubTree() {
+NodeTree<Symbol>* Symbol::getSubTree() {
 	return subTree;
 }
 

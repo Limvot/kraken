@@ -22,11 +22,11 @@ void Lexer::addRegEx(std::string regExString) {
 	regExs.push_back(new RegEx(regExString));
 }
 
-Symbol* Lexer::next() {
+Symbol Lexer::next() {
 	//std::cout << "Current at is \"" << input.substr(currentPosition,input.length()-1) << "\" currentPos is " << currentPosition  << " out of " << input.length() <<std::endl;
 	//If we're at the end, return an eof
 	if (currentPosition >= input.length()-1)
-		return new Symbol("$EOF$", true);
+		return Symbol("$EOF$", true);
 	int longestMatch = -1;
 	RegEx* longestRegEx = NULL;
 	std::string remainingString = input.substr(currentPosition,input.length()-1);
@@ -42,10 +42,10 @@ Symbol* Lexer::next() {
 		std::string eatenString = input.substr(currentPosition, longestMatch+1);
 		currentPosition += longestMatch + 1;
 	//std::cout << "Current at is \"" << input.substr(currentPosition,input.length()-1) << "\" currentPos is " << currentPosition <<std::endl;
-		return new Symbol(longestRegEx->getPattern(), true, eatenString);
+		return Symbol(longestRegEx->getPattern(), true, eatenString);
 	} else {
 		//std::cout << "Found no applicable regex" << std::endl;
 		//std::cout << "Remaining is ||" << input.substr(currentPosition,input.length()-1) << "||" << std::endl;
-		return NULL;
+		return Symbol();
 	}
 }

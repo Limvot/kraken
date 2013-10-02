@@ -12,7 +12,7 @@ class LALRParser: public Parser {
 
 		//Defaults in parser are mostly LALR, so we only need to 
 		//implement the actual parsing function
-		NodeTree<Symbol*>* parseInput(std::string inputString);
+		NodeTree<Symbol>* parseInput(std::string inputString);
 
 	private:
 		//Nothing

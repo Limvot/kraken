@@ -15,7 +15,7 @@ class Lexer {
 		~Lexer();
 		void addRegEx(std::string regExString);
 		void setInput(std::string inputString);
-		Symbol* next();
+		Symbol next();
 	private:
 		std::vector<RegEx*> regExs;
 		std::string input;

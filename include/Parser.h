@@ -27,16 +27,16 @@ class Parser {
 		virtual void loadGrammer(std::string grammerInputString);
 		virtual void createStateSet();
 		virtual std::string stateSetToString();
-		virtual NodeTree<Symbol*>* parseInput(std::string inputString) = 0;
+		virtual NodeTree<Symbol>* parseInput(std::string inputString) = 0;
 		virtual std::string grammerToString();
 		virtual std::string grammerToDOT();
 
 		std::string tableToString();
 
 	protected:
-		std::vector<Symbol*>* firstSet(Symbol* token);
-		std::vector<Symbol*>* firstSet(Symbol* token, std::vector<Symbol*> avoidList);
-		std::vector<Symbol*>* incrementiveFollowSet(ParseRule* rule);
+		std::vector<Symbol>* firstSet(Symbol token);
+		std::vector<Symbol>* firstSet(Symbol token, std::vector<Symbol> avoidList);
+		std::vector<Symbol>* incrementiveFollowSet(ParseRule* rule);
 		virtual void closure(State* state);
 		virtual void addStates(std::vector< State* >* stateSets, State* state, std::queue<State*>* toDo);
 		int stateNum(State* state);
@@ -44,24 +44,24 @@ class Parser {
 
 		StringReader reader;
 		Lexer lexer;
-		std::map<std::pair<std::string, bool>, Symbol*> symbols;
+		std::map<std::pair<std::string, bool>, Symbol> symbols;
 		std::vector<ParseRule*> loadedGrammer;
 
 		std::vector< State* > stateSets;
 
 		//The EOFSymbol, a pointer because of use in table, etc
-		Symbol* EOFSymbol;
+		Symbol EOFSymbol;
 		//The nullSymbol, ditto with above. Also used in comparisons
-		Symbol* nullSymbol;
+		Symbol nullSymbol;
 
 		Table table;
 
 
 		std::stack<int> stateStack;
-		std::stack<Symbol*> symbolStack;
+		std::stack<Symbol> symbolStack;
 
-		Symbol* getOrAddSymbol(std::string symbolString, bool isTerminal);
-		NodeTree<Symbol*>* reduceTreeCombine(Symbol* newSymbol, std::vector<Symbol*> &symbols);
+		Symbol getOrAddSymbol(std::string symbolString, bool isTerminal);
+		NodeTree<Symbol>* reduceTreeCombine(Symbol newSymbol, std::vector<Symbol> &symbols);
 };
 
 #endif

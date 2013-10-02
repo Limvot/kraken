@@ -1,5 +1,5 @@
-#ifndef ASTTRANSFORMATION_H
-#define ASTTRANSFORMATION_H
+#ifndef REMOVALTRANSFORMATION_H
+#define REMOVALTRANSFORMATION_H
 
 #include <queue>
 #include <vector>
@@ -38,7 +38,7 @@ NodeTree<T>* RemovalTransformation<T>::transform(NodeTree<T>* from) {
 		toProcess.pop();
 		std::vector<NodeTree<T>*> children = node->getChildren();
 		for (int i = 0; i < children.size(); i++) {
-			if (*(children[i]->getData()) == *toRemove)
+			if (children[i]->getData() == toRemove)
 				node->removeChild(children[i]);
 			else
 				toProcess.push(children[i]);

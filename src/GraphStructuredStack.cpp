@@ -107,11 +107,11 @@ bool GraphStructuredStack::hasEdge(NodeTree<int>* start, NodeTree<int>* end) {
 	return start->findChild(end) != -1;
 }
 
-NodeTree<Symbol*>* GraphStructuredStack::getEdge(NodeTree<int>* start, NodeTree<int>* end) {
+NodeTree<Symbol>* GraphStructuredStack::getEdge(NodeTree<int>* start, NodeTree<int>* end) {
 	return edges[std::make_pair(start, end)];
 }
 
-void GraphStructuredStack::addEdge(NodeTree<int>* start, NodeTree<int>* end, NodeTree<Symbol*>* edge) {
+void GraphStructuredStack::addEdge(NodeTree<int>* start, NodeTree<int>* end, NodeTree<Symbol>* edge) {
 	start->addChild(end);
 	end->addParent(start);
 	edges[std::make_pair(start, end)] = edge;

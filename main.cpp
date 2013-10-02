@@ -1,6 +1,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <vector>
 
 #include "NodeTree.h"
 #include "Symbol.h"
@@ -10,12 +11,15 @@
 
 #include "NodeTransformation.h"
 #include "RemovalTransformation.h"
+#include "CollapseTransformation.h"
+#include "ASTTransformation.h"
+#include "ASTData.h"
 
 
 int main(int argc, char* argv[]) {
 	
 	std::ifstream programInFile, grammerInFile;
-	std::ofstream outFile, outFileTransformed;
+	std::ofstream outFile, outFileTransformed, outFileAST;
 
 	programInFile.open(argv[1]);
 	if (!programInFile.is_open()) {
@@ -38,6 +42,12 @@ int main(int argc, char* argv[]) {
 	outFileTransformed.open((std::string(argv[3]) + ".transformed.dot").c_str());
 	if (!outFileTransformed.is_open()) {
 		std::cout << "Probelm opening second output file " << std::string(argv[3]) + ".transformed.dot" << "\n";
+		return(1);
+	}
+
+	outFileAST.open((std::string(argv[3]) + ".AST.dot").c_str());
+	if (!outFileAST.is_open()) {
+		std::cout << "Probelm opening second output file " << std::string(argv[3]) + ".AST.dot" << "\n";
 		return(1);
 	}
 
@@ -77,7 +87,7 @@ int main(int argc, char* argv[]) {
 	std::cout << "\nParsing" << std::endl;
 
 	std::cout << programInputFileString << std::endl;
-	NodeTree<Symbol*>* parseTree = parser.parseInput(programInputFileString);
+	NodeTree<Symbol>* parseTree = parser.parseInput(programInputFileString);
 
 	if (parseTree) {
 		//std::cout << parseTree->DOTGraphString() << std::endl;
@@ -86,21 +96,46 @@ int main(int argc, char* argv[]) {
 		std::cout << "ParseTree returned from parser is NULL!" << std::endl;
 	}
 
-	NodeTransformation<Symbol*, Symbol*>* removeWS = new RemovalTransformation<Symbol*>(new Symbol("WS", false));
-	NodeTree<Symbol*>* noWhiteSpace = removeWS->transform(parseTree);
-	delete removeWS;
+	//Pre AST Transformations
+	std::vector<NodeTransformation<Symbol, Symbol>*> preASTTransforms;
+	//Remove Transformations
+	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("WS", false)));
+	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("\\(", true)));
+	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("\\)", true)));
+	//preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("/", true)));
+	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("::", true)));
+	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol(";", true)));
+	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("{", true)));
+	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("}", true)));
+	//Collapse Transformations
+	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_typed_parameter_list", false)));
+	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_parameter_list", false)));
+	for (int i = 0; i < preASTTransforms.size(); i++) {
+		parseTree = preASTTransforms[i]->transform(parseTree);
+	}
+	preASTTransforms.erase(preASTTransforms.begin(), preASTTransforms.end());
 
-	if (noWhiteSpace) {
-		outFileTransformed << noWhiteSpace->DOTGraphString() << std::endl;
+	NodeTree<ASTData>* AST = ASTTransformation().transform(parseTree);
+	//NodeTree<ASTData>* AST = (new ASTTransformation())->transform(parseTree);
+
+	if (parseTree) {
+		outFileTransformed << parseTree->DOTGraphString() << std::endl;
 	} else {
 		std::cout << "Tree returned from transformation is NULL!" << std::endl;
 	}
 
 
+	if (AST) {
+		outFileTransformed << AST->DOTGraphString() << std::endl;
+	} else {
+		std::cout << "Tree returned from ASTTransformation is NULL!" << std::endl;
+	}
+
 	programInFile.close();
 	grammerInFile.close();
 	outFile.close();
 	outFileTransformed.close();
+	outFileAST.close();
 
 	return(0);
 }
