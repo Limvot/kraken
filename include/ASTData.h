@@ -18,10 +18,14 @@ enum ValueType {none, boolean, integer, floating, double_percision, char_string 
 
 class ASTData {
 	public:
+		ASTData();
 		ASTData(ASTType type, ValueType valueType = none);
 		ASTData(ASTType type, Symbol symbol, ValueType valueType = none);
 		~ASTData();
 		std::string toString();
+		static std::string ASTTypeToString(ASTType type);
+		static std::string ValueTypeToString(ValueType type);
+		static ValueType strToType(std::string type);
 		ASTType type;
 		ValueType valueType;
 		Symbol symbol;

@@ -9,6 +9,7 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		ASTTransformation();
 		~ASTTransformation();
 		virtual NodeTree<ASTData>* transform(NodeTree<Symbol>* from);
+		std::string concatSymbolTree(NodeTree<Symbol>* root);
 
 	private:
 		//Nothing

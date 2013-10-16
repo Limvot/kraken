@@ -47,6 +47,10 @@ std::string Symbol::getName() const {
 	return(name);
 }
 
+std::string Symbol::getValue() const {
+	return(value);
+}
+
 std::string Symbol::toString() const {
 	return(name + (terminal ? " " + value : ""));
 }

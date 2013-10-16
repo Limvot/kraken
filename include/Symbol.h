@@ -22,6 +22,7 @@ class Symbol {
 		bool const operator<(const Symbol &other)const;
 
 		std::string getName() const;
+		std::string getValue() const;
 		std::string toString() const;
 		Symbol clone();
 		void setSubTree(NodeTree<Symbol>* tree);
