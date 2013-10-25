@@ -1,4 +1,5 @@
 #include "StringReader.h"
+#include <cassert>
 
 StringReader::StringReader()
 {
@@ -143,4 +144,49 @@ std::string StringReader::truncateEnd(std::string to_truncate)
     for (unsigned int i = 0; i < to_truncate.length()-1; i++)
         to_return = to_return + to_truncate[i];
     return to_return;
+}
+
+void StringReader::test()
+{
+    {
+        StringReader reader("\"x\"");
+        assert(reader.word() == "\"x\"");
+        assert(reader.word() == "");
+    }
+
+    {
+        StringReader reader("\"y\" ;\n");
+        assert(reader.word() == "\"y\"");
+        assert(reader.word() == ";");
+        assert(reader.word() == "");
+    }
+
+    {
+        StringReader reader("Goal = greeting ;\n"
+                            "greeting = \"hello\" | greeting \"world\" ;\n");
+        assert(reader.word() == "Goal");
+        assert(reader.word() == "=");
+        assert(reader.word() == "greeting");
+        assert(reader.word() == ";");
+        assert(reader.word() == "greeting");
+        assert(reader.word() == "=");
+        assert(reader.word() == "\"hello\"");
+        assert(reader.word() == "|");
+        assert(reader.word() == "greeting");
+        assert(reader.word() == "\"world\"");
+        assert(reader.word() == ";");
+        assert(reader.word() == "");
+    }
+
+    {
+        StringReader reader("one   # pretend this is a comment\n"
+                            "    two\n");
+        assert(reader.word() == "one");
+        assert(reader.word() == "#");
+        assert(reader.line() == "pretend this is a comment");
+        assert(reader.word() == "two");
+        assert(reader.word() == "");
+    }
+
+    std::cout << "StringReader tests pass\n";
 }

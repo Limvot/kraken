@@ -16,6 +16,8 @@ class StringReader
         std::string line(bool truncateEnd = true);
         std::string getTokens(std::vector<std::string> get_chars, bool truncateEnd = true);
         std::string truncateEnd(std::string to_truncate);
+
+        static void test();
     protected:
     private:
         std::string rd_string;
