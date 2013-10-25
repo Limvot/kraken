@@ -43,35 +43,25 @@ std::string StringReader::getTokens(const char *stop_chars, bool truncateEnd)
     size_t found_pos = rd_string.find_first_of(stop_chars, str_pos);
 
     if (rd_string[str_pos] == '\"') {
-        //See if we have an even or odd number of backslashes (that is, this quote is not or is escaped)
+        //Find the next quote
+        found_pos = rd_string.find("\"", str_pos+1);
+        //Check to see if the quote is escaped
         int numBackslashes = 0;
         int countBack = 1;
-        while (str_pos-countBack >= 0 && rd_string[str_pos-countBack] == '\\') {
+        while (found_pos >= countBack && rd_string[found_pos-countBack] == '\\') {
             numBackslashes++;
             countBack++;
         }
-        //If the quote is not escaped
-        if (numBackslashes % 2 == 0) {
-            //Find the next quote
-            found_pos = rd_string.find("\"", str_pos+1);
-            //Check to see if the quote is escaped
+        //While the quote is escaped
+        while (numBackslashes % 2 == 1) {
+            //find the next quote
+            found_pos = rd_string.find("\"", found_pos+1);
+            //Check to see if it's escaped
             numBackslashes = 0;
             countBack = 1;
             while (found_pos >= countBack && rd_string[found_pos-countBack] == '\\') {
                 numBackslashes++;
                 countBack++;
-            }
-            //While the quote is escaped
-            while (numBackslashes % 2 == 1) {
-                //find the next quote
-                found_pos = rd_string.find("\"", found_pos+1);
-                //Check to see if it's escaped
-                numBackslashes = 0;
-                countBack = 1;
-                while (found_pos >= countBack && rd_string[found_pos-countBack] == '\\') {
-                    numBackslashes++;
-                    countBack++;
-                }
             }
         }
     }
