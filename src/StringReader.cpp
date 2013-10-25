@@ -188,5 +188,29 @@ void StringReader::test()
         assert(reader.word() == "");
     }
 
+    {
+        // Quoted strings can span lines.
+        StringReader reader("x = \"\n \" ;\n");
+        assert(reader.word() == "x");
+        assert(reader.word() == "=");
+        assert(reader.word() == "\"\n \"");
+        assert(reader.word() == ";");
+        assert(reader.word() == "");
+    }
+
+    {
+        // Strings may contain backslash-escaped quote characters.
+        StringReader reader(    "\"abc\\\"def\\\\\\\\\\\" \"\n");
+        assert(reader.word() == "\"abc\\\"def\\\\\\\\\\\" \"");
+        assert(reader.word() == "");
+    }
+
+    {
+        // A backslash-escaped backslash can be the last character in a string.
+        StringReader reader(    "\"\\\\\" \n");
+        assert(reader.word() == "\"\\\\\"");
+        assert(reader.word() == "");
+    }
+
     std::cout << "StringReader tests pass\n";
 }
