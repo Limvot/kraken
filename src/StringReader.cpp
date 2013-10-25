@@ -85,31 +85,13 @@ std::string StringReader::getTokens(const char *stop_chars, bool truncateEnd)
         if (rd_string[str_pos] == '\"')
             found_pos++;
 
-        std::string string_section;
-
-        for (; str_pos <= found_pos; str_pos++)
-        {
-            string_section += rd_string[str_pos];
-        }
-
-        // if (str_pos <= found_pos) {
-        //     string_section = rd_string.substr(str_pos, found_pos+1);
-        //     str_pos = found_pos+1;
-        // }
-        // std::cout << string_section << " - " << str_pos << " - " << found_pos << std::endl;
+        std::string string_section = rd_string.substr(str_pos, found_pos - str_pos + 1);
+        str_pos = found_pos + 1;
 
         if (truncateEnd)                                       //Ok, we didn't add the last char, but str_pos now points at that char. So we move it one ahead.
             str_pos++;
         return string_section;
     }
-}
-
-std::string StringReader::truncateEnd(std::string to_truncate)
-{
-    std::string to_return = "";
-    for (unsigned int i = 0; i < to_truncate.length()-1; i++)
-        to_return = to_return + to_truncate[i];
-    return to_return;
 }
 
 void StringReader::test()
