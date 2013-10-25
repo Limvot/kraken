@@ -25,47 +25,22 @@ void StringReader::setString(std::string inputString)
 
 std::string StringReader::word(bool truncateEnd)
 {
-    std::vector<std::string> stop_chars;
-    stop_chars.push_back(" ");
-    stop_chars.push_back("\n");
-    stop_chars.push_back("\t");
-    
-
-    std::string result = getTokens(stop_chars, truncateEnd);
+    std::string result = getTokens(" \n\t", truncateEnd);
     while (result == " " || result == "\n" || result == "\t")
     {
-        result = getTokens(stop_chars, truncateEnd);
+        result = getTokens(" \n\t", truncateEnd);
     }
     return(result);
 }
 
 std::string StringReader::line(bool truncateEnd)
 {
-    std::vector<std::string> stop_chars;
-    stop_chars.push_back("\n");
-    return getTokens(stop_chars, truncateEnd);
+    return getTokens("\n", truncateEnd);
 }
 
-std::string StringReader::getTokens(std::vector<std::string> stop_chars, bool truncateEnd)
+std::string StringReader::getTokens(const char *stop_chars, bool truncateEnd)
 {
-    int found_pos, new_found_pos;
-    std::string stop_char;
-
-    found_pos = rd_string.find(stop_chars[0], str_pos);
-    stop_char = stop_chars[0];
-
-    for (unsigned int i = 1; i < stop_chars.size(); i++)
-    {
-        new_found_pos = rd_string.find(stop_chars[i], str_pos);
-        
-        //Ok, if the position we found is closer than what we have and is not the end of file, OR the position we are at is the end of file
-        //assign the new found position to the currrent found position
-        if ( ((new_found_pos <= found_pos) && (new_found_pos != std::string::npos)) || found_pos == std::string::npos )
-        {
-            found_pos = new_found_pos;
-            stop_char = stop_chars[i];
-        }
-    }
+    size_t found_pos = rd_string.find_first_of(stop_chars, str_pos);
 
     if (rd_string[str_pos] == '\"') {
         //See if we have an even or odd number of backslashes (that is, this quote is not or is escaped)
@@ -82,7 +57,7 @@ std::string StringReader::getTokens(std::vector<std::string> stop_chars, bool tr
             //Check to see if the quote is escaped
             numBackslashes = 0;
             countBack = 1;
-            while (found_pos-countBack >= 0 && rd_string[found_pos-countBack] == '\\') {
+            while (found_pos >= countBack && rd_string[found_pos-countBack] == '\\') {
                 numBackslashes++;
                 countBack++;
             }
@@ -93,7 +68,7 @@ std::string StringReader::getTokens(std::vector<std::string> stop_chars, bool tr
                 //Check to see if it's escaped
                 numBackslashes = 0;
                 countBack = 1;
-                while (found_pos-countBack >= 0 && rd_string[found_pos-countBack] == '\\') {
+                while (found_pos >= countBack && rd_string[found_pos-countBack] == '\\') {
                     numBackslashes++;
                     countBack++;
                 }
@@ -103,6 +78,7 @@ std::string StringReader::getTokens(std::vector<std::string> stop_chars, bool tr
 
     if (found_pos == str_pos)                                   //We are at the endline
     {
+        std::string stop_char(1, rd_string[str_pos]);
         str_pos++;
         return stop_char;
     } else if (found_pos == std::string::npos)                         //We are at the end of the file
