@@ -1,6 +1,7 @@
 #include "ASTData.h"
 
 ASTData::ASTData() {
+	this->type = undef;
 }
 
 ASTData::ASTData(ASTType type, ValueType valueType) {

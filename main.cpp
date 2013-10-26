@@ -108,12 +108,15 @@ int main(int argc, char* argv[]) {
 	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("}", true)));
 	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("import", true))); //Don't need the actual text of the symbol
 	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("interpreter_directive", false)));
+	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("if", true)));
+	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("while", true)));
 	//Collapse Transformations
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_typed_parameter_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_parameter_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_import_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("import_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("function_list", false)));
+	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("statement_list", false)));
 
 	for (int i = 0; i < preASTTransforms.size(); i++) {
 		parseTree = preASTTransforms[i]->transform(parseTree);

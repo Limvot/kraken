@@ -2,14 +2,15 @@
 #define ASTDATA_H
 
 #include <vector>
+#include <set>
 #include "Symbol.h"
 
 #ifndef NULL
 #define NULL 0
 #endif
 
-enum ASTType {translation_unit, interpreter_directive, identifier,
-	import, function, code_block,
+enum ASTType {undef, translation_unit, interpreter_directive, import, identifier,
+	function, code_block,
 	typed_parameter, expression, boolean_expression, statement,
 	if_statement, return_statement, assignment_statement, function_call,
 	value};
