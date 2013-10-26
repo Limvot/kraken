@@ -121,6 +121,7 @@ int main(int argc, char* argv[]) {
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("import_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("function_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("statement_list", false)));
+	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("parameter_list", false)));
 
 	for (int i = 0; i < preASTTransforms.size(); i++) {
 		parseTree = preASTTransforms[i]->transform(parseTree);

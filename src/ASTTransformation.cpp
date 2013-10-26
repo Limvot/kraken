@@ -23,7 +23,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 		newNode = new NodeTree<ASTData>(name, ASTData(import, Symbol(concatSymbolTree(children[0]), true)));
 		return newNode; // Don't need children of import
 	} else if (name == "identifier") {
-		newNode = new NodeTree<ASTData>(name, ASTData(identifier));
+		newNode = new NodeTree<ASTData>(name, ASTData(identifier, Symbol(concatSymbolTree(children[0]), true)));
 	} else if (name == "function") {
 		newNode = new NodeTree<ASTData>(name, ASTData(function, Symbol(concatSymbolTree(children[1]), true), ASTData::strToType(concatSymbolTree(children[0]))));
 		skipChildren.insert(0);
@@ -33,16 +33,25 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 	} else if (name == "typed_parameter") {
 		newNode = new NodeTree<ASTData>(name, ASTData(typed_parameter));
 	} else if (name == "expression") {
-		newNode = new NodeTree<ASTData>(name, ASTData(expression));
-	}else if (name == "term") {
+		//If this is an actual part of an expression, not just a premoted term
+		if (children.size() > 1) {
+			std::string functionCallName = concatSymbolTree(children[1]);
+			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
+			skipChildren.insert(1);
+		} else {
+			return transform(children[0]); //Just a promoted term, so do child
+		}
+	} else if (name == "term") {
 		//If this is an actual part of an expression, not just a premoted factor
 		if (children.size() > 1) {
 			std::string functionCallName = concatSymbolTree(children[1]);
 			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
 			skipChildren.insert(1);
 		} else {
-			newNode = new NodeTree<ASTData>();
+			return transform(children[0]); //Just a promoted factor, so do child
 		}
+	} else if (name == "factor") {
+		return transform(children[0]); //Just a premoted number or function call or something, so use it instead
 	} else if (name == "boolean_expression") {
 		newNode = new NodeTree<ASTData>(name, ASTData(boolean_expression));
 	} else if (name == "statement") {
@@ -54,9 +63,24 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 	} else if (name == "assignment_statement") {
 		newNode = new NodeTree<ASTData>(name, ASTData(assignment_statement));
 	} else if (name == "function_call") {
-		newNode = new NodeTree<ASTData>(name, ASTData(function_call));
-	} else if (name == "value") {
-		newNode = new NodeTree<ASTData>(name, ASTData(value));
+		//children[0] is scope
+		std::string functionCallName = concatSymbolTree(children[1]);
+		newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
+		skipChildren.insert(1);
+	} else if (name == "parameter") {
+		return transform(children[0]); //Don't need a parameter node, just the value
+	} else if (name == "bool") {
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), boolean));
+	} else if (name == "number") {
+		return transform(children[0]);
+	} else if (name == "integer") {
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), integer));
+	} else if (name == "float") {
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), floating));
+	} else if (name == "double") {
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), double_percision));
+	} else if (name == "string") {
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), char_string));
 	} else {
 		return new NodeTree<ASTData>();
 	}
