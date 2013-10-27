@@ -233,12 +233,13 @@ RegEx::~RegEx() {
 }
 
 int RegEx::longMatch(std::string stringToMatch) {
-	//If the beginning character is wrong, exit immediantly. Otherwise, get all the states we can get from adding the second character to the state where we accepted the first
+	// Start in the begin state (only).
 	int lastMatch = -1;
-	currentStates = *(begin->advance(stringToMatch[0]));
+	currentStates.clear();
+	currentStates.push_back(begin);
 	std::vector<RegExState*> nextStates;
 
-	for (int i = 1; i < stringToMatch.size(); i++) {
+	for (int i = 0; i < stringToMatch.size(); i++) {
 		//Go through every current state. Check to see if it is goal, if so update last goal.
 		//Also, add each state's advance to nextStates
 		for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++) {
@@ -292,6 +293,7 @@ void RegEx::test() {
     {
         RegEx re("a*");
         assert(re.longMatch("aa") == 2);
+        assert(re.longMatch("b") == 0);
     }
 
     std::cout << "RegEx tests pass\n";
