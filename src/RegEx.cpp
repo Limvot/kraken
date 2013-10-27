@@ -292,8 +292,22 @@ std::string RegEx::toString() {
 void RegEx::test() {
     {
         RegEx re("a*");
+        assert(re.longMatch("a") == 1);
         assert(re.longMatch("aa") == 2);
+        assert(re.longMatch("aaaab") == 4);
         assert(re.longMatch("b") == 0);
+    }
+
+    {
+        RegEx re("a+");
+        assert(re.longMatch("aa") == 2);
+        assert(re.longMatch("aaaab") == 4);
+        assert(re.longMatch("b") == -1);
+    }
+
+    {
+        RegEx re("a(bc)?");
+        assert(re.longMatch("ab") == 1);
     }
 
     std::cout << "RegEx tests pass\n";
