@@ -24,13 +24,13 @@ void Lexer::addRegEx(std::string regExString) {
 }
 
 Symbol Lexer::next() {
-	//std::cout << "Current at is \"" << input.substr(currentPosition,input.length()-1) << "\" currentPos is " << currentPosition  << " out of " << input.length() <<std::endl;
+	//std::cout << "Current at is \"" << input.substr(currentPosition) << "\" currentPos is " << currentPosition  << " out of " << input.length() <<std::endl;
 	//If we're at the end, return an eof
 	if (currentPosition >= input.length())
 		return Symbol("$EOF$", true);
 	int longestMatch = -1;
 	RegEx* longestRegEx = NULL;
-	std::string remainingString = input.substr(currentPosition,input.length()-1);
+	std::string remainingString = input.substr(currentPosition);
 	for (std::vector<RegEx*>::size_type i = 0; i < regExs.size(); i++) {
 		//std::cout << "Trying regex " << regExs[i]->getPattern() << std::endl;
 		int currentMatch = regExs[i]->longMatch(remainingString);
@@ -42,11 +42,11 @@ Symbol Lexer::next() {
 	if (longestRegEx != NULL) {
 		std::string eatenString = input.substr(currentPosition, longestMatch);
 		currentPosition += longestMatch;
-	//std::cout << "Current at is \"" << input.substr(currentPosition,input.length()-1) << "\" currentPos is " << currentPosition <<std::endl;
+	//std::cout << "Current at is \"" << input.substr(currentPosition) << "\" currentPos is " << currentPosition <<std::endl;
 		return Symbol(longestRegEx->getPattern(), true, eatenString);
 	} else {
 		//std::cout << "Found no applicable regex" << std::endl;
-		//std::cout << "Remaining is ||" << input.substr(currentPosition,input.length()-1) << "||" << std::endl;
+		//std::cout << "Remaining is ||" << input.substr(currentPosition) << "||" << std::endl;
 		return Symbol();
 	}
 }
@@ -90,6 +90,16 @@ void Lexer::test() {
         s = lex.next();
         assert(s.getName() == "a|b" && s.getValue() == "b");
         assert(lex.next() == Symbol());
+    }
+
+    // Lexer can consume all the input at once.
+    {
+        Lexer lex;
+        lex.addRegEx("xyzzy");
+        lex.setInput("xyzzy");
+        s = lex.next();
+        assert(s.getName() == "xyzzy" && s.getValue() == "xyzzy");
+        assert(lex.next() == Symbol("$EOF$", true));
     }
 
     std::cout << "Lexer tests passed\n";
