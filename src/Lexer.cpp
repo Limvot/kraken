@@ -102,5 +102,15 @@ void Lexer::test() {
         assert(lex.next() == Symbol("$EOF$", true));
     }
 
+    // Lexer produces the longest match, not the first.
+    {
+        Lexer lex;
+        lex.addRegEx("int");
+        lex.addRegEx("(i|n|t|e)+");
+        lex.setInput("intent");
+        s = lex.next();
+        assert(s.getName() == "(i|n|t|e)+" && s.getValue() == "intent");
+    }
+
     std::cout << "Lexer tests passed\n";
 }
