@@ -1,4 +1,5 @@
 #include "Lexer.h"
+#include <cassert>
 
 Lexer::Lexer() {
 	//Do nothing
@@ -25,7 +26,7 @@ void Lexer::addRegEx(std::string regExString) {
 Symbol Lexer::next() {
 	//std::cout << "Current at is \"" << input.substr(currentPosition,input.length()-1) << "\" currentPos is " << currentPosition  << " out of " << input.length() <<std::endl;
 	//If we're at the end, return an eof
-	if (currentPosition >= input.length()-1)
+	if (currentPosition >= input.length())
 		return Symbol("$EOF$", true);
 	int longestMatch = -1;
 	RegEx* longestRegEx = NULL;
@@ -48,4 +49,48 @@ Symbol Lexer::next() {
 		//std::cout << "Remaining is ||" << input.substr(currentPosition,input.length()-1) << "||" << std::endl;
 		return Symbol();
 	}
+}
+
+void Lexer::test() {
+    Symbol s;
+    {
+        Lexer lex;
+        lex.addRegEx("b");
+        lex.setInput("bb");
+        s = lex.next();
+        assert(s.getName() == "b" && s.getValue() == "b");
+        s = lex.next();
+        assert(s.getName() == "b" && s.getValue() == "b");
+        assert(lex.next() == Symbol("$EOF$", true));
+    }
+
+    {
+        Lexer lex;
+        lex.addRegEx("a*");
+        lex.addRegEx("b");
+        lex.setInput("aaabaabb");
+        s = lex.next();
+        assert(s.getName() == "a*" && s.getValue() == "aaa");
+        s = lex.next();
+        assert(s.getName() == "b" && s.getValue() == "b");
+        s = lex.next();
+        assert(s.getName() == "a*" && s.getValue() == "aa");
+        s = lex.next();
+        assert(s.getName() == "b" && s.getValue() == "b");
+        s = lex.next();
+        assert(s.getName() == "b" && s.getValue() == "b");
+        assert(lex.next() == Symbol("$EOF$", true));
+    }
+
+    // Test a lexer error condition.
+    {
+        Lexer lex;
+        lex.addRegEx("a|b");
+        lex.setInput("blah");
+        s = lex.next();
+        assert(s.getName() == "a|b" && s.getValue() == "b");
+        assert(lex.next() == Symbol());
+    }
+
+    std::cout << "Lexer tests passed\n";
 }
