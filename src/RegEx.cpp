@@ -1,4 +1,5 @@
 #include "RegEx.h"
+#include <cassert>
 
 RegEx::RegEx(std::string inPattern) {
 	pattern = inPattern;
@@ -242,7 +243,7 @@ int RegEx::longMatch(std::string stringToMatch) {
 		//Also, add each state's advance to nextStates
 		for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++) {
 			if (currentStates[j]->isGoal()) {
-				lastMatch = i-1;
+				lastMatch = i;
 				//std::cout << "Hit goal at " << i << " character: " << stringToMatch[i-1] << std::endl;
 			} else {
 				//std::cout << "currentState " << j << ", " << currentStates[j]->toString() << " is not goal" <<std::endl;
@@ -274,7 +275,7 @@ int RegEx::longMatch(std::string stringToMatch) {
 	//Check to see if we match on the last character in the string
 	for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++) {
 		if (currentStates[j]->isGoal())
-			lastMatch = stringToMatch.size()-1;
+			lastMatch = stringToMatch.size();
 	}
 	return lastMatch;
 }
@@ -285,4 +286,13 @@ std::string RegEx::getPattern() {
 
 std::string RegEx::toString() {
 	return pattern + " -> " + begin->toString();
+}
+
+void RegEx::test() {
+    {
+        RegEx re("a*");
+        assert(re.longMatch("aa") == 2);
+    }
+
+    std::cout << "RegEx tests pass\n";
 }

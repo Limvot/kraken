@@ -40,8 +40,8 @@ Symbol Lexer::next() {
 		}
 	}
 	if (longestRegEx != NULL) {
-		std::string eatenString = input.substr(currentPosition, longestMatch+1);
-		currentPosition += longestMatch + 1;
+		std::string eatenString = input.substr(currentPosition, longestMatch);
+		currentPosition += longestMatch;
 	//std::cout << "Current at is \"" << input.substr(currentPosition,input.length()-1) << "\" currentPos is " << currentPosition <<std::endl;
 		return Symbol(longestRegEx->getPattern(), true, eatenString);
 	} else {
