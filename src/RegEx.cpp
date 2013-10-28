@@ -1,4 +1,5 @@
 #include "RegEx.h"
+#include <cassert>
 
 RegEx::RegEx(std::string inPattern) {
 	pattern = inPattern;
@@ -232,17 +233,18 @@ RegEx::~RegEx() {
 }
 
 int RegEx::longMatch(std::string stringToMatch) {
-	//If the beginning character is wrong, exit immediantly. Otherwise, get all the states we can get from adding the second character to the state where we accepted the first
+	// Start in the begin state (only).
 	int lastMatch = -1;
-	currentStates = *(begin->advance(stringToMatch[0]));
+	currentStates.clear();
+	currentStates.push_back(begin);
 	std::vector<RegExState*> nextStates;
 
-	for (int i = 1; i < stringToMatch.size(); i++) {
+	for (int i = 0; i < stringToMatch.size(); i++) {
 		//Go through every current state. Check to see if it is goal, if so update last goal.
 		//Also, add each state's advance to nextStates
 		for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++) {
 			if (currentStates[j]->isGoal()) {
-				lastMatch = i-1;
+				lastMatch = i;
 				//std::cout << "Hit goal at " << i << " character: " << stringToMatch[i-1] << std::endl;
 			} else {
 				//std::cout << "currentState " << j << ", " << currentStates[j]->toString() << " is not goal" <<std::endl;
@@ -274,7 +276,7 @@ int RegEx::longMatch(std::string stringToMatch) {
 	//Check to see if we match on the last character in the string
 	for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++) {
 		if (currentStates[j]->isGoal())
-			lastMatch = stringToMatch.size()-1;
+			lastMatch = stringToMatch.size();
 	}
 	return lastMatch;
 }
@@ -285,4 +287,28 @@ std::string RegEx::getPattern() {
 
 std::string RegEx::toString() {
 	return pattern + " -> " + begin->toString();
+}
+
+void RegEx::test() {
+    {
+        RegEx re("a*");
+        assert(re.longMatch("a") == 1);
+        assert(re.longMatch("aa") == 2);
+        assert(re.longMatch("aaaab") == 4);
+        assert(re.longMatch("b") == 0);
+    }
+
+    {
+        RegEx re("a+");
+        assert(re.longMatch("aa") == 2);
+        assert(re.longMatch("aaaab") == 4);
+        assert(re.longMatch("b") == -1);
+    }
+
+    {
+        RegEx re("a(bc)?");
+        assert(re.longMatch("ab") == 1);
+    }
+
+    std::cout << "RegEx tests pass\n";
 }

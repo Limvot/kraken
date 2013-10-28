@@ -16,6 +16,7 @@ class Lexer {
 		void addRegEx(std::string regExString);
 		void setInput(std::string inputString);
 		Symbol next();
+		static void test();
 	private:
 		std::vector<RegEx*> regExs;
 		std::string input;

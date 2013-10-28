@@ -19,6 +19,8 @@
 int main(int argc, char* argv[]) {
 	if (argc == 2 && std::string(argv[1]) == "--test") {
 		StringReader::test();
+		RegEx::test();
+		Lexer::test();
 		return 0;
 	}
 
