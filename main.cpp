@@ -14,6 +14,7 @@
 #include "CollapseTransformation.h"
 #include "ASTTransformation.h"
 #include "ASTData.h"
+#include "CGenerator.h"
 
 
 int main(int argc, char* argv[]) {
@@ -25,7 +26,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	std::ifstream programInFile, grammerInFile;
-	std::ofstream outFile, outFileTransformed, outFileAST;
+	std::ofstream outFile, outFileTransformed, outFileAST, outFileC;
 
 	programInFile.open(argv[1]);
 	if (!programInFile.is_open()) {
@@ -57,6 +58,11 @@ int main(int argc, char* argv[]) {
 		return(1);
 	}
 
+	outFileC.open((std::string(argv[3]) + ".c").c_str());
+	if (!outFileC.is_open()) {
+		std::cout << "Probelm opening third output file " << std::string(argv[3]) + ".c" << "\n";
+		return(1);
+	}
 	//Read the input file into a string
 	std::string programInputFileString, grammerInputFileString;
 	std::string line;
@@ -64,11 +70,13 @@ int main(int argc, char* argv[]) {
 		getline(grammerInFile, line);
 		grammerInputFileString.append(line+"\n");
 	}
+	grammerInFile.close();
 
 	while(programInFile.good()) {
 		getline(programInFile, line);
 		programInputFileString.append(line+"\n");
 	}
+	programInFile.close();
 
 	//LALRParser parser;
 	RNGLRParser parser;
@@ -101,6 +109,7 @@ int main(int argc, char* argv[]) {
 	} else {
 		std::cout << "ParseTree returned from parser is NULL!" << std::endl;
 	}
+	outFile.close();
 
 	//Pre AST Transformations
 	std::vector<NodeTransformation<Symbol, Symbol>*> preASTTransforms;
@@ -124,6 +133,7 @@ int main(int argc, char* argv[]) {
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("function_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("statement_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("parameter_list", false)));
+	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("typed_parameter_list", false)));
 
 	for (int i = 0; i < preASTTransforms.size(); i++) {
 		parseTree = preASTTransforms[i]->transform(parseTree);
@@ -138,19 +148,23 @@ int main(int argc, char* argv[]) {
 	} else {
 		std::cout << "Tree returned from transformation is NULL!" << std::endl;
 	}
-
+	outFileTransformed.close();
 
 	if (AST) {
 		outFileAST << AST->DOTGraphString() << std::endl;
 	} else {
 		std::cout << "Tree returned from ASTTransformation is NULL!" << std::endl;
 	}
-
-	programInFile.close();
-	grammerInFile.close();
-	outFile.close();
-	outFileTransformed.close();
 	outFileAST.close();
+
+	//Do type checking, scope creation, etc. here.
+	//None at this time, instead going strait to C in this first (more naive) version
+
+	//Code generation
+	//For right now, just C
+	std::string c_code = CGenerator().generate(AST);
+	outFileC << c_code << std::endl;
+	outFileC.close();	
 
 	return(0);
 }

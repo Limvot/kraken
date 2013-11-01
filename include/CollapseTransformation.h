@@ -41,10 +41,8 @@ NodeTree<T>* CollapseTransformation<T>::transform(NodeTree<T>* from) {
 			if (children[i]->getData() == toCollapse) {
 				node->removeChild(children[i]);
 				std::vector<NodeTree<T>*> newChildren = children[i]->getChildren();
-				node->addChildren(newChildren);
+				node->insertChildren(i,newChildren);
 				toProcess.push(node); //Do this node again
-				// for (int j = 0; j < newChildren.size(); j++)
-				// 	toProcess.push(newChildren[j]);
 			}
 			else
 				toProcess.push(children[i]);

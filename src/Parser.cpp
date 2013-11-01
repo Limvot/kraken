@@ -1,6 +1,6 @@
 #include "Parser.h"
 
-Parser::Parser() : EOFSymbol("$EOF$", true), nullSymbol("$NULL$", true){
+Parser::Parser() : EOFSymbol("$EOF$", true), nullSymbol("$NULL$", true), invalidSymbol("$INVALID$", true){
 	table.setSymbols(EOFSymbol, nullSymbol);
 }
 

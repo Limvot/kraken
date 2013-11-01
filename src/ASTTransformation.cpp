@@ -31,7 +31,9 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 	} else if (name == "code_block") {
 		newNode = new NodeTree<ASTData>(name, ASTData(code_block));
 	} else if (name == "typed_parameter") {
-		newNode = new NodeTree<ASTData>(name, ASTData(typed_parameter));
+		newNode = transform(children[1]); //Transform to get the identifier
+		newNode->getDataRef()->valueType = ASTData::strToType(concatSymbolTree(children[0])); //Get the type (left child) and set our new identifer to be that type
+		return newNode;
 	} else if (name == "expression") {
 		//If this is an actual part of an expression, not just a premoted term
 		if (children.size() > 1) {
@@ -62,6 +64,13 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 		newNode = new NodeTree<ASTData>(name, ASTData(return_statement));
 	} else if (name == "assignment_statement") {
 		newNode = new NodeTree<ASTData>(name, ASTData(assignment_statement));
+	} else if (name == "declaration_statement") {
+		newNode = new NodeTree<ASTData>(name, ASTData(declaration_statement));
+		NodeTree<ASTData>* newIdentifier = transform(children[1]); //Transform the identifier
+		newIdentifier->getDataRef()->valueType = ASTData::strToType(concatSymbolTree(children[0]));//set the type of the identifier
+		newNode->addChild(newIdentifier);
+		skipChildren.insert(0); //These, the type and the identifier, have been taken care of.
+		skipChildren.insert(1);
 	} else if (name == "function_call") {
 		//children[0] is scope
 		std::string functionCallName = concatSymbolTree(children[1]);
@@ -89,7 +98,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 	for (int i = 0; i < children.size(); i++) {
 		if (skipChildren.find(i) == skipChildren.end()) {
 			NodeTree<ASTData>* transChild = transform(children[i]);
-			if (transChild->getData().type)
+			if (transChild->getData().type) //Only add the children that have a real ASTData::ASTType, that is, legit ASTData.
 				newNode->addChild(transChild);
 			else
 				delete transChild;

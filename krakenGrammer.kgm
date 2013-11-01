@@ -23,7 +23,7 @@ function_list = function_list WS function | function ;
 function = type WS identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block ;
 
 opt_typed_parameter_list = typed_parameter_list | ;
-typed_parameter_list = typed_parameter_list WS typed_parameter | typed_parameter ;
+typed_parameter_list = typed_parameter_list WS "," WS typed_parameter | typed_parameter ;
 typed_parameter = type WS parameter ;
 
 opt_parameter_list = parameter_list | ;
@@ -32,7 +32,7 @@ parameter = expression ;
 
 code_block = "{" WS statement_list WS "}" ;
 statement_list = statement_list WS statement | statement ;
-statement = if_statement | return_statement | expression WS ";" | boolean_expression WS ";" | assignment_statement WS ";" | code_block ;
+statement = if_statement | return_statement | expression WS ";" | boolean_expression WS ";" | assignment_statement WS ";" | declaration_statement WS ";" | code_block ;
 function_call = scope identifier "\(" WS opt_parameter_list WS "\)" ;
 scope = scope identifier "::" | ;
 
@@ -50,6 +50,7 @@ factor = number | identifier | function_call | bool | string ;
 number = integer | float | double ;
 
 assignment_statement = identifier WS "=" WS expression ;
+declaration_statement = type WS identifier WS "=" WS expression ;
 
 alphanumeric = alphanumeric numeric | alphanumeric alpha | numeric | alpha ;
 hexadecimal = "0x(1|2|3|4|5|6|7|8|9|a|b|c|d|e|f)+" ;

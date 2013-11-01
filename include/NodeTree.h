@@ -27,8 +27,11 @@ class NodeTree {
 		std::vector<NodeTree<T>*> getParents();
 
 		void addChild(NodeTree<T>* child);
+		void insertChild(int i, NodeTree<T>* child);
 		void addChildren(std::vector<NodeTree<T>*>* children);
 		void addChildren(std::vector<NodeTree<T>*> children);
+		void insertChildren(int index, std::vector<NodeTree<T>*>* children);
+		void insertChildren(int index, std::vector<NodeTree<T>*> children);
 		int findChild(NodeTree<T>* child);
 		void removeChild(NodeTree<T>* child);
 		void removeChild(int index);
@@ -40,6 +43,7 @@ class NodeTree {
 		void setName(std::string);
 
 		T getData() const;
+		T* getDataRef();
 		void setData(T data);
 
 		int size();
@@ -131,6 +135,14 @@ void NodeTree<T>::addChild(NodeTree<T>* child) {
 }
 
 template<class T>
+void NodeTree<T>::insertChild(int i, NodeTree<T>* child) {
+	if (!child)
+		throw "Help, NULL child";
+	if (findChild(child) == -1) 
+		children.insert(children.begin()+i,child);
+}
+
+template<class T>
 void NodeTree<T>::addChildren(std::vector<NodeTree<T>*>* children) {
 	for (typename std::vector<NodeTree<T>*>::size_type i = 0; i < children->size(); i++)
 		addChild((*children)[i]);
@@ -140,6 +152,18 @@ template<class T>
 void NodeTree<T>::addChildren(std::vector<NodeTree<T>*> children) {
 	for (typename std::vector<NodeTree<T>*>::size_type i = 0; i < children.size(); i++)
 		addChild(children[i]);
+}
+
+template<class T>
+void NodeTree<T>::insertChildren(int index, std::vector<NodeTree<T>*>* children) {
+	for (typename std::vector<NodeTree<T>*>::size_type i = 0; i < children->size(); i++)
+		insertChild(index+i,(*children)[i]);
+}
+
+template<class T>
+void NodeTree<T>::insertChildren(int index, std::vector<NodeTree<T>*> children) {
+	for (typename std::vector<NodeTree<T>*>::size_type i = 0; i < children.size(); i++)
+		insertChild(index+i, children[i]);
 }
 
 template<class T>
@@ -205,6 +229,11 @@ void NodeTree<T>::setName(std::string name) {
 template<class T>
 T NodeTree<T>::getData() const {
 	return data;
+}
+
+template<class T>
+T* NodeTree<T>::getDataRef() {
+	return &data;
 }
 
 template<class T>

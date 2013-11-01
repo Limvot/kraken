@@ -43,19 +43,19 @@ std::string ASTData::ValueTypeToString(ValueType type) {
 			return "none";
 			break;
 		case boolean:
-			return "boolean";
+			return "bool";
 			break;
 		case integer:
-			return "integer";
+			return "int";
 			break;
 		case floating:
-			return "floating";
+			return "float";
 			break;
 		case double_percision:
-			return "double_percision";
+			return "double";
 			break;
 		case char_string:
-			return "char_string";
+			return "string";
 			break;
 		default:
 			return "unknown_ValueType";
@@ -102,6 +102,9 @@ std::string ASTData::ASTTypeToString(ASTType type) {
 			break;
 		case assignment_statement:
 			return "assignment_statement";
+			break;
+		case declaration_statement:
+			return "declaration_statement";
 			break;
 		case function_call:
 			return "function_call";

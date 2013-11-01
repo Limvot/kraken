@@ -34,6 +34,11 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 	input.push_back(currentToken);
 	while (currentToken != EOFSymbol) {
 		currentToken = lexer.next();
+		//std::cout << "CurrentToken is " << currentToken.toString() << std::endl;
+		if (currentToken == invalidSymbol) {
+			std::cout << "Invalid Symbol!" << std::endl;
+			throw "Invalid Symbol, cannot lex";
+		}
 		input.push_back(currentToken);
 	}
 
