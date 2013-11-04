@@ -45,8 +45,8 @@ Symbol Lexer::next() {
 	//std::cout << "Current at is \"" << input.substr(currentPosition) << "\" currentPos is " << currentPosition <<std::endl;
 		return Symbol(longestRegEx->getPattern(), true, eatenString);
 	} else {
-		std::cout << "Found no applicable regex" << std::endl;
-		std::cout << "Remaining is ||" << input.substr(currentPosition) << "||" << std::endl;
+		// std::cout << "Found no applicable regex" << std::endl;
+		// std::cout << "Remaining is ||" << input.substr(currentPosition) << "||" << std::endl;
 		return Symbol("$INVALID$", true);
 	}
 }
@@ -89,7 +89,7 @@ void Lexer::test() {
         lex.setInput("blah");
         s = lex.next();
         assert(s.getName() == "a|b" && s.getValue() == "b");
-        assert(lex.next() == Symbol());
+        assert(lex.next() == Symbol("$INVALID$", true));
     }
 
     // Lexer can consume all the input at once.
