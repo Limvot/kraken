@@ -89,7 +89,7 @@ void Lexer::test() {
         lex.setInput("blah");
         s = lex.next();
         assert(s.getName() == "a|b" && s.getValue() == "b");
-        assert(lex.next() == Symbol());
+        assert(lex.next() == Symbol("$INVALID$", true));
     }
 
     // Lexer can consume all the input at once.
