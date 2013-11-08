@@ -121,6 +121,8 @@ int main(int argc, char* argv[]) {
 	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol(";", true)));
 	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("{", true)));
 	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("}", true)));
+	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("(", true)));
+	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol(")", true)));
 	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("import", true))); //Don't need the actual text of the symbol
 	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("interpreter_directive", false)));
 	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("if", true)));

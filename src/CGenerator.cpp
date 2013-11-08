@@ -26,7 +26,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			//Do nothing
 			break;
 		case import:
-			return "#include \"" + data.symbol.getName() + "\"\n";
+			return "#include <" + data.symbol.getName() + ">\n";
 			break;
 		case identifier:
 			return data.symbol.getName();
@@ -42,7 +42,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			return output;
 			break;
 		case code_block:
-			output += tabs() + "{\n";
+			output += "{\n";
 			tabLevel++;
 			for (int i = 0; i < children.size(); i++)
 				output += generate(children[i]);
@@ -60,7 +60,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			return tabs() + generate(children[0]) + ";\n";
 			break;
 		case if_statement:
-			output += "if (" + generate(children[0]) + ") \n" + generate(children[1]);
+			output += "if (" + generate(children[0]) + ")\n\t" + generate(children[1]);
 			if (children.size() > 2)
 				output += " else " + generate(children[2]);
 			return output;
@@ -76,7 +76,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			//Handle operators specially for now. Will later replace with
 			//Inlined functions in the standard library
 			std::string name = data.symbol.getName();
-			if (name == "+" || name == "-" || name == "*" || name == "/") {
+			if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!=") {
 				return "((" + generate(children[0]) + ")" + name + "(" + generate(children[1]) + "))";
 			}
 			output += data.symbol.getName() + "(";

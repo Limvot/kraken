@@ -34,6 +34,33 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 		newNode = transform(children[1]); //Transform to get the identifier
 		newNode->getDataRef()->valueType = ASTData::strToType(concatSymbolTree(children[0])); //Get the type (left child) and set our new identifer to be that type
 		return newNode;
+	} else if (name == "boolean_expression") {
+		//If this is an actual part of an expression, not just a premoted term
+		if (children.size() > 1) {
+			std::string functionCallName = concatSymbolTree(children[1]);
+			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
+			skipChildren.insert(1);
+		} else {
+			return transform(children[0]); //Just a promoted term, so do child
+		}
+	} else if (name == "and_boolean_expression") {
+		//If this is an actual part of an expression, not just a premoted bool_exp
+		if (children.size() > 1) {
+			std::string functionCallName = concatSymbolTree(children[1]);
+			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
+			skipChildren.insert(1);
+		} else {
+			return transform(children[0]); //Just a promoted bool_exp, so do child
+		}
+	} else if (name == "bool_exp") {
+		//If this is an actual part of an expression, not just a premoted bool_exp.
+		if (children.size() > 1) {
+			std::string functionCallName = concatSymbolTree(children[1]);
+			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
+			skipChildren.insert(1);
+		} else {
+			return transform(children[0]); //Just a promoted bool_exp, so do child
+		}
 	} else if (name == "expression") {
 		//If this is an actual part of an expression, not just a premoted term
 		if (children.size() > 1) {
@@ -54,8 +81,6 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 		}
 	} else if (name == "factor") {
 		return transform(children[0]); //Just a premoted number or function call or something, so use it instead
-	} else if (name == "boolean_expression") {
-		newNode = new NodeTree<ASTData>(name, ASTData(boolean_expression));
 	} else if (name == "statement") {
 		newNode = new NodeTree<ASTData>(name, ASTData(statement));
 	} else if (name == "if_statement") {
