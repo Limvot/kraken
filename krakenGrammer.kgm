@@ -34,15 +34,14 @@ if_statement = "if" WS "\(" WS boolean_expression WS "\)" WS statement ;
 
 while_loop = "while" WS boolean_expression WS statement ;
 
-for_update = "\(" WS statement_list WS "\)" ;
-for_loop = "for" WS for_update WS statement ;
+for_loop = "for" WS "\(" WS statement WS boolean_expression WS ";" WS statement WS "\)"  WS statement ;
 
-return_statement = "return" WS boolean_expression WS ";" ;
+return_statement = "return" WS boolean_expression ;
 
 code_block = "{" WS statement_list WS "}" ;
 
 statement_list = statement_list WS statement | statement ;
-statement = if_statement | while_loop | for_loop | return_statement | boolean_expression WS ";" | assignment_statement WS ";" | declaration_statement WS ";" | code_block ; 
+statement = if_statement | while_loop | for_loop | return_statement WS ";" | boolean_expression WS ";" | assignment_statement WS ";" | declaration_statement WS ";" | code_block ; 
 function_call = scope identifier "\(" WS opt_parameter_list WS "\)" ;
 scope = scope identifier "::" | ;
 
@@ -58,7 +57,7 @@ factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" |
 unarad = number | identifier | function_call | bool | string | "\(" WS boolean_expression WS "\)" ;
 number = integer | float | double ;
 
-assignment_statement = identifier WS "=" WS boolean_expression | identifier WS "+=" WS boolean_expression | identifier WS "-=" WS boolean_expression | identifier WS "\*=" WS boolean_expression | identifier WS "/=" WS boolean_expression ;
+assignment_statement = identifier WS "=" WS boolean_expression | identifier WS "\+=" WS boolean_expression | identifier WS "-=" WS boolean_expression | identifier WS "\*=" WS boolean_expression | identifier WS "/=" WS boolean_expression ;
 declaration_statement = type WS identifier WS "=" WS boolean_expression ;
 
 alphanumeric = alphanumeric numeric | alphanumeric alpha | numeric | alpha ;
@@ -70,4 +69,4 @@ double = sign numeric "." numeric | sign numeric "." numeric "d" ;
 bool = "true" | "false" | "True" | "False" ;
 alpha = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|_)+" ;
 numeric = "(0|1|2|3|4|5|6|7|8|9)+" ;
-string = "\"(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|!|\?|_|-| |	|\\|/|\||0|1|2|3|4|5|6|7|8|9)+\"" ;
+string = "\"(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|%| |	|\\|/|\||\(|\)|0|1|2|3|4|5|6|7|8|9)+\"" ;

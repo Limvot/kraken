@@ -62,17 +62,16 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 			return transform(children[0]); //Just a promoted bool_exp, so do child
 		}
 	//Here's the order of ops stuff
-	} else if (name == "expression" || name == "shiftand" || name == "term" || name == "unarad") {
+	} else if (name == "expression" || name == "shiftand" || name == "term" || name == "factor" || name == "unarad") {
 		//If this is an actual part of an expression, not just a premoted child
 		if (children.size() > 1) {
 			std::string functionCallName = concatSymbolTree(children[1]);
+			std::cout << functionCallName << std::endl;
 			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
 			skipChildren.insert(1);
 		} else {
 			return transform(children[0]); //Just a promoted child, so do it instead
 		}
-	} else if (name == "factor") {
-		return transform(children[0]); //Just a premoted number or function call or something, so use it instead
 	} else if (name == "statement") {
 		newNode = new NodeTree<ASTData>(name, ASTData(statement));
 	} else if (name == "if_statement") {
@@ -92,7 +91,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 		} else {
 			//For assignments like += or *=, expand the syntatic sugar.
 			NodeTree<ASTData>* lhs = transform(children[0]);
-			NodeTree<ASTData>* childCall = new NodeTree<ASTData>(assignFuncName, ASTData(function_call, Symbol(assignFuncName, true)));
+			NodeTree<ASTData>* childCall = new NodeTree<ASTData>(assignFuncName.substr(0,1), ASTData(function_call, Symbol(assignFuncName.substr(0,1), true)));
 			childCall->addChild(lhs);
 			childCall->addChild(transform(children[2]));
 			newNode->addChild(lhs);

@@ -7,6 +7,8 @@
 #include "NodeTree.h"
 #include "ASTData.h"
 
+#include "util.h"
+
 
 class CGenerator {
 	public:

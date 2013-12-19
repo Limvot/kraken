@@ -58,10 +58,11 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 				output += " else " + generate(children[2]);
 			return output;
 		case while_loop:
-			output += "if (" + generate(children[0]) + ")\n\t" + generate(children[1]);
+			output += "while (" + generate(children[0]) + ")\n\t" + generate(children[1]);
 			return output;
 		case for_loop:
-			output += "if (" + generate(children[0]) + ")\n\t" + generate(children[1]);
+			//The strSlice's are there to get ride of an unwanted return and an unwanted semicolon
+			output += "for (" + strSlice(generate(children[0]),0,-2) + generate(children[1]) + ";" + strSlice(generate(children[2]),0,-3) + ")\n\t" + generate(children[3]);
 			return output;
 		case return_statement:
 			return "return " + generate(children[0]);
@@ -74,7 +75,9 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			//Handle operators specially for now. Will later replace with
 			//Inlined functions in the standard library
 			std::string name = data.symbol.getName();
-			if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!=" || name == "%") {
+			if (name == "++" || name == "--")
+				return generate(children[0]) + name;
+			if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!=" || name == "<" || name == ">" || name == "%" || name == "+=" || name == "-=" || name == "*=" || name == "/=") {
 				return "((" + generate(children[0]) + ")" + name + "(" + generate(children[1]) + "))";
 			}
 			output += data.symbol.getName() + "(";

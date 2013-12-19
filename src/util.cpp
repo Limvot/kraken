@@ -31,3 +31,12 @@ std::string replaceExEscape(std::string first, std::string search, std::string r
     }
     return first;
 }
+
+//String slicing is crazy useful. substr isn't bad, but slicing with negative indicies is wonderful
+std::string strSlice(std::string str, int begin, int end) {
+    if (begin < 0)
+        begin += str.length()+1;
+    if (end < 0)
+        end += str.length()+1;
+    return str.substr(begin, end-begin);
+}

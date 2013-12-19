@@ -16,12 +16,14 @@
 #include "ASTData.h"
 #include "CGenerator.h"
 
+#include "util.h"
 
 int main(int argc, char* argv[]) {
 	if (argc == 2 && std::string(argv[1]) == "--test") {
 		StringReader::test();
 		RegEx::test();
 		Lexer::test();
+		//std::cout << strSlice("123", 0, -1) << std::endl;
 		return 0;
 	}
 
