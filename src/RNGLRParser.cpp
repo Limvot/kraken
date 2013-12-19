@@ -81,7 +81,10 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 			std::cout << "Nearby is:" << std::endl;
 			int range = 5;
 			for (int j = (i-range >= 0 ? i-range : 0); j < (i+range < input.size() ? i+range : input.size()); j++)
-				std::cout << input[j].toString() << " ";
+				if (j == i)
+					std::cout << "||*||*||" << input[j].toString() << "||*||*|| ";
+				else
+					std::cout << input[j].toString() << " ";
 			std::cout << std::endl;
 			break;
 		}
@@ -339,11 +342,13 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std:
 			//if (newStates[i]->basisEquals(*((*stateSets)[j]))) {
 				stateAlreadyInAllStates = true;
 				//If it does exist, we should add it as the shift/goto in the action table
+				//std::cout << "newStates[" << i << "] == stateSets[" << j << "]" << std::endl;
 				
 				if (!((*stateSets)[j]->basisEquals(*(newStates[i]))))
 					toDo->push((*stateSets)[j]);
 				
 				(*stateSets)[j]->combineStates(*(newStates[i]));
+				//std::cout << j << "\t Hay, doing an inside loop state reductions!" << std::endl;
 				addStateReductionsToTable((*stateSets)[j]);
 				table.add(stateNum(state), currStateSymbol, new ParseAction(ParseAction::SHIFT, j));
 
@@ -368,8 +373,9 @@ void RNGLRParser::addStateReductionsToTable(State* state) {
 		//Also, this really only needs to be done for the state's basis, but we're already iterating through, so...
 		std::vector<Symbol>* lookahead = (*currStateTotal)[i]->getLookahead();
 		if ((*currStateTotal)[i]->isAtEnd()) {
-			for (std::vector<Symbol>::size_type j = 0; j < lookahead->size(); j++)
+			for (std::vector<Symbol>::size_type j = 0; j < lookahead->size(); j++) {
 				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
+			}
 		//If this has an appropriate ruduction to null, get the reduce trees out
 		} else if (reducesToNull((*currStateTotal)[i])) {
 			//std::cout << (*currStateTotal)[i]->toString() << " REDUCES TO NULL" << std::endl;

@@ -128,7 +128,7 @@ std::vector<ParseAction*>* Table::get(int state, Symbol token) {
 		action->push_back(new ParseAction(ParseAction::ACCEPT));
 	}
 
-	//If ourside the symbol range of this state (same as NULL), reject
+	//If outside the symbol range of this state (same as NULL), reject
 	if ( symbolIndex >= table[state]->size() ) {
 		action = new std::vector<ParseAction*>();
 		action->push_back(new ParseAction(ParseAction::REJECT));
@@ -141,7 +141,7 @@ std::vector<ParseAction*>* Table::get(int state, Symbol token) {
 	}
 
 	//Otherwise, we have something, so return it
-	return (action);
+	return action;
 }
 
 ParseAction* Table::getShift(int state, Symbol token) {
@@ -163,8 +163,9 @@ std::string Table::toString() {
 	concat += "\n";
 
 	for (std::vector< std::vector< std::vector< ParseRule* >* >* >::size_type i = 0; i < table.size(); i++) {
-		concat += intToString(i) + "\t";
+		concat += intToString(i) + " is the state\t";
 		for (std::vector< std::vector< ParseRule* >* >::size_type j = 0; j < table[i]->size(); j++) {
+			concat += "for " + symbolIndexVec[j].toString() + " do ";
 			if ( (*(table[i]))[j] != NULL) {
 				for (std::vector< ParseRule* >::size_type k = 0; k < (*(table[i]))[j]->size(); k++) {
 					concat += (*((*(table[i]))[j]))[k]->toString() + "\t";

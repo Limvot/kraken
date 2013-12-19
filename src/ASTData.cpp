@@ -66,52 +66,40 @@ std::string ASTData::ASTTypeToString(ASTType type) {
 	switch (type) {
 		case translation_unit:
 			return "translation_unit";
-			break;
 		case interpreter_directive:
 			return "interpreter_directive";
-			break;
 		case identifier:
 			return "identifier";
-			break;
 		case import:
 			return "import";
-			break;
 		case function:
 			return "function";
-			break;
 		case code_block:
 			return "code_block";
-			break;
 		case typed_parameter:
 			return "typed_parameter";
-			break;
 		case expression:
 			return "expression";
-			break;
 		case boolean_expression:
 			return "boolean_expression";
-			break;
 		case statement:
 			return "statement";
-			break;
 		case if_statement:
 			return "if_statement";
-			break;
+		case while_loop:
+			return "while_loop";
+		case for_loop:
+			return "for_loop";
 		case return_statement:
 			return "return_statement";
-			break;
 		case assignment_statement:
 			return "assignment_statement";
-			break;
 		case declaration_statement:
 			return "declaration_statement";
-			break;
 		case function_call:
 			return "function_call";
-			break;
 		case value:
 			return "value";
-			break;
 		default:
 			return "unknown_ASTType";
 	}

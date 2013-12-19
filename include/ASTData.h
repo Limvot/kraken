@@ -12,7 +12,7 @@
 enum ASTType {undef, translation_unit, interpreter_directive, import, identifier,
 	function, code_block,
 	typed_parameter, expression, boolean_expression, statement,
-	if_statement, return_statement, assignment_statement, declaration_statement,
+	if_statement, while_loop, for_loop, return_statement, assignment_statement, declaration_statement,
 	function_call, value};
 enum ValueType {none, boolean, integer, floating, double_percision, char_string };
 
