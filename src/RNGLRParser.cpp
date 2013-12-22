@@ -79,7 +79,7 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 			std::cout << "Frontier " << i << " is empty." << std::endl;
 			std::cout << "Failed on " << input[i].toString() << std::endl;
 			std::cout << "Nearby is:" << std::endl;
-			int range = 5;
+			const int range = 10;
 			for (int j = (i-range >= 0 ? i-range : 0); j < (i+range < input.size() ? i+range : input.size()); j++)
 				if (j == i)
 					std::cout << "||*||*||" << input[j].toString() << "||*||*|| ";

@@ -134,10 +134,11 @@ int main(int argc, char* argv[]) {
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_parameter_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_import_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("import_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("function_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("statement_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("parameter_list", false)));
 	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("typed_parameter_list", false)));
+	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("unorderd_list_part", false)));
+	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("if_comp_pred", false)));
 
 	for (int i = 0; i < preASTTransforms.size(); i++) {
 		parseTree = preASTTransforms[i]->transform(parseTree);
@@ -145,7 +146,6 @@ int main(int argc, char* argv[]) {
 	preASTTransforms.erase(preASTTransforms.begin(), preASTTransforms.end());
 
 	NodeTree<ASTData>* AST = ASTTransformation().transform(parseTree);
-	//NodeTree<ASTData>* AST = (new ASTTransformation())->transform(parseTree);
 
 	if (parseTree) {
 		outFileTransformed << parseTree->DOTGraphString() << std::endl;
@@ -162,13 +162,13 @@ int main(int argc, char* argv[]) {
 	outFileAST.close();
 
 	//Do type checking, scope creation, etc. here.
-	//None at this time, instead going strait to C in this first (more naive) version
+	//None at this time, instead going straight to C in this first (more naive) version
 
 	//Code generation
 	//For right now, just C
 	std::string c_code = CGenerator().generate(AST);
 	outFileC << c_code << std::endl;
-	outFileC.close();	
+	outFileC.close();
 
 	return(0);
 }

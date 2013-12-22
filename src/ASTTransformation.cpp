@@ -105,6 +105,10 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 		newNode->addChild(newIdentifier);
 		skipChildren.insert(0); //These, the type and the identifier, have been taken care of.
 		skipChildren.insert(1);
+	} else if (name == "if_comp") {
+		newNode = new NodeTree<ASTData>(name, ASTData(if_comp));
+	} else if (name == "simple_passthrough") {
+		newNode = new NodeTree<ASTData>(name, ASTData(simple_passthrough));
 	} else if (name == "function_call") {
 		//children[0] is scope
 		std::string functionCallName = concatSymbolTree(children[1]);
@@ -122,7 +126,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), floating));
 	} else if (name == "double") {
 		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), double_percision));
-	} else if (name == "string") {
+	} else if (name == "string" || name == "triple_quoted_string") {
 		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), char_string));
 	} else {
 		return new NodeTree<ASTData>();

@@ -24,7 +24,9 @@ std::string ASTData::toString() {
 }
 
 ValueType ASTData::strToType(std::string type) {
-	if (type == "bool") 
+	if (type == "void")
+		return void_type;
+	else if (type == "bool") 
 		return boolean;
 	else if (type == "int")
 		return integer;
@@ -41,22 +43,18 @@ std::string ASTData::ValueTypeToString(ValueType type) {
 	switch (type) {
 		case none:
 			return "none";
-			break;
+		case void_type:
+			return "void";
 		case boolean:
 			return "bool";
-			break;
 		case integer:
 			return "int";
-			break;
 		case floating:
 			return "float";
-			break;
 		case double_percision:
 			return "double";
-			break;
 		case char_string:
 			return "string";
-			break;
 		default:
 			return "unknown_ValueType";
 	}
@@ -96,6 +94,10 @@ std::string ASTData::ASTTypeToString(ASTType type) {
 			return "assignment_statement";
 		case declaration_statement:
 			return "declaration_statement";
+		case if_comp:
+			return "if_comp";
+		case simple_passthrough:
+			return "simple_passthrough";
 		case function_call:
 			return "function_call";
 		case value:

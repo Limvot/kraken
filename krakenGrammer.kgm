@@ -1,9 +1,9 @@
 Goal = translation_unit ;
-translation_unit = interpreter_directive WS opt_import_list WS function_list WS ;
+translation_unit = interpreter_directive WS unorderd_list_part WS ;
+unorderd_list_part = import_list WS unorderd_list_part | function WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | import_list | function | if_comp | simple_passthrough ;
 
-type = "\*" WS type | "void" | "int" | "float" | "double" | "char" | identifier ;
+type = type WS "\*" | "void" | "int" | "float" | "double" | "char" | identifier ;
 
-opt_import_list = import_list | ;
 import_list = import_list WS import | import ;
 import = "import" WS identifier WS ";" ;
 
@@ -14,11 +14,15 @@ forward_slash = "/" ;
 back_slash = "\\" ;
 
 WS = "( |	|
-)+" | ;
+)+" | WS comment WS | ;
+
+if_comp = "__if_comp__" WS identifier WS if_comp_pred ;
+if_comp_pred = code_block | simple_passthrough ;
+simple_passthrough = "comp_simple_passthrough" WS triple_quoted_string ;
+triple_quoted_string = "\"\"\"(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|;|%|=|\+| |	|
+|\\|/|\||\(|\)|\"|#|<|\*|>|0|1|2|3|4|5|6|7|8|9)+\"\"\"" ;
 
 identifier = alpha | alpha alphanumeric ;
-
-function_list = function_list WS function | function ;
 
 function = type WS identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block ;
 
@@ -36,12 +40,12 @@ while_loop = "while" WS boolean_expression WS statement ;
 
 for_loop = "for" WS "\(" WS statement WS boolean_expression WS ";" WS statement WS "\)"  WS statement ;
 
-return_statement = "return" WS boolean_expression ;
+return_statement = "return" | "return" WS boolean_expression ;
 
 code_block = "{" WS statement_list WS "}" ;
 
 statement_list = statement_list WS statement | statement ;
-statement = if_statement | while_loop | for_loop | return_statement WS ";" | boolean_expression WS ";" | assignment_statement WS ";" | declaration_statement WS ";" | code_block ; 
+statement = if_statement | while_loop | for_loop | return_statement WS ";" | boolean_expression WS ";" | assignment_statement WS ";" | declaration_statement WS ";" | code_block | if_comp | simple_passthrough ; 
 function_call = scope identifier "\(" WS opt_parameter_list WS "\)" ;
 scope = scope identifier "::" | ;
 
@@ -69,4 +73,7 @@ double = sign numeric "." numeric | sign numeric "." numeric "d" ;
 bool = "true" | "false" | "True" | "False" ;
 alpha = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|_)+" ;
 numeric = "(0|1|2|3|4|5|6|7|8|9)+" ;
-string = "\"(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|%| |	|\\|/|\||\(|\)|0|1|2|3|4|5|6|7|8|9)+\"" ;
+string = triple_quoted_string | "\"(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|%| |	|\\|/|\||\(|\)|0|1|2|3|4|5|6|7|8|9)+\"" ;
+
+comment = "//(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|;|%|=|\+| |	|\\|/|\||\(|\)|\*|0|1|2|3|4|5|6|7|8|9)+
+" | "/\*(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|%|=|\+| |	|\\|/|\||\(|\)|0|1|2|3|4|5|6|7|8|9)+\*/" ;

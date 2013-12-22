@@ -1,6 +1,6 @@
 #include "CGenerator.h"
 
-CGenerator::CGenerator() {
+CGenerator::CGenerator() : generatorString("__C__") {
 	tabLevel = 0;
 }
 CGenerator::~CGenerator() {
@@ -26,7 +26,8 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			//Do nothing
 			break;
 		case import:
-			return "#include <" + data.symbol.getName() + ">\n";
+			return "/* would import \"" + data.symbol.getName() + "\" but....*/\n";
+			//return "#include <" + data.symbol.getName() + ">\n";
 		case identifier:
 			return data.symbol.getName();
 		case function:
@@ -34,7 +35,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			for (int i = 0; i < children.size()-1; i++) {
 				if (i > 0)
 					output += ", ";
-				output += ASTData::ValueTypeToString(children[i]->getData().valueType) + " " + generate(children[i]);
+				output += ValueTypeToCType(children[i]->getData().valueType) + " " + generate(children[i]);
 			}
 			output+= ")\n" + generate(children[children.size()-1]);
 			return output;
@@ -65,11 +66,20 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			output += "for (" + strSlice(generate(children[0]),0,-2) + generate(children[1]) + ";" + strSlice(generate(children[2]),0,-3) + ")\n\t" + generate(children[3]);
 			return output;
 		case return_statement:
-			return "return " + generate(children[0]);
+			if (children.size())
+				return "return " + generate(children[0]);
+			else
+				return "return";
 		case assignment_statement:
 			return generate(children[0]) + " = " + generate(children[1]);
 		case declaration_statement:
 			return ASTData::ValueTypeToString(children[0]->getData().valueType) + " " + generate(children[0]) + " = " + generate(children[1]);
+		case if_comp:
+			if (generate(children[0]) == generatorString)
+				return generate(children[1]);
+			return "";
+		case simple_passthrough:
+			return strSlice(generate(children[0]), 3, -4);
 		case function_call:
 		{
 			//Handle operators specially for now. Will later replace with
@@ -104,22 +114,20 @@ std::string CGenerator::ValueTypeToCType(ValueType type) {
 	switch (type) {
 		case none:
 			return "none";
-			break;
+		case void_type:
+			return "void";
 		case boolean:
 			return "bool";
-			break;
 		case integer:
 			return "int";
 			break;
 		case floating:
 			return "float";
-			break;
 		case double_percision:
 			return "double";
 			break;
 		case char_string:
 			return "char*";
-			break;
 		default:
 			return "unknown_ValueType";
 	}

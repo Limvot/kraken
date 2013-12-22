@@ -8,7 +8,7 @@ std::string intToString(int theInt) {
 
 std::string replaceExEscape(std::string first, std::string search, std::string replace) {
     size_t pos = 0;
-    while (pos < first.size()-search.size()) {
+    while (pos <= first.size()-search.size()) {
         pos = first.find(search, pos);
         if (pos == std::string::npos)
             break;
