@@ -113,37 +113,41 @@ int main(int argc, char* argv[]) {
 	}
 	outFile.close();
 
-	//Pre AST Transformations
-	std::vector<NodeTransformation<Symbol, Symbol>*> preASTTransforms;
 	//Remove Transformations
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("WS", false)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("\\(", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("\\)", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("::", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol(";", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("{", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("}", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("(", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol(")", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("import", true))); //Don't need the actual text of the symbol
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("interpreter_directive", false)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("if", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("while", true)));
-	//Collapse Transformations
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_typed_parameter_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_parameter_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_import_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("import_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("statement_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("parameter_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("typed_parameter_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("unorderd_list_part", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("if_comp_pred", false)));
+	std::vector<Symbol> removeSymbols;
+	removeSymbols.push_back(Symbol("WS", false));
+	removeSymbols.push_back(Symbol("\\(", true));
+	removeSymbols.push_back(Symbol("\\)", true));
+	removeSymbols.push_back(Symbol("::", true));
+	removeSymbols.push_back(Symbol(";", true));
+	removeSymbols.push_back(Symbol("{", true));
+	removeSymbols.push_back(Symbol("}", true));
+	removeSymbols.push_back(Symbol("(", true));
+	removeSymbols.push_back(Symbol(")", true));
+	removeSymbols.push_back(Symbol("import", true)); //Don't need the actual text of the symbol
+	removeSymbols.push_back(Symbol("interpreter_directive", false));
+	removeSymbols.push_back(Symbol("if", true));
+	removeSymbols.push_back(Symbol("while", true));
 
-	for (int i = 0; i < preASTTransforms.size(); i++) {
-		parseTree = preASTTransforms[i]->transform(parseTree);
-	}
-	preASTTransforms.erase(preASTTransforms.begin(), preASTTransforms.end());
+	for (int i = 0; i < removeSymbols.size(); i++)
+		parseTree = RemovalTransformation<Symbol>(removeSymbols[i]).transform(parseTree);
+
+	//Collapse Transformations
+	std::vector<Symbol> collapseSymbols;
+
+	collapseSymbols.push_back(Symbol("opt_typed_parameter_list", false));
+	collapseSymbols.push_back(Symbol("opt_parameter_list", false));
+	collapseSymbols.push_back(Symbol("opt_import_list", false));
+	collapseSymbols.push_back(Symbol("import_list", false));
+	collapseSymbols.push_back(Symbol("statement_list", false));
+	collapseSymbols.push_back(Symbol("parameter_list", false));
+	collapseSymbols.push_back(Symbol("typed_parameter_list", false));
+	collapseSymbols.push_back(Symbol("unorderd_list_part", false));
+	collapseSymbols.push_back(Symbol("if_comp_pred", false));
+
+	for (int i = 0; i < collapseSymbols.size(); i++)
+		parseTree = CollapseTransformation<Symbol>(collapseSymbols[i]).transform(parseTree);
+
 
 	NodeTree<ASTData>* AST = ASTTransformation().transform(parseTree);
 

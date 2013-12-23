@@ -25,14 +25,14 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 	} else if (name == "identifier") {
 		newNode = new NodeTree<ASTData>(name, ASTData(identifier, Symbol(concatSymbolTree(children[0]), true)));
 	} else if (name == "function") {
-		newNode = new NodeTree<ASTData>(name, ASTData(function, Symbol(concatSymbolTree(children[1]), true), ASTData::strToType(concatSymbolTree(children[0]))));
+		newNode = new NodeTree<ASTData>(name, ASTData(function, Symbol(concatSymbolTree(children[1]), true), Type(concatSymbolTree(children[0]))));
 		skipChildren.insert(0);
 		skipChildren.insert(1);
 	} else if (name == "code_block") {
 		newNode = new NodeTree<ASTData>(name, ASTData(code_block));
 	} else if (name == "typed_parameter") {
 		newNode = transform(children[1]); //Transform to get the identifier
-		newNode->getDataRef()->valueType = ASTData::strToType(concatSymbolTree(children[0])); //Get the type (left child) and set our new identifer to be that type
+		newNode->getDataRef()->valueType = Type(concatSymbolTree(children[0])); //Get the type (left child) and set our new identifer to be that type
 		return newNode;
 	} else if (name == "boolean_expression") {
 		//If this is an actual part of an expression, not just a premoted term
@@ -62,13 +62,28 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 			return transform(children[0]); //Just a promoted bool_exp, so do child
 		}
 	//Here's the order of ops stuff
-	} else if (name == "expression" || name == "shiftand" || name == "term" || name == "factor" || name == "unarad") {
+	} else if (name == "expression" || name == "shiftand" || name == "term" || name == "unarad") { //unarad can ride through, it should always just be a promoted child
 		//If this is an actual part of an expression, not just a premoted child
-		if (children.size() > 1) {
+		if (children.size() > 2) {
 			std::string functionCallName = concatSymbolTree(children[1]);
-			std::cout << functionCallName << std::endl;
 			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
 			skipChildren.insert(1);
+		} else {
+			return transform(children[0]); //Just a promoted child, so do it instead
+		}
+	} else if (name == "factor") { //Do factor here, as it has all the weird unary operators
+				//If this is an actual part of an expression, not just a premoted child
+		//NO SUPPORT FOR CASTING YET
+		if (children.size() == 2) {
+			std::string funcName = concatSymbolTree(children[0]);
+			int funcNum;
+			if (funcName == "*" || funcName == "&" || funcName == "++" || funcName == "--" || funcName == "-" || funcName == "!" || funcName == "~")
+				funcNum = 0;
+			else
+				funcName = concatSymbolTree(children[1]), funcNum = 1;
+
+			newNode = new NodeTree<ASTData>(funcName, ASTData(function_call, Symbol(funcName, true)));
+			skipChildren.insert(funcNum);
 		} else {
 			return transform(children[0]); //Just a promoted child, so do it instead
 		}
@@ -101,7 +116,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 	} else if (name == "declaration_statement") {
 		newNode = new NodeTree<ASTData>(name, ASTData(declaration_statement));
 		NodeTree<ASTData>* newIdentifier = transform(children[1]); //Transform the identifier
-		newIdentifier->getDataRef()->valueType = ASTData::strToType(concatSymbolTree(children[0]));//set the type of the identifier
+		newIdentifier->getDataRef()->valueType = Type(concatSymbolTree(children[0]));//set the type of the identifier
 		newNode->addChild(newIdentifier);
 		skipChildren.insert(0); //These, the type and the identifier, have been taken care of.
 		skipChildren.insert(1);
@@ -116,18 +131,23 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 		skipChildren.insert(1);
 	} else if (name == "parameter") {
 		return transform(children[0]); //Don't need a parameter node, just the value
-	} else if (name == "bool") {
-		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), boolean));
+	} else if (name == "parameter") {
+		return transform(children[0]); //Don't need a parameter node, just the value
+	} else if (name == "type") {
+		std::string theConcat = concatSymbolTree(from); //We have no symbol, so this will concat our children
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(theConcat, true), Type(theConcat)));
 	} else if (name == "number") {
 		return transform(children[0]);
 	} else if (name == "integer") {
-		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), integer));
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), Type(integer)));
 	} else if (name == "float") {
-		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), floating));
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), Type(floating)));
 	} else if (name == "double") {
-		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), double_percision));
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), Type(double_percision)));
+	} else if (name == "char") {
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), Type(character))); //Indirection of 1 for array
 	} else if (name == "string" || name == "triple_quoted_string") {
-		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), char_string));
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), Type(character, 1))); //Indirection of 1 for array
 	} else {
 		return new NodeTree<ASTData>();
 	}
@@ -153,7 +173,7 @@ std::string ASTTransformation::concatSymbolTree(NodeTree<Symbol>* root) {
 		concatString += ourValue;
 	std::vector<NodeTree<Symbol>*> children = root->getChildren();
 	for (int i = 0; i < children.size(); i++) {
-		concatString = concatSymbolTree(children[i]);	
+		concatString += concatSymbolTree(children[i]);	
 	}
 	return concatString;
 }

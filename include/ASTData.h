@@ -3,7 +3,9 @@
 
 #include <vector>
 #include <set>
+
 #include "Symbol.h"
+#include "Type.h"
 
 #ifndef NULL
 #define NULL 0
@@ -14,21 +16,17 @@ enum ASTType {undef, translation_unit, interpreter_directive, import, identifier
 	typed_parameter, expression, boolean_expression, statement,
 	if_statement, while_loop, for_loop, return_statement, assignment_statement, declaration_statement,
 	if_comp, simple_passthrough, function_call, value};
-enum ValueType {none, void_type, boolean, integer, floating, double_percision, char_string };
-
 
 class ASTData {
 	public:
 		ASTData();
-		ASTData(ASTType type, ValueType valueType = none);
-		ASTData(ASTType type, Symbol symbol, ValueType valueType = none);
+		ASTData(ASTType type, Type valueType = Type());
+		ASTData(ASTType type, Symbol symbol, Type valueType = Type());
 		~ASTData();
 		std::string toString();
 		static std::string ASTTypeToString(ASTType type);
-		static std::string ValueTypeToString(ValueType type);
-		static ValueType strToType(std::string type);
 		ASTType type;
-		ValueType valueType;
+		Type valueType;
 		Symbol symbol;
 	private:
 

@@ -28,7 +28,7 @@ function = type WS identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS cod
 
 opt_typed_parameter_list = typed_parameter_list | ;
 typed_parameter_list = typed_parameter_list WS "," WS typed_parameter | typed_parameter ;
-typed_parameter = type WS parameter ;
+typed_parameter = type WS identifier ;
 
 opt_parameter_list = parameter_list | ;
 parameter_list = parameter_list WS "," WS parameter | parameter ;
@@ -58,7 +58,7 @@ expression = expression WS "<<" WS term | expression WS ">>" WS shiftand | shift
 shiftand = shiftand WS "-" WS term | shiftand WS "\+" WS term | term ;
 term = term WS forward_slash WS factor | term WS "\*" WS factor | term WS "%" WS factor | factor ;
 factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\(" WS type WS "\)" WS unarad | "\*" WS unarad | "&" WS unarad | unarad ;
-unarad = number | identifier | function_call | bool | string | "\(" WS boolean_expression WS "\)" ;
+unarad = number | identifier | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" ;
 number = integer | float | double ;
 
 assignment_statement = identifier WS "=" WS boolean_expression | identifier WS "\+=" WS boolean_expression | identifier WS "-=" WS boolean_expression | identifier WS "\*=" WS boolean_expression | identifier WS "/=" WS boolean_expression ;
@@ -71,6 +71,7 @@ integer = sign numeric | sign hexadecimal | "null" ;
 float = sign numeric "." numeric "f" ;
 double = sign numeric "." numeric | sign numeric "." numeric "d" ;
 bool = "true" | "false" | "True" | "False" ;
+character = "'(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|%| |	|\\|/|\||\(|\)|0|1|2|3|4|5|6|7|8|9)'" ;
 alpha = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|_)+" ;
 numeric = "(0|1|2|3|4|5|6|7|8|9)+" ;
 string = triple_quoted_string | "\"(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|%| |	|\\|/|\||\(|\)|0|1|2|3|4|5|6|7|8|9)+\"" ;

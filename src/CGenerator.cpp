@@ -73,7 +73,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 		case assignment_statement:
 			return generate(children[0]) + " = " + generate(children[1]);
 		case declaration_statement:
-			return ASTData::ValueTypeToString(children[0]->getData().valueType) + " " + generate(children[0]) + " = " + generate(children[1]);
+			return ValueTypeToCType(children[0]->getData().valueType) + " " + generate(children[0]) + " = " + generate(children[1]);
 		case if_comp:
 			if (generate(children[0]) == generatorString)
 				return generate(children[1]);
@@ -87,6 +87,8 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			std::string name = data.symbol.getName();
 			if (name == "++" || name == "--")
 				return generate(children[0]) + name;
+			if (name == "*" && children.size() == 1) //Is dereference, not multiplication
+				return "*(" + generate(children[0]) + ")";
 			if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!=" || name == "<" || name == ">" || name == "%" || name == "+=" || name == "-=" || name == "*=" || name == "/=") {
 				return "((" + generate(children[0]) + ")" + name + "(" + generate(children[1]) + "))";
 			}
@@ -110,25 +112,35 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 	return output;
 }
 
-std::string CGenerator::ValueTypeToCType(ValueType type) {
-	switch (type) {
+std::string CGenerator::ValueTypeToCType(Type type) {
+	std::string return_type;
+	switch (type.baseType) {
 		case none:
-			return "none";
+			return_type = "none";
+			break;
 		case void_type:
-			return "void";
+			return_type = "void";
+			break;
 		case boolean:
-			return "bool";
+			return_type = "bool";
+			break;
 		case integer:
-			return "int";
+			return_type = "int";
 			break;
 		case floating:
-			return "float";
-		case double_percision:
-			return "double";
+			return_type = "float";
 			break;
-		case char_string:
-			return "char*";
+		case double_percision:
+			return_type = "double";
+			break;
+		case character:
+			return_type = "char";
+			break;
 		default:
-			return "unknown_ValueType";
+			return_type = "unknown_ValueType";
+			break;
 	}
+	for (int i = 0; i < type.indirection; i++)
+		return_type += "*";
+	return return_type;
 }
