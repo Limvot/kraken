@@ -20,7 +20,22 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 		std::string output = "";
 	switch (data.type) {
 		case translation_unit:
-			//Do nothing
+			//Declare everything in translation unit scope here. (allows stuff from other files, automatic forward declarations)
+			for (auto i = data.scope.begin(); i != data.scope.end(); i++) {
+				NodeTree<ASTData>* declaration = i->second;
+				ASTData declarationData = i->second->getData();
+				switch(declarationData.type) {
+					case identifier:
+						output += ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*identifier*/\n";
+						break;
+					case function:
+						output += "/*func*/\n";
+						break;
+					default:
+						std::cout << "Declaration? of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
+						output += "/*unknown declaration*/\n";
+				}
+			}
 			break;
 		case interpreter_directive:
 			//Do nothing
@@ -82,18 +97,21 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			return strSlice(generate(children[0]), 3, -4);
 		case function_call:
 		{
+			//NOTE: The first (0th) child of a function call node is the declaration of the function
+
 			//Handle operators specially for now. Will later replace with
 			//Inlined functions in the standard library
 			std::string name = data.symbol.getName();
+			std::cout << name << " == " << children[0]->getData().symbol.getName() << std::endl;
 			if (name == "++" || name == "--")
-				return generate(children[0]) + name;
-			if (name == "*" && children.size() == 1) //Is dereference, not multiplication
-				return "*(" + generate(children[0]) + ")";
+				return generate(children[1]) + name;
+			if (name == "*" && children.size() == 2) //Is dereference, not multiplication
+				return "*(" + generate(children[1]) + ")";
 			if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!=" || name == "<" || name == ">" || name == "%" || name == "+=" || name == "-=" || name == "*=" || name == "/=") {
-				return "((" + generate(children[0]) + ")" + name + "(" + generate(children[1]) + "))";
+				return "((" + generate(children[1]) + ")" + name + "(" + generate(children[2]) + "))";
 			}
 			output += data.symbol.getName() + "(";
-			for (int i = 0; i < children.size(); i++)
+			for (int i = 1; i < children.size(); i++) //children[0] is the declaration
 				if (i < children.size()-1)
 					output += generate(children[i]) + ", ";
 				else output += generate(children[i]);

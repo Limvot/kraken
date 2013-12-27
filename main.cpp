@@ -128,6 +128,8 @@ int main(int argc, char* argv[]) {
 	removeSymbols.push_back(Symbol("interpreter_directive", false));
 	removeSymbols.push_back(Symbol("if", true));
 	removeSymbols.push_back(Symbol("while", true));
+	removeSymbols.push_back(Symbol("__if_comp__", true));
+	removeSymbols.push_back(Symbol("comp_simple_passthrough", true));
 
 	for (int i = 0; i < removeSymbols.size(); i++)
 		parseTree = RemovalTransformation<Symbol>(removeSymbols[i]).transform(parseTree);
@@ -148,9 +150,6 @@ int main(int argc, char* argv[]) {
 	for (int i = 0; i < collapseSymbols.size(); i++)
 		parseTree = CollapseTransformation<Symbol>(collapseSymbols[i]).transform(parseTree);
 
-
-	NodeTree<ASTData>* AST = ASTTransformation().transform(parseTree);
-
 	if (parseTree) {
 		outFileTransformed << parseTree->DOTGraphString() << std::endl;
 	} else {
@@ -158,6 +157,7 @@ int main(int argc, char* argv[]) {
 	}
 	outFileTransformed.close();
 
+	NodeTree<ASTData>* AST = ASTTransformation().transform(parseTree);
 	if (AST) {
 		outFileAST << AST->DOTGraphString() << std::endl;
 	} else {

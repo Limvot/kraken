@@ -2,7 +2,7 @@
 #define ASTDATA_H
 
 #include <vector>
-#include <set>
+#include <map>
 
 #include "Symbol.h"
 #include "Type.h"
@@ -28,6 +28,7 @@ class ASTData {
 		ASTType type;
 		Type valueType;
 		Symbol symbol;
+		std::map<std::string, NodeTree<ASTData>*> scope;
 	private:
 
 };
