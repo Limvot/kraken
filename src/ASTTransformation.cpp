@@ -250,22 +250,22 @@ std::string ASTTransformation::concatSymbolTree(NodeTree<Symbol>* root) {
 NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup) {
 	//Seach the map
 	auto scopeMap = scope->getDataRef()->scope;
-	std::cout << "scope size: " << scopeMap.size() << ", scope from " << scope->getName() << std::endl;
+	//std::cout << "scope size: " << scopeMap.size() << ", scope from " << scope->getName() << std::endl;
 	for (auto i = scopeMap.begin(); i != scopeMap.end(); i++)
 		std::cout << i->first << " : " << i-> second << " - " << i->second->getName() << std::endl;
 
 	auto elementIterator = scopeMap.find(lookup);
 	if (elementIterator != scopeMap.end()) {
-		std::cout << "lookup of " << lookup << " succeded in first scope!" << std::endl;
+	//	std::cout << "lookup of " << lookup << " succeded in first scope!" << std::endl;
 		return elementIterator->second;
 	}
-	std::cout << "lookup of " << lookup << " failed in first scope, checking for upper scope" << std::endl;
+	//std::cout << "lookup of " << lookup << " failed in first scope, checking for upper scope" << std::endl;
 	//if it doesn't exist, try the enclosing scope if it exists.
 	auto enclosingIterator = scopeMap.find("~enclosing_scope");
 	if (enclosingIterator != scopeMap.end()) {
-		std::cout << "upper scope exists, searching it for " << lookup << std::endl;
+	//	std::cout << "upper scope exists, searching it for " << lookup << std::endl;
 		return scopeLookup(enclosingIterator->second, lookup);
 	}
-	std::cout << "upper scope does not exist" << std::endl;
+	//std::cout << "upper scope does not exist" << std::endl;
 	return NULL;
 }

@@ -36,9 +36,9 @@ int main(int argc, char* argv[]) {
 		return(1);
 	}
 
-	grammerInFile.open(argv[2]);
+	grammerInFile.open(grammerFileString);
 	if (!grammerInFile.is_open()) {
-		std::cout << "Problem opening grammerInFile " << argv[2] << "\n";
+		std::cout << "Problem opening grammerInFile " << grammerFileString << "\n";
 		return(1);
 	}
 

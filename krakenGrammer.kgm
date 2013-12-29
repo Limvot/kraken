@@ -1,6 +1,6 @@
 Goal = translation_unit ;
 translation_unit = interpreter_directive WS unorderd_list_part WS ;
-unorderd_list_part = import_list WS unorderd_list_part | function WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | import_list | function | if_comp | simple_passthrough ;
+unorderd_list_part = import_list WS unorderd_list_part | function WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | declaration_statement WS ";" WS unorderd_list_part | import_list | function | if_comp | simple_passthrough | declaration_statement WS ";" ;
 
 type = type WS "\*" | "void" | "int" | "float" | "double" | "char" | identifier ;
 
