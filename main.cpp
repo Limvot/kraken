@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 
-	std::ifstream programInFile, grammerInFile;
+	std::ifstream programInFile, grammerInFile, compiledGrammerInFile;
 	std::ofstream outFile, outFileTransformed, outFileAST, outFileC;
 
 	programInFile.open(argv[1]);
@@ -35,6 +35,14 @@ int main(int argc, char* argv[]) {
 		std::cout << "Problem opening programInFile " << argv[1] << "\n";
 		return(1);
 	}
+
+	std::string grammerFileString = argv[2];
+
+	// compiledGrammerInFile.open(grammerFileString + ".comp");
+	// if (!compiledGrammerInFile.is_open()) {
+	// 	std::cout << "Problem opening compiledGrammerInFile " << grammerFileString + ".comp" << "\n";
+	// 	return(1);
+	// }
 
 	grammerInFile.open(grammerFileString);
 	if (!grammerInFile.is_open()) {
