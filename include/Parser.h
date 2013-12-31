@@ -32,6 +32,8 @@ class Parser {
 		virtual std::string grammerToDOT();
 
 		std::string tableToString();
+		void exportTable(std::ofstream &file);
+		void importTable(char* tableData);
 
 	protected:
 		std::vector<Symbol>* firstSet(Symbol token);

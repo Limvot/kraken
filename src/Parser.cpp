@@ -7,6 +7,16 @@ Parser::Parser() : EOFSymbol("$EOF$", true), nullSymbol("$NULL$", true), invalid
 Parser::~Parser() {
 }
 
+void Parser::exportTable(std::ofstream &file) {
+	//Do table
+	table.exportTable(file);
+}
+void  Parser::importTable(char* tableData) {
+	//Do table
+	table.importTable(tableData);
+	return;
+}
+
 Symbol Parser::getOrAddSymbol(std::string symbolString, bool isTerminal) {
 	Symbol symbol;
 	std::pair<std::string, bool> entry = std::make_pair(symbolString, isTerminal);
