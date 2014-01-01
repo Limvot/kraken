@@ -11,10 +11,7 @@
 #include "LALRParser.h"
 #include "RNGLRParser.h"
 
-#include "NodeTransformation.h"
-#include "RemovalTransformation.h"
-#include "CollapseTransformation.h"
-#include "ASTTransformation.h"
+#include "Importer.h"
 #include "ASTData.h"
 #include "CGenerator.h"
 
@@ -29,16 +26,12 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 
-	std::ifstream programInFile, grammerInFile, compiledGrammerInFile;
-	std::ofstream outFile, outFileTransformed, outFileAST, outFileC, compiledGrammerOutFile;
-
-	programInFile.open(argv[1]);
-	if (!programInFile.is_open()) {
-		std::cout << "Problem opening programInFile " << argv[1] << "\n";
-		return(1);
-	}
-
+	std::string programName = argv[1];
 	std::string grammerFileString = argv[2];
+	std::string outputName = argv[3];
+
+	std::ifstream grammerInFile, compiledGrammerInFile;
+	std::ofstream outFileC, compiledGrammerOutFile;
 
 	grammerInFile.open(grammerFileString);
 	if (!grammerInFile.is_open()) {
@@ -52,43 +45,19 @@ int main(int argc, char* argv[]) {
 		//return(1);
 	}
 
-	outFile.open(argv[3]);
-	if (!outFile.is_open()) {
-		std::cout << "Probelm opening output file " << argv[3] << "\n";
-		return(1);
-	}
-
-	outFileTransformed.open((std::string(argv[3]) + ".transformed.dot").c_str());
-	if (!outFileTransformed.is_open()) {
-		std::cout << "Probelm opening second output file " << std::string(argv[3]) + ".transformed.dot" << "\n";
-		return(1);
-	}
-
-	outFileAST.open((std::string(argv[3]) + ".AST.dot").c_str());
-	if (!outFileAST.is_open()) {
-		std::cout << "Probelm opening second output file " << std::string(argv[3]) + ".AST.dot" << "\n";
-		return(1);
-	}
-
-	outFileC.open((std::string(argv[3]) + ".c").c_str());
+	outFileC.open((outputName + ".c").c_str());
 	if (!outFileC.is_open()) {
-		std::cout << "Probelm opening third output file " << std::string(argv[3]) + ".c" << "\n";
+		std::cout << "Probelm opening third output file " << outputName + ".c" << "\n";
 		return(1);
 	}
 	//Read the input file into a string
-	std::string programInputFileString, grammerInputFileString;
+	std::string grammerInputFileString;
 	std::string line;
 	while(grammerInFile.good()) {
 		getline(grammerInFile, line);
 		grammerInputFileString.append(line+"\n");
 	}
 	grammerInFile.close();
-
-	while(programInFile.good()) {
-		getline(programInFile, line);
-		programInputFileString.append(line+"\n");
-	}
-	programInFile.close();
 
 	//LALRParser parser;
 	RNGLRParser parser;
@@ -105,6 +74,7 @@ int main(int argc, char* argv[]) {
 		compiledGrammerInFile.seekg(0, std::ios::beg);
 		compiledGrammerInFile.read(binaryTablePointer, compGramSize);
 		compiledGrammerInFile.close();
+		//Check magic number
 		if (binaryTablePointer[0] == 'K' && binaryTablePointer[1] == 'R' && binaryTablePointer[2] == 'A' && binaryTablePointer[3] == 'K') {
 			std::cout << "Valid Kraken Compiled Grammer File" << std::endl;
 			int gramStringLength = *((int*)(binaryTablePointer+4));
@@ -162,70 +132,11 @@ int main(int argc, char* argv[]) {
 	//outFile << parser.grammerToDOT() << std::endl;
 	std::cout << "\nParsing" << std::endl;
 
-	std::cout << programInputFileString << std::endl;
-	NodeTree<Symbol>* parseTree = parser.parseInput(programInputFileString);
+	Importer importer(&parser);
 
-	if (parseTree) {
-		//std::cout << parseTree->DOTGraphString() << std::endl;
-		outFile << parseTree->DOTGraphString() << std::endl;
-	} else {
-		std::cout << "ParseTree returned from parser is NULL!" << std::endl;
-	}
-	outFile.close();
+	NodeTree<ASTData>* AST = importer.import(programName);
 
-	//Remove Transformations
-	std::vector<Symbol> removeSymbols;
-	removeSymbols.push_back(Symbol("WS", false));
-	removeSymbols.push_back(Symbol("\\(", true));
-	removeSymbols.push_back(Symbol("\\)", true));
-	removeSymbols.push_back(Symbol("::", true));
-	removeSymbols.push_back(Symbol(";", true));
-	removeSymbols.push_back(Symbol("{", true));
-	removeSymbols.push_back(Symbol("}", true));
-	removeSymbols.push_back(Symbol("(", true));
-	removeSymbols.push_back(Symbol(")", true));
-	removeSymbols.push_back(Symbol("import", true)); //Don't need the actual text of the symbol
-	removeSymbols.push_back(Symbol("interpreter_directive", false));
-	removeSymbols.push_back(Symbol("if", true));
-	removeSymbols.push_back(Symbol("while", true));
-	removeSymbols.push_back(Symbol("__if_comp__", true));
-	removeSymbols.push_back(Symbol("comp_simple_passthrough", true));
-
-	for (int i = 0; i < removeSymbols.size(); i++)
-		parseTree = RemovalTransformation<Symbol>(removeSymbols[i]).transform(parseTree);
-
-	//Collapse Transformations
-	std::vector<Symbol> collapseSymbols;
-
-	collapseSymbols.push_back(Symbol("opt_typed_parameter_list", false));
-	collapseSymbols.push_back(Symbol("opt_parameter_list", false));
-	collapseSymbols.push_back(Symbol("opt_import_list", false));
-	collapseSymbols.push_back(Symbol("import_list", false));
-	collapseSymbols.push_back(Symbol("statement_list", false));
-	collapseSymbols.push_back(Symbol("parameter_list", false));
-	collapseSymbols.push_back(Symbol("typed_parameter_list", false));
-	collapseSymbols.push_back(Symbol("unorderd_list_part", false));
-	collapseSymbols.push_back(Symbol("if_comp_pred", false));
-
-	for (int i = 0; i < collapseSymbols.size(); i++)
-		parseTree = CollapseTransformation<Symbol>(collapseSymbols[i]).transform(parseTree);
-
-	if (parseTree) {
-		outFileTransformed << parseTree->DOTGraphString() << std::endl;
-	} else {
-		std::cout << "Tree returned from transformation is NULL!" << std::endl;
-	}
-	outFileTransformed.close();
-
-	NodeTree<ASTData>* AST = ASTTransformation().transform(parseTree);
-	if (AST) {
-		outFileAST << AST->DOTGraphString() << std::endl;
-	} else {
-		std::cout << "Tree returned from ASTTransformation is NULL!" << std::endl;
-	}
-	outFileAST.close();
-
-	//Do type checking, scope creation, etc. here.
+	//Do optomization, etc. here.
 	//None at this time, instead going straight to C in this first (more naive) version
 
 	//Code generation

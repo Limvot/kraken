@@ -1,7 +1,8 @@
 #include "ASTTransformation.h"
 
-ASTTransformation::ASTTransformation() {
+ASTTransformation::ASTTransformation(Importer *importerIn) {
 	//
+	importer = importerIn;
 }
 
 ASTTransformation::~ASTTransformation() {
@@ -28,23 +29,31 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		scope->getDataRef()->scope["-"] = new NodeTree<ASTData>();
 		scope->getDataRef()->scope["*"] = new NodeTree<ASTData>();
 		scope->getDataRef()->scope["&"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["=="] = new NodeTree<ASTData>();
 		scope->getDataRef()->scope["--"] = new NodeTree<ASTData>();
 		scope->getDataRef()->scope["++"] = new NodeTree<ASTData>();
+		scope->getDataRef()->scope["=="] = new NodeTree<ASTData>();
 		scope->getDataRef()->scope["<="] = new NodeTree<ASTData>();
 		scope->getDataRef()->scope[">="] = new NodeTree<ASTData>();
+		scope->getDataRef()->scope["<"] = new NodeTree<ASTData>();
+		scope->getDataRef()->scope[">"] = new NodeTree<ASTData>();
+		scope->getDataRef()->scope["&&"] = new NodeTree<ASTData>();
+		scope->getDataRef()->scope["||"] = new NodeTree<ASTData>();
+		scope->getDataRef()->scope["!"] = new NodeTree<ASTData>();
 		scope->getDataRef()->scope["*="] = new NodeTree<ASTData>();
 		scope->getDataRef()->scope["+="] = new NodeTree<ASTData>();
 		scope->getDataRef()->scope["-="] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["<"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope[">"] = new NodeTree<ASTData>();
+
 	} else if (name == "interpreter_directive") {
 		newNode = new NodeTree<ASTData>(name, ASTData(interpreter_directive));
 	} else if (name == "import" && !current.isTerminal()) {
-		newNode = new NodeTree<ASTData>(name, ASTData(import, Symbol(concatSymbolTree(children[0]), true)));
-		//Add to scope?
-		//
-		//
+		std::string toImport = concatSymbolTree(children[0]);
+		newNode = new NodeTree<ASTData>(name, ASTData(import, Symbol(toImport, true)));
+		//Do the imported file too
+		NodeTree<ASTData>* outsideTranslationUnit = importer->import(toImport + ".krak");
+		scope->getDataRef()->scope[toImport] = outsideTranslationUnit; //Put this transation_unit in the scope as it's files name
+		//Now add it to scope
+		for (auto i = outsideTranslationUnit->getDataRef()->scope.begin(); i != outsideTranslationUnit->getDataRef()->scope.end(); i++)
+			scope->getDataRef()->scope[i->first] = i->second;
 		return newNode; // Don't need children of import
 	} else if (name == "identifier") {
 		std::string lookupName = concatSymbolTree(children[0]);

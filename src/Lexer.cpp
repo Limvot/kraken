@@ -114,3 +114,7 @@ void Lexer::test() {
 
     std::cout << "Lexer tests passed\n";
 }
+
+void Lexer::reset() {
+    currentPosition = 0;
+}

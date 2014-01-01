@@ -128,3 +128,8 @@ std::string GraphStructuredStack::toString() {
 	}
 	return tostring;
 }
+
+void GraphStructuredStack::clear() {
+	gss.clear();
+	edges.clear();
+}

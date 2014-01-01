@@ -9,6 +9,13 @@ RNGLRParser::~RNGLRParser() {
 }
 
 NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
+	input.clear();
+	gss.clear();
+	while(!toReduce.empty()) toReduce.pop();
+	while(!toShift.empty()) toReduce.pop();
+	SPPFStepNodes.clear();
+	nullableParts.clear();
+	packedMap.clear();
 
 	//Check for no tokens
 	bool accepting = false;
@@ -27,6 +34,7 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 		return new NodeTree<Symbol>();
 	}
 
+	lexer.reset();
 	lexer.setInput(inputString);
 	//Now fully lex our input because this algorithm was designed in that manner and simplifies this first implementation.
 	//It could be converted to on-line later.
@@ -42,7 +50,8 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 		input.push_back(currentToken);
 	}
 
-	std::cout << "\nDone with Lexing\n" << std::endl;
+	std::cout << "\nDone with Lexing, length:" << input.size() << std::endl;
+	std::cout << input[0].toString() << std::endl;
 
 	
 	// for (int i = 0; i < input.size(); i++)

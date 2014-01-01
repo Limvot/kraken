@@ -114,7 +114,10 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 				return generate(children[1]) + name;
 			if (name == "*" && children.size() == 2) //Is dereference, not multiplication
 				return "*(" + generate(children[1]) + ")";
-			if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!=" || name == "<" || name == ">" || name == "%" || name == "+=" || name == "-=" || name == "*=" || name == "/=") {
+			if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
+				|| name == "<" || name == ">" || name == "%" || name == "+=" || name == "-=" || name == "*=" || name == "/=" || name == "||"
+				|| name == "&&" || name == "!" ) {
+				
 				return "((" + generate(children[1]) + ")" + name + "(" + generate(children[2]) + "))";
 			}
 			output += data.symbol.getName() + "(";
