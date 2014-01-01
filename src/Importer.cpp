@@ -36,6 +36,10 @@ Importer::~Importer() {
 }
 
 NodeTree<ASTData>* Importer::import(std::string fileName) {
+	//Check to see if we've already done it
+	if (imported.find(fileName) != imported.end())
+		return imported[fileName];
+
 	std::ifstream programInFile;
 	std::ofstream outFile, outFileTransformed, outFileAST;
 
@@ -64,7 +68,7 @@ NodeTree<ASTData>* Importer::import(std::string fileName) {
 		std::cout << "Probelm opening second output file " << outputName + ".AST.dot" << "\n";
 		return NULL;
 	}
-	//ljklj
+
 	std::string programInputFileString, line;
 	while(programInFile.good()) {
 		getline(programInFile, line);
@@ -72,7 +76,7 @@ NodeTree<ASTData>* Importer::import(std::string fileName) {
 	}
 	programInFile.close();
 
-	std::cout << programInputFileString << std::endl;
+	//std::cout << programInputFileString << std::endl;
 	NodeTree<Symbol>* parseTree = parser->parseInput(programInputFileString);
 
 	if (parseTree) {
@@ -109,5 +113,11 @@ NodeTree<ASTData>* Importer::import(std::string fileName) {
 	}
 	outFileAST.close();
 
+	imported[fileName] = AST;
+
 	return AST;
+}
+
+std::map<std::string, NodeTree<ASTData>*> Importer::getASTMap() {
+	return imported;
 }

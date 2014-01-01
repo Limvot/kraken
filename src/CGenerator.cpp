@@ -7,6 +7,27 @@ CGenerator::~CGenerator() {
 
 }
 
+void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName) {
+	//Generate an entire set of files
+	std::string buildString = "#!/bin/sh\ncc -std=c99 ";
+	for (auto i = ASTs.begin(); i != ASTs.end(); i++) {
+		buildString += i->first + ".c ";
+		std::ofstream outputCFile;
+		outputCFile.open(i->first + ".c");
+		if (outputCFile.is_open()) {
+			outputCFile << generate(i->second);
+		} else {
+			std::cout << "Cannot open file " << i->first << ".c" << std::endl;
+		}
+		outputCFile.close();
+	}
+	buildString += "-o " + outputName;
+	std::ofstream outputBuild;
+	outputBuild.open(outputName + ".sh");
+	outputBuild << buildString;
+	outputBuild.close();
+}
+
 std::string CGenerator::tabs() {
 	std::string returnTabs;
 	for (int i = 0; i < tabLevel; i++)
@@ -39,7 +60,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 						output+= "); /*func*/\n";
 						break;
 					default:
-						std::cout << "Declaration? named " << declaration->getName() << " of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
+						//std::cout << "Declaration? named " << declaration->getName() << " of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
 						output += "/*unknown declaration named " + declaration->getName() + "*/\n";
 				}
 			}
@@ -109,7 +130,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			//Handle operators specially for now. Will later replace with
 			//Inlined functions in the standard library
 			std::string name = data.symbol.getName();
-			std::cout << name << " == " << children[0]->getData().symbol.getName() << std::endl;
+			//std::cout << name << " == " << children[0]->getData().symbol.getName() << std::endl;
 			if (name == "++" || name == "--")
 				return generate(children[1]) + name;
 			if (name == "*" && children.size() == 2) //Is dereference, not multiplication

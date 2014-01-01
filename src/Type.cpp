@@ -33,7 +33,7 @@ Type::Type(std::string typeIn) {
 		baseType = character;
 	else
 		baseType = none;
-	std::cout << ":ALKJF:LSKDJF:SDJF:LKSJDF\t\t\t" << typeIn << "\t" << edited << std::endl;
+	//std::cout << ":ALKJF:LSKDJF:SDJF:LKSJDF\t\t\t" << typeIn << "\t" << edited << std::endl;
 }
 
 

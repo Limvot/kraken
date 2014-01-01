@@ -78,7 +78,7 @@ void Parser::loadGrammer(std::string grammerInputString) {
 		//Get next token
 		currToken = reader.word();
 	}
-	std::cout << "Parsed!\n";
+	//std::cout << "Parsed!\n";
 
 	// for (std::vector<ParseRule*>::size_type i = 0; i < loadedGrammer.size(); i++)
 	// 	std::cout << loadedGrammer[i]->toString() << std::endl;

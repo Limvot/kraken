@@ -57,7 +57,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		return newNode; // Don't need children of import
 	} else if (name == "identifier") {
 		std::string lookupName = concatSymbolTree(children[0]);
-		std::cout << "scope lookup from identifier" << std::endl;
+		//std::cout << "scope lookup from identifier" << std::endl;
 		newNode = scopeLookup(scope, lookupName);
 		if (newNode == NULL) {
 			std::cout << "scope lookup error! Could not find " << lookupName << std::endl;
@@ -87,7 +87,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		//If this is an actual part of an expression, not just a premoted term
 		if (children.size() > 1) {
 			std::string functionCallName = concatSymbolTree(children[1]);
-			std::cout << "scope lookup from boolen_expression or similar" << std::endl;
+			//std::cout << "scope lookup from boolen_expression or similar" << std::endl;
 			NodeTree<ASTData>* function = scopeLookup(scope, functionCallName);
 			if (function == NULL) {
 				std::cout << "scope lookup error! Could not find " << functionCallName << std::endl;
@@ -97,7 +97,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			newNode->addChild(function); // First child of function call is a link to the function definition
 			skipChildren.insert(1);
 		} else {
-			std::cout << children.size() << std::endl;
+			//std::cout << children.size() << std::endl;
 			if (children.size() == 0)
 				return new NodeTree<ASTData>();
 			return transform(children[0], scope); //Just a promoted term, so do child
@@ -107,7 +107,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		//If this is an actual part of an expression, not just a premoted child
 		if (children.size() > 2) {
 			std::string functionCallName = concatSymbolTree(children[1]);
-			std::cout << "scope lookup from expression or similar" << std::endl;
+			//std::cout << "scope lookup from expression or similar" << std::endl;
 			NodeTree<ASTData>* function = scopeLookup(scope, functionCallName);
 			if (function == NULL) {
 				std::cout << "scope lookup error! Could not find " << functionCallName << std::endl;
@@ -130,7 +130,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			else
 				funcName = concatSymbolTree(children[1]), funcNum = 1;
 
-			std::cout << "scope lookup from factor" << std::endl;
+			//std::cout << "scope lookup from factor" << std::endl;
 			NodeTree<ASTData>* function = scopeLookup(scope, funcName);
 			if (function == NULL) {
 				std::cout << "scope lookup error! Could not find " << funcName << std::endl;
@@ -199,7 +199,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		//children[0] is scope
 		std::string functionCallName = concatSymbolTree(children[1]);
 		newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
-		std::cout << "scope lookup from function_call" << std::endl;
+		//std::cout << "scope lookup from function_call" << std::endl;
 		NodeTree<ASTData>* function = scopeLookup(scope, functionCallName);
 		if (function == NULL) {
 			std::cout << "scope lookup error! Could not find " << functionCallName << std::endl;
@@ -260,8 +260,8 @@ NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std:
 	//Seach the map
 	auto scopeMap = scope->getDataRef()->scope;
 	//std::cout << "scope size: " << scopeMap.size() << ", scope from " << scope->getName() << std::endl;
-	for (auto i = scopeMap.begin(); i != scopeMap.end(); i++)
-		std::cout << i->first << " : " << i-> second << " - " << i->second->getName() << std::endl;
+	// for (auto i = scopeMap.begin(); i != scopeMap.end(); i++)
+	// 	std::cout << i->first << " : " << i-> second << " - " << i->second->getName() << std::endl;
 
 	auto elementIterator = scopeMap.find(lookup);
 	if (elementIterator != scopeMap.end()) {

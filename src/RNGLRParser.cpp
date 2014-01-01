@@ -50,8 +50,8 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 		input.push_back(currentToken);
 	}
 
-	std::cout << "\nDone with Lexing, length:" << input.size() << std::endl;
-	std::cout << input[0].toString() << std::endl;
+	// std::cout << "\nDone with Lexing, length:" << input.size() << std::endl;
+	// std::cout << input[0].toString() << std::endl;
 
 	
 	// for (int i = 0; i < input.size(); i++)
@@ -59,13 +59,13 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 	// std::cout << std::endl;
 
 
-	std::cout << "Setting up 0th frontier, first actions, toShift, toReduce" << std::endl;
+	//std::cout << "Setting up 0th frontier, first actions, toShift, toReduce" << std::endl;
 
 	//Frontier 0, new node with state 0
 	NodeTree<int>* v0 = gss.newNode(0);
 	gss.addToFrontier(0,v0);
 
-	std::cout << "Done setting up new frontier" << std::endl;
+	//std::cout << "Done setting up new frontier" << std::endl;
 
 	std::vector<ParseAction*> firstActions = *(table.get(0, input[0]));
 	for (std::vector<ParseAction*>::size_type i = 0; i < firstActions.size(); i++) {
@@ -80,7 +80,7 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 
 	// std::cout << "GSS:\n" << gss.toString() << std::endl;
 
-	std::cout << "Starting parse loop" << std::endl;
+	//std::cout << "Starting parse loop" << std::endl;
 
 	for (int i = 0; i < input.size(); i++) {
 		// std::cout << "Checking if frontier " << i << " is empty" << std::endl;
@@ -110,7 +110,7 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 		shifter(i);
 		//std::cout << "GSS:\n" << gss.toString() << std::endl;
 	}
-	std::cout << "Done with parsing loop, checking for acceptance" << std::endl;
+	//std::cout << "Done with parsing loop, checking for acceptance" << std::endl;
 	NodeTree<int>* accState = gss.frontierGetAccState(input.size()-1);
 	if (accState) {
 		std::cout << "Accepted!" << std::endl;
@@ -143,7 +143,7 @@ void RNGLRParser::reducer(int i) {
 		//The end of the current path
 		NodeTree<int>* currentReached = currentPath[currentPath.size()-1];
 
-		std::cout << "Getting the shfit state for state " << currentReached->getData() << " and symbol " << reduction.symbol.toString() << std::endl;
+		//std::cout << "Getting the shift state for state " << currentReached->getData() << " and symbol " << reduction.symbol.toString() << std::endl;
 		int toState = table.getShift(currentReached->getData(), reduction.symbol)->shiftState;
 
 		//If reduction length is 0, then we make the new label the appropriate nullable parts
@@ -189,7 +189,7 @@ void RNGLRParser::reducer(int i) {
 			//std::cout << "Adding shifts and reductions for a state that did not exist" << std::endl;
 			std::vector<ParseAction*> actions = *(table.get(toState, input[i]));
 			for (std::vector<ParseAction*>::size_type k = 0; k < actions.size(); k++) {
-				std::cout << "Action is " << actions[k]->toString() << std::endl;
+				//std::cout << "Action is " << actions[k]->toString() << std::endl;
 				if (actions[k]->action == ParseAction::SHIFT) {
 					toShift.push(std::make_pair(toStateNode, actions[k]->shiftState));
 				} else if (actions[k]->action == ParseAction::REDUCE && fullyReducesToNull(actions[k]->reduceRule)) {
@@ -213,7 +213,7 @@ void RNGLRParser::shifter(int i) {
 		while (!toShift.empty()) {
 			std::pair<NodeTree<int>*, int> shift = toShift.front();
 			toShift.pop();
-			std::cout << "Current potential shift from " << shift.first->getData() << " to " << shift.second << std::endl;
+			//std::cout << "Current potential shift from " << shift.first->getData() << " to " << shift.second << std::endl;
 			NodeTree<int>* shiftTo = gss.inFrontier(i+1, shift.second);
 			if (shiftTo) {
 				//std::cout << "State already existed, just adding edge" << std::endl;
@@ -232,7 +232,7 @@ void RNGLRParser::shifter(int i) {
 				gss.addEdge(shiftTo, shift.first, newLabel);
 				std::vector<ParseAction*> actions = *(table.get(shift.second, input[i+1]));
 				for (std::vector<ParseAction*>::size_type j = 0; j < actions.size(); j++) {
-					std::cout << "Adding action " << actions[j]->toString() << " to either nextShifts or toReduce" << std::endl;
+					//std::cout << "Adding action " << actions[j]->toString() << " to either nextShifts or toReduce" << std::endl;
 					//Shift
 					if (actions[j]->action == ParseAction::SHIFT) {
 						nextShifts.push(std::make_pair(shiftTo, actions[j]->shiftState));

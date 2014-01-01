@@ -303,7 +303,7 @@ std::vector<ParseAction*>* Table::get(int state, Symbol token) {
 		return NULL;
 	}
 
-	std::cout << "Get for state: " << state << ", and Symbol: " << token.toString() << std::endl;
+	//std::cout << "Get for state: " << state << ", and Symbol: " << token.toString() << std::endl;
 	if (state < 0 || state >= table.size()) {
 		std::cout << "State bad: " << state << std::endl;
 		return NULL;
@@ -312,7 +312,7 @@ std::vector<ParseAction*>* Table::get(int state, Symbol token) {
 	std::vector<ParseAction*>* action = NULL;
 
 	if (symbolIndex < 0 || symbolIndex >= table[state]->size()) {
-		std::cout << "Symbol bad for this state: " << token.toString() << ". This is a reject." << std::endl;
+		//std::cout << "Symbol bad for this state: " << token.toString() << ". This is a reject." << std::endl;
 	} else {
 		action = (*(table[state]))[symbolIndex];
 	}

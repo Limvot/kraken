@@ -19,10 +19,12 @@ class Importer {
 		Importer(Parser* parserIn);
 		~Importer();
 		NodeTree<ASTData>* import(std::string fileName);
+		std::map<std::string, NodeTree<ASTData>*> getASTMap();
 	private:
 		Parser* parser;
 		std::vector<Symbol> removeSymbols;
 		std::vector<Symbol> collapseSymbols;
+		std::map<std::string, NodeTree<ASTData>*> imported;
 };
 
 #endif

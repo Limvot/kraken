@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
 	std::string outputName = argv[3];
 
 	std::ifstream grammerInFile, compiledGrammerInFile;
-	std::ofstream outFileC, compiledGrammerOutFile;
+	std::ofstream /*outFileC,*/ compiledGrammerOutFile;
 
 	grammerInFile.open(grammerFileString);
 	if (!grammerInFile.is_open()) {
@@ -44,12 +44,13 @@ int main(int argc, char* argv[]) {
 		std::cout << "Problem opening compiledGrammerInFile " << grammerFileString + ".comp" << "\n";
 		//return(1);
 	}
-
+/*
 	outFileC.open((outputName + ".c").c_str());
 	if (!outFileC.is_open()) {
 		std::cout << "Probelm opening third output file " << outputName + ".c" << "\n";
 		return(1);
 	}
+	*/
 	//Read the input file into a string
 	std::string grammerInputFileString;
 	std::string line;
@@ -63,7 +64,7 @@ int main(int argc, char* argv[]) {
 	RNGLRParser parser;
 	parser.loadGrammer(grammerInputFileString);
 	//std::cout << "Creating State Set from Main" << std::endl;
-	std::cout << "\nState Set" << std::endl;
+	//std::cout << "\nState Set" << std::endl;
 
 	//Start binary stuff
 	bool compGramGood = false;
@@ -78,15 +79,15 @@ int main(int argc, char* argv[]) {
 		if (binaryTablePointer[0] == 'K' && binaryTablePointer[1] == 'R' && binaryTablePointer[2] == 'A' && binaryTablePointer[3] == 'K') {
 			std::cout << "Valid Kraken Compiled Grammer File" << std::endl;
 			int gramStringLength = *((int*)(binaryTablePointer+4));
-			std::cout << "The grammer string is stored to be " << gramStringLength << " characters long, gramString is "
-			<< grammerInputFileString.length() << " long. Remember 1 extra for null terminator!" << std::endl;
+			//std::cout << "The grammer string is stored to be " << gramStringLength << " characters long, gramString is "
+			//<< grammerInputFileString.length() << " long. Remember 1 extra for null terminator!" << std::endl;
 			if (grammerInputFileString.length() != gramStringLength-1 ||
 				(strncmp(grammerInputFileString.c_str(), (binaryTablePointer+4+sizeof(int)), gramStringLength) != 0)) {
 				//(one less for null terminator that is stored)
 				std::cout << "The Grammer has been changed, will re-create" << std::endl;
 			} else {
 				compGramGood = true;
-				std::cout << "grammer file good" << std::endl;
+				std::cout << "Grammer file is up to date." << std::endl;
 				//int tableLength = *((int*)(binaryTablePointer + 4 + sizeof(int) + gramStringLength));
 				parser.importTable(binaryTablePointer + 4 + sizeof(int) + gramStringLength); //Load table starting at the table section
 			}
@@ -134,17 +135,22 @@ int main(int argc, char* argv[]) {
 
 	Importer importer(&parser);
 
-	NodeTree<ASTData>* AST = importer.import(programName);
+	/*NodeTree<ASTData>* AST =*/
+	importer.import(programName);
+	std::map<std::string, NodeTree<ASTData>*> ASTs =importer.getASTMap();
 
 	//Do optomization, etc. here.
 	//None at this time, instead going straight to C in this first (more naive) version
 
 	//Code generation
 	//For right now, just C
+
+	CGenerator().generateCompSet(ASTs, outputName);
+	/*
 	std::string c_code = CGenerator().generate(AST);
 	outFileC << c_code << std::endl;
 	outFileC.close();
-
+*/
 	return(0);
 }
  
