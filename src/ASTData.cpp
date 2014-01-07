@@ -2,14 +2,15 @@
 
 ASTData::ASTData() {
 	this->type = undef;
+	this->valueType = NULL;
 }
 
-ASTData::ASTData(ASTType type, Type valueType) {
+ASTData::ASTData(ASTType type, Type *valueType) {
 	this->type = type;
 	this->valueType = valueType;
 }
 
-ASTData::ASTData(ASTType type, Symbol symbol, Type valueType) {
+ASTData::ASTData(ASTType type, Symbol symbol, Type *valueType) {
 	this->type = type;
 	this->valueType = valueType;
 	this->symbol = symbol;
@@ -20,7 +21,7 @@ ASTData::~ASTData() {
 }
 
 std::string ASTData::toString() {
-	return ASTTypeToString(type) + (symbol.isTerminal() ? " " + symbol.toString() : "") + " " + valueType.toString();
+	return ASTTypeToString(type) + (symbol.isTerminal() ? " " + symbol.toString() : "") + " " + (valueType ? valueType->toString() : "no_type");
 }
 
 std::string ASTData::ASTTypeToString(ASTType type) {
@@ -35,6 +36,8 @@ std::string ASTData::ASTTypeToString(ASTType type) {
 			return "import";
 		case function:
 			return "function";
+		case type_def:
+			return "type_def";
 		case code_block:
 			return "code_block";
 		case typed_parameter:

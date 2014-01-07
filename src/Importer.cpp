@@ -19,6 +19,7 @@ Importer::Importer(Parser* parserIn) {
 	removeSymbols.push_back(Symbol("while", true));
 	removeSymbols.push_back(Symbol("__if_comp__", true));
 	removeSymbols.push_back(Symbol("comp_simple_passthrough", true));
+	removeSymbols.push_back(Symbol("typedef", true));
 
 	collapseSymbols.push_back(Symbol("opt_typed_parameter_list", false));
 	collapseSymbols.push_back(Symbol("opt_parameter_list", false));

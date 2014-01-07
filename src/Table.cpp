@@ -85,7 +85,7 @@ void Table::exportTable(std::ofstream &file) {
 					//std::vector<Symbol> rightSide;
 					std::vector<Symbol> rightSide = rule->getRightSide();
 					size = rightSide.size();
-					std::cout << leftHandle.toString() << std::endl;
+					//std::cout << leftHandle.toString() << std::endl;
 					file.write((char*)&size, sizeof(int));
 					for (int l = 0; l < rightSide.size(); l++) {
 						//Save the name

@@ -41,6 +41,10 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 		std::string output = "";
 	switch (data.type) {
 		case translation_unit:
+			//Do here because we may need the typedefs before the declarations of variables
+			for (int i = 0; i < children.size(); i++)
+				if (children[i]->getDataRef()->type == type_def)
+					output += generate(children[i]) + "\n";
 			//Declare everything in translation unit scope here. (allows stuff from other files, automatic forward declarations)
 			for (auto i = data.scope.begin(); i != data.scope.end(); i++) {
 				NodeTree<ASTData>* declaration = i->second;
@@ -57,13 +61,22 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 								output += ", ";
 							output += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j]);
 						}
-						output+= "); /*func*/\n";
+						output += "); /*func*/\n";
+						break;
+					case type_def:
+						//type
+						output += "/*typedef " + declarationData.symbol.getName() + " */\n";
 						break;
 					default:
 						//std::cout << "Declaration? named " << declaration->getName() << " of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
 						output += "/*unknown declaration named " + declaration->getName() + "*/\n";
 				}
 			}
+			//Do here because we need the newlines
+			for (int i = 0; i < children.size(); i++)
+				if (children[i]->getDataRef()->type != type_def)
+					output += generate(children[i]) + "\n";
+			return output;
 			break;
 		case interpreter_directive:
 			//Do nothing
@@ -73,6 +86,8 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 			//return "#include <" + data.symbol.getName() + ">\n";
 		case identifier:
 			return data.symbol.getName();
+		case type_def:
+			return "typedef " + ValueTypeToCType(data.valueType) + " " + data.symbol.getName() + ";";
 		case function:
 			output += "\n" + ValueTypeToCType(data.valueType) + " " + data.symbol.getName() + "(";
 			for (int i = 0; i < children.size()-1; i++) {
@@ -116,7 +131,10 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 		case assignment_statement:
 			return generate(children[0]) + " = " + generate(children[1]);
 		case declaration_statement:
-			return ValueTypeToCType(children[0]->getData().valueType) + " " + generate(children[0]) + " = " + generate(children[1]) + ";";
+			if (children.size() == 1)
+				return ValueTypeToCType(children[0]->getData().valueType) + " " + generate(children[0]) + ";";
+			else
+				return ValueTypeToCType(children[0]->getData().valueType) + " " + generate(children[0]) + " = " + generate(children[1]) + ";";
 		case if_comp:
 			if (generate(children[0]) == generatorString)
 				return generate(children[1]);
@@ -161,11 +179,14 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 	return output;
 }
 
-std::string CGenerator::ValueTypeToCType(Type type) {
+std::string CGenerator::ValueTypeToCType(Type *type) {
 	std::string return_type;
-	switch (type.baseType) {
+	switch (type->baseType) {
 		case none:
-			return_type = "none";
+			if (type->typeDefinition)
+				return_type = type->typeDefinition->getDataRef()->symbol.getName();
+			else
+				return_type = "none";
 			break;
 		case void_type:
 			return_type = "void";
@@ -189,7 +210,7 @@ std::string CGenerator::ValueTypeToCType(Type type) {
 			return_type = "unknown_ValueType";
 			break;
 	}
-	for (int i = 0; i < type.indirection; i++)
+	for (int i = 0; i < type->indirection; i++)
 		return_type += "*";
 	return return_type;
 }

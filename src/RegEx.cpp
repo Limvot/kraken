@@ -2,8 +2,10 @@
 #include <cassert>
 
 RegEx::RegEx(std::string inPattern) {
+	std::cout << inPattern << " at rexex" << std::endl;
 	pattern = inPattern;
 	construct();
+	std::cout << inPattern << " at rexex post" << std::endl;
 	deperenthesize();
 }
 
@@ -308,6 +310,13 @@ void RegEx::test() {
     {
         RegEx re("a(bc)?");
         assert(re.longMatch("ab") == 1);
+    }
+
+    {
+    	RegEx re("((ab)|c)*");
+    	assert(re.longMatch("ababc") == 5);
+    	assert(re.longMatch("ad") == 1);
+    	assert(re.longMatch("ababccd") == 6);
     }
 
     std::cout << "RegEx tests pass\n";

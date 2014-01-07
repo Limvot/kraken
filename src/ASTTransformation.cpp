@@ -64,9 +64,14 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			throw "LOOKUP ERROR: " + lookupName; 
 		}
 		//newNode = new NodeTree<ASTData>(name, ASTData(identifier, Symbol(concatSymbolTree(children[0]), true)));
+	} else if (name == "type_def") {
+		std::string typeAlias = concatSymbolTree(children[0]);
+		newNode = new NodeTree<ASTData>(name, ASTData(type_def, Symbol(typeAlias, true, typeAlias), typeFromString(concatSymbolTree(children[1]), scope)));
+		scope->getDataRef()->scope[typeAlias] = newNode;
+		return newNode;
 	} else if (name == "function") {
 		std::string functionName = concatSymbolTree(children[1]);
-		newNode = new NodeTree<ASTData>(name, ASTData(function, Symbol(functionName, true), Type(concatSymbolTree(children[0]))));
+		newNode = new NodeTree<ASTData>(name, ASTData(function, Symbol(functionName, true), typeFromString(concatSymbolTree(children[0]), scope)));
 		skipChildren.insert(0);
 		skipChildren.insert(1);
 		scope->getDataRef()->scope[functionName] = newNode;
@@ -80,7 +85,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		//newNode = transform(children[1]); //Transform to get the identifier
 		std::string parameterName = concatSymbolTree(children[1]);
 		std::string typeString = concatSymbolTree(children[0]);//Get the type (left child) and set our new identifer to be that type
-		newNode = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(parameterName, true), Type(typeString)));
+		newNode = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(parameterName, true), typeFromString(typeString, scope)));
 		scope->getDataRef()->scope[parameterName] = newNode;
 		return newNode;
 	} else if (name == "boolean_expression" || name == "and_boolean_expression" || name == "bool_exp") {
@@ -180,10 +185,9 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 
 		// NodeTree<ASTData>* newIdentifier = transform(children[1], scope); //Transform the identifier
 		// newIdentifier->getDataRef()->valueType = Type(concatSymbolTree(children[0]));//set the type of the identifier
-		
 		std::string newIdentifierStr = concatSymbolTree(children[1]);
 		std::string typeString = concatSymbolTree(children[0]);//Get the type (left child) and set our new identifer to be that type
-		NodeTree<ASTData>* newIdentifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), Type(typeString)));
+		NodeTree<ASTData>* newIdentifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), typeFromString(typeString, scope)));
 		scope->getDataRef()->scope[newIdentifierStr] = newIdentifier;
 		
 		newNode->addChild(newIdentifier);
@@ -213,19 +217,19 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		return transform(children[0], scope); //Don't need a parameter node, just the value
 	} else if (name == "type") {
 		std::string theConcat = concatSymbolTree(from); //We have no symbol, so this will concat our children
-		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(theConcat, true), Type(theConcat)));
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(theConcat, true), typeFromString(theConcat, scope)));
 	} else if (name == "number") {
 		return transform(children[0], scope);
 	} else if (name == "integer") {
-		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), Type(integer)));
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), new Type(integer)));
 	} else if (name == "float") {
-		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), Type(floating)));
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), new Type(floating)));
 	} else if (name == "double") {
-		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), Type(double_percision)));
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), new Type(double_percision)));
 	} else if (name == "char") {
-		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), Type(character, 1))); //Indirection of 1 for array
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), new Type(character, 1))); //Indirection of 1 for array
 	} else if (name == "string" || name == "triple_quoted_string") {
-		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), Type(character, 1))); //Indirection of 1 for array
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), new Type(character, 1))); //Indirection of 1 for array
 	} else {
 		return new NodeTree<ASTData>();
 	}
@@ -277,4 +281,30 @@ NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std:
 	}
 	//std::cout << "upper scope does not exist" << std::endl;
 	return NULL;
+}
+
+Type* ASTTransformation::typeFromString(std::string typeIn, NodeTree<ASTData>* scope) {
+	int indirection = 0;
+	ValueType baseType;
+	NodeTree<ASTData>* typeDefinition = NULL;
+	while (typeIn[typeIn.size() - indirection - 1] == '*') indirection++;
+	std::string edited = strSlice(typeIn, 0, -(indirection + 1));
+	if (edited == "void")
+		baseType = void_type;
+	else if (edited == "bool")
+		baseType = boolean;
+	else if (edited == "int")
+		baseType = integer;
+	else if (edited == "float")
+		baseType = floating
+;	else if (edited == "double")
+		baseType = double_percision;
+	else if (edited == "char")
+		baseType = character;
+	else {
+		baseType = none;
+		typeDefinition = scopeLookup(scope, edited);
+		std::cout << "scopeLookup of type " << edited << " returned " << typeDefinition << std::endl;
+	}
+	return new Type(baseType, typeDefinition, indirection);
 }

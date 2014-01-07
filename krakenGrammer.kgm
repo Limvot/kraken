@@ -1,10 +1,9 @@
 Goal = translation_unit ;
 translation_unit = interpreter_directive WS unorderd_list_part WS ;
-unorderd_list_part = import_list WS unorderd_list_part | function WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | declaration_statement WS ";" WS unorderd_list_part | import_list | function | if_comp | simple_passthrough | declaration_statement WS ";" ;
+unorderd_list_part = import WS unorderd_list_part | function WS unorderd_list_part | type_def WS ";" WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | declaration_statement WS ";" WS unorderd_list_part | import | function | type_def WS ";" | if_comp | simple_passthrough | declaration_statement WS ";" ;
 
 type = type WS "\*" | "void" | "int" | "float" | "double" | "char" | identifier ;
 
-import_list = import_list WS import | import ;
 import = "import" WS identifier WS ";" ;
 
 interpreter_directive = "#!" WS path | ;
@@ -19,8 +18,8 @@ WS = "( |	|
 if_comp = "__if_comp__" WS identifier WS if_comp_pred ;
 if_comp_pred = code_block | simple_passthrough ;
 simple_passthrough = "__simple_passthrough__" WS triple_quoted_string ;
-triple_quoted_string = "\"\"\"(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|;|%|=|\+| |	|
-|\\|/|\||\(|\)|\"|#|<|\*|>|0|1|2|3|4|5|6|7|8|9)+\"\"\"" ;
+
+triple_quoted_string = "((b)|a)*" ;
 
 identifier = alpha | alpha alphanumeric ;
 
@@ -33,6 +32,11 @@ typed_parameter = type WS identifier ;
 opt_parameter_list = parameter_list | ;
 parameter_list = parameter_list WS "," WS parameter | parameter ;
 parameter = boolean_expression ;
+
+type_def = "typedef" WS identifier WS type | "typedef" WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS identifier WS "{" WS declaration_block WS "}" ;
+class_innerds = visibility_block WS class_innerds | visibility_block ;
+visibility_block = "public:" WS declaration_block | "protected:" WS declaration_block | "private:" WS declaration_block ;
+declaration_block = declaration_statement WS ";" WS declaration_block | function WS declaration_block | declaration_statement WS ";" | function ;
 
 if_statement = "if" WS "\(" WS boolean_expression WS "\)" WS statement ;
 
@@ -62,7 +66,7 @@ unarad = number | identifier | function_call | bool | string | character | "\(" 
 number = integer | float | double ;
 
 assignment_statement = identifier WS "=" WS boolean_expression | identifier WS "\+=" WS boolean_expression | identifier WS "-=" WS boolean_expression | identifier WS "\*=" WS boolean_expression | identifier WS "/=" WS boolean_expression ;
-declaration_statement = type WS identifier WS "=" WS boolean_expression ;
+declaration_statement = type WS identifier WS "=" WS boolean_expression | type WS identifier ;
 
 alphanumeric = alphanumeric numeric | alphanumeric alpha | numeric | alpha ;
 hexadecimal = "0x(1|2|3|4|5|6|7|8|9|a|b|c|d|e|f)+" ;
@@ -71,10 +75,13 @@ integer = sign numeric | sign hexadecimal | "null" ;
 float = sign numeric "." numeric "f" ;
 double = sign numeric "." numeric | sign numeric "." numeric "d" ;
 bool = "true" | "false" | "True" | "False" ;
-character = "'(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|%| |	|\\|/|\||\(|\)|0|1|2|3|4|5|6|7|8|9)'" ;
+character = "'(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )'" ;
 alpha = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|_)+" ;
 numeric = "(0|1|2|3|4|5|6|7|8|9)+" ;
-string = triple_quoted_string | "\"(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|%| |	|\\|/|\||\(|\)|0|1|2|3|4|5|6|7|8|9)+\"" ;
+string = triple_quoted_string | "\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )*\"" ;
 
-comment = "//(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|;|%|=|\+| |	|\\|/|\||\(|\)|\*|\"|0|1|2|3|4|5|6|7|8|9)+
-" | "/\*(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|,|!|\?|_|-|:|%|=|\+| |	|\\|/|\||\(|\)|\"|0|1|2|3|4|5|6|7|8|9)+\*/" ;
+comment = "//(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )*
+" | "/\*(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )*\*/" ;
