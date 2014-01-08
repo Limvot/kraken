@@ -304,7 +304,7 @@ Type* ASTTransformation::typeFromString(std::string typeIn, NodeTree<ASTData>* s
 	else {
 		baseType = none;
 		typeDefinition = scopeLookup(scope, edited);
-		std::cout << "scopeLookup of type " << edited << " returned " << typeDefinition << std::endl;
+		//std::cout << "scopeLookup of type " << edited << " returned " << typeDefinition << std::endl;
 	}
 	return new Type(baseType, typeDefinition, indirection);
 }
