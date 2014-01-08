@@ -20,7 +20,6 @@ void Lexer::setInput(std::string inputString) {
 }
 
 void Lexer::addRegEx(std::string regExString) {
-    std::cout << regExString << " at lexer" << std::endl;
 	regExs.push_back(new RegEx(regExString));
 }
 

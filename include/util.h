@@ -12,5 +12,6 @@
 std::string intToString(int theInt);
 std::string replaceExEscape(std::string first, std::string search, std::string replace);
 std::string strSlice(std::string str, int begin, int end);
+int findPerenEnd(std::string str, int i);
 
 #endif

@@ -40,3 +40,15 @@ std::string strSlice(std::string str, int begin, int end) {
         end += str.length()+1;
     return str.substr(begin, end-begin);
 }
+
+int findPerenEnd(std::string str, int i) {
+    int numHangingOpen = 0;
+    for (; i< str.length(); i++) {
+        if (str[i] == '(')
+            numHangingOpen++;
+        else if (str[i] == ')')
+            numHangingOpen--;
+        if (numHangingOpen == 0)
+            return i;
+    }
+}

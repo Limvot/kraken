@@ -16,8 +16,7 @@ class RegEx {
 		RegEx(std::string inPattern);
 		~RegEx();
 
-		void construct();
-		void deperenthesize();
+		RegExState* construct(std::vector<RegExState*>* ending, std::string pattern);
 		int longMatch(std::string stringToMatch);
 		std::string getPattern();
 		std::string toString();
