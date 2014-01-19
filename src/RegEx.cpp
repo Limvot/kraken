@@ -223,8 +223,7 @@ void RegEx::test() {
     }
     {
     	RegEx re("bbb((bba+)|(ba+))*a*((a+b)|(a+bb)|(a+))*bbb") ;
-    	std::cout << re.longMatch("bbbababbbaaaaaaaaaaaaaaaaaaabbb") << std::endl;
-
+    	assert(re.longMatch("bbbababbbaaaaaaaaaaaaaaaaaaabbb") == 9);
     }
 
     std::cout << "RegEx tests pass\n";

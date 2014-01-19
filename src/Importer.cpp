@@ -30,6 +30,7 @@ Importer::Importer(Parser* parserIn) {
 	collapseSymbols.push_back(Symbol("typed_parameter_list", false));
 	collapseSymbols.push_back(Symbol("unorderd_list_part", false));
 	collapseSymbols.push_back(Symbol("if_comp_pred", false));
+	collapseSymbols.push_back(Symbol("declaration_block", false));
 }
 
 Importer::~Importer() {

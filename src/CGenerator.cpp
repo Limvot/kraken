@@ -87,7 +87,15 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 		case identifier:
 			return data.symbol.getName();
 		case type_def:
-			return "typedef " + ValueTypeToCType(data.valueType) + " " + data.symbol.getName() + ";";
+			if (children.size() == 0) {
+				return "typedef " + ValueTypeToCType(data.valueType) + " " + data.symbol.getName() + ";";
+			} else {
+				std::string objectString = "typedef struct __struct_dummy_" + data.symbol.getName() + "__ {\n";
+				for (int i = 0; i < children.size(); i++)
+					objectString += generate(children[i]) + "\n";
+				objectString += "} " + data.symbol.getName() + ";";
+				return objectString;
+			}
 		case function:
 			output += "\n" + ValueTypeToCType(data.valueType) + " " + data.symbol.getName() + "(";
 			for (int i = 0; i < children.size()-1; i++) {
@@ -155,10 +163,10 @@ std::string CGenerator::generate(NodeTree<ASTData>* from) {
 				return "*(" + generate(children[1]) + ")";
 			if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
 				|| name == "<" || name == ">" || name == "%" || name == "+=" || name == "-=" || name == "*=" || name == "/=" || name == "||"
-				|| name == "&&" || name == "!" ) {
-				
+				|| name == "&&" || name == "!" )
 				return "((" + generate(children[1]) + ")" + name + "(" + generate(children[2]) + "))";
-			}
+			else if (name == "." || name == "->")
+				return "((" + generate(children[1]) + ")" + name + generate(children[2]) + ")";
 			output += data.symbol.getName() + "(";
 			for (int i = 1; i < children.size(); i++) //children[0] is the declaration
 				if (i < children.size()-1)

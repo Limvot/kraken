@@ -159,3 +159,7 @@ std::vector<State*>* State::getDeepParents(int depth) {
 	}
 	return recursiveParents;
 }
+
+int State::getNumber() {
+	return number;
+}

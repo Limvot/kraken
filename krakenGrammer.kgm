@@ -56,8 +56,7 @@ code_block = "{" WS statement_list WS "}" ;
 
 statement_list = statement_list WS statement | statement ;
 statement = if_statement | while_loop | for_loop | return_statement WS ";" | boolean_expression WS ";" | assignment_statement WS ";" | declaration_statement WS ";" | code_block | if_comp | simple_passthrough ; 
-function_call = scope identifier "\(" WS opt_parameter_list WS "\)" ;
-scope = scope identifier "::" | ;
+function_call = unarad "\(" WS opt_parameter_list WS "\)" ;
 
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;
 and_boolean_expression = and_boolean_expression "&&" bool_exp | bool_exp ;
@@ -68,10 +67,11 @@ expression = expression WS "<<" WS term | expression WS ">>" WS shiftand | shift
 shiftand = shiftand WS "-" WS term | shiftand WS "\+" WS term | term ;
 term = term WS forward_slash WS factor | term WS "\*" WS factor | term WS "%" WS factor | factor ;
 factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\(" WS type WS "\)" WS unarad | "\*" WS unarad | "&" WS unarad | unarad ;
-unarad = number | identifier | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" ;
+unarad = number | identifier | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | access_operation ;
 number = integer | float | double ;
+access_operation = expression "." identifier | expression "->" identifier ;
 
-assignment_statement = identifier WS "=" WS boolean_expression | identifier WS "\+=" WS boolean_expression | identifier WS "-=" WS boolean_expression | identifier WS "\*=" WS boolean_expression | identifier WS "/=" WS boolean_expression ;
+assignment_statement = factor WS "=" WS boolean_expression | factor WS "\+=" WS boolean_expression | factor WS "-=" WS boolean_expression | factor WS "\*=" WS boolean_expression | factor WS "/=" WS boolean_expression ;
 declaration_statement = type WS identifier WS "=" WS boolean_expression | type WS identifier ;
 
 alphanumeric = alphanumeric numeric | alphanumeric alpha | numeric | alpha ;

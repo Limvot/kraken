@@ -377,6 +377,7 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std:
 
 void RNGLRParser::addStateReductionsToTable(State* state) {
 	std::vector<ParseRule*>* currStateTotal = state->getTotal();
+	//std::cout << currStateTotal->size()  << "::" << state->getNumber() << std::endl;
 	for (std::vector<ParseRule*>::size_type i = 0; i < currStateTotal->size(); i++) {
 		//See if reduce
 		//Also, this really only needs to be done for the state's basis, but we're already iterating through, so...

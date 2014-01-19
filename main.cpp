@@ -104,14 +104,15 @@ int main(int argc, char* argv[]) {
 		compiledGrammerOutFile.open(grammerFileString + ".comp", std::ios::binary);
 		if (!compiledGrammerOutFile.is_open())
 			std::cout << "Could not open compiled file to write either!" << std::endl;
-		compiledGrammerOutFile.write("KRAK", sizeof(char)*4);
+		compiledGrammerOutFile.write("KRAK", sizeof(char)*4); 	//Let us know when we load it that this is a kraken grammer file, but don't write out
+		compiledGrammerOutFile.flush();							// the grammer txt until we create the set, so that if we fail creating it it won't look valid
+		parser.createStateSet();
 		int* intBuffer = new int;
 		*intBuffer = grammerInputFileString.length()+1;
 		compiledGrammerOutFile.write((char*)intBuffer, sizeof(int));
 		delete intBuffer;
 		compiledGrammerOutFile.write(grammerInputFileString.c_str(), grammerInputFileString.length()+1); //Don't forget null terminator
 
-		parser.createStateSet();
 		parser.exportTable(compiledGrammerOutFile);
 		compiledGrammerOutFile.close();
 	}

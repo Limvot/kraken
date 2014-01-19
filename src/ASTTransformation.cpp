@@ -42,6 +42,8 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		scope->getDataRef()->scope["*="] = new NodeTree<ASTData>();
 		scope->getDataRef()->scope["+="] = new NodeTree<ASTData>();
 		scope->getDataRef()->scope["-="] = new NodeTree<ASTData>();
+		scope->getDataRef()->scope["."] = new NodeTree<ASTData>();
+		scope->getDataRef()->scope["->"] = new NodeTree<ASTData>();
 
 	} else if (name == "interpreter_directive") {
 		newNode = new NodeTree<ASTData>(name, ASTData(interpreter_directive));
@@ -56,19 +58,31 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			scope->getDataRef()->scope[i->first] = i->second;
 		return newNode; // Don't need children of import
 	} else if (name == "identifier") {
-		std::string lookupName = concatSymbolTree(children[0]);
+		//Make sure we get the entire name
+		std::string lookupName = concatSymbolTree(from);
 		//std::cout << "scope lookup from identifier" << std::endl;
 		newNode = scopeLookup(scope, lookupName);
 		if (newNode == NULL) {
 			std::cout << "scope lookup error! Could not find " << lookupName << std::endl;
 			throw "LOOKUP ERROR: " + lookupName; 
+		} else if (newNode->getDataRef()->symbol.getName() !=lookupName) {
+			//This happens when the lookup name denotes a member of an object, i.e. obj.foo
+			//The newNode points to obj, not foo.
 		}
 		//newNode = new NodeTree<ASTData>(name, ASTData(identifier, Symbol(concatSymbolTree(children[0]), true)));
 	} else if (name == "type_def") {
 		std::string typeAlias = concatSymbolTree(children[0]);
-		newNode = new NodeTree<ASTData>(name, ASTData(type_def, Symbol(typeAlias, true, typeAlias), typeFromString(concatSymbolTree(children[1]), scope)));
+		//If it is an alisis of a type
+		if (children[1]->getData().getName() == "type") {
+			newNode = new NodeTree<ASTData>(name, ASTData(type_def, Symbol(typeAlias, true, typeAlias), typeFromString(concatSymbolTree(children[1]), scope)));
+			skipChildren.insert(1); //Don't want any children, it's unnecessary for ailising
+		} else { //Is a struct or class
+			newNode = new NodeTree<ASTData>(name, ASTData(type_def, Symbol(typeAlias, true, typeAlias)));
+			newNode->getDataRef()->valueType = new Type(newNode); //Type is self-referential since this is the definition
+		}
 		scope->getDataRef()->scope[typeAlias] = newNode;
-		return newNode;
+		skipChildren.insert(0); //Identifier lookup will be ourselves, as we just added ourselves to the scope
+		//return newNode;
 	} else if (name == "function") {
 		std::string functionName = concatSymbolTree(children[1]);
 		newNode = new NodeTree<ASTData>(name, ASTData(function, Symbol(functionName, true), typeFromString(concatSymbolTree(children[0]), scope)));
@@ -108,7 +122,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			return transform(children[0], scope); //Just a promoted term, so do child
 		}
 	//Here's the order of ops stuff
-	} else if (name == "expression" || name == "shiftand" || name == "term" || name == "unarad") { //unarad can ride through, it should always just be a promoted child
+	} else if (name == "expression" || name == "shiftand" || name == "term" || name == "unarad" || name == "access_operation") { //unarad can ride through, it should always just be a promoted child
 		//If this is an actual part of an expression, not just a premoted child
 		if (children.size() > 2) {
 			std::string functionCallName = concatSymbolTree(children[1]);
@@ -187,8 +201,18 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		// newIdentifier->getDataRef()->valueType = Type(concatSymbolTree(children[0]));//set the type of the identifier
 		std::string newIdentifierStr = concatSymbolTree(children[1]);
 		std::string typeString = concatSymbolTree(children[0]);//Get the type (left child) and set our new identifer to be that type
-		NodeTree<ASTData>* newIdentifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), typeFromString(typeString, scope)));
+		Type* identifierType = typeFromString(typeString, scope);
+		NodeTree<ASTData>* newIdentifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), identifierType));
 		scope->getDataRef()->scope[newIdentifierStr] = newIdentifier;
+		//Now we don't do this thing
+		// if (identifierType->typeDefinition) {
+		// 	//Is a custom type. Populate this declaration's scope with it's inner declarations
+		// 	std::vector<NodeTree<ASTData>*> definitions = identifierType->typeDefinition->getChildren();
+		// 	for (auto i : definitions) {
+		// 		//Point to the identifier. May need to change so it points to the declaration or something, with new declarations.....
+		// 		newIdentifier->getDataRef()->scope[i->get(0)->getDataRef()->symbol.getName()] = i->get(0); //make each declaration's name point to it's definition, like above
+		// 	}
+		// }
 		
 		newNode->addChild(newIdentifier);
 		skipChildren.insert(0); //These, the type and the identifier, have been taken care of.
@@ -200,8 +224,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	} else if (name == "simple_passthrough") {
 		newNode = new NodeTree<ASTData>(name, ASTData(simple_passthrough));
 	} else if (name == "function_call") {
-		//children[0] is scope
-		std::string functionCallName = concatSymbolTree(children[1]);
+		std::string functionCallName = concatSymbolTree(children[0]);
 		newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
 		//std::cout << "scope lookup from function_call" << std::endl;
 		NodeTree<ASTData>* function = scopeLookup(scope, functionCallName);
@@ -210,7 +233,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			throw "LOOKUP ERROR: " + functionCallName; 
 		}
 		newNode->addChild(function);
-		skipChildren.insert(1);
+		skipChildren.insert(0);
 	} else if (name == "parameter") {
 		return transform(children[0], scope); //Don't need a parameter node, just the value
 	} else if (name == "parameter") {
@@ -261,12 +284,18 @@ std::string ASTTransformation::concatSymbolTree(NodeTree<Symbol>* root) {
 }
 
 NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup) {
-	//Seach the map
+	//First, if it is a struct or object, get it's base.
+	std::vector<std::string> splitString = split(lookup, '.');
+	if (splitString.size() > 1) {
+		std::string base = splitString[0];
+		// NodeTree<ASTData>* baseDef = scopeLookup(scope, base);
+		// splitString.erase(splitString.begin()); //Get rid of the base in the split str
+		// //Now the base is the scope.
+		// return scopeLookup(baseDef, join(splitString, ".")); //So the joined version doesn't have the base.
+		return scopeLookup(scope, base);
+	}
+	//Search the map
 	auto scopeMap = scope->getDataRef()->scope;
-	//std::cout << "scope size: " << scopeMap.size() << ", scope from " << scope->getName() << std::endl;
-	// for (auto i = scopeMap.begin(); i != scopeMap.end(); i++)
-	// 	std::cout << i->first << " : " << i-> second << " - " << i->second->getName() << std::endl;
-
 	auto elementIterator = scopeMap.find(lookup);
 	if (elementIterator != scopeMap.end()) {
 	//	std::cout << "lookup of " << lookup << " succeded in first scope!" << std::endl;
@@ -280,6 +309,7 @@ NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std:
 		return scopeLookup(enclosingIterator->second, lookup);
 	}
 	//std::cout << "upper scope does not exist" << std::endl;
+	std::cout << "could not find " << lookup << std::endl;
 	return NULL;
 }
 

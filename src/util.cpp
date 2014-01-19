@@ -52,3 +52,22 @@ int findPerenEnd(std::string str, int i) {
             return i;
     }
 }
+
+std::vector<std::string> split(const std::string &str, char delim) {
+    std::stringstream ss(str);
+    std::string word;
+    std::vector<std::string> splitVec;
+    while (std::getline(ss, word, delim))
+        splitVec.push_back(word);
+    return splitVec;
+}
+
+std::string join(const std::vector<std::string> &strVec, std::string joinStr) {
+    if (strVec.size() == 0)
+        return "";
+    std::string joinedStr = strVec[0];
+    for (int i = 1; i < strVec.size(); i++)
+        joinedStr += joinStr + strVec[i];
+    return joinedStr;
+}
+

@@ -3,16 +3,19 @@
 Type::Type() {
 	indirection = 0;
 	baseType = none;
+	typeDefinition = NULL;
 }
 
 Type::Type(ValueType typeIn) {
 	indirection = 0;
 	baseType = typeIn;
+	typeDefinition = NULL;
 }
 
 Type::Type(ValueType typeIn, int indirectionIn) {
 	indirection = indirectionIn;
 	baseType = typeIn;
+	typeDefinition = NULL;
 }
 
 Type::Type(NodeTree<ASTData>* typeDefinitionIn) {
