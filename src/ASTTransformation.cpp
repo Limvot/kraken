@@ -17,7 +17,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope) {
 	Symbol current = from->getData();
 	std::string name = current.getName();
-	NodeTree<ASTData>* newNode;
+	NodeTree<ASTData>* newNode = NULL;
 	std::vector<NodeTree<Symbol>*> children = from->getChildren();
 	std::set<int> skipChildren;
 
@@ -25,25 +25,26 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		newNode = new NodeTree<ASTData>(name, ASTData(translation_unit));
 		scope = newNode;
 		//Temporary scope fix
-		scope->getDataRef()->scope["+"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["-"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["*"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["&"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["--"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["++"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["=="] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["<="] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope[">="] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["<"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope[">"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["&&"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["||"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["!"] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["*="] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["+="] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["-="] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["."] = new NodeTree<ASTData>();
-		scope->getDataRef()->scope["->"] = new NodeTree<ASTData>();
+		Type placeholderType;
+		scope->getDataRef()->scope["+"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("+", true), &placeholderType));
+		scope->getDataRef()->scope["-"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("-", true), &placeholderType));
+		scope->getDataRef()->scope["*"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("*", true), &placeholderType));
+		scope->getDataRef()->scope["&"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("&", true), &placeholderType));
+		scope->getDataRef()->scope["--"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("--", true), &placeholderType));
+		scope->getDataRef()->scope["++"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("++", true), &placeholderType));
+		scope->getDataRef()->scope["=="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("==", true), &placeholderType));
+		scope->getDataRef()->scope["<="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("<=", true), &placeholderType));
+		scope->getDataRef()->scope[">="] = new NodeTree<ASTData>("function", ASTData(function, Symbol(">=", true), &placeholderType));
+		scope->getDataRef()->scope["<"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("<", true), &placeholderType));
+		scope->getDataRef()->scope[">"] = new NodeTree<ASTData>("function", ASTData(function, Symbol(">", true), &placeholderType));
+		scope->getDataRef()->scope["&&"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("&&", true), &placeholderType));
+		scope->getDataRef()->scope["||"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("||", true), &placeholderType));
+		scope->getDataRef()->scope["!"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("!", true), &placeholderType));
+		scope->getDataRef()->scope["*="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("*=", true), &placeholderType));
+		scope->getDataRef()->scope["+="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("+=", true), &placeholderType));
+		scope->getDataRef()->scope["-="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("-=", true), &placeholderType));
+		scope->getDataRef()->scope["."] = new NodeTree<ASTData>("function", ASTData(function, Symbol(".", true), &placeholderType));
+		scope->getDataRef()->scope["->"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("->", true), &placeholderType));
 
 	} else if (name == "interpreter_directive") {
 		newNode = new NodeTree<ASTData>(name, ASTData(interpreter_directive));
@@ -63,7 +64,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		//std::cout << "scope lookup from identifier" << std::endl;
 		newNode = scopeLookup(scope, lookupName);
 		if (newNode == NULL) {
-			std::cout << "scope lookup error! Could not find " << lookupName << std::endl;
+			std::cout << "scope lookup error! Could not find " << lookupName << " in identifier " << std::endl;
 			throw "LOOKUP ERROR: " + lookupName; 
 		} else if (newNode->getDataRef()->symbol.getName() !=lookupName) {
 			//This happens when the lookup name denotes a member of an object, i.e. obj.foo
@@ -81,6 +82,8 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			newNode->getDataRef()->valueType = new Type(newNode); //Type is self-referential since this is the definition
 		}
 		scope->getDataRef()->scope[typeAlias] = newNode;
+		newNode->getDataRef()->scope["~enclosing_scope"] = scope;
+		scope = newNode;
 		skipChildren.insert(0); //Identifier lookup will be ourselves, as we just added ourselves to the scope
 		//return newNode;
 	} else if (name == "function") {
@@ -91,6 +94,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		scope->getDataRef()->scope[functionName] = newNode;
 		newNode->getDataRef()->scope["~enclosing_scope"] = scope;
 		scope = newNode;
+		std::cout << "finished function " << functionName << std::endl;
 	} else if (name == "code_block") {
 		newNode = new NodeTree<ASTData>(name, ASTData(code_block));
 		newNode->getDataRef()->scope["~enclosing_scope"] = scope;
@@ -101,19 +105,19 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		std::string typeString = concatSymbolTree(children[0]);//Get the type (left child) and set our new identifer to be that type
 		newNode = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(parameterName, true), typeFromString(typeString, scope)));
 		scope->getDataRef()->scope[parameterName] = newNode;
+		newNode->getDataRef()->scope["~enclosing_scope"] = scope;
 		return newNode;
 	} else if (name == "boolean_expression" || name == "and_boolean_expression" || name == "bool_exp") {
 		//If this is an actual part of an expression, not just a premoted term
 		if (children.size() > 1) {
-			std::string functionCallName = concatSymbolTree(children[1]);
-			//std::cout << "scope lookup from boolen_expression or similar" << std::endl;
-			NodeTree<ASTData>* function = scopeLookup(scope, functionCallName);
+			std::string functionCallString = concatSymbolTree(children[1]);
+			NodeTree<ASTData>* function = scopeLookup(scope, functionCallString);
 			if (function == NULL) {
-				std::cout << "scope lookup error! Could not find " << functionCallName << std::endl;
-				throw "LOOKUP ERROR: " + functionCallName; 
+				std::cout << "scope lookup error! Could not find " << functionCallString << " in boolean stuff " << std::endl;
+				throw "LOOKUP ERROR: " + functionCallString; 
 			}
-			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
-			newNode->addChild(function); // First child of function call is a link to the function definition
+			newNode = new NodeTree<ASTData>(functionCallString, ASTData(function_call));
+			newNode->addChild(function); // First child of function call is a link to the function
 			skipChildren.insert(1);
 		} else {
 			//std::cout << children.size() << std::endl;
@@ -129,12 +133,25 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			//std::cout << "scope lookup from expression or similar" << std::endl;
 			NodeTree<ASTData>* function = scopeLookup(scope, functionCallName);
 			if (function == NULL) {
-				std::cout << "scope lookup error! Could not find " << functionCallName << std::endl;
+				std::cout << "scope lookup error! Could not find " << functionCallName << " in expression " << std::endl;
 				throw "LOOKUP ERROR: " + functionCallName; 
 			}
 			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
 			newNode->addChild(function); // First child of function call is a link to the function definition
-			skipChildren.insert(1);
+			NodeTree<ASTData>* lhs = transform(children[0], scope);
+			NodeTree<ASTData>* rhs;// = transform(children[2], scope);
+			if (name == "access_operation") 
+				rhs = transform(children[2], lhs->getDataRef()->valueType->typeDefinition); //If an access operation, then the right side will be in the lhs's type's scope
+			else
+				rhs = transform(children[2], scope);
+
+			if (name == "access_operation")
+				std::cout << "Access Operation: " << lhs->getDataRef()->symbol.getName() << " : " << rhs->getDataRef()->symbol.getName() << std::endl;
+
+			newNode->addChild(lhs);
+			newNode->addChild(rhs);
+			return newNode;
+			//skipChildren.insert(1);
 		} else {
 			return transform(children[0], scope); //Just a promoted child, so do it instead
 		}
@@ -152,7 +169,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			//std::cout << "scope lookup from factor" << std::endl;
 			NodeTree<ASTData>* function = scopeLookup(scope, funcName);
 			if (function == NULL) {
-				std::cout << "scope lookup error! Could not find " << funcName << std::endl;
+				std::cout << "scope lookup error! Could not find " << funcName  << " in factor " << std::endl;
 				throw "LOOKUP ERROR: " + funcName; 
 			}
 			newNode = new NodeTree<ASTData>(funcName, ASTData(function_call, Symbol(funcName, true)));
@@ -184,7 +201,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			NodeTree<ASTData>* childCall = new NodeTree<ASTData>(functionName, ASTData(function_call, Symbol(functionName, true)));
 			NodeTree<ASTData>* functionDef = scopeLookup(scope, functionName);
 			if (functionDef == NULL) {
-				std::cout << "scope lookup error! Could not find " << functionName << std::endl;
+				std::cout << "scope lookup error! Could not find " << functionName  << " in assignment_statement " << std::endl;
 				throw "LOOKUP ERROR: " + functionName; 
 			}
 			childCall->addChild(functionDef); //First child of function call is definition of the function
@@ -204,6 +221,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		Type* identifierType = typeFromString(typeString, scope);
 		NodeTree<ASTData>* newIdentifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), identifierType));
 		scope->getDataRef()->scope[newIdentifierStr] = newIdentifier;
+		newNode->getDataRef()->scope["~enclosing_scope"] = scope;
 		//Now we don't do this thing
 		// if (identifierType->typeDefinition) {
 		// 	//Is a custom type. Populate this declaration's scope with it's inner declarations
@@ -226,12 +244,19 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	} else if (name == "function_call") {
 		std::string functionCallName = concatSymbolTree(children[0]);
 		newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
-		//std::cout << "scope lookup from function_call" << std::endl;
-		NodeTree<ASTData>* function = scopeLookup(scope, functionCallName);
-		if (function == NULL) {
-			std::cout << "scope lookup error! Could not find " << functionCallName << std::endl;
-			throw "LOOKUP ERROR: " + functionCallName; 
-		}
+		std::cout << "scope lookup from function_call: " << functionCallName << std::endl;
+		for (auto i : children)
+			std::cout << i << " : " << i->getName()  << " : " << i->getDataRef()->getName() << std::endl;
+		//NodeTree<ASTData>* function = scopeLookup(scope, functionCallName);
+		NodeTree<ASTData>* function = transform(children[0], scope);/* scopeLookup(scope, functionCallName);*/
+		std::cout << "The thing: " << function << " : " << function->getName() << std::endl;
+		for (auto i : function->getChildren())
+			std::cout << i->getName() << " ";
+		std::cout << std::endl;
+		// if (function == NULL) {
+		// 	std::cout << "scope lookup error! Could not find " << functionCallName << " in function_call " << std::endl;
+		// 	throw "LOOKUP ERROR: " + functionCallName; 
+		// }
 		newNode->addChild(function);
 		skipChildren.insert(0);
 	} else if (name == "parameter") {

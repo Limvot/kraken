@@ -17,8 +17,9 @@ class CGenerator {
 		CGenerator();
 		~CGenerator();
 		void generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName);
-		std::string generate(NodeTree<ASTData>* from);
+		std::string generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject = NULL);
 		static std::string ValueTypeToCType(Type *type);
+		std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from);
 
 		std::string generatorString;
 	private:
