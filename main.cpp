@@ -138,7 +138,7 @@ int main(int argc, char* argv[]) {
 
 	/*NodeTree<ASTData>* AST =*/
 	importer.import(programName);
-	std::map<std::string, NodeTree<ASTData>*> ASTs =importer.getASTMap();
+	std::map<std::string, NodeTree<ASTData>*> ASTs = importer.getASTMap();
 
 	//Do optomization, etc. here.
 	//None at this time, instead going straight to C in this first (more naive) version

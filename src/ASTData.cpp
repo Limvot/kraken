@@ -21,7 +21,9 @@ ASTData::~ASTData() {
 }
 
 std::string ASTData::toString() {
-	return ASTTypeToString(type) + (symbol.isTerminal() ? " " + symbol.toString() : "") + " " + (valueType ? valueType->toString() : "no_type");
+	return 	ASTTypeToString(type) + " " +
+			(symbol.isTerminal() ? " " + symbol.toString() : "") + " " +
+			(valueType ? valueType->toString() : "no_type");
 }
 
 std::string ASTData::ASTTypeToString(ASTType type) {

@@ -194,22 +194,32 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				else if (name == "." || name == "->") {
 					if (children.size() == 1)
 					 	return "/*dot operation with one child*/" + generate(children[0], enclosingObject) + "/*end one child*/";
-					 //If this is accessing an actual function, just output the name. No actual function definition should be in an access operation
-					 if (children[2]->getDataRef()->type == function)
-						return "((" + generate(children[1], enclosingObject) + ")" + name + children[2]->getDataRef()->symbol.getName() + ")";
-					return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
-				}
-			}
-			//output += data.symbol.getName() + "(";
-			if (funcType == function) {
-				output += name + "(";
-				std::cout << "Is a function, outputting name!" << std::cout;
-				if (enclosingObject && enclosingObject->getDataRef()->scope.find(name) != enclosingObject->getDataRef()->scope.end()) {
-					//So, it is part of the enclosing object's namespace, so it's (for now) a member function and we need to pass in an implicit self reference
-					output += ValueTypeToCType(enclosingObject->getDataRef()->valueType) + "* self, ";
+					 //If this is accessing an actual function, find the function in scope and take the appropriate action. Probabally an object method
+					 if (children[2]->getDataRef()->type == function) {
+					 	std::string functionName = children[2]->getDataRef()->symbol.getName();
+					 	NodeTree<ASTData>* possibleObjectType = children[1]->getDataRef()->valueType->typeDefinition;
+					 	//If is an object method, generate it like one. Needs extension/modification for inheritence
+					 	if (possibleObjectType && possibleObjectType->getDataRef()->scope.find(functionName) != possibleObjectType->getDataRef()->scope.end()) {
+					 		return possibleObjectType->getDataRef()->symbol.getName() +"__" + functionName + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
+					 		//The comma lets the upper function call know we already started the param list
+					 		//Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
+					 		std::cout << "Is in scope or not type!" << std::endl;					 	
+					 	} else {
+					 		std::cout << "Is not in scope or not type" << std::endl;
+							return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
+					 	}
+					} else {
+						return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
+					}
+				} else {
+					output += name + "(";
 				}
 			} else {
-				output +=  generate(children[0], enclosingObject) + "(";
+				std::string functionCallSource = generate(children[0], enclosingObject);
+				if (functionCallSource[functionCallSource.size()-1] == ',') //If it's a member method, it's already started the parameter list.
+					output += children.size() > 1 ? functionCallSource : functionCallSource.substr(0, functionCallSource.size()-1);
+				else
+					output += functionCallSource + "(";
 			}
 			for (int i = 1; i < children.size(); i++) //children[0] is the declaration
 				if (i < children.size()-1)
@@ -233,7 +243,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from) {
 	std::string output;
 	ASTData data = from->getData();
-	Type enclosingObjectType = *(enclosingObject->getDataRef()->valueType); //Copy a new type so we can turn it into a pointer
+	Type enclosingObjectType = *(enclosingObject->getDataRef()->valueType); //Copy a new type so we can turn it into a pointer if we need to
 	enclosingObjectType.indirection++;
 	std::vector<NodeTree<ASTData>*> children = from->getChildren();
 	output += "\n" + ValueTypeToCType(data.valueType) + " " + enclosingObject->getDataRef()->symbol.getName() +"__" + data.symbol.getName() + "(" + ValueTypeToCType(&enclosingObjectType) + " self";

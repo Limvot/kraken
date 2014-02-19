@@ -23,4 +23,5 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 	private:
 		Importer * importer;
 };
+
 #endif

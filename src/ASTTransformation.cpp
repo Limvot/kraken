@@ -24,27 +24,26 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	if (name == "translation_unit") {
 		newNode = new NodeTree<ASTData>(name, ASTData(translation_unit));
 		scope = newNode;
-		//Temporary scope fix
-		Type placeholderType;
-		scope->getDataRef()->scope["+"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("+", true), &placeholderType));
-		scope->getDataRef()->scope["-"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("-", true), &placeholderType));
-		scope->getDataRef()->scope["*"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("*", true), &placeholderType));
-		scope->getDataRef()->scope["&"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("&", true), &placeholderType));
-		scope->getDataRef()->scope["--"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("--", true), &placeholderType));
-		scope->getDataRef()->scope["++"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("++", true), &placeholderType));
-		scope->getDataRef()->scope["=="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("==", true), &placeholderType));
-		scope->getDataRef()->scope["<="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("<=", true), &placeholderType));
-		scope->getDataRef()->scope[">="] = new NodeTree<ASTData>("function", ASTData(function, Symbol(">=", true), &placeholderType));
-		scope->getDataRef()->scope["<"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("<", true), &placeholderType));
-		scope->getDataRef()->scope[">"] = new NodeTree<ASTData>("function", ASTData(function, Symbol(">", true), &placeholderType));
-		scope->getDataRef()->scope["&&"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("&&", true), &placeholderType));
-		scope->getDataRef()->scope["||"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("||", true), &placeholderType));
-		scope->getDataRef()->scope["!"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("!", true), &placeholderType));
-		scope->getDataRef()->scope["*="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("*=", true), &placeholderType));
-		scope->getDataRef()->scope["+="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("+=", true), &placeholderType));
-		scope->getDataRef()->scope["-="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("-=", true), &placeholderType));
-		scope->getDataRef()->scope["."] = new NodeTree<ASTData>("function", ASTData(function, Symbol(".", true), &placeholderType));
-		scope->getDataRef()->scope["->"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("->", true), &placeholderType));
+		//Temporary scope fix, use placeholder type
+		scope->getDataRef()->scope["+"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("+", true), NULL));
+		scope->getDataRef()->scope["-"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("-", true), NULL));
+		scope->getDataRef()->scope["*"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("*", true), NULL));
+		scope->getDataRef()->scope["&"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("&", true), NULL));
+		scope->getDataRef()->scope["--"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("--", true), NULL));
+		scope->getDataRef()->scope["++"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("++", true), NULL));
+		scope->getDataRef()->scope["=="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("==", true), NULL));
+		scope->getDataRef()->scope["<="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("<=", true), NULL));
+		scope->getDataRef()->scope[">="] = new NodeTree<ASTData>("function", ASTData(function, Symbol(">=", true), NULL));
+		scope->getDataRef()->scope["<"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("<", true), NULL));
+		scope->getDataRef()->scope[">"] = new NodeTree<ASTData>("function", ASTData(function, Symbol(">", true), NULL));
+		scope->getDataRef()->scope["&&"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("&&", true), NULL));
+		scope->getDataRef()->scope["||"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("||", true), NULL));
+		scope->getDataRef()->scope["!"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("!", true), NULL));
+		scope->getDataRef()->scope["*="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("*=", true), NULL));
+		scope->getDataRef()->scope["+="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("+=", true), NULL));
+		scope->getDataRef()->scope["-="] = new NodeTree<ASTData>("function", ASTData(function, Symbol("-=", true), NULL));
+		scope->getDataRef()->scope["."] = new NodeTree<ASTData>("function", ASTData(function, Symbol(".", true), NULL));
+		scope->getDataRef()->scope["->"] = new NodeTree<ASTData>("function", ASTData(function, Symbol("->", true), NULL));
 
 	} else if (name == "interpreter_directive") {
 		newNode = new NodeTree<ASTData>(name, ASTData(interpreter_directive));
@@ -116,7 +115,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 				std::cout << "scope lookup error! Could not find " << functionCallString << " in boolean stuff " << std::endl;
 				throw "LOOKUP ERROR: " + functionCallString; 
 			}
-			newNode = new NodeTree<ASTData>(functionCallString, ASTData(function_call));
+			newNode = new NodeTree<ASTData>(functionCallString, ASTData(function_call, function->getDataRef()->valueType));
 			newNode->addChild(function); // First child of function call is a link to the function
 			skipChildren.insert(1);
 		} else {
@@ -150,6 +149,14 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 
 			newNode->addChild(lhs);
 			newNode->addChild(rhs);
+			std::cout << functionCallName << " - " << function->getName() << " has value type " << function->getDataRef()->valueType  << " and rhs " << rhs->getDataRef()->valueType << std::endl;
+			if (function->getDataRef()->valueType)
+				newNode->getDataRef()->valueType = function->getDataRef()->valueType;
+			else if (rhs->getDataRef()->valueType)
+				newNode->getDataRef()->valueType = rhs->getDataRef()->valueType;
+			else
+				newNode->getDataRef()->valueType = NULL;
+			std::cout << "function call to " << functionCallName << " - " << function->getName() << " is now " << newNode->getDataRef()->valueType  << std::endl;
 			return newNode;
 			//skipChildren.insert(1);
 		} else {
@@ -160,11 +167,11 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		//NO SUPPORT FOR CASTING YET
 		if (children.size() == 2) {
 			std::string funcName = concatSymbolTree(children[0]);
-			int funcNum;
+			NodeTree<ASTData>* param;
 			if (funcName == "*" || funcName == "&" || funcName == "++" || funcName == "--" || funcName == "-" || funcName == "!" || funcName == "~")
-				funcNum = 0;
+				param = transform(children[1], scope);
 			else
-				funcName = concatSymbolTree(children[1]), funcNum = 1;
+				funcName = concatSymbolTree(children[1]), param = transform(children[0], scope);
 
 			//std::cout << "scope lookup from factor" << std::endl;
 			NodeTree<ASTData>* function = scopeLookup(scope, funcName);
@@ -174,7 +181,13 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			}
 			newNode = new NodeTree<ASTData>(funcName, ASTData(function_call, Symbol(funcName, true)));
 			newNode->addChild(function);
-			skipChildren.insert(funcNum);
+			newNode->addChild(param);
+			if (function->getDataRef()->valueType)
+				newNode->getDataRef()->valueType = function->getDataRef()->valueType;
+			else
+				newNode->getDataRef()->valueType = param->getDataRef()->valueType;
+
+			return newNode;
 		} else {
 			return transform(children[0], scope); //Just a promoted child, so do it instead
 		}
@@ -258,9 +271,8 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		// 	throw "LOOKUP ERROR: " + functionCallName; 
 		// }
 		newNode->addChild(function);
+		newNode->getDataRef()->valueType = function->getDataRef()->valueType;
 		skipChildren.insert(0);
-	} else if (name == "parameter") {
-		return transform(children[0], scope); //Don't need a parameter node, just the value
 	} else if (name == "parameter") {
 		return transform(children[0], scope); //Don't need a parameter node, just the value
 	} else if (name == "type") {
