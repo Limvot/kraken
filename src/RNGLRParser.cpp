@@ -85,8 +85,9 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 	for (int i = 0; i < input.size(); i++) {
 		// std::cout << "Checking if frontier " << i << " is empty" << std::endl;
 		if (gss.frontierIsEmpty(i)) {
-			std::cout << "Frontier " << i << " is empty." << std::endl;
-			std::cout << "Failed on " << input[i].toString() << std::endl;
+			//std::cout << "Frontier " << i << " is empty." << std::endl;
+			std::cout << "Parsing failed on " << input[i].toString() << std::endl;
+			std::cout << "Problem is on line: " << findLine(i) << std::endl;
 			std::cout << "Nearby is:" << std::endl;
 			const int range = 10;
 			for (int j = (i-range >= 0 ? i-range : 0); j < (i+range < input.size() ? i+range : input.size()); j++)
@@ -118,7 +119,7 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 	}
 
 	std::cout << "Rejected!" << std::endl;
-	std::cout << "GSS:\n" << gss.toString() << std::endl;
+	// std::cout << "GSS:\n" << gss.toString() << std::endl;
 	return NULL;
 }
 
@@ -491,4 +492,15 @@ std::vector<NodeTree<Symbol>*> RNGLRParser::getPathEdges(std::vector<NodeTree<in
 	for (std::vector<NodeTree<int>*>::size_type i = 0; i < path.size()-1; i++)
 		pathEdges.push_back(gss.getEdge(path[i], path[i+1]));
 	return pathEdges;
+}
+
+int RNGLRParser::findLine(int tokenNum) {
+	int lineNo = 0;
+	for (int i = 0; i < tokenNum; i++) {
+		std::string tokenString = input[i].getValue();
+		for (int j = 0; j < tokenString.size(); j++)
+			if (tokenString[j] == '\n')
+				lineNo++;
+	}
+	return lineNo;
 }
