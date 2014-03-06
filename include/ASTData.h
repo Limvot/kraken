@@ -10,7 +10,7 @@ class Type;
 #include "Type.h"
 
 #ifndef NULL
-#define NULL 0
+#define NULL ((void*)0)
 #endif
 
 enum ASTType {undef, translation_unit, interpreter_directive, import, identifier, type_def,
@@ -29,7 +29,7 @@ class ASTData {
 		ASTType type;
 		Type* valueType;
 		Symbol symbol;
-		std::map<std::string, NodeTree<ASTData>*> scope;
+		std::map<std::string, std::vector<NodeTree<ASTData>*>> scope;
 	private:
 
 };

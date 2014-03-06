@@ -38,6 +38,14 @@ Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectio
 Type::~Type() {
 }
 
+const bool Type::operator==(const Type &other) const {
+	return( baseType == other.baseType && indirection == other.indirection && typeDefinition == other.typeDefinition);
+}
+
+const bool Type::operator!=(const Type &other) const {
+	return(!this->operator==(other));
+}
+
 std::string Type::toString() {
 	std::string typeString;
 	switch (baseType) {

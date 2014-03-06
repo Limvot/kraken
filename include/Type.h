@@ -2,7 +2,7 @@
 #define TYPE_H
 
 #ifndef NULL
-#define NULL 0
+#define NULL ((void*)0)
 #endif
 
 #include <string>
@@ -25,6 +25,8 @@ class Type {
 		Type(NodeTree<ASTData>* typeDefinitionIn, int indirectionIn);
 		Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn);
 		~Type();
+		bool const operator==(const Type &other)const;
+		bool const operator!=(const Type &other)const;
 		std::string toString();
 		ValueType baseType;
 		NodeTree<ASTData>* typeDefinition;

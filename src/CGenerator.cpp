@@ -48,33 +48,39 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					output += generate(children[i], enclosingObject) + "\n";
 			//Declare everything in translation unit scope here. (allows stuff from other files, automatic forward declarations)
 			for (auto i = data.scope.begin(); i != data.scope.end(); i++) {
-				NodeTree<ASTData>* declaration = i->second;
-				std::vector<NodeTree<ASTData>*> decChildren = declaration->getChildren();
-				ASTData declarationData = i->second->getData();
-				switch(declarationData.type) {
-					case identifier:
-						output += ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*identifier*/\n";
-						break;
-					case function:
-						if (decChildren.size() == 0) { //Not a real function, must be a built in passthrough {
-							output += "/* built in function: " + declarationData.toString() + " */\n";
+				for (auto overloadedMembers : i->second) {
+					NodeTree<ASTData>* declaration = overloadedMembers;
+					std::vector<NodeTree<ASTData>*> decChildren = declaration->getChildren();
+					ASTData declarationData = declaration->getData();
+					switch(declarationData.type) {
+						case identifier:
+							output += ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*identifier*/\n";
+							break;
+						case function:
+						{
+							if (decChildren.size() == 0) { //Not a real function, must be a built in passthrough {
+								output += "/* built in function: " + declarationData.toString() + " */\n";
+								break;
+							}
+							output += "\n" + ValueTypeToCType(declarationData.valueType) + " ";
+							std::string nameDecoration, parameters;
+							for (int j = 0; j < decChildren.size()-1; j++) {
+								if (j > 0)
+									parameters += ", ";
+								parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], enclosingObject);
+								nameDecoration += ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType) + "_";
+							}
+							output += nameDecoration + declarationData.symbol.getName() + "(" + parameters + "); /*func*/\n";
 							break;
 						}
-						output += "\n" + ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "(";
-						for (int j = 0; j < decChildren.size()-1; j++) {
-							if (j > 0)
-								output += ", ";
-							output += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], enclosingObject);
-						}
-						output += "); /*func*/\n";
-						break;
-					case type_def:
-						//type
-						output += "/*typedef " + declarationData.symbol.getName() + " */\n";
-						break;
-					default:
-						//std::cout << "Declaration? named " << declaration->getName() << " of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
-						output += "/*unknown declaration named " + declaration->getName() + "*/\n";
+						case type_def:
+							//type
+							output += "/*typedef " + declarationData.symbol.getName() + " */\n";
+							break;
+						default:
+							//std::cout << "Declaration? named " << declaration->getName() << " of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
+							output += "/*unknown declaration named " + declaration->getName() + "*/\n";
+					}
 				}
 			}
 			//Do here because we need the newlines
@@ -92,9 +98,12 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		case identifier:
 		{
 			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the self reference.
-			if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end()) {
-				return "self->" + data.symbol.getName();
-			}
+			std::string preName;
+			if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
+				preName += "self->";
+			if (false)
+				for (int j = 0; j < children.size()-1; j++)
+					preName += ValueTypeToCType(children[j]->getData().valueType) + "_";
 			return data.symbol.getName();
 		}
 		case type_def:
@@ -114,21 +123,25 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				return objectString + postString; //Functions come after the declaration of the struct
 			}
 		case function:
-			output += "\n" + ValueTypeToCType(data.valueType) + " " + data.symbol.getName() + "(";
-			for (int i = 0; i < children.size()-1; i++) {
-				if (i > 0)
-					output += ", ";
-				output += ValueTypeToCType(children[i]->getData().valueType) + " " + generate(children[i], enclosingObject);
+		{
+			output += "\n" + ValueTypeToCType(data.valueType) + " ";
+			std::string nameDecoration, parameters;
+			for (int j = 0; j < children.size()-1; j++) {
+				if (j > 0)
+					parameters += ", ";
+				parameters += ValueTypeToCType(children[j]->getData().valueType) + " " + generate(children[j], enclosingObject);
+				nameDecoration += ValueTypeToCTypeDecoration(children[j]->getData().valueType) + "_";
 			}
-			output+= ")\n" + generate(children[children.size()-1], enclosingObject);
+			output += nameDecoration + data.symbol.getName() + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
 			return output;
+		}
 		case code_block:
 			output += "{\n";
 			tabLevel++;
 			for (int i = 0; i < children.size(); i++) {
-				std::cout << "Line " << i << std::endl;
+				//std::cout << "Line " << i << std::endl;
 				std::string line = generate(children[i], enclosingObject);
-				std::cout << line << std::endl;
+				//std::cout << line << std::endl;
 				output += line;
 			}
 			tabLevel--;
@@ -200,19 +213,19 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 	NodeTree<ASTData>* possibleObjectType = children[1]->getDataRef()->valueType->typeDefinition;
 					 	//If is an object method, generate it like one. Needs extension/modification for inheritence
 					 	if (possibleObjectType && possibleObjectType->getDataRef()->scope.find(functionName) != possibleObjectType->getDataRef()->scope.end()) {
-					 		return possibleObjectType->getDataRef()->symbol.getName() +"__" + functionName + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
+HERE				 		return possibleObjectType->getDataRef()->symbol.getName() +"__" + functionName + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
 					 		//The comma lets the upper function call know we already started the param list
-					 		//Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
-					 		std::cout << "Is in scope or not type!" << std::endl;					 	
+					 		//Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses				 	
 					 	} else {
 					 		std::cout << "Is not in scope or not type" << std::endl;
-							return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
+WTHISTHIS					return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
 					 	}
 					} else {
-						return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
+ALSOWTH					return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
 					}
 				} else {
-					output += name + "(";
+					//It's a normal function call, not a special one or a method or anything
+HERE				output += name + "(";
 				}
 			} else {
 				std::string functionCallSource = generate(children[0], enclosingObject);
@@ -224,7 +237,8 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			for (int i = 1; i < children.size(); i++) //children[0] is the declaration
 				if (i < children.size()-1)
 					output += generate(children[i], enclosingObject) + ", ";
-				else output += generate(children[i], enclosingObject);
+				else
+					output += generate(children[i], enclosingObject);
 			output += ") ";
 			return output;
 		}
@@ -286,5 +300,41 @@ std::string CGenerator::ValueTypeToCType(Type *type) {
 	}
 	for (int i = 0; i < type->indirection; i++)
 		return_type += "*";
+	return return_type;
+}
+
+std::string CGenerator::ValueTypeToCTypeDecoration(Type *type) {
+	std::string return_type;
+	switch (type->baseType) {
+		case none:
+			if (type->typeDefinition)
+				return_type = type->typeDefinition->getDataRef()->symbol.getName();
+			else
+				return_type = "none";
+			break;
+		case void_type:
+			return_type = "void";
+			break;
+		case boolean:
+			return_type = "bool";
+			break;
+		case integer:
+			return_type = "int";
+			break;
+		case floating:
+			return_type = "float";
+			break;
+		case double_percision:
+			return_type = "double";
+			break;
+		case character:
+			return_type = "char";
+			break;
+		default:
+			return_type = "unknown_ValueType";
+			break;
+	}
+	for (int i = 0; i < type->indirection; i++)
+		return_type += "_P__";
 	return return_type;
 }

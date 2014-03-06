@@ -106,6 +106,7 @@ NodeTree<ASTData>* Importer::import(std::string fileName) {
 	}
 	outFileTransformed.close();
 
+	//Call with ourself to allow the transformation to call us to import files that it needs
 	NodeTree<ASTData>* AST = ASTTransformation(this).transform(parseTree);
 
 	if (AST) {
