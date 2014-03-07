@@ -68,9 +68,9 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 								if (j > 0)
 									parameters += ", ";
 								parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], enclosingObject);
-								nameDecoration += ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType) + "_";
+								nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
 							}
-							output += nameDecoration + declarationData.symbol.getName() + "(" + parameters + "); /*func*/\n";
+							output += declarationData.symbol.getName() + nameDecoration + "(" + parameters + "); /*func*/\n";
 							break;
 						}
 						case type_def:
@@ -130,9 +130,9 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				if (j > 0)
 					parameters += ", ";
 				parameters += ValueTypeToCType(children[j]->getData().valueType) + " " + generate(children[j], enclosingObject);
-				nameDecoration += ValueTypeToCTypeDecoration(children[j]->getData().valueType) + "_";
+				nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
 			}
-			output += nameDecoration + data.symbol.getName() + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
+			output += data.symbol.getName() + nameDecoration + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
 			return output;
 		}
 		case code_block:
@@ -213,21 +213,33 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 	NodeTree<ASTData>* possibleObjectType = children[1]->getDataRef()->valueType->typeDefinition;
 					 	//If is an object method, generate it like one. Needs extension/modification for inheritence
 					 	if (possibleObjectType && possibleObjectType->getDataRef()->scope.find(functionName) != possibleObjectType->getDataRef()->scope.end()) {
-HERE				 		return possibleObjectType->getDataRef()->symbol.getName() +"__" + functionName + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
+					 		std::string nameDecoration;
+					 		std::vector<NodeTree<ASTData>*> functionDefChildren = children[2]->getChildren(); //The function def is the rhs of the access operation
+					 		std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
+					 		for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
+					 			nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
+/*HERE*/				 	return possibleObjectType->getDataRef()->symbol.getName() +"__" + functionName + nameDecoration + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
 					 		//The comma lets the upper function call know we already started the param list
 					 		//Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses				 	
 					 	} else {
 					 		std::cout << "Is not in scope or not type" << std::endl;
-WTHISTHIS					return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
+							return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
 					 	}
 					} else {
-ALSOWTH					return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
+						return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
 					}
 				} else {
-					//It's a normal function call, not a special one or a method or anything
-HERE				output += name + "(";
+					//It's a normal function call, not a special one or a method or anything. Name decorate.
+					std::vector<NodeTree<ASTData>*> functionDefChildren = children[0]->getChildren();
+					std::cout << "Decorating (none-special)" << name << " " << functionDefChildren.size() << std::endl;
+					std::string nameDecoration;
+					for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
+				 		nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
+/*HERE*/			output += name + nameDecoration + "(";
 				}
 			} else {
+				//This part handles cases where our definition isn't the function definition (that is, it is probabally the return from another function)
+				//It's probabally the result of an access function call (. or ->) to access an object method.
 				std::string functionCallSource = generate(children[0], enclosingObject);
 				if (functionCallSource[functionCallSource.size()-1] == ',') //If it's a member method, it's already started the parameter list.
 					output += children.size() > 1 ? functionCallSource : functionCallSource.substr(0, functionCallSource.size()-1);
@@ -260,10 +272,14 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 	Type enclosingObjectType = *(enclosingObject->getDataRef()->valueType); //Copy a new type so we can turn it into a pointer if we need to
 	enclosingObjectType.indirection++;
 	std::vector<NodeTree<ASTData>*> children = from->getChildren();
-	output += "\n" + ValueTypeToCType(data.valueType) + " " + enclosingObject->getDataRef()->symbol.getName() +"__" + data.symbol.getName() + "(" + ValueTypeToCType(&enclosingObjectType) + " self";
-	for (int i = 0; i < children.size()-1; i++)
-		output += ", " + ValueTypeToCType(children[i]->getData().valueType) + " " + generate(children[i]);
-	output+= ")\n" + generate(children[children.size()-1], enclosingObject); //Pass in the object so we can 
+	std::string nameDecoration, parameters;
+	for (int i = 0; i < children.size()-1; i++) {
+		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType) + " " + generate(children[i]);
+		nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
+	}
+		output += "\n" + ValueTypeToCType(data.valueType) + " " + enclosingObject->getDataRef()->symbol.getName() +"__"
+		+ data.symbol.getName() + nameDecoration + "(" + ValueTypeToCType(&enclosingObjectType) + " self" + parameters + ")\n"
+		+ generate(children[children.size()-1], enclosingObject); //Pass in the object so we can 
 	return output;
 }
 
@@ -338,3 +354,4 @@ std::string CGenerator::ValueTypeToCTypeDecoration(Type *type) {
 		return_type += "_P__";
 	return return_type;
 }
+
