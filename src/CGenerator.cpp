@@ -104,7 +104,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			if (false)
 				for (int j = 0; j < children.size()-1; j++)
 					preName += ValueTypeToCType(children[j]->getData().valueType) + "_";
-			return data.symbol.getName();
+			return preName + data.symbol.getName();
 		}
 		case type_def:
 			if (children.size() == 0) {
@@ -235,7 +235,13 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					std::string nameDecoration;
 					for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
 				 		nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
+				 	//Check to see if we're inside of an object and this is a method call
+					bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
+					if (isSelfObjectMethod)
+						output += enclosingObject->getDataRef()->symbol.getName() +"__";
 /*HERE*/			output += name + nameDecoration + "(";
+				 	if (isSelfObjectMethod)
+				 		output += children.size() > 1 ? "self," : "self";
 				}
 			} else {
 				//This part handles cases where our definition isn't the function definition (that is, it is probabally the return from another function)
@@ -277,7 +283,7 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType) + " " + generate(children[i]);
 		nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
 	}
-		output += "\n" + ValueTypeToCType(data.valueType) + " " + enclosingObject->getDataRef()->symbol.getName() +"__"
+	output += "\n" + ValueTypeToCType(data.valueType) + " " + enclosingObject->getDataRef()->symbol.getName() +"__"
 		+ data.symbol.getName() + nameDecoration + "(" + ValueTypeToCType(&enclosingObjectType) + " self" + parameters + ")\n"
 		+ generate(children[children.size()-1], enclosingObject); //Pass in the object so we can 
 	return output;

@@ -69,7 +69,7 @@ term = term WS forward_slash WS factor | term WS "\*" WS factor | term WS "%" WS
 factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\(" WS type WS "\)" WS unarad | "\*" WS unarad | "&" WS unarad | unarad ;
 unarad = number | identifier | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | access_operation ;
 number = integer | float | double ;
-access_operation = expression "." identifier | expression "->" identifier ;
+access_operation = unarad "." identifier | unarad "->" identifier ;
 
 assignment_statement = factor WS "=" WS boolean_expression | factor WS "\+=" WS boolean_expression | factor WS "-=" WS boolean_expression | factor WS "\*=" WS boolean_expression | factor WS "/=" WS boolean_expression ;
 declaration_statement = type WS identifier WS "=" WS boolean_expression | type WS identifier ;

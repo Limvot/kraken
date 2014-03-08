@@ -16,5 +16,12 @@ std::string strSlice(std::string str, int begin, int end);
 int findPerenEnd(std::string str, int i);
 std::vector<std::string> split(const std::string &str, char delim);
 std::string join(const std::vector<std::string> &strVec, std::string joinStr);
+template <typename T>
+bool contains(std::vector<T> vec, T item) {
+    for (auto i : vec)
+        if (i == item)
+            return true;
+    return false;
+}
 
 #endif
