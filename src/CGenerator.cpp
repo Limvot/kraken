@@ -226,7 +226,8 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 							return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
 					 	}
 					} else {
-						return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
+						//return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
+						return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2]) + ")";
 					}
 				} else {
 					//It's a normal function call, not a special one or a method or anything. Name decorate.
