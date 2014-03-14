@@ -1,10 +1,9 @@
 Goal = translation_unit ;
-translation_unit = interpreter_directive WS opt_import_list WS function_list WS ;
+translation_unit = interpreter_directive WS unorderd_list_part WS ;
+unorderd_list_part = import WS unorderd_list_part | function WS unorderd_list_part | type_def WS ";" WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | declaration_statement WS ";" WS unorderd_list_part | import | function | type_def WS ";" | if_comp | simple_passthrough | declaration_statement WS ";" ;
 
-type = "\*" WS type | "void" | "int" | "float" | "double" | "char" | identifier ;
+type = type WS "\*" | "void" | "int" | "float" | "double" | "char" | identifier ;
 
-opt_import_list = import_list | ;
-import_list = import_list WS import | import ;
 import = "import" WS identifier WS ";" ;
 
 interpreter_directive = "#!" WS path | ;
@@ -14,43 +13,68 @@ forward_slash = "/" ;
 back_slash = "\\" ;
 
 WS = "( |	|
-)+" | ;
+)+" | WS comment WS | ;
+
+if_comp = "__if_comp__" WS identifier WS if_comp_pred ;
+if_comp_pred = code_block | simple_passthrough ;
+simple_passthrough = "__simple_passthrough__" WS triple_quoted_string ;
+
+triple_quoted_string = "\"\"\"((\"\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )+)|(\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )+))*(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )*(((`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )+\")|((`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )+\"\")|((`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )+))*\"\"\"" ;
 
 identifier = alpha | alpha alphanumeric ;
 
-function_list = function_list WS function | function ;
-
-function = type WS identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block ;
+overloadable_operator = "\+" | "-" | "\*" | "/" | "%" | "^" | "&" | "\|" | "~" | "\!" | "," | "=" | "\+\+" | "--" | "<<" | ">>" | "==" | "!=" | "&&" | "\|\|" | "\+=" | "-=" | "/=" | "%=" | "^=" | "&=" | "\|=" | "\*=" | "<<=" | ">>=" | "->" ;
+func_identifier = identifier | identifier overloadable_operator ;
+function = type WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block ;
 
 opt_typed_parameter_list = typed_parameter_list | ;
 typed_parameter_list = typed_parameter_list WS "," WS typed_parameter | typed_parameter ;
-typed_parameter = type WS parameter ;
+typed_parameter = type WS identifier ;
 
 opt_parameter_list = parameter_list | ;
-parameter_list = parameter_list WS parameter | parameter ;
-parameter = expression ;
+parameter_list = parameter_list WS "," WS parameter | parameter ;
+parameter = boolean_expression ;
+
+type_def = "typedef" WS identifier WS type | "typedef" WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS identifier WS "{" WS declaration_block WS "}" ;
+class_innerds = visibility_block WS class_innerds | visibility_block ;
+visibility_block = "public:" WS declaration_block | "protected:" WS declaration_block | "private:" WS declaration_block ;
+declaration_block = declaration_statement WS ";" WS declaration_block | function WS declaration_block | declaration_statement WS ";" | function ;
+
+if_statement = "if" WS "\(" WS boolean_expression WS "\)" WS statement ;
+
+while_loop = "while" WS boolean_expression WS statement ;
+
+for_loop = "for" WS "\(" WS statement WS boolean_expression WS ";" WS statement WS "\)"  WS statement ;
+
+return_statement = "return" | "return" WS boolean_expression ;
 
 code_block = "{" WS statement_list WS "}" ;
-statement_list = statement_list WS statement | statement ;
-statement = if_statement | return_statement | expression WS ";" | boolean_expression WS ";" | assignment_statement WS ";" | declaration_statement WS ";" | code_block ;
-function_call = scope identifier "\(" WS opt_parameter_list WS "\)" ;
-scope = scope identifier "::" | ;
 
-if_statement = "if" WS boolean_expression WS statement | "if" WS "\(" WS boolean_expression WS "\)" WS statement ;
+statement_list = statement_list WS statement | statement ;
+statement = if_statement | while_loop | for_loop | return_statement WS ";" | boolean_expression WS ";" | assignment_statement WS ";" | declaration_statement WS ";" | code_block | if_comp | simple_passthrough ; 
+function_call = unarad "\(" WS opt_parameter_list WS "\)" ;
 
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;
 and_boolean_expression = and_boolean_expression "&&" bool_exp | bool_exp ;
-bool_exp = "!" WS bool_exp | expression WS "==" WS expression | bool ;
+bool_exp = "!" WS bool_exp | expression WS comparator WS expression | bool | expression ;
+comparator = "==" | "<=" | ">=" | "!=" | "<" | ">" ;
 
-return_statement = "return" WS "\(" WS expression WS "\)" WS ";" | "return" WS expression WS ";" ;
-
-expression = expression WS "-" WS term | expression WS "\+" WS term | term ;
-term = term WS forward_slash WS factor | term WS "\*" WS factor | factor ;
-factor = number | identifier | function_call | bool | string ;
+expression = expression WS "<<" WS term | expression WS ">>" WS shiftand | shiftand ;
+shiftand = shiftand WS "-" WS term | shiftand WS "\+" WS term | term ;
+term = term WS forward_slash WS factor | term WS "\*" WS factor | term WS "%" WS factor | factor ;
+factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\(" WS type WS "\)" WS unarad | "\*" WS unarad | "&" WS unarad | unarad ;
+unarad = number | identifier | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | access_operation ;
 number = integer | float | double ;
+access_operation = unarad "." identifier | unarad "->" identifier ;
 
-assignment_statement = identifier WS "=" WS expression ;
-declaration_statement = type WS identifier WS "=" WS expression ;
+assignment_statement = factor WS "=" WS boolean_expression | factor WS "\+=" WS boolean_expression | factor WS "-=" WS boolean_expression | factor WS "\*=" WS boolean_expression | factor WS "/=" WS boolean_expression ;
+declaration_statement = type WS identifier WS "=" WS boolean_expression | type WS identifier ;
 
 alphanumeric = alphanumeric numeric | alphanumeric alpha | numeric | alpha ;
 hexadecimal = "0x(1|2|3|4|5|6|7|8|9|a|b|c|d|e|f)+" ;
@@ -59,6 +83,13 @@ integer = sign numeric | sign hexadecimal | "null" ;
 float = sign numeric "." numeric "f" ;
 double = sign numeric "." numeric | sign numeric "." numeric "d" ;
 bool = "true" | "false" | "True" | "False" ;
-alpha = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|_)+" ;
+character = "'(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )'" ;
+alpha = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|_)+" ;
 numeric = "(0|1|2|3|4|5|6|7|8|9)+" ;
-string = "\"(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|.|!|_|-| |	|\\|/|\||0|1|2|3|4|5|6|7|8|9)+\"" ;
+string = triple_quoted_string | "\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )*\"" ;
+
+comment = "//(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )*
+" | "(/\*+((`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|~|!|@|#|$|%|^|&|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )/*\**)+\*/)|(/\*\*/)" ;

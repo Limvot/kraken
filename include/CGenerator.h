@@ -3,17 +3,27 @@
 
 #include <string>
 #include <iostream>
+#include <fstream>
 
 #include "NodeTree.h"
 #include "ASTData.h"
+#include "Type.h"
+
+#include "util.h"
 
 
 class CGenerator {
 	public:
 		CGenerator();
 		~CGenerator();
-		std::string generate(NodeTree<ASTData>* from);
-		static std::string ValueTypeToCType(ValueType type);
+		void generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName);
+		std::string generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject = NULL);
+		static std::string ValueTypeToCType(Type *type);
+		static std::string ValueTypeToCTypeDecoration(Type *type);
+		static std::string CifyFunctionName(std::string name);
+		std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from);
+
+		std::string generatorString;
 	private:
 		std::string tabs();
 		int tabLevel;

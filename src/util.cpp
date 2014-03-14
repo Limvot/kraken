@@ -8,7 +8,7 @@ std::string intToString(int theInt) {
 
 std::string replaceExEscape(std::string first, std::string search, std::string replace) {
     size_t pos = 0;
-    while (pos < first.size()-search.size()) {
+    while (pos <= first.size()-search.size()) {
         pos = first.find(search, pos);
         if (pos == std::string::npos)
             break;
@@ -31,3 +31,44 @@ std::string replaceExEscape(std::string first, std::string search, std::string r
     }
     return first;
 }
+
+//String slicing is crazy useful. substr isn't bad, but slicing with negative indicies is wonderful
+std::string strSlice(std::string str, int begin, int end) {
+    if (begin < 0)
+        begin += str.length()+1;
+    if (end < 0)
+        end += str.length()+1;
+    return str.substr(begin, end-begin);
+}
+
+int findPerenEnd(std::string str, int i) {
+    int numHangingOpen = 0;
+    for (; i< str.length(); i++) {
+        if (str[i] == '(')
+            numHangingOpen++;
+        else if (str[i] == ')')
+            numHangingOpen--;
+        if (numHangingOpen == 0)
+            return i;
+    }
+}
+
+std::vector<std::string> split(const std::string &str, char delim) {
+    std::stringstream ss(str);
+    std::string word;
+    std::vector<std::string> splitVec;
+    while (std::getline(ss, word, delim))
+        splitVec.push_back(word);
+    return splitVec;
+}
+
+std::string join(const std::vector<std::string> &strVec, std::string joinStr) {
+    if (strVec.size() == 0)
+        return "";
+    std::string joinedStr = strVec[0];
+    for (int i = 1; i < strVec.size(); i++)
+        joinedStr += joinStr + strVec[i];
+    return joinedStr;
+}
+
+

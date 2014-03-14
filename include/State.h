@@ -2,7 +2,7 @@
 #define STATE_H
 
 #ifndef NULL
-#define NULL 0
+#define NULL ((void*)0)
 #endif
 
 #include "util.h"
@@ -33,6 +33,7 @@ class State {
 		void addParents(std::vector<State*>* parents);
 		std::vector<State*>* getParents();
 		std::vector<State*>* getDeepParents(int depth);
+		int getNumber();
 
 
 		std::vector<ParseRule*> basis;

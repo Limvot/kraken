@@ -25,6 +25,7 @@ class GraphStructuredStack {
 		bool hasEdge(NodeTree<int>* start, NodeTree<int>* end);
 		NodeTree<Symbol>* getEdge(NodeTree<int>* start, NodeTree<int>* end);
 		void addEdge(NodeTree<int>* start, NodeTree<int>* end, NodeTree<Symbol>* edge);
+		void clear();
 
 		std::string toString();
 	private:

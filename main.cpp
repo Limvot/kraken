@@ -3,68 +3,56 @@
 #include <fstream>
 #include <vector>
 
+#include <cstring>
+
 #include "NodeTree.h"
 #include "Symbol.h"
 #include "Lexer.h"
 #include "LALRParser.h"
 #include "RNGLRParser.h"
 
-#include "NodeTransformation.h"
-#include "RemovalTransformation.h"
-#include "CollapseTransformation.h"
-#include "ASTTransformation.h"
+#include "Importer.h"
 #include "ASTData.h"
 #include "CGenerator.h"
 
+#include "util.h"
 
 int main(int argc, char* argv[]) {
 	if (argc == 2 && std::string(argv[1]) == "--test") {
 		StringReader::test();
 		RegEx::test();
 		Lexer::test();
+		//std::cout << strSlice("123", 0, -1) << std::endl;
 		return 0;
 	}
 
-	std::ifstream programInFile, grammerInFile;
-	std::ofstream outFile, outFileTransformed, outFileAST, outFileC;
+	std::string programName = argv[1];
+	std::string grammerFileString = argv[2];
+	std::string outputName = argv[3];
 
-	programInFile.open(argv[1]);
-	if (!programInFile.is_open()) {
-		std::cout << "Problem opening programInFile " << argv[1] << "\n";
-		return(1);
-	}
+	std::ifstream grammerInFile, compiledGrammerInFile;
+	std::ofstream /*outFileC,*/ compiledGrammerOutFile;
 
-	grammerInFile.open(argv[2]);
+	grammerInFile.open(grammerFileString);
 	if (!grammerInFile.is_open()) {
-		std::cout << "Problem opening grammerInFile " << argv[2] << "\n";
+		std::cout << "Problem opening grammerInFile " << grammerFileString << "\n";
 		return(1);
 	}
 
-	outFile.open(argv[3]);
-	if (!outFile.is_open()) {
-		std::cout << "Probelm opening output file " << argv[3] << "\n";
-		return(1);
+	compiledGrammerInFile.open(grammerFileString + ".comp", std::ios::binary | std::ios::ate);
+	if (!compiledGrammerInFile.is_open()) {
+		std::cout << "Problem opening compiledGrammerInFile " << grammerFileString + ".comp" << "\n";
+		//return(1);
 	}
-
-	outFileTransformed.open((std::string(argv[3]) + ".transformed.dot").c_str());
-	if (!outFileTransformed.is_open()) {
-		std::cout << "Probelm opening second output file " << std::string(argv[3]) + ".transformed.dot" << "\n";
-		return(1);
-	}
-
-	outFileAST.open((std::string(argv[3]) + ".AST.dot").c_str());
-	if (!outFileAST.is_open()) {
-		std::cout << "Probelm opening second output file " << std::string(argv[3]) + ".AST.dot" << "\n";
-		return(1);
-	}
-
-	outFileC.open((std::string(argv[3]) + ".c").c_str());
+/*
+	outFileC.open((outputName + ".c").c_str());
 	if (!outFileC.is_open()) {
-		std::cout << "Probelm opening third output file " << std::string(argv[3]) + ".c" << "\n";
+		std::cout << "Probelm opening third output file " << outputName + ".c" << "\n";
 		return(1);
 	}
+	*/
 	//Read the input file into a string
-	std::string programInputFileString, grammerInputFileString;
+	std::string grammerInputFileString;
 	std::string line;
 	while(grammerInFile.good()) {
 		getline(grammerInFile, line);
@@ -72,23 +60,69 @@ int main(int argc, char* argv[]) {
 	}
 	grammerInFile.close();
 
-	while(programInFile.good()) {
-		getline(programInFile, line);
-		programInputFileString.append(line+"\n");
-	}
-	programInFile.close();
-
 	//LALRParser parser;
 	RNGLRParser parser;
 	parser.loadGrammer(grammerInputFileString);
 	//std::cout << "Creating State Set from Main" << std::endl;
-	std::cout << "\nState Set" << std::endl;
-	parser.createStateSet();
+	//std::cout << "\nState Set" << std::endl;
+
+	//Start binary stuff
+	bool compGramGood = false;
+	if (compiledGrammerInFile.is_open()) {
+		std::cout << "Compiled grammer file exists, reading it in" << std::endl;
+		std::streampos compGramSize = compiledGrammerInFile.tellg();
+		char* binaryTablePointer = new char [compGramSize];
+		compiledGrammerInFile.seekg(0, std::ios::beg);
+		compiledGrammerInFile.read(binaryTablePointer, compGramSize);
+		compiledGrammerInFile.close();
+		//Check magic number
+		if (binaryTablePointer[0] == 'K' && binaryTablePointer[1] == 'R' && binaryTablePointer[2] == 'A' && binaryTablePointer[3] == 'K') {
+			std::cout << "Valid Kraken Compiled Grammer File" << std::endl;
+			int gramStringLength = *((int*)(binaryTablePointer+4));
+			//std::cout << "The grammer string is stored to be " << gramStringLength << " characters long, gramString is "
+			//<< grammerInputFileString.length() << " long. Remember 1 extra for null terminator!" << std::endl;
+			if (grammerInputFileString.length() != gramStringLength-1 ||
+				(strncmp(grammerInputFileString.c_str(), (binaryTablePointer+4+sizeof(int)), gramStringLength) != 0)) {
+				//(one less for null terminator that is stored)
+				std::cout << "The Grammer has been changed, will re-create" << std::endl;
+			} else {
+				compGramGood = true;
+				std::cout << "Grammer file is up to date." << std::endl;
+				//int tableLength = *((int*)(binaryTablePointer + 4 + sizeof(int) + gramStringLength));
+				parser.importTable(binaryTablePointer + 4 + sizeof(int) + gramStringLength); //Load table starting at the table section
+			}
+		} else {
+			std::cout << grammerFileString << ".comp is NOT A Valid Kraken Compiled Grammer File, aborting" << std::endl;
+			return -1;
+		}
+		delete binaryTablePointer;
+	}
+
+	if (!compGramGood) {
+		//The load failed because either the file does not exist or it is not up-to-date.
+		std::cout << "Compiled grammer file does not exist or is not up-to-date, generating table and writing it out" << std::endl;
+		compiledGrammerOutFile.open(grammerFileString + ".comp", std::ios::binary);
+		if (!compiledGrammerOutFile.is_open())
+			std::cout << "Could not open compiled file to write either!" << std::endl;
+		compiledGrammerOutFile.write("KRAK", sizeof(char)*4); 	//Let us know when we load it that this is a kraken grammer file, but don't write out
+		compiledGrammerOutFile.flush();							// the grammer txt until we create the set, so that if we fail creating it it won't look valid
+		parser.createStateSet();
+		int* intBuffer = new int;
+		*intBuffer = grammerInputFileString.length()+1;
+		compiledGrammerOutFile.write((char*)intBuffer, sizeof(int));
+		delete intBuffer;
+		compiledGrammerOutFile.write(grammerInputFileString.c_str(), grammerInputFileString.length()+1); //Don't forget null terminator
+
+		parser.exportTable(compiledGrammerOutFile);
+		compiledGrammerOutFile.close();
+	}
+	//End binary stuff
+
 	//std::cout << "finished State Set from Main" << std::endl;
 	//std::cout << "Doing stateSetToString from Main" << std::endl;
 	// std::cout << "\n\n\n\n\n\n\n\n\n\nState Set toString" << std::endl;
 	// std::cout << parser.stateSetToString() << std::endl;
-	// std::cout << "finished stateSetToString from Main" << std::endl;
+ 	// std::cout << "finished stateSetToString from Main" << std::endl;
 	// std::cout << "\n\n\n\n\n\n\n\n\n\nTable" << std::endl;
 	// std::cout << parser.tableToString() << std::endl;
 	// std::cout << "\n\n\n\n\n\n\n\n\n\nGrammer Input File" << std::endl;
@@ -100,72 +134,24 @@ int main(int argc, char* argv[]) {
 	//outFile << parser.grammerToDOT() << std::endl;
 	std::cout << "\nParsing" << std::endl;
 
-	std::cout << programInputFileString << std::endl;
-	NodeTree<Symbol>* parseTree = parser.parseInput(programInputFileString);
+	Importer importer(&parser);
 
-	if (parseTree) {
-		//std::cout << parseTree->DOTGraphString() << std::endl;
-		outFile << parseTree->DOTGraphString() << std::endl;
-	} else {
-		std::cout << "ParseTree returned from parser is NULL!" << std::endl;
-	}
-	outFile.close();
+	/*NodeTree<ASTData>* AST =*/
+	importer.import(programName);
+	std::map<std::string, NodeTree<ASTData>*> ASTs = importer.getASTMap();
 
-	//Pre AST Transformations
-	std::vector<NodeTransformation<Symbol, Symbol>*> preASTTransforms;
-	//Remove Transformations
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("WS", false)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("\\(", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("\\)", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("::", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol(";", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("{", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("}", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("import", true))); //Don't need the actual text of the symbol
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("interpreter_directive", false)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("if", true)));
-	preASTTransforms.push_back(new RemovalTransformation<Symbol>(Symbol("while", true)));
-	//Collapse Transformations
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_typed_parameter_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_parameter_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("opt_import_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("import_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("function_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("statement_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("parameter_list", false)));
-	preASTTransforms.push_back(new CollapseTransformation<Symbol>(Symbol("typed_parameter_list", false)));
-
-	for (int i = 0; i < preASTTransforms.size(); i++) {
-		parseTree = preASTTransforms[i]->transform(parseTree);
-	}
-	preASTTransforms.erase(preASTTransforms.begin(), preASTTransforms.end());
-
-	NodeTree<ASTData>* AST = ASTTransformation().transform(parseTree);
-	//NodeTree<ASTData>* AST = (new ASTTransformation())->transform(parseTree);
-
-	if (parseTree) {
-		outFileTransformed << parseTree->DOTGraphString() << std::endl;
-	} else {
-		std::cout << "Tree returned from transformation is NULL!" << std::endl;
-	}
-	outFileTransformed.close();
-
-	if (AST) {
-		outFileAST << AST->DOTGraphString() << std::endl;
-	} else {
-		std::cout << "Tree returned from ASTTransformation is NULL!" << std::endl;
-	}
-	outFileAST.close();
-
-	//Do type checking, scope creation, etc. here.
-	//None at this time, instead going strait to C in this first (more naive) version
+	//Do optomization, etc. here.
+	//None at this time, instead going straight to C in this first (more naive) version
 
 	//Code generation
 	//For right now, just C
+
+	CGenerator().generateCompSet(ASTs, outputName);
+	/*
 	std::string c_code = CGenerator().generate(AST);
 	outFileC << c_code << std::endl;
-	outFileC.close();	
-
+	outFileC.close();
+*/
 	return(0);
 }
  

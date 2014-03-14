@@ -75,7 +75,7 @@ std::string StringReader::getTokens(const char *stop_chars, bool truncateEnd)
     {
         //End of String
         end_reached = true;
-        std::cout << "Reached end of file!\n";
+        //std::cout << "Reached end of file!\n";
         return "";
     } else {
 

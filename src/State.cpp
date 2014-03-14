@@ -79,12 +79,9 @@ void State::combineStates(State &other) {
 
 std::vector<ParseRule*>* State::getTotal() {
 	total.clear();
-	for (std::vector<ParseRule*>::size_type i = 0; i < basis.size(); i++) {
-		total.push_back(basis[i]);
-	}
-	for (std::vector<ParseRule*>::size_type i = 0; i < remaining.size(); i++) {
-		total.push_back(remaining[i]);
-	}
+	//std::cout << "Vector will be " << basis.size() << " + " << remaining.size() << std::endl;
+	total.insert(total.begin(), basis.begin(), basis.end());
+	total.insert(total.end(), remaining.begin(), remaining.end());
 	return(&total);
 }
 std::vector<ParseRule*>* State::getBasis() {
@@ -111,6 +108,7 @@ void State::addRuleCombineLookahead(ParseRule* rule) {
 		if (rule->equalsExceptLookahead(*(total[i]))) {
 			total[i]->addLookahead(rule->getLookahead());
 			alreadyIn = true;
+			break;
 		}
 	}
 	if (!alreadyIn)
@@ -160,4 +158,8 @@ std::vector<State*>* State::getDeepParents(int depth) {
 		recursiveParents->insert(recursiveParents->end(), recursiveParentsToAdd->begin(), recursiveParentsToAdd->end());
 	}
 	return recursiveParents;
+}
+
+int State::getNumber() {
+	return number;
 }

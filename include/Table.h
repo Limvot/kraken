@@ -1,3 +1,5 @@
+#include <fstream>
+
 #include "util.h"
 #include "ParseRule.h"
 #include "ParseAction.h"
@@ -11,6 +13,8 @@ class Table {
 	public:
 		Table();
 		~Table();
+		void exportTable(std::ofstream &file);
+		void importTable(char* tableData);
 		void setSymbols(Symbol EOFSymbol, Symbol nullSymbol);
 		void add(int stateNum, Symbol tranSymbol, ParseAction* action);
 		void remove(int stateNum, Symbol tranSymbol);

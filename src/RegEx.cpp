@@ -3,46 +3,55 @@
 
 RegEx::RegEx(std::string inPattern) {
 	pattern = inPattern;
-	construct();
-	deperenthesize();
+	std::vector<RegExState*> ending;
+	begin = construct(&ending, inPattern);
+	//last one is goal state, add it to the end of all of these last states
+	for (std::vector<RegExState*>::size_type i = 0; i < ending.size(); i++)
+		ending[i]->addNext(NULL);
 }
 
-void RegEx::construct() {
-	std::vector<RegExState*> previousStates;
-	std::vector<RegExState*> currentStates;
-	std::stack<std::pair<std::vector<RegExState*>, std::vector<RegExState*> > > perenStack;
+RegExState* RegEx::construct(std::vector<RegExState*>* ending, std::string pattern) {
+	//In the RegEx re-write, instead of doing complicated unperenthesising, we keep track of both the "front" and the "end" of a state.
+	//(these could be different if the state is perenthesezed)
+	std::vector<RegExState*> previousStatesBegin;
+	std::vector<RegExState*> previousStatesEnd;
+	std::vector<RegExState*> currentStatesBegin;
+	std::vector<RegExState*> currentStatesEnd;
+
 	bool alternating = false;
-	begin = new RegExState();
-	currentStates.push_back(begin);
+	RegExState* begin = new RegExState();
+	currentStatesBegin.push_back(begin);
+	currentStatesEnd.push_back(begin);
+
 	for (int i = 0; i < pattern.length(); i++) {
 		switch (pattern[i]) {
 			case '*':
 			{
 				//std::cout << "Star at " << i << " in " << pattern << std::endl;
-				// for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++)
-				// 	for (std::vector<RegExState*>::size_type k = 0; k < currentStates.size(); k++)
-				// 		currentStates[j]->addNext(currentStates[k]);
-				currentStates[currentStates.size()-1]->addNext(currentStates[currentStates.size()-1]);
+				//NOTE: Because of the re-write, this is necessary again
+				for (std::vector<RegExState*>::size_type j = 0; j < currentStatesEnd.size(); j++)
+					for (std::vector<RegExState*>::size_type k = 0; k < currentStatesBegin.size(); k++)
+						currentStatesEnd[j]->addNext(currentStatesBegin[k]); //Make the ends point to the beginnings
 				//add all previous states to current states to enable skipping over the starred item
-				currentStates.insert(currentStates.end(), previousStates.begin(), previousStates.end());
+				currentStatesBegin.insert(currentStatesBegin.end(), previousStatesBegin.begin(), previousStatesBegin.end());
+				currentStatesEnd.insert(currentStatesEnd.end(), previousStatesEnd.begin(), previousStatesEnd.end());
 			}
 				break;
 			case '+':
 			{
 				//std::cout << "Plus at " << i << " in " << pattern << std::endl;
-				//OtherThingy
-				//current->addNext(current);
-				// for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++)
-				// 	for (std::vector<RegExState*>::size_type k = 0; k < currentStates.size(); k++)
-				// 		currentStates[j]->addNext(currentStates[k]);
-				currentStates[currentStates.size()-1]->addNext(currentStates[currentStates.size()-1]);
+				//NOTE: Because of the re-write, this is necessary again
+				for (std::vector<RegExState*>::size_type j = 0; j < currentStatesEnd.size(); j++)
+					for (std::vector<RegExState*>::size_type k = 0; k < currentStatesBegin.size(); k++)
+						currentStatesEnd[j]->addNext(currentStatesBegin[k]); //Make the ends point to the beginnings
 			}
 				break;
 			case '?':
 			{
 				//std::cout << "Question at " << i << " in " << pattern << std::endl;
 				//add all previous states to current states to enable skipping over the questioned item
-				currentStates.insert(currentStates.end(), previousStates.begin(), previousStates.end());
+				currentStatesBegin.insert(currentStatesBegin.end(), previousStatesBegin.begin(), previousStatesBegin.end());
+				currentStatesEnd.insert(currentStatesEnd.end(), previousStatesEnd.begin(), previousStatesEnd.end());
 			}
 				break;
 			case '|':
@@ -57,59 +66,31 @@ void RegEx::construct() {
 			{
 				//std::cout << "Begin peren at " << i << " in " << pattern << std::endl;
 				//perentheses
-				//Create a peren node with an inner empty node
-				RegExState* next = new RegExState(new RegExState());
-
+				std::vector<RegExState*> innerEnds;
+				int perenEnd = findPerenEnd(pattern, i);
+				RegExState* innerBegin = construct(&innerEnds, strSlice(pattern, i+1, perenEnd));
+				i = perenEnd;
+				std::vector<RegExState*> innerBegins = *(innerBegin->getNextStates());
 				if (alternating) {
-					for (std::vector<RegExState*>::size_type j = 0; j < previousStates.size(); j++)
-						previousStates[j]->addNext(next);
-
-					//Save both current states here as well as the current preren
-					std::vector<RegExState*> savePreviousStates = previousStates;
-					currentStates.push_back(next);
-					std::vector<RegExState*> saveCurrentStates = currentStates;
-					perenStack.push(std::make_pair(savePreviousStates, saveCurrentStates));
-
-					previousStates.clear();
-					currentStates.clear();
-					currentStates.push_back(next->getInner());
-					alternating = false;
+					for (std::vector<RegExState*>::size_type j = 0; j < previousStatesEnd.size(); j++)
+						for (std::vector<RegExState*>::size_type k = 0; k < innerBegins.size(); k++)
+							previousStatesEnd[j]->addNext(innerBegins[k]);
+					currentStatesBegin.insert(currentStatesBegin.end(), innerBegins.begin(), innerBegins.end());
+					currentStatesEnd.insert(currentStatesEnd.end(), innerEnds.begin(), innerEnds.end());
 				} else {
-					for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++)
-						currentStates[j]->addNext(next);
-
-					//Save both current states here as well as the current preren
-					std::vector<RegExState*> savePreviousStates = currentStates;
-					currentStates.clear();
-					currentStates.push_back(next);
-					std::vector<RegExState*> saveCurrentStates = currentStates;
-					perenStack.push(std::make_pair(savePreviousStates, saveCurrentStates));
-
-					previousStates.clear();
-					currentStates.clear();
-					currentStates.push_back(next->getInner());
+					for (std::vector<RegExState*>::size_type j = 0; j < currentStatesEnd.size(); j++)
+						for (std::vector<RegExState*>::size_type k = 0; k < innerBegins.size(); k++)
+							currentStatesEnd[j]->addNext(innerBegins[k]);
+					previousStatesBegin = currentStatesBegin;
+					previousStatesEnd = currentStatesEnd;
+					currentStatesBegin = innerBegins;
+					currentStatesEnd = innerEnds;
 				}
-				//std::cout << "Peren is " << next << " Inner is " << currentStates[0] << " = " << next->getInner() << std::endl;
+				alternating = false;
 			}
 				break;
 
-			case ')':
-			{
-				//std::cout << "End peren at " << i << " in " << pattern << std::endl;
-				//perentheses
-				//Pop off the states that will now be the previous states and the peren node which will now be the current node
-				std::pair<std::vector<RegExState*>, std::vector<RegExState*> > savedPair = perenStack.top();
-				perenStack.pop();
-				//Make the it so
-				previousStates = savedPair.first;
-				//Make sure the end of the inner stuff points back to the peren node
-				for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++)
-					currentStates[j]->addNext(savedPair.second[savedPair.second.size()-1]);
-					//currentStates[j]->addNext(*(savedPair.second.end()));
-				currentStates.clear();
-				currentStates = savedPair.second;
-			}
-				break;
+			// ) does not need a case as we skip over it after finding it in ('s case
 
 			case '\\':
 			{
@@ -124,109 +105,33 @@ void RegEx::construct() {
 				RegExState* next = new RegExState(pattern[i]);
 				//If we're alternating, add next as the next for each previous state, and add self to currentStates
 				if (alternating) {
-					for (std::vector<RegExState*>::size_type j = 0; j < previousStates.size(); j++) {
-						previousStates[j]->addNext(next);
-						//std::cout << "Adding " << next << ", which is " << pattern[i] << " to " << previousStates[j] << std::endl;
-					}
-					currentStates.push_back(next);
+					for (std::vector<RegExState*>::size_type j = 0; j < previousStatesEnd.size(); j++)
+						previousStatesEnd[j]->addNext(next);
+					currentStatesBegin.push_back(next);
+					currentStatesEnd.push_back(next);
 					alternating = false;
 				} else {
 					//If we're not alternating, add next as next for all the current states, make the current states the new
 					//previous states, and add ourself as the new current state.
-					for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++) {
-						currentStates[j]->addNext(next);
-						//std::cout << "Adding " << next << ", which is " << pattern[i] << " to " << currentStates[j] << std::endl;
-					}
-					previousStates.clear();
-					previousStates = currentStates;
-					currentStates.clear();
-					currentStates.push_back(next);
+					for (std::vector<RegExState*>::size_type j = 0; j < currentStatesEnd.size(); j++)
+						currentStatesEnd[j]->addNext(next);
+
+					previousStatesBegin.clear();
+					previousStatesEnd.clear();
+					previousStatesBegin = currentStatesBegin;
+					previousStatesEnd = currentStatesEnd;
+					currentStatesBegin.clear();
+					currentStatesEnd.clear();
+					currentStatesBegin.push_back(next);
+					currentStatesEnd.push_back(next);
 				}
 			}
 		}
 	}
-	//last one is goal state
-	for (std::vector<RegExState*>::size_type i = 0; i < currentStates.size(); i++)
-		currentStates[i]->addNext(NULL);
+	(*ending) = currentStatesEnd;
+	return(begin);
 }
 
-void RegEx::deperenthesize() {
-	//std::cout << "About to de-perenthesize " << begin->toString() << std::endl;
-
-	//Now go through and expand the peren nodes to regular nodes
-	std::vector<RegExState*> processedStates;
-	std::vector<RegExState*> statesToProcess;
-	statesToProcess.push_back(begin);
-	for (std::vector<RegExState*>::size_type i = 0; i < statesToProcess.size(); i++) {
-		//Don't process null (sucess) state
-		if (statesToProcess[i] == NULL)
-			continue;
-		std::vector<RegExState*>* nextStates = statesToProcess[i]->getNextStates();
-		for (std::vector<RegExState*>::size_type j = 0; j < nextStates->size(); j++) {
-			if ((*nextStates)[j] != NULL && (*nextStates)[j]->getInner() != NULL) {
-				//Fix all the next references pointing to the peren node to point to the inner nodes. (if more than one, push back to add others)
-				std::vector<RegExState*>* insideNextStates = (*nextStates)[j]->getInner()->getNextStates();
-				//std::cout << "insideNextStates = " << insideNextStates << " [0] " << (*insideNextStates)[0] << std::endl;
-				RegExState* perenState = (*nextStates)[j];
-				(*nextStates)[j] = (*insideNextStates)[0];
-				//std::cout << "So now nextstates[j] = " << (*nextStates)[j] << std::endl;
-				for (std::vector<RegExState*>::size_type k = 1; k < insideNextStates->size(); k++)
-					nextStates->push_back((*insideNextStates)[k]);
-				//std::cout << "Replaced beginning: " << begin->toString() << std::endl;
-				//Now, if the peren node is self-referential (has a repitition operator after i), fix it's self-references in the same manner
-				std::vector<RegExState*>* perenNextNodes = perenState->getNextStates();
-				for (std::vector<RegExState*>::size_type k = 0; k < perenNextNodes->size(); k++) {
-					if ((*perenNextNodes)[k] == perenState) {
-						(*perenNextNodes)[k] = (*insideNextStates)[0];
-						for (std::vector<RegExState*>::size_type l = 1; l < insideNextStates->size(); l++)
-							perenNextNodes->push_back((*insideNextStates)[l]);
-					}
-				}
-				//std::cout << "Fixed self-references: " << begin->toString() << std::endl;
-				//Need to fix the end too
-				std::vector<RegExState*> traversalList;
-				traversalList.push_back(perenState->getInner());
-				for (std::vector<RegExState*>::size_type k = 0; k < traversalList.size(); k++) {
-					std::vector<RegExState*>* nextTraversalStates = traversalList[k]->getNextStates();
-					//std::cout << "Traversing! nextTraversalStates from traversalList " << traversalList[k]  << " char = " << traversalList[k]->getCharacter() << std::endl;
-					//std::cout << "with children:" << std::endl;
-					//for (std::vector<RegExState*>::size_type l = 0; l < nextTraversalStates->size(); l++)
-					//	std::cout << "\t\"" << (*nextTraversalStates)[l]->getCharacter() << "\"" << std::endl;
-					//std::cout << std::endl; 
-					for (std::vector<RegExState*>::size_type l = 0; l < nextTraversalStates->size(); l++) {
-						//If this node is equal to the peren node we came from, then that means we've reached the end of the inner part of the peren
-						//And we now replace this reference with the next nodes from the peren node
-						//std::cout << "Traversal Next is on " << (*nextTraversalStates)[l]->getCharacter() << std::endl;
-						if ((*nextTraversalStates)[l] == perenState) {
-						//	std::cout << "nextTraversalStates[l] = to perenState!" << std::endl;
-							std::vector<RegExState*> endPerenNextStates = *(perenState->getNextStates());
-							(*nextTraversalStates)[l] = endPerenNextStates[0];
-							for (std::vector<RegExState*>::size_type n = 1; n < endPerenNextStates.size(); n++)
-								nextTraversalStates->push_back(endPerenNextStates[n]);
-							//Now make sure we don't now try to continue through and end up processing stuff we just replaced the peren reference with
-							break;
-						} else {
-							traversalList.push_back((*nextTraversalStates)[l]);
-						}
-					}
-				}
-			}
-		}
-		//Now add all these next states to process, only if they haven't already been processed
-		for (std::vector<RegExState*>::size_type j = 0; j < nextStates->size(); j++) {
-			bool inCurrStates = false;
-			for (std::vector<RegExState*>::size_type k = 0; k < statesToProcess.size(); k++) {
-				if ((*nextStates)[j] == statesToProcess[k])
-					inCurrStates = true;
-			}
-			if (!inCurrStates) {
-				statesToProcess.push_back((*nextStates)[j]);
-				//std::cout << (*nextStates)[j] << "Is not in states to process" << std::endl;
-			}
-		}
-	}
-	//std::cout << "Finished de-perenthesization " << begin->toString() << std::endl;
-}
 
 RegEx::~RegEx() {
 	//No cleanup necessary
@@ -308,6 +213,17 @@ void RegEx::test() {
     {
         RegEx re("a(bc)?");
         assert(re.longMatch("ab") == 1);
+    }
+
+    {
+    	RegEx re("((ab)|c)*");
+    	assert(re.longMatch("ababc") == 5);
+    	assert(re.longMatch("ad") == 0);
+    	assert(re.longMatch("ababccd") == 6);
+    }
+    {
+    	RegEx re("bbb((bba+)|(ba+))*a*((a+b)|(a+bb)|(a+))*bbb") ;
+    	assert(re.longMatch("bbbababbbaaaaaaaaaaaaaaaaaaabbb") == 9);
     }
 
     std::cout << "RegEx tests pass\n";

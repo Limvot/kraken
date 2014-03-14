@@ -39,6 +39,8 @@ class RNGLRParser: public Parser {
 
 		std::vector<NodeTree<Symbol>*> getPathEdges(std::vector<NodeTree<int>*> path);
 
+		int findLine(int tokenNum); //Get the line number for a token, used for error reporting
+
 		std::vector<Symbol> input;
 		GraphStructuredStack gss;
 		//start node, lefthand side of the reduction, reduction length

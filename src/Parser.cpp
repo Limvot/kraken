@@ -7,6 +7,16 @@ Parser::Parser() : EOFSymbol("$EOF$", true), nullSymbol("$NULL$", true), invalid
 Parser::~Parser() {
 }
 
+void Parser::exportTable(std::ofstream &file) {
+	//Do table
+	table.exportTable(file);
+}
+void  Parser::importTable(char* tableData) {
+	//Do table
+	table.importTable(tableData);
+	return;
+}
+
 Symbol Parser::getOrAddSymbol(std::string symbolString, bool isTerminal) {
 	Symbol symbol;
 	std::pair<std::string, bool> entry = std::make_pair(symbolString, isTerminal);
@@ -68,7 +78,7 @@ void Parser::loadGrammer(std::string grammerInputString) {
 		//Get next token
 		currToken = reader.word();
 	}
-	std::cout << "Parsed!\n";
+	//std::cout << "Parsed!\n";
 
 	// for (std::vector<ParseRule*>::size_type i = 0; i < loadedGrammer.size(); i++)
 	// 	std::cout << loadedGrammer[i]->toString() << std::endl;
@@ -88,7 +98,7 @@ void Parser::createStateSet() {
 	std::queue<State*>* toDo = new std::queue<State*>();
 	toDo->push(zeroState);
 	//std::cout << "Begining for main set for loop" << std::endl;
-	while (toDo->front()) {
+	while (toDo->size()) {
 		//closure
 		closure(toDo->front());
 		//Add the new states
@@ -181,7 +191,7 @@ std::vector<Symbol>* Parser::incrementiveFollowSet(ParseRule* rule) {
 			}
 		}
 		followSet->insert(followSet->end(), symbolFirstSet->begin(), symbolFirstSet->end());
-		//delete symbolFirstSet;
+		delete symbolFirstSet;
 		rule->advancePointer();
 	}
 	if (rule->isAtEnd()) {
@@ -209,10 +219,13 @@ void Parser::closure(State* state) {
 	std::vector<ParseRule*>* stateTotal = state->getTotal();
 	for (std::vector<ParseRule*>::size_type i = 0; i < stateTotal->size(); i++) {
 		ParseRule* currentStateRule = (*stateTotal)[i];
+		//If it's at it's end, move on. We can't advance it.
+		if(currentStateRule->isAtEnd())
+			continue;
 		for (std::vector<ParseRule*>::size_type j = 0; j < loadedGrammer.size(); j++) {
 			//If the current symbol in the rule is not null (rule completed) and it equals a grammer's left side
 			ParseRule* currentGramRule = loadedGrammer[j]->clone();
-			if ( !currentStateRule->isAtEnd() && currentStateRule->getAtNextIndex() == currentGramRule->getLeftSide()) {
+			if (currentStateRule->getAtNextIndex() == currentGramRule->getLeftSide()) {
 				//std::cout << (*stateTotal)[i]->getAtNextIndex()->toString() << " has an applicable production " << loadedGrammer[j]->toString() << std::endl;
 				//Now, add the correct lookahead. This followSet is built based on the current rule's lookahead if at end, or the next Symbol's first set.
 				//std::cout << "Setting lookahead for " << currentGramRule->toString() << " in state " << state->toString() << std::endl;
@@ -225,6 +238,7 @@ void Parser::closure(State* state) {
 						//std::cout << (*stateTotal)[k]->toString() << std::endl;
 						(*stateTotal)[k]->addLookahead(currentGramRule->getLookahead());
 						isAlreadyInState = true;
+						delete currentGramRule;
 						break;
 					}
 				}
@@ -311,7 +325,7 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state, std::queu
 std::string Parser::stateSetToString() {
 	std::string concat = "";
 	for (std::vector< State *>::size_type i = 0; i < stateSets.size(); i++) {
-		concat += stateSets[i]->toString();
+		concat += intToString(i) + " is " + stateSets[i]->toString();
 	}
 	return concat;
 }

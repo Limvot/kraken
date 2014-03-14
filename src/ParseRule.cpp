@@ -29,7 +29,12 @@ const bool ParseRule::operator!=(const ParseRule &other) {
 }
 
 ParseRule* ParseRule::clone() {
-	return( new ParseRule(leftHandle, pointerIndex, rightSide, lookahead) );
+	std::vector<Symbol>* newLookahead = NULL;
+	if (lookahead) {
+		newLookahead = new std::vector<Symbol>();
+		*newLookahead = *lookahead;
+	}
+	return( new ParseRule(leftHandle, pointerIndex, rightSide, newLookahead) );
 }
 
 void ParseRule::setLeftHandle(Symbol leftHandle) {
