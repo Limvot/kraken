@@ -29,7 +29,9 @@ triple_quoted_string = "\"\"\"((\"\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i
 
 identifier = alpha | alpha alphanumeric ;
 
-function = type WS identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block ;
+overloadable_operator = "\+" | "-" | "\*" | "/" | "%" | "^" | "&" | "\|" | "~" | "\!" | "," | "=" | "\+\+" | "--" | "<<" | ">>" | "==" | "!=" | "&&" | "\|\|" | "\+=" | "-=" | "/=" | "%=" | "^=" | "&=" | "\|=" | "\*=" | "<<=" | ">>=" | "->" ;
+func_identifier = identifier | identifier overloadable_operator ;
+function = type WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block ;
 
 opt_typed_parameter_list = typed_parameter_list | ;
 typed_parameter_list = typed_parameter_list WS "," WS typed_parameter | typed_parameter ;
@@ -89,5 +91,5 @@ string = triple_quoted_string | "\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|
 |z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )*\"" ;
 
 comment = "//(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )*
-" | "/\*(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
-|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )*\*/" ;
+" | "(/\*+((`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+|z|x|c|v|b|n|m|,|.|~|!|@|#|$|%|^|&|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )/*\**)+\*/)|(/\*\*/)" ;

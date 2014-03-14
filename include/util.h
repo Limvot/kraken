@@ -24,4 +24,16 @@ bool contains(std::vector<T> vec, T item) {
     return false;
 }
 
+template <typename T>
+std::vector<T> slice(std::vector<T> vec, int begin, int end) {
+    std::vector<T> toReturn;
+    if (begin < 0)
+        begin += vec.size()+1;
+    if (end < 0)
+        end += vec.size()+1;
+    for (int i = begin; i < end; i++)
+    	toReturn.push_back(vec[i]);
+    return toReturn;
+}
+
 #endif

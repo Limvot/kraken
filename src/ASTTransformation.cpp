@@ -122,7 +122,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			skipChildren.insert(1);
 			std::vector<NodeTree<ASTData>*> transformedChildren = transformChildren(children, skipChildren, scope, types);
 			std::string functionCallString = concatSymbolTree(children[1]);
-			NodeTree<ASTData>* function = scopeLookup(scope, functionCallString, mapNodesToTypes(transformedChildren));
+			NodeTree<ASTData>* function = scopeLookup(scope, functionCallString, transformedChildren);
 			if (function == NULL) {
 				std::cout << "scope lookup error! Could not find " << functionCallString << " in boolean stuff " << std::endl;
 				throw "LOOKUP ERROR: " + functionCallString; 
@@ -150,7 +150,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			std::string functionCallName = concatSymbolTree(children[1]);
 			//std::cout << "scope lookup from expression or similar" << std::endl;
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(lhs); transformedChildren.push_back(rhs);
-			NodeTree<ASTData>* function = scopeLookup(scope, functionCallName, mapNodesToTypes(transformedChildren));
+			NodeTree<ASTData>* function = scopeLookup(scope, functionCallName, transformedChildren);
 			if (function == NULL) {
 				std::cout << "scope lookup error! Could not find " << functionCallName << " in expression " << std::endl;
 				throw "LOOKUP ERROR: " + functionCallName; 
@@ -189,7 +189,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 
 			//std::cout << "scope lookup from factor" << std::endl;
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(param);
-			NodeTree<ASTData>* function = scopeLookup(scope, funcName, mapNodesToTypes(transformedChildren));
+			NodeTree<ASTData>* function = scopeLookup(scope, funcName, transformedChildren);
 			if (function == NULL) {
 				std::cout << "scope lookup error! Could not find " << funcName  << " in factor " << std::endl;
 				throw "LOOKUP ERROR: " + funcName; 
@@ -229,7 +229,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(lhs); transformedChildren.push_back(rhs);
 			std::string functionName = assignFuncName.substr(0,1);
 			NodeTree<ASTData>* childCall = new NodeTree<ASTData>(functionName, ASTData(function_call, Symbol(functionName, true)));
-			NodeTree<ASTData>* functionDef = scopeLookup(scope, functionName, mapNodesToTypes(transformedChildren));
+			NodeTree<ASTData>* functionDef = scopeLookup(scope, functionName, transformedChildren);
 			if (functionDef == NULL) {
 				std::cout << "scope lookup error! Could not find " << functionName  << " in assignment_statement " << std::endl;
 				throw "LOOKUP ERROR: " + functionName; 
@@ -362,10 +362,53 @@ std::string ASTTransformation::concatSymbolTree(NodeTree<Symbol>* root) {
 	return concatString;
 }
 
+//Overloaded with the actual children to allow us to handle operator methods
+NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<NodeTree<ASTData>*> nodes) {
+	//
+	auto LLElementIterator = languageLevelScope.find(lookup);
+	if (LLElementIterator != languageLevelScope.end()) {
+		std::cout << "Checking for early method level operator overload" << std::endl;
+		std::string lookupOp = "operator" + lookup;
+		for (auto i : nodes)
+			std::cout << i->getDataRef()->toString() << " ";
+		std::cout << std::endl;
+		NodeTree<ASTData>* operatorMethod = NULL;
+		if (nodes[0]->getDataRef()->valueType && nodes[0]->getDataRef()->valueType->typeDefinition)
+			operatorMethod = scopeLookup(nodes[0]->getDataRef()->valueType->typeDefinition, lookupOp, mapNodesToTypes(slice(nodes,1,-1)));
+		if (operatorMethod) {
+			//Ok, so we construct 
+			std::cout << "Early method level operator was found" << std::endl;
+			//return operatorMethod;
+			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
+			newNode->addChild(function); // First child of function call is a link to the function definition
+			newNode->addChild(lhs);
+			newNode->addChild(rhs);
+
+
+			//Set the value of this function call
+			if (function->getDataRef()->valueType)
+				newNode->getDataRef()->valueType = function->getDataRef()->valueType;
+			else if (rhs->getDataRef()->valueType)
+				newNode->getDataRef()->valueType = rhs->getDataRef()->valueType;
+			else
+				newNode->getDataRef()->valueType = NULL;
+		}
+		std::cout << "Early method level operator was NOT found" << std::endl;
+	}
+	return scopeLookup(scope, lookup, mapNodesToTypes(nodes));
+}
+
 NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type> types) {
+	//We first search the languageLevelScope to see if it's an operator. If so, we modifiy the lookup with a preceding "operator"
+	auto LLElementIterator = languageLevelScope.find(lookup);
+	if (LLElementIterator != languageLevelScope.end())
+		lookup = "operator" + lookup;
 	//Search the map
 	auto scopeMap = scope->getDataRef()->scope;
 	auto elementIterator = scopeMap.find(lookup);
+	for (auto i : scopeMap)
+		std::cout << i.first << " ";
+	std::cout << std::endl;
 	//
 	if (elementIterator != scopeMap.end()) {
 		for (auto i = elementIterator->second.begin(); i != elementIterator->second.end(); i++) {
@@ -374,7 +417,7 @@ NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std:
 				return *i;
 			//return *i;
 			std::vector<NodeTree<ASTData>*> children = (*i)->getChildren();
-			if (types.size() != (children.size() > 0) ? children.size()-1 : 0) {
+			if (types.size() != ((children.size() > 0) ? children.size()-1 : 0)) {
 				std::cout << "Type sizes do not match between two " << lookup << "(" << types.size() << "," << ((children.size() > 0) ? children.size()-1 : 0) << "), types are: ";
 				for (auto j : types)
 					std::cout << j.toString() << " ";
@@ -398,16 +441,19 @@ NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std:
 	auto enclosingIterator = scopeMap.find("~enclosing_scope");
 	if (enclosingIterator != scopeMap.end()) {
 	//	std::cout << "upper scope exists, searching it for " << lookup << std::endl;
-		return scopeLookup(enclosingIterator->second[0], lookup, types);
+		NodeTree<ASTData>* upperResult = scopeLookup(enclosingIterator->second[0], lookup, types);
+		if (upperResult)
+			return upperResult;
 	}
 	//std::cout << "upper scope does not exist" << std::endl;
 	std::cout << "could not find " << lookup << " in standard scope, checking for operator" << std::endl;
 	//Note that we don't check for types. At some point we should, as we don't know how to add objects/structs without overloaded operators, etc
-	elementIterator = languageLevelScope.find(lookup);
-	if (elementIterator != languageLevelScope.end()) {
+	//Also, we've already searched for the element because this is also how we keep track of operator overloading
+	if (LLElementIterator != languageLevelScope.end()) {
 		std::cout << "found it at language level as operator." << std::endl;
-		return elementIterator->second[0];
+		return LLElementIterator->second[0];
 	}
+	std::cout << "Did not find, returning NULL" << std::endl;
 	return NULL;
 }
 

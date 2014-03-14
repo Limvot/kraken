@@ -20,6 +20,7 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		std::vector<NodeTree<ASTData>*> transformChildren(std::vector<NodeTree<Symbol>*> children, std::set<int> skipChildren, NodeTree<ASTData>* scope, std::vector<Type> types);
 		std::vector<Type> mapNodesToTypes(std::vector<NodeTree<ASTData>*> nodes);
 		std::string concatSymbolTree(NodeTree<Symbol>* root);
+		NodeTree<ASTData>* scopeLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<NodeTree<ASTData>*> nodes);
 		NodeTree<ASTData>* scopeLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type> types = std::vector<Type>());
 		Type* typeFromString(std::string type, NodeTree<ASTData>* scope);
 	private:

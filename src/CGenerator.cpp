@@ -70,7 +70,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 								parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], enclosingObject);
 								nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
 							}
-							output += declarationData.symbol.getName() + nameDecoration + "(" + parameters + "); /*func*/\n";
+							output += CifyFunctionName(declarationData.symbol.getName()) + nameDecoration + "(" + parameters + "); /*func*/\n";
 							break;
 						}
 						case type_def:
@@ -104,7 +104,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			if (false)
 				for (int j = 0; j < children.size()-1; j++)
 					preName += ValueTypeToCType(children[j]->getData().valueType) + "_";
-			return preName + data.symbol.getName();
+			return preName + CifyFunctionName(data.symbol.getName()); //Cifying does nothing if not an operator overload
 		}
 		case type_def:
 			if (children.size() == 0) {
@@ -132,7 +132,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				parameters += ValueTypeToCType(children[j]->getData().valueType) + " " + generate(children[j], enclosingObject);
 				nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
 			}
-			output += data.symbol.getName() + nameDecoration + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
+			output += CifyFunctionName(data.symbol.getName()) + nameDecoration + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
 			return output;
 		}
 		case code_block:
@@ -218,7 +218,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 		std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
 					 		for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
 					 			nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
-/*HERE*/				 	return possibleObjectType->getDataRef()->symbol.getName() +"__" + functionName + nameDecoration + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
+/*HERE*/				 	return possibleObjectType->getDataRef()->symbol.getName() +"__" + CifyFunctionName(functionName) + nameDecoration + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
 					 		//The comma lets the upper function call know we already started the param list
 					 		//Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses				 	
 					 	} else {
@@ -240,7 +240,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
 					if (isSelfObjectMethod)
 						output += enclosingObject->getDataRef()->symbol.getName() +"__";
-/*HERE*/			output += name + nameDecoration + "(";
+/*HERE*/			output += CifyFunctionName(name) + nameDecoration + "(";
 				 	if (isSelfObjectMethod)
 				 		output += children.size() > 1 ? "self," : "self";
 				}
@@ -285,8 +285,8 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 		nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
 	}
 	output += "\n" + ValueTypeToCType(data.valueType) + " " + enclosingObject->getDataRef()->symbol.getName() +"__"
-		+ data.symbol.getName() + nameDecoration + "(" + ValueTypeToCType(&enclosingObjectType) + " self" + parameters + ")\n"
-		+ generate(children[children.size()-1], enclosingObject); //Pass in the object so we can 
+		+ CifyFunctionName(data.symbol.getName()) + nameDecoration + "(" + ValueTypeToCType(&enclosingObjectType)
+		+ " self" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject); //Pass in the object so we can properly handle access to member stuff
 	return output;
 }
 
@@ -360,5 +360,49 @@ std::string CGenerator::ValueTypeToCTypeDecoration(Type *type) {
 	for (int i = 0; i < type->indirection; i++)
 		return_type += "_P__";
 	return return_type;
+}
+
+std::string CGenerator::CifyFunctionName(std::string name) {
+	std::string operatorsToReplace[] = { 	"+", "plus",
+											"-", "minus",
+											"*", "star",
+											"/", "div",
+											"%", "mod",
+											"^", "carat",
+											"&", "amprsd",
+											"|", "pipe",
+											"~", "tilde",
+											"!", "exclamationpt",
+											",", "comma",
+											"=", "equals",
+											"++", "doubleplus",
+											"--", "doubleminus",
+											"<<", "doubleleft",
+											">>", "doubleright",
+											"==", "doubleequals",
+											"!=", "notequals",
+											"&&", "doubleamprsnd",
+											"||", "doublepipe",
+											"+=", "plusequals",
+											"-=", "minusequals",
+											"/=", "divequals",
+											"%=", "modequals",
+											"^=", "caratequals",
+											"&=", "amprsdequals",
+											"|=", "pipeequals",
+											"*=", "starequals",
+											"<<=", "doublerightequals",
+											">>=", "doubleleftequals",
+											"->", "arrow" };
+	int length = sizeof(operatorsToReplace)/sizeof(std::string);
+	//std::cout << "Length is " << length << std::endl;
+	for (int i = 0; i < length; i+= 2) {
+		size_t foundPos = name.find(operatorsToReplace[i]);
+		while(foundPos != std::string::npos) {
+			name = strSlice(name, 0, foundPos) + "_" + operatorsToReplace[i+1] + "_" + strSlice(name, foundPos+operatorsToReplace[i].length(), -1);
+			foundPos = name.find(operatorsToReplace[i]);
+		}
+	}
+	return name;
 }
 
