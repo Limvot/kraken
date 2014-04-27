@@ -122,14 +122,15 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			skipChildren.insert(1);
 			std::vector<NodeTree<ASTData>*> transformedChildren = transformChildren(children, skipChildren, scope, types);
 			std::string functionCallString = concatSymbolTree(children[1]);
-			NodeTree<ASTData>* function = scopeLookup(scope, functionCallString, transformedChildren);
+			NodeTree<ASTData>* function = doFunction(scope, functionCallString, transformedChildren);
 			if (function == NULL) {
 				std::cout << "scope lookup error! Could not find " << functionCallString << " in boolean stuff " << std::endl;
 				throw "LOOKUP ERROR: " + functionCallString; 
 			}
-			newNode = new NodeTree<ASTData>(functionCallString, ASTData(function_call, function->getDataRef()->valueType));
-			newNode->addChild(function); // First child of function call is a link to the function
-			newNode->addChildren(transformedChildren);
+			newNode = function;
+			// newNode = new NodeTree<ASTData>(functionCallString, ASTData(function_call, function->getDataRef()->valueType));
+			// newNode->addChild(function); // First child of function call is a link to the function
+			// newNode->addChildren(transformedChildren);
 		} else {
 			//std::cout << children.size() << std::endl;
 			if (children.size() == 0)
@@ -150,20 +151,21 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			std::string functionCallName = concatSymbolTree(children[1]);
 			//std::cout << "scope lookup from expression or similar" << std::endl;
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(lhs); transformedChildren.push_back(rhs);
-			NodeTree<ASTData>* function = scopeLookup(scope, functionCallName, transformedChildren);
+			NodeTree<ASTData>* function = doFunction(scope, functionCallName, transformedChildren);
 			if (function == NULL) {
 				std::cout << "scope lookup error! Could not find " << functionCallName << " in expression " << std::endl;
 				throw "LOOKUP ERROR: " + functionCallName; 
 			}
-			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
-			newNode->addChild(function); // First child of function call is a link to the function definition
-			newNode->addChild(lhs);
-			newNode->addChild(rhs);
+			newNode = function;
+			// newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
+			// newNode->addChild(function); // First child of function call is a link to the function definition
+			// newNode->addChild(lhs);
+			// newNode->addChild(rhs);
 
-			if (name == "access_operation")
-				std::cout << "Access Operation: " << lhs->getDataRef()->symbol.getName() << " : " << rhs->getDataRef()->symbol.getName() << std::endl;
-			std::cout << functionCallName << " - " << function->getName() << " has value type " << function->getDataRef()->valueType  << " and rhs " << rhs->getDataRef()->valueType << std::endl;
-			//Set the value of this function call
+			// if (name == "access_operation")
+			// 	std::cout << "Access Operation: " << lhs->getDataRef()->symbol.getName() << " : " << rhs->getDataRef()->symbol.getName() << std::endl;
+			// std::cout << functionCallName << " - " << function->getName() << " has value type " << function->getDataRef()->valueType  << " and rhs " << rhs->getDataRef()->valueType << std::endl;
+			// //Set the value of this function call
 			if (function->getDataRef()->valueType)
 				newNode->getDataRef()->valueType = function->getDataRef()->valueType;
 			else if (rhs->getDataRef()->valueType)
@@ -189,18 +191,19 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 
 			//std::cout << "scope lookup from factor" << std::endl;
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(param);
-			NodeTree<ASTData>* function = scopeLookup(scope, funcName, transformedChildren);
+			NodeTree<ASTData>* function = doFunction(scope, funcName, transformedChildren);
 			if (function == NULL) {
 				std::cout << "scope lookup error! Could not find " << funcName  << " in factor " << std::endl;
 				throw "LOOKUP ERROR: " + funcName; 
 			}
-			newNode = new NodeTree<ASTData>(funcName, ASTData(function_call, Symbol(funcName, true)));
-			newNode->addChild(function);
-			newNode->addChild(param);
-			if (function->getDataRef()->valueType)
-				newNode->getDataRef()->valueType = function->getDataRef()->valueType;
-			else
-				newNode->getDataRef()->valueType = param->getDataRef()->valueType;
+			newNode = function;
+			// newNode = new NodeTree<ASTData>(funcName, ASTData(function_call, Symbol(funcName, true)));
+			// newNode->addChild(function);
+			// newNode->addChild(param);
+			// if (function->getDataRef()->valueType)
+			// 	newNode->getDataRef()->valueType = function->getDataRef()->valueType;
+			// else
+			// 	newNode->getDataRef()->valueType = param->getDataRef()->valueType;
 
 			return newNode;
 		} else {
@@ -228,17 +231,13 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			NodeTree<ASTData>* rhs = transform(children[2], scope, types);
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(lhs); transformedChildren.push_back(rhs);
 			std::string functionName = assignFuncName.substr(0,1);
-			NodeTree<ASTData>* childCall = new NodeTree<ASTData>(functionName, ASTData(function_call, Symbol(functionName, true)));
-			NodeTree<ASTData>* functionDef = scopeLookup(scope, functionName, transformedChildren);
-			if (functionDef == NULL) {
+			NodeTree<ASTData>* operatorCall = doFunction(scope, functionName, transformedChildren);
+			if (operatorCall == NULL) {
 				std::cout << "scope lookup error! Could not find " << functionName  << " in assignment_statement " << std::endl;
 				throw "LOOKUP ERROR: " + functionName; 
 			}
-			childCall->addChild(functionDef); //First child of function call is definition of the function
-			childCall->addChild(lhs);
-			childCall->addChild(rhs);
 			newNode->addChild(lhs);
-			newNode->addChild(childCall);
+			newNode->addChild(operatorCall);
 		}
 		return newNode;
 	} else if (name == "declaration_statement") {
@@ -363,9 +362,10 @@ std::string ASTTransformation::concatSymbolTree(NodeTree<Symbol>* root) {
 }
 
 //Overloaded with the actual children to allow us to handle operator methods
-NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<NodeTree<ASTData>*> nodes) {
+NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::string lookup, std::vector<NodeTree<ASTData>*> nodes) {
 	//
 	auto LLElementIterator = languageLevelScope.find(lookup);
+	NodeTree<ASTData>* newNode;
 	if (LLElementIterator != languageLevelScope.end()) {
 		std::cout << "Checking for early method level operator overload" << std::endl;
 		std::string lookupOp = "operator" + lookup;
@@ -379,23 +379,29 @@ NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std:
 			//Ok, so we construct 
 			std::cout << "Early method level operator was found" << std::endl;
 			//return operatorMethod;
-			newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
-			newNode->addChild(function); // First child of function call is a link to the function definition
-			newNode->addChild(lhs);
-			newNode->addChild(rhs);
+			NodeTree<ASTData>* newNode = new NodeTree<ASTData>(lookupOp, ASTData(function_call, Symbol(lookupOp, true)));
+			NodeTree<ASTData>* dotFunctionCall = new NodeTree<ASTData>(".", ASTData(function_call, Symbol(".", true)));
+			dotFunctionCall->addChild(languageLevelScope["."][0]); //function definition
+			dotFunctionCall->addChild(nodes[0]); // The object whose method we're calling
+			dotFunctionCall->addChild(operatorMethod); //The method we're calling
+			newNode->addChild(dotFunctionCall); // First child of function call is a link to the function definition
+			newNode->addChildren(slice(nodes, 1, -1)); //The rest of the parameters to the operator
 
 
 			//Set the value of this function call
-			if (function->getDataRef()->valueType)
-				newNode->getDataRef()->valueType = function->getDataRef()->valueType;
-			else if (rhs->getDataRef()->valueType)
-				newNode->getDataRef()->valueType = rhs->getDataRef()->valueType;
-			else
-				newNode->getDataRef()->valueType = NULL;
+			newNode->getDataRef()->valueType = operatorMethod->getDataRef()->valueType;
+			return newNode;
 		}
 		std::cout << "Early method level operator was NOT found" << std::endl;
 	}
-	return scopeLookup(scope, lookup, mapNodesToTypes(nodes));
+	
+	newNode = new NodeTree<ASTData>(lookup, ASTData(function_call, Symbol(lookup, true)));
+	NodeTree<ASTData>* function = scopeLookup(scope, lookup, mapNodesToTypes(nodes));
+	newNode->addChild(function);
+	newNode->addChildren(nodes);
+	newNode->getDataRef()->valueType = function->getDataRef()->valueType;
+
+	return newNode;
 }
 
 NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type> types) {
