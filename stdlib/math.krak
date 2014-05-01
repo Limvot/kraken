@@ -1,0 +1,9 @@
+
+int NotPi = 3;
+float Pi = 3.141592654;
+
+int fibanacci(int num) {
+	if (num < 2)
+		return 1;
+	return fibanacci(num-1) + fibanacci(num-2);
+}

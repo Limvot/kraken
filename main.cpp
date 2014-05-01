@@ -18,6 +18,9 @@
 #include "util.h"
 
 int main(int argc, char* argv[]) {
+	std::vector<std::string> includePaths;
+	includePaths.push_back(""); //Local 
+
 	if (argc == 2 && std::string(argv[1]) == "--test") {
 		StringReader::test();
 		RegEx::test();
@@ -25,7 +28,9 @@ int main(int argc, char* argv[]) {
 		//std::cout << strSlice("123", 0, -1) << std::endl;
 		return 0;
 	}
-
+	std::string krakenDir = argv[0];
+	krakenDir = strSlice(krakenDir, 0, -(std::string("kraken").length()+1));
+	includePaths.push_back(krakenDir + "stdlib/");
 	std::string programName = argv[1];
 	std::string grammerFileString = argv[2];
 	std::string outputName = argv[3];
@@ -134,9 +139,12 @@ int main(int argc, char* argv[]) {
 	//outFile << parser.grammerToDOT() << std::endl;
 	std::cout << "\nParsing" << std::endl;
 
-	Importer importer(&parser);
+	Importer importer(&parser, includePaths);
 
 	/*NodeTree<ASTData>* AST =*/
+	for (auto i : includePaths)
+		std::cout << i << std::endl;
+
 	importer.import(programName);
 	std::map<std::string, NodeTree<ASTData>*> ASTs = importer.getASTMap();
 

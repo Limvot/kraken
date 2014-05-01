@@ -16,11 +16,12 @@
 
 class Importer {
 	public:
-		Importer(Parser* parserIn);
+		Importer(Parser* parserIn, std::vector<std::string> includePaths);
 		~Importer();
 		NodeTree<ASTData>* import(std::string fileName);
 		std::map<std::string, NodeTree<ASTData>*> getASTMap();
 	private:
+		std::vector<std::string> includePaths;
 		Parser* parser;
 		std::vector<Symbol> removeSymbols;
 		std::vector<Symbol> collapseSymbols;

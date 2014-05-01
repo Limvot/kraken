@@ -1,8 +1,9 @@
 #include "Importer.h"
 
-Importer::Importer(Parser* parserIn) {
+Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths) {
 	//constructor
 	parser = parserIn;
+	this->includePaths = includePaths;
 
 	removeSymbols.push_back(Symbol("WS", false));
 	removeSymbols.push_back(Symbol("\\(", true));
@@ -47,7 +48,11 @@ NodeTree<ASTData>* Importer::import(std::string fileName) {
 
 	std::string outputName = fileName + "out";
 	
-	programInFile.open(fileName);
+	for (auto i : includePaths) {
+		programInFile.open(i+fileName);
+		if (programInFile.is_open())
+			break;
+	}
 	if (!programInFile.is_open()) {
 		std::cout << "Problem opening programInFile " << fileName << "\n";
 		return NULL;

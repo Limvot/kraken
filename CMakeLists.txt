@@ -12,3 +12,5 @@ include_directories( ${MY_INCLUDES} )
 
 add_executable(kraken ${MY_SOURCES})
 
+file(COPY stdlib DESTINATION .)
+
