@@ -52,6 +52,8 @@ NodeTree<ASTData>* Importer::import(std::string fileName) {
 		programInFile.open(i+fileName);
 		if (programInFile.is_open())
 			break;
+		else
+			std::cout << i+fileName << " is no good" << std::endl;
 	}
 	if (!programInFile.is_open()) {
 		std::cout << "Problem opening programInFile " << fileName << "\n";

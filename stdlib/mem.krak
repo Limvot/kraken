@@ -1,0 +1,23 @@
+__if_comp__ __C__ __simple_passthrough__ """
+	#include <stdlib.h>
+"""
+
+char* nullPtr = 0;
+
+char* malloc(int size) {
+	char* memPtr = nullPtr;
+	__if_comp__ __C__ {
+		__simple_passthrough__ """
+			memPtr = malloc(size);
+		"""
+	}
+	return memPtr;
+}
+
+void free(char* memPtr) {
+	__if_comp__ __C__ {
+		__simple_passthrough__ """
+			free(memPtr);
+		"""
+	}
+}
