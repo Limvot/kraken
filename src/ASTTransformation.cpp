@@ -346,8 +346,10 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::transformChildren(std::vector
 
 std::vector<Type> ASTTransformation::mapNodesToTypes(std::vector<NodeTree<ASTData>*> nodes) {
 	std::vector<Type> types;
-	for (auto i : nodes)
+	for (auto i : nodes) {
+		std::cout << i->getDataRef()->toString() << std::endl;
 		types.push_back(*(i->getDataRef()->valueType));
+	}
 	return types;
 }
 
@@ -401,7 +403,21 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 	NodeTree<ASTData>* function = scopeLookup(scope, lookup, mapNodesToTypes(nodes));
 	newNode->addChild(function);
 	newNode->addChildren(nodes);
-	newNode->getDataRef()->valueType = function->getDataRef()->valueType;
+
+	//Specially handle dereference and address of to assign the correct type
+	//We need some significant other type corrections here, maybe to the point of being their own function. (int + float, etc.)
+	for (auto i : nodes)
+		std::cout << i->getDataRef()->toString() << " ";
+	std::cout<<std::endl;
+
+	std::vector<Type> oldTypes = mapNodesToTypes(nodes);
+	if (lookup == "*" || lookup == "&") {
+		Type* newType = oldTypes[0].clone();
+		lookup == "*" ? newType->indirection-- : newType->indirection++;
+		newNode->getDataRef()->valueType = newType, std::cout << "Operator " + lookup << std::endl;
+	} else {
+		newNode->getDataRef()->valueType = function->getDataRef()->valueType, std::cout << "Some other ||" << lookup << "||" << std::endl;
+	}
 
 	return newNode;
 }
@@ -436,7 +452,7 @@ NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std:
 			for (int j = 0; j < types.size(); j++) {
 				if (types[j] != *(children[j]->getDataRef()->valueType)) {
 					typesMatch = false;
-					std::cout << "Types do not match between two " << lookup << std::endl;
+					std::cout << "Types do not match between two " << lookup << " " << types[j].toString() << " vs " << children[j]->getDataRef()->valueType->toString() << std::endl;
 					break;
 				}
 			}

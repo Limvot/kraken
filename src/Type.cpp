@@ -83,3 +83,7 @@ std::string Type::toString() {
 		typeString += "*";
 	return typeString;
 }
+
+Type* Type::clone() {
+	return new Type(baseType, typeDefinition, indirection);
+}

@@ -27,6 +27,7 @@ class Type {
 		~Type();
 		bool const operator==(const Type &other)const;
 		bool const operator!=(const Type &other)const;
+		Type* clone();
 		std::string toString();
 		ValueType baseType;
 		NodeTree<ASTData>* typeDefinition;
