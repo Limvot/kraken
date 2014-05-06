@@ -23,6 +23,7 @@ ASTTransformation::ASTTransformation(Importer *importerIn) {
 	languageLevelScope["-="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("-=", true), NULL)));
 	languageLevelScope["."].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(".", true), NULL)));
 	languageLevelScope["->"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("->", true), NULL)));
+	languageLevelScope["[]"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("[]", true), NULL)));
 }
 
 ASTTransformation::~ASTTransformation() {
@@ -181,8 +182,9 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	} else if (name == "factor") { //Do factor here, as it has all the weird unary operators
 		//If this is an actual part of an expression, not just a premoted child
 		//NO SUPPORT FOR CASTING YET
+		std::string funcName;
 		if (children.size() == 2) {
-			std::string funcName = concatSymbolTree(children[0]);
+			funcName = concatSymbolTree(children[0]);
 			NodeTree<ASTData>* param;
 			if (funcName == "*" || funcName == "&" || funcName == "++" || funcName == "--" || funcName == "-" || funcName == "!" || funcName == "~")
 				param = transform(children[1], scope, types);
@@ -196,16 +198,19 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 				std::cout << "scope lookup error! Could not find " << funcName  << " in factor " << std::endl;
 				throw "LOOKUP ERROR: " + funcName; 
 			}
-			newNode = function;
-			// newNode = new NodeTree<ASTData>(funcName, ASTData(function_call, Symbol(funcName, true)));
-			// newNode->addChild(function);
-			// newNode->addChild(param);
-			// if (function->getDataRef()->valueType)
-			// 	newNode->getDataRef()->valueType = function->getDataRef()->valueType;
-			// else
-			// 	newNode->getDataRef()->valueType = param->getDataRef()->valueType;
 
-			return newNode;
+			return function;
+		} else if (children.size() >= 4) { //Array brackets []
+			funcName = "[]";
+			std::vector<NodeTree<ASTData>*> transformedChildren;
+			transformedChildren.push_back(transform(children[0], scope, types));
+			transformedChildren.push_back(transform(children[2], scope, types));
+			NodeTree<ASTData>* function = doFunction(scope, funcName, transformedChildren);
+			if (function == NULL) {
+				std::cout << "scope lookup error! Could not find " << funcName  << " in factor " << std::endl;
+				throw "LOOKUP ERROR: " + funcName; 
+			}
+			return function;
 		} else {
 			return transform(children[0], scope, types); //Just a promoted child, so do it instead
 		}
@@ -411,10 +416,10 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 	std::cout<<std::endl;
 
 	std::vector<Type> oldTypes = mapNodesToTypes(nodes);
-	if (lookup == "*" || lookup == "&") {
+	if (lookup == "*" || lookup == "&" || lookup == "[]") {
 		Type* newType = oldTypes[0].clone();
-		lookup == "*" ? newType->indirection-- : newType->indirection++;
-		newNode->getDataRef()->valueType = newType, std::cout << "Operator " + lookup << std::endl;
+		lookup == "*" || lookup == "[]" ? newType->indirection-- : newType->indirection++;
+		newNode->getDataRef()->valueType = newType, std::cout << "Operator " + lookup << " is altering indirection "<< std::endl;
 	} else {
 		newNode->getDataRef()->valueType = function->getDataRef()->valueType, std::cout << "Some other ||" << lookup << "||" << std::endl;
 	}
