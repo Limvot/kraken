@@ -14,13 +14,14 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths) {
 	removeSymbols.push_back(Symbol("}", true));
 	removeSymbols.push_back(Symbol("(", true));
 	removeSymbols.push_back(Symbol(")", true));
-	removeSymbols.push_back(Symbol("import", true)); //Don't need the actual text of the symbol
+	removeSymbols.push_back(Symbol("import", true));
 	removeSymbols.push_back(Symbol("interpreter_directive", false));
 	removeSymbols.push_back(Symbol("if", true));
 	removeSymbols.push_back(Symbol("while", true));
 	removeSymbols.push_back(Symbol("__if_comp__", true));
 	removeSymbols.push_back(Symbol("comp_simple_passthrough", true));
 	removeSymbols.push_back(Symbol("typedef", true));
+	removeSymbols.push_back(Symbol("template", true));
 
 	collapseSymbols.push_back(Symbol("opt_typed_parameter_list", false));
 	collapseSymbols.push_back(Symbol("opt_parameter_list", false));

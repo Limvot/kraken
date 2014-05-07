@@ -22,7 +22,7 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		std::string concatSymbolTree(NodeTree<Symbol>* root);
 		NodeTree<ASTData>* doFunction(NodeTree<ASTData>* scope, std::string lookup, std::vector<NodeTree<ASTData>*> nodes);
 		NodeTree<ASTData>* scopeLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type> types = std::vector<Type>());
-		Type* typeFromString(std::string type, NodeTree<ASTData>* scope);
+		Type* typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<ASTData>* scope);
 	private:
 		Importer * importer;
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelScope;
