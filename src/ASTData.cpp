@@ -74,3 +74,12 @@ std::string ASTData::ASTTypeToString(ASTType type) {
 			return "unknown_ASTType";
 	}
 }
+
+void ASTData::addTemplateTypeDefToReplace(NodeTree<ASTData>* typeDefToReplace) {
+	templateTypeDefsToReplace.push_back(typeDefToReplace);
+}
+
+std::vector<NodeTree<ASTData>*> ASTData::getTemplateTypeDefsToReplace() {
+	return templateTypeDefsToReplace;
+}
+

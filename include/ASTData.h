@@ -26,10 +26,13 @@ class ASTData {
 		~ASTData();
 		std::string toString();
 		static std::string ASTTypeToString(ASTType type);
+		void addTemplateTypeDefToReplace(NodeTree<ASTData>* typeDefToReplace);
+		std::vector<NodeTree<ASTData>*> getTemplateTypeDefsToReplace();
 		ASTType type;
 		Type* valueType;
 		Symbol symbol;
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> scope;
+		std::vector<NodeTree<ASTData>*> templateTypeDefsToReplace; //Used only by template classes/functions to keep track of pointers to the typedefs that need to be changed
 	private:
 
 };

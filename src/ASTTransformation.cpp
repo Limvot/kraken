@@ -77,20 +77,30 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		if (children[1]->getData().getName() == "type") {
 			typeAlias = concatSymbolTree(children[0]);
 			newNode = new NodeTree<ASTData>(name, ASTData(type_def, Symbol(typeAlias, true, typeAlias), typeFromTypeNode(children[1], scope)));
-			skipChildren.insert(1); //Don't want any children, it's unnecessary for ailising
+			skipChildren.insert(0); //Don't want any children, it's unnecessary for ailising
+			skipChildren.insert(1);
 		} else { //Is a struct or class
 			Type* objectType = NULL;
 			if (children[0]->getData().getName() == "template_dec") {
 				typeAlias = concatSymbolTree(children[1]);
+				newNode = new NodeTree<ASTData>(name, ASTData(type_def, Symbol(typeAlias, true, typeAlias)));
 				objectType = new Type(newNode), std::cout << "Template Type!"<<std::endl;
-				skipChildren.insert(0); //Don't handle template just yet
+
+				//So we get the name of the template type and create a new typedef node for it. This goes into the class's scope so that
+				//lookups of this type will work. Later, on instantiation, the entire class tree will be copied and this typedef copied
+				//and modified to point to the right type.
+				std::string templateTypeName = concatSymbolTree(children[0]->getChildren()[1]);
+				NodeTree<ASTData>* templateTypeDef = new NodeTree<ASTData>(name, ASTData(type_def, Symbol(templateTypeName, true, templateTypeName), NULL));
+				newNode->getDataRef()->scope[templateTypeName].push_back(templateTypeDef);
+				newNode->getDataRef()->addTemplateTypeDefToReplace(templateTypeDef);
+				skipChildren.insert(0); //Don't try to transform the template
 				skipChildren.insert(1); //Identifier lookup will be ourselves, as we just added ourselves to the scope
 			} else {
 				typeAlias = concatSymbolTree(children[0]);
+				newNode = new NodeTree<ASTData>(name, ASTData(type_def, Symbol(typeAlias, true, typeAlias)));
 				objectType = new Type(newNode);
 				skipChildren.insert(0); //Identifier lookup will be ourselves, as we just added ourselves to the scope
 			}
-			newNode = new NodeTree<ASTData>(name, ASTData(type_def, Symbol(typeAlias, true, typeAlias)));
 			newNode->getDataRef()->valueType = objectType; //Type is self-referential since this is the definition
 		}
 		scope->getDataRef()->scope[typeAlias].push_back(newNode);
