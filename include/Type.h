@@ -13,7 +13,7 @@ class ASTData;
 #include "ASTData.h"
 #include "util.h"
 
-enum ValueType {none, void_type, boolean, integer, floating, double_percision, character };
+enum ValueType {none, template_type, void_type, boolean, integer, floating, double_percision, character };
 
 
 class Type {
@@ -24,6 +24,7 @@ class Type {
 		Type(NodeTree<ASTData>* typeDefinitionIn);
 		Type(NodeTree<ASTData>* typeDefinitionIn, int indirectionIn);
 		Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn);
+		Type(ValueType typeIn, NodeTree<Symbol>* templateDefinitionIn);
 		~Type();
 		bool const operator==(const Type &other)const;
 		bool const operator!=(const Type &other)const;
@@ -32,6 +33,7 @@ class Type {
 		ValueType baseType;
 		NodeTree<ASTData>* typeDefinition;
 		int indirection;
+		NodeTree<Symbol>* templateDefinition;
 	private:
 };
 
