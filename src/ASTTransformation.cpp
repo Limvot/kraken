@@ -2,6 +2,7 @@
 
 ASTTransformation::ASTTransformation(Importer *importerIn) {
 	importer = importerIn;
+	topScope = NULL;
 	//Set up language level special scope. (the final scope checked)
 	//Note the NULL type
 	languageLevelScope["+"].push_back( new NodeTree<ASTData>("function", ASTData(function, Symbol("+", true), NULL)));
@@ -45,6 +46,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	if (name == "translation_unit") {
 		newNode = new NodeTree<ASTData>(name, ASTData(translation_unit));
 		scope = newNode;
+		topScope = newNode; //Top scope is maintained for templates, which need to add themselves to the top scope from where ever they are instantiated
 	} else if (name == "interpreter_directive") {
 		newNode = new NodeTree<ASTData>(name, ASTData(interpreter_directive));
 	} else if (name == "import" && !current.isTerminal()) {
@@ -536,8 +538,7 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 			templateTypeReplacement->indirection += indirection;
 			return templateTypeReplacement;
 		}
-		//If not, we better instantiate it and then add it to the scope
-		//Note that this means the template instantiation is scoped, which is inefficient, though it has a nice correctness about it
+		//If not, we better instantiate it and then add it to the highest (not current) scope
 		if (typeDefinition == NULL && typeNode->getChildren().size() > 1 && typeNode->getChildren()[1]->getData().getName() == "template_inst") {
 		 	std::cout << "Template type: " << edited << " not yet instantiated" << std::endl;
 		 	//Look up this template's plain definition. It's type has the syntax tree that we need to parse
@@ -560,7 +561,12 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 			typeDefinition = new NodeTree<ASTData>("type_def", ASTData(type_def, Symbol(fullyInstantiatedName, true, fullyInstantiatedName)));
 			typeDefinition->getDataRef()->valueType = new Type(typeDefinition);; //Type is self-referential since this is the definition
 
-			scope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
+			//Note that we're adding to the current top scope. This makes it more efficient by preventing multiple instantiation and should not cause any problems
+			//It also makes sure it gets generated in the right place
+			topScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
+			topScope->addChild(typeDefinition); //Add this object the the highest scope's 
+
+
 			//Note that the instantiated template's scope is the template's definition.
 			typeDefinition->getDataRef()->scope["~enclosing_scope"].push_back(templateDefinition);
 

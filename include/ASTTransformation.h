@@ -26,6 +26,7 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 	private:
 		Importer * importer;
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelScope;
+		NodeTree<ASTData>* topScope; //maintained for templates that need to add themselves to the top scope no matter where they are instantiated
 };
 
 #endif

@@ -20,7 +20,7 @@ class CGenerator {
 		std::string generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject = NULL);
 		static std::string ValueTypeToCType(Type *type);
 		static std::string ValueTypeToCTypeDecoration(Type *type);
-		static std::string CifyFunctionName(std::string name);
+		static std::string CifyName(std::string name);
 		std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from);
 
 		std::string generatorString;

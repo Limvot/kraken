@@ -70,7 +70,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 								parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], enclosingObject);
 								nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
 							}
-							output += CifyFunctionName(declarationData.symbol.getName()) + nameDecoration + "(" + parameters + "); /*func*/\n";
+							output += CifyName(declarationData.symbol.getName()) + nameDecoration + "(" + parameters + "); /*func*/\n";
 							break;
 						}
 						case type_def:
@@ -104,13 +104,15 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			if (false)
 				for (int j = 0; j < children.size()-1; j++)
 					preName += ValueTypeToCType(children[j]->getData().valueType) + "_";
-			return preName + CifyFunctionName(data.symbol.getName()); //Cifying does nothing if not an operator overload
+			return preName + CifyName(data.symbol.getName()); //Cifying does nothing if not an operator overload
 		}
 		case type_def:
-			if (children.size() == 0) {
+			if (data.valueType->baseType == template_type) {
+				return "/* non instantiated template " + data.symbol.getName() + " */";
+			} else if (children.size() == 0) {
 				return "typedef " + ValueTypeToCType(data.valueType) + " " + data.symbol.getName() + ";";
 			} else {
-				std::string objectString = "typedef struct __struct_dummy_" + data.symbol.getName() + "__ {\n";
+				std::string objectString = "typedef struct __struct_dummy_" + CifyName(data.symbol.getName()) + "__ {\n";
 				std::string postString; //The functions have to be outside the struct definition
 				for (int i = 0; i < children.size(); i++) {
 					std::cout << children[i]->getName() << std::endl;
@@ -119,7 +121,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					else
 						objectString += generate(children[i], enclosingObject) + "\n";
 				}
-				objectString += "} " + data.symbol.getName() + ";";
+				objectString += "} " + CifyName(data.symbol.getName()) + ";";
 				return objectString + postString; //Functions come after the declaration of the struct
 			}
 		case function:
@@ -132,7 +134,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				parameters += ValueTypeToCType(children[j]->getData().valueType) + " " + generate(children[j], enclosingObject);
 				nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
 			}
-			output += CifyFunctionName(data.symbol.getName()) + nameDecoration + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
+			output += CifyName(data.symbol.getName()) + nameDecoration + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
 			return output;
 		}
 		case code_block:
@@ -220,7 +222,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 		std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
 					 		for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
 					 			nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
-/*HERE*/				 	return possibleObjectType->getDataRef()->symbol.getName() +"__" + CifyFunctionName(functionName) + nameDecoration + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
+/*HERE*/				 	return CifyName(possibleObjectType->getDataRef()->symbol.getName()) +"__" + CifyName(functionName) + nameDecoration + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
 					 		//The comma lets the upper function call know we already started the param list
 					 		//Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses				 	
 					 	} else {
@@ -242,7 +244,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
 					if (isSelfObjectMethod)
 						output += enclosingObject->getDataRef()->symbol.getName() +"__";
-/*HERE*/			output += CifyFunctionName(name) + nameDecoration + "(";
+/*HERE*/			output += CifyName(name) + nameDecoration + "(";
 				 	if (isSelfObjectMethod)
 				 		output += children.size() > 1 ? "self," : "self";
 				}
@@ -286,8 +288,8 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType) + " " + generate(children[i]);
 		nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
 	}
-	output += "\n" + ValueTypeToCType(data.valueType) + " " + enclosingObject->getDataRef()->symbol.getName() +"__"
-		+ CifyFunctionName(data.symbol.getName()) + nameDecoration + "(" + ValueTypeToCType(&enclosingObjectType)
+	output += "\n" + ValueTypeToCType(data.valueType) + " " + CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
+		+ CifyName(data.symbol.getName()) + nameDecoration + "(" + ValueTypeToCType(&enclosingObjectType)
 		+ " self" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject); //Pass in the object so we can properly handle access to member stuff
 	return output;
 }
@@ -297,7 +299,7 @@ std::string CGenerator::ValueTypeToCType(Type *type) {
 	switch (type->baseType) {
 		case none:
 			if (type->typeDefinition)
-				return_type = type->typeDefinition->getDataRef()->symbol.getName();
+				return_type = CifyName(type->typeDefinition->getDataRef()->symbol.getName());
 			else
 				return_type = "none";
 			break;
@@ -364,7 +366,7 @@ std::string CGenerator::ValueTypeToCTypeDecoration(Type *type) {
 	return return_type;
 }
 
-std::string CGenerator::CifyFunctionName(std::string name) {
+std::string CGenerator::CifyName(std::string name) {
 	std::string operatorsToReplace[] = { 	"+", "plus",
 											"-", "minus",
 											"*", "star",
@@ -394,6 +396,8 @@ std::string CGenerator::CifyFunctionName(std::string name) {
 											"|=", "pipeequals",
 											"*=", "starequals",
 											"<<=", "doublerightequals",
+											"<", "lessthan",
+											">", "greaterthan",
 											">>=", "doubleleftequals",
 											"->", "arrow" };
 	int length = sizeof(operatorsToReplace)/sizeof(std::string);
