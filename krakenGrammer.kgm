@@ -32,7 +32,7 @@ identifier = alpha | alpha alphanumeric ;
 
 overloadable_operator = "\+" | "-" | "\*" | "/" | "%" | "^" | "&" | "\|" | "~" | "\!" | "," | "=" | "\+\+" | "--" | "<<" | ">>" | "==" | "!=" | "&&" | "\|\|" | "\+=" | "-=" | "/=" | "%=" | "^=" | "&=" | "\|=" | "\*=" | "<<=" | ">>=" | "->" ;
 func_identifier = identifier | identifier overloadable_operator ;
-function = type WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block ;
+function = template_dec WS type WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block | type WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block ;
 
 opt_typed_parameter_list = typed_parameter_list | ;
 typed_parameter_list = typed_parameter_list WS "," WS typed_parameter | typed_parameter ;
@@ -42,8 +42,8 @@ opt_parameter_list = parameter_list | ;
 parameter_list = parameter_list WS "," WS parameter | parameter ;
 parameter = boolean_expression ;
 
-type_def = "typedef" WS identifier WS type | "typedef" WS template_dec WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS template_dec WS identifier WS "{" WS declaration_block WS "}" ;
-template_dec = "template" WS "<" WS identifier WS ">" | ;
+type_def = "typedef" WS identifier WS type | "typedef" WS template_dec WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS template_dec WS identifier WS "{" WS declaration_block WS "}" ;
+template_dec = "template" WS "<" WS identifier WS ">" ;
 class_innerds = visibility_block WS class_innerds | visibility_block ;
 visibility_block = "public:" WS declaration_block | "protected:" WS declaration_block | "private:" WS declaration_block ;
 declaration_block = declaration_statement WS ";" WS declaration_block | function WS declaration_block | declaration_statement WS ";" | function ;
@@ -71,7 +71,7 @@ expression = expression WS "<<" WS term | expression WS ">>" WS shiftand | shift
 shiftand = shiftand WS "-" WS term | shiftand WS "\+" WS term | term ;
 term = term WS forward_slash WS factor | term WS "\*" WS factor | term WS "%" WS factor | factor ;
 factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\(" WS type WS "\)" WS unarad | "\*" WS unarad | "&" WS unarad | unarad WS "[" WS expression WS "]" | unarad ;
-unarad = number | identifier | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | access_operation ;
+unarad = number | identifier | identifier WS template_inst | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | access_operation ;
 number = integer | float | double ;
 access_operation = unarad "." identifier | unarad "->" identifier ;
 

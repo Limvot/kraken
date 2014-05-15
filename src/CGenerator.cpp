@@ -126,6 +126,8 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			}
 		case function:
 		{
+			if (data.valueType->baseType == template_type)
+				return "/* template function: " + data.symbol.getName() + " */";
 			output += "\n" + ValueTypeToCType(data.valueType) + " ";
 			std::string nameDecoration, parameters;
 			for (int j = 0; j < children.size()-1; j++) {
