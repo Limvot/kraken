@@ -42,7 +42,7 @@ opt_parameter_list = parameter_list | ;
 parameter_list = parameter_list WS "," WS parameter | parameter ;
 parameter = boolean_expression ;
 
-type_def = "typedef" WS identifier WS type | "typedef" WS template_dec WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS template_dec WS identifier WS "{" WS declaration_block WS "}" ;
+type_def = "typedef" WS identifier WS type | "typedef" WS template_dec WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS template_dec WS identifier WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS "{" WS declaration_block WS "}" ;
 template_dec = "template" WS "<" WS identifier WS ">" ;
 class_innerds = visibility_block WS class_innerds | visibility_block ;
 visibility_block = "public:" WS declaration_block | "protected:" WS declaration_block | "private:" WS declaration_block ;

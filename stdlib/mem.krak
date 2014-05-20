@@ -21,3 +21,35 @@ void free(char* memPtr) {
 		"""
 	}
 }
+
+template <T> void free(T* memPtr) {
+	__if_comp__ __C__ {
+		__simple_passthrough__ """
+			free(memPtr);
+		"""
+	}
+}
+
+template <T> int sizeof() {
+	int result = 0;
+	T testObj;
+	__if_comp__ __C__ {
+		__simple_passthrough__ """
+			result = sizeof(testObj);
+		"""
+	}
+	return result;
+}
+
+
+template <T> T* new(int count) {
+	return malloc( sizeof<T>() * count );
+}
+
+template <T> T* new() {
+	return new<T>(1);
+}
+
+template <T> void delete(T* toDelete) {
+	free<T>(toDelete);
+}

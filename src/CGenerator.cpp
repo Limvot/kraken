@@ -58,21 +58,23 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 							break;
 						case function:
 						{
-							if (decChildren.size() == 0) { //Not a real function, must be a built in passthrough {
-								output += "/* built in function: " + declarationData.toString() + " */\n";
-								break;
+							if (declarationData.valueType->baseType == template_type) 
+								output += "/* template function " + declarationData.symbol.toString() + " */\n";
+							else if (decChildren.size() == 0) //Not a real function, must be a built in passthrough
+								output += "/* built in function: " + declarationData.symbol.toString() + " */\n";
+							else {
+								output += "\n" + ValueTypeToCType(declarationData.valueType) + " ";
+								std::string nameDecoration, parameters;
+								for (int j = 0; j < decChildren.size()-1; j++) {
+									if (j > 0)
+										parameters += ", ";
+									parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], enclosingObject);
+									nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
+								}
+								output += CifyName(declarationData.symbol.getName()) + nameDecoration + "(" + parameters + "); /*func*/\n";
 							}
-							output += "\n" + ValueTypeToCType(declarationData.valueType) + " ";
-							std::string nameDecoration, parameters;
-							for (int j = 0; j < decChildren.size()-1; j++) {
-								if (j > 0)
-									parameters += ", ";
-								parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], enclosingObject);
-								nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
-							}
-							output += CifyName(declarationData.symbol.getName()) + nameDecoration + "(" + parameters + "); /*func*/\n";
-							break;
 						}
+							break;
 						case type_def:
 							//type
 							output += "/*typedef " + declarationData.symbol.getName() + " */\n";
@@ -114,13 +116,15 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			} else {
 				std::string objectString = "typedef struct __struct_dummy_" + CifyName(data.symbol.getName()) + "__ {\n";
 				std::string postString; //The functions have to be outside the struct definition
+				tabLevel++;
 				for (int i = 0; i < children.size(); i++) {
 					std::cout << children[i]->getName() << std::endl;
 					if (children[i]->getName() == "function") //If object method
 						postString += generateObjectMethod(from, children[i]) + "\n";
 					else
-						objectString += generate(children[i], enclosingObject) + "\n";
+						objectString += tabs() + generate(children[i], enclosingObject) + "\n";
 				}
+				tabLevel--;
 				objectString += "} " + CifyName(data.symbol.getName()) + ";";
 				return objectString + postString; //Functions come after the declaration of the struct
 			}
@@ -202,7 +206,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			if (funcType == function) {
 				if (name == "++" || name == "--")
 					return generate(children[1], enclosingObject) + name;
-				if (name == "*" || name == "&" && children.size() == 2) //Is dereference, not multiplication, or address-of
+				if ( (name == "*" || name == "&") && children.size() == 2) //Is dereference, not multiplication, or address-of
 					return name + "(" + generate(children[1], enclosingObject) + ")";
 				if (name == "[]")
 					return "(" + generate(children[1], enclosingObject) + ")[" +generate(children[2],enclosingObject) + "]";
@@ -283,7 +287,7 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 	std::string output;
 	ASTData data = from->getData();
 	Type enclosingObjectType = *(enclosingObject->getDataRef()->valueType); //Copy a new type so we can turn it into a pointer if we need to
-	enclosingObjectType.indirection++;
+	enclosingObjectType.increaseIndirection();
 	std::vector<NodeTree<ASTData>*> children = from->getChildren();
 	std::string nameDecoration, parameters;
 	for (int i = 0; i < children.size()-1; i++) {
@@ -327,7 +331,7 @@ std::string CGenerator::ValueTypeToCType(Type *type) {
 			return_type = "unknown_ValueType";
 			break;
 	}
-	for (int i = 0; i < type->indirection; i++)
+	for (int i = 0; i < type->getIndirection(); i++)
 		return_type += "*";
 	return return_type;
 }
@@ -363,7 +367,7 @@ std::string CGenerator::ValueTypeToCTypeDecoration(Type *type) {
 			return_type = "unknown_ValueType";
 			break;
 	}
-	for (int i = 0; i < type->indirection; i++)
+	for (int i = 0; i < type->getIndirection(); i++)
 		return_type += "_P__";
 	return return_type;
 }

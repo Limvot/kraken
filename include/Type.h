@@ -5,6 +5,10 @@
 #define NULL ((void*)0)
 #endif
 
+#ifndef SEGFAULT
+#define SEGFAULT (*((char*)0)), std::cout << "\t\t\t\tNEGATIVE*************************************************************************" << std::endl;
+#endif
+
 #include <string>
 #include <iostream>
 
@@ -13,7 +17,7 @@ class ASTData;
 #include "ASTData.h"
 #include "util.h"
 
-enum ValueType {none, template_type, void_type, boolean, integer, floating, double_percision, character };
+enum ValueType {none, template_type, template_type_type, void_type, boolean, integer, floating, double_percision, character };
 
 
 class Type {
@@ -30,11 +34,17 @@ class Type {
 		bool const operator!=(const Type &other)const;
 		Type* clone();
 		std::string toString();
+		int getIndirection();
+		void setIndirection(int indirectionIn);
+		void increaseIndirection();
+		void decreaseIndirection();
+		void modifyIndirection(int mod);
+		void check();
 		ValueType baseType;
 		NodeTree<ASTData>* typeDefinition;
-		int indirection;
 		NodeTree<Symbol>* templateDefinition;
 	private:
+		int indirection;
 };
 
 #endif

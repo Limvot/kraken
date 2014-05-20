@@ -19,6 +19,7 @@ Type::Type(ValueType typeIn, int indirectionIn) {
 	baseType = typeIn;
 	typeDefinition = NULL;
 	templateDefinition = NULL;
+	if (indirection < 0) SEGFAULT
 }
 
 Type::Type(NodeTree<ASTData>* typeDefinitionIn) {
@@ -32,6 +33,7 @@ Type::Type(NodeTree<ASTData>* typeDefinitionIn, int indirectionIn) {
 	baseType = none;
 	typeDefinition = typeDefinitionIn;
 	templateDefinition = NULL;
+	if (indirection < 0) SEGFAULT
 }
 
 Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn) {
@@ -39,6 +41,7 @@ Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectio
 	indirection = indirectionIn;
 	typeDefinition = typeDefinitionIn;
 	templateDefinition = NULL;
+	if (indirection < 0) SEGFAULT
 }
 Type::Type(ValueType typeIn, NodeTree<Symbol>* templateDefinitionIn) {
 	indirection = 0;
@@ -70,6 +73,10 @@ std::string Type::toString() {
 			break;
 		case template_type:
 			typeString = "template: " + templateDefinition->getDataRef()->toString();
+			break;
+		case template_type_type:
+			typeString = "template_type_type";
+			break;
 		case void_type:
 			typeString = "void";
 			break;
@@ -96,9 +103,34 @@ std::string Type::toString() {
 	}
 	for (int i = 0; i < indirection; i++)
 		typeString += "*";
+	//std::cout << "Extra components of " << typeString << " are " << indirection << " " << typeDefinition << " " << templateDefinition << std::endl;
 	return typeString;
 }
 
 Type* Type::clone() {
 	return new Type(baseType, typeDefinition, indirection);
+}
+
+void Type::check() {
+	if (indirection < 0) SEGFAULT
+}
+
+int Type::getIndirection() {
+	return indirection;
+}
+
+void Type::setIndirection(int indirectionIn) {
+	indirection = indirectionIn;
+	check();
+}
+
+void Type::increaseIndirection() {
+	setIndirection(indirection+1);
+}
+void Type::decreaseIndirection() {
+	setIndirection(indirection-1);
+}
+
+void Type::modifyIndirection(int mod) {
+	setIndirection(indirection + mod);
 }

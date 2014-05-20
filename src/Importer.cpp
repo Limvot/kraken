@@ -40,9 +40,14 @@ Importer::~Importer() {
 }
 
 NodeTree<ASTData>* Importer::import(std::string fileName) {
+
+	std::cout << "\n\nImporting " << fileName << " ";
 	//Check to see if we've already done it
-	if (imported.find(fileName) != imported.end())
+	if (imported.find(fileName) != imported.end()) {
+		std::cout << "Already Imported!" << std::endl;
 		return imported[fileName];
+	}
+	std::cout << "Not yet imported" << std::endl;
 
 	std::ifstream programInFile;
 	std::ofstream outFile, outFileTransformed, outFileAST;
@@ -125,6 +130,8 @@ NodeTree<ASTData>* Importer::import(std::string fileName) {
 	outFileAST.close();
 
 	imported[fileName] = AST;
+
+	std::cout << "Done importing " << fileName << "\n\n" << std::endl;
 
 	return AST;
 }
