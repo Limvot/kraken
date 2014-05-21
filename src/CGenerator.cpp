@@ -43,6 +43,8 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 	switch (data.type) {
 		case translation_unit:
 			//Do here because we may need the typedefs before the declarations of variables
+			//Note that we need to be careful of the order, though, as some declarations depend on others.
+			//What is this then? It's a poset! Wooo posets!
 			for (int i = 0; i < children.size(); i++)
 				if (children[i]->getDataRef()->type == type_def)
 					output += generate(children[i], enclosingObject) + "\n";

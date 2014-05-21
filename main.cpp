@@ -14,6 +14,7 @@
 #include "Importer.h"
 #include "ASTData.h"
 #include "CGenerator.h"
+#include "Poset.h"
 
 #include "util.h"
 #include "Tester.h"
@@ -27,6 +28,8 @@ int main(int argc, char* argv[]) {
 		RegEx::test();
 		Lexer::test();
 		//std::cout << strSlice("123", 0, -1) << std::endl;
+		Poset<int>::test(); //int specilization just for testing. test() is actually only in the int specilization
+
 		if (argc >= 3) {
 			std::string testResults, line;
 			int passed = 0, failed = 0;
