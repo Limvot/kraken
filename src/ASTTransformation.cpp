@@ -476,9 +476,10 @@ NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std:
 				return *i;
 
 			std::vector<NodeTree<ASTData>*> children = (*i)->getChildren();
-			//We subtract one from the children to get the type size only if there is at least one child AND this function is not a
-			//non-instantiated template (which would not have a body node, which is why we subtract one)
-			if (types.size() != ((children.size() > 0 && (*i)->getDataRef()->valueType->baseType != template_type ) ? children.size()-1 : children.size())) {
+			//We subtract one from the children to get the type size only if there is at least one child AND
+			// the last node is actually a body node, as it may not have been generated yet if we're in the body
+			//and this function is recursive or if this is a non-instantiated template function
+			if (types.size() != ((children.size() > 0 && children[children.size()-1]->getDataRef()->type == code_block) ? children.size()-1 : children.size())) {
 				std::cout << "Type sizes do not match between two " << lookup << "(" << types.size() << "," << ((children.size() > 0) ? children.size()-1 : 0) << "), types are: ";
 				for (auto j : types)
 					std::cout << j.toString() << " ";
