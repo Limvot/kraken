@@ -45,9 +45,31 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			//Do here because we may need the typedefs before the declarations of variables
 			//Note that we need to be careful of the order, though, as some declarations depend on others.
 			//What is this then? It's a poset! Wooo posets!
-			for (int i = 0; i < children.size(); i++)
-				if (children[i]->getDataRef()->type == type_def)
-					output += generate(children[i], enclosingObject) + "\n";
+		{
+			Poset<NodeTree<ASTData>*> typedefPoset;
+			for (int i = 0; i < children.size(); i++) {
+				if (children[i]->getDataRef()->type == type_def) {
+					typedefPoset.addVertex(children[i]); //We add this definition by itself just in case there are no dependencies.
+													//If it has dependencies, there's no harm in adding it here
+					//Go through every child in the class looking for declaration statements. For each of these that is not a primitive type
+					//we will add a dependency from this definition to that definition in the poset.
+					std::vector<NodeTree<ASTData>*> classChildren = children[i]->getChildren();
+					for (auto j : classChildren) {
+						if (j->getDataRef()->type == declaration_statement) {
+							Type* decType = j->getChildren()[0]->getDataRef()->valueType; //Type of the declaration
+							if (decType->typeDefinition && decType->getIndirection() == 0)	//If this is a custom type and not a pointer
+								typedefPoset.addRelationship(children[i], decType->typeDefinition); //Add a dependency
+						}
+					}
+					//In case there are pointer dependencies. If the typedef has no children, then it is a simple renaming and we don't need to predeclare the class (maybe?)
+					if (classChildren.size())
+						output += "struct " + CifyName(children[i]->getDataRef()->symbol.getName()) + ";\n";
+				}
+			}
+			//Now generate the typedef's in the correct, topological order
+			for (NodeTree<ASTData>* i : typedefPoset.getTopoSort())
+				output += generate(i, enclosingObject) + "\n";
+
 			//Declare everything in translation unit scope here. (allows stuff from other files, automatic forward declarations)
 			for (auto i = data.scope.begin(); i != data.scope.end(); i++) {
 				for (auto overloadedMembers : i->second) {
@@ -92,6 +114,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				if (children[i]->getDataRef()->type != type_def)
 					output += generate(children[i], enclosingObject) + "\n";
 			return output;
+		}
 			break;
 		case interpreter_directive:
 			//Do nothing

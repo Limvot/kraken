@@ -17,6 +17,7 @@ class Poset {
 		Poset();
 		~Poset();
 		void addRelationship(T first, T second);
+		void addVertex(T vertex);
 		bool zeroDependencies(T vertex);
 		std::set<T> getDependsOn(T dependency);
 		std::vector<T> getTopoSort();
@@ -43,6 +44,11 @@ void Poset<T>::addRelationship(T first, T second) {
 	verticies.insert(first);
 	verticies.insert(second);
 	adjMatrix[first][second] = true;
+}
+
+template <class T>
+void Poset<T>::addVertex(T vertex) {
+	verticies.insert(vertex);
 }
 
 template <class T>
@@ -87,19 +93,21 @@ std::vector<T> Poset<T>::getTopoSort() {
 }
 
 
-//int specilization just for testing
-template<>
-void Poset<int>::test() {
+//would make it just an int specilization, but then we get multiple definition complaints....
+template<class T>
+void Poset<T>::test() {
 	std::string result;
 	{
 		Poset<int> poset;
+		poset.addVertex(1000);
 		for (int i = 0; i < 20; i++)
 			poset.addRelationship(i,i+1);
 		result = "";
 		for (int i : poset.getTopoSort())
 			result += intToString(i) + " ";
 		//std::cout << result << std::endl;
-		assert(result == "20 19 18 17 16 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0 ");
+		assert(result == "20 1000 19 18 17 16 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0 "); //Note that sets do not have a set order, so this could change
+																						//This is why the 1000 is in an odd, yet valid, position
 	}
 	{
 		Poset<int> poset;

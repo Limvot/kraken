@@ -10,6 +10,7 @@
 #include "Type.h"
 
 #include "util.h"
+#include "Poset.h"
 
 
 class CGenerator {
