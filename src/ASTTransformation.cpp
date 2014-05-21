@@ -70,11 +70,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		if (newNode == NULL) {
 			std::cout << "scope lookup error! Could not find " << lookupName << " in identifier " << std::endl;
 			throw "LOOKUP ERROR: " + lookupName; 
-		} else if (newNode->getDataRef()->symbol.getName() !=lookupName) {
-			//This happens when the lookup name denotes a member of an object, i.e. obj.foo
-			//The newNode points to obj, not foo.
 		}
-		//newNode = new NodeTree<ASTData>(name, ASTData(identifier, Symbol(concatSymbolTree(children[0]), true)));
 	} else if (name == "type_def") {
 		//If it is an alisis of a type
 		std::string typeAlias;
@@ -93,8 +89,6 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 				//So we give this typedef its name without any template types and make its type template_type, and point to this from node.
 				//Then, when this template is instantiated, it will run transform on from with the types filled in.
 				objectType = new Type(template_type, from);
-				// skipChildren.insert(0); //Don't try to transform the template
-				// skipChildren.insert(1); //Identifier lookup will be ourselves, as we just added ourselves to the scope
 			} else {
 				typeAlias = concatSymbolTree(children[0]);
 				newNode = new NodeTree<ASTData>(name, ASTData(type_def, Symbol(typeAlias, true, typeAlias)));
@@ -110,7 +104,6 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		if (children[0]->getData().getName() == "template_dec")
 			return newNode;
 		scope = newNode;
-		//return newNode;
 	} else if (name == "function") {
 		std::string functionName;
 		//If this is a function template
@@ -451,9 +444,9 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 	if ((nodes.size() != 2 && lookup == "*") || lookup == "&" || lookup == "[]") {
 		Type* newType = oldTypes[0].clone();
 		if (lookup == "*" || lookup == "[]")
-			newType->increaseIndirection();
-		else
 			newType->decreaseIndirection();
+		else
+			newType->increaseIndirection();
 
 		newNode->getDataRef()->valueType = newType, std::cout << "Operator " + lookup << " is altering indirection "<< std::endl;
 	} else {

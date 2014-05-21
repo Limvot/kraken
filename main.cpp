@@ -48,13 +48,13 @@ int main(int argc, char* argv[]) {
 	}
 	std::string krakenDir = argv[0];
 	krakenDir = strSlice(krakenDir, 0, -(std::string("kraken").length()+1));
-	includePaths.push_back(krakenDir + "stdlib/");
+	includePaths.push_back(krakenDir + "stdlib/"); //Add the stdlib directory that exists in the same directory as the kraken executable to the path
 	std::string programName = argv[1];
 	std::string grammerFileString = argv[2];
 	std::string outputName = argv[3];
 
 	std::ifstream grammerInFile, compiledGrammerInFile;
-	std::ofstream /*outFileC,*/ compiledGrammerOutFile;
+	std::ofstream compiledGrammerOutFile;
 
 	grammerInFile.open(grammerFileString);
 	if (!grammerInFile.is_open()) {
@@ -63,17 +63,9 @@ int main(int argc, char* argv[]) {
 	}
 
 	compiledGrammerInFile.open(grammerFileString + ".comp", std::ios::binary | std::ios::ate);
-	if (!compiledGrammerInFile.is_open()) {
+	if (!compiledGrammerInFile.is_open())
 		std::cout << "Problem opening compiledGrammerInFile " << grammerFileString + ".comp" << "\n";
-		//return(1);
-	}
-/*
-	outFileC.open((outputName + ".c").c_str());
-	if (!outFileC.is_open()) {
-		std::cout << "Probelm opening third output file " << outputName + ".c" << "\n";
-		return(1);
-	}
-	*/
+
 	//Read the input file into a string
 	std::string grammerInputFileString;
 	std::string line;
@@ -86,8 +78,6 @@ int main(int argc, char* argv[]) {
 	//LALRParser parser;
 	RNGLRParser parser;
 	parser.loadGrammer(grammerInputFileString);
-	//std::cout << "Creating State Set from Main" << std::endl;
-	//std::cout << "\nState Set" << std::endl;
 
 	//Start binary stuff
 	bool compGramGood = false;
@@ -111,7 +101,6 @@ int main(int argc, char* argv[]) {
 			} else {
 				compGramGood = true;
 				std::cout << "Grammer file is up to date." << std::endl;
-				//int tableLength = *((int*)(binaryTablePointer + 4 + sizeof(int) + gramStringLength));
 				parser.importTable(binaryTablePointer + 4 + sizeof(int) + gramStringLength); //Load table starting at the table section
 			}
 		} else {
@@ -141,43 +130,23 @@ int main(int argc, char* argv[]) {
 	}
 	//End binary stuff
 
-	//std::cout << "finished State Set from Main" << std::endl;
-	//std::cout << "Doing stateSetToString from Main" << std::endl;
-	// std::cout << "\n\n\n\n\n\n\n\n\n\nState Set toString" << std::endl;
-	// std::cout << parser.stateSetToString() << std::endl;
- 	// std::cout << "finished stateSetToString from Main" << std::endl;
-	// std::cout << "\n\n\n\n\n\n\n\n\n\nTable" << std::endl;
-	// std::cout << parser.tableToString() << std::endl;
-	// std::cout << "\n\n\n\n\n\n\n\n\n\nGrammer Input File" << std::endl;
-	// std::cout << grammerInputFileString << std::endl;
-	// std::cout << "\n\n\n\n\n\n\n\n\n\nGrammer toString" << std::endl;
-	// std::cout << parser.grammerToString() << std::endl;
-	//std::cout << parser.grammerToDOT() << std::endl;
-
-	//outFile << parser.grammerToDOT() << std::endl;
 	std::cout << "\nParsing" << std::endl;
 
 	Importer importer(&parser, includePaths);
 
-	/*NodeTree<ASTData>* AST =*/
 	for (auto i : includePaths)
 		std::cout << i << std::endl;
 
 	importer.import(programName);
 	std::map<std::string, NodeTree<ASTData>*> ASTs = importer.getASTMap();
 
-	//Do optomization, etc. here.
+	//Do optimization, etc. here.
 	//None at this time, instead going straight to C in this first (more naive) version
 
 	//Code generation
 	//For right now, just C
 
 	CGenerator().generateCompSet(ASTs, outputName);
-	/*
-	std::string c_code = CGenerator().generate(AST);
-	outFileC << c_code << std::endl;
-	outFileC.close();
-*/
 	return(0);
 }
  
