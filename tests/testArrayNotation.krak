@@ -1,0 +1,13 @@
+import io;
+import mem;
+
+int main() {
+	int b;
+	int* a = &b;
+	a [ 0 ] = 7;
+	print(a [ 0 ] );
+	print(*a);
+	print(b);
+	print("\n");
+	return 0;
+}

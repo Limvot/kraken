@@ -1,0 +1,27 @@
+import mem;
+import io;
+
+typedef AnObject {
+	int a;
+	int b;
+	char* c;
+
+	void print() {
+		print(a+b);
+		print("\n");
+		print(c);
+		print("\n");
+	}
+};
+
+
+int main() {
+	AnObject* ptr = new<AnObject>();
+	ptr->a = 4;
+	ptr->b = 7;
+	ptr->c = "Hello decent memory! Quite a nice feeling\n";
+	ptr->print();
+	delete<AnObject>(ptr);
+
+	return 0;
+}

@@ -16,16 +16,34 @@
 #include "CGenerator.h"
 
 #include "util.h"
+#include "Tester.h"
 
 int main(int argc, char* argv[]) {
 	std::vector<std::string> includePaths;
 	includePaths.push_back(""); //Local 
 
-	if (argc == 2 && std::string(argv[1]) == "--test") {
+	if (argc >= 2 && std::string(argv[1]) == "--test") {
 		StringReader::test();
 		RegEx::test();
 		Lexer::test();
 		//std::cout << strSlice("123", 0, -1) << std::endl;
+		if (argc >= 3) {
+			std::string testResults, line;
+			int passed = 0, failed = 0;
+			Tester test(argv[0], "../krakenGrammer.kgm");
+			for (int i = 2; i < argc; i++) {
+				bool result = test.run(argv[i]);
+				if (result)
+					line =  std::string(argv[i]) + "\t\tpassed!\n", passed++;
+				else
+					line = std::string(argv[i]) + "\t\tFAILED!\n", failed++;
+				std::cout << line << std::endl;
+				testResults += line;
+			}
+			std::cout << "===========Done Testing===========" << std::endl;
+			std::cout << testResults << std::endl;
+			std::cout << "Test results: " << passed << "/" << passed+failed << std::endl;
+		}
 		return 0;
 	}
 	std::string krakenDir = argv[0];

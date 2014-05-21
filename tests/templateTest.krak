@@ -1,0 +1,52 @@
+import io;
+import trivial_container;
+
+typedef template <T> TemplateTest {
+	int a;
+	T b;
+	trivialContainer<T> c;
+	void print() {
+		print("a: ");
+		print(a);
+		print("\n");
+		print("b: ");
+		print(b);
+		print("\n");
+		c.print();
+		print("\n");
+	}
+};
+
+typedef MyInt int;
+
+MyInt c;
+
+
+template <T> T addAndPrint(T a, T b) {
+	print(a+b);
+	return a+b;
+}
+
+int main() {
+	TemplateTest<int> test;
+	TemplateTest<char*> test2;
+	test.a = 5;
+	test.b = 7;
+	test.c.data = 1337;
+	test2.a = 9;
+	test2.b = "Hello Templates!";
+	test2.c.data = "Woooo nesting!";
+
+	test.print();
+	test2.print();
+
+	trivialContainer<char*> testImport;
+	testImport.data = "From another file! Whoh!";
+	testImport.print();
+	print("\n");
+
+	print(addAndPrint<int>(7,12));
+	print("\n");
+
+	return 0;
+}

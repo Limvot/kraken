@@ -71,4 +71,13 @@ std::string join(const std::vector<std::string> &strVec, std::string joinStr) {
     return joinedStr;
 }
 
+std::string readFile(std::istream &file) {
+    std::string line, contents;
+    while(file.good()) {
+        getline(file, line);
+        contents.append(line+"\n");
+    }
+    return contents;
+}
+
 

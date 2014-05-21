@@ -1,0 +1,64 @@
+import io;
+
+typedef Vec2 {
+	int x;
+	int y;
+
+	void print() {
+		print(x);
+		print(" ");
+		print(y);
+	}
+
+	Vec2 add(Vec2 other) {
+		Vec2 toReturn;
+		toReturn.x = x + other.x;
+		toReturn.y = y + other.y;
+		print();
+		return toReturn;
+	}
+
+	Vec2 subtract(Vec2 other) {
+		Vec2 toReturn;
+		toReturn.x = x - other.x;
+		toReturn.y = y - other.y;
+		print();
+		return toReturn;
+	}
+
+	Vec2 operator+(Vec2 other) {
+		return add(other);
+	}
+
+};
+
+Vec2 operator-(Vec2 lhs, Vec2 rhs) {
+	return lhs.subtract(rhs);
+}
+
+int main() {
+	Vec2 vector1;
+	Vec2 vector2;
+	vector1.x = 3;
+	vector1.y = 9;
+	vector2 = vector1;
+	/* NOTE COMMENT
+	Vec2 vector3;
+	vector3.x = vector1.x + vector2.x;
+	vector3.y = vector1.y + vector2.y;
+	vector2.print();
+	*/
+	Vec2 addition = vector1 + vector2;
+	print("\n");
+	addition.print();
+	print("\nSubtraction\n");
+	vector2.x = 100;
+	vector2.y = 70;
+	Vec2 subtraction = vector1 - vector2;
+	print("\n");
+	print(subtraction.x); print(" "); print(subtraction.y);
+
+	print("\n");
+	
+	return 0;
+}

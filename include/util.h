@@ -9,6 +9,8 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <fstream>
+#include <cstring>
 
 std::string intToString(int theInt);
 std::string replaceExEscape(std::string first, std::string search, std::string replace);
@@ -16,6 +18,9 @@ std::string strSlice(std::string str, int begin, int end);
 int findPerenEnd(std::string str, int i);
 std::vector<std::string> split(const std::string &str, char delim);
 std::string join(const std::vector<std::string> &strVec, std::string joinStr);
+std::string readFile(std::istream &file);
+
+
 template <typename T>
 bool contains(std::vector<T> vec, T item) {
     for (auto i : vec)
