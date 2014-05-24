@@ -1,0 +1,41 @@
+import io;
+import trivial_container;
+
+typedef RegularObject {
+	MyInt num;
+	trivialContainer<char*> innerContainer;
+	void set(char* message, int number) {
+		innerContainer.data = message;
+		num = number;
+	}
+	char* get() {
+		return innerContainer.data;
+	}
+	void print() {
+		print(num);
+		innerContainer.print();
+	}
+};
+
+typedef MyIntContainer trivialContainer<int>;
+typedef MyInt int;
+MyInt c;
+MyIntContainer roundabout;
+RegularObject outsideDec;
+
+void print(trivialContainer<char*> toPrint) {
+	print(toPrint.data);
+}
+
+int main() {
+	c = 3;
+	roundabout.data = 4;
+	outsideDec.set("Hello!", 5);
+	print(c);
+	roundabout.print();
+	outsideDec.print();
+	print(outsideDec.get());
+	print(outsideDec.innerContainer);
+	print("\n");
+	return 0;
+}
