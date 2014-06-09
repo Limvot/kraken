@@ -40,9 +40,11 @@ class Type {
 		void decreaseIndirection();
 		void modifyIndirection(int mod);
 		void check();
-		ValueType baseType;
+
+        ValueType baseType;
 		NodeTree<ASTData>* typeDefinition;
 		NodeTree<Symbol>* templateDefinition;
+        std::map<std::string, Type*> templateTypeReplacement;
 	private:
 		int indirection;
 };

@@ -8,7 +8,7 @@ fileList=""
 for dir in `find ${testDir} -type f -name "*.${ext}"`; do
 	filename=$(basename ${dir})
 	filename="${filename%.*}"
-	fileList+=\ \.\/$filename
+	fileList+=\ $testDir\/$filename
 done
 
 ${krakenPath} "--test" ${fileList}
