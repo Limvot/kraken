@@ -212,6 +212,18 @@ void ASTTransformation::fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
 	topScope = ast; //Top scope is maintained for templates, which need to add themselves to the top scope from where ever they are instantiated
 	std::vector<NodeTree<Symbol>*> children = parseTree->getChildren();
 
+    //First copy unfinished class templates into a new list and do them before anything else, so we know exactly which ones we need to do.
+    std::vector<NodeTree<ASTData>*> classTemplates;
+    for (auto i : ast->getDataRef()->scope)
+        if (i.second[0]->getDataRef()->type == type_def && i.second[0]->getDataRef()->valueType->baseType == template_type)
+            classTemplates.push_back(i.second[0]);
+    for (auto i : classTemplates) {
+        Type* classTemplateType = i->getDataRef()->valueType;
+        for (NodeTree<Symbol>* j : classTemplateType->templateDefinition->getChildren())
+		    if (j->getDataRef()->getName() == "function")
+				fourthPassFunction(j, seachScopeForFunctionDef(i, j, classTemplateType->templateTypeReplacement), classTemplateType->templateTypeReplacement); 	//do member method
+    }
+
 	//Go through and finish both regular functions and class methods
 	//Note that this pass can instantiate class AND function templates
 	for (NodeTree<Symbol>* i : children) {
