@@ -21,7 +21,13 @@
 
 int main(int argc, char* argv[]) {
 	std::vector<std::string> includePaths;
-	includePaths.push_back(""); //Local 
+	includePaths.push_back(""); //Local
+
+    if (argc <= 1) {
+        std::cout << "Kraken invocation: kraken sourceFile.krak grammerFile.kgm outputName" << std::endl;
+        std::cout << "Or for testing do: kraken --test [optional list of names of file (.krak .expected_results) without extentions to run]" << std::endl;
+        return 0;
+    }
 
 	if (argc >= 2 && std::string(argv[1]) == "--test") {
 		StringReader::test();
@@ -152,4 +158,4 @@ int main(int argc, char* argv[]) {
 	CGenerator().generateCompSet(ASTs, outputName);
 	return(0);
 }
- 
+

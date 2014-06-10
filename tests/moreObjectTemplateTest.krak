@@ -2,7 +2,7 @@ import io;
 import trivial_container;
 
 typedef RegularObject {
-	MyInt num;
+	int num;
 	trivialContainer<char*> innerContainer;
 	void set(char* message, int number) {
 		innerContainer.data = message;
@@ -18,8 +18,6 @@ typedef RegularObject {
 };
 
 typedef MyIntContainer trivialContainer<int>;
-typedef MyInt int;
-MyInt c;
 MyIntContainer roundabout;
 RegularObject outsideDec;
 
@@ -28,10 +26,8 @@ void print(trivialContainer<char*> toPrint) {
 }
 
 int main() {
-	c = 3;
 	roundabout.data = 4;
 	outsideDec.set("Hello!", 5);
-	print(c);
 	roundabout.print();
 	outsideDec.print();
 	print(outsideDec.get());

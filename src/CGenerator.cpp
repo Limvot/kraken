@@ -64,6 +64,8 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					//In case there are pointer dependencies. If the typedef has no children, then it is a simple renaming and we don't need to predeclare the class (maybe?)
 					if (classChildren.size())
 						output += "struct " + CifyName(children[i]->getDataRef()->symbol.getName()) + ";\n";
+                    else if (children[i]->getDataRef()->valueType->typeDefinition != children[i] && !children[i]->getDataRef()->valueType->templateDefinition) //Isn't uninstantiated template or 0 parameter class, so must be alias
+                        typedefPoset.addRelationship(children[i], children[i]->getDataRef()->valueType->typeDefinition); //An alias typedef depends on the type it aliases being declared before it
 				}
 			}
 			//Now generate the typedef's in the correct, topological order
@@ -82,7 +84,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 							break;
 						case function:
 						{
-							if (declarationData.valueType->baseType == template_type) 
+							if (declarationData.valueType->baseType == template_type)
 								output += "/* template function " + declarationData.symbol.toString() + " */\n";
 							else if (decChildren.size() == 0) //Not a real function, must be a built in passthrough
 								output += "/* built in function: " + declarationData.symbol.toString() + " */\n";
@@ -95,7 +97,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 									parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], enclosingObject);
 									nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
 								}
-								output += CifyName(declarationData.symbol.getName()) + nameDecoration + "(" + parameters + "); /*func*/\n";
+								output += CifyName(declarationData.symbol.getName() + nameDecoration) + "(" + parameters + "); /*func*/\n";
 							}
 						}
 							break;
@@ -165,7 +167,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				parameters += ValueTypeToCType(children[j]->getData().valueType) + " " + generate(children[j], enclosingObject);
 				nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
 			}
-			output += CifyName(data.symbol.getName()) + nameDecoration + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
+			output += CifyName(data.symbol.getName() + nameDecoration) + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
 			return output;
 		}
 		case code_block:
@@ -253,9 +255,9 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 		std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
 					 		for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
 					 			nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
-/*HERE*/				 	return CifyName(possibleObjectType->getDataRef()->symbol.getName()) +"__" + CifyName(functionName) + nameDecoration + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
+/*HERE*/				 	return CifyName(possibleObjectType->getDataRef()->symbol.getName()) +"__" + CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
 					 		//The comma lets the upper function call know we already started the param list
-					 		//Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses				 	
+					 		//Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
 					 	} else {
 					 		std::cout << "Is not in scope or not type" << std::endl;
 							return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
@@ -275,7 +277,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
 					if (isSelfObjectMethod)
 						output += enclosingObject->getDataRef()->symbol.getName() +"__";
-/*HERE*/			output += CifyName(name) + nameDecoration + "(";
+/*HERE*/			output += CifyName(name + nameDecoration) + "(";
 				 	if (isSelfObjectMethod)
 				 		output += children.size() > 1 ? "self," : "self";
 				}

@@ -98,12 +98,16 @@ void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
 
 			//It's an alias
 			if (typedefChildren[1]->getData().getName() == "type") {
-/*HERE*/		typeDef->getDataRef()->valueType = typeFromTypeNode(typedefChildren[1], ast, std::map<std::string, Type*>(), false); //No templates, we're in the traslation unit
+        		Type* aliasedType = typeFromTypeNode(typedefChildren[1], ast, std::map<std::string, Type*>(), false); //No templates, we're in the traslation unit
+        		typeDef->getDataRef()->valueType = aliasedType;
+                typeDef->getDataRef()->scope["~enclosing_scope"][0] = aliasedType->typeDefinition; //So that object lookups find the right member. Note that this overrides translation_unit as a parent scope
+                std::cout << name << " alias's to " << aliasedType->typeDefinition << std::endl;
+                std::cout << "that is " << aliasedType->typeDefinition->getDataRef()->toString() << std::endl;
 				continue;
 			}
 			//Do the inside of classes here
 			typeDef->getDataRef()->valueType = new Type(typeDef);
-            secondPassDoClassInsides(typeDef, typedefChildren);
+            secondPassDoClassInsides(typeDef, typedefChildren, std::map<std::string, Type*>());
 		} else if (i->getDataRef()->getName() == "function") {
 			//Do prototypes of functions
 			ast->addChild(secondPassFunction(i, ast, std::map<std::string, Type*>()));
@@ -114,15 +118,15 @@ void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
 	}
 }
 
-void ASTTransformation::secondPassDoClassInsides(NodeTree<ASTData>* typeDef, std::vector<NodeTree<Symbol>*> typedefChildren) {
+void ASTTransformation::secondPassDoClassInsides(NodeTree<ASTData>* typeDef, std::vector<NodeTree<Symbol>*> typedefChildren, std::map<std::string, Type*> templateTypeReplacements) {
     //We pull out this functionality into a new function because this is used in typeFromTypeNode to partially instantiate templates
 	for (NodeTree<Symbol>* j : typedefChildren) {
 		if (j->getDataRef()->getName() == "declaration_statement") {
 			//do declaration
-			typeDef->addChild(secondPassDeclaration(j, typeDef, std::map<std::string, Type*>()));
+			typeDef->addChild(secondPassDeclaration(j, typeDef, templateTypeReplacements));
 		} else if (j->getDataRef()->getName() == "function") {
 			//do member method
-			typeDef->addChild(secondPassFunction(j, typeDef, std::map<std::string, Type*>()));
+			typeDef->addChild(secondPassFunction(j, typeDef, templateTypeReplacements));
 		}
 	}
 }
@@ -214,11 +218,15 @@ void ASTTransformation::fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
 
     //First copy unfinished class templates into a new list and do them before anything else, so we know exactly which ones we need to do.
     std::vector<NodeTree<ASTData>*> classTemplates;
-    for (auto i : ast->getDataRef()->scope)
-        if (i.second[0]->getDataRef()->type == type_def && i.second[0]->getDataRef()->valueType->baseType == template_type)
+    for (auto i : ast->getDataRef()->scope) {
+        if (i.second[0]->getDataRef()->type == type_def && i.second[0]->getDataRef()->valueType->templateTypeReplacement.size()) {
             classTemplates.push_back(i.second[0]);
+            std::cout << "Saving " << i.second[0]->getDataRef()->toString() << " to instantiate." << std::endl;
+        }
+    }
     for (auto i : classTemplates) {
         Type* classTemplateType = i->getDataRef()->valueType;
+        std::cout << "Instantiating template " << i->getDataRef()->toString() << std::endl;
         for (NodeTree<Symbol>* j : classTemplateType->templateDefinition->getChildren())
 		    if (j->getDataRef()->getName() == "function")
 				fourthPassFunction(j, seachScopeForFunctionDef(i, j, classTemplateType->templateTypeReplacement), classTemplateType->templateTypeReplacement); 	//do member method
@@ -874,8 +882,10 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 			typeDefinition->getDataRef()->scope["~enclosing_scope"].push_back(templateDefinition);
 
             if (!instantiateTemplates) {
-			    selfType->templateTypeReplacement = newTemplateTypeReplacement; //Save the types for use when this is fully instantiated in pass 4
-                secondPassDoClassInsides(typeDefinition, templateSyntaxTree->getChildren());
+			    std::cout << "!instantiateTemplates, so only partially instantiating " << fullyInstantiatedName << std::endl;
+                selfType->templateDefinition = templateSyntaxTree; //We're going to still need this when we finish instantiating
+                selfType->templateTypeReplacement = newTemplateTypeReplacement; //Save the types for use when this is fully instantiated in pass 4
+                secondPassDoClassInsides(typeDefinition, templateSyntaxTree->getChildren(), newTemplateTypeReplacement); //Use these types when instantiating data members
             } else {
                 //We're fully instantiating types. (we must be in pass 4)
 			    std::set<int> skipChildren;

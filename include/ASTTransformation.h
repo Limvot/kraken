@@ -21,7 +21,7 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 
 		//Second pass defines data inside objects, outside declaration statements, and function prototpyes (since we have type_defs now)
 		void secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree);
-        void secondPassDoClassInsides(NodeTree<ASTData>* typeDef, std::vector<NodeTree<Symbol>*> typedefChildren);
+        void secondPassDoClassInsides(NodeTree<ASTData>* typeDef, std::vector<NodeTree<Symbol>*> typedefChildren, std::map<std::string, Type*> templateTypeReplacements);
 		NodeTree<ASTData>* secondPassDeclaration(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements);
 		NodeTree<ASTData>* secondPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements);
 
