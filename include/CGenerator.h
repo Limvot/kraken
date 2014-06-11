@@ -23,7 +23,7 @@ class CGenerator {
 		static std::string ValueTypeToCTypeDecoration(Type *type);
 		static std::string CifyName(std::string name);
 		std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from);
-
+        NodeTree<ASTData>* getMethodsObjectType(NodeTree<ASTData>* scope, std::string functionName);
 		std::string generatorString;
 	private:
 		std::string tabs();

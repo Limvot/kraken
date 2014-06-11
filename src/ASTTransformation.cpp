@@ -101,8 +101,8 @@ void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
         		Type* aliasedType = typeFromTypeNode(typedefChildren[1], ast, std::map<std::string, Type*>(), false); //No templates, we're in the traslation unit
         		typeDef->getDataRef()->valueType = aliasedType;
                 typeDef->getDataRef()->scope["~enclosing_scope"][0] = aliasedType->typeDefinition; //So that object lookups find the right member. Note that this overrides translation_unit as a parent scope
-                std::cout << name << " alias's to " << aliasedType->typeDefinition << std::endl;
-                std::cout << "that is " << aliasedType->typeDefinition->getDataRef()->toString() << std::endl;
+               // std::cout << name << " alias's to " << aliasedType->typeDefinition << std::endl;
+               // std::cout << "that is " << aliasedType->typeDefinition->getDataRef()->toString() << std::endl;
 				continue;
 			}
 			//Do the inside of classes here

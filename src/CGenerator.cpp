@@ -64,9 +64,12 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					//In case there are pointer dependencies. If the typedef has no children, then it is a simple renaming and we don't need to predeclare the class (maybe?)
 					if (classChildren.size())
 						output += "struct " + CifyName(children[i]->getDataRef()->symbol.getName()) + ";\n";
-                    else if (children[i]->getDataRef()->valueType->typeDefinition != children[i] && !children[i]->getDataRef()->valueType->templateDefinition) //Isn't uninstantiated template or 0 parameter class, so must be alias
-                        typedefPoset.addRelationship(children[i], children[i]->getDataRef()->valueType->typeDefinition); //An alias typedef depends on the type it aliases being declared before it
-				}
+                    else {
+                        Type *aliasType = children[i]->getDataRef()->valueType;
+                        if (aliasType->typeDefinition && aliasType->typeDefinition != children[i] && !aliasType->templateDefinition) //Isn't uninstantiated template or 0 parameter class, so must be alias. if typeDefinition isn't null, then it's an alias of a custom, not a primitive, type.
+                            typedefPoset.addRelationship(children[i], children[i]->getDataRef()->valueType->typeDefinition); //An alias typedef depends on the type it aliases being declared before it
+                    }
+                }
 			}
 			//Now generate the typedef's in the correct, topological order
 			for (NodeTree<ASTData>* i : typedefPoset.getTopoSort())
@@ -249,18 +252,24 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 	std::string functionName = children[2]->getDataRef()->symbol.getName();
 					 	NodeTree<ASTData>* possibleObjectType = children[1]->getDataRef()->valueType->typeDefinition;
 					 	//If is an object method, generate it like one. Needs extension/modification for inheritence
-					 	if (possibleObjectType && possibleObjectType->getDataRef()->scope.find(functionName) != possibleObjectType->getDataRef()->scope.end()) {
-					 		std::string nameDecoration;
-					 		std::vector<NodeTree<ASTData>*> functionDefChildren = children[2]->getChildren(); //The function def is the rhs of the access operation
-					 		std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
-					 		for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
-					 			nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
-/*HERE*/				 	return CifyName(possibleObjectType->getDataRef()->symbol.getName()) +"__" + CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
-					 		//The comma lets the upper function call know we already started the param list
-					 		//Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
-					 	} else {
-					 		std::cout << "Is not in scope or not type" << std::endl;
-							return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
+					 	if (possibleObjectType) {
+                            NodeTree<ASTData>* unaliasedTypeDef = getMethodsObjectType(possibleObjectType, functionName);
+                            if (unaliasedTypeDef) { //Test to see if the function's a member of this type_def, or if this is an alias, of the original type. Get this original type if it exists.
+					 		    std::string nameDecoration;
+					 		    std::vector<NodeTree<ASTData>*> functionDefChildren = children[2]->getChildren(); //The function def is the rhs of the access operation
+					 		    std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
+					 		    for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
+					 		    	nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
+/*HERE*/				 	    return CifyName(unaliasedTypeDef->getDataRef()->symbol.getName()) +"__" + CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
+					 		    //The comma lets the upper function call know we already started the param list
+					 		    //Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
+                            } else {
+					 	        std::cout << "Is not in scope or not type" << std::endl;
+					            return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
+                            }
+                        } else {
+					 	    std::cout << "Is not in scope or not type" << std::endl;
+					        return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
 					 	}
 					} else {
 						//return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
@@ -309,7 +318,12 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 
 	return output;
 }
-
+NodeTree<ASTData>* CGenerator::getMethodsObjectType(NodeTree<ASTData>* scope, std::string functionName) {
+    //check the thing
+    while (scope != scope->getDataRef()->valueType->typeDefinition) //type is an alias, follow it to the definition
+        scope = scope->getDataRef()->valueType->typeDefinition;
+    return (scope->getDataRef()->scope.find(functionName) != scope->getDataRef()->scope.end()) ? scope : NULL;
+}
 std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from) {
 	std::string output;
 	ASTData data = from->getData();
