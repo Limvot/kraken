@@ -30,15 +30,24 @@ bool contains(std::vector<T> vec, T item) {
 }
 
 template <typename T>
-std::vector<T> slice(std::vector<T> vec, int begin, int end) {
+std::vector<T> slice(std::vector<T> vec, int begin, int end, int step = 1) {
     std::vector<T> toReturn;
     if (begin < 0)
         begin += vec.size()+1;
     if (end < 0)
         end += vec.size()+1;
-    for (int i = begin; i < end; i++)
+    for (int i = begin; i < end; i += step)
     	toReturn.push_back(vec[i]);
     return toReturn;
 }
-
+/*
+std::vector<std::string> split(std::string str, char delim) {
+        std::stringstream stream(str);
+        std::string item;
+        std::vector<std::string> results;
+        while(std::getline(stream, item, delim))
+                results.push_back(item);
+        return results;
+}
+*/
 #endif

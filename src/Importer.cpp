@@ -35,6 +35,8 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths) {
 	collapseSymbols.push_back(Symbol("unorderd_list_part", false));
 	collapseSymbols.push_back(Symbol("if_comp_pred", false));
 	collapseSymbols.push_back(Symbol("declaration_block", false));
+	collapseSymbols.push_back(Symbol("type_list", false));
+	collapseSymbols.push_back(Symbol("identifier_list", false));
 }
 
 Importer::~Importer() {
@@ -105,7 +107,7 @@ void Importer::import(std::string fileName) {
 		if (i.ast) {
 			outFileAST << i.ast->DOTGraphString() << std::endl;
 		} else {
-			std::cout << "Tree returned from ASTTransformation is NULL!" << std::endl;
+			std::cout << "Tree returned from ASTTransformation for " << fileName << " is NULL!" << std::endl;
 		}
 		outFileAST.close();
 	}
@@ -118,7 +120,7 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 
 
 	std::string outputName = fileName + "out";
-	
+
 	for (auto i : includePaths) {
 		programInFile.open(i+fileName);
 		if (programInFile.is_open())
@@ -157,7 +159,7 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 		//std::cout << parseTree->DOTGraphString() << std::endl;
 		outFile << parseTree->DOTGraphString() << std::endl;
 	} else {
-		std::cout << "ParseTree returned from parser is NULL!" << std::endl;
+		std::cout << "ParseTree returned from parser for " << fileName << " is NULL!" << std::endl;
 	}
 	outFile.close();
 

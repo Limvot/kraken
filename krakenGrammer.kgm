@@ -3,9 +3,15 @@ translation_unit = interpreter_directive WS unorderd_list_part WS ;
 unorderd_list_part = import WS unorderd_list_part | function WS unorderd_list_part | type_def WS ";" WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | declaration_statement WS ";" WS unorderd_list_part | import | function | type_def WS ";" | if_comp | simple_passthrough | declaration_statement WS ";" ;
 
 type = type WS "\*" | "void" | "int" | "float" | "double" | "char" | identifier | identifier WS template_inst ;
-template_inst = "<" WS type WS ">" ;
+
+template_inst = "<" WS type_list WS ">" ;
+type_list = type_list WS "," WS type | type ;
+
+template_dec = "template" WS "<" WS identifier_list WS ">" ;
+identifier_list = identifier_list WS "," WS identifier | identifier ;
 
 import = "import" WS identifier WS ";" ;
+
 
 interpreter_directive = "#!" WS path | ;
 path = path path_part | path_part ;
@@ -43,7 +49,6 @@ parameter_list = parameter_list WS "," WS parameter | parameter ;
 parameter = boolean_expression ;
 
 type_def = "typedef" WS identifier WS type | "typedef" WS template_dec WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS template_dec WS identifier WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS "{" WS declaration_block WS "}" ;
-template_dec = "template" WS "<" WS identifier WS ">" ;
 class_innerds = visibility_block WS class_innerds | visibility_block ;
 visibility_block = "public:" WS declaration_block | "protected:" WS declaration_block | "private:" WS declaration_block ;
 declaration_block = declaration_statement WS ";" WS declaration_block | function WS declaration_block | declaration_statement WS ";" | function ;
