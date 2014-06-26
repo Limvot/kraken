@@ -49,7 +49,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			Poset<NodeTree<ASTData>*> typedefPoset;
 			for (int i = 0; i < children.size(); i++) {
 				if (children[i]->getDataRef()->type == type_def) {
-					typedefPoset.addVertex(children[i]); //We add this definition by itself just in case there are no dependencies.
+					typedefPoset.addVertex(children[i]); //We add this definition by itthis just in case there are no dependencies.
 													//If it has dependencies, there's no harm in adding it here
 					//Go through every child in the class looking for declaration statements. For each of these that is not a primitive type
 					//we will add a dependency from this definition to that definition in the poset.
@@ -129,10 +129,16 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			//return "#include <" + data.symbol.getName() + ">\n";
 		case identifier:
 		{
-			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the self reference.
+            //but first, if we're this, we should just emit. (assuming enclosing object) (note that technically this would fall through, but for errors)
+            if (data.symbol.getName() == "this")
+                if (enclosingObject)
+                    return "this";
+                else
+                    std::cout << "Error: this used in non-object scope" << std::endl;
+			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
 			std::string preName;
 			if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
-				preName += "self->";
+				preName += "this->";
 			if (false)
 				for (int j = 0; j < children.size()-1; j++)
 					preName += ValueTypeToCType(children[j]->getData().valueType) + "_";
@@ -213,7 +219,12 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		case declaration_statement:
 			if (children.size() == 1)
 				return ValueTypeToCType(children[0]->getData().valueType) + " " + generate(children[0], enclosingObject) + ";";
-			else
+			else if (children[1]->getChildren().size() && children[1]->getChildren()[0]->getChildren().size() > 1
+                                                 && children[1]->getChildren()[0]->getChildren()[1] == children[0]) {
+                //That is, if we're a declaration with an init position call (Object a.construct())
+                //We can tell if our function call (children[1])'s access operation([0])'s lhs ([1]) is the thing we just declared (children[0])
+                return ValueTypeToCType(children[0]->getData().valueType) + " " + generate(children[0], enclosingObject) + "; " + generate(children[1]) + "/*Init Position Call*/";
+            } else
 				return ValueTypeToCType(children[0]->getData().valueType) + " " + generate(children[0], enclosingObject) + " = " + generate(children[1], enclosingObject) + ";";
 		case if_comp:
 			if (generate(children[0], enclosingObject) == generatorString)
@@ -288,7 +299,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 						output += enclosingObject->getDataRef()->symbol.getName() +"__";
 /*HERE*/			output += CifyName(name + nameDecoration) + "(";
 				 	if (isSelfObjectMethod)
-				 		output += children.size() > 1 ? "self," : "self";
+				 		output += children.size() > 1 ? "this," : "this";
 				}
 			} else {
 				//This part handles cases where our definition isn't the function definition (that is, it is probabally the return from another function)
@@ -337,7 +348,7 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 	}
 	output += "\n" + ValueTypeToCType(data.valueType) + " " + CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
 		+ CifyName(data.symbol.getName()) + nameDecoration + "(" + ValueTypeToCType(&enclosingObjectType)
-		+ " self" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject); //Pass in the object so we can properly handle access to member stuff
+		+ " this" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject); //Pass in the object so we can properly handle access to member stuff
 	return output;
 }
 

@@ -11,6 +11,11 @@ void print(char* toPrint) {
 	return;
 }
 
+void println(char* toPrint) {
+    print(toPrint);
+    print("\n");
+}
+
 void print(int toPrint) {
 	__if_comp__ __C__ {
 		__simple_passthrough__ """
@@ -18,6 +23,11 @@ void print(int toPrint) {
 		"""
 	}
 	return;
+}
+
+void println(int toPrint) {
+    print(toPrint);
+    print("\n");
 }
 
 void print(float toPrint) {
@@ -28,3 +38,9 @@ void print(float toPrint) {
 	}
 	return;
 }
+
+void println(float toPrint) {
+    print(toPrint);
+    print("\n");
+}
+

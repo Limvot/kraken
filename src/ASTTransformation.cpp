@@ -3,30 +3,34 @@
 ASTTransformation::ASTTransformation(Importer *importerIn) {
 	importer = importerIn;
 	topScope = NULL;
-	//Set up language level special scope. (the final scope checked)
+
+    //Set up language level reserved identifier scope (only this, right now)
+    languageLevelReservedWords["this"].push_back(new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol("this", true), NULL)));
+
+    //Set up language level special scope. (the final scope checked)
 	//Note the NULL type
-	languageLevelScope["+"].push_back( new NodeTree<ASTData>("function", ASTData(function, Symbol("+", true), NULL)));
-	languageLevelScope["-"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("-", true), NULL)));
-	languageLevelScope["*"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("*", true), NULL)));
-	languageLevelScope["/"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("/", true), NULL)));
-	languageLevelScope["%"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("%", true), NULL)));
-	languageLevelScope["&"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("&", true), NULL)));
-	languageLevelScope["--"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("--", true), NULL)));
-	languageLevelScope["++"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("++", true), NULL)));
-	languageLevelScope["=="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("==", true), NULL)));
-	languageLevelScope["<="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("<=", true), NULL)));
-	languageLevelScope[">="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(">=", true), NULL)));
-	languageLevelScope["<"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("<", true), NULL)));
-	languageLevelScope[">"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(">", true), NULL)));
-	languageLevelScope["&&"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("&&", true), NULL)));
-	languageLevelScope["||"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("||", true), NULL)));
-	languageLevelScope["!"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("!", true), NULL)));
-	languageLevelScope["*="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("*=", true), NULL)));
-	languageLevelScope["+="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("+=", true), NULL)));
-	languageLevelScope["-="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("-=", true), NULL)));
-	languageLevelScope["."].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(".", true), NULL)));
-	languageLevelScope["->"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("->", true), NULL)));
-	languageLevelScope["[]"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("[]", true), NULL)));
+	languageLevelOperators["+"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("+", true), NULL)));
+	languageLevelOperators["-"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("-", true), NULL)));
+	languageLevelOperators["*"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("*", true), NULL)));
+	languageLevelOperators["/"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("/", true), NULL)));
+	languageLevelOperators["%"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("%", true), NULL)));
+	languageLevelOperators["&"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("&", true), NULL)));
+	languageLevelOperators["--"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("--", true), NULL)));
+	languageLevelOperators["++"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("++", true), NULL)));
+	languageLevelOperators["=="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("==", true), NULL)));
+	languageLevelOperators["<="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("<=", true), NULL)));
+	languageLevelOperators[">="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(">=", true), NULL)));
+	languageLevelOperators["<"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("<", true), NULL)));
+	languageLevelOperators[">"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(">", true), NULL)));
+	languageLevelOperators["&&"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("&&", true), NULL)));
+	languageLevelOperators["||"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("||", true), NULL)));
+	languageLevelOperators["!"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("!", true), NULL)));
+	languageLevelOperators["*="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("*=", true), NULL)));
+	languageLevelOperators["+="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("+=", true), NULL)));
+	languageLevelOperators["-="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("-=", true), NULL)));
+	languageLevelOperators["."].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(".", true), NULL)));
+	languageLevelOperators["->"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("->", true), NULL)));
+	languageLevelOperators["[]"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("[]", true), NULL)));
 }
 
 ASTTransformation::~ASTTransformation() {
@@ -132,7 +136,8 @@ void ASTTransformation::secondPassDoClassInsides(NodeTree<ASTData>* typeDef, std
 
 //This function may need to partially instantiate a class template
 NodeTree<ASTData>* ASTTransformation::secondPassDeclaration(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements) {
-	NodeTree<ASTData>* decStmt = new NodeTree<ASTData>("declaration_statement", ASTData(declaration_statement));
+	//Check here for method call (an error here)
+    NodeTree<ASTData>* decStmt = new NodeTree<ASTData>("declaration_statement", ASTData(declaration_statement));
 	std::string newIdentifierStr = concatSymbolTree(from->getChildren()[1]);
     Type* identifierType = typeFromTypeNode(from->getChildren()[0], scope, templateTypeReplacements, false);
 	std::cout << "Declaring an identifier " << newIdentifierStr << " to be of type " << identifierType->toString() << std::endl;
@@ -576,9 +581,33 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		newNode->getDataRef()->scope["~enclosing_scope"].push_back(scope);
 		newNode->addChild(newIdentifier);
 
+        if (children.size() > 2 && concatSymbolTree(children[2]) == ".") {
+            //A bit of a special case for declarations - if there's anything after just the normal 1 node declaration, it's either
+            //an expression that is assigned to the declaration (int a = 4;) or a member call (Object a.constructAThing())
+            //This code is a simplified version of the code in function_call with respect to access_operation.
+            //Note that in this case, what is lhs there is our newIdentifier here (the declaration of the left side of the access operation)
+            auto sliced = slice(children, 4, -1);
+            std::vector<NodeTree<ASTData>*> initPositionFuncParams = transformChildren(sliced, std::set<int>(), scope, types, templateTypeReplacements, instantiateTemplates);
+            NodeTree<ASTData>* rhs = transform(children[3], identifierType->typeDefinition, mapNodesToTypes(initPositionFuncParams), templateTypeReplacements, instantiateTemplates); //If an access operation, then the right side will be in the lhs's type's scope
+			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(newIdentifier); transformedChildren.push_back(rhs);
+			NodeTree<ASTData>* accessFuncCall = doFunction(scope, ".", transformedChildren, templateTypeReplacements);
+		    accessFuncCall->getDataRef()->valueType = rhs->getDataRef()->valueType;
+            //Now we borrow a bit of code from function_call below to actually use our new accessFuncCall to setup a "initPosition" function call
+            //that will follow the identifier in this declaration node
+            std::string initPosFuncName = newIdentifierStr + "." + concatSymbolTree(children[3]);
+            NodeTree<ASTData>* initPositionFuncCall = new NodeTree<ASTData>(initPosFuncName, ASTData(function_call, Symbol(initPosFuncName, true)));
+            initPositionFuncCall->addChild(accessFuncCall);
+            initPositionFuncCall->getDataRef()->valueType = accessFuncCall->getDataRef()->valueType;
+            initPositionFuncCall->addChildren(initPositionFuncParams);
+            newNode->addChild(initPositionFuncCall);
+            return newNode;
+        }
+
 		skipChildren.insert(0); //These, the type and the identifier, have been taken care of.
 		skipChildren.insert(1);
-	} else if (name == "if_comp") {
+        newNode->addChildren(transformChildren(children, skipChildren, scope, types, templateTypeReplacements, instantiateTemplates));
+	    return newNode;
+    } else if (name == "if_comp") {
 		newNode = new NodeTree<ASTData>(name, ASTData(if_comp));
 		newNode->addChild(new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(concatSymbolTree(children[0]),true))));
 		skipChildren.insert(0); //Don't do the identifier. The identifier lookup will fail. That's why we do it here.
@@ -627,15 +656,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	}
 
 	//Do all children but the ones we skip
-	for (int i = 0; i < children.size(); i++) {
-		if (skipChildren.find(i) == skipChildren.end()) {
-			NodeTree<ASTData>* transChild = transform(children[i], scope, types, templateTypeReplacements, instantiateTemplates);
-			if (transChild->getDataRef()->type) //Only add the children that have a real ASTData::ASTType, that is, legit ASTData.
-				newNode->addChild(transChild);
-			else
-				delete transChild;
-		}
-	}
+    newNode->addChildren(transformChildren(children, skipChildren, scope, types, templateTypeReplacements, instantiateTemplates));
 	return newNode;
 }
 
@@ -680,9 +701,9 @@ std::string ASTTransformation::concatSymbolTree(NodeTree<Symbol>* root) {
 
 //We pass in the actual children (parameters) to allow us to handle overloaded operator methods (where a parameter is actually the scope of the method)
 NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::string lookup, std::vector<NodeTree<ASTData>*> nodes, std::map<std::string, Type*> templateTypeReplacements) {
-	auto LLElementIterator = languageLevelScope.find(lookup);
+	auto LLElementIterator = languageLevelOperators.find(lookup);
 	NodeTree<ASTData>* newNode;
-	if (LLElementIterator != languageLevelScope.end()) {
+	if (LLElementIterator != languageLevelOperators.end()) {
 		std::cout << "Checking for early method level operator overload" << std::endl;
 		std::string lookupOp = "operator" + lookup;
 		for (auto i : nodes)
@@ -697,7 +718,7 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 			//return operatorMethod;
 			NodeTree<ASTData>* newNode = new NodeTree<ASTData>(lookupOp, ASTData(function_call, Symbol(lookupOp, true)));
 			NodeTree<ASTData>* dotFunctionCall = new NodeTree<ASTData>(".", ASTData(function_call, Symbol(".", true)));
-			dotFunctionCall->addChild(languageLevelScope["."][0]); //function definition
+			dotFunctionCall->addChild(languageLevelOperators["."][0]); //function definition
 			dotFunctionCall->addChild(nodes[0]); // The object whose method we're calling
 			dotFunctionCall->addChild(operatorMethod); //The method we're calling
 			newNode->addChild(dotFunctionCall); // First child of function call is a link to the function definition
@@ -740,9 +761,15 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 //Search recursively through levels of scope (each ASTData, that is, every node, has its own scope)
 //We pass in types so that if we're searching for a function we can find the right overloaded one
 NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type> types) {
-	//We first search the languageLevelScope to see if it's an operator. If so, we modifiy the lookup with a preceding "operator"
-	auto LLElementIterator = languageLevelScope.find(lookup);
-	if (LLElementIterator != languageLevelScope.end())
+	//We first check to see if it's one of the special reserved identifiers (only this, for now) and return early if it is.
+	auto LLElementIterator = languageLevelReservedWords.find(lookup);
+	if (LLElementIterator != languageLevelReservedWords.end()) {
+		std::cout << "found it at language level as reserved word." << std::endl;
+		return LLElementIterator->second[0];
+    }
+    //We search the languageLevelOperators to see if it's an operator. If so, we modifiy the lookup with a preceding "operator"
+	LLElementIterator = languageLevelOperators.find(lookup);
+	if (LLElementIterator != languageLevelOperators.end())
 		lookup = "operator" + lookup;
 	//Search the map
 	auto scopeMap = scope->getDataRef()->scope;
@@ -802,7 +829,7 @@ NodeTree<ASTData>* ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std:
 	std::cout << "could not find " << lookup << " in standard scope, checking for operator" << std::endl;
 	//Note that we don't check for types. At some point we should, as we don't know how to add objects/structs without overloaded operators, etc
 	//Also, we've already searched for the element because this is also how we keep track of operator overloading
-	if (LLElementIterator != languageLevelScope.end()) {
+	if (LLElementIterator != languageLevelOperators.end()) {
 		std::cout << "found it at language level as operator." << std::endl;
 		return LLElementIterator->second[0];
 	}

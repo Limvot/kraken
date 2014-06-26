@@ -45,7 +45,8 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		NodeTree<ASTData>* findOrInstantiateFunctionTemplate(std::vector<NodeTree<Symbol>*> children, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements);
 	private:
 		Importer * importer;
-		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelScope;
+		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelReservedWords;
+		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelOperators;
 		NodeTree<ASTData>* topScope; //maintained for templates that need to add themselves to the top scope no matter where they are instantiated
 };
 

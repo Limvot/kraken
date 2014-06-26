@@ -81,7 +81,7 @@ number = integer | float | double ;
 access_operation = unarad "." identifier | unarad "->" identifier ;
 
 assignment_statement = factor WS "=" WS boolean_expression | factor WS "\+=" WS boolean_expression | factor WS "-=" WS boolean_expression | factor WS "\*=" WS boolean_expression | factor WS "/=" WS boolean_expression ;
-declaration_statement = type WS identifier WS "=" WS boolean_expression | type WS identifier ;
+declaration_statement = type WS identifier WS "=" WS boolean_expression | type WS identifier | type WS identifier WS "." WS identifier WS "\(" WS opt_parameter_list WS "\)" ;
 
 alphanumeric = alphanumeric numeric | alphanumeric alpha | numeric | alpha ;
 hexadecimal = "0x(1|2|3|4|5|6|7|8|9|a|b|c|d|e|f)+" ;
