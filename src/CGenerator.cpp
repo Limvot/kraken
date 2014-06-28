@@ -180,18 +180,32 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			return output;
 		}
 		case code_block:
+        {
 			output += "{\n";
-			tabLevel++;
+            std::string destructorString = "";
+            tabLevel++;
 			for (int i = 0; i < children.size(); i++) {
 				//std::cout << "Line " << i << std::endl;
 				std::string line = generate(children[i], enclosingObject);
 				//std::cout << line << std::endl;
 				output += line;
-			}
-			tabLevel--;
+                if (children[i]->getChildren().size() && children[i]->getChildren()[0]->getDataRef()->type == declaration_statement) {
+                    NodeTree<ASTData> *identifier = children[i]->getChildren()[0]->getChildren()[0];
+                    NodeTree<ASTData> *typeDefinition = identifier->getDataRef()->valueType->typeDefinition;
+                    if (!typeDefinition)
+                        continue;
+                    if (typeDefinition->getDataRef()->scope.find("destruct") == typeDefinition->getDataRef()->scope.end())
+                        continue;
+                    destructorString += tabs() + CifyName(typeDefinition->getDataRef()->symbol.getName())
+                        + "__" + "destruct" + "(&" + generate(identifier, enclosingObject) + ");\n";//Call the destructor
+                }
+            }
+            output += destructorString;
+            tabLevel--;
 			output += tabs() + "}";
 			return output;
-		case expression:
+        }
+        case expression:
 			output += " " + data.symbol.getName() + ", ";
 		case boolean_expression:
 			output += " " + data.symbol.getName() + " ";

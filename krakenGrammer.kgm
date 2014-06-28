@@ -61,7 +61,7 @@ for_loop = "for" WS "\(" WS statement WS boolean_expression WS ";" WS statement 
 
 return_statement = "return" | "return" WS boolean_expression ;
 
-code_block = "{" WS statement_list WS "}" ;
+code_block = "{" WS statement_list WS "}" | "{" WS "}" ;
 
 statement_list = statement_list WS statement | statement ;
 statement = if_statement | while_loop | for_loop | return_statement WS ";" | boolean_expression WS ";" | assignment_statement WS ";" | declaration_statement WS ";" | code_block | if_comp | simple_passthrough ; 

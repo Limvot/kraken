@@ -1,0 +1,28 @@
+import io;
+
+typedef DestructorPrint {
+    char* myStr;
+    DestructorPrint* construct(char* str) {
+        myStr = str;
+        return this;
+    }
+    void destruct() {
+        println(myStr);
+    }
+};
+
+typedef NoDistruction {
+    int a;
+    void dummyFunc() {}
+};
+
+void indirPrint() {
+    DestructorPrint testObj.construct("Hello Destructors!");
+    NoDistruction dummy;
+}
+
+int main() {
+    indirPrint();
+    return 0;
+}
+
