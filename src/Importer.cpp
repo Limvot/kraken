@@ -66,7 +66,8 @@ NodeTree<ASTData>* Importer::importFirstPass(std::string fileName) {
 	NodeTree<ASTData>* ast = getUnit(fileName);
 	if (ast == NULL) {
 		NodeTree<Symbol>* parseTree = parseAndTrim(fileName);
-
+        if (!parseTree)
+            return NULL;
 		//Call with ourself to allow the transformation to call us to import files that it needs
 		ast = ASTTransformer->firstPass(fileName, parseTree); //This firstPass will register itself
 	}
@@ -160,7 +161,9 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 		outFile << parseTree->DOTGraphString() << std::endl;
 	} else {
 		std::cout << "ParseTree returned from parser for " << fileName << " is NULL!" << std::endl;
-	}
+	    outFile.close(); outFileTransformed.close();
+        return NULL;
+    }
 	outFile.close();
 
 	//Remove Transformations

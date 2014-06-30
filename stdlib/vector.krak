@@ -1,0 +1,52 @@
+import mem;
+import util;
+
+typedef template<T> vector {
+    T *data;
+    int size;
+    int available;
+    vector<T> *construct() {
+        size = 0;
+        available = 8;
+        data = new<T>(8);
+        return this;
+    }
+
+    void destruct() {
+        //Destruction of contained data should depend on if the stored things are objects or primitives.
+        delete<T>(data, size);
+    }
+
+    bool resize(int newSize) {
+        T* newData = new<T>(newSize);
+        if (!newData)
+            return false;
+        for (int i = 0; i < lesser(size, newSize); i++;)
+            newData[i] = data[i];
+        delete<T>(data, 0);
+        return true;
+    }
+    
+    T at(int index) {
+        return get(index);
+    }
+    
+    T get(int index) {
+        if (index < 0 || index >= size)
+            return null;
+        return data[index];
+    }
+
+    void set(int index, T dataIn) {
+        if (index < 0 || index  => size)
+            return;
+        data[index] = dataIn;
+    }
+    void addEnd(T dataIn) {
+        if (size < available)
+            size++;
+        else
+            resize(size*2);
+        data[size-1];
+    }
+};

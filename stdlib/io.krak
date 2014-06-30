@@ -2,6 +2,10 @@ __if_comp__ __C__ __simple_passthrough__ """
 	#include <stdio.h>
 """
 
+void println() {
+    print("\n");
+}
+
 void print(char* toPrint) {
 	__if_comp__ __C__ {
 		__simple_passthrough__ """
@@ -13,7 +17,7 @@ void print(char* toPrint) {
 
 void println(char* toPrint) {
     print(toPrint);
-    print("\n");
+    println();
 }
 
 void print(int toPrint) {
@@ -27,7 +31,7 @@ void print(int toPrint) {
 
 void println(int toPrint) {
     print(toPrint);
-    print("\n");
+    println();
 }
 
 void print(float toPrint) {
@@ -41,6 +45,6 @@ void print(float toPrint) {
 
 void println(float toPrint) {
     print(toPrint);
-    print("\n");
+    println();
 }
 

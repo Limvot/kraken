@@ -117,57 +117,74 @@ int Parser::stateNum(State* state) {
 	return -1;
 }
 
-std::vector<Symbol>* Parser::firstSet(Symbol token) {
-	std::vector<Symbol> avoidList;
-	return firstSet(token, avoidList);
-}
-
-std::vector<Symbol>* Parser::firstSet(Symbol token, std::vector<Symbol> avoidList) {
-	//If we've already done this token, don't do it again
+std::vector<Symbol> Parser::firstSet(Symbol token, std::vector<Symbol> avoidList, bool addNewTokens) {
+	if (tokenFirstSet.find(token) != tokenFirstSet.end())
+        return tokenFirstSet[token];
+    //If we've already done this token, don't do it again
 	for (std::vector<Symbol>::size_type i = 0; i < avoidList.size(); i++)
-		if (avoidList[i] == token) {
-			return new std::vector<Symbol>();
-		}
+		if (avoidList[i] == token)
+			return std::vector<Symbol>();
 	avoidList.push_back(token);
-	std::vector<Symbol>* first = new std::vector<Symbol>();
+
+    std::vector<Symbol> first;
 	//First, if the symbol is a terminal, than it's first set is just itself.
 	if (token.isTerminal()) {
-		first->push_back(token);
+		first.push_back(token);
 		return(first);
 	}
 	//Otherwise....
 	//Ok, to make a first set, go through the grammer, if the token it's left side, add it's production's first token's first set.
 	//If that one includes mull, do the next one too (if it exists).
 	Symbol rightToken;
-	std::vector<Symbol>* recursiveFirstSet = NULL;
+	std::vector<Symbol> recursiveFirstSet;
 	for (std::vector<ParseRule*>::size_type i = 0; i < loadedGrammer.size(); i++) {
 		if (token == loadedGrammer[i]->getLeftSide()) {
 			//Loop through the rule adding first sets for each token if the previous token contained NULL
-			bool recFirstSetHasNull = false;
 			int j = 0;
 			do {
 				rightToken = loadedGrammer[i]->getRightSide()[j]; //Get token of the right side of this rule
 				if (rightToken.isTerminal()) {
-					recursiveFirstSet = new std::vector<Symbol>();
-					recursiveFirstSet->push_back(rightToken);
+					recursiveFirstSet.push_back(rightToken);
 				} else {
 					//Add the entire set
-					recursiveFirstSet = firstSet(rightToken, avoidList);
+					recursiveFirstSet = firstSet(rightToken, avoidList, false);//Don't add children to cache, as early termination may cause them to be incomplete
 				}
-				first->insert(first->end(), recursiveFirstSet->begin(), recursiveFirstSet->end());
-				//Check to see if the current recursiveFirstSet contains NULL, if so, then go through again with the next token. (if there is one)
-				recFirstSetHasNull = false;
-				for (std::vector<Symbol>::size_type k = 0; k < recursiveFirstSet->size(); k++) {
-					if ((*recursiveFirstSet)[k] == nullSymbol) {
-						recFirstSetHasNull = true;
-					}
-				}
-				delete recursiveFirstSet;
+				first.insert(first.end(), recursiveFirstSet.begin(), recursiveFirstSet.end());
 				j++;
-			} while (recFirstSetHasNull && loadedGrammer[i]->getRightSide().size() > j);
+			} while (isNullable(rightToken) && loadedGrammer[i]->getRightSide().size() > j);
 		}
 	}
+    if (addNewTokens)
+        tokenFirstSet[token] = first;
 	return(first);
+}
+
+bool Parser::isNullable(Symbol token) {
+    if (tokenNullable.find(token) != tokenNullable.end())
+        return tokenNullable[token];
+    bool nullable = isNullableHelper(token, std::set<Symbol>());
+    tokenNullable[token] = nullable;
+    return nullable;
+}
+//We use this helper function to recurse because it is possible to wind up with loops, and if so we want
+//early termination. However, this means that nullable determinations in the middle of the loop are inaccurate
+//(since we terminated early), so we don't want to save them. Thus, for simplicity, only the main method will
+//add to the cache. This is somewhat unfortunate for preformance, but the necessary additions to keep track of
+//invalidated state are more complicated than it's worth.
+bool Parser::isNullableHelper(Symbol token, std::set<Symbol> done) {
+    if (token.isTerminal())
+        return token == nullSymbol;
+    if (done.find(token) != done.end())
+        return false;
+    done.insert(token);
+    if (tokenNullable.find(token) != tokenNullable.end())
+        return tokenNullable[token];
+	//Note that we only have to check the first token on the right side, as we would only get to the other tokens if it is nullable, which is what we're checking
+	for (std::vector<ParseRule*>::size_type i = 0; i < loadedGrammer.size(); i++)
+		if (token == loadedGrammer[i]->getLeftSide())
+            if (isNullableHelper(loadedGrammer[i]->getRightSide()[0], done))
+                return true;
+    return false;
 }
 
 //Return the correct lookahead. This followSet is built based on the current rule's lookahead if at end, or the next Symbol's first set.
@@ -178,25 +195,24 @@ std::vector<Symbol>* Parser::incrementiveFollowSet(ParseRule* rule) {
 
 	//Get the first set of the next Symbol. If it contains nullSymbol, keep doing for the next one
 	std::vector<Symbol>* followSet = new std::vector<Symbol>();
-	std::vector<Symbol>* symbolFirstSet;
+	std::vector<Symbol> symbolFirstSet;
 	bool symbolFirstSetHasNull = true;
 	while (symbolFirstSetHasNull && !rule->isAtEnd()) {
 		symbolFirstSetHasNull = false;
 		symbolFirstSet = firstSet(rule->getAtNextIndex());
-		for (std::vector<Symbol>::size_type i = 0; i < symbolFirstSet->size(); i++) {
-			if ((*symbolFirstSet)[i] == nullSymbol) {
+		for (std::vector<Symbol>::size_type i = 0; i < symbolFirstSet.size(); i++) {
+			if (symbolFirstSet[i] == nullSymbol) {
 				symbolFirstSetHasNull = true;
-				symbolFirstSet->erase(symbolFirstSet->begin()+i);
+				symbolFirstSet.erase(symbolFirstSet.begin()+i);
 				break;
 			}
 		}
-		followSet->insert(followSet->end(), symbolFirstSet->begin(), symbolFirstSet->end());
-		delete symbolFirstSet;
+		followSet->insert(followSet->end(), symbolFirstSet.begin(), symbolFirstSet.end());
 		rule->advancePointer();
 	}
 	if (rule->isAtEnd()) {
-		symbolFirstSet = rule->getLookahead();
-		followSet->insert(followSet->end(), symbolFirstSet->begin(), symbolFirstSet->end());
+		symbolFirstSet = *(rule->getLookahead());
+		followSet->insert(followSet->end(), symbolFirstSet.begin(), symbolFirstSet.end());
 	}
 	std::vector<Symbol>* followSetReturn = new std::vector<Symbol>();
 	for (std::vector<Symbol>::size_type i = 0; i < followSet->size(); i++) {
@@ -261,7 +277,7 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state, std::queu
 		//Clone the current rule
 		ParseRule* advancedRule = (*currStateTotal)[i]->clone();
 		//Try to advance the pointer, if sucessful see if it is the correct next symbol
-		if (advancedRule->advancePointer()) { 
+		if (advancedRule->advancePointer()) {
 			//Technically, it should be the set of rules sharing this symbol advanced past in the basis for new state
 
 			//So search our new states to see if any of them use this advanced symbol as a base.

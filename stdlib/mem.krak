@@ -50,6 +50,12 @@ template <T> T* new() {
 	return new<T>(1);
 }
 
+template <T> void delete(T* toDelete, int itemDestructCount) {
+    for (int i = 0; i < itemDestructCount; i++)
+        toDelete[i].destruct();
+    delete(toDelete);
+}
+
 template <T> void delete(T* toDelete) {
 	free<T>(toDelete);
 }

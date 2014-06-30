@@ -22,16 +22,31 @@ ParseAction::~ParseAction() {
 
 }
 
-const bool ParseAction::equalsExceptLookahead(const ParseAction &other) {
+const bool ParseAction::equalsExceptLookahead(const ParseAction &other) const {
 	return( action == other.action && ( reduceRule == other.reduceRule || reduceRule->equalsExceptLookahead(*(other.reduceRule)) ) && shiftState == other.shiftState);
 }
 
-const bool ParseAction::operator==(const ParseAction &other) {
+const bool ParseAction::operator==(const ParseAction &other) const {
 	return( action == other.action && ( reduceRule == other.reduceRule || *reduceRule == *(other.reduceRule) ) && shiftState == other.shiftState);
 }
 
-const bool ParseAction::operator!=(const ParseAction &other) {
+const bool ParseAction::operator!=(const ParseAction &other) const {
 	return !(this->operator==(other));
+}
+
+//Exists so we can put ParseActions into sets
+const bool ParseAction::operator<(const ParseAction &other) const {
+    if (action != other.action)
+        return action < other.action;
+    if (reduceRule != other.reduceRule) {
+        if (! (reduceRule && other.reduceRule)) {
+           return reduceRule < other.reduceRule;
+        } else {
+            return *reduceRule < *(other.reduceRule);
+        }
+    }
+
+    return shiftState < other.shiftState;
 }
 
 std::string ParseAction::actionToString(ActionType action) {
@@ -53,12 +68,12 @@ std::string ParseAction::actionToString(ActionType action) {
 	}
 }
 
-std::string ParseAction::toString() {
+std::string ParseAction::toString(bool printRuleLookahead) {
 	std::string outputString = "";
 	outputString += actionToString(action);
 	if (reduceRule != NULL)
-		outputString += " " + reduceRule->toString(); 
+		outputString += " " + reduceRule->toString(printRuleLookahead);
 	if (shiftState != -1)
-		outputString += " " + intToString(shiftState); 
+		outputString += " " + intToString(shiftState);
 	return(outputString);
 }

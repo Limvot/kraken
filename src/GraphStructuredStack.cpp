@@ -117,6 +117,13 @@ void GraphStructuredStack::addEdge(NodeTree<int>* start, NodeTree<int>* end, Nod
 	edges[std::make_pair(start, end)] = edge;
 }
 
+std::vector<int> GraphStructuredStack::getFrontier(int frontier) {
+    std::vector<int> toReturn;
+    for (int i = 0; i < gss[frontier]->size(); i++)
+        toReturn.push_back((*(gss[frontier]))[i]->getData());
+    return toReturn;
+}
+
 std::string GraphStructuredStack::toString() {
 	std::string tostring = "";
 	for (std::vector<std::vector<NodeTree<int>*>*>::size_type i = 0; i < gss.size(); i++) {

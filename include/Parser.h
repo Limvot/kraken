@@ -12,6 +12,7 @@
 #include "Table.h"
 
 #include <queue>
+#include <set>
 #include <map>
 #include <vector>
 #include <algorithm>
@@ -36,8 +37,13 @@ class Parser {
 		void importTable(char* tableData);
 
 	protected:
-		std::vector<Symbol>* firstSet(Symbol token);
-		std::vector<Symbol>* firstSet(Symbol token, std::vector<Symbol> avoidList);
+		std::vector<Symbol> firstSet(Symbol token, std::vector<Symbol> avoidList = std::vector<Symbol>(), bool addNewTokens = true);
+        bool isNullable(Symbol token);
+        bool isNullableHelper(Symbol token, std::set<Symbol> done);
+
+        std::map<Symbol, std::vector<Symbol>> tokenFirstSet;
+        std::map<Symbol, bool> tokenNullable;
+
 		std::vector<Symbol>* incrementiveFollowSet(ParseRule* rule);
 		virtual void closure(State* state);
 		virtual void addStates(std::vector< State* >* stateSets, State* state, std::queue<State*>* toDo);

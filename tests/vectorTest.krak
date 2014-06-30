@@ -1,0 +1,15 @@
+import io;
+import vector;
+
+int main() {
+    vector<int> intVec.construct();
+    intVec.addBack(1);
+    intVec.addBack(3);
+    intVec.addBack(3);
+    intVec.addBack(7);
+    for (int i = 0; i < intVec.size(); i++;)
+        print(intVec.at(i));
+    
+    println();
+    return 0;
+}

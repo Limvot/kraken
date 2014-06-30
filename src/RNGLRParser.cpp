@@ -8,6 +8,20 @@ RNGLRParser::~RNGLRParser() {
 	//
 }
 
+void RNGLRParser::printReconstructedFrontier(int frontier) {
+    std::vector<int> lastFrontier = gss.getFrontier(frontier);
+    for (int j = 0; j < lastFrontier.size(); j++) {
+        std::cout << "State: " << lastFrontier[j] << std::endl;
+        std::vector<std::pair<std::string, ParseAction>> stateParseActions = table.stateAsParseActionVector(lastFrontier[j]);
+        std::set<std::pair<std::string, ParseAction>> noRepeats;
+        for (auto k : stateParseActions)
+            noRepeats.insert(k);
+        for (auto k : noRepeats)
+            std::cout << k.first << " " << k.second.toString(false) << std::endl;
+        std::cout << std::endl;
+    }
+}
+
 NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 	input.clear();
 	gss.clear();
@@ -53,7 +67,7 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 	// std::cout << "\nDone with Lexing, length:" << input.size() << std::endl;
 	// std::cout << input[0].toString() << std::endl;
 
-	
+
 	// for (int i = 0; i < input.size(); i++)
 	// 	std::cout << "|" << input[i]->toString() << "|";
 	// std::cout << std::endl;
@@ -74,7 +88,6 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 		else if (firstActions[i]->action == ParseAction::REDUCE && fullyReducesToNull(firstActions[i]->reduceRule)) {
 			Reduction newReduction = {v0, firstActions[i]->reduceRule->getLeftSide(), 0, getNullableParts(firstActions[i]->reduceRule), NULL};
 			toReduce.push(newReduction);
-			//toReduce.push(std::make_pair(std::make_pair(v0, firstActions[i]->reduceRule->getLeftSide()), 0));
 		}
 	}
 
@@ -89,14 +102,21 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 			std::cout << "Parsing failed on " << input[i].toString() << std::endl;
 			std::cout << "Problem is on line: " << findLine(i) << std::endl;
 			std::cout << "Nearby is:" << std::endl;
-			const int range = 10;
+			int range = 10;
 			for (int j = (i-range >= 0 ? i-range : 0); j < (i+range < input.size() ? i+range : input.size()); j++)
 				if (j == i)
 					std::cout << "||*||*||" << input[j].toString() << "||*||*|| ";
 				else
 					std::cout << input[j].toString() << " ";
 			std::cout << std::endl;
-			break;
+            range = 3;
+            std::cout << "\n\n\nThe states in the GSS at last frontiers:" << std::endl;
+			for (int j = (i-range >= 0 ? i-range : 0); j < i; j++) {
+                std::cout << "Frontier:" << j << " (would get): " << input[j].toString() << std::endl;
+                printReconstructedFrontier(j);
+            }
+            std::cout << "\n\n\n\n" << std::endl;
+            break;
 		}
 
 		//Clear the vector of SPPF nodes created every step
@@ -186,7 +206,7 @@ void RNGLRParser::reducer(int i) {
 			toStateNode = gss.newNode(toState);
 			gss.addToFrontier(i, toStateNode);
 			gss.addEdge(toStateNode, currentReached, newLabel);
-			
+
 			//std::cout << "Adding shifts and reductions for a state that did not exist" << std::endl;
 			std::vector<ParseAction*> actions = *(table.get(toState, input[i]));
 			for (std::vector<ParseAction*>::size_type k = 0; k < actions.size(); k++) {
@@ -319,7 +339,7 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std:
 		//Clone the current rule
 		ParseRule* advancedRule = (*currStateTotal)[i]->clone();
 		//Try to advance the pointer, if sucessful see if it is the correct next symbol
-		if (advancedRule->advancePointer()) { 
+		if (advancedRule->advancePointer()) {
 			//Technically, it should be the set of rules sharing this symbol advanced past in the basis for new state
 
 			//So search our new states to see if any of them use this advanced symbol as a base.
@@ -353,10 +373,10 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std:
 				stateAlreadyInAllStates = true;
 				//If it does exist, we should add it as the shift/goto in the action table
 				//std::cout << "newStates[" << i << "] == stateSets[" << j << "]" << std::endl;
-				
+
 				if (!((*stateSets)[j]->basisEquals(*(newStates[i]))))
 					toDo->push((*stateSets)[j]);
-				
+
 				(*stateSets)[j]->combineStates(*(newStates[i]));
 				//std::cout << j << "\t Hay, doing an inside loop state reductions!" << std::endl;
 				addStateReductionsToTable((*stateSets)[j]);
