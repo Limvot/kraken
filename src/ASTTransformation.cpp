@@ -467,9 +467,21 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			return transform(children[0], scope, types, templateTypeReplacements, instantiateTemplates); //Just a promoted term, so do child
 		}
 	//Here's the order of ops stuff
-	} else if (name == "expression" || name == "shiftand" || name == "term" || name == "unarad" || name == "access_operation") { //unarad can ride through, it should always just be a promoted child
+	} else if (name == "expression" || name == "shiftand" || name == "term" || name == "unarad" || name == "access_operation") {
 		//If this is an actual part of an expression, not just a premoted child
 		if (children.size() > 2) {
+           /* else if (children.size() >= 4) { //Array brackets []
+			    funcName = "[]";
+			    std::vector<NodeTree<ASTData>*> transformedChildren;
+		    	transformedChildren.push_back(transform(children[0], scope, types, templateTypeReplacements, instantiateTemplates));
+		    	transformedChildren.push_back(transform(children[2], scope, types, templateTypeReplacements, instantiateTemplates));
+		    	NodeTree<ASTData>* function = doFunction(scope, funcName, transformedChildren, templateTypeReplacements);
+		    	if (function == NULL) {
+		    		std::cout << "scope lookup error! Could not find " << funcName  << " in factor " << std::endl;
+		    		throw "LOOKUP ERROR: " + funcName;
+		    	}
+		    	return function;
+		    }*/
 			NodeTree<ASTData>* lhs = transform(children[0], scope, std::vector<Type>(), templateTypeReplacements, instantiateTemplates); //LHS does not inherit types
 			NodeTree<ASTData>* rhs;
 			if (name == "access_operation") {
@@ -480,7 +492,9 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 				rhs = transform(children[2], scope, types, templateTypeReplacements, instantiateTemplates);
 
 			std::string functionCallName = concatSymbolTree(children[1]);
-			//std::cout << "scope lookup from expression or similar" << std::endl;
+			if (functionCallName == "[")
+                functionCallName = "[]"; //fudge the lookup of brackets because only one is at children[1] (the other is at children[3])
+            //std::cout << "scope lookup from expression or similar" << std::endl;
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(lhs); transformedChildren.push_back(rhs);
 			newNode = doFunction(scope, functionCallName, transformedChildren, templateTypeReplacements);
 			if (newNode == NULL) {
@@ -491,8 +505,8 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			// //Set the value of this function call
 			if (newNode->getDataRef()->valueType == NULL && rhs->getDataRef()->valueType)
 				newNode->getDataRef()->valueType = rhs->getDataRef()->valueType;
-			else
-				newNode->getDataRef()->valueType = NULL;
+			//else
+			//	newNode->getDataRef()->valueType = NULL;
 			std::cout << "function call to " << functionCallName << " - " << newNode->getName() << " is now " << newNode->getDataRef()->valueType  << std::endl;
 			return newNode;
 			//skipChildren.insert(1);
@@ -522,17 +536,6 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 				throw "LOOKUP ERROR: " + funcName;
 			}
 
-			return function;
-		} else if (children.size() >= 4) { //Array brackets []
-			funcName = "[]";
-			std::vector<NodeTree<ASTData>*> transformedChildren;
-			transformedChildren.push_back(transform(children[0], scope, types, templateTypeReplacements, instantiateTemplates));
-			transformedChildren.push_back(transform(children[2], scope, types, templateTypeReplacements, instantiateTemplates));
-			NodeTree<ASTData>* function = doFunction(scope, funcName, transformedChildren, templateTypeReplacements);
-			if (function == NULL) {
-				std::cout << "scope lookup error! Could not find " << funcName  << " in factor " << std::endl;
-				throw "LOOKUP ERROR: " + funcName;
-			}
 			return function;
 		} else {
 			return transform(children[0], scope, types, templateTypeReplacements, instantiateTemplates); //Just a promoted child, so do it instead

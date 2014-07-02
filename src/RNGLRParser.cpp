@@ -109,7 +109,7 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 				else
 					std::cout << input[j].toString() << " ";
 			std::cout << std::endl;
-            range = 3;
+            range = 1;
             std::cout << "\n\n\nThe states in the GSS at last frontiers:" << std::endl;
 			for (int j = (i-range >= 0 ? i-range : 0); j < i; j++) {
                 std::cout << "Frontier:" << j << " (would get): " << input[j].toString() << std::endl;

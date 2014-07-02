@@ -75,8 +75,8 @@ comparator = "==" | "<=" | ">=" | "!=" | "<" | ">" ;
 expression = expression WS "<<" WS term | expression WS ">>" WS shiftand | shiftand ;
 shiftand = shiftand WS "-" WS term | shiftand WS "\+" WS term | term ;
 term = term WS forward_slash WS factor | term WS "\*" WS factor | term WS "%" WS factor | factor ;
-factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\(" WS type WS "\)" WS unarad | "\*" WS unarad | "&" WS unarad | unarad WS "[" WS expression WS "]" | unarad ;
-unarad = number | identifier | identifier WS template_inst | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | access_operation ;
+factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\(" WS type WS "\)" WS unarad | "\*" WS unarad | "&" WS unarad | unarad ;
+unarad = number | identifier | identifier WS template_inst | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | access_operation | unarad WS "[" WS expression WS "]" ; 
 number = integer | float | double ;
 access_operation = unarad "." identifier | unarad "->" identifier ;
 

@@ -179,11 +179,21 @@ bool Parser::isNullableHelper(Symbol token, std::set<Symbol> done) {
     done.insert(token);
     if (tokenNullable.find(token) != tokenNullable.end())
         return tokenNullable[token];
-	//Note that we only have to check the first token on the right side, as we would only get to the other tokens if it is nullable, which is what we're checking
-	for (std::vector<ParseRule*>::size_type i = 0; i < loadedGrammer.size(); i++)
-		if (token == loadedGrammer[i]->getLeftSide())
-            if (isNullableHelper(loadedGrammer[i]->getRightSide()[0], done))
+
+    for (std::vector<ParseRule*>::size_type i = 0; i < loadedGrammer.size(); i++) {
+		if (token == loadedGrammer[i]->getLeftSide()) {
+            auto rightSide = loadedGrammer[i]->getRightSide();
+            bool ruleNullable = true;
+            for (int j = 0; j < rightSide.size(); j++) {
+                if (!isNullableHelper(rightSide[j], done)) {
+                    ruleNullable = false;
+                    break;
+                }
+            }
+            if (ruleNullable)
                 return true;
+        }
+    }
     return false;
 }
 
