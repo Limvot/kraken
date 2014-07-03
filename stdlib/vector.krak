@@ -38,7 +38,7 @@ typedef template<T> vector {
     }
 
     void set(int index, T dataIn) {
-        if (index < 0 || index  => size)
+        if (index < 0 || index  >= size)
             return;
         data[index] = dataIn;
     }

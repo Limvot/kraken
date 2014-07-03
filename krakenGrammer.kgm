@@ -36,7 +36,7 @@ triple_quoted_string = "\"\"\"((\"\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i
 
 identifier = alpha | alpha alphanumeric ;
 
-overloadable_operator = "\+" | "-" | "\*" | "/" | "%" | "^" | "&" | "\|" | "~" | "\!" | "," | "=" | "\+\+" | "--" | "<<" | ">>" | "==" | "!=" | "&&" | "\|\|" | "\+=" | "-=" | "/=" | "%=" | "^=" | "&=" | "\|=" | "\*=" | "<<=" | ">>=" | "->" ;
+overloadable_operator = "\+" | "-" | "\*" | "/" | "%" | "^" | "&" | "\|" | "~" | "!" | "," | "=" | "\+\+" | "--" | "<<" | ">>" | "==" | "!=" | "&&" | "\|\|" | "\+=" | "-=" | "/=" | "%=" | "^=" | "&=" | "\|=" | "\*=" | "<<=" | ">>=" | "->" ;
 func_identifier = identifier | identifier overloadable_operator ;
 function = template_dec WS type WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block | type WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block ;
 
@@ -53,7 +53,7 @@ class_innerds = visibility_block WS class_innerds | visibility_block ;
 visibility_block = "public:" WS declaration_block | "protected:" WS declaration_block | "private:" WS declaration_block ;
 declaration_block = declaration_statement WS ";" WS declaration_block | function WS declaration_block | declaration_statement WS ";" | function ;
 
-if_statement = "if" WS "\(" WS boolean_expression WS "\)" WS statement ;
+if_statement = "if" WS "\(" WS boolean_expression WS "\)" WS statement | "if" WS "\(" WS boolean_expression WS "\)" WS statement WS "else" WS statement ;
 
 while_loop = "while" WS boolean_expression WS statement ;
 
@@ -69,7 +69,7 @@ function_call = unarad "\(" WS opt_parameter_list WS "\)" ;
 
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;
 and_boolean_expression = and_boolean_expression "&&" bool_exp | bool_exp ;
-bool_exp = "!" WS bool_exp | expression WS comparator WS expression | bool | expression ;
+bool_exp = expression WS comparator WS expression | bool | expression ;
 comparator = "==" | "<=" | ">=" | "!=" | "<" | ">" ;
 
 expression = expression WS "<<" WS term | expression WS ">>" WS shiftand | shiftand ;
