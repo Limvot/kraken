@@ -5,7 +5,11 @@ typedef template<T> vector {
     T *data;
     int size;
     int available;
-    vector<T> *construct() {
+    bool destroyItems;
+
+    vector<T> *construct(bool destroyItemsIn) {
+        destroyItems = destroyItemsIn;
+        return construct();
         size = 0;
         available = 8;
         data = new<T>(8);
@@ -13,8 +17,10 @@ typedef template<T> vector {
     }
 
     void destruct() {
-        //Destruction of contained data should depend on if the stored things are objects or primitives.
-        delete<T>(data, size);
+        if (destroyItems)
+            delete<T>(data, size);
+        else
+            delete<T>(data);
     }
 
     bool resize(int newSize) {

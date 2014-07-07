@@ -36,7 +36,7 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths) {
 	collapseSymbols.push_back(Symbol("if_comp_pred", false));
 	collapseSymbols.push_back(Symbol("declaration_block", false));
 	collapseSymbols.push_back(Symbol("type_list", false));
-	collapseSymbols.push_back(Symbol("identifier_list", false));
+	collapseSymbols.push_back(Symbol("template_param_list", false));
 }
 
 Importer::~Importer() {

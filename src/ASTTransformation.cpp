@@ -503,8 +503,10 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			}
 
 			// //Set the value of this function call
-			if (newNode->getDataRef()->valueType == NULL && rhs->getDataRef()->valueType)
-				newNode->getDataRef()->valueType = rhs->getDataRef()->valueType;
+			if (newNode->getDataRef()->valueType == NULL && rhs->getDataRef()->valueType) {
+			    std::cout << "The value type from doFunction was null! (for " << functionCallName << ")" << std::endl;
+                newNode->getDataRef()->valueType = rhs->getDataRef()->valueType;
+            }
 			//else
 			//	newNode->getDataRef()->valueType = NULL;
 			std::cout << "function call to " << functionCallName << " - " << newNode->getName() << " is now " << newNode->getDataRef()->valueType  << std::endl;
@@ -754,7 +756,7 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 		else
 			newType->increaseIndirection();
 
-		newNode->getDataRef()->valueType = newType, std::cout << "Operator " + lookup << " is altering indirection "<< std::endl;
+		newNode->getDataRef()->valueType = newType, std::cout << "Operator " + lookup << " is altering indirection from " << oldTypes[0].toString() << " to " << newType->toString() << std::endl;
 	} else {
 		newNode->getDataRef()->valueType = function->getDataRef()->valueType, std::cout << "Some other ||" << lookup << "||" << std::endl;
 	}

@@ -57,5 +57,11 @@ template <T> void delete(T* toDelete, int itemDestructCount) {
 }
 
 template <T> void delete(T* toDelete) {
-	free<T>(toDelete);
+	delete<T>(toDelete, true);
+}
+
+template <T> void delete(T* toDelete, bool destruct) {
+	if (destruct)
+        toDelete->destruct();
+    free<T>(toDelete);
 }

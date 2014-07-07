@@ -7,8 +7,12 @@ type = type WS "\*" | "void" | "int" | "float" | "double" | "char" | identifier 
 template_inst = "<" WS type_list WS ">" ;
 type_list = type_list WS "," WS type | type ;
 
-template_dec = "template" WS "<" WS identifier_list WS ">" ;
-identifier_list = identifier_list WS "," WS identifier | identifier ;
+#What does that even mean?
+#some
+#
+#
+template_dec = "template" WS "<" WS template_param_list WS ">" ;
+template_param_list = template_param_list WS "," WS identifier | identifier ;
 
 import = "import" WS identifier WS ";" ;
 

@@ -1,8 +1,14 @@
 import io;
 import vector;
 
+typedef Destructable {
+    void destruct() {
+        println("Destroyed!");
+    }
+};
+
 int main() {
-    vector<int> intVec.construct();
+    vector<int> intVec.construct(false);
     intVec.addBack(1);
     intVec.addBack(3);
     intVec.addBack(3);
@@ -11,5 +17,11 @@ int main() {
         print(intVec.at(i));
     
     println();
+    
+    vector<Destructable>* desVec = new<vector<Destructable>>()->construct(true);
+    Destructable testDestruct;
+    desVec->addBack(testDestruct);
+    delete<vector<Destructable>>(desVec);
+
     return 0;
 }

@@ -32,10 +32,22 @@ Symbol Parser::getOrAddSymbol(std::string symbolString, bool isTerminal) {
 void Parser::loadGrammer(std::string grammerInputString) {
 	reader.setString(grammerInputString);
 
-	std::string currToken = reader.word();
+	std::string currToken = reader.word(false); //Don't truncate so we can find the newline correctly (needed for comments)
 
 	while(currToken != "") {
-		//Load the left of the rule
+        //First, if this starts with a '#', skip this
+        if (currToken.front() == '#') {
+            //If this line is more than one token long, eat it
+            std::cout << "Ate: " << currToken << std::endl;
+            if (currToken.back() != '\n')
+                std::cout << "Eating " << reader.line() << " b/c grammer comment" << std::endl;
+            currToken = reader.word(false);
+            continue;
+        }
+        if (currToken.back() == '\n' || currToken.back() == ' ' || currToken.back() == '\t')
+            currToken.erase(currToken.size()-1);
+
+        //Load the left of the rule
 		ParseRule* currentRule = new ParseRule();
 		Symbol leftSide = getOrAddSymbol(currToken, false); //Left handle is never a terminal
 		currentRule->setLeftHandle(leftSide);
@@ -76,7 +88,7 @@ void Parser::loadGrammer(std::string grammerInputString) {
 
 		loadedGrammer.push_back(currentRule);
 		//Get next token
-		currToken = reader.word();
+		currToken = reader.word(false);
 	}
 	//std::cout << "Parsed!\n";
 
