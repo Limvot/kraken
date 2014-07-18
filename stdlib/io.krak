@@ -43,6 +43,15 @@ void print(float toPrint) {
 	return;
 }
 
+void print(double toPrint) {
+	__if_comp__ __C__ {
+		__simple_passthrough__ """
+			printf("%f", toPrint);
+		"""
+	}
+	return;
+}
+
 void println(float toPrint) {
     print(toPrint);
     println();

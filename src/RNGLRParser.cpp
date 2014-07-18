@@ -110,13 +110,13 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 					std::cout << input[j].toString() << " ";
 			std::cout << std::endl;
             range = 1;
-            std::cout << "\n\n\nThe states in the GSS at last frontiers:" << std::endl;
+/*            std::cout << "\n\n\nThe states in the GSS at last frontiers:" << std::endl;
 			for (int j = (i-range >= 0 ? i-range : 0); j < i; j++) {
                 std::cout << "Frontier:" << j << " (would get): " << input[j].toString() << std::endl;
                 printReconstructedFrontier(j);
             }
             std::cout << "\n\n\n\n" << std::endl;
-            break;
+ */           break;
 		}
 
 		//Clear the vector of SPPF nodes created every step

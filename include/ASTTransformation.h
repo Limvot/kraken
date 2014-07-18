@@ -4,6 +4,9 @@
 #include <set>
 #include <map>
 
+#include <iterator>
+#include <algorithm>
+
 #include "Type.h"
 #include "ASTData.h"
 #include "NodeTransformation.h"
@@ -18,6 +21,7 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 
 		//First pass defines all type_defs (objects and ailises)
 		NodeTree<ASTData>* firstPass(std::string fileName, NodeTree<Symbol>* parseTree);
+        std::set<std::string> parseTraits(NodeTree<Symbol>* traitsNode);
 
 		//Second pass defines data inside objects, outside declaration statements, and function prototpyes (since we have type_defs now)
 		void secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree);
@@ -39,10 +43,15 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		std::vector<Type> mapNodesToTypes(std::vector<NodeTree<ASTData>*> nodes);
 		std::string concatSymbolTree(NodeTree<Symbol>* root);
 		NodeTree<ASTData>* doFunction(NodeTree<ASTData>* scope, std::string lookup, std::vector<NodeTree<ASTData>*> nodes, std::map<std::string, Type*> templateTypeReplacements);
-		NodeTree<ASTData>* scopeLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type> types = std::vector<Type>());
+
+        NodeTree<ASTData>* functionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type> types);
+        NodeTree<ASTData>* templateFunctionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*> templateInstantiationTypes, std::vector<Type> types);
+        std::vector<NodeTree<ASTData>*> scopeLookup(NodeTree<ASTData>* scope, std::string lookup);
 
         Type* typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements, bool instantiateTemplates);
 		NodeTree<ASTData>* findOrInstantiateFunctionTemplate(std::vector<NodeTree<Symbol>*> children, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements);
+        std::map<std::string, Type*> makeTemplateFunctionTypeMap(NodeTree<Symbol>* templateNode, std::vector<Type*> types);
+        std::vector<std::pair<std::string, std::set<std::string>>> makeTemplateFunctionNameTraitPairs(NodeTree<Symbol>* templateNode);
 	private:
 		Importer * importer;
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelReservedWords;

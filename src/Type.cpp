@@ -7,47 +7,50 @@ Type::Type() {
 	templateDefinition = NULL;
 }
 
-Type::Type(ValueType typeIn) {
-	indirection = 0;
-	baseType = typeIn;
-	typeDefinition = NULL;
-	templateDefinition = NULL;
-}
-
 Type::Type(ValueType typeIn, int indirectionIn) {
 	indirection = indirectionIn;
 	baseType = typeIn;
 	typeDefinition = NULL;
 	templateDefinition = NULL;
-	if (indirection < 0) SEGFAULT
 }
 
-Type::Type(NodeTree<ASTData>* typeDefinitionIn) {
+Type::Type(ValueType typeIn, std::set<std::string> traitsIn) {
 	indirection = 0;
-	baseType = none;
-	typeDefinition = typeDefinitionIn;
+	baseType = typeIn;
+    traits = traitsIn;
+	typeDefinition = NULL;
 	templateDefinition = NULL;
 }
+
 Type::Type(NodeTree<ASTData>* typeDefinitionIn, int indirectionIn) {
 	indirection = indirectionIn;
 	baseType = none;
 	typeDefinition = typeDefinitionIn;
 	templateDefinition = NULL;
-	if (indirection < 0) SEGFAULT
 }
 
-Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn) {
+Type::Type(NodeTree<ASTData>* typeDefinitionIn, std::set<std::string> traitsIn) {
+	indirection = 0;
+	baseType = none;
+	typeDefinition = typeDefinitionIn;
+    traits = traitsIn;
+	templateDefinition = NULL;
+}
+
+Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, std::set<std::string> traitsIn) {
 	baseType = typeIn;
 	indirection = indirectionIn;
 	typeDefinition = typeDefinitionIn;
-	templateDefinition = NULL;
-	if (indirection < 0) SEGFAULT
+    traits = traitsIn;
+    templateDefinition = NULL;
 }
-Type::Type(ValueType typeIn, NodeTree<Symbol>* templateDefinitionIn) {
+
+Type::Type(ValueType typeIn, NodeTree<Symbol>* templateDefinitionIn, std::set<std::string> traitsIn) {
 	indirection = 0;
 	baseType = typeIn;
 	typeDefinition = NULL;
 	templateDefinition = templateDefinitionIn;
+    traits = traitsIn;
 }
 
 
@@ -55,7 +58,7 @@ Type::~Type() {
 }
 
 const bool Type::operator==(const Type &other) const {
-	return( baseType == other.baseType && indirection == other.indirection && typeDefinition == other.typeDefinition && templateDefinition == other.templateDefinition);
+	return( baseType == other.baseType && indirection == other.indirection && typeDefinition == other.typeDefinition && templateDefinition == other.templateDefinition && other.traits == traits);
 }
 
 const bool Type::operator!=(const Type &other) const {
@@ -103,16 +106,18 @@ std::string Type::toString() {
 	}
 	for (int i = 0; i < indirection; i++)
 		typeString += "*";
+    if (traits.size()) {
+        typeString += "[ ";
+        for (auto i : traits)
+            typeString += i + " ";
+        typeString += "]";
+    }
 	//std::cout << "Extra components of " << typeString << " are " << indirection << " " << typeDefinition << " " << templateDefinition << std::endl;
 	return typeString;
 }
 
 Type* Type::clone() {
-	return new Type(baseType, typeDefinition, indirection);
-}
-
-void Type::check() {
-	if (indirection < 0) SEGFAULT
+	return new Type(baseType, typeDefinition, indirection, traits);
 }
 
 int Type::getIndirection() {
@@ -121,7 +126,6 @@ int Type::getIndirection() {
 
 void Type::setIndirection(int indirectionIn) {
 	indirection = indirectionIn;
-	check();
 }
 
 void Type::increaseIndirection() {

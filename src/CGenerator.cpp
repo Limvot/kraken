@@ -61,12 +61,12 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 								typedefPoset.addRelationship(children[i], decType->typeDefinition); //Add a dependency
 						}
 					}
-					//In case there are pointer dependencies. If the typedef has no children, then it is a simple renaming and we don't need to predeclare the class (maybe?)
-					if (classChildren.size())
+					//In case there are pointer dependencies. We don't do this if this is an alias type
+					if (children[i]->getDataRef()->valueType->typeDefinition == children[i])
 						output += "struct " + CifyName(children[i]->getDataRef()->symbol.getName()) + ";\n";
                     else {
                         Type *aliasType = children[i]->getDataRef()->valueType;
-                        if (aliasType->typeDefinition && aliasType->typeDefinition != children[i] && !aliasType->templateDefinition) //Isn't uninstantiated template or 0 parameter class, so must be alias. if typeDefinition isn't null, then it's an alias of a custom, not a primitive, type.
+                        if (aliasType->typeDefinition && !aliasType->templateDefinition) //Isn't uninstantiated template or 0 parameter class, so must be alias. if typeDefinition isn't null, then it's an alias of a custom, not a primitive, type.
                             typedefPoset.addRelationship(children[i], children[i]->getDataRef()->valueType->typeDefinition); //An alias typedef depends on the type it aliases being declared before it
                     }
                 }
@@ -147,7 +147,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		case type_def:
 			if (data.valueType->baseType == template_type) {
 				return "/* non instantiated template " + data.symbol.getName() + " */";
-			} else if (children.size() == 0) {
+			} else if (data.valueType->typeDefinition != from) {
 				return "typedef " + ValueTypeToCType(data.valueType) + " " + data.symbol.getName() + ";";
 			} else {
 				std::string objectString = "typedef struct __struct_dummy_" + CifyName(data.symbol.getName()) + "__ {\n";
@@ -471,6 +471,11 @@ std::string CGenerator::CifyName(std::string name) {
 											"<", "lessthan",
 											">", "greaterthan",
 											">>=", "doubleleftequals",
+											"(", "openparen",
+											")", "closeparen",
+											"[", "openbracket",
+											"]", "closebracket",
+											" ", "space",
 											"->", "arrow" };
 	int length = sizeof(operatorsToReplace)/sizeof(std::string);
 	//std::cout << "Length is " << length << std::endl;
