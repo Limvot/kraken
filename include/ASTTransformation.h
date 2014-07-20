@@ -49,9 +49,10 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
         std::vector<NodeTree<ASTData>*> scopeLookup(NodeTree<ASTData>* scope, std::string lookup);
 
         Type* typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements, bool instantiateTemplates);
+        NodeTree<ASTData>* templateClassLookup(NodeTree<ASTData>* scope, std::string name, std::vector<Type*> templateInstantiationTypes);
 		NodeTree<ASTData>* findOrInstantiateFunctionTemplate(std::vector<NodeTree<Symbol>*> children, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements);
         std::map<std::string, Type*> makeTemplateFunctionTypeMap(NodeTree<Symbol>* templateNode, std::vector<Type*> types);
-        std::vector<std::pair<std::string, std::set<std::string>>> makeTemplateFunctionNameTraitPairs(NodeTree<Symbol>* templateNode);
+        std::vector<std::pair<std::string, std::set<std::string>>> makeTemplateNameTraitPairs(NodeTree<Symbol>* templateNode);
 	private:
 		Importer * importer;
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelReservedWords;

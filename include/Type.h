@@ -30,7 +30,7 @@ class Type {
 		bool const operator==(const Type &other)const;
 		bool const operator!=(const Type &other)const;
 		Type* clone();
-		std::string toString();
+		std::string toString(bool showTraits = true);
 		int getIndirection();
 		void setIndirection(int indirectionIn);
 		void increaseIndirection();

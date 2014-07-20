@@ -65,7 +65,7 @@ const bool Type::operator!=(const Type &other) const {
 	return(!this->operator==(other));
 }
 
-std::string Type::toString() {
+std::string Type::toString(bool showTraits) {
 	std::string typeString;
 	switch (baseType) {
 		case none:
@@ -106,7 +106,7 @@ std::string Type::toString() {
 	}
 	for (int i = 0; i < indirection; i++)
 		typeString += "*";
-    if (traits.size()) {
+    if (traits.size() && showTraits) {
         typeString += "[ ";
         for (auto i : traits)
             typeString += i + " ";

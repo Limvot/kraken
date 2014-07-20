@@ -819,6 +819,59 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
     return NULL;
 }
 
+//Lookup class templates. It evaluates possible matches on traits
+NodeTree<ASTData>* ASTTransformation::templateClassLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*> templateInstantiationTypes) {
+    std::vector<NodeTree<ASTData>*> mostFittingTemplates;
+    int bestNumTraitsSatisfied = -1;
+    auto possibleMatches = scopeLookup(scope, lookup);
+    std::cout << "Template Class instantiation has " << possibleMatches.size() << " possible matches." << std::endl;
+    for (auto i : possibleMatches) {
+	    NodeTree<Symbol>* templateSyntaxTree = i->getDataRef()->valueType->templateDefinition;
+
+        auto nameTraitsPairs = makeTemplateNameTraitPairs(templateSyntaxTree->getChildren()[0]);
+        //Check if sizes match between the placeholder and actual template types
+        if (nameTraitsPairs.size() != templateInstantiationTypes.size())
+            continue;
+
+        bool traitsEqual = true;
+        int typeIndex = 0;
+        int currentTraitsSatisfied = 0;
+        for (auto j : nameTraitsPairs) {
+            if (j.second != templateInstantiationTypes[typeIndex]->traits) {
+                traitsEqual = false;
+                std::cout << "Traits unequal for " << j.first << " and " << templateInstantiationTypes[typeIndex]->toString() << ": ";
+				//std::cout <<  baseType << " " <<  indirection << " " << typeDefinition << " " <<  templateDefinition << " " <<  traits << ;
+                std::copy(j.second.begin(), j.second.end(), std::ostream_iterator<std::string>(std::cout, " "));
+                std::cout << " vs ";
+                std::copy(templateInstantiationTypes[typeIndex]->traits.begin(), templateInstantiationTypes[typeIndex]->traits.end(), std::ostream_iterator<std::string>(std::cout, " "));
+                std::cout << std::endl;
+                break;
+            }
+            currentTraitsSatisfied += templateInstantiationTypes[typeIndex]->traits.size();
+            typeIndex++;
+        }
+        if (!traitsEqual)
+            continue;
+
+        //See if this is a better match than the current best
+        if (currentTraitsSatisfied > bestNumTraitsSatisfied) {
+            mostFittingTemplates.clear();
+            std::cout << "Class satisfying " << currentTraitsSatisfied << " beats previous " << bestNumTraitsSatisfied << std::endl;
+            bestNumTraitsSatisfied = currentTraitsSatisfied;
+        } else if (currentTraitsSatisfied < bestNumTraitsSatisfied)
+            continue;
+        mostFittingTemplates.push_back(i);
+        std::cout << "Current class fits, satisfying " << currentTraitsSatisfied << " traits" << std::endl;
+    }
+    if (!mostFittingTemplates.size()) {
+        std::cout << "No template classes fit for " << lookup << "!" << std::endl;
+        throw "No matching template classes";
+    } else if (mostFittingTemplates.size() > 1) {
+        std::cout << "Multiple template classes fit with equal number of traits satisfied for " << lookup << "!" << std::endl;
+        throw "Multiple matching template classes";
+    }
+    return mostFittingTemplates[0];
+}
 
 //Lookup function for template functions. It has some extra concerns compared to function lookup, namely traits
 NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*> templateInstantiationTypes, std::vector<Type> types) {
@@ -826,12 +879,12 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
     int bestNumTraitsSatisfied = -1;
     auto possibleMatches = scopeLookup(scope, lookup);
     std::cout << "Template Function instantiation has " << possibleMatches.size() << " possible matches." << std::endl;
+    int index = 1;
     for (auto i : possibleMatches) {
+        std::cout << "Possibility " << index++ << std::endl;
 	    NodeTree<Symbol>* templateSyntaxTree = i->getDataRef()->valueType->templateDefinition;
 
-        //When called without a second parameter, makeTemplateFunctionTypeMap returns a map with blank Types filled in that contain the correct Traits
-        auto nameTraitsPairs = makeTemplateFunctionNameTraitPairs(templateSyntaxTree->getChildren()[0]);
-
+        auto nameTraitsPairs = makeTemplateNameTraitPairs(templateSyntaxTree->getChildren()[0]);
         //Check if sizes match between the placeholder and actual template types
         if (nameTraitsPairs.size() != templateInstantiationTypes.size())
             continue;
@@ -869,7 +922,7 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
             std::cout << "Template param type: " << paramType->toString() << " : Needed Type: " << types[j].toString() << std::endl;
             if (*paramType != types[j]) {
                 parameterTypesMatch = false;
-                std::cout << "Not equal: " << paramType->toString() << " : Needed Type: " << types[j].toString() << std::endl;
+                std::cout << "Not equal template param: " << paramType->toString() << " : Needed Type actual param: " << types[j].toString() << std::endl;
                 break;
             }
         }
@@ -896,7 +949,7 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
 }
 
 //Extract pairs of type names and traits
-std::vector<std::pair<std::string, std::set<std::string>>> ASTTransformation::makeTemplateFunctionNameTraitPairs(NodeTree<Symbol>* templateNode) {
+std::vector<std::pair<std::string, std::set<std::string>>> ASTTransformation::makeTemplateNameTraitPairs(NodeTree<Symbol>* templateNode) {
     std::vector<NodeTree<Symbol>*> templateParams = slice(templateNode->getChildren(), 1, -2, 2); //Skip <, >, and interveaning commas
     std::vector<std::pair<std::string, std::set<std::string>>> typePairs;
     for (auto i : templateParams) {
@@ -909,7 +962,7 @@ std::vector<std::pair<std::string, std::set<std::string>>> ASTTransformation::ma
 }
 
 std::map<std::string, Type*> ASTTransformation::makeTemplateFunctionTypeMap(NodeTree<Symbol>* templateNode, std::vector<Type*> types) {
-    auto typePairs = makeTemplateFunctionNameTraitPairs(templateNode);
+    auto typePairs = makeTemplateNameTraitPairs(templateNode);
     std::map<std::string, Type*> typeMap;
     int typeIndex = 0;
     std::cout << typePairs.size() << " " << types.size() << std::endl;
@@ -984,9 +1037,18 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
         //If not, we better instantiate it and then add it to the highest (not current) scope
 		if (possibleMatches.size() == 0 && typeNode->getChildren().size() > 1 && typeNode->getChildren()[1]->getData().getName() == "template_inst") {
 		 	std::cout << "Template type: " << edited << " not yet instantiated" << std::endl;
+
+            //We pull out the replacement types first so that we can choose the correct possibly overloaded template
+            std::vector<NodeTree<Symbol>*> templateParamInstantiationNodes = slice(typeNode->getChildren()[1]->getChildren(), 1, -2, 2); //same
+            std::vector<Type*> templateParamInstantiationTypes;
+            std::string instTypeString = "";
+            for (int i = 0; i < templateParamInstantiationNodes.size(); i++) {
+                Type* instType = typeFromTypeNode(templateParamInstantiationNodes[i], scope, templateTypeReplacements, instantiateTemplates);
+                templateParamInstantiationTypes.push_back(instType);
+                instTypeString += (instTypeString == "") ? instType->toString(false) : "," + instType->toString(false);
+            }
 		 	//Look up this template's plain definition. It's type has the syntax tree that we need to parse
-		 	possibleMatches = scopeLookup(scope,concatSymbolTree(typeNode->getChildren()[0]));
-            NodeTree<ASTData>* templateDefinition = possibleMatches[0];
+            NodeTree<ASTData>* templateDefinition = templateClassLookup(scope, concatSymbolTree(typeNode->getChildren()[0]), templateParamInstantiationTypes);
 		 	if (templateDefinition == NULL)
 		 		std::cout << "Template definition is null!" << std::endl;
 		 	else
@@ -994,25 +1056,23 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 
 		 	NodeTree<Symbol>* templateSyntaxTree = templateDefinition->getDataRef()->valueType->templateDefinition;
 		 	//Create a new map of template type names to actual types.
-		 	std::map<std::string, Type*> newTemplateTypeReplacement;
-/*MULTHERE*/
             std::vector<NodeTree<Symbol>*> templateParamPlaceholderNodes = slice(templateSyntaxTree->getChildren()[0]->getChildren(), 1, -2, 2); //Don't get beginning or end for < or >, skip commas in the middle
-            std::vector<NodeTree<Symbol>*> templateParamInstantiationNodes = slice(typeNode->getChildren()[1]->getChildren(), 1, -2, 2); //same
-            std::string instTypeString = "";
-            for (int i = 0; i < templateParamPlaceholderNodes.size(); i++) {
-                Type* instType = typeFromTypeNode(templateParamInstantiationNodes[i],scope, templateTypeReplacements, instantiateTemplates);
-                newTemplateTypeReplacement[concatSymbolTree(templateParamPlaceholderNodes[i])] = instType;
-                instTypeString += (instTypeString == "") ? instType->toString() : "," + instType->toString();
-            }
+		 	std::map<std::string, Type*> newTemplateTypeReplacement;
+            for (int i = 0; i < templateParamInstantiationTypes.size(); i++)
+                newTemplateTypeReplacement[concatSymbolTree(templateParamPlaceholderNodes[i])] = templateParamInstantiationTypes[i];
+
+            //Finish creating the new name for this instantiation
             std::string classNameWithoutTemplate = concatSymbolTree(typeNode->getChildren()[0]);
             std::string fullyInstantiatedName = classNameWithoutTemplate + "<" + instTypeString + ">";
 
 			typeDefinition = new NodeTree<ASTData>("type_def", ASTData(type_def, Symbol(fullyInstantiatedName, true, fullyInstantiatedName)));
-			Type* selfType = new Type(typeDefinition); //Type is self-referential since this is the definition
+            traits = templateDefinition->getDataRef()->valueType->traits; // We have the same traits as the template definition
+			Type* selfType = new Type(typeDefinition, traits); // Type is self-referential since this is the definition.
             typeDefinition->getDataRef()->valueType = selfType;
 
             //Note that we're adding to the current top scope. This makes it more efficient by preventing multiple instantiation and should not cause any problems
 			//It also makes sure it gets generated in the right place
+            std::cout << "Adding to top scope with fullyInstantiatedName " << fullyInstantiatedName << std::endl;
 			topScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
 			topScope->addChild(typeDefinition); //Add this object the the highest scope's
 
