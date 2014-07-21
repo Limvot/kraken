@@ -22,6 +22,7 @@ void free(char* memPtr) {
 	}
 }
 
+/* we have a template version so we don't have to cast */
 template <T> void free(T* memPtr) {
 	__if_comp__ __C__ {
 		__simple_passthrough__ """
@@ -41,7 +42,6 @@ template <T> int sizeof() {
 	return result;
 }
 
-
 template <T> T* new(int count) {
 	return malloc( sizeof<T>() * count );
 }
@@ -50,18 +50,24 @@ template <T> T* new() {
 	return new<T>(1);
 }
 
-template <T> void delete(T* toDelete, int itemDestructCount) {
+/* We specilize on the trait Destructable to decide on whether or not the destructor should be called */
+template <T> void delete(T* toDelete, int itemCount) {
+    delete<T>(toDelete);
+}
+
+template <T(Destructable)> void delete(T* toDelete, int itemCount) {
     for (int i = 0; i < itemDestructCount; i++;)
         toDelete[i].destruct();
     delete<T>(toDelete);
 }
 
+/* We specilize on the trait Destructable to decide on whether or not the destructor should be called */
 template <T> void delete(T* toDelete) {
-	delete<T>(toDelete, true);
+    free(toDelete);
 }
 
-template <T> void delete(T* toDelete, bool destruct) {
+template <T(Destructable)> void delete(T* toDelete) {
 	if (destruct)
         toDelete->destruct();
-    free<T>(toDelete);
+    free(toDelete);
 }

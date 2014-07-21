@@ -331,13 +331,13 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		if (types.size()) {
             newNode = functionLookup(scope, lookupName, types);
 		    if (newNode == NULL) {
-			    std::cout << "scope lookup error! Could not find " << lookupName << " in identifier " << std::endl;
+			    std::cout << "scope lookup error! Could not find " << lookupName << " in identifier (functionLookup)" << std::endl;
 			    throw "LOOKUP ERROR: " + lookupName;
 		    }
         } else {
             auto possibleMatches = scopeLookup(scope, lookupName);
             if (!possibleMatches.size()) {
-			    std::cout << "scope lookup error! Could not find " << lookupName << " in identifier " << std::endl;
+			    std::cout << "scope lookup error! Could not find " << lookupName << " in identifier (scopeLookup)" << std::endl;
 			    throw "LOOKUP ERROR: " + lookupName;
             }
             newNode = possibleMatches[0];
@@ -883,6 +883,10 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
     for (auto i : possibleMatches) {
         std::cout << "Possibility " << index++ << std::endl;
 	    NodeTree<Symbol>* templateSyntaxTree = i->getDataRef()->valueType->templateDefinition;
+        if (!templateSyntaxTree) {
+            std::cout << "Not a template, skipping" << std::endl;
+            continue;
+        }
 
         auto nameTraitsPairs = makeTemplateNameTraitPairs(templateSyntaxTree->getChildren()[0]);
         //Check if sizes match between the placeholder and actual template types
@@ -975,6 +979,12 @@ std::map<std::string, Type*> ASTTransformation::makeTemplateFunctionTypeMap(Node
 }
 
 std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup) {
+	//We first check to see if it's one of the special reserved identifiers (only this, for now) and return early if it is.
+	auto LLElementIterator = languageLevelReservedWords.find(lookup);
+	if (LLElementIterator != languageLevelReservedWords.end()) {
+		std::cout << "found it at language level as reserved word." << std::endl;
+		return LLElementIterator->second;
+    }
     std::vector<NodeTree<ASTData>*> matches;
     std::map<std::string, std::vector<NodeTree<ASTData>*>> scopeMap = scope->getDataRef()->scope;
     auto possibleMatches = scopeMap.find(lookup);

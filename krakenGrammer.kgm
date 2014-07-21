@@ -7,10 +7,6 @@ type = type WS "\*" | "void" | "int" | "float" | "double" | "char" | identifier 
 template_inst = "<" WS type_list WS ">" ;
 type_list = type_list WS "," WS type | type ;
 
-#What does that even mean?
-#some
-#
-#
 template_dec = "template" WS "<" WS template_param_list WS ">" ;
 template_param_list = template_param_list WS "," WS template_param | template_param ;
 template_param = identifier WS traits | identifier ;
