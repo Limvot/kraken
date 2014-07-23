@@ -56,7 +56,7 @@ template <T> void delete(T* toDelete, int itemCount) {
 }
 
 template <T(Destructable)> void delete(T* toDelete, int itemCount) {
-    for (int i = 0; i < itemDestructCount; i++;)
+    for (int i = 0; i < itemCount; i++;)
         toDelete[i].destruct();
     delete<T>(toDelete);
 }
@@ -67,7 +67,6 @@ template <T> void delete(T* toDelete) {
 }
 
 template <T(Destructable)> void delete(T* toDelete) {
-	if (destruct)
-        toDelete->destruct();
+    toDelete->destruct();
     free(toDelete);
 }

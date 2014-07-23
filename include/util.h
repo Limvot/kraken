@@ -9,6 +9,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <set>
 #include <fstream>
 #include <cstring>
 
@@ -39,6 +40,14 @@ std::vector<T> slice(std::vector<T> vec, int begin, int end, int step = 1) {
     for (int i = begin; i < end; i += step)
     	toReturn.push_back(vec[i]);
     return toReturn;
+}
+
+template <typename T>
+bool subset(std::set<T> a, std::set<T> b) {
+    for (auto i : a)
+        if (b.find(i) == b.end())
+            return false;
+    return true;
 }
 /*
 std::vector<std::string> split(std::string str, char delim) {

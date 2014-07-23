@@ -1,13 +1,13 @@
 import mem;
 import util;
 
-typedef template<T> vector {
+typedef template<T> vector (Destructable) {
     T *data;
     int size;
     int available;
     bool destroyItems;
 
-    vector<T> *construct(bool destroyItemsIn) {
+    vector<T>* construct(bool destroyItemsIn) {
         destroyItems = destroyItemsIn;
         return construct();
         size = 0;

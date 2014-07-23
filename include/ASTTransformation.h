@@ -34,21 +34,21 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 
 		//The fourth pass finishes up by doing all function bodies
 		void fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree);
-		NodeTree<ASTData>* seachScopeForFunctionDef(NodeTree<ASTData>* scope, NodeTree<Symbol>* parseTree, std::map<std::string, Type*> templateTypeReplacements);
+		NodeTree<ASTData>* searchScopeForFunctionDef(NodeTree<ASTData>* scope, NodeTree<Symbol>* parseTree, std::map<std::string, Type*> templateTypeReplacements);
 		void fourthPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* functionDef, std::map<std::string, Type*> templateTypeReplacements);
 
 		virtual NodeTree<ASTData>* transform(NodeTree<Symbol>* from);
-		NodeTree<ASTData>* transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements, bool instantiateTemplates);
-		std::vector<NodeTree<ASTData>*> transformChildren(std::vector<NodeTree<Symbol>*> children, std::set<int> skipChildren, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements, bool instantiateTemplates);
+		NodeTree<ASTData>* transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements);
+		std::vector<NodeTree<ASTData>*> transformChildren(std::vector<NodeTree<Symbol>*> children, std::set<int> skipChildren, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements);
 		std::vector<Type> mapNodesToTypes(std::vector<NodeTree<ASTData>*> nodes);
 		std::string concatSymbolTree(NodeTree<Symbol>* root);
 		NodeTree<ASTData>* doFunction(NodeTree<ASTData>* scope, std::string lookup, std::vector<NodeTree<ASTData>*> nodes, std::map<std::string, Type*> templateTypeReplacements);
 
         NodeTree<ASTData>* functionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type> types);
         NodeTree<ASTData>* templateFunctionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*> templateInstantiationTypes, std::vector<Type> types);
-        std::vector<NodeTree<ASTData>*> scopeLookup(NodeTree<ASTData>* scope, std::string lookup);
+        std::vector<NodeTree<ASTData>*> scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules = false);
 
-        Type* typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements, bool instantiateTemplates);
+        Type* typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements);
         NodeTree<ASTData>* templateClassLookup(NodeTree<ASTData>* scope, std::string name, std::vector<Type*> templateInstantiationTypes);
 		NodeTree<ASTData>* findOrInstantiateFunctionTemplate(std::vector<NodeTree<Symbol>*> children, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements);
         std::map<std::string, Type*> makeTemplateFunctionTypeMap(NodeTree<Symbol>* templateNode, std::vector<Type*> types);
