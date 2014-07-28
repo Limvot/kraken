@@ -9,17 +9,17 @@ typedef AbleToBeDestroyed (Destructable) {
 };
 
 int main() {
-    vector<int> intVec.construct(false);
+    vector<int> intVec.construct();
     intVec.addEnd(1);
     intVec.addEnd(3);
     intVec.addEnd(3);
     intVec.addEnd(7);
-    for (int i = 0; i < intVec.size(); i++;)
+    for (int i = 0; i < intVec.size; i++;)
         print(intVec.at(i));
     
     println();
     
-    vector<AbleToBeDestroyed>* desVec = new<vector<AbleToBeDestroyed>>()->construct(true);
+    vector<AbleToBeDestroyed>* desVec = new<vector<AbleToBeDestroyed>>()->construct();
     AbleToBeDestroyed testDestruct;
     desVec->addEnd(testDestruct);
     delete<vector<AbleToBeDestroyed>>(desVec);

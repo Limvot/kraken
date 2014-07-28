@@ -1,15 +1,13 @@
 import mem;
 import util;
+import io;
 
 typedef template<T> vector (Destructable) {
     T *data;
     int size;
     int available;
-    bool destroyItems;
 
-    vector<T>* construct(bool destroyItemsIn) {
-        destroyItems = destroyItemsIn;
-        return construct();
+    vector<T>* construct() {
         size = 0;
         available = 8;
         data = new<T>(8);
@@ -17,17 +15,14 @@ typedef template<T> vector (Destructable) {
     }
 
     void destruct() {
-        if (destroyItems)
-            delete<T>(data, size);
-        else
-            delete<T>(data);
+        delete<T>(data);
     }
 
     bool resize(int newSize) {
         T* newData = new<T>(newSize);
         if (!newData)
             return false;
-        for (int i = 0; i < lesser(size, newSize); i++;)
+        for (int i = 0; i < lesser<int>(size, newSize); i++;)
             newData[i] = data[i];
         delete<T>(data, 0);
         return true;
@@ -38,8 +33,10 @@ typedef template<T> vector (Destructable) {
     }
     
     T get(int index) {
-        if (index < 0 || index >= size)
-            return null;
+        if (index < 0 || index >= size) {
+            println("Vector access out of bounds! Retuning 0th element as sanest option");
+            return data[0];
+        }
         return data[index];
     }
 
@@ -53,6 +50,6 @@ typedef template<T> vector (Destructable) {
             size++;
         else
             resize(size*2);
-        data[size-1];
+        data[size-1] = dataIn;
     }
 };

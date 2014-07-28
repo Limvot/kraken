@@ -2,10 +2,10 @@ __if_comp__ __C__ __simple_passthrough__ """
 	#include <stdlib.h>
 """
 
-char* nullPtr = 0;
+/* we have a template versions so we don't have to cast (because we don't have that yet) */
 
-char* malloc(int size) {
-	char* memPtr = nullPtr;
+template <T> T* malloc(int size) {
+	T* memPtr = 0;
 	__if_comp__ __C__ {
 		__simple_passthrough__ """
 			memPtr = malloc(size);
@@ -14,15 +14,6 @@ char* malloc(int size) {
 	return memPtr;
 }
 
-void free(char* memPtr) {
-	__if_comp__ __C__ {
-		__simple_passthrough__ """
-			free(memPtr);
-		"""
-	}
-}
-
-/* we have a template version so we don't have to cast */
 template <T> void free(T* memPtr) {
 	__if_comp__ __C__ {
 		__simple_passthrough__ """
@@ -43,7 +34,7 @@ template <T> int sizeof() {
 }
 
 template <T> T* new(int count) {
-	return malloc( sizeof<T>() * count );
+	return malloc<T>( sizeof<T>() * count );
 }
 
 template <T> T* new() {
@@ -55,6 +46,7 @@ template <T> void delete(T* toDelete, int itemCount) {
     delete<T>(toDelete);
 }
 
+/* Calling this with itemCount = 0 allows you to delete destructable objects without calling their destructors. */
 template <T(Destructable)> void delete(T* toDelete, int itemCount) {
     for (int i = 0; i < itemCount; i++;)
         toDelete[i].destruct();

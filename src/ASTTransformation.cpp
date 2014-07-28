@@ -17,14 +17,14 @@ ASTTransformation::ASTTransformation(Importer *importerIn) {
 	languageLevelOperators["&"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("&", true), NULL)));
 	languageLevelOperators["--"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("--", true), NULL)));
 	languageLevelOperators["++"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("++", true), NULL)));
-	languageLevelOperators["=="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("==", true), NULL)));
-	languageLevelOperators["<="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("<=", true), NULL)));
-	languageLevelOperators[">="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(">=", true), NULL)));
-	languageLevelOperators["<"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("<", true), NULL)));
-	languageLevelOperators[">"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(">", true), NULL)));
-	languageLevelOperators["&&"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("&&", true), NULL)));
-	languageLevelOperators["||"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("||", true), NULL)));
-	languageLevelOperators["!"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("!", true), NULL)));
+	languageLevelOperators["=="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("==", true), new Type(boolean))));
+	languageLevelOperators["<="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("<=", true), new Type(boolean))));
+	languageLevelOperators[">="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(">=", true), new Type(boolean))));
+	languageLevelOperators["<"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("<", true), new Type(boolean))));
+	languageLevelOperators[">"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(">", true), new Type(boolean))));
+	languageLevelOperators["&&"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("&&", true), new Type(boolean))));
+	languageLevelOperators["||"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("||", true), new Type(boolean))));
+	languageLevelOperators["!"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("!", true), new Type(boolean))));
 	languageLevelOperators["*="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("*=", true), NULL)));
 	languageLevelOperators["+="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("+=", true), NULL)));
 	languageLevelOperators["-="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("-=", true), NULL)));
@@ -651,10 +651,14 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), new Type(character, 1))); //Indirection of 1 for array
 	} else if (name == "string" || name == "triple_quoted_string") {
 		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), new Type(character, 1))); //Indirection of 1 for array
-	}else if (name == "character") {
+	} else if (name == "character") {
 		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), new Type(character, 0))); //Indirection of 0 for character
+	} else if (name == "bool") {
+		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), new Type(boolean, 0))); //Indirection of 0 for character
 	} else if (name == "AmbiguityPackOuter" || name == "AmbiguityPackInner") {
+        std::cout << "///////////////////////////////////////////////////////////////////////////////" << std::endl;
         std::cout << "Ambigious program when parsed by this grammer! This is a bug, please report it." << std::endl;
+        std::cout << "///////////////////////////////////////////////////////////////////////////////" << std::endl;
         throw "Ambigious parse!";
     } else {
         // Should get rid of this eventually. Right now it handles cases like sign, alpha, a comma, etc
@@ -1128,10 +1132,11 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
                 std::cout << "Adding to top scope and template's origional scope with fullyInstantiatedName " << fullyInstantiatedName << std::endl;
                 topScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
                 topScope->addChild(typeDefinition); //Add this object the the highest scope's
-                NodeTree<ASTData>* templateHighScope = templateDefinition->getDataRef()->scope["~enclosing_scope"][0];
-                if (topScope != templateHighScope)
-                    templateHighScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
-
+                //NodeTree<ASTData>* templateHighScope = templateDefinition->getDataRef()->scope["~enclosing_scope"][0];
+                //if (topScope != templateHighScope)
+                    //templateHighScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
+                // We put it in the scope of the template so that it can find itself (as it's scope is its template definition)
+                templateDefinition->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
                 //Note that the instantiated template's scope is the template's definition.
                 typeDefinition->getDataRef()->scope["~enclosing_scope"].push_back(templateDefinition);
 
@@ -1184,7 +1189,12 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
 	if (instantiatedFunction) {
 		std::cout << fullyInstantiatedName << " already exists! Returning" << std::endl;
 		return instantiatedFunction;
-	} else {
+    } else {
+        instantiatedFunction = functionLookup(topScope, fullyInstantiatedName, types);
+        if (instantiatedFunction) {
+            std::cout << fullyInstantiatedName << "already exists! Found in TopScope" << std::endl;
+            return instantiatedFunction;
+        }
 		std::cout << fullyInstantiatedName << " does NOT exist" << std::endl;
 	}
 
@@ -1210,13 +1220,14 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
 	skipChildren.insert(0);
 	skipChildren.insert(1);
 	skipChildren.insert(2);
-	scope->getDataRef()->scope[fullyInstantiatedName].push_back(instantiatedFunction);
+	//scope->getDataRef()->scope[fullyInstantiatedName].push_back(instantiatedFunction);
 	instantiatedFunction->getDataRef()->scope["~enclosing_scope"].push_back(templateDefinition->getDataRef()->scope["~enclosing_scope"][0]); //Instantiated Template Function's scope is it's template's definition's scope
+	topScope->getDataRef()->scope[fullyInstantiatedName].push_back(instantiatedFunction);
+	topScope->addChild(instantiatedFunction); //Add this object the the highest scope's
+
 	std::cout << "About to do children of " << functionName << " to " << fullyInstantiatedName << std::endl;
 	instantiatedFunction->addChildren(transformChildren(templateSyntaxTree->getChildren(), skipChildren, instantiatedFunction, std::vector<Type>(), newTemplateTypeReplacement));
 
-	topScope->getDataRef()->scope[fullyInstantiatedName].push_back(instantiatedFunction);
-	topScope->addChild(instantiatedFunction); //Add this object the the highest scope's
 
 	std::cout << "Fully Instantiated function " << functionName << " to " << fullyInstantiatedName << std::endl;
 
