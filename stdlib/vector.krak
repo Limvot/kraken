@@ -3,36 +3,36 @@ import util;
 import io;
 
 typedef template<T> vector (Destructable) {
-    T *data;
-    int size;
-    int available;
+    |T*| data;
+    |int| size;
+    |int| available;
 
-    vector<T>* construct() {
+    |vector<T>*| construct() {
         size = 0;
         available = 8;
         data = new<T>(8);
         return this;
     }
 
-    void destruct() {
+    |void| destruct() {
         delete<T>(data);
     }
 
-    bool resize(int newSize) {
-        T* newData = new<T>(newSize);
+    |bool| resize(|int| newSize) {
+        |T*| newData = new<T>(newSize);
         if (!newData)
             return false;
-        for (int i = 0; i < lesser<int>(size, newSize); i++;)
+        for (|int| i = 0; i < lesser<int>(size, newSize); i++;)
             newData[i] = data[i];
         delete<T>(data, 0);
         return true;
     }
     
-    T at(int index) {
+    |T| at(|int| index) {
         return get(index);
     }
     
-    T get(int index) {
+    |T| get(|int| index) {
         if (index < 0 || index >= size) {
             println("Vector access out of bounds! Retuning 0th element as sanest option");
             return data[0];
@@ -40,12 +40,12 @@ typedef template<T> vector (Destructable) {
         return data[index];
     }
 
-    void set(int index, T dataIn) {
+    |void| set(|int| index, |T| dataIn) {
         if (index < 0 || index  >= size)
             return;
         data[index] = dataIn;
     }
-    void addEnd(T dataIn) {
+    |void| addEnd(|T| dataIn) {
         if (size < available)
             size++;
         else

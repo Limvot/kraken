@@ -1,8 +1,8 @@
 import io;
 
-void nothing() {}
+|void| nothing() {}
 
-int main() {
+|int| main() {
     nothing();
     println("It was nothing");
     return 0;

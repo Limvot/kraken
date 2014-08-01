@@ -24,6 +24,7 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths) {
 	removeSymbols.push_back(Symbol("comp_simple_passthrough", true));
 	removeSymbols.push_back(Symbol("typedef", true));
 	removeSymbols.push_back(Symbol("template", true));
+	removeSymbols.push_back(Symbol("\\|", true));
 
 	collapseSymbols.push_back(Symbol("opt_typed_parameter_list", false));
 	collapseSymbols.push_back(Symbol("opt_parameter_list", false));
@@ -38,6 +39,7 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths) {
 	collapseSymbols.push_back(Symbol("type_list", false));
 	collapseSymbols.push_back(Symbol("template_param_list", false));
 	collapseSymbols.push_back(Symbol("trait_list", false));
+	collapseSymbols.push_back(Symbol("dec_type", false));
 }
 
 Importer::~Importer() {

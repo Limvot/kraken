@@ -4,8 +4,8 @@ __if_comp__ __C__ __simple_passthrough__ """
 
 /* we have a template versions so we don't have to cast (because we don't have that yet) */
 
-template <T> T* malloc(int size) {
-	T* memPtr = 0;
+template <T> |T*| malloc(|int| size) {
+	|T*| memPtr = 0;
 	__if_comp__ __C__ {
 		__simple_passthrough__ """
 			memPtr = malloc(size);
@@ -14,7 +14,7 @@ template <T> T* malloc(int size) {
 	return memPtr;
 }
 
-template <T> void free(T* memPtr) {
+template <T> |void| free(|T*| memPtr) {
 	__if_comp__ __C__ {
 		__simple_passthrough__ """
 			free(memPtr);
@@ -22,9 +22,9 @@ template <T> void free(T* memPtr) {
 	}
 }
 
-template <T> int sizeof() {
-	int result = 0;
-	T testObj;
+template <T> |int| sizeof() {
+	|int| result = 0;
+	|T| testObj;
 	__if_comp__ __C__ {
 		__simple_passthrough__ """
 			result = sizeof(testObj);
@@ -33,32 +33,32 @@ template <T> int sizeof() {
 	return result;
 }
 
-template <T> T* new(int count) {
+template <T> |T*| new(|int| count) {
 	return malloc<T>( sizeof<T>() * count );
 }
 
-template <T> T* new() {
+template <T> |T*| new() {
 	return new<T>(1);
 }
 
 /* We specilize on the trait Destructable to decide on whether or not the destructor should be called */
-template <T> void delete(T* toDelete, int itemCount) {
+template <T> |void| delete(|T*| toDelete, |int| itemCount) {
     delete<T>(toDelete);
 }
 
 /* Calling this with itemCount = 0 allows you to delete destructable objects without calling their destructors. */
-template <T(Destructable)> void delete(T* toDelete, int itemCount) {
-    for (int i = 0; i < itemCount; i++;)
+template <T(Destructable)> |void| delete(|T*| toDelete, |int| itemCount) {
+    for (|int| i = 0; i < itemCount; i++;)
         toDelete[i].destruct();
     delete<T>(toDelete);
 }
 
 /* We specilize on the trait Destructable to decide on whether or not the destructor should be called */
-template <T> void delete(T* toDelete) {
+template <T> |void| delete(|T*| toDelete) {
     free(toDelete);
 }
 
-template <T(Destructable)> void delete(T* toDelete) {
+template <T(Destructable)> |void| delete(|T*| toDelete) {
     toDelete->destruct();
     free(toDelete);
 }

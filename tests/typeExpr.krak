@@ -1,5 +1,4 @@
 import io;
-import mem;
 
 typedef ClassWithConstructor {
     |int| data;
@@ -14,13 +13,8 @@ typedef ClassWithConstructor {
 
 |int| main() {
     |ClassWithConstructor| object.construct(4);
-    //ClassWithConstructor object;
-    //object.construct(4);
     object.printData();
     |int| a = 8;
     println(a);
-    |ClassWithConstructor*| objPtr = new<ClassWithConstructor>()->construct(11);
-    objPtr->printData();
-    delete<ClassWithConstructor>(objPtr);
     return 0;
 }

@@ -7,23 +7,23 @@ typedef Trait2 (SecondTrait) {};
 typedef TwoTrait (FirstTrait, SecondTrait) {};
 typedef AlreadySpecilized (FirstTrait, SecondTrait) {};
 
-template <T> void OneTwoFunc(T obj) {
+template <T> |void| OneTwoFunc(|T| obj) {
     println("No Traits");
 }
 
-template <T(FirstTrait)> void OneTwoFunc(T obj) {
+template <T(FirstTrait)> |void| OneTwoFunc(|T| obj) {
     println("First Trait");
 }
 
-template <T(SecondTrait)> void OneTwoFunc(T obj) {
+template <T(SecondTrait)> |void| OneTwoFunc(|T| obj) {
     println("Second Trait");
 }
 
-template <T(FirstTrait, SecondTrait)> void OneTwoFunc(T obj) {
+template <T(FirstTrait, SecondTrait)> |void| OneTwoFunc(|T| obj) {
     println("Both Traits");
 }
 /*
-template <AlreadySpecilized> void OneTwoFunc(AlreadySpecilized obj) {
+template <AlreadySpecilized> |void| OneTwoFunc(|AlreadySpecilized| obj) {
     println("Already Specilized");
 }
 */
@@ -42,12 +42,12 @@ typedef template<T(FirstTrait, SecondTrait)> OneTwoObj {};
  *};
  */
 
-int main() {
-    NoTraits a;
-    Trait1 b;
-    Trait2 c;
-    TwoTrait d;
-    AlreadySpecilized e;
+|int| main() {
+    |NoTraits| a;
+    |Trait1| b;
+    |Trait2| c;
+    |TwoTrait| d;
+    |AlreadySpecilized| e;
     
     OneTwoFunc<NoTraits>(a);
     OneTwoFunc<Trait1>(b);
@@ -57,11 +57,11 @@ int main() {
    
     println();
 
-    OneTwoObj<NoTraits> alpha;
-    OneTwoObj<Trait1> beta;
-    OneTwoObj<Trait2> gamma;
-    OneTwoObj<TwoTrait> delta;
-//    OneTwoObj<AlreadySpecilized> epsilon;
+    |OneTwoObj<NoTraits>| alpha;
+    |OneTwoObj<Trait1>| beta;
+    |OneTwoObj<Trait2>| gamma;
+    |OneTwoObj<TwoTrait>| delta;
+//    |OneTwoObj<AlreadySpecilized>| epsilon;
 
     OneTwoFunc<OneTwoObj<NoTraits>>(alpha);
     OneTwoFunc<OneTwoObj<Trait1>>(beta);

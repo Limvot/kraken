@@ -2,9 +2,9 @@ import io;
 
 
 typedef template <T,J> TemplateTest {
-	T a;
-	J b;
-	void print() {
+	|T| a;
+	|J| b;
+	|void| print() {
 		print("a: ");
 		print(a);
 		print("\n");
@@ -14,10 +14,10 @@ typedef template <T,J> TemplateTest {
 	}
 };
 
-int main() {
+|int| main() {
 
-	TemplateTest<int, char*> test;
-	TemplateTest<char*, char*> test2;
+	|TemplateTest<int, char*>| test;
+	|TemplateTest<char*, char*>| test2;
 	test.a = 24;
 	test.b = "Hello World";
 	test2.a = "Pi incoming";

@@ -1,12 +1,11 @@
 import io;
 
-template <T>T addAndPrint(T a, T b) {
+template <T> |T| addAndPrint(|T| a, |T| b) {
 	print(a+b);
 	return a+b;
 }
 
-int main() {
-
+|int| main() {
 	addAndPrint<int>(10,12);
 	print("\n");
 

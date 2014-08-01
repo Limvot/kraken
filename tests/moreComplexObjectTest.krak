@@ -1,25 +1,25 @@
 import io;
 
 typedef firstObject {
-	int objectNum;
-	int other;
-	void print() {
+	|int| objectNum;
+	|int| other;
+	|void| print() {
 		print(other);
 	}
-	void printInd() {
+	|void| printInd() {
 		print();
 	}
 };
 
 typedef Int int;
 
-Int aliasNum;
+|Int| aliasNum;
 
-int main() {
-	firstObject wooObject;
+|int| main() {
+	|firstObject| wooObject;
 	wooObject.objectNum = 7;
 	print(wooObject.objectNum);
-	firstObject* objPtr = &wooObject;
+	|firstObject*| objPtr = &wooObject;
 	objPtr->objectNum = 42;
 	print(objPtr->objectNum);
 	print("\n");

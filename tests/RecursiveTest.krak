@@ -1,12 +1,12 @@
 import io;
 
-int fibanacci(int num) {
+|int| fibanacci(|int| num) {
 	if (num < 2)
 		return 1;
 	return fibanacci(num-1) + fibanacci(num-2);
 }
 
-int main() {
+|int| main() {
 	print(fibanacci(4));
 	print("\n");
 	return 0;

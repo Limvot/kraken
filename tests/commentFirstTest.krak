@@ -1,7 +1,7 @@
 /* Comment first! */
 import io;
 
-int main() {
+|int| main() {
     println(1337);
     return 0;
 }

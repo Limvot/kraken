@@ -1,24 +1,24 @@
 import io;
 
 typedef objectA {
-	int a;
+	|int| a;
 };
 
 typedef BigObject {
-	objectA a;
-	objectB b;
-	int add() {
+	|objectA| a;
+	|objectB| b;
+	|int| add() {
 		return a.a + b.b;
 	}
 };
 
 typedef objectB {
-	int b;
+	|int| b;
 };
 
 
-int main() {
-	BigObject c;
+|int| main() {
+	|BigObject| c;
 	c.a.a = 4;
 	c.b.b = 8;
 	print(c.add());

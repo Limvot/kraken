@@ -1,8 +1,8 @@
 import io;
 
 typedef template <T> trivialContainer {
-	T data;
-	void print() {
+	|T| data;
+	|void| print() {
 		print(data);
 	}
 };

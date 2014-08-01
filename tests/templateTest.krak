@@ -2,10 +2,10 @@ import io;
 import trivial_container;
 
 typedef template <T> TemplateTest {
-	int a;
-	T b;
-	trivialContainer<T> c;
-	void print() {
+	|int| a;
+	|T| b;
+	|trivialContainer<T>| c;
+	|void| print() {
 		print("a: ");
 		print(a);
 		print("\n");
@@ -19,17 +19,17 @@ typedef template <T> TemplateTest {
 
 typedef MyInt int;
 
-MyInt c;
+|MyInt| c;
 
 
-template <T> T addAndPrint(T a, T b) {
+template <T> |T| addAndPrint(|T| a, |T| b) {
 	print(a+b);
 	return a+b;
 }
 
-int main() {
-	TemplateTest<int> test;
-	TemplateTest<char*> test2;
+|int| main() {
+	|TemplateTest<int>| test;
+	|TemplateTest<char*>| test2;
 	test.a = 5;
 	test.b = 7;
 	test.c.data = 1337;
@@ -40,7 +40,7 @@ int main() {
 	test.print();
 	test2.print();
 
-	trivialContainer<char*> testImport;
+	|trivialContainer<char*>| testImport;
 	testImport.data = "From another file! Whoh!";
 	testImport.print();
 	print("\n");
