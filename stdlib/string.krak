@@ -1,0 +1,49 @@
+import vector;
+import mem;
+
+typedef String (Destructable) {
+    |vector<char>| charVec;
+
+    |String*| construct() {
+       charVec.construct(); 
+       return this;
+    }
+
+    |void| destruct() {
+        charVec.destruct();
+    }
+
+    |String*| construct(|char*| stringInput) {
+       charVec.construct(); 
+       append(stringInput);
+       return this;
+    }
+
+    |char| operator[](|int| index) {
+        return charVec[index];
+    } 
+
+    |void| append(|String| toAppend) {
+        for (|int| i = 0; i < toAppend.size(); i++;)
+            charVec.addEnd(toAppend[i]);
+    }
+
+    |void| append(|char*| toAppend) {
+        while(toAppend)
+            charVec.addEnd(toAppend++);
+    }
+
+    |String| operator+(|String| other) {
+        |String| self = clone();
+        self.append(other);
+        return self;
+    }
+
+    |char*| c_str() {
+        |char*| toReturn = new<char>(charVec.size()+1);
+        for (|int| i = 0; i < charVec.size(); i++;)
+            toReturn[i] = charVec[i];
+        toReturn[charVec.size()] = 0;
+        return toReturn;
+    }
+};

@@ -27,12 +27,12 @@ typedef template<T> vector (Destructable) {
         delete<T>(data, 0);
         return true;
     }
-    
-    |T| at(|int| index) {
-        return get(index);
+
+    |T| operator[](|int| index) {
+        return at(index);
     }
     
-    |T| get(|int| index) {
+    |T| at(|int| index) {
         if (index < 0 || index >= size) {
             println("Vector access out of bounds! Retuning 0th element as sanest option");
             return data[0];

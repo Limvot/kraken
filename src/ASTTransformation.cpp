@@ -79,14 +79,20 @@ NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<S
 	for (NodeTree<Symbol>* i : children) {
 		if (i->getDataRef()->getName() == "import") {
 			std::string toImport = concatSymbolTree(i->getChildren()[0]);
-			translationUnit->addChild(new NodeTree<ASTData>("import", ASTData(import, Symbol(toImport, true))));
+            NodeTree<ASTData>* importNode = new NodeTree<ASTData>("import", ASTData(import, Symbol(toImport, true)));
+            // If there are named things to import, import them (some identifiers, or *)
+            if (i->getChildren().size() > 2) {
+                std::cout << "Things to import from " << toImport << "!" << std::endl;
+                    for (auto importThing : slice(i->getChildren(), 1, -1, 1)) {
+                        std::string identifierToImport = concatSymbolTree(i);
+                        std::cout << "  pulling in " << identifierToImport << std::endl;
+                        importNode->addChild(new NodeTree<ASTData>(identifierToImport, ASTData(identifier, Symbol(identifierToImport, true))));
+                    }
+            }
+			translationUnit->addChild(importNode);
 			//Do the imported file too
 			NodeTree<ASTData>* outsideTranslationUnit = importer->importFirstPass(toImport + ".krak");
 			translationUnit->getDataRef()->scope[toImport].push_back(outsideTranslationUnit); //Put this transation_unit in the scope as it's files name
-			//Now add it to scope
-			for (auto i = outsideTranslationUnit->getDataRef()->scope.begin(); i != outsideTranslationUnit->getDataRef()->scope.end(); i++)
-				for (auto j : i->second)
-					translationUnit->getDataRef()->scope[i->first].push_back(j);
 		}
 	}
 
@@ -211,32 +217,8 @@ NodeTree<ASTData>* ASTTransformation::secondPassFunction(NodeTree<Symbol>* from,
 	return functionDef;
 }
 
-
-
-//Third pass redoes all imports to import the new function prototypes and identifiers
-void ASTTransformation::thirdPass(NodeTree<ASTData>* ast) {
-	std::vector<NodeTree<ASTData>*> children = ast->getChildren();
-	//Go through and do all imports again
-	for (NodeTree<ASTData>* i : children) {
-		if (i->getDataRef()->type == import) {
-			std::string toImport = i->getDataRef()->symbol.getName();
-			NodeTree<ASTData>* outsideTranslationUnit = importer->getUnit(toImport + ".krak");
-			//Now add all functions to scope
-			std::cout << "Trying to re-import from " << toImport << std::endl;
-			for (auto i = outsideTranslationUnit->getDataRef()->scope.begin(); i != outsideTranslationUnit->getDataRef()->scope.end(); i++) {
-				std::cout << "Looking through " << i->first << std::endl;
-				for (auto j : i->second)
-					if (j->getDataRef()->type == function || j->getDataRef()->type == identifier)
-						std::cout << "Copying " << i->first << std::endl, ast->getDataRef()->scope[i->first].push_back(j);
-					else
-						std::cout << "Not Copying " << i->first << std::endl;
-			}
-		}
-	}
-}
-
-//The fourth pass finishes up by doing all function bodies
-void ASTTransformation::fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree) {
+//The third pass finishes up by doing all function bodies
+void ASTTransformation::thirdPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree) {
 	topScope = ast; //Top scope is maintained for templates, which need to add themselves to the top scope from where ever they are instantiated
 	std::vector<NodeTree<Symbol>*> children = parseTree->getChildren();
 
@@ -257,14 +239,14 @@ void ASTTransformation::fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
 			//Do the inside of classes here
 			for (NodeTree<Symbol>* j : typedefChildren) {
 				if (j->getDataRef()->getName() == "function") {
-					fourthPassFunction(j, searchScopeForFunctionDef(typeDef, j, std::map<std::string, Type*>()), std::map<std::string, Type*>()); 	//do member method
+					thirdPassFunction(j, searchScopeForFunctionDef(typeDef, j, std::map<std::string, Type*>()), std::map<std::string, Type*>()); 	//do member method
 				}
 			}
 		} else if (i->getDataRef()->getName() == "function") {
 			//Do prototypes of functions
 			if (i->getChildren()[0]->getData().getName() == "template_dec")
 				continue; //We've already set up function templates
-			fourthPassFunction(i, searchScopeForFunctionDef(ast, i, std::map<std::string, Type*>()), std::map<std::string, Type*>());
+			thirdPassFunction(i, searchScopeForFunctionDef(ast, i, std::map<std::string, Type*>()), std::map<std::string, Type*>());
 		}
 	}
 
@@ -287,7 +269,7 @@ void ASTTransformation::fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
             std::cout << "Instantiating template " << i->getDataRef()->toString() << std::endl;
             for (NodeTree<Symbol>* j : classTemplateType->templateDefinition->getChildren())
                 if (j->getDataRef()->getName() == "function")
-                    fourthPassFunction(j, searchScopeForFunctionDef(i, j, classTemplateType->templateTypeReplacement), classTemplateType->templateTypeReplacement); 	//do member method
+                    thirdPassFunction(j, searchScopeForFunctionDef(i, j, classTemplateType->templateTypeReplacement), classTemplateType->templateTypeReplacement); 	//do member method
             classTemplateType->templateTypeReplacement.clear(); // This template has been fully instantiated, clear it's map so it won't be instantiated again
         }
     }
@@ -299,7 +281,7 @@ NodeTree<ASTData>* ASTTransformation::searchScopeForFunctionDef(NodeTree<ASTData
 	std::vector<Type> types;
 	std::vector<NodeTree<Symbol>*> children = parseTree->getChildren();
 	//Skipping the initial return type and identifier as well as the final code block
-	std::cout << "\n Searching scope for function def, function is :" << concatSymbolTree(children[1]) << ", children size is " << children.size() << std::endl;
+	std::cout << "\n Searching scope for function def, function is: " << concatSymbolTree(children[1]) << ", children size is " << children.size() << std::endl;
 	for (int i = 2; i < children.size()-1; i+=2) { //Skip over commas
 		std::cout << "Making type for lookup ||" << concatSymbolTree(children[i]) << "||" << std::endl;
 		Type type = *typeFromTypeNode(children[i]->getChildren()[0], scope, templateTypeReplacements);
@@ -313,9 +295,9 @@ NodeTree<ASTData>* ASTTransformation::searchScopeForFunctionDef(NodeTree<ASTData
 }
 
 //This function does the function bodies given its start (the prototype)
-//It is used in the fourth pass to finish things up
+//It is used in the third pass to finish things up
 //Note that it may instantiate class OR function templates, which need to be fully instantiated
-void ASTTransformation::fourthPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* functionDef, std::map<std::string, Type*> templateTypeReplacements) {
+void ASTTransformation::thirdPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* functionDef, std::map<std::string, Type*> templateTypeReplacements) {
 	NodeTree<Symbol>* codeBlock = from->getChildren()[from->getChildren().size()-1];
 	functionDef->addChild(transform(codeBlock, functionDef, std::vector<Type>(), templateTypeReplacements));
 }
@@ -332,7 +314,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	std::vector<NodeTree<Symbol>*> children = from->getChildren();
 	std::set<int> skipChildren;
 
-    if (name == "identifier") {
+    if (name == "identifier" || name == "scoped_identifier") {
 		//Make sure we get the entire name
 		std::string lookupName = concatSymbolTree(from);
 		std::cout << "Looking up: " << lookupName << std::endl;
@@ -779,12 +761,14 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
     }
     //We search the languageLevelOperators to see if it's an operator. If so, we modifiy the lookup with a preceding "operator"
 	LLElementIterator = languageLevelOperators.find(lookup);
-	if (LLElementIterator != languageLevelOperators.end())
+	if (LLElementIterator != languageLevelOperators.end()) {
 		lookup = "operator" + lookup;
+        std::cout << "Is an operator, prepending operator. Lookup is now: " << lookup << std::endl;
+    }
 
     //Look up the name
     std::vector<NodeTree<ASTData>*> possibleMatches = scopeLookup(scope, lookup);
-    std::cout << "Function lookup of " << lookup << " has " << possibleMatches.size() << " possible matches." << std::endl;
+    std::cout << "Function lookup of " << lookup << " has " << possibleMatches.size() << " possible matches at scope: " << scope->getDataRef()->toString() << std::endl;
     if (possibleMatches.size()) {
 		for (auto i : possibleMatches) {
 			//We're not looking for types
@@ -1012,6 +996,44 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>
 		std::cout << "found it at language level as reserved word." << std::endl;
 		return LLElementIterator->second;
     }
+    std::vector<std::string> scopeStringVec = slice(split(lookup, ':'), 0, -1, 2);
+    std::vector<NodeTree<ASTData>*> matches;
+    // If this is unscoped, look up in current scope too
+    if (scopeStringVec.size() == 1) {
+        auto simpleMatches = simpleScopeLookup(scope, lookup, includeModules);
+        matches.insert(matches.end(), simpleMatches.begin(), simpleMatches.end())
+    }
+    // Otherwise we use our more powerful module traversing scope lookup
+    std::vector<NodeTree<ASTData>*> modules;
+    module.push_back(topScope);
+    std::set<NodeTree<ASTData>*> moduleTraversedResults = moduleTraversingScopeLookup(modules, scopeStringVec, includeModules);
+    for (auto i : moduleTraversedResults)
+        matches.push_back(i);
+    return matches;
+}
+
+std::set<NodeTree<ASTData>*> ASTTransformation::moduleTraversingScopeLookup(std::vector<NodeTree<ASTData>*>  scopes, std::vector<std::string> lookupChain, bool includeModules) {
+    std::string head = lookupChain[0];
+    std::vector<std::string> tail = slice(lookupChain, 1, -1);
+    std::vector<NodeTree<ASTData>*> matches;
+    // In addition to the scopes passed in, we want all the scopes reachable through import a: name/* too.
+
+    // For every one of our scopes, add its results to matches
+    for (auto scope : scopes) {
+        auto scopeMap = scope->getDataRef()->scope;
+        auto possibleMatches = scopeMap.find(head);
+        if (possibleMatches != scopeMap.end())
+            for (auto i : possibleMatches->second)
+                if (tail.size() || includeModules || i->getName() != "translation_unit") // If this isn't the end of the module lookup, we want to include modules regardless
+                    matches.insert(i);
+
+    }
+    if (tail.size())
+        return moduleTraversingScopeLookup(matches, tail);
+    return matches;
+}
+
+std::vector<NodeTree<ASTData>*> ASTTransformation::simpleScopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules) {
     std::vector<NodeTree<ASTData>*> matches;
     std::map<std::string, std::vector<NodeTree<ASTData>*>> scopeMap = scope->getDataRef()->scope;
     auto possibleMatches = scopeMap.find(lookup);
@@ -1132,21 +1154,18 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
                 std::cout << "Adding to top scope and template's origional scope with fullyInstantiatedName " << fullyInstantiatedName << std::endl;
                 topScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
                 topScope->addChild(typeDefinition); //Add this object the the highest scope's
-                //NodeTree<ASTData>* templateHighScope = templateDefinition->getDataRef()->scope["~enclosing_scope"][0];
-                //if (topScope != templateHighScope)
-                    //templateHighScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
                 // We put it in the scope of the template so that it can find itself (as it's scope is its template definition)
                 templateDefinition->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
                 //Note that the instantiated template's scope is the template's definition.
                 typeDefinition->getDataRef()->scope["~enclosing_scope"].push_back(templateDefinition);
 
                 // We only partially instantiate templates no matter what now
-                // They are all fully instantiated in the loop at the end of the 4th pass
+                // They are all fully instantiated in the loop at the end of the 3rd pass
                 // This is done for code simplicity and so that that loop can do template class methods
                 // that instantiate other templates that instantiate other templates while still retaining the
                 // deferred method allowing us to correctly instantiate multiple levels of mututally recursive definitions.
                 selfType->templateDefinition = templateSyntaxTree; //We're going to still need this when we finish instantiating
-                selfType->templateTypeReplacement = newTemplateTypeReplacement; //Save the types for use when this is fully instantiated in pass 4
+                selfType->templateTypeReplacement = newTemplateTypeReplacement; //Save the types for use when this is fully instantiated in pass 3
                 secondPassDoClassInsides(typeDefinition, templateSyntaxTree->getChildren(), newTemplateTypeReplacement); //Use these types when instantiating data members
             }
         } else if (possibleMatches.size() == 0) {

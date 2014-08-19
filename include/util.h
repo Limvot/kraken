@@ -21,7 +21,6 @@ std::vector<std::string> split(const std::string &str, char delim);
 std::string join(const std::vector<std::string> &strVec, std::string joinStr);
 std::string readFile(std::istream &file);
 
-
 template <typename T>
 bool contains(std::vector<T> vec, T item) {
     for (auto i : vec)
@@ -49,14 +48,4 @@ bool subset(std::set<T> a, std::set<T> b) {
             return false;
     return true;
 }
-/*
-std::vector<std::string> split(std::string str, char delim) {
-        std::stringstream stream(str);
-        std::string item;
-        std::vector<std::string> results;
-        while(std::getline(stream, item, delim))
-                results.push_back(item);
-        return results;
-}
-*/
 #endif
