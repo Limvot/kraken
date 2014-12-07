@@ -5,6 +5,8 @@
 #include <queue>
 #include <map>
 #include <vector>
+#include <set>
+#include <utility>
 #include <algorithm>
 #include "Parser.h"
 #include "Symbol.h"
@@ -16,6 +18,7 @@ class RNGLRParser: public Parser {
 		RNGLRParser();
 		~RNGLRParser();
 		NodeTree<Symbol>* parseInput(std::string inputString);
+        void printReconstructedFrontier(int frontier);
 
 	private:
 		void reducer(int i);

@@ -1,0 +1,30 @@
+import io;
+
+
+typedef template <T,J> TemplateTest {
+	|T| a;
+	|J| b;
+	|void| print() {
+		print("a: ");
+		print(a);
+		print("\n");
+		print("b: ");
+		print(b);
+		print("\n");
+	}
+};
+
+|int| main() {
+
+	|TemplateTest<int, char*>| test;
+	|TemplateTest<char*, char*>| test2;
+	test.a = 24;
+	test.b = "Hello World";
+	test2.a = "Pi incoming";
+	test2.b = "3.14159 - Fooled you! txt pi. C is being weird with floats. Not a Kraken problem. Ahh Well.";
+
+	test.print();
+	test2.print();
+
+	return 0;
+}

@@ -1,0 +1,10 @@
+Declaration of a pointer and multiplication are ambigious!
+( T* a; maybe either a declaration or a multiplication)
+
+Fix destructors being placed after return.
+Fix functions before declaration? (in class? (this is from an old file))
+Template instantiation without explicit type param
+Fix // comment right before top level function declaration. Something to do
+with the return as /* comment */ does not have that problem
+for in or for each loops
+Traits on aliases, maybe that keep their old traits?

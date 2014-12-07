@@ -1,0 +1,9 @@
+import io;
+
+|void| nothing() {}
+
+|int| main() {
+    nothing();
+    println("It was nothing");
+    return 0;
+}

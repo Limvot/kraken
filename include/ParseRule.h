@@ -16,10 +16,10 @@ class ParseRule {
 		ParseRule();
 		ParseRule(Symbol leftHandle, int pointerIndex, std::vector<Symbol> &rightSide, std::vector<Symbol>* lookahead);
 		~ParseRule();
-		const bool equalsExceptLookahead(const ParseRule &other);
-		bool const operator==(const ParseRule &other);
-		bool const operator!=(const ParseRule &other);
-
+		const bool equalsExceptLookahead(const ParseRule &other) const;
+		bool const operator==(const ParseRule &other) const;
+		bool const operator!=(const ParseRule &other) const;
+        bool const operator<(const ParseRule &other) const; //Used for ordering so we can put ParseRule's in sets, and also so that ParseActions will have an ordering
 		ParseRule* clone();
 
 		void setLeftHandle(Symbol leftHandle);
@@ -40,7 +40,7 @@ class ParseRule {
 		void addLookahead(std::vector<Symbol>* lookahead);
 		std::vector<Symbol>* getLookahead();
 
-		std::string toString();
+		std::string toString(bool printLookahead = true);
 		std::string toDOT();
 
 	private:

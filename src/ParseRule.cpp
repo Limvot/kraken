@@ -16,16 +16,32 @@ ParseRule::~ParseRule() {
 
 }
 
-const bool ParseRule::equalsExceptLookahead(const ParseRule &other) {
+const bool ParseRule::equalsExceptLookahead(const ParseRule &other) const {
 	return(leftHandle == other.leftHandle && rightSide == other.rightSide && pointerIndex == other.pointerIndex);
 }
 
-const bool ParseRule::operator==(const ParseRule &other) {
+const bool ParseRule::operator==(const ParseRule &other) const {
 	return(equalsExceptLookahead(other) && (lookahead == NULL ? other.lookahead == NULL : (*lookahead) == *(other.lookahead)));
 }
 
-const bool ParseRule::operator!=(const ParseRule &other) {
+const bool ParseRule::operator!=(const ParseRule &other) const  {
 	return !(this->operator==(other));
+}
+
+const bool ParseRule::operator<(const ParseRule &other) const {
+    //Used for ordering so we can put ParseRule's in sets, and also so that ParseActions will have an ordering
+    if (leftHandle != other.leftHandle)
+        return leftHandle < other.leftHandle;
+    if (rightSide != other.rightSide)
+        return rightSide < other.rightSide;
+    if (lookahead != other.lookahead) {
+        if (! (lookahead && other.lookahead)) {
+            return lookahead < other.lookahead;
+        } else {
+            return *lookahead < *(other.lookahead);
+        }
+    }
+    return false;
 }
 
 ParseRule* ParseRule::clone() {
@@ -111,7 +127,7 @@ std::vector<Symbol>* ParseRule::getLookahead() {
 	return lookahead;
 }
 
-std::string ParseRule::toString() {
+std::string ParseRule::toString(bool printLookahead) {
 	std::string concat = leftHandle.toString() + " -> ";
 	for (int i = 0; i < rightSide.size(); i++) {
 		if (i == pointerIndex)
@@ -120,7 +136,7 @@ std::string ParseRule::toString() {
 	}
 	if (pointerIndex >= rightSide.size())
 		concat += "(*)";
-	if (lookahead != NULL) {
+	if (printLookahead && lookahead != NULL) {
 		concat += "**";
 		for (std::vector<Symbol>::size_type i = 0; i < lookahead->size(); i++)
 			concat += (*lookahead)[i].toString();

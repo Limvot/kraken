@@ -1,0 +1,13 @@
+import io;
+
+template <T,J> |void| addAndPrint(|T| a, |J| b) {
+	print(a+b);
+}
+
+|int| main() {
+
+	addAndPrint<int,double>(10,12.14159);
+	print("\n");
+
+	return 0;
+}

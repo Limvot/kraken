@@ -27,6 +27,7 @@ class GraphStructuredStack {
 		void addEdge(NodeTree<int>* start, NodeTree<int>* end, NodeTree<Symbol>* edge);
 		void clear();
 
+        std::vector<int> getFrontier(int frontier);
 		std::string toString();
 	private:
 		std::vector<std::vector<NodeTree<int>*>*> gss;

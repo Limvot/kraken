@@ -251,7 +251,7 @@ void Table::add(int stateNum, Symbol tranSymbol, ParseAction* action) {
 	//If this table slot is empty
 	//std::cout << "table[stateNum] is " << table[stateNum] << std::endl;
 	//std::cout << "blank is " << (*(table[stateNum]))[symbolIndex] << std::endl;
-	
+
 	if ( (*(table[stateNum]))[symbolIndex] == NULL ) {
 		//std::cout << "Null, adding " << action->toString() << std::endl;
 		std::vector<ParseAction*>* actionList = new std::vector<ParseAction*>();
@@ -262,7 +262,7 @@ void Table::add(int stateNum, Symbol tranSymbol, ParseAction* action) {
 	//else if ( !(*(table[stateNum]))[symbolIndex]->equalsExceptLookahead(*action)) {
 	else {
 		//std::cout << "not Null!" << std::endl;
-		//std::cout << "State: " << stateNum << " Conflict between old: " << (*(table[stateNum]))[symbolIndex]->toString() << " and new: " << action->toString() << " on " << tranSymbol->toString() << std::endl; 
+		//std::cout << "State: " << stateNum << " Conflict between old: " << (*(table[stateNum]))[symbolIndex]->toString() << " and new: " << action->toString() << " on " << tranSymbol->toString() << std::endl;
 
 		//Check to see if this action is already in the list
 
@@ -351,6 +351,17 @@ ParseAction* Table::getShift(int state, Symbol token) {
 		}
 	}
 	return shift;
+}
+
+std::vector<std::pair<std::string, ParseAction>> Table::stateAsParseActionVector(int state) {
+    std::vector<std::pair<std::string, ParseAction>> reconstructedState;
+    std::vector<std::vector<ParseAction*>*>* stateVec = table[state];
+    for (int i = 0; i < stateVec->size(); i++)
+        if (std::vector<ParseAction*>* forStateAndSymbol = (*stateVec)[i])
+            for (int j = 0; j < forStateAndSymbol->size(); j++)
+                reconstructedState.push_back(std::make_pair(symbolIndexVec[i].toString(),*((*forStateAndSymbol)[j])));
+
+    return reconstructedState;
 }
 
 std::string Table::toString() {

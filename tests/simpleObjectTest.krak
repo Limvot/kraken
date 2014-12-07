@@ -1,0 +1,18 @@
+
+import io;
+
+typedef FirstObject {
+	|int| objectNum;
+	|void| PrintSelf(|int| a) {
+		print(objectNum);
+		print(a);
+	}
+};
+
+|int| main() {
+	|FirstObject| wooObject;
+	wooObject.objectNum = 5;
+	wooObject.PrintSelf(7);
+	print("\n");
+	return 0;
+}

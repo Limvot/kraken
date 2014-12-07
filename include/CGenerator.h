@@ -10,6 +10,7 @@
 #include "Type.h"
 
 #include "util.h"
+#include "Poset.h"
 
 
 class CGenerator {
@@ -17,12 +18,14 @@ class CGenerator {
 		CGenerator();
 		~CGenerator();
 		void generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName);
+        std::string generateClassStruct(NodeTree<ASTData>* from);
 		std::string generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject = NULL);
+        std::string generateAliasChains(NodeTree<ASTData>* scopeNode, NodeTree<ASTData>* definition);
 		static std::string ValueTypeToCType(Type *type);
 		static std::string ValueTypeToCTypeDecoration(Type *type);
-		static std::string CifyFunctionName(std::string name);
-		std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from);
-
+		static std::string CifyName(std::string name);
+		std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from, std::string *functionPrototype);
+        NodeTree<ASTData>* getMethodsObjectType(NodeTree<ASTData>* scope, std::string functionName);
 		std::string generatorString;
 	private:
 		std::string tabs();

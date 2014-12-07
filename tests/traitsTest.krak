@@ -1,0 +1,75 @@
+import io;
+
+typedef NoTraits {};
+
+typedef Trait1 (FirstTrait) {};
+typedef Trait2 (SecondTrait) {};
+typedef TwoTrait (FirstTrait, SecondTrait) {};
+typedef AlreadySpecilized (FirstTrait, SecondTrait) {};
+
+template <T> |void| OneTwoFunc(|T| obj) {
+    println("No Traits");
+}
+
+template <T(FirstTrait)> |void| OneTwoFunc(|T| obj) {
+    println("First Trait");
+}
+
+template <T(SecondTrait)> |void| OneTwoFunc(|T| obj) {
+    println("Second Trait");
+}
+
+template <T(FirstTrait, SecondTrait)> |void| OneTwoFunc(|T| obj) {
+    println("Both Traits");
+}
+/*
+template <AlreadySpecilized> |void| OneTwoFunc(|AlreadySpecilized| obj) {
+    println("Already Specilized");
+}
+*/
+//This should work for objects too!
+//To test, we cycle the mapping of traits
+
+typedef template<T> OneTwoObj (FirstTrait) {};
+typedef template<T(FirstTrait)> OneTwoObj (SecondTrait) {};
+typedef template<T(SecondTrait)> OneTwoObj (FirstTrait, SecondTrait) {};
+typedef template<T(FirstTrait, SecondTrait)> OneTwoObj {};
+/*
+ *typedef template<AlreadySpecilized> OneTwoObj {
+ *    void proveSpecilized() {
+ *        println("I'm specilized!");
+ *    }
+ *};
+ */
+
+|int| main() {
+    |NoTraits| a;
+    |Trait1| b;
+    |Trait2| c;
+    |TwoTrait| d;
+    |AlreadySpecilized| e;
+    
+    OneTwoFunc<NoTraits>(a);
+    OneTwoFunc<Trait1>(b);
+    OneTwoFunc<Trait2>(c);
+    OneTwoFunc<TwoTrait>(d);
+//    OneTwoFunc<AlreadySpecilized>(e);
+   
+    println();
+
+    |OneTwoObj<NoTraits>| alpha;
+    |OneTwoObj<Trait1>| beta;
+    |OneTwoObj<Trait2>| gamma;
+    |OneTwoObj<TwoTrait>| delta;
+//    |OneTwoObj<AlreadySpecilized>| epsilon;
+
+    OneTwoFunc<OneTwoObj<NoTraits>>(alpha);
+    OneTwoFunc<OneTwoObj<Trait1>>(beta);
+    OneTwoFunc<OneTwoObj<Trait2>>(gamma);
+    OneTwoFunc<OneTwoObj<TwoTrait>>(delta);
+
+    //We can't pass along our inner part, so let's just make sure that it is the right object.
+    //epsilon.proveSpecilized();
+
+    return 0;
+}

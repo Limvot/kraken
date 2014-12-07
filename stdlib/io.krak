@@ -1,0 +1,59 @@
+__if_comp__ __C__ __simple_passthrough__ """
+	#include <stdio.h>
+"""
+
+|void| println() {
+    print("\n");
+}
+
+|void| print(|char*| toPrint) {
+	__if_comp__ __C__ {
+		__simple_passthrough__ """
+			printf(toPrint);
+		"""
+	}
+	return;
+}
+
+|void| println(|char*| toPrint) {
+    print(toPrint);
+    println();
+}
+
+|void| print(|int| toPrint) {
+	__if_comp__ __C__ {
+		__simple_passthrough__ """
+			printf("%d", toPrint);
+		"""
+	}
+	return;
+}
+
+|void| println(|int| toPrint) {
+    print(toPrint);
+    println();
+}
+
+|void| print(|float| toPrint) {
+	__if_comp__ __C__ {
+		__simple_passthrough__ """
+			printf("%f", toPrint);
+		"""
+	}
+	return;
+}
+
+|void| print(|double| toPrint) {
+	__if_comp__ __C__ {
+		__simple_passthrough__ """
+			printf("%f", toPrint);
+		"""
+	}
+	return;
+}
+
+|void| println(|float| toPrint) {
+    print(toPrint);
+    println();
+}
+

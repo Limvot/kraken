@@ -1,0 +1,30 @@
+import io;
+
+
+typedef template <T> TemplateTest {
+	|int| a;
+	|T| b;
+	|void| print() {
+		print("a: ");
+		print(a);
+		print("\n");
+		print("b: ");
+		print(b);
+		print("\n");
+	}
+};
+
+|int| main() {
+
+	|TemplateTest<int>| test;
+	|TemplateTest<char*>| test2;
+	test.a = 5;
+	test.b = 7;
+	test2.a = 9;
+	test2.b = "Hello Templates!";
+
+	test.print();
+	test2.print();
+
+	return 0;
+}

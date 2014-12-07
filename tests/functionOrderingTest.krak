@@ -1,0 +1,17 @@
+import io;
+
+|int| ret1() {
+	return ret2() / 2;
+}
+
+
+|int| main() {
+	print(ret1());
+	print(ret2());
+	print("\n");
+	return 0;
+}
+
+|int| ret2() {
+	return 2;
+}
