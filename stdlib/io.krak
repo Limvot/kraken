@@ -2,10 +2,6 @@ __if_comp__ __C__ __simple_passthrough__ """
 	#include <stdio.h>
 """
 
-/*
- *import string;
- */
-
 |void| println() {
     print("\n");
 }
@@ -23,17 +19,6 @@ __if_comp__ __C__ __simple_passthrough__ """
     print(toPrint);
     println();
 }
-
-/*
- *|void| print(|String| toPrint) {
- *    print(toPrint.c_str());
- *}
- *
- *|void| println(|String| toPrint) {
- *    print(toPrint);
- *    println();
- *}
- */
 
 |void| print(|int| toPrint) {
 	__if_comp__ __C__ {
