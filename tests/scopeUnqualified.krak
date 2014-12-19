@@ -1,0 +1,27 @@
+|int| unqualifed_variable = 8;
+|int| unqualified_func() { return 10; }
+
+typedef unqualified_class {
+    |int| number;
+    |qualified_class*| construct(|int| num) {
+        number = num;
+        return this;
+    }
+    |int| get() {
+        return number;
+    }
+};
+
+typedef template <T> unqualified_container {
+    |T| data;
+    |unqualified_container<T>*| construct(|T| dataIn) {
+        data = dataIn;
+    }
+    |T| get() {
+        return data;
+    }
+};
+
+template<T> |T| unqualified_id(|T| it) {
+    return it;
+}

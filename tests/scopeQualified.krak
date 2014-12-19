@@ -1,0 +1,27 @@
+|int| qualified_variable = 7;
+|int| qualified_func() { return 9; }
+
+typedef qualified_class {
+    |int| number;
+    |qualified_class*| construct(|int| num) {
+        number = num;
+        return this;
+    }
+    |int| get() {
+        return number;
+    }
+};
+
+typedef template <T> qualified_container {
+    |T| data;
+    |qualified_container<T>*| construct(|T| dataIn) {
+        data = dataIn;
+    }
+    |T| get() {
+        return data;
+    }
+};
+
+template<T> |T| qualified_id(|T| it) {
+    return it;
+}

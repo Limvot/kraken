@@ -1,0 +1,32 @@
+import io;
+import scopeQualified;
+import scopeUnqualified : * ;
+
+|int| main() {
+    io::println("Qualified io!");
+
+    // Defined in scopeQualified
+    io::println(scopeQualified::qualified_variable);
+    io::println(scopeQualified::qualified_func());
+    |scopeQualified::qualified_class| qClass.construct(11);
+    io::println(qClass.get());
+
+    |scopeQualified::qualified_container<char*>| sayQualified.construct("Qualified Container!");
+    io::println(sayQualified.get());
+    io::println(scopeQualified::qualified_id<char*>("Even template functions qualified!"));
+
+    io::println();
+
+    io::println("Unqualified io!");
+    // Defined in scopeUnqualified
+    io::println(unqualifed_variable);
+    io::println(unqualified_func());
+    |unqualified_class| uqClass.construct(12);
+    io::println(uqClass.get());
+
+    |unqualified_container<char*>| sayUnqualified.construct("Unqualified Container!");
+    io::println(sayUnqualified.get());
+    io::println(unqualified_id<char*>("Even template functions unqualified!"));
+
+    return 0;
+}

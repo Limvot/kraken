@@ -1,0 +1,6 @@
+_site
+build
+*.comp
+stats
+*.swp
+*.png

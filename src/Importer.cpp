@@ -10,7 +10,8 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths) {
 	removeSymbols.push_back(Symbol("WS", false));
 	removeSymbols.push_back(Symbol("\\(", true));
 	removeSymbols.push_back(Symbol("\\)", true));
-	removeSymbols.push_back(Symbol("::", true));
+	//removeSymbols.push_back(Symbol("::", true));
+	removeSymbols.push_back(Symbol(":", true));
 	removeSymbols.push_back(Symbol(";", true));
 	removeSymbols.push_back(Symbol("{", true));
 	removeSymbols.push_back(Symbol("}", true));
@@ -26,6 +27,7 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths) {
 	removeSymbols.push_back(Symbol("template", true));
 	removeSymbols.push_back(Symbol("\\|", true));
 
+	//collapseSymbols.push_back(Symbol("scoped_identifier", false));
 	collapseSymbols.push_back(Symbol("opt_typed_parameter_list", false));
 	collapseSymbols.push_back(Symbol("opt_parameter_list", false));
 	collapseSymbols.push_back(Symbol("opt_import_list", false));
