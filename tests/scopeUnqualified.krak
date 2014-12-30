@@ -3,7 +3,7 @@
 
 typedef unqualified_class {
     |int| number;
-    |qualified_class*| construct(|int| num) {
+    |unqualified_class*| construct(|int| num) {
         number = num;
         return this;
     }

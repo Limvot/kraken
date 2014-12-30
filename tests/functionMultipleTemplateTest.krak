@@ -1,4 +1,4 @@
-import io;
+import io:*;
 
 template <T,J> |void| addAndPrint(|T| a, |J| b) {
 	print(a+b);

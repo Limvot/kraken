@@ -1,7 +1,8 @@
 #!/bin/bash
 
 krakenPath="../build/kraken"
-testDir=${1:-"../tests"}
+#testDir=${1:-"../tests"}
+testDir="."
 ext=${2:-"krak"}
 
 fileList=""

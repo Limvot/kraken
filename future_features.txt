@@ -1,5 +1,12 @@
-Declaration of a pointer and multiplication are ambigious!
-( T* a; maybe either a declaration or a multiplication)
+correctly importing / running tests is a nightmare with relative paths.
+
+Namespaces
+Imports allow renaming of either entire scope or individual members, and can import from within a scope
+
+correct c genration for triple mutually recursive types across 2 files (wehre
+A depends on B depends on C, but two of them are in the same file and there's
+also pointers for the other two) Will need splitting into multiple C files to
+be cleanest, I think)
 
 Fix destructors being placed after return.
 Fix functions before declaration? (in class? (this is from an old file))

@@ -7,7 +7,7 @@ typedef ClassWithConstructor {
         return this;
     }
     |void| printData() {
-        println(data);
+        io::println(data);
     }
 };
 
@@ -15,6 +15,6 @@ typedef ClassWithConstructor {
     |ClassWithConstructor| object.construct(4);
     object.printData();
     |int| a = 8;
-    println(a);
+    io::println(a);
     return 0;
 }
