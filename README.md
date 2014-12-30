@@ -3,7 +3,7 @@ Kraken
 
 The Kraken Programming Language
 
-(more info at http://limvot.github.io/kraken/)
+(more info and examples at http://limvot.github.io/kraken/)
 
 The Kraken Programming Language is in its infancy.
 Currently, it consists of a RNGLALR parser written in C++, an experimental grammer that is evolving, and a C code generator.
