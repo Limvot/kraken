@@ -15,7 +15,7 @@ class Tester {
 		int ssystem(std::string command);
 		bool run(std::string fileName);
 		bool compareFiles(std::string file1Path, std::string file2Path);
-		void cleanExtras(std::string fileName);
+		void cleanExtras(std::string path);
 
 	private:
 		std::string krakenInvocation;
@@ -27,5 +27,7 @@ class Tester {
 		std::string shell;
 		std::string changePermissions;
 		std::string redirect;
+		std::string sep;
+		std::string cd;
 };
 #endif

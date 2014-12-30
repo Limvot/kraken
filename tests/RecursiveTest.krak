@@ -1,4 +1,4 @@
-import io;
+import io:*;
 
 |int| fibanacci(|int| num) {
 	if (num < 2)

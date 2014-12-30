@@ -1,6 +1,6 @@
-import io;
-import mem;
-import vector;
+import io:*;
+import mem:*;
+import vector:*;
 
 typedef AbleToBeDestroyed (Destructable) {
     |void| destruct() {
@@ -16,9 +16,9 @@ typedef AbleToBeDestroyed (Destructable) {
     intVec.addEnd(7);
     for (|int| i = 0; i < intVec.size; i++;)
         print(intVec.at(i));
-    
+
     println();
-    
+
     |vector<AbleToBeDestroyed>*| desVec = new<vector<AbleToBeDestroyed>>()->construct();
     |AbleToBeDestroyed| testDestruct;
     desVec->addEnd(testDestruct);

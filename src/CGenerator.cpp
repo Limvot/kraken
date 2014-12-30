@@ -7,24 +7,35 @@ CGenerator::~CGenerator() {
 
 }
 
+// Note the use of std::pair to hold two strings - the running string for the header file and the running string for  the c file.
 void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName) {
 	//Generate an entire set of files
 	std::string buildString = "#!/bin/sh\ncc -std=c99 ";
+	std::cout << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
+    if (mkdir(("./" + outputName).c_str(), 0755)) {
+        std::cout << "Could not make directory " << outputName << std::endl;
+        //throw "could not make directory ";
+    }
 	for (auto i = ASTs.begin(); i != ASTs.end(); i++) {
+		std::cout << "\n\nGenerate pass for: " << i->first << std::endl;
 		buildString += i->first + ".c ";
-		std::ofstream outputCFile;
-		outputCFile.open(i->first + ".c");
-		if (outputCFile.is_open()) {
+		std::ofstream outputCFile, outputHFile;
+		outputCFile.open(outputName + "/" + i->first + ".c");
+		outputHFile.open(outputName + "/" + i->first + ".h");
+		if (outputCFile.is_open() || outputHFile.is_open()) {
             // Prequel common to all files
-			outputCFile << "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n" << generate(i->second);
+            auto chPair = generateTranslationUnit(i->second);
+			outputHFile << "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n" << chPair.first;
+			outputCFile << "#include \"" + i->first + ".h\"\n\n" << chPair.second;
 		} else {
-			std::cout << "Cannot open file " << i->first << ".c" << std::endl;
+			std::cout << "Cannot open file " << i->first << ".c/h" << std::endl;
 		}
 		outputCFile.close();
+		outputHFile.close();
 	}
 	buildString += "-o " + outputName;
 	std::ofstream outputBuild;
-	outputBuild.open(outputName + ".sh");
+	outputBuild.open(outputName + "/" + split(outputName, '/').back() + ".sh");
 	outputBuild << buildString;
 	outputBuild.close();
 }
@@ -70,6 +81,164 @@ std::string CGenerator::generateAliasChains(NodeTree<ASTData>* scopeNode, NodeTr
     return output;
 }
 
+bool CGenerator::isUnderTranslationUnit(NodeTree<ASTData>* from, NodeTree<ASTData>* node) {
+    auto scope = from->getDataRef()->scope;
+    for (auto i : scope)
+        for (auto j : i.second)
+            if (j == node)
+                return true;
+
+    auto upper = scope.find("~enclosing_scope");
+    if (upper != scope.end())
+        return isUnderTranslationUnit(upper->second[0], node);
+    return false;
+}
+
+NodeTree<ASTData>* CGenerator::highestScope(NodeTree<ASTData>* node) {
+    auto it = node->getDataRef()->scope.find("~enclosing_scope");
+    while (it != node->getDataRef()->scope.end()) {
+        node = it->second[0];
+        it = node->getDataRef()->scope.find("~enclosing_scope");
+    }
+    return node;
+}
+
+// We do translation units in their own function so they can do the pariwise h/c stuff and regualr in function body generation does not
+std::pair<std::string, std::string> CGenerator::generateTranslationUnit(NodeTree<ASTData>* from) {
+	ASTData data = from->getData();
+	std::vector<NodeTree<ASTData>*> children = from->getChildren();
+    std::string cOutput, hOutput;
+    // Ok, so we've got to do this in passes to preserve mututally recursive definitions.
+    //
+    // First Pass: All classes get "struct dummy_thing; typedef struct dummy_thing thing;".
+    //                  Also, other typedefs follow after their naming.
+    // Second Pass: All top level variable declarations
+    // Third Pass: Define all actual structs of a class, in correct order (done with posets)
+    // Fourth Pass: Declare all function prototypes (as functions may be mutually recursive too).
+    //                  (this includes object methods)
+    // Fifth Pass: Define all functions (including object methods).
+
+    // However, most of these do not actually have to be done as separate passes. First, second, fourth, and fifth
+    // are done simultanously, but append to different strings that are then concatinated properly, in order.
+
+    std::string importIncludes = "/**\n * Import Includes\n */\n\n";
+    std::string variableExternDeclarations = "/**\n * Extern Variable Declarations \n */\n\n";
+    std::string plainTypedefs = "/**\n * Plain Typedefs\n */\n\n";
+    std::string variableDeclarations = "/**\n * Variable Declarations \n */\n\n";
+    std::string classStructs = "/**\n * Class Structs\n */\n\n";
+    std::string functionPrototypes = "/**\n * Function Prototypes\n */\n\n";
+    std::string functionDefinitions = "/**\n * Function Definitions\n */\n\n";
+
+    // Ok, let's handle the included files
+    for (auto i : from->getChildren())
+        if (i->getDataRef()->type == import)
+            importIncludes += "#include \"" + i->getDataRef()->symbol.getName() + ".krak.h\" //woo importing!\n";
+
+    // And get the correct order for emiting classes, but not if they're not in our file, then they will get included
+    // Note that this is not sufsticated enough for some multiple file mutually recursive types, but I want to get this simple version working first
+    Poset<NodeTree<ASTData>*> typedefPoset;
+    for (int i = 0; i < children.size(); i++) {
+        if (children[i]->getDataRef()->type == type_def) {
+            // If we're an alias type, continue. We handle those differently
+            if (children[i]->getDataRef()->valueType->typeDefinition != children[i])
+                continue;
+
+            typedefPoset.addVertex(children[i]); // We add this definition by itself just in case there are no dependencies.
+            // If it has dependencies, there's no harm in adding it here
+            // Go through every child in the class looking for declaration statements. For each of these that is not a primitive type
+            // we will add a dependency from this definition to that definition in the poset.
+            std::vector<NodeTree<ASTData>*> classChildren = children[i]->getChildren();
+            for (auto j : classChildren) {
+                if (j->getDataRef()->type == declaration_statement) {
+                    Type* decType = j->getChildren()[0]->getDataRef()->valueType;           // Type of the declaration
+                    if (decType->typeDefinition && decType->getIndirection() == 0 && isUnderTranslationUnit(from, decType->typeDefinition))	        // If this is a custom type and not a pointer and actually should be defined in this file
+                        typedefPoset.addRelationship(children[i], decType->typeDefinition); // Add a dependency
+                }
+            }
+        }
+    }
+    //Now generate the typedef's in the correct, topological order
+    for (NodeTree<ASTData>* i : typedefPoset.getTopoSort())
+        classStructs += generateClassStruct(i) + "\n";
+
+    // Declare everything in translation unit scope here. (allows stuff from other files, automatic forward declarations)
+    // Also, everything in all of the import's scopes
+    std::map<std::string, std::vector<NodeTree<ASTData>*>> combinedMap;
+    combinedMap = from->getDataRef()->scope; // Actually, just do this file. We're moving back to using include files
+    for (auto i = combinedMap.begin(); i != combinedMap.end(); i++) {
+        for (auto declaration : i->second) {
+            std::vector<NodeTree<ASTData>*> decChildren = declaration->getChildren();
+            ASTData declarationData = declaration->getData();
+            switch(declarationData.type) {
+                case identifier:
+                    variableDeclarations += ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*identifier*/\n";
+                    variableExternDeclarations += "extern " + ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*extern identifier*/\n";
+                    break;
+                case function:
+                    {
+                        if (declarationData.valueType->baseType == template_type)
+                            functionPrototypes += "/* template function " + declarationData.symbol.toString() + " */\n";
+                        else if (decChildren.size() == 0) //Not a real function, must be a built in passthrough
+                            functionPrototypes += "/* built in function: " + declarationData.symbol.toString() + " */\n";
+                        else {
+                            functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType) + " ";
+                            std::string nameDecoration, parameters;
+                            for (int j = 0; j < decChildren.size()-1; j++) {
+                                if (j > 0)
+                                    parameters += ", ";
+                                parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], nullptr);
+                                nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
+                            }
+                            functionPrototypes += CifyName(declarationData.symbol.getName() + nameDecoration) + "(" + parameters + "); /*func*/\n";
+                            // Only generate function if this is the unit it was defined in
+                            std::cout << "Generating " << CifyName(declarationData.symbol.getName()) << std::endl;
+                            if (contains(children, declaration))
+                                functionDefinitions += generate(declaration, nullptr);
+                        }
+                    }
+                    break;
+                case type_def:
+                    //type
+                    plainTypedefs += "/*typedef " + declarationData.symbol.getName() + " */\n";
+
+                    if (declarationData.valueType->baseType == template_type) {
+                        plainTypedefs += "/* non instantiated template " + declarationData.symbol.getName() + " */";
+                    } else if (declarationData.valueType->typeDefinition != declaration) {
+                        if (declarationData.valueType->typeDefinition)
+                            continue; // Aliases of objects are done with the thing it alises
+                        // Otherwise, we're actually a renaming of a primitive, can generate here
+                        plainTypedefs += "typedef " + ValueTypeToCType(declarationData.valueType) + " " + CifyName(declarationData.symbol.getName()) + ";\n";
+                        plainTypedefs += generateAliasChains(from, declaration);
+                    } else {
+                        plainTypedefs += "typedef struct __struct_dummy_" + CifyName(declarationData.symbol.getName()) + "__ " + CifyName(declarationData.symbol.getName())  + ";\n";
+                        functionPrototypes += "/* Method Prototypes for " + declarationData.symbol.getName() + " */\n";
+                        // We use a seperate string for this because we only include it if this is the file we're defined in
+                        std::string objectFunctionDefinitions = "/* Method Definitions for " + declarationData.symbol.getName() + " */\n";
+                        for (int j = 0; j < decChildren.size(); j++) {
+                            std::cout << decChildren[j]->getName() << std::endl;
+                            if (decChildren[j]->getName() == "function") //If object method
+                                objectFunctionDefinitions += generateObjectMethod(declaration, decChildren[j], &functionPrototypes) + "\n";
+                        }
+                        // Add all aliases to the plain typedefs. This will add any alias that aliases to this object, and any alias that aliases to that, and so on
+                        plainTypedefs += generateAliasChains(from, declaration);
+                        functionPrototypes += "/* Done with " + declarationData.symbol.getName() + " */\n";
+                        // If this is the file the object is defined in, include methods
+                        if (contains(children, declaration))
+                            functionDefinitions += objectFunctionDefinitions + "/* Done with " + declarationData.symbol.getName() + " */\n";
+                    }
+                    break;
+                default:
+                    //std::cout << "Declaration? named " << declaration->getName() << " of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
+                    cOutput += "/*unknown declaration named " + declaration->getName() + "*/\n";
+                    hOutput += "/*unknown declaration named " + declaration->getName() + "*/\n";
+            }
+        }
+    }
+    hOutput += plainTypedefs + importIncludes + variableExternDeclarations + classStructs + functionPrototypes;
+    cOutput += variableDeclarations + functionDefinitions;
+    return std::make_pair(hOutput, cOutput);
+}
+
 //The enclosing object is for when we're generating the inside of object methods. They allow us to check scope lookups against the object we're in
 std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject) {
 	ASTData data = from->getData();
@@ -78,127 +247,17 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 	switch (data.type) {
 		case translation_unit:
 		{
-            // Ok, so we've got to do this in passes to preserve mututally recursive definitions.
-            //
-            // First Pass: All classes get "struct dummy_thing; typedef struct dummy_thing thing;".
-            //                  Also, other typedefs follow after their naming.
-            // Second Pass: All top level variable declarations
-            // Third Pass: Define all actual structs of a class, in correct order (done with posets)
-            // Fourth Pass: Declare all function prototypes (as functions may be mutually recursive too).
-            //                  (this includes object methods)
-            // Fifth Pass: Define all functions (including object methods).
-
-            // However, most of these do not actually have to be done as separate passes. First, second, fourth, and fifth
-            // are done simultanously, but append to different strings that are then concatinated properly, in order.
-
-            std::string plainTypedefs = "/**\n * Plain Typedefs\n */\n\n";
-            std::string variableDeclarations = "/**\n * Variable Declarations \n */\n\n";
-            std::string classStructs = "/**\n * Class Structs\n */\n\n";
-            std::string functionPrototypes = "/**\n * Function Prototypes\n */\n\n";
-            std::string functionDefinitions = "/**\n * Function Definitions\n */\n\n";
-
-			Poset<NodeTree<ASTData>*> typedefPoset;
-			for (int i = 0; i < children.size(); i++) {
-				if (children[i]->getDataRef()->type == type_def) {
-                    // If we're an alias type, continue. We handle those differently
-                    if (children[i]->getDataRef()->valueType->typeDefinition != children[i])
-                        continue;
-
-					typedefPoset.addVertex(children[i]); // We add this definition by itself just in case there are no dependencies.
-													     // If it has dependencies, there's no harm in adding it here
-					// Go through every child in the class looking for declaration statements. For each of these that is not a primitive type
-					// we will add a dependency from this definition to that definition in the poset.
-					std::vector<NodeTree<ASTData>*> classChildren = children[i]->getChildren();
-					for (auto j : classChildren) {
-						if (j->getDataRef()->type == declaration_statement) {
-							Type* decType = j->getChildren()[0]->getDataRef()->valueType;           // Type of the declaration
-							if (decType->typeDefinition && decType->getIndirection() == 0)	        // If this is a custom type and not a pointer
-								typedefPoset.addRelationship(children[i], decType->typeDefinition); // Add a dependency
-						}
-					}
-                }
-			}
-			//Now generate the typedef's in the correct, topological order
-			for (NodeTree<ASTData>* i : typedefPoset.getTopoSort())
-				classStructs += generateClassStruct(i) + "\n";
-
-			//Declare everything in translation unit scope here. (allows stuff from other files, automatic forward declarations)
-			for (auto i = data.scope.begin(); i != data.scope.end(); i++) {
-				for (auto declaration : i->second) {
-					std::vector<NodeTree<ASTData>*> decChildren = declaration->getChildren();
-					ASTData declarationData = declaration->getData();
-					switch(declarationData.type) {
-						case identifier:
-							variableDeclarations += ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*identifier*/\n";
-							break;
-						case function:
-						{
-							if (declarationData.valueType->baseType == template_type)
-								functionPrototypes += "/* template function " + declarationData.symbol.toString() + " */\n";
-							else if (decChildren.size() == 0) //Not a real function, must be a built in passthrough
-								functionPrototypes += "/* built in function: " + declarationData.symbol.toString() + " */\n";
-							else {
-								functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType) + " ";
-								std::string nameDecoration, parameters;
-								for (int j = 0; j < decChildren.size()-1; j++) {
-									if (j > 0)
-										parameters += ", ";
-									parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], enclosingObject);
-									nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
-								}
-								functionPrototypes += CifyName(declarationData.symbol.getName() + nameDecoration) + "(" + parameters + "); /*func*/\n";
-                                // Only generate function if this is the unit it was defined in
-                                std::cout << "Generating " << CifyName(declarationData.symbol.getName()) << std::endl;
-                                if (contains(children, declaration))
-                                    functionDefinitions += generate(declaration, enclosingObject);
-							}
-						}
-							break;
-                        case type_def:
-                            //type
-                            plainTypedefs += "/*typedef " + declarationData.symbol.getName() + " */\n";
-
-                            if (declarationData.valueType->baseType == template_type) {
-                                plainTypedefs += "/* non instantiated template " + declarationData.symbol.getName() + " */";
-                            } else if (declarationData.valueType->typeDefinition != declaration) {
-                                if (declarationData.valueType->typeDefinition)
-                                    continue; // Aliases of objects are done with the thing it alises
-                                // Otherwise, we're actually a renaming of a primitive, can generate here
-                                plainTypedefs += "typedef " + ValueTypeToCType(declarationData.valueType) + " " + CifyName(declarationData.symbol.getName()) + ";\n";
-                                plainTypedefs += generateAliasChains(from, declaration);
-                            } else {
-                                plainTypedefs += "typedef struct __struct_dummy_" + CifyName(declarationData.symbol.getName()) + "__ " + CifyName(declarationData.symbol.getName())  + ";\n";
-                                functionPrototypes += "/* Method Prototypes for " + declarationData.symbol.getName() + " */\n";
-                                // We use a seperate string for this because we only include it if this is the file we're defined in
-                                std::string objectFunctionDefinitions = "/* Method Definitions for " + declarationData.symbol.getName() + " */\n";
-                                for (int j = 0; j < decChildren.size(); j++) {
-                                    std::cout << decChildren[j]->getName() << std::endl;
-                                    if (decChildren[j]->getName() == "function") //If object method
-                                        objectFunctionDefinitions += generateObjectMethod(declaration, decChildren[j], &functionPrototypes) + "\n";
-                                }
-                                // Add all aliases to the plain typedefs. This will add any alias that aliases to this object, and any alias that aliases to that, and so on
-                                plainTypedefs += generateAliasChains(from, declaration);
-                                functionPrototypes += "/* Done with " + declarationData.symbol.getName() + " */\n";
-                                // If this is the file the object is defined in, include methods
-                                if (contains(children, declaration))
-                                    functionDefinitions += objectFunctionDefinitions + "/* Done with " + declarationData.symbol.getName() + " */\n";
-                            }
-                                break;
-						default:
-							//std::cout << "Declaration? named " << declaration->getName() << " of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
-							output += "/*unknown declaration named " + declaration->getName() + "*/\n";
-					}
-				}
-			}
-            output += plainTypedefs + variableDeclarations + classStructs + functionPrototypes + functionDefinitions;
-			return output;
+            // Should not happen! We do this in it's own function now!
+            std::cout << "Trying to normal generate a translation unit! That's a nono! (" << from->getDataRef()->toString() << ")" << std::endl;
+            throw "That's not gonna work";
 		}
 			break;
 		case interpreter_directive:
 			//Do nothing
 			break;
 		case import:
-			return "/* would import \"" + data.symbol.getName() + "\" but....*/\n";
+            return "/* never reached import? */\n";
+			//return "include \"" + data.symbol.getName() + ".h\" //woo importing!\n";
 			//return "#include <" + data.symbol.getName() + ">\n";
 		case identifier:
 		{
@@ -421,7 +480,9 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
     return functionSignature + "\n" +  generate(children[children.size()-1], enclosingObject); //Pass in the object so we can properly handle access to member stuff
 }
 
-std::string CGenerator::ValueTypeToCType(Type *type) {
+std::string CGenerator::ValueTypeToCType(Type *type) { return ValueTypeToCTypeThingHelper(type, "*"); }
+std::string CGenerator::ValueTypeToCTypeDecoration(Type *type) { return ValueTypeToCTypeThingHelper(type, "_P__"); }
+std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string ptrStr) {
 	std::string return_type;
 	switch (type->baseType) {
 		case none:
@@ -453,43 +514,7 @@ std::string CGenerator::ValueTypeToCType(Type *type) {
 			break;
 	}
 	for (int i = 0; i < type->getIndirection(); i++)
-		return_type += "*";
-	return return_type;
-}
-
-std::string CGenerator::ValueTypeToCTypeDecoration(Type *type) {
-	std::string return_type;
-	switch (type->baseType) {
-		case none:
-			if (type->typeDefinition)
-				return_type = CifyName(type->typeDefinition->getDataRef()->symbol.getName());
-			else
-				return_type = "none";
-			break;
-		case void_type:
-			return_type = "void";
-			break;
-		case boolean:
-			return_type = "bool";
-			break;
-		case integer:
-			return_type = "int";
-			break;
-		case floating:
-			return_type = "float";
-			break;
-		case double_percision:
-			return_type = "double";
-			break;
-		case character:
-			return_type = "char";
-			break;
-		default:
-			return_type = "unknown_ValueType";
-			break;
-	}
-	for (int i = 0; i < type->getIndirection(); i++)
-		return_type += "_P__";
+		return_type += ptrStr;
 	return return_type;
 }
 
@@ -510,6 +535,7 @@ std::string CGenerator::CifyName(std::string name) {
 											"--", "doubleminus",
 											"<<", "doubleleft",
 											">>", "doubleright",
+											"::", "scopeop",
 											"==", "doubleequals",
 											"!=", "notequals",
 											"&&", "doubleamprsnd",

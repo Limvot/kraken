@@ -1,0 +1,8 @@
+import io;
+
+|int| a = 42;
+
+|int| main() {
+    io::println(a);
+    return 0;
+}

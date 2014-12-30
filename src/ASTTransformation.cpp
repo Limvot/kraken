@@ -78,15 +78,38 @@ NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<S
 	//We do this second so that if an import also imports us, all of our stuff has already been defined
 	for (NodeTree<Symbol>* i : children) {
 		if (i->getDataRef()->getName() == "import") {
-			std::string toImport = concatSymbolTree(i->getChildren()[0]);
-			translationUnit->addChild(new NodeTree<ASTData>("import", ASTData(import, Symbol(toImport, true))));
+            auto importChildren = i->getChildren();
+			std::string toImport = concatSymbolTree(importChildren[0]);
+            auto importNode = new NodeTree<ASTData>("import", ASTData(import, Symbol(toImport, true)));
+			translationUnit->addChild(importNode);
 			//Do the imported file too
 			NodeTree<ASTData>* outsideTranslationUnit = importer->importFirstPass(toImport + ".krak");
 			translationUnit->getDataRef()->scope[toImport].push_back(outsideTranslationUnit); //Put this transation_unit in the scope as it's files name
-			//Now add it to scope
-			for (auto i = outsideTranslationUnit->getDataRef()->scope.begin(); i != outsideTranslationUnit->getDataRef()->scope.end(); i++)
-				for (auto j : i->second)
-					translationUnit->getDataRef()->scope[i->first].push_back(j);
+			// Now go through and handle anything like import asdf: a; or import asdf: a,b; or import asdf: *;
+            // We do this by looping through the children and adding links to them as the scope in the import node. If it's *, we add the entire translationUnit link.
+            // Note that import affects scope in two ways:
+            //              (1) The other file's translationUnit is added to our translationUnit's scope under it's name
+            //              (2) The import node's scope contains the nodes indicated by the qualifiers after the import (i.e. the import a:b; or import a:*;)
+            for (auto importQualifer : slice(importChildren, 1, -1)) {                        // Not the first child, that's the name of the file
+                auto name = concatSymbolTree(importQualifer);
+                if (name == "*") {
+                    std::vector<NodeTree<ASTData>*> tmp;
+                    tmp.push_back(outsideTranslationUnit);
+                    importNode->getDataRef()->scope["*"] = tmp;
+                } else {
+                    bool found = false;
+                    for (auto outsideScopeEntry : outsideTranslationUnit->getDataRef()->scope) {
+                        if (name == outsideScopeEntry.first) {
+                            importNode->getDataRef()->scope[outsideScopeEntry.first] = outsideScopeEntry.second;
+                            found = true;
+                        }
+                    }
+                    // If it's not found yet, put it in as a empty vector for pass 3.
+                    // This makes sure that it does appear in the scope map, which is what we iterate through later.
+                    if (!found)
+                        importNode->getDataRef()->scope[name] = std::vector<NodeTree<ASTData>*>();
+                }
+            }
 		}
 	}
 
@@ -223,13 +246,17 @@ void ASTTransformation::thirdPass(NodeTree<ASTData>* ast) {
 			NodeTree<ASTData>* outsideTranslationUnit = importer->getUnit(toImport + ".krak");
 			//Now add all functions to scope
 			std::cout << "Trying to re-import from " << toImport << std::endl;
-			for (auto i = outsideTranslationUnit->getDataRef()->scope.begin(); i != outsideTranslationUnit->getDataRef()->scope.end(); i++) {
-				std::cout << "Looking through " << i->first << std::endl;
-				for (auto j : i->second)
-					if (j->getDataRef()->type == function || j->getDataRef()->type == identifier)
-						std::cout << "Copying " << i->first << std::endl, ast->getDataRef()->scope[i->first].push_back(j);
+			for (auto j = outsideTranslationUnit->getDataRef()->scope.begin(); j != outsideTranslationUnit->getDataRef()->scope.end(); j++) {
+				std::cout << "Looking at " << j->first << std::endl;
+                // If we're supposed to import this... (meaning that this name is in the scope already)
+                if (i->getDataRef()->scope.find(j->first) == i->getDataRef()->scope.end())
+                    continue;
+				std::cout << "Looking through " << j->first << std::endl;
+				for (auto k : j->second)
+					if (k->getDataRef()->type == function || k->getDataRef()->type == identifier)
+						std::cout << "Copying " << j->first << std::endl, i->getDataRef()->scope[j->first].push_back(k);
 					else
-						std::cout << "Not Copying " << i->first << std::endl;
+						std::cout << "Not Copying " << j->first << std::endl;
 			}
 		}
 	}
@@ -332,7 +359,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	std::vector<NodeTree<Symbol>*> children = from->getChildren();
 	std::set<int> skipChildren;
 
-    if (name == "identifier") {
+    if (name == "identifier" || name == "scoped_identifier") {
 		//Make sure we get the entire name
 		std::string lookupName = concatSymbolTree(from);
 		std::cout << "Looking up: " << lookupName << std::endl;
@@ -350,6 +377,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
             }
             newNode = possibleMatches[0];
         }
+        return newNode;
 	} else if (name == "type_def") {
 		//If it is an alisis of a type
 		std::string typeAlias;
@@ -416,6 +444,8 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			return newNode;
 		}
 		functionName = concatSymbolTree(children[1]);
+        for (auto child: children)
+            std::cout << "Function child: " << child->getDataRef()->toString() << std::endl;
 		newNode = new NodeTree<ASTData>(name, ASTData(function, Symbol(functionName, true), typeFromTypeNode(children[0], scope, templateTypeReplacements)));
 		skipChildren.insert(0);
 		skipChildren.insert(1);
@@ -795,11 +825,19 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
 			//We subtract one from the children to get the type size only if there is at least one child AND
 			// the last node is actually a body node, as it may not have been generated yet if we're in the body
 			//and this function is recursive or if this is a non-instantiated template function
-			if (types.size() != ((children.size() > 0 && children[children.size()-1]->getDataRef()->type == code_block) ? children.size()-1 : children.size())) {
-				std::cout << "Type sizes do not match between two " << lookup << "(" << types.size() << "," << ((children.size() > 0 && children[children.size()-1]->getDataRef()->type == code_block) ? children.size()-1 : children.size()) << "), types are: ";
+            int numTypes = (children.size() > 0 && children[children.size()-1]->getDataRef()->type == code_block) ? children.size()-1 : children.size();
+			if (types.size() != numTypes) {
+				std::cout << "Type sizes do not match between two " << lookup << "(" << types.size() << "," << numTypes << "), types are: ";
 				for (auto j : types)
 					std::cout << j.toString() << " ";
 				std::cout << std::endl;
+                std::cout << "Versus" << std::endl;
+                for (int j = 0; j < numTypes; j++) {
+                    std::cout << " vs " << children[j]->getDataRef()->valueType->toString() << std::endl;
+                }
+                for (auto child: children)
+                    std::cout << "\t" << child->getDataRef()->toString() << std::endl;
+                std::cout << std::endl;
 				continue;
 			}
 			bool typesMatch = true;
@@ -1005,7 +1043,15 @@ std::map<std::string, Type*> ASTTransformation::makeTemplateFunctionTypeMap(Node
     return typeMap;
 }
 
+// We need recursion protection
 std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules) {
+    return scopeLookup(scope, lookup, includeModules, std::vector<NodeTree<ASTData>*>());
+}
+
+std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules, std::vector<NodeTree<ASTData>*> visited) {
+    std::cout << "Scp[e looking up " << lookup << std::endl;
+    // Don't visit this node again when looking for the smae lookup. Note that we don't prevent coming back for the scope operator, as that should be able to come back.
+    visited.push_back(scope);
 	//We first check to see if it's one of the special reserved identifiers (only this, for now) and return early if it is.
 	auto LLElementIterator = languageLevelReservedWords.find(lookup);
 	if (LLElementIterator != languageLevelReservedWords.end()) {
@@ -1013,6 +1059,20 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>
 		return LLElementIterator->second;
     }
     std::vector<NodeTree<ASTData>*> matches;
+    // First, we check for scope operator (::) but only if occurs before a "<" as this would signal the beginning of a template instatiation inside type
+    // If we find it, we look up the left side of the :: and then use the resuts as the scope for looking up the right side, recursively.
+    size_t scopeOpPos = lookup.find("::");
+    size_t angleBrktPos = lookup.find("<");
+    if (scopeOpPos != std::string::npos && (angleBrktPos == std::string::npos || scopeOpPos < angleBrktPos)) {
+		std::cout << "Has :: operator, doing left then right" << std::endl;
+        for (auto scopeMatch : scopeLookup(scope, strSlice(lookup, 0, scopeOpPos), true)) {
+            std::cout << "Trying right side with found left side " << scopeMatch->getDataRef()->toString()  << std::endl;
+            auto addMatches = scopeLookup(scopeMatch, strSlice(lookup, scopeOpPos+2, -1), includeModules);
+            matches.insert(matches.end(), addMatches.begin(), addMatches.end());
+        }
+        return matches;
+    }
+
     std::map<std::string, std::vector<NodeTree<ASTData>*>> scopeMap = scope->getDataRef()->scope;
     auto possibleMatches = scopeMap.find(lookup);
     if (possibleMatches != scopeMap.end()) {
@@ -1021,11 +1081,33 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>
                 matches.push_back(i);
         std::cout << "Found " << possibleMatches->second.size() << " match(s) at " << scope->getDataRef()->toString() << std::endl;
     }
-    // Add results from our enclosing scope, if it exists
+    // Add results from our enclosing scope, if it exists.
+    // If it doesn't we should be at the top of a translation unit, and we should check the scope of import statements.
     auto enclosingIterator = scopeMap.find("~enclosing_scope");
 	if (enclosingIterator != scopeMap.end()) {
-        std::vector<NodeTree<ASTData>*> upperResult = scopeLookup(enclosingIterator->second[0], lookup);
+        std::vector<NodeTree<ASTData>*> upperResult = scopeLookup(enclosingIterator->second[0], lookup, includeModules, visited);
 	    matches.insert(matches.end(), upperResult.begin(), upperResult.end());
+    } else {
+        // Ok, let's iterate through and check for imports
+        for (auto child : scope->getChildren()) {
+            if (child->getDataRef()->type == import) {
+                auto importScope = child->getDataRef()->scope;
+                // Check if there is a match named explicily in the import's scope (i.e. looking for a and the import is import somefile: a;)
+                // If so, add it's members to our matches
+                auto importLookupItr = importScope.find(lookup);
+                if (importLookupItr != importScope.end()) {
+                    auto addMatches = importLookupItr->second;
+                    matches.insert(matches.end(), addMatches.begin(), addMatches.end());
+                }
+                // Check if there is an uncionditional import to follow (i.e. import somefile: *;)
+                // If so, continue the search in that scope
+                auto importStarItr = importScope.find("*");
+                if (importStarItr != importScope.end()) {
+                    auto addMatches = scopeLookup(importStarItr->second[0], lookup, includeModules, visited);
+                    matches.insert(matches.end(), addMatches.begin(), addMatches.end());
+                }
+            }
+        }
     }
 	return matches;
 }

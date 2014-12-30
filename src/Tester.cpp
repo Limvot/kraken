@@ -2,13 +2,15 @@
 
 Tester::Tester(std::string krakenInvocation, std::string krakenGrammerLocation) : krakenInvocation(krakenInvocation), krakenGrammerLocation(krakenGrammerLocation) {
 	//initlization list
-	removeCmd = "rm";
+	removeCmd = "rm -r";
 	resultsExtention = ".results";
 	expectedExtention = ".expected_results";
 	krakenExtention = ".krak";
 	changePermissions = "chmod 755";
 	shell = "sh";
+    cd = "cd";
 	redirect = ">";
+	sep = "/";
 }
 
 Tester::~Tester() {
@@ -21,27 +23,24 @@ int Tester::ssystem(std::string command) {
 
 void Tester::cleanExtras(std::string fileName) {
 	ssystem(removeCmd + " " + fileName);
-	ssystem(removeCmd + " " + fileName + krakenExtention + "out*");
-	ssystem(removeCmd + " " + fileName + krakenExtention + ".c");
-	ssystem(removeCmd + " " + fileName + ".sh");
-	ssystem(removeCmd + " " + fileName + resultsExtention);
 }
 
-bool Tester::run(std::string fileName) {
+bool Tester::run(std::string path) {
+    std::string fileName = split(path, *sep.c_str()).back();
 	std::cout << "Testing: " << fileName << " with " << krakenInvocation << " and " << krakenGrammerLocation << std::endl;
-	
-	cleanExtras(fileName);
-	
-	ssystem(changePermissions + " " + fileName);
-	ssystem(krakenInvocation + " " + fileName + krakenExtention + " " + krakenGrammerLocation + " " + fileName);
-	ssystem(shell + " " + fileName + ".sh");
-	ssystem(fileName + " " + redirect + " " + fileName + resultsExtention);
 
-	bool result = compareFiles(fileName + expectedExtention, fileName + resultsExtention);
-	
+	cleanExtras(path);
+	ssystem(krakenInvocation + " " + path + krakenExtention + " " + krakenGrammerLocation + " " + path);
+	ssystem(changePermissions + " " + path + sep + fileName + ".sh");
+	ssystem(cd + " " + path + "; " + "./" + fileName + ".sh");
+	ssystem(changePermissions + " " + path + sep + fileName);
+	ssystem(path + sep + fileName + " " + redirect + " " + path + sep + fileName + resultsExtention);
+
+	bool result = compareFiles(fileName + expectedExtention, path + sep + fileName + resultsExtention);
+
 	//If the test was succesful, we don't need all the extra files
 	if (result)
-		cleanExtras(fileName);
+		cleanExtras(path);
 
 	return result;
 }

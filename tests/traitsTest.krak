@@ -1,4 +1,4 @@
-import io;
+import io:*;
 
 typedef NoTraits {};
 
@@ -48,13 +48,13 @@ typedef template<T(FirstTrait, SecondTrait)> OneTwoObj {};
     |Trait2| c;
     |TwoTrait| d;
     |AlreadySpecilized| e;
-    
+
     OneTwoFunc<NoTraits>(a);
     OneTwoFunc<Trait1>(b);
     OneTwoFunc<Trait2>(c);
     OneTwoFunc<TwoTrait>(d);
 //    OneTwoFunc<AlreadySpecilized>(e);
-   
+
     println();
 
     |OneTwoObj<NoTraits>| alpha;
