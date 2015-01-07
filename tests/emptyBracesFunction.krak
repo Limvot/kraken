@@ -4,6 +4,6 @@ import io;
 
 |int| main() {
     nothing();
-    println("It was nothing");
+    io::println("It was nothing");
     return 0;
 }

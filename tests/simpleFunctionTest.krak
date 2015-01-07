@@ -1,4 +1,4 @@
-import io;
+import io:*;
 
 |int| addAndPrintInt(|int| a, |int| b) {
 	print(a+b);

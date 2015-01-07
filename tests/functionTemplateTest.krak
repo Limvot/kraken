@@ -1,13 +1,13 @@
 import io;
 
 template <T> |T| addAndPrint(|T| a, |T| b) {
-	print(a+b);
+    io::print(a+b);
 	return a+b;
 }
 
 |int| main() {
 	addAndPrint<int>(10,12);
-	print("\n");
+    io::print("\n");
 
 	return 0;
 }

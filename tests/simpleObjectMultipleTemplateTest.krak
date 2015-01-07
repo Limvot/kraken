@@ -5,12 +5,12 @@ typedef template <T,J> TemplateTest {
 	|T| a;
 	|J| b;
 	|void| print() {
-		print("a: ");
-		print(a);
-		print("\n");
-		print("b: ");
-		print(b);
-		print("\n");
+        io::print("a: ");
+        io::print(a);
+        io::print("\n");
+        io::print("b: ");
+        io::print(b);
+        io::print("\n");
 	}
 };
 

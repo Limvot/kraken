@@ -1,11 +1,10 @@
-
 import io;
 
 typedef FirstObject {
 	|int| objectNum;
 	|void| PrintSelf(|int| a) {
-		print(objectNum);
-		print(a);
+        io::print(objectNum);
+        io::print(a);
 	}
 };
 
@@ -13,6 +12,6 @@ typedef FirstObject {
 	|FirstObject| wooObject;
 	wooObject.objectNum = 5;
 	wooObject.PrintSelf(7);
-	print("\n");
+    io::print("\n");
 	return 0;
 }

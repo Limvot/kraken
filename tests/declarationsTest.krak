@@ -1,5 +1,5 @@
-import io;
-import mem;
+import io:*;
+import mem:*;
 
 typedef ClassWithConstructor {
     |int| data;

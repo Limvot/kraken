@@ -1,5 +1,5 @@
 /* Comment first! */
-import io;
+import io:*;
 
 |int| main() {
     println(1337);
