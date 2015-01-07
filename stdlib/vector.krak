@@ -1,6 +1,6 @@
-import mem;
-import util;
-import io;
+import mem:*;
+import util:*;
+import io:*;
 
 typedef template<T> vector (Destructable) {
     |T*| data;
@@ -27,11 +27,11 @@ typedef template<T> vector (Destructable) {
         delete<T>(data, 0);
         return true;
     }
-    
+
     |T| at(|int| index) {
         return get(index);
     }
-    
+
     |T| get(|int| index) {
         if (index < 0 || index >= size) {
             println("Vector access out of bounds! Retuning 0th element as sanest option");

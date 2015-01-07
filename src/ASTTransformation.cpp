@@ -873,7 +873,7 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
 
 //Lookup class templates. It evaluates possible matches on traits
 NodeTree<ASTData>* ASTTransformation::templateClassLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*> templateInstantiationTypes) {
-    std::vector<NodeTree<ASTData>*> mostFittingTemplates;
+    std::set<NodeTree<ASTData>*> mostFittingTemplates;
     int bestNumTraitsSatisfied = -1;
     auto possibleMatches = scopeLookup(scope, lookup);
     std::cout << "Template Class instantiation has " << possibleMatches.size() << " possible matches." << std::endl;
@@ -919,7 +919,7 @@ NodeTree<ASTData>* ASTTransformation::templateClassLookup(NodeTree<ASTData>* sco
             bestNumTraitsSatisfied = currentTraitsSatisfied;
         } else if (currentTraitsSatisfied < bestNumTraitsSatisfied)
             continue;
-        mostFittingTemplates.push_back(i);
+        mostFittingTemplates.insert(i);
         std::cout << "Current class fits, satisfying " << currentTraitsSatisfied << " traits" << std::endl;
     }
     if (!mostFittingTemplates.size()) {
@@ -929,12 +929,12 @@ NodeTree<ASTData>* ASTTransformation::templateClassLookup(NodeTree<ASTData>* sco
         std::cout << "Multiple template classes fit with equal number of traits satisfied for " << lookup << "!" << std::endl;
         throw "Multiple matching template classes";
     }
-    return mostFittingTemplates[0];
+    return *mostFittingTemplates.begin();
 }
 
 //Lookup function for template functions. It has some extra concerns compared to function lookup, namely traits
 NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*> templateInstantiationTypes, std::vector<Type> types) {
-    std::vector<NodeTree<ASTData>*> mostFittingTemplates;
+    std::set<NodeTree<ASTData>*> mostFittingTemplates;
     int bestNumTraitsSatisfied = -1;
     auto possibleMatches = scopeLookup(scope, lookup);
     std::cout << "Template Function instantiation has " << possibleMatches.size() << " possible matches." << std::endl;
@@ -1004,7 +1004,7 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
             bestNumTraitsSatisfied = currentTraitsSatisfied;
         } else if (currentTraitsSatisfied < bestNumTraitsSatisfied)
             continue;
-        mostFittingTemplates.push_back(i);
+        mostFittingTemplates.insert(i);
         std::cout << "Current function fits, satisfying " << currentTraitsSatisfied << " traits" << std::endl;
     }
     if (!mostFittingTemplates.size()) {
@@ -1014,7 +1014,7 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         std::cout << "Multiple template functions fit with equal number of traits satisfied for " << lookup << "!" << std::endl;
         throw "Multiple matching template functions";
     }
-    return mostFittingTemplates[0];
+    return *mostFittingTemplates.begin();
 }
 
 //Extract pairs of type names and traits
