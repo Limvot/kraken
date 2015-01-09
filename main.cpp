@@ -40,12 +40,18 @@ int main(int argc, char* argv[]) {
 			std::string testResults, line;
 			int passed = 0, failed = 0;
 			Tester test(argv[0], "../krakenGrammer.kgm");
+            // find the max length so we can pad the string and align the results
+            unsigned int maxLineLength = 0;
+			for (int i = 2; i < argc; i++) {
+                int strLen = std::string(argv[i]).length();
+                maxLineLength = maxLineLength < strLen ? strLen : maxLineLength;
+            }
 			for (int i = 2; i < argc; i++) {
 				bool result = test.run(argv[i]);
 				if (result)
-					line =  std::string(argv[i]) + "\t\tpassed!\n", passed++;
+					line =  padWithSpaces(std::string(argv[i]), maxLineLength) + "\t\tpassed!\n", passed++;
 				else
-					line = std::string(argv[i]) + "\t\tFAILED!\n", failed++;
+					line = padWithSpaces(std::string(argv[i]), maxLineLength) + "\t\tFAILED!!!!\n", failed++;
 				std::cout << line << std::endl;
 				testResults += line;
 			}

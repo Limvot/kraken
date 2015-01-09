@@ -61,8 +61,5 @@ bool Tester::compareFiles(std::string file1Path, std::string file2Path) {
 	std::string file1contents = readFile(file1);
 	std::string file2contents = readFile(file2);
 
-	// std::cout << "file1: " << file1contents << std::endl;
-	// std::cout << "file2: " << file2contents << std::endl;
-	// std::cout << "comp: " << file1contents.compare(file2contents) << std::endl;
 	return file1contents.compare(file2contents) == 0;
 }

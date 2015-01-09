@@ -80,4 +80,9 @@ std::string readFile(std::istream &file) {
     return contents;
 }
 
+std::string padWithSpaces(std::string str, int padTo) {
+    while(str.length() < padTo)
+        str += " ";
+    return str;
+}
 

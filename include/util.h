@@ -20,6 +20,7 @@ int findPerenEnd(std::string str, int i);
 std::vector<std::string> split(const std::string &str, char delim);
 std::string join(const std::vector<std::string> &strVec, std::string joinStr);
 std::string readFile(std::istream &file);
+std::string padWithSpaces(std::string str, int padTo);
 
 
 template <typename T>
