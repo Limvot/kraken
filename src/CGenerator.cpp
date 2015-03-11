@@ -4,7 +4,6 @@ CGenerator::CGenerator() : generatorString("__C__") {
 	tabLevel = 0;
 }
 CGenerator::~CGenerator() {
-
 }
 
 // Note the use of std::pair to hold two strings - the running string for the header file and the running string for  the c file.
@@ -16,23 +15,23 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
         std::cout << "Could not make directory " << outputName << std::endl;
         //throw "could not make directory ";
     }
-	for (auto i = ASTs.begin(); i != ASTs.end(); i++) {
-		std::cout << "\n\nGenerate pass for: " << i->first << std::endl;
-		buildString += i->first + ".c ";
-		std::ofstream outputCFile, outputHFile;
-		outputCFile.open(outputName + "/" + i->first + ".c");
-		outputHFile.open(outputName + "/" + i->first + ".h");
-		if (outputCFile.is_open() || outputHFile.is_open()) {
-            // Prequel common to all files
-            auto chPair = generateTranslationUnit(i->second);
-			outputHFile << "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n" << chPair.first;
-			outputCFile << "#include \"" + i->first + ".h\"\n\n" << chPair.second;
-		} else {
-			std::cout << "Cannot open file " << i->first << ".c/h" << std::endl;
-		}
-		outputCFile.close();
-		outputHFile.close();
-	}
+
+    std::cout << "\n\nGenerate pass for: " << outputName << std::endl;
+    buildString += outputName + ".c ";
+    std::ofstream outputCFile, outputHFile;
+    outputCFile.open(outputName + "/" + outputName + ".c");
+    outputHFile.open(outputName + "/" + outputName + ".h");
+    if (outputCFile.is_open() || outputHFile.is_open()) {
+        // Prequel common to all files
+        auto chPair = generateTranslationUnit(outputName, ASTs);
+        outputHFile << "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n" << chPair.first;
+        outputCFile << "#include \"" + outputName + ".h\"\n\n" << chPair.second;
+    } else {
+        std::cout << "Cannot open file " << outputName << ".c/h" << std::endl;
+    }
+    outputCFile.close();
+    outputHFile.close();
+
 	buildString += "-o " + outputName;
 	std::ofstream outputBuild;
 	outputBuild.open(outputName + "/" + split(outputName, '/').back() + ".sh");
@@ -63,18 +62,19 @@ std::string CGenerator::generateClassStruct(NodeTree<ASTData>* from) {
 }
 
 // This method recurseivly generates all aliases of some definition
-std::string CGenerator::generateAliasChains(NodeTree<ASTData>* scopeNode, NodeTree<ASTData>* definition) {
-    auto scope = scopeNode->getDataRef()->scope;
+std::string CGenerator::generateAliasChains(std::map<std::string, NodeTree<ASTData>*> ASTs, NodeTree<ASTData>* definition) {
     std::string output;
-    for (auto i = scope.begin(); i != scope.end(); i++) {
-        for (auto declaration : i->second) {
-            auto declarationData = declaration->getDataRef();
-            if (declarationData->type == type_def
-                    && declarationData->valueType->typeDefinition != declaration
-                    && declarationData->valueType->typeDefinition == definition) {
-                output += "typedef " + CifyName(definition->getDataRef()->symbol.getName()) + " " +  CifyName(declarationData->symbol.getName()) + ";\n";
-                // Recursively add the ones that depend on this one
-                output += generateAliasChains(scopeNode, declaration);
+    for (auto trans : ASTs) {
+        for (auto i = trans.second->getDataRef()->scope.begin(); i != trans.second->getDataRef()->scope.end(); i++) {
+            for (auto declaration : i->second) {
+                auto declarationData = declaration->getDataRef();
+                if (declarationData->type == type_def
+                        && declarationData->valueType->typeDefinition != declaration
+                        && declarationData->valueType->typeDefinition == definition) {
+                    output += "typedef " + CifyName(definition->getDataRef()->symbol.getName()) + " " +  CifyName(declarationData->symbol.getName()) + ";\n";
+                    // Recursively add the ones that depend on this one
+                    output += generateAliasChains(ASTs, declaration);
+                }
             }
         }
     }
@@ -104,9 +104,8 @@ NodeTree<ASTData>* CGenerator::highestScope(NodeTree<ASTData>* node) {
 }
 
 // We do translation units in their own function so they can do the pariwise h/c stuff and regualr in function body generation does not
-std::pair<std::string, std::string> CGenerator::generateTranslationUnit(NodeTree<ASTData>* from) {
-	ASTData data = from->getData();
-	std::vector<NodeTree<ASTData>*> children = from->getChildren();
+std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::string name, std::map<std::string, NodeTree<ASTData>*> ASTs) {
+    // We now pass in the entire map of ASTs and loop through them so that we generate out into a single file
     std::string cOutput, hOutput;
     // Ok, so we've got to do this in passes to preserve mututally recursive definitions.
     //
@@ -129,30 +128,29 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(NodeTree
     std::string functionPrototypes = "/**\n * Function Prototypes\n */\n\n";
     std::string functionDefinitions = "/**\n * Function Definitions\n */\n\n";
 
-    // Ok, let's handle the included files
-    for (auto i : from->getChildren())
-        if (i->getDataRef()->type == import)
-            importIncludes += "#include \"" + i->getDataRef()->symbol.getName() + ".krak.h\" //woo importing!\n";
 
     // And get the correct order for emiting classes, but not if they're not in our file, then they will get included
     // Note that this is not sufsticated enough for some multiple file mutually recursive types, but I want to get this simple version working first
     Poset<NodeTree<ASTData>*> typedefPoset;
-    for (int i = 0; i < children.size(); i++) {
-        if (children[i]->getDataRef()->type == type_def) {
-            // If we're an alias type, continue. We handle those differently
-            if (children[i]->getDataRef()->valueType->typeDefinition != children[i])
-                continue;
+    for (auto trans : ASTs) {
+        auto children = trans.second->getChildren();
+        for (int i = 0; i < children.size(); i++) {
+            if (children[i]->getDataRef()->type == type_def) {
+                // If we're an alias type, continue. We handle those differently
+                if (children[i]->getDataRef()->valueType->typeDefinition != children[i])
+                    continue;
 
-            typedefPoset.addVertex(children[i]); // We add this definition by itself just in case there are no dependencies.
-            // If it has dependencies, there's no harm in adding it here
-            // Go through every child in the class looking for declaration statements. For each of these that is not a primitive type
-            // we will add a dependency from this definition to that definition in the poset.
-            std::vector<NodeTree<ASTData>*> classChildren = children[i]->getChildren();
-            for (auto j : classChildren) {
-                if (j->getDataRef()->type == declaration_statement) {
-                    Type* decType = j->getChildren()[0]->getDataRef()->valueType;           // Type of the declaration
-                    if (decType->typeDefinition && decType->getIndirection() == 0 && isUnderTranslationUnit(from, decType->typeDefinition))	        // If this is a custom type and not a pointer and actually should be defined in this file
-                        typedefPoset.addRelationship(children[i], decType->typeDefinition); // Add a dependency
+                typedefPoset.addVertex(children[i]); // We add this definition by itself just in case there are no dependencies.
+                // If it has dependencies, there's no harm in adding it here
+                // Go through every child in the class looking for declaration statements. For each of these that is not a primitive type
+                // we will add a dependency from this definition to that definition in the poset.
+                std::vector<NodeTree<ASTData>*> classChildren = children[i]->getChildren();
+                for (auto j : classChildren) {
+                    if (j->getDataRef()->type == declaration_statement) {
+                        Type* decType = j->getChildren()[0]->getDataRef()->valueType;           // Type of the declaration
+                        if (decType->typeDefinition && decType->getIndirection() == 0)	        // If this is a custom type and not a pointer
+                            typedefPoset.addRelationship(children[i], decType->typeDefinition); // Add a dependency
+                    }
                 }
             }
         }
@@ -161,76 +159,74 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(NodeTree
     for (NodeTree<ASTData>* i : typedefPoset.getTopoSort())
         classStructs += generateClassStruct(i) + "\n";
 
-    // Declare everything in translation unit scope here. (allows stuff from other files, automatic forward declarations)
+    // Declare everything in translation unit scope here (now for ALL translation units). (allows stuff from other files, automatic forward declarations)
     // Also, everything in all of the import's scopes
-    std::map<std::string, std::vector<NodeTree<ASTData>*>> combinedMap;
-    combinedMap = from->getDataRef()->scope; // Actually, just do this file. We're moving back to using include files
-    for (auto i = combinedMap.begin(); i != combinedMap.end(); i++) {
-        for (auto declaration : i->second) {
-            std::vector<NodeTree<ASTData>*> decChildren = declaration->getChildren();
-            ASTData declarationData = declaration->getData();
-            switch(declarationData.type) {
-                case identifier:
-                    variableDeclarations += ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*identifier*/\n";
-                    variableExternDeclarations += "extern " + ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*extern identifier*/\n";
-                    break;
-                case function:
-                    {
-                        if (declarationData.valueType->baseType == template_type)
-                            functionPrototypes += "/* template function " + declarationData.symbol.toString() + " */\n";
-                        else if (decChildren.size() == 0) //Not a real function, must be a built in passthrough
-                            functionPrototypes += "/* built in function: " + declarationData.symbol.toString() + " */\n";
-                        else {
-                            functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType) + " ";
-                            std::string nameDecoration, parameters;
-                            for (int j = 0; j < decChildren.size()-1; j++) {
-                                if (j > 0)
-                                    parameters += ", ";
-                                parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], nullptr);
-                                nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
-                            }
-                            functionPrototypes += CifyName(declarationData.symbol.getName() + nameDecoration) + "(" + parameters + "); /*func*/\n";
-                            // Only generate function if this is the unit it was defined in
-                            std::cout << "Generating " << CifyName(declarationData.symbol.getName()) << std::endl;
-                            if (contains(children, declaration))
+    for (auto trans : ASTs) {
+        for (auto i = trans.second->getDataRef()->scope.begin(); i != trans.second->getDataRef()->scope.end(); i++) {
+            for (auto declaration : i->second) {
+                std::vector<NodeTree<ASTData>*> decChildren = declaration->getChildren();
+                ASTData declarationData = declaration->getData();
+                switch(declarationData.type) {
+                    case identifier:
+                        variableDeclarations += ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*identifier*/\n";
+                        variableExternDeclarations += "extern " + ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*extern identifier*/\n";
+                        break;
+                    case function:
+                        {
+                            if (declarationData.valueType->baseType == template_type)
+                                functionPrototypes += "/* template function " + declarationData.symbol.toString() + " */\n";
+                            else if (decChildren.size() == 0) //Not a real function, must be a built in passthrough
+                                functionPrototypes += "/* built in function: " + declarationData.symbol.toString() + " */\n";
+                            else {
+                                functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType) + " ";
+                                std::string nameDecoration, parameters;
+                                for (int j = 0; j < decChildren.size()-1; j++) {
+                                    if (j > 0)
+                                        parameters += ", ";
+                                    parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], nullptr);
+                                    nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
+                                }
+                                functionPrototypes += CifyName(declarationData.symbol.getName() + nameDecoration) + "(" + parameters + "); /*func*/\n";
+                                // generate function
+                                std::cout << "Generating " << CifyName(declarationData.symbol.getName()) << std::endl;
                                 functionDefinitions += generate(declaration, nullptr);
+                            }
                         }
-                    }
-                    break;
-                case type_def:
-                    //type
-                    plainTypedefs += "/*typedef " + declarationData.symbol.getName() + " */\n";
+                        break;
+                    case type_def:
+                        //type
+                        plainTypedefs += "/*typedef " + declarationData.symbol.getName() + " */\n";
 
-                    if (declarationData.valueType->baseType == template_type) {
-                        plainTypedefs += "/* non instantiated template " + declarationData.symbol.getName() + " */";
-                    } else if (declarationData.valueType->typeDefinition != declaration) {
-                        if (declarationData.valueType->typeDefinition)
-                            continue; // Aliases of objects are done with the thing it alises
-                        // Otherwise, we're actually a renaming of a primitive, can generate here
-                        plainTypedefs += "typedef " + ValueTypeToCType(declarationData.valueType) + " " + CifyName(declarationData.symbol.getName()) + ";\n";
-                        plainTypedefs += generateAliasChains(from, declaration);
-                    } else {
-                        plainTypedefs += "typedef struct __struct_dummy_" + CifyName(declarationData.symbol.getName()) + "__ " + CifyName(declarationData.symbol.getName())  + ";\n";
-                        functionPrototypes += "/* Method Prototypes for " + declarationData.symbol.getName() + " */\n";
-                        // We use a seperate string for this because we only include it if this is the file we're defined in
-                        std::string objectFunctionDefinitions = "/* Method Definitions for " + declarationData.symbol.getName() + " */\n";
-                        for (int j = 0; j < decChildren.size(); j++) {
-                            std::cout << decChildren[j]->getName() << std::endl;
-                            if (decChildren[j]->getName() == "function") //If object method
-                                objectFunctionDefinitions += generateObjectMethod(declaration, decChildren[j], &functionPrototypes) + "\n";
-                        }
-                        // Add all aliases to the plain typedefs. This will add any alias that aliases to this object, and any alias that aliases to that, and so on
-                        plainTypedefs += generateAliasChains(from, declaration);
-                        functionPrototypes += "/* Done with " + declarationData.symbol.getName() + " */\n";
-                        // If this is the file the object is defined in, include methods
-                        if (contains(children, declaration))
+                        if (declarationData.valueType->baseType == template_type) {
+                            plainTypedefs += "/* non instantiated template " + declarationData.symbol.getName() + " */";
+                        } else if (declarationData.valueType->typeDefinition != declaration) {
+                            if (declarationData.valueType->typeDefinition)
+                                continue; // Aliases of objects are done with the thing it alises
+                            // Otherwise, we're actually a renaming of a primitive, can generate here
+                            plainTypedefs += "typedef " + ValueTypeToCType(declarationData.valueType) + " " + CifyName(declarationData.symbol.getName()) + ";\n";
+                            plainTypedefs += generateAliasChains(ASTs, declaration);
+                        } else {
+                            plainTypedefs += "typedef struct __struct_dummy_" + CifyName(declarationData.symbol.getName()) + "__ " + CifyName(declarationData.symbol.getName())  + ";\n";
+                            functionPrototypes += "/* Method Prototypes for " + declarationData.symbol.getName() + " */\n";
+                            // We use a seperate string for this because we only include it if this is the file we're defined in
+                            std::string objectFunctionDefinitions = "/* Method Definitions for " + declarationData.symbol.getName() + " */\n";
+                            for (int j = 0; j < decChildren.size(); j++) {
+                                std::cout << decChildren[j]->getName() << std::endl;
+                                if (decChildren[j]->getName() == "function") //If object method
+                                    objectFunctionDefinitions += generateObjectMethod(declaration, decChildren[j], &functionPrototypes) + "\n";
+                            }
+                            // Add all aliases to the plain typedefs. This will add any alias that aliases to this object, and any alias that aliases to that, and so on
+                            plainTypedefs += generateAliasChains(ASTs, declaration);
+                            functionPrototypes += "/* Done with " + declarationData.symbol.getName() + " */\n";
+                            // include methods
                             functionDefinitions += objectFunctionDefinitions + "/* Done with " + declarationData.symbol.getName() + " */\n";
-                    }
-                    break;
-                default:
-                    //std::cout << "Declaration? named " << declaration->getName() << " of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
-                    cOutput += "/*unknown declaration named " + declaration->getName() + "*/\n";
-                    hOutput += "/*unknown declaration named " + declaration->getName() + "*/\n";
+                        }
+                        break;
+                    default:
+                        //std::cout << "Declaration? named " << declaration->getName() << " of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
+                        cOutput += "/*unknown declaration named " + declaration->getName() + "*/\n";
+                        hOutput += "/*unknown declaration named " + declaration->getName() + "*/\n";
+                }
             }
         }
     }
@@ -262,11 +258,12 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		case identifier:
 		{
             //but first, if we're this, we should just emit. (assuming enclosing object) (note that technically this would fall through, but for errors)
-            if (data.symbol.getName() == "this")
+            if (data.symbol.getName() == "this") {
                 if (enclosingObject)
                     return "this";
                 else
                     std::cout << "Error: this used in non-object scope" << std::endl;
+            }
 			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
 			std::string preName;
 			if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
@@ -480,6 +477,7 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
     return functionSignature + "\n" +  generate(children[children.size()-1], enclosingObject); //Pass in the object so we can properly handle access to member stuff
 }
 
+
 std::string CGenerator::ValueTypeToCType(Type *type) { return ValueTypeToCTypeThingHelper(type, "*"); }
 std::string CGenerator::ValueTypeToCTypeDecoration(Type *type) { return ValueTypeToCTypeThingHelper(type, "_P__"); }
 std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string ptrStr) {
@@ -557,6 +555,7 @@ std::string CGenerator::CifyName(std::string name) {
 											"[", "openbracket",
 											"]", "closebracket",
 											" ", "space",
+											".", "dot",
 											"->", "arrow" };
 	int length = sizeof(operatorsToReplace)/sizeof(std::string);
 	//std::cout << "Length is " << length << std::endl;

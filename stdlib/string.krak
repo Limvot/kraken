@@ -1,0 +1,27 @@
+import vector;
+import mem;
+
+typedef string (Destructable) {
+    |vector::vector<char>| data;
+    |string*| construct() {
+        data.construct();
+        return this;
+    }
+    |string*| construct(|char*| str) {
+        data.construct();
+        while(*str) {
+            data.addEnd(*str);
+            str += 1;
+        }
+        return this;
+    }
+
+    |char*| toCharArray() {
+        |char*| out = mem::new<char>(data.size);
+        for (|int| i = 0; i < data.size; i++;)
+            out[i] = data.get(i);
+        return out;
+    }
+};
+
+

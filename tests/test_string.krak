@@ -1,0 +1,10 @@
+import io;
+import string;
+
+
+|int| main() {
+    |string::string| str.construct("hello strings");
+    io::println(str);
+    return 0;
+}
+

@@ -167,6 +167,7 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 	} else {
 		std::cout << "ParseTree returned from parser for " << fileName << " is NULL!" << std::endl;
 	    outFile.close(); outFileTransformed.close();
+        throw "unexceptablblllll";
         return NULL;
     }
 	outFile.close();

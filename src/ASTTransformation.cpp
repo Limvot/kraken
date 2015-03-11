@@ -1112,6 +1112,18 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>
 	return matches;
 }
 
+// Find the translation unit that is the top of the passed in node
+NodeTree<ASTData>* ASTTransformation::getUpperTranslationUnit(NodeTree<ASTData>* node) {
+    auto scope = node->getDataRef()->scope;
+    auto iter = scope.find("~enclosing_scope");
+    while(iter != scope.end()) {
+        node = iter->second[0];
+        scope = node->getDataRef()->scope;
+        iter = scope.find("~enclosing_scope");
+    }
+    return node;
+}
+
 //Create a type from a syntax tree. This can get complicated with templates
 Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements) {
 	std::string typeIn = concatSymbolTree(typeNode);
@@ -1180,22 +1192,24 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 
             //Finish creating the new name for this instantiation
             std::string classNameWithoutTemplate = concatSymbolTree(typeNode->getChildren()[0]);
-            std::string fullyInstantiatedName = classNameWithoutTemplate + "<" + instTypeString + ">";
+            std::string templateLookupName = classNameWithoutTemplate + "<" + instTypeString + ">";
 
             // Recheck for prior definition here, now that we have the true name.
-            possibleMatches = scopeLookup(scope, fullyInstantiatedName);
+            possibleMatches = scopeLookup(scope, templateLookupName);
             if (possibleMatches.size()) {
                 typeDefinition = possibleMatches[0];
                 traits = typeDefinition->getDataRef()->valueType->traits;
-                std::cout << "Found already instantiated template of " << fullyInstantiatedName << " at second check" << std::endl;
+                std::cout << "Found already instantiated template of " << templateLookupName << " at second check" << std::endl;
             } else {
-                std::cout << "Did not find already instantiated template of " << fullyInstantiatedName << " at second check" << std::endl;
+                std::cout << "Did not find already instantiated template of " << templateLookupName << " at second check" << std::endl;
                 //Look up this template's plain definition. It's type has the syntax tree that we need to parse
                 NodeTree<ASTData>* templateDefinition = templateClassLookup(scope, concatSymbolTree(typeNode->getChildren()[0]), templateParamInstantiationTypes);
                 if (templateDefinition == NULL)
                     std::cout << "Template definition is null!" << std::endl;
                 else
                     std::cout << "Template definition is not null!" << std::endl;
+
+                std::string fullyInstantiatedName = templateDefinition->getDataRef()->symbol.getName() + "<" + instTypeString + ">";
 
                 NodeTree<Symbol>* templateSyntaxTree = templateDefinition->getDataRef()->valueType->templateDefinition;
                 //Create a new map of template type names to actual types.
@@ -1211,9 +1225,17 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 
                 //Note that we're adding to the current top scope. This makes it more efficient by preventing multiple instantiation and should not cause any problems
                 //It also makes sure it gets generated in the right place
-                std::cout << "Adding to top scope and template's origional scope with fullyInstantiatedName " << fullyInstantiatedName << std::endl;
-                topScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
-                topScope->addChild(typeDefinition); //Add this object the the highest scope's
+                //std::cout << "Adding to top scope and template's origional scope with fullyInstantiatedName " << fullyInstantiatedName << std::endl;
+                //topScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
+                //topScope->addChild(typeDefinition); Add this object the the highest scope's
+
+                // Actually, let's just put it in the scope of the origional template, which should work just fine under the new scoping rules and will ACTUALLY prevent multiple instantiation.
+                // At least, hopefully it will if we also check it's scope for it. Which I think it should be anyway. Yeah, I think it should work.
+                std::cout << "Adding to template top scope and template's origional scope with fullyInstantiatedName " << fullyInstantiatedName << std::endl;
+                auto templateTopScope = getUpperTranslationUnit(templateDefinition);
+                templateTopScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
+                templateTopScope->addChild(typeDefinition); // Add this object the the highest scope's
+
                 //NodeTree<ASTData>* templateHighScope = templateDefinition->getDataRef()->scope["~enclosing_scope"][0];
                 //if (topScope != templateHighScope)
                     //templateHighScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
@@ -1304,8 +1326,13 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
 	skipChildren.insert(2);
 	//scope->getDataRef()->scope[fullyInstantiatedName].push_back(instantiatedFunction);
 	instantiatedFunction->getDataRef()->scope["~enclosing_scope"].push_back(templateDefinition->getDataRef()->scope["~enclosing_scope"][0]); //Instantiated Template Function's scope is it's template's definition's scope
-	topScope->getDataRef()->scope[fullyInstantiatedName].push_back(instantiatedFunction);
-	topScope->addChild(instantiatedFunction); //Add this object the the highest scope's
+    // Arrrrrgh this has a hard time working because the functions will need to see their parameter once they are emitted as C.
+    // HAHAHAHAHA DOESN'T MATTER ALL ONE C FILE NOW, swap back to old way
+    auto templateTopScope = getUpperTranslationUnit(templateDefinition);
+    templateTopScope->getDataRef()->scope[fullyInstantiatedName].push_back(instantiatedFunction);
+    templateTopScope->addChild(instantiatedFunction); // Add this object the the highest scope's
+    //topScope->getDataRef()->scope[fullyInstantiatedName].push_back(instantiatedFunction);
+    //topScope->addChild(instantiatedFunction); //Add this object the the highest scope's
 
 	std::cout << "About to do children of " << functionName << " to " << fullyInstantiatedName << std::endl;
 	instantiatedFunction->addChildren(transformChildren(templateSyntaxTree->getChildren(), skipChildren, instantiatedFunction, std::vector<Type>(), newTemplateTypeReplacement));

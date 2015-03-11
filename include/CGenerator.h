@@ -24,9 +24,9 @@ class CGenerator {
         std::string generateClassStruct(NodeTree<ASTData>* from);
         bool isUnderTranslationUnit(NodeTree<ASTData>* from, NodeTree<ASTData>* typeDefinition);
         NodeTree<ASTData>* highestScope(NodeTree<ASTData>* node);
-        std::pair<std::string, std::string> generateTranslationUnit(NodeTree<ASTData>* from);
+        std::pair<std::string, std::string> generateTranslationUnit(std::string name, std::map<std::string, NodeTree<ASTData>*> ASTs);
 		std::string generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject = NULL);
-        std::string generateAliasChains(NodeTree<ASTData>* scopeNode, NodeTree<ASTData>* definition);
+        std::string generateAliasChains(std::map<std::string, NodeTree<ASTData>*> ASTs, NodeTree<ASTData>* definition);
 		static std::string ValueTypeToCType(Type *type);
 		static std::string ValueTypeToCTypeDecoration(Type *type);
         static std::string ValueTypeToCTypeThingHelper(Type *type, std::string ptrStr);

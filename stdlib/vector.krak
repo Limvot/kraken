@@ -1,6 +1,6 @@
 import mem:*;
 import util:*;
-import io:*;
+//import io:*;
 
 typedef template<T> vector (Destructable) {
     |T*| data;
@@ -25,6 +25,8 @@ typedef template<T> vector (Destructable) {
         for (|int| i = 0; i < lesser<int>(size, newSize); i++;)
             newData[i] = data[i];
         delete<T>(data, 0);
+        data = newData;
+        available = newSize;
         return true;
     }
 
@@ -34,11 +36,13 @@ typedef template<T> vector (Destructable) {
 
     |T| get(|int| index) {
         if (index < 0 || index >= size) {
-            println("Vector access out of bounds! Retuning 0th element as sanest option");
+ //           println("Vector access out of bounds! Retuning 0th element as sanest option");
             return data[0];
         }
         return data[index];
     }
+
+    |T*| getBackingMemory() { return data; }
 
     |void| set(|int| index, |T| dataIn) {
         if (index < 0 || index  >= size)
@@ -46,9 +50,8 @@ typedef template<T> vector (Destructable) {
         data[index] = dataIn;
     }
     |void| addEnd(|T| dataIn) {
-        if (size < available)
-            size++;
-        else
+        size++;
+        if (size >= available)
             resize(size*2);
         data[size-1] = dataIn;
     }
