@@ -524,7 +524,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 
 			// //Set the value of this function call
 			if (newNode->getDataRef()->valueType == NULL && rhs->getDataRef()->valueType) {
-			    std::cerr << "The value type from doFunction was null! (for " << functionCallName << ")" << std::endl;
+			    std::cout << "The value type from doFunction was null! (for " << functionCallName << ")" << std::endl;
                 newNode->getDataRef()->valueType = rhs->getDataRef()->valueType;
             }
 			//else
