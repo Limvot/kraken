@@ -692,7 +692,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         throw "Ambigious parse!";
     } else {
         // Should get rid of this eventually. Right now it handles cases like sign, alpha, a comma, etc
-        std::cerr << "Unhandled syntax node: " << name << std::endl;
+        std::cout << "Unhandled syntax node: " << name << std::endl;
 		return new NodeTree<ASTData>();
 	}
 
