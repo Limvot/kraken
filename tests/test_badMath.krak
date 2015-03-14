@@ -1,0 +1,18 @@
+import io;
+|int| main() {
+    io::println("Spam");
+    |int| x = 4;
+    x += 3;
+    x++;
+    |int| y = 6;
+    |int| z = x + y;
+    |int| q = z+z;
+    |int| q2 = z*3;
+    |int| q3 = y + y;
+    io::println(q3);
+    io::println(z);
+    io::println(q);
+    for (|int| i = 0; i < 20; i++;) z++;
+    if (z > 20) io::println("We'll find out.");
+    io::println(z);
+}

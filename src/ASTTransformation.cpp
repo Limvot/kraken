@@ -775,16 +775,23 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 
 	newNode = new NodeTree<ASTData>(lookup, ASTData(function_call, Symbol(lookup, true)));
 	NodeTree<ASTData>* function = functionLookup(scope, lookup, mapNodesToTypes(nodes));
+    std::cout << "Num of newNode children " <<  newNode->getChildren().size() << std::endl;
 	newNode->addChild(function);
+    std::cout << "Num of newNode children " <<  newNode->getChildren().size() << std::endl;
 	newNode->addChildren(nodes);
+    std::cout << "Num of newNode children " <<  newNode->getChildren().size() << std::endl;
+    std::cout << "nodes " <<  nodes.size() << std::endl;
 
 	//Specially handle dereference and address of to assign the correct type
 	//We need some significant other type corrections here, maybe to the point of being their own function. (int + float, etc.)
+    std::cout << "the passed in nodes" << std::endl;
 	for (auto i : nodes)
 		std::cout << i->getDataRef()->toString() << " ";
 	std::cout<<std::endl;
 
+
 	std::vector<Type> oldTypes = mapNodesToTypes(nodes);
+    std::cout << "the oldtypes size" << oldTypes.size() << std::endl;
 	if ((nodes.size() != 2 && lookup == "*") || lookup == "&" || lookup == "[]") {
 		Type* newType = oldTypes[0].clone();
 		if (lookup == "*" || lookup == "[]")
@@ -796,6 +803,7 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 	} else {
 		newNode->getDataRef()->valueType = function->getDataRef()->valueType, std::cout << "Some other ||" << lookup << "||" << std::endl;
 	}
+    std::cout << "Num of newNode children " <<  newNode->getChildren().size() << std::endl;
 	return newNode;
 }
 

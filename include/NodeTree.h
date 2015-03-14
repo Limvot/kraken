@@ -130,7 +130,7 @@ template<class T>
 void NodeTree<T>::addChild(NodeTree<T>* child) {
 	if (!child)
 		throw "Help, NULL child";
-	if (findChild(child) == -1) 
+	//if (findChild(child) == -1)
 		children.push_back(child);
 }
 
@@ -138,7 +138,7 @@ template<class T>
 void NodeTree<T>::insertChild(int i, NodeTree<T>* child) {
 	if (!child)
 		throw "Help, NULL child";
-	if (findChild(child) == -1) 
+	//if (findChild(child) == -1)
 		children.insert(children.begin()+i,child);
 }
 
