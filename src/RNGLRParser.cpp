@@ -43,7 +43,7 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 			std::cout << "Accepted!" << std::endl;
 			return getNullableParts((*(stateSets[0]->getBasis()))[0]->getLeftSide());
 		} else {
-			std::cout << "Rejected, no input (with no accepting state)" << std::endl;
+			std::cerr << "Rejected, no input (with no accepting state)" << std::endl;
 		}
 		return new NodeTree<Symbol>();
 	}
@@ -58,7 +58,7 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 		currentToken = lexer.next();
 		//std::cout << "CurrentToken is " << currentToken.toString() << std::endl;
 		if (currentToken == invalidSymbol) {
-			std::cout << "Invalid Symbol!" << std::endl;
+			std::cerr << "Invalid Symbol!" << std::endl;
 			throw "Invalid Symbol, cannot lex";
 		}
 		input.push_back(currentToken);
@@ -99,16 +99,16 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 		// std::cout << "Checking if frontier " << i << " is empty" << std::endl;
 		if (gss.frontierIsEmpty(i)) {
 			//std::cout << "Frontier " << i << " is empty." << std::endl;
-			std::cout << "Parsing failed on " << input[i].toString() << std::endl;
-			std::cout << "Problem is on line: " << findLine(i) << std::endl;
-			std::cout << "Nearby is:" << std::endl;
+			std::cerr << "Parsing failed on " << input[i].toString() << std::endl;
+			std::cerr << "Problem is on line: " << findLine(i) << std::endl;
+			std::cerr << "Nearby is:" << std::endl;
 			int range = 10;
 			for (int j = (i-range >= 0 ? i-range : 0); j < (i+range < input.size() ? i+range : input.size()); j++)
 				if (j == i)
-					std::cout << "||*||*||" << input[j].toString() << "||*||*|| ";
+					std::cerr << "||*||*||" << input[j].toString() << "||*||*|| ";
 				else
-					std::cout << input[j].toString() << " ";
-			std::cout << std::endl;
+					std::cerr << input[j].toString() << " ";
+			std::cerr << std::endl;
             range = 1;
 /*            std::cout << "\n\n\nThe states in the GSS at last frontiers:" << std::endl;
 			for (int j = (i-range >= 0 ? i-range : 0); j < i; j++) {
@@ -138,7 +138,7 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 		return gss.getEdge(accState, v0);
 	}
 
-	std::cout << "Rejected!" << std::endl;
+	std::cerr << "Rejected!" << std::endl;
 	// std::cout << "GSS:\n" << gss.toString() << std::endl;
 	return NULL;
 }

@@ -366,13 +366,13 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		if (types.size()) {
             newNode = functionLookup(scope, lookupName, types);
 		    if (newNode == NULL) {
-			    std::cout << "scope lookup error! Could not find " << lookupName << " in identifier (functionLookup)" << std::endl;
+			    std::cerr << "scope lookup error! Could not find " << lookupName << " in identifier (functionLookup)" << std::endl;
 			    throw "LOOKUP ERROR: " + lookupName;
 		    }
         } else {
             auto possibleMatches = scopeLookup(scope, lookupName);
             if (!possibleMatches.size()) {
-			    std::cout << "scope lookup error! Could not find " << lookupName << " in identifier (scopeLookup)" << std::endl;
+			    std::cerr << "scope lookup error! Could not find " << lookupName << " in identifier (scopeLookup)" << std::endl;
 			    throw "LOOKUP ERROR: " + lookupName;
             }
             newNode = possibleMatches[0];
@@ -485,7 +485,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			std::string functionCallString = concatSymbolTree(children[1]);
 			NodeTree<ASTData>* function = doFunction(scope, functionCallString, transformedChildren, templateTypeReplacements);
 			if (function == NULL) {
-				std::cout << "scope lookup error! Could not find " << functionCallString << " in boolean stuff " << std::endl;
+				std::cerr << "scope lookup error! Could not find " << functionCallString << " in boolean stuff " << std::endl;
 				throw "LOOKUP ERROR: " + functionCallString;
 			}
 			newNode = function;
@@ -518,13 +518,13 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(lhs); transformedChildren.push_back(rhs);
 			newNode = doFunction(scope, functionCallName, transformedChildren, templateTypeReplacements);
 			if (newNode == NULL) {
-				std::cout << "scope lookup error! Could not find " << functionCallName << " in expression " << std::endl;
+				std::cerr << "scope lookup error! Could not find " << functionCallName << " in expression " << std::endl;
 				throw "LOOKUP ERROR: " + functionCallName;
 			}
 
 			// //Set the value of this function call
 			if (newNode->getDataRef()->valueType == NULL && rhs->getDataRef()->valueType) {
-			    std::cout << "The value type from doFunction was null! (for " << functionCallName << ")" << std::endl;
+			    std::cerr << "The value type from doFunction was null! (for " << functionCallName << ")" << std::endl;
                 newNode->getDataRef()->valueType = rhs->getDataRef()->valueType;
             }
 			//else
@@ -554,7 +554,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(param);
 			NodeTree<ASTData>* function = doFunction(scope, funcName, transformedChildren, templateTypeReplacements);
 			if (function == NULL) {
-				std::cout << "scope lookup error! Could not find " << funcName  << " in factor " << std::endl;
+				std::cerr << "scope lookup error! Could not find " << funcName  << " in factor " << std::endl;
 				throw "LOOKUP ERROR: " + funcName;
 			}
 
@@ -586,7 +586,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			std::string functionName = assignFuncName.substr(0,1);
 			NodeTree<ASTData>* operatorCall = doFunction(scope, functionName, transformedChildren, templateTypeReplacements);
 			if (operatorCall == NULL) {
-				std::cout << "scope lookup error! Could not find " << functionName  << " in assignment_statement " << std::endl;
+				std::cerr << "scope lookup error! Could not find " << functionName  << " in assignment_statement " << std::endl;
 				throw "LOOKUP ERROR: " + functionName;
 			}
 			newNode->addChild(lhs);
@@ -686,13 +686,13 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	} else if (name == "bool") {
 		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(children[0]), true), new Type(boolean, 0))); //Indirection of 0 for character
 	} else if (name == "AmbiguityPackOuter" || name == "AmbiguityPackInner") {
-        std::cout << "///////////////////////////////////////////////////////////////////////////////" << std::endl;
-        std::cout << "Ambigious program when parsed by this grammer! This is a bug, please report it." << std::endl;
-        std::cout << "///////////////////////////////////////////////////////////////////////////////" << std::endl;
+        std::cerr << "///////////////////////////////////////////////////////////////////////////////" << std::endl;
+        std::cerr << "Ambigious program when parsed by this grammer! This is a bug, please report it." << std::endl;
+        std::cerr << "///////////////////////////////////////////////////////////////////////////////" << std::endl;
         throw "Ambigious parse!";
     } else {
         // Should get rid of this eventually. Right now it handles cases like sign, alpha, a comma, etc
-        std::cout << "Unhandled syntax node: " << name << std::endl;
+        std::cerr << "Unhandled syntax node: " << name << std::endl;
 		return new NodeTree<ASTData>();
 	}
 
@@ -1008,10 +1008,10 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         std::cout << "Current function fits, satisfying " << currentTraitsSatisfied << " traits" << std::endl;
     }
     if (!mostFittingTemplates.size()) {
-        std::cout << "No template functions fit for " << lookup << "!" << std::endl;
+        std::cerr << "No template functions fit for " << lookup << "!" << std::endl;
         throw "No matching template functions";
     } else if (mostFittingTemplates.size() > 1) {
-        std::cout << "Multiple template functions fit with equal number of traits satisfied for " << lookup << "!" << std::endl;
+        std::cerr << "Multiple template functions fit with equal number of traits satisfied for " << lookup << "!" << std::endl;
         throw "Multiple matching template functions";
     }
     return *mostFittingTemplates.begin();
@@ -1049,7 +1049,7 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>
 }
 
 std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules, std::vector<NodeTree<ASTData>*> visited) {
-    std::cout << "Scp[e looking up " << lookup << std::endl;
+    std::cout << "Scp][e looking up " << lookup << std::endl;
     // Don't visit this node again when looking for the smae lookup. Note that we don't prevent coming back for the scope operator, as that should be able to come back.
     visited.push_back(scope);
 	//We first check to see if it's one of the special reserved identifiers (only this, for now) and return early if it is.

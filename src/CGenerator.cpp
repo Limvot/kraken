@@ -12,7 +12,8 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
 	std::string buildString = "#!/bin/sh\ncc -std=c99 ";
 	std::cout << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
     if (mkdir(("./" + outputName).c_str(), 0755)) {
-        std::cout << "Could not make directory " << outputName << std::endl;
+        std::cerr << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
+        std::cerr << "Could not make directory " << outputName << std::endl;
         //throw "could not make directory ";
     }
 
@@ -27,7 +28,7 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
         outputHFile << "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n" << chPair.first;
         outputCFile << "#include \"" + outputName + ".h\"\n\n" << chPair.second;
     } else {
-        std::cout << "Cannot open file " << outputName << ".c/h" << std::endl;
+        std::cerr << "Cannot open file " << outputName << ".c/h" << std::endl;
     }
     outputCFile.close();
     outputHFile.close();
@@ -244,7 +245,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		case translation_unit:
 		{
             // Should not happen! We do this in it's own function now!
-            std::cout << "Trying to normal generate a translation unit! That's a nono! (" << from->getDataRef()->toString() << ")" << std::endl;
+            std::cerr << "Trying to normal generate a translation unit! That's a nono! (" << from->getDataRef()->toString() << ")" << std::endl;
             throw "That's not gonna work";
 		}
 			break;
@@ -262,7 +263,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 if (enclosingObject)
                     return "this";
                 else
-                    std::cout << "Error: this used in non-object scope" << std::endl;
+                    std::cerr << "Error: this used in non-object scope" << std::endl;
             }
 			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
 			std::string preName;

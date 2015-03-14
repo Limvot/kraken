@@ -24,8 +24,8 @@ int main(int argc, char* argv[]) {
 	includePaths.push_back(""); //Local
 
     if (argc <= 1) {
-        std::cout << "Kraken invocation: kraken sourceFile.krak grammerFile.kgm outputName" << std::endl;
-        std::cout << "Or for testing do: kraken --test [optional list of names of file (.krak .expected_results) without extentions to run]" << std::endl;
+        std::cerr << "Kraken invocation: kraken sourceFile.krak grammerFile.kgm outputName" << std::endl;
+        std::cerr << "Or for testing do: kraken --test [optional list of names of file (.krak .expected_results) without extentions to run]" << std::endl;
         return 0;
     }
 
@@ -73,13 +73,13 @@ int main(int argc, char* argv[]) {
 
 	grammerInFile.open(grammerFileString);
 	if (!grammerInFile.is_open()) {
-		std::cout << "Problem opening grammerInFile " << grammerFileString << "\n";
+		std::cerr << "Problem opening grammerInFile " << grammerFileString << "\n";
 		return(1);
 	}
 
 	compiledGrammerInFile.open(grammerFileString + ".comp", std::ios::binary | std::ios::ate);
 	if (!compiledGrammerInFile.is_open())
-		std::cout << "Problem opening compiledGrammerInFile " << grammerFileString + ".comp" << "\n";
+		std::cerr << "Problem opening compiledGrammerInFile " << grammerFileString + ".comp" << "\n";
 
 	//Read the input file into a string
 	std::string grammerInputFileString;
@@ -119,7 +119,7 @@ int main(int argc, char* argv[]) {
 				parser.importTable(binaryTablePointer + 4 + sizeof(int) + gramStringLength); //Load table starting at the table section
 			}
 		} else {
-			std::cout << grammerFileString << ".comp is NOT A Valid Kraken Compiled Grammer File, aborting" << std::endl;
+			std::cerr << grammerFileString << ".comp is NOT A Valid Kraken Compiled Grammer File, aborting" << std::endl;
 			return -1;
 		}
 		delete binaryTablePointer;
@@ -130,7 +130,7 @@ int main(int argc, char* argv[]) {
 		std::cout << "Compiled grammer file does not exist or is not up-to-date, generating table and writing it out" << std::endl;
 		compiledGrammerOutFile.open(grammerFileString + ".comp", std::ios::binary);
 		if (!compiledGrammerOutFile.is_open())
-			std::cout << "Could not open compiled file to write either!" << std::endl;
+			std::cerr << "Could not open compiled file to write either!" << std::endl;
 		compiledGrammerOutFile.write("KRAK", sizeof(char)*4); 	//Let us know when we load it that this is a kraken grammer file, but don't write out
 		compiledGrammerOutFile.flush();							// the grammer txt until we create the set, so that if we fail creating it it won't look valid
 		parser.createStateSet();
