@@ -30,7 +30,7 @@ bool Tester::run(std::string path) {
 	std::cout << "Testing: " << fileName << " with " << krakenInvocation << " and " << krakenGrammerLocation << std::endl;
 
 	cleanExtras(path);
-	ssystem(krakenInvocation + " " + path + krakenExtention + " " + krakenGrammerLocation + " " + path);
+	ssystem(krakenInvocation + " " + path + krakenExtention + " " + path);
 	ssystem(changePermissions + " " + path + sep + fileName + ".sh");
 	ssystem(cd + " " + path + "; " + "./" + fileName + ".sh");
 	ssystem(changePermissions + " " + path + sep + fileName);

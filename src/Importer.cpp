@@ -1,7 +1,8 @@
 #include "Importer.h"
 
-Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths) {
+Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std::string outputNameIn) {
 	//constructor
+    outputName = outputNameIn;
 	parser = parserIn;
 	this->includePaths = includePaths;
 	ASTTransformer = new ASTTransformation(this);
@@ -104,10 +105,10 @@ void Importer::import(std::string fileName) {
 
 	std::ofstream outFileAST;
 	for (importTriplet i : importedTrips) {
-		std::string outputName = i.name + "out";
-		outFileAST.open((outputName + ".AST.dot").c_str());
+		std::string outputFileName = outputName + "/" + i.name + "out";
+		outFileAST.open((outputFileName + ".AST.dot").c_str());
 		if (!outFileAST.is_open()) {
-			std::cout << "Problem opening second output file " << outputName + ".AST.dot" << "\n";
+			std::cout << "Problem opening second output file " << outputFileName + ".AST.dot" << "\n";
 			return;
 		}
 		if (i.ast) {
@@ -125,7 +126,17 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 	std::ofstream outFile, outFileTransformed;
 
 
-	std::string outputName = fileName + "out";
+    std::cout << "outputName " << outputName << std::endl;
+    std::cout << "fileName " << fileName << std::endl;
+
+    if (mkdir(("./" + outputName).c_str(), 0755)) {
+        std::cerr << "\n\n =====IMPORTER===== \n\n" << std::endl;
+        std::cerr << "Could not make directory " << outputName << std::endl;
+    }
+
+    auto pathPieces = split(fileName, '/');
+    std::string outputFileName = outputName + "/" + pathPieces[pathPieces.size()-1] + "out";
+    std::cout << "outputFileName " << outputFileName << std::endl;
 
 	for (auto i : includePaths) {
 		programInFile.open(i+fileName);
@@ -139,15 +150,15 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 		return NULL;
 	}
 
-	outFile.open(outputName);
+	outFile.open(outputFileName);
 	if (!outFile.is_open()) {
-		std::cout << "Probelm opening output file " << outputName << "\n";
+		std::cout << "Probelm opening output file " << outputFileName << "\n";
 		return NULL;
 	}
 
-	outFileTransformed.open((outputName + ".transformed.dot").c_str());
+	outFileTransformed.open((outputFileName + ".transformed.dot").c_str());
 	if (!outFileTransformed.is_open()) {
-		std::cout << "Probelm opening second output file " << outputName + ".transformed.dot" << "\n";
+		std::cout << "Probelm opening second output file " << outputFileName + ".transformed.dot" << "\n";
 		return NULL;
 	}
 
@@ -189,6 +200,7 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 	}
 	outFileTransformed.close();
 
+    std::cout << "Returning parse tree" << std::endl;
 	return parseTree;
 }
 

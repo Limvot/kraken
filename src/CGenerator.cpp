@@ -11,11 +11,12 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
 	//Generate an entire set of files
 	std::string buildString = "#!/bin/sh\ncc -std=c99 ";
 	std::cout << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
-    if (mkdir(("./" + outputName).c_str(), 0755)) {
-        std::cerr << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
-        std::cerr << "Could not make directory " << outputName << std::endl;
-        //throw "could not make directory ";
-    }
+    // This is made earlier now, as we want to put the dot files here too
+    //if (mkdir(("./" + outputName).c_str(), 0755)) {
+        //std::cerr << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
+        //std::cerr << "Could not make directory " << outputName << std::endl;
+        ////throw "could not make directory ";
+    //}
 
     std::cout << "\n\nGenerate pass for: " << outputName << std::endl;
     buildString += outputName + ".c ";

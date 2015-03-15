@@ -24,7 +24,9 @@ int main(int argc, char* argv[]) {
 	includePaths.push_back(""); //Local
 
     if (argc <= 1) {
-        std::cerr << "Kraken invocation: kraken sourceFile.krak grammerFile.kgm outputName" << std::endl;
+        std::cerr << "Kraken invocation: kraken sourceFile.krak" << std::endl;
+        std::cerr << "Kraken invocation: kraken sourceFile.krak outputName" << std::endl;
+        std::cerr << "Kraken invocation: kraken grammerFile.kgm sourceFile.krak outputName" << std::endl;
         std::cerr << "Or for testing do: kraken --test [optional list of names of file (.krak .expected_results) without extentions to run]" << std::endl;
         return 0;
     }
@@ -64,9 +66,21 @@ int main(int argc, char* argv[]) {
 	std::string krakenDir = argv[0];
 	krakenDir = strSlice(krakenDir, 0, -(std::string("kraken").length()+1));
 	includePaths.push_back(krakenDir + "stdlib/"); //Add the stdlib directory that exists in the same directory as the kraken executable to the path
-	std::string programName = argv[1];
-	std::string grammerFileString = argv[2];
-	std::string outputName = argv[3];
+
+	std::string grammerFileString = "../krakenGrammer.kgm";
+	std::string programName;
+	std::string outputName;
+    if (argc > 3) {
+        grammerFileString = argv[1];
+        programName = argv[2];
+        outputName = argv[3];
+    } else if (argc == 3) {
+        programName = argv[1];
+        outputName = argv[2];
+    } else {
+        programName = argv[1];
+        outputName = join(slice(split(programName, '.'), 0, -2), "."); // without extension
+    }
 
 	std::ifstream grammerInFile, compiledGrammerInFile;
 	std::ofstream compiledGrammerOutFile;
@@ -147,7 +161,9 @@ int main(int argc, char* argv[]) {
 
 	std::cout << "\nParsing" << std::endl;
 
-	Importer importer(&parser, includePaths);
+	std::cout << "\n output name: " << outputName << std::endl;
+	std::cout << "\n program name: " << programName << std::endl;
+	Importer importer(&parser, includePaths, outputName); // Output name for directory to put stuff in
 
 	for (auto i : includePaths)
 		std::cout << i << std::endl;

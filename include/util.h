@@ -50,14 +50,4 @@ bool subset(std::set<T> a, std::set<T> b) {
             return false;
     return true;
 }
-/*
-std::vector<std::string> split(std::string str, char delim) {
-        std::stringstream stream(str);
-        std::string item;
-        std::vector<std::string> results;
-        while(std::getline(stream, item, delim))
-                results.push_back(item);
-        return results;
-}
-*/
 #endif
