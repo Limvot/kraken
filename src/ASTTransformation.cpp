@@ -18,6 +18,7 @@ ASTTransformation::ASTTransformation(Importer *importerIn) {
 	languageLevelOperators["--"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("--", true), NULL)));
 	languageLevelOperators["++"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("++", true), NULL)));
 	languageLevelOperators["=="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("==", true), new Type(boolean))));
+	languageLevelOperators["!="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("!=", true), new Type(boolean))));
 	languageLevelOperators["<="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("<=", true), new Type(boolean))));
 	languageLevelOperators[">="].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol(">=", true), new Type(boolean))));
 	languageLevelOperators["<"].push_back(new NodeTree<ASTData>("function", ASTData(function, Symbol("<", true), new Type(boolean))));

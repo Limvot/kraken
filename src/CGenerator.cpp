@@ -388,9 +388,10 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					return "(" + generate(children[1], enclosingObject) + ")[" +generate(children[2],enclosingObject) + "]";
 				if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
 					|| name == "<" || name == ">" || name == "%" || name == "+=" || name == "-=" || name == "*=" || name == "/=" || name == "||"
-					|| name == "&&")
+					|| name == "&&") {
+                    std::cout << "THIS IS IT NAME: " << name << std::endl;
 					return "((" + generate(children[1], enclosingObject) + ")" + name + "(" + generate(children[2], enclosingObject) + "))";
-				else if (name == "." || name == "->") {
+                } else if (name == "." || name == "->") {
 					if (children.size() == 1)
 					 	return "/*dot operation with one child*/" + generate(children[0], enclosingObject) + "/*end one child*/";
 					 //If this is accessing an actual function, find the function in scope and take the appropriate action. Probabally an object method
