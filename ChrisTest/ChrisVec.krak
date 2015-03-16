@@ -1,0 +1,50 @@
+/*
+  ../build/kraken InputFile.krak ../krakGrammer(tab complete) OutputFile
+*/
+import vector:*;
+import io:*;
+
+/*****************************
+ *  Functions
+ ****************************/
+
+|double| dot(|vector<double>| a, |vector<double>| b)
+{
+  if(a.size < b.size) 
+  {
+    println("Error: Vectors not of same size");
+    print("Vector a is of size: ");
+    println(a.size);
+    print("Vector b is of size: ");
+    println(b.size);
+    println("Did you know that Grover Cleveland served two seperate terms as President of the United States, four years apart?");
+  }
+  
+  |double| ans = 0;
+  for(|int| i = 0; i < lesser<int>(a.size, b.size); i++;)
+  {
+    ans = ans + a.at(i) * b.at(i); 
+  }
+  
+  println(ans);
+
+  return ans;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

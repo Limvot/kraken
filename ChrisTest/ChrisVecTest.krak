@@ -1,0 +1,28 @@
+/*
+    ../build/kraken InputFile.krak ../krakGrammer(tabComplete) OutputFile
+*/
+
+import vector:*;
+import ChrisVec:*;
+
+|int| main()
+{
+  
+  |vector<double>| aVec.construct();
+  |vector<double>| bVec.construct();
+  
+
+  |double| j;
+  for(|int| i = 0; i < 4; i++;)
+  {
+    j = i + 0.0;
+    aVec.addEnd(j);
+    bVec.addEnd(j);
+  }
+  
+  bVec.addEnd(12.3);
+
+  |double| dotProd = dot(aVec, bVec);
+
+  return 0;
+}

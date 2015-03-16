@@ -67,3 +67,15 @@ __if_comp__ __C__ __simple_passthrough__ """
     println();
 }
 
+|void| println(|double| toPrint){
+    print(toPrint);
+    println();
+}
+
+
+
+
+
+
+
+
