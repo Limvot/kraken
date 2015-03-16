@@ -323,7 +323,17 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		case statement:
 			return tabs() + generate(children[0], enclosingObject) + ";\n";
 		case if_statement:
-			output += "if (" + generate(children[0], enclosingObject) + ")\n\t" + generate(children[1], enclosingObject);
+			output += "if (" + generate(children[0], enclosingObject) + ")\n\t";
+            // We have to see if the then statement is a regular single statement or a block.
+            // If it's a block, because it's also a statement a semicolon will be emitted even though
+            // we don't want it to be, as if (a) {b}; else {c}; is not legal C, but if (a) {b} else {c}; is.
+            if (children[1]->getChildren()[0]->getDataRef()->type == code_block) {
+                std::cout << "Then statement is a block, emitting the block not the statement so no trailing semicolon" << std::endl;
+                output += generate(children[1]->getChildren()[0], enclosingObject);
+            } else {
+                std::cout << "Then statement is a simple statement, regular emitting the statement so trailing semicolon" << std::endl;
+                output += generate(children[1], enclosingObject);
+            }
 			if (children.size() > 2)
 				output += " else " + generate(children[2], enclosingObject);
 			return output;
