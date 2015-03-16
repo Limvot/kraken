@@ -11,11 +11,12 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
 	//Generate an entire set of files
 	std::string buildString = "#!/bin/sh\ncc -std=c99 ";
 	std::cout << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
-    if (mkdir(("./" + outputName).c_str(), 0755)) {
-        std::cerr << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
-        std::cerr << "Could not make directory " << outputName << std::endl;
-        //throw "could not make directory ";
-    }
+    // This is made earlier now, as we want to put the dot files here too
+    //if (mkdir(("./" + outputName).c_str(), 0755)) {
+        //std::cerr << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
+        //std::cerr << "Could not make directory " << outputName << std::endl;
+        ////throw "could not make directory ";
+    //}
 
     std::cout << "\n\nGenerate pass for: " << outputName << std::endl;
     buildString += outputName + ".c ";
@@ -322,7 +323,17 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		case statement:
 			return tabs() + generate(children[0], enclosingObject) + ";\n";
 		case if_statement:
-			output += "if (" + generate(children[0], enclosingObject) + ")\n\t" + generate(children[1], enclosingObject);
+			output += "if (" + generate(children[0], enclosingObject) + ")\n\t";
+            // We have to see if the then statement is a regular single statement or a block.
+            // If it's a block, because it's also a statement a semicolon will be emitted even though
+            // we don't want it to be, as if (a) {b}; else {c}; is not legal C, but if (a) {b} else {c}; is.
+            if (children[1]->getChildren()[0]->getDataRef()->type == code_block) {
+                std::cout << "Then statement is a block, emitting the block not the statement so no trailing semicolon" << std::endl;
+                output += generate(children[1]->getChildren()[0], enclosingObject);
+            } else {
+                std::cout << "Then statement is a simple statement, regular emitting the statement so trailing semicolon" << std::endl;
+                output += generate(children[1], enclosingObject);
+            }
 			if (children.size() > 2)
 				output += " else " + generate(children[2], enclosingObject);
 			return output;
@@ -377,9 +388,10 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					return "(" + generate(children[1], enclosingObject) + ")[" +generate(children[2],enclosingObject) + "]";
 				if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
 					|| name == "<" || name == ">" || name == "%" || name == "+=" || name == "-=" || name == "*=" || name == "/=" || name == "||"
-					|| name == "&&")
+					|| name == "&&") {
+                    std::cout << "THIS IS IT NAME: " << name << std::endl;
 					return "((" + generate(children[1], enclosingObject) + ")" + name + "(" + generate(children[2], enclosingObject) + "))";
-				else if (name == "." || name == "->") {
+                } else if (name == "." || name == "->") {
 					if (children.size() == 1)
 					 	return "/*dot operation with one child*/" + generate(children[0], enclosingObject) + "/*end one child*/";
 					 //If this is accessing an actual function, find the function in scope and take the appropriate action. Probabally an object method

@@ -51,6 +51,7 @@ int findPerenEnd(std::string str, int i) {
         if (numHangingOpen == 0)
             return i;
     }
+    return -1;
 }
 
 std::vector<std::string> split(const std::string &str, char delim) {

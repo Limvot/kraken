@@ -6,6 +6,8 @@
 #include <iostream>
 #include <fstream>
 
+#include <sys/stat.h>
+
 #include "Parser.h"
 #include "NodeTree.h"
 #include "ASTData.h"
@@ -18,7 +20,7 @@ class ASTTransformation;
 
 class Importer {
 	public:
-		Importer(Parser* parserIn, std::vector<std::string> includePaths);
+		Importer(Parser* parserIn, std::vector<std::string> includePaths, std::string outputName);
 		~Importer();
 		void import(std::string fileName);
 		NodeTree<ASTData>* getUnit(std::string fileName);
@@ -27,6 +29,7 @@ class Importer {
 		void registerAST(std::string name, NodeTree<ASTData>* ast, NodeTree<Symbol>* syntaxTree);
 		std::map<std::string, NodeTree<ASTData>*> getASTMap();
 	private:
+        std::string outputName;
 		ASTTransformation *ASTTransformer;
 		struct importTriplet {
 			std::string name;

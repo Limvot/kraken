@@ -1,0 +1,10 @@
+import io:*;
+
+
+|int| main() {
+    if (1 != 2)
+        println("Correct");
+}
+
+
+
