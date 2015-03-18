@@ -1,0 +1,15 @@
+import vector:*;
+import io:*;
+
+template <T> |T| test(|vector<T>| a) {
+    return a.at(0);
+}
+
+|int| main() {
+    |vector<int>| a.construct();
+    a.addEnd(2);
+    println(test<int>(a));
+    return 0;
+}
+
+
