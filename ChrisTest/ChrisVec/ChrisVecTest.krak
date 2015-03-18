@@ -4,6 +4,7 @@
 
 import vector:*;
 import ChrisVec:*;
+import io:*;
 
 |int| main()
 {
@@ -22,7 +23,14 @@ import ChrisVec:*;
   
   bVec.addEnd(12.3);
 
-  |double| dotProd = dot(aVec, bVec);
+  |double| dotProd = dot<double>(aVec, bVec);
+  
+  println("Dot Product has completed");
+  println();
+  println();
+  |double| NormSquared = norm2<double>(aVec);
+  println("Norm has completed");
+
 
   return 0;
 }

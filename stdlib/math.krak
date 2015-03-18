@@ -1,9 +1,109 @@
-
-|int| NotPi = 3;
-|float| Pi = 3.141592654;
+__if_comp__ __C__ __simple_passthrough__ """
+  #include <math.h>
+"""
 
 |int| fibanacci(|int| num) {
 	if (num < 2)
 		return 1;
 	return fibanacci(num-1) + fibanacci(num-2);
 }
+
+/*********************
+ *  Trig Functions
+ ********************/
+
+|double| atan(|double| arg)
+{
+  |double| ans = 0;
+  __if_comp__ __C__{
+    __simple_Passthrough__ """
+      ans = atan(arg);
+    """
+  }//end C wrapper
+  
+  return ans;
+}//end atan function
+
+|double| atan2(|double| x, |double| y)
+{
+  |double| ans = 0;
+  __if_comp__ __C__{
+    __simple_Passthrough__ """
+      ans = atan2(x,y);
+    """
+  }//end C wrapper
+  
+  return ans;
+}//end atan2 function
+
+|double| acos(|double| arg)
+{
+  |double| ans = 0;
+  __if_comp__ __C__{
+    __simple_Passthrough__ """
+      ans = acos(arg);
+    """
+  }//end C wrapper
+  
+  return ans;
+}//end acos function
+
+|double| asin(|double| arg)
+{
+  |double| ans = 0;
+  __if_comp__ __C__{
+    __simple_Passthrough__ """
+      ans = asin(arg);
+    """
+  }//end C wrapper
+  
+  return ans;
+}//end asin function
+
+|double| tan(|double| arg)
+{
+  |double| ans = 0;
+  __if_comp__ __C__{
+    __simple_Passthrough__ """
+      ans = tan(arg);
+    """
+  }//end C wrapper
+  
+  return ans;
+}//end tan function
+
+|double| cos(|double| arg)
+{
+  |double| ans = 0;
+  __if_comp__ __C__{
+    __simple_Passthrough__ """
+      ans = cos(arg);
+    """
+  }//end C wrapper
+  
+  return ans;
+}//end cos function
+
+|double| sin(|double| arg)
+{
+  |double| ans = 0;
+  __if_comp__ __C__{
+    __simple_Passthrough__ """
+      ans = sin(arg);
+    """
+  }//end C wrapper
+  
+  return ans;
+}//end sin function
+
+//|int| NotPi = 3;
+//|double| STD_PI = 4*atan(1);
+
+
+
+
+
+
+
+
+
