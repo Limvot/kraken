@@ -208,12 +208,13 @@ NodeTree<ASTData>* ASTTransformation::secondPassFunction(NodeTree<Symbol>* from,
             else //has traits
                 yetToBeInstantiatedTemplateTypes[concatSymbolTree(i->getChildren()[0])] = new Type(template_type_type, parseTraits(i->getChildren()[1])); //This may have to be combined with templateTypeReplacements if we do templated member functions inside of templated classes
         }
+        // Just to see, I don't think templated functions actually need parameters at this point, and we might not have enough info anyway...
         auto transChildren = transformChildren(slice(children,3,-2), std::set<int>(), functionDef, std::vector<Type>(), yetToBeInstantiatedTemplateTypes);
-		std::cout << "Template function " << functionName << " has these parameters: ";
-		for (auto i : transChildren)
-			std::cout << "||" << i->getDataRef()->toString() << "|| ";
-		std::cout << "DoneList" << std::endl;
-		functionDef->addChildren(transChildren);
+        std::cout << "Template function " << functionName << " has these parameters: ";
+        for (auto i : transChildren)
+            std::cout << "||" << i->getDataRef()->toString() << "|| ";
+        std::cout << "DoneList" << std::endl;
+        functionDef->addChildren(transChildren);
 
 		std::cout << "Finished Non-Instantiated Template function " << functionName << std::endl;
 		return functionDef;
@@ -1195,6 +1196,15 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
             std::string instTypeString = "";
             for (int i = 0; i < templateParamInstantiationNodes.size(); i++) {
                 Type* instType = typeFromTypeNode(templateParamInstantiationNodes[i], scope, templateTypeReplacements);
+                /*******************************************************************************
+                 * WE RETURN EARLY IF ONE OF OUR REPLACEMENT INST TYPES IS TEMPLATE_TYPE_TYPE
+                 * WE DO THIS BECAUSE WE CAN'T ACTUALLY INSTATNTIATE WITH THIS.
+                 * THIS CAN HAPPEN IN THE FOLLOWING SITUATIONS.
+                 * template<T> |T| fun(|vec<T>| a) { return a.at(0); }
+                 * etc
+                 *******************************************************************************/
+                if (instType->baseType == template_type_type)
+                    return instType;
                 templateParamInstantiationTypes.push_back(instType);
                 instTypeString += (instTypeString == "") ? instType->toString(false) : "," + instType->toString(false);
             }
@@ -1345,7 +1355,6 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
 
 	std::cout << "About to do children of " << functionName << " to " << fullyInstantiatedName << std::endl;
 	instantiatedFunction->addChildren(transformChildren(templateSyntaxTree->getChildren(), skipChildren, instantiatedFunction, std::vector<Type>(), newTemplateTypeReplacement));
-
 
 	std::cout << "Fully Instantiated function " << functionName << " to " << fullyInstantiatedName << std::endl;
 
