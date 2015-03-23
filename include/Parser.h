@@ -44,7 +44,7 @@ class Parser {
         std::map<Symbol, std::vector<Symbol>> tokenFirstSet;
         std::map<Symbol, bool> tokenNullable;
 
-		std::vector<Symbol>* incrementiveFollowSet(ParseRule* rule);
+		std::vector<Symbol> incrementiveFollowSet(ParseRule* rule);
 		virtual void closure(State* state);
 		virtual void addStates(std::vector< State* >* stateSets, State* state, std::queue<State*>* toDo);
 		int stateNum(State* state);

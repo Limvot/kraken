@@ -24,7 +24,7 @@ class State {
 		bool const operator!=(const State &other);
 		std::vector<ParseRule*>* getBasis();
 		std::vector<ParseRule*>* getRemaining();
-		std::vector<ParseRule*>* getTotal();
+		std::vector<ParseRule*> getTotal();
 		bool containsRule(ParseRule* rule);
 		void addRuleCombineLookahead(ParseRule* rule);
 		std::string toString();
@@ -40,7 +40,6 @@ class State {
 		std::vector<ParseRule*> remaining;
 	private:
 		std::vector<State*> parents;
-		std::vector<ParseRule*> total;
 		int number;
 };
 

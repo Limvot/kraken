@@ -190,7 +190,7 @@ void Table::importTable(char* tableData) {
 						tableData += sizeof(bool);
 						rightSide.push_back(Symbol(inSymbolName, inIsTerminal, inSymbolValue));
 					}
-					reduceRule = new ParseRule(Symbol(leftHandleName, isTerminal, leftHandleValue), ptrIndx, rightSide, NULL);
+					reduceRule = new ParseRule(Symbol(leftHandleName, isTerminal, leftHandleValue), ptrIndx, rightSide, std::vector<Symbol>());
 				}
 				int shiftState = *((int*)tableData);
 				tableData += sizeof(int);

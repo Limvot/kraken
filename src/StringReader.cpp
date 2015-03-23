@@ -40,6 +40,8 @@ std::string StringReader::line(bool truncateEnd)
 
 std::string StringReader::getTokens(const char *stop_chars, bool truncateEnd)
 {
+    if (str_pos >= rd_string.size())
+        return "";
     size_t found_pos = rd_string.find_first_of(stop_chars, str_pos);
 
     if (rd_string[str_pos] == '\"') {

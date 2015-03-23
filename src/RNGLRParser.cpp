@@ -334,10 +334,10 @@ void RNGLRParser::setPacked(NodeTree<Symbol>* node, bool isPacked) {
 void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std::queue<State*>* toDo) {
 	std::vector< State* > newStates;
 	//For each rule in the state we already have
-	std::vector<ParseRule*>* currStateTotal = state->getTotal();
-	for (std::vector<ParseRule*>::size_type i = 0; i < currStateTotal->size(); i++) {
+	std::vector<ParseRule*> currStateTotal = state->getTotal();
+	for (std::vector<ParseRule*>::size_type i = 0; i < currStateTotal.size(); i++) {
 		//Clone the current rule
-		ParseRule* advancedRule = (*currStateTotal)[i]->clone();
+		ParseRule* advancedRule = currStateTotal[i]->clone();
 		//Try to advance the pointer, if sucessful see if it is the correct next symbol
 		if (advancedRule->advancePointer()) {
 			//Technically, it should be the set of rules sharing this symbol advanced past in the basis for new state
@@ -397,24 +397,24 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std:
 
 
 void RNGLRParser::addStateReductionsToTable(State* state) {
-	std::vector<ParseRule*>* currStateTotal = state->getTotal();
+	std::vector<ParseRule*> currStateTotal = state->getTotal();
 	//std::cout << currStateTotal->size()  << "::" << state->getNumber() << std::endl;
-	for (std::vector<ParseRule*>::size_type i = 0; i < currStateTotal->size(); i++) {
+	for (std::vector<ParseRule*>::size_type i = 0; i < currStateTotal.size(); i++) {
 		//See if reduce
 		//Also, this really only needs to be done for the state's basis, but we're already iterating through, so...
-		std::vector<Symbol>* lookahead = (*currStateTotal)[i]->getLookahead();
-		if ((*currStateTotal)[i]->isAtEnd()) {
-			for (std::vector<Symbol>::size_type j = 0; j < lookahead->size(); j++) {
-				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
+		std::vector<Symbol> lookahead = currStateTotal[i]->getLookahead();
+		if (currStateTotal[i]->isAtEnd()) {
+			for (std::vector<Symbol>::size_type j = 0; j < lookahead.size(); j++) {
+				table.add(stateNum(state), lookahead[j], new ParseAction(ParseAction::REDUCE, currStateTotal[i]));
 			}
 		//If this has an appropriate ruduction to null, get the reduce trees out
-		} else if (reducesToNull((*currStateTotal)[i])) {
+		} else if (reducesToNull(currStateTotal[i])) {
 			//std::cout << (*currStateTotal)[i]->toString() << " REDUCES TO NULL" << std::endl;
 			//It used to be that if is a rule that produces only NULL, add in the approprite reduction, but use a new rule with a right side that is equal to
 			//the part that we've already gone through in the rule. (so we don't pop extra off stack)
 			//Now we use the same rule and make sure that the index location is used
-			for (std::vector<Symbol>::size_type j = 0; j < lookahead->size(); j++)
-				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
+			for (std::vector<Symbol>::size_type j = 0; j < lookahead.size(); j++)
+				table.add(stateNum(state), lookahead[j], new ParseAction(ParseAction::REDUCE, currStateTotal[i]));
 		}
 	}
 }

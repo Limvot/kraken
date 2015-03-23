@@ -25,10 +25,10 @@ const bool State::operator==(const State &other) {
 			return false;
 	}
 
-	if (remaining.size() != other.remaining.size()) 
+	if (remaining.size() != other.remaining.size())
 		return false;
 	for (std::vector< ParseRule* >::size_type i = 0; i < remaining.size(); i++) {
-		if ( *(remaining[i]) != *(other.remaining[i]) ) 
+		if ( *(remaining[i]) != *(other.remaining[i]) )
 			return false;
 	}
 	return true;
@@ -77,12 +77,11 @@ void State::combineStates(State &other) {
 	addParents(other.getParents());
 }
 
-std::vector<ParseRule*>* State::getTotal() {
-	total.clear();
-	//std::cout << "Vector will be " << basis.size() << " + " << remaining.size() << std::endl;
+std::vector<ParseRule*> State::getTotal() {
+    std::vector<ParseRule*> total;
 	total.insert(total.begin(), basis.begin(), basis.end());
 	total.insert(total.end(), remaining.begin(), remaining.end());
-	return(&total);
+	return total;
 }
 std::vector<ParseRule*>* State::getBasis() {
 	return &basis;
@@ -92,7 +91,7 @@ std::vector<ParseRule*>* State::getRemaining() {
 }
 
 bool State::containsRule(ParseRule* rule) {
-	getTotal();
+	auto total = getTotal();
 	for (std::vector<ParseRule*>::size_type i = 0; i < total.size(); i++) {
 		if (*rule  == *(total[i])) {
 			return true;
@@ -102,7 +101,7 @@ bool State::containsRule(ParseRule* rule) {
 }
 
 void State::addRuleCombineLookahead(ParseRule* rule) {
-	getTotal();
+	auto total = getTotal();
 	bool alreadyIn = false;
 	for (std::vector<ParseRule*>::size_type i = 0; i < total.size(); i++) {
 		if (rule->equalsExceptLookahead(*(total[i]))) {

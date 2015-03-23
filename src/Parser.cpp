@@ -102,20 +102,20 @@ void Parser::createStateSet() {
 
 	//Set the first state's basis to be the goal rule with lookahead EOF
 	ParseRule* goalRule = loadedGrammer[0]->clone();
-	std::vector<Symbol>* goalRuleLookahead = new std::vector<Symbol>();
-	goalRuleLookahead->push_back(EOFSymbol);
+	std::vector<Symbol> goalRuleLookahead;
+	goalRuleLookahead.push_back(EOFSymbol);
 	goalRule->setLookahead(goalRuleLookahead);
 	State* zeroState = new State(0, goalRule);
 	stateSets.push_back(zeroState);
-	std::queue<State*>* toDo = new std::queue<State*>();
-	toDo->push(zeroState);
+	std::queue<State*> toDo;
+	toDo.push(zeroState);
 	//std::cout << "Begining for main set for loop" << std::endl;
-	while (toDo->size()) {
+	while (toDo.size()) {
 		//closure
-		closure(toDo->front());
+		closure(toDo.front());
 		//Add the new states
-		addStates(&stateSets, toDo->front(), toDo);
-		toDo->pop();
+		addStates(&stateSets, toDo.front(), &toDo);
+		toDo.pop();
 	}
 	table.remove(1, EOFSymbol);
 }
@@ -210,13 +210,13 @@ bool Parser::isNullableHelper(Symbol token, std::set<Symbol> done) {
 }
 
 //Return the correct lookahead. This followSet is built based on the current rule's lookahead if at end, or the next Symbol's first set.
-std::vector<Symbol>* Parser::incrementiveFollowSet(ParseRule* rule) {
+std::vector<Symbol> Parser::incrementiveFollowSet(ParseRule* rule) {
 	//Advance the pointer past the current Symbol (the one we want the followset for) to the next symbol (which might be in our follow set, or might be the end)
 	rule = rule->clone();
 	rule->advancePointer();
 
 	//Get the first set of the next Symbol. If it contains nullSymbol, keep doing for the next one
-	std::vector<Symbol>* followSet = new std::vector<Symbol>();
+	std::vector<Symbol> followSet;
 	std::vector<Symbol> symbolFirstSet;
 	bool symbolFirstSetHasNull = true;
 	while (symbolFirstSetHasNull && !rule->isAtEnd()) {
@@ -229,34 +229,34 @@ std::vector<Symbol>* Parser::incrementiveFollowSet(ParseRule* rule) {
 				break;
 			}
 		}
-		followSet->insert(followSet->end(), symbolFirstSet.begin(), symbolFirstSet.end());
+		followSet.insert(followSet.end(), symbolFirstSet.begin(), symbolFirstSet.end());
 		rule->advancePointer();
 	}
 	if (rule->isAtEnd()) {
-		symbolFirstSet = *(rule->getLookahead());
-		followSet->insert(followSet->end(), symbolFirstSet.begin(), symbolFirstSet.end());
+		symbolFirstSet = rule->getLookahead();
+		followSet.insert(followSet.end(), symbolFirstSet.begin(), symbolFirstSet.end());
 	}
-	std::vector<Symbol>* followSetReturn = new std::vector<Symbol>();
-	for (std::vector<Symbol>::size_type i = 0; i < followSet->size(); i++) {
+	std::vector<Symbol> followSetReturn;
+	for (std::vector<Symbol>::size_type i = 0; i < followSet.size(); i++) {
 		bool alreadyIn = false;
-		for (std::vector<Symbol>::size_type j = 0; j < followSetReturn->size(); j++)
-			if ((*followSet)[i] == (*followSetReturn)[j]) {
+		for (std::vector<Symbol>::size_type j = 0; j < followSetReturn.size(); j++)
+			if (followSet[i] == followSetReturn[j]) {
 				alreadyIn = true;
 				break;
 			}
 		if (!alreadyIn)
-			followSetReturn->push_back((*followSet)[i]);
+			followSetReturn.push_back(followSet[i]);
 	}
-	delete followSet;
+    delete rule;
 	return followSetReturn;
 }
 
 void Parser::closure(State* state) {
 	//Add all the applicable rules.
 	//std::cout << "Closure on " << state->toString() << " is" << std::endl;
-	std::vector<ParseRule*>* stateTotal = state->getTotal();
-	for (std::vector<ParseRule*>::size_type i = 0; i < stateTotal->size(); i++) {
-		ParseRule* currentStateRule = (*stateTotal)[i];
+	std::vector<ParseRule*> stateTotal = state->getTotal();
+	for (std::vector<ParseRule*>::size_type i = 0; i < stateTotal.size(); i++) {
+		ParseRule* currentStateRule = stateTotal[i];
 		//If it's at it's end, move on. We can't advance it.
 		if(currentStateRule->isAtEnd())
 			continue;
@@ -271,10 +271,10 @@ void Parser::closure(State* state) {
 
 				//Check to make sure not already in
 				bool isAlreadyInState = false;
-				for (std::vector<ParseRule*>::size_type k = 0; k < stateTotal->size(); k++) {
-					if ((*stateTotal)[k]->equalsExceptLookahead(*currentGramRule)) {
+				for (std::vector<ParseRule*>::size_type k = 0; k < stateTotal.size(); k++) {
+					if (stateTotal[k]->equalsExceptLookahead(*currentGramRule)) {
 						//std::cout << (*stateTotal)[k]->toString() << std::endl;
-						(*stateTotal)[k]->addLookahead(currentGramRule->getLookahead());
+						stateTotal[k]->addLookahead(currentGramRule->getLookahead());
 						isAlreadyInState = true;
 						delete currentGramRule;
 						break;
@@ -294,10 +294,10 @@ void Parser::closure(State* state) {
 void Parser::addStates(std::vector< State* >* stateSets, State* state, std::queue<State*>* toDo) {
 	std::vector< State* > newStates;
 	//For each rule in the state we already have
-	std::vector<ParseRule*>* currStateTotal = state->getTotal();
-	for (std::vector<ParseRule*>::size_type i = 0; i < currStateTotal->size(); i++) {
+	std::vector<ParseRule*> currStateTotal = state->getTotal();
+	for (std::vector<ParseRule*>::size_type i = 0; i < currStateTotal.size(); i++) {
 		//Clone the current rule
-		ParseRule* advancedRule = (*currStateTotal)[i]->clone();
+		ParseRule* advancedRule = currStateTotal[i]->clone();
 		//Try to advance the pointer, if sucessful see if it is the correct next symbol
 		if (advancedRule->advancePointer()) {
 			//Technically, it should be the set of rules sharing this symbol advanced past in the basis for new state
@@ -324,16 +324,16 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state, std::queu
 		//Also add any completed rules as reduces in the action table
 		//See if reduce
 		//Also, this really only needs to be done for the state's basis, but we're already iterating through, so...
-		std::vector<Symbol>* lookahead = (*currStateTotal)[i]->getLookahead();
-		if ((*currStateTotal)[i]->isAtEnd()) {
-			for (std::vector<Symbol>::size_type j = 0; j < lookahead->size(); j++)
-				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, (*currStateTotal)[i]));
-		} else if ((*currStateTotal)[i]->getAtNextIndex() == nullSymbol) {
+		std::vector<Symbol> lookahead = currStateTotal[i]->getLookahead();
+		if (currStateTotal[i]->isAtEnd()) {
+			for (std::vector<Symbol>::size_type j = 0; j < lookahead.size(); j++)
+				table.add(stateNum(state), lookahead[j], new ParseAction(ParseAction::REDUCE, currStateTotal[i]));
+		} else if (currStateTotal[i]->getAtNextIndex() == nullSymbol) {
 			//If is a rule that produces only NULL, add in the approprite reduction, but use a new rule with a right side of length 0. (so we don't pop off stack)
-			ParseRule* nullRule = (*currStateTotal)[i]->clone();
-			nullRule->setRightSide(* new std::vector<Symbol>());
-			for (std::vector<Symbol>::size_type j = 0; j < lookahead->size(); j++)
-				table.add(stateNum(state), (*lookahead)[j], new ParseAction(ParseAction::REDUCE, nullRule));
+			ParseRule* nullRule = currStateTotal[i]->clone();
+			nullRule->setRightSide(std::vector<Symbol>());
+			for (std::vector<Symbol>::size_type j = 0; j < lookahead.size(); j++)
+				table.add(stateNum(state), lookahead[j], new ParseAction(ParseAction::REDUCE, nullRule));
 		}
 	}
 	//Put all our new states in the set of states only if they're not already there.

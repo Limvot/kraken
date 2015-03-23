@@ -136,7 +136,7 @@ int main(int argc, char* argv[]) {
 			std::cerr << grammerFileString << ".comp is NOT A Valid Kraken Compiled Grammer File, aborting" << std::endl;
 			return -1;
 		}
-		delete binaryTablePointer;
+		delete [] binaryTablePointer;
 	}
 
 	if (!compGramGood) {
