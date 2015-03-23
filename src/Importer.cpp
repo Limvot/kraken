@@ -14,6 +14,7 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std:
 	//removeSymbols.push_back(Symbol("::", true));
 	removeSymbols.push_back(Symbol(":", true));
 	removeSymbols.push_back(Symbol(";", true));
+	removeSymbols.push_back(Symbol("SEMI", false));
 	removeSymbols.push_back(Symbol("{", true));
 	removeSymbols.push_back(Symbol("}", true));
 	removeSymbols.push_back(Symbol("(", true));

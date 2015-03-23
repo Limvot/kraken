@@ -1,0 +1,9 @@
+import io:*
+
+|int| main() {
+    println("no semicolons!")
+    if (1 < 2) println("still no!")
+    println("and again")
+    return 0
+}
+

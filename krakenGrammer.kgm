@@ -1,6 +1,6 @@
 Goal = translation_unit ;
 translation_unit = interpreter_directive WS unorderd_list_part WS ;
-unorderd_list_part = import WS unorderd_list_part | function WS unorderd_list_part | type_def WS ";" WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | declaration_statement WS ";" WS unorderd_list_part | import | function | type_def WS ";" | if_comp | simple_passthrough | declaration_statement WS ";" ;
+unorderd_list_part = import WS unorderd_list_part | function WS unorderd_list_part | type_def WS SEMI WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | declaration_statement WS SEMI WS unorderd_list_part | import | function | type_def WS SEMI | if_comp | simple_passthrough | declaration_statement WS SEMI ;
 
 type = type WS "\*" | "void" | "int" | "float" | "double" | "char" | scoped_identifier | scoped_identifier WS template_inst ;
 dec_type = "\|" WS type WS "\|" ;
@@ -12,7 +12,7 @@ template_dec = "template" WS "<" WS template_param_list WS ">" ;
 template_param_list = template_param_list WS "," WS template_param | template_param ;
 template_param = identifier WS traits | identifier ;
 
-import = "import" WS identifier WS ";" | "import" WS identifier WS ":" WS "\*" WS ";" | "import" WS identifier WS ":" WS import_list WS ";" ;
+import = "import" WS identifier WS SEMI | "import" WS identifier WS ":" WS "\*" WS SEMI | "import" WS identifier WS ":" WS import_list WS SEMI ;
 import_list = identifier | identifier WS "," WS import_list ; 
 
 interpreter_directive = "#!" WS path | ;
@@ -21,8 +21,13 @@ path_part = forward_slash alphanumeric | back_slash alphanumeric ;
 forward_slash = "/" ;
 back_slash = "\\" ;
 
-WS = "( |	|
-)+" | WS comment WS | ;
+# all for optional semicolons
+line_break = "
++" ;
+actual_white = "( |	)+" | line_break | line_break actual_white | "( |	)+" actual_white ;
+WS = actual_white | WS comment WS | ;
+SEMI = ";" | line_break ;
+#SEMI = ";" ;
 
 if_comp = "__if_comp__" WS identifier WS if_comp_pred ;
 if_comp_pred = code_block | simple_passthrough ;
@@ -55,7 +60,7 @@ parameter = boolean_expression ;
 
 type_def = "typedef" WS identifier WS type | "typedef" WS template_dec WS identifier WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS "{" WS declaration_block WS "}" | "typedef" WS template_dec WS identifier WS traits WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS traits WS "{" WS declaration_block WS "}" ;
 
-declaration_block = declaration_statement WS ";" WS declaration_block | function WS declaration_block | declaration_statement WS ";" | function | ;
+declaration_block = declaration_statement WS SEMI WS declaration_block | function WS declaration_block | declaration_statement WS SEMI | function | ;
 traits = "\(" WS trait_list WS "\)" ;
 trait_list = trait_list WS "," WS scoped_identifier | scoped_identifier ;
 
@@ -69,14 +74,14 @@ if_statement = "if" WS "\(" WS boolean_expression WS "\)" WS statement | "if" WS
 
 while_loop = "while" WS boolean_expression WS statement ;
 
-for_loop = "for" WS "\(" WS statement WS boolean_expression WS ";" WS statement WS "\)"  WS statement ;
+for_loop = "for" WS "\(" WS statement WS boolean_expression WS SEMI WS statement WS "\)"  WS statement ;
 
 return_statement = "return" | "return" WS boolean_expression ;
 
 code_block = "{" WS statement_list WS "}" | "{" WS "}" ;
 
 statement_list = statement_list WS statement | statement ;
-statement = if_statement | while_loop | for_loop | return_statement WS ";" | boolean_expression WS ";" | assignment_statement WS ";" | declaration_statement WS ";" | code_block | if_comp | simple_passthrough ; 
+statement = if_statement | while_loop | for_loop | return_statement WS SEMI | boolean_expression WS SEMI | assignment_statement WS SEMI | declaration_statement WS SEMI | code_block | if_comp | simple_passthrough ; 
 function_call = unarad "\(" WS opt_parameter_list WS "\)" ;
 
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;
