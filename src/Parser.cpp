@@ -286,7 +286,9 @@ void Parser::closure(State* state) {
 					state->remaining.push_back(currentGramRule);
 					stateTotal = state->getTotal();
 				}
-			}
+			} else {
+                delete currentGramRule;
+            }
 		}
 	}
 	//std::cout << state->toString() << std::endl;
@@ -322,7 +324,9 @@ void Parser::addStates(std::vector< State* >* stateSets, State* state, std::queu
 				State* newState = new State(stateSets->size()+newStates.size(),advancedRule, state);
 				newStates.push_back(newState);
 			}
-		}
+		} else {
+            delete advancedRule;
+        }
 		//Also add any completed rules as reduces in the action table
 		//See if reduce
 		//Also, this really only needs to be done for the state's basis, but we're already iterating through, so...
