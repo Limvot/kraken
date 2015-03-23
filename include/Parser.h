@@ -68,7 +68,6 @@ class Parser {
 		std::stack<Symbol> symbolStack;
 
 		Symbol getOrAddSymbol(std::string symbolString, bool isTerminal);
-		NodeTree<Symbol>* reduceTreeCombine(Symbol newSymbol, std::vector<Symbol> &symbols);
 };
 
 #endif

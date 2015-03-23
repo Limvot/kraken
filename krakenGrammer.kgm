@@ -21,7 +21,7 @@ path_part = forward_slash alphanumeric | back_slash alphanumeric ;
 forward_slash = "/" ;
 back_slash = "\\" ;
 
-# all for optional semicolons         
+# all for optional semicolons           k      
 line_break = "
 +" ;
 actual_white = "( |	)+" | line_break | line_break actual_white | "( |	)+" actual_white ;

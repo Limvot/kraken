@@ -38,9 +38,11 @@ void Parser::loadGrammer(std::string grammerInputString) {
         //First, if this starts with a '#', skip this
         if (currToken.front() == '#') {
             //If this line is more than one token long, eat it
-            std::cout << "Ate: " << currToken << std::endl;
-            if (currToken.back() != '\n')
-                std::cout << "Eating " << reader.line() << " b/c grammer comment" << std::endl;
+            //std::cout << "Ate: " << currToken << std::endl;
+            if (currToken.back() != '\n') {
+                std::string ate = reader.line();
+                //std::cout << "Eating " << ate << " b/c grammer comment" << std::endl;
+            }
             currToken = reader.word(false);
             continue;
         }
@@ -374,17 +376,6 @@ std::string Parser::tableToString() {
 }
 
 //parseInput is now pure virtual
-
-NodeTree<Symbol>* Parser::reduceTreeCombine(Symbol newSymbol, std::vector<Symbol> &symbols) {
-	NodeTree<Symbol>* newTree = new NodeTree<Symbol>(newSymbol.getName(), newSymbol);
-	for (std::vector<Symbol>::size_type i = 0; i < symbols.size(); i++) {
-		if (symbols[i].isTerminal())
-			newTree->addChild(new NodeTree<Symbol>(symbols[i].getName(), symbols[i]));
-		else
-			newTree->addChild(symbols[i].getSubTree());
-	}
-	return(newTree);
-}
 
 std::string Parser::grammerToString() {
 	//Iterate through the vector, adding string representation of each grammer rule

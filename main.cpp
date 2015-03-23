@@ -8,7 +8,6 @@
 #include "NodeTree.h"
 #include "Symbol.h"
 #include "Lexer.h"
-#include "LALRParser.h"
 #include "RNGLRParser.h"
 
 #include "Importer.h"

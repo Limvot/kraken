@@ -32,7 +32,6 @@ class Symbol {
 		std::string name;
 		std::string value;
 		bool terminal;
-		NodeTree<Symbol>* subTree;
 };
 
 #endif

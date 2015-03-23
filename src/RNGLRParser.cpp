@@ -359,7 +359,9 @@ void RNGLRParser::addStates(std::vector< State* >* stateSets, State* state, std:
 				State* newState = new State(stateSets->size()+newStates.size(),advancedRule, state);
 				newStates.push_back(newState);
 			}
-		}
+		} else {
+            delete advancedRule;
+        }
 	}
 	//Put all our new states in the set of states only if they're not already there.
 	bool stateAlreadyInAllStates = false;

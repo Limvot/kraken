@@ -3,28 +3,19 @@
 Symbol::Symbol() {
 	this->name = "UninitlizedSymbol";
 	this->terminal = false;
-	this->subTree = NULL;
 	value = "NoValue";
 }
 
 Symbol::Symbol(std::string name, bool isTerminal) {
 	this->name = name;
 	this->terminal = isTerminal;
-	this->subTree = NULL;
 	value = "NoValue";
 }
 
 Symbol::Symbol(std::string name, bool isTerminal, std::string value) {
 	this->name = name;
 	this->terminal = isTerminal;
-	this->subTree = NULL;
 	this->value = value;
-}
-
-Symbol::Symbol(std::string name, bool isTerminal, NodeTree<Symbol>* tree) {
-	this->name = name;
-	this->terminal = isTerminal;
-	this->subTree = tree;
 }
 
 Symbol::~Symbol() {
@@ -53,14 +44,6 @@ std::string Symbol::getValue() const {
 
 std::string Symbol::toString() const {
 	return(name + (terminal ? " " + value : ""));
-}
-
-void Symbol::setSubTree(NodeTree<Symbol>* tree) {
-	subTree = tree;
-}
-
-NodeTree<Symbol>* Symbol::getSubTree() {
-	return subTree;
 }
 
 bool Symbol::isTerminal() {
