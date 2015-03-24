@@ -523,15 +523,6 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 				std::cerr << "scope lookup error! Could not find " << functionCallName << " in expression " << std::endl;
 				throw "LOOKUP ERROR: " + functionCallName;
 			}
-
-			// //Set the value of this function call
-			if (newNode->getDataRef()->valueType == NULL && rhs->getDataRef()->valueType) {
-			    std::cout << "The value type from doFunction was null! (for " << functionCallName << ")" << std::endl;
-                newNode->getDataRef()->valueType = rhs->getDataRef()->valueType;
-            }
-			//else
-			//	newNode->getDataRef()->valueType = NULL;
-			std::cout << "function call to " << functionCallName << " - " << newNode->getName() << " is now " << newNode->getDataRef()->valueType  << std::endl;
 			return newNode;
 			//skipChildren.insert(1);
 		} else if (children.size() == 2) {
@@ -547,14 +538,17 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		if (children.size() == 2) {
 			funcName = concatSymbolTree(children[0]);
 			NodeTree<ASTData>* param;
-			if (funcName == "*" || funcName == "&" || funcName == "++" || funcName == "--" || funcName == "-" || funcName == "!" || funcName == "~")
+            // I think this is where we look at pre vs post operators
+			if (funcName == "*" || funcName == "&" || funcName == "++" || funcName == "--" || funcName == "+" || funcName == "-" || funcName == "!" || funcName == "~")
 				param = transform(children[1], scope, types, templateTypeReplacements);
 			else
 				funcName = concatSymbolTree(children[1]), param = transform(children[0], scope, types, templateTypeReplacements);
 
+            std::cout << "\t\t\t funcName= " << funcName << " param: " << param->getDataRef()->symbol.getName() << std::endl;
 			//std::cout << "scope lookup from factor" << std::endl;
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(param);
 			NodeTree<ASTData>* function = doFunction(scope, funcName, transformedChildren, templateTypeReplacements);
+            std::cout << "\t\t\t AFTER dofunction= " << std::endl;
 			if (function == NULL) {
 				std::cerr << "scope lookup error! Could not find " << funcName  << " in factor " << std::endl;
 				throw "LOOKUP ERROR: " + funcName;
@@ -805,7 +799,15 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 	} else {
 		newNode->getDataRef()->valueType = function->getDataRef()->valueType, std::cout << "Some other ||" << lookup << "||" << std::endl;
 	}
-    std::cout << "Num of newNode children " <<  newNode->getChildren().size() << std::endl;
+
+    // Set the value of this function call if it has not already been set
+    // It's important that it's the last parameter, the rhs if it has one
+    // because of the . operator, etc
+    if (newNode->getDataRef()->valueType == NULL) {
+        std::cout << "The value type from doFunction was null! (for " << lookup << ")" << std::endl;
+        newNode->getDataRef()->valueType = oldTypes[oldTypes.size()-1].clone();
+        std::cout << "function call to " << lookup << " - " << newNode->getName() << " is now " << newNode->getDataRef()->valueType  << std::endl;
+    }
 	return newNode;
 }
 

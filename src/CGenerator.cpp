@@ -382,7 +382,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			if (funcType == function) {
 				if (name == "++" || name == "--")
 					return generate(children[1], enclosingObject) + name;
-				if ( (name == "*" || name == "&" || name == "!" ) && children.size() == 2) //Is dereference, not multiplication, address-of, or other unary operator
+				if ( (name == "*" || name == "&" || name == "!" || name == "-" || name == "+" ) && children.size() == 2) //Is dereference, not multiplication, address-of, or other unary operator
 					return name + "(" + generate(children[1], enclosingObject) + ")";
 				if (name == "[]")
 					return "(" + generate(children[1], enclosingObject) + ")[" +generate(children[2],enclosingObject) + "]";
