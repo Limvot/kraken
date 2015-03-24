@@ -123,6 +123,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
     // are done simultanously, but append to different strings that are then concatinated properly, in order.
 
     std::string importIncludes = "/**\n * Import Includes\n */\n\n";
+    std::string topLevelCPassthrough = "/**\n * Top Level C Passthrough\n */\n\n";
     std::string variableExternDeclarations = "/**\n * Extern Variable Declarations \n */\n\n";
     std::string plainTypedefs = "/**\n * Plain Typedefs\n */\n\n";
     std::string variableDeclarations = "/**\n * Variable Declarations \n */\n\n";
@@ -163,7 +164,14 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
 
     // Declare everything in translation unit scope here (now for ALL translation units). (allows stuff from other files, automatic forward declarations)
     // Also, everything in all of the import's scopes
+    // Also c passthrough
     for (auto trans : ASTs) {
+        // First go through and emit all the passthroughs, etc
+        for (auto i : trans.second->getChildren()) {
+            if (i->getDataRef()->type == if_comp)
+                topLevelCPassthrough += generate(i, nullptr);
+        }
+
         for (auto i = trans.second->getDataRef()->scope.begin(); i != trans.second->getDataRef()->scope.end(); i++) {
             for (auto declaration : i->second) {
                 std::vector<NodeTree<ASTData>*> decChildren = declaration->getChildren();
@@ -232,7 +240,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
             }
         }
     }
-    hOutput += plainTypedefs + importIncludes + variableExternDeclarations + classStructs + functionPrototypes;
+    hOutput += plainTypedefs + importIncludes + topLevelCPassthrough + variableExternDeclarations + classStructs + functionPrototypes;
     cOutput += variableDeclarations + functionDefinitions;
     return std::make_pair(hOutput, cOutput);
 }

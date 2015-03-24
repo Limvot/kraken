@@ -1,0 +1,11 @@
+
+__if_comp__ __C__ __simple_passthrough__ """
+	#include <stdio.h>
+    int diff = 7;
+"""
+
+|void| print_it() {
+    __if_comp__ __C__ __simple_passthrough__ """
+        printf("diff_file: %d\n", diff);
+    """
+}

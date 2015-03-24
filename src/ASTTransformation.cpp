@@ -38,7 +38,7 @@ ASTTransformation::~ASTTransformation() {
 	//
 }
 
-//First pass defines all type_defs (objects and ailises)
+//First pass defines all type_defs (objects and ailises), and if_comp/simple_passthrough
 NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<Symbol>* parseTree) {
 	NodeTree<ASTData>* translationUnit = new NodeTree<ASTData>("translation_unit", ASTData(translation_unit));
 	std::vector<NodeTree<Symbol>*> children = parseTree->getChildren();
@@ -72,7 +72,15 @@ NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<S
 			translationUnit->addChild(firstDec);
 			translationUnit->getDataRef()->scope[name].push_back(firstDec);
 			firstDec->getDataRef()->scope["~enclosing_scope"].push_back(translationUnit);
-		}
+		}  else if (i->getDataRef()->getName() == "if_comp") {
+            std::cout << "IF COMP" << std::endl;
+            NodeTree<ASTData>* newNode = new NodeTree<ASTData>(i->getDataRef()->getName(), ASTData(if_comp));
+            newNode->addChild(new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(concatSymbolTree(i->getChildren()[0]),true))));
+            std::set<int> skipChildren;
+            skipChildren.insert(0); //Don't do the identifier. The identifier lookup will fail. That's why we do it here.
+            newNode->addChildren(transformChildren(i->getChildren(), skipChildren, translationUnit, std::vector<Type>(), std::map<std::string, Type*>()));
+			translationUnit->addChild(newNode);
+        }
 	}
 
 	//Now go through and do all imports
@@ -236,36 +244,8 @@ NodeTree<ASTData>* ASTTransformation::secondPassFunction(NodeTree<Symbol>* from,
 	return functionDef;
 }
 
-
-
-//Third pass redoes all imports to import the new function prototypes and identifiers
-void ASTTransformation::thirdPass(NodeTree<ASTData>* ast) {
-	std::vector<NodeTree<ASTData>*> children = ast->getChildren();
-	//Go through and do all imports again
-	for (NodeTree<ASTData>* i : children) {
-		if (i->getDataRef()->type == import) {
-			std::string toImport = i->getDataRef()->symbol.getName();
-			NodeTree<ASTData>* outsideTranslationUnit = importer->getUnit(toImport + ".krak");
-			//Now add all functions to scope
-			std::cout << "Trying to re-import from " << toImport << std::endl;
-			for (auto j = outsideTranslationUnit->getDataRef()->scope.begin(); j != outsideTranslationUnit->getDataRef()->scope.end(); j++) {
-				std::cout << "Looking at " << j->first << std::endl;
-                // If we're supposed to import this... (meaning that this name is in the scope already)
-                if (i->getDataRef()->scope.find(j->first) == i->getDataRef()->scope.end())
-                    continue;
-				std::cout << "Looking through " << j->first << std::endl;
-				for (auto k : j->second)
-					if (k->getDataRef()->type == function || k->getDataRef()->type == identifier)
-						std::cout << "Copying " << j->first << std::endl, i->getDataRef()->scope[j->first].push_back(k);
-					else
-						std::cout << "Not Copying " << j->first << std::endl;
-			}
-		}
-	}
-}
-
-//The fourth pass finishes up by doing all function bodies
-void ASTTransformation::fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree) {
+//The third pass finishes up by doing all function bodies
+void ASTTransformation::thirdPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree) {
 	topScope = ast; //Top scope is maintained for templates, which need to add themselves to the top scope from where ever they are instantiated
 	std::vector<NodeTree<Symbol>*> children = parseTree->getChildren();
 
@@ -286,14 +266,14 @@ void ASTTransformation::fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
 			//Do the inside of classes here
 			for (NodeTree<Symbol>* j : typedefChildren) {
 				if (j->getDataRef()->getName() == "function") {
-					fourthPassFunction(j, searchScopeForFunctionDef(typeDef, j, std::map<std::string, Type*>()), std::map<std::string, Type*>()); 	//do member method
+					thirdPassFunction(j, searchScopeForFunctionDef(typeDef, j, std::map<std::string, Type*>()), std::map<std::string, Type*>()); 	//do member method
 				}
 			}
 		} else if (i->getDataRef()->getName() == "function") {
 			//Do prototypes of functions
 			if (i->getChildren()[0]->getData().getName() == "template_dec")
 				continue; //We've already set up function templates
-			fourthPassFunction(i, searchScopeForFunctionDef(ast, i, std::map<std::string, Type*>()), std::map<std::string, Type*>());
+			thirdPassFunction(i, searchScopeForFunctionDef(ast, i, std::map<std::string, Type*>()), std::map<std::string, Type*>());
 		}
 	}
 
@@ -316,7 +296,7 @@ void ASTTransformation::fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
             std::cout << "Instantiating template " << i->getDataRef()->toString() << std::endl;
             for (NodeTree<Symbol>* j : classTemplateType->templateDefinition->getChildren())
                 if (j->getDataRef()->getName() == "function")
-                    fourthPassFunction(j, searchScopeForFunctionDef(i, j, classTemplateType->templateTypeReplacement), classTemplateType->templateTypeReplacement); 	//do member method
+                    thirdPassFunction(j, searchScopeForFunctionDef(i, j, classTemplateType->templateTypeReplacement), classTemplateType->templateTypeReplacement); 	//do member method
             classTemplateType->templateTypeReplacement.clear(); // This template has been fully instantiated, clear it's map so it won't be instantiated again
         }
     }
@@ -342,9 +322,9 @@ NodeTree<ASTData>* ASTTransformation::searchScopeForFunctionDef(NodeTree<ASTData
 }
 
 //This function does the function bodies given its start (the prototype)
-//It is used in the fourth pass to finish things up
+//It is used in the third pass to finish things up
 //Note that it may instantiate class OR function templates, which need to be fully instantiated
-void ASTTransformation::fourthPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* functionDef, std::map<std::string, Type*> templateTypeReplacements) {
+void ASTTransformation::thirdPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* functionDef, std::map<std::string, Type*> templateTypeReplacements) {
 	NodeTree<Symbol>* codeBlock = from->getChildren()[from->getChildren().size()-1];
 	functionDef->addChild(transform(codeBlock, functionDef, std::vector<Type>(), templateTypeReplacements));
 }

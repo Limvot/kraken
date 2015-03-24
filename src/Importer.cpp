@@ -24,6 +24,7 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std:
 	removeSymbols.push_back(Symbol("if", true));
 	removeSymbols.push_back(Symbol("while", true));
 	removeSymbols.push_back(Symbol("__if_comp__", true));
+	removeSymbols.push_back(Symbol("__simple_passthrough__", true));
 	removeSymbols.push_back(Symbol("comp_simple_passthrough", true));
 	removeSymbols.push_back(Symbol("typedef", true));
 	removeSymbols.push_back(Symbol("template", true));
@@ -94,15 +95,11 @@ void Importer::import(std::string fileName) {
 		std::cout << "\n\nSecond pass for: " << i.name << std::endl, ASTTransformer->secondPass(i.ast, i.syntaxTree);		//function prototypes, and identifiers (as we now have all type defs)
 
 	std::cout << "\n\n =====THIRD PASS===== \n\n" << std::endl;
-	for (importTriplet i : importedTrips)					//Third pass redoes all imports to import the new function prototypes and identifiers
-		std::cout << "\n\nThird pass for: " << i.name << std::endl, ASTTransformer->thirdPass(i.ast);
+	for (importTriplet i : importedTrips)					//Third pass finishes up by doing all function bodies
+		std::cout << "\n\nFourth pass for: " << i.name << std::endl, ASTTransformer->thirdPass(i.ast, i.syntaxTree);		//With that, we're done
 
-	std::cout << "\n\n =====FOURTH PASS===== \n\n" << std::endl;
-	for (importTriplet i : importedTrips)					//Fourth pass finishes up by doing all function bodies
-		std::cout << "\n\nFourth pass for: " << i.name << std::endl, ASTTransformer->fourthPass(i.ast, i.syntaxTree);		//With that, we're done
-
-	//Note that class template instantiation can happen in the second or fourth passes and that function template instantion
-	//can happen in the fourth pass.
+	//Note that class template instantiation can happen in the second or third passes and that function template instantion
+	//can happen in the third pass.
 
 	std::ofstream outFileAST;
 	for (importTriplet i : importedTrips) {

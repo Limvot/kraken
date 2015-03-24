@@ -29,13 +29,10 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		NodeTree<ASTData>* secondPassDeclaration(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements);
 		NodeTree<ASTData>* secondPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements);
 
-		//Third pass redoes all imports to import the new function prototypes and identifiers
-		void thirdPass(NodeTree<ASTData>* ast);
-
-		//The fourth pass finishes up by doing all function bodies
-		void fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree);
+		//The third pass finishes up by doing all function bodies
+		void thirdPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree);
 		NodeTree<ASTData>* searchScopeForFunctionDef(NodeTree<ASTData>* scope, NodeTree<Symbol>* parseTree, std::map<std::string, Type*> templateTypeReplacements);
-		void fourthPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* functionDef, std::map<std::string, Type*> templateTypeReplacements);
+		void thirdPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* functionDef, std::map<std::string, Type*> templateTypeReplacements);
 
 		virtual NodeTree<ASTData>* transform(NodeTree<Symbol>* from);
 		NodeTree<ASTData>* transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements);

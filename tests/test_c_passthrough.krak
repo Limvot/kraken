@@ -1,0 +1,19 @@
+import c_passthrough_diff
+
+
+__if_comp__ __C__ __simple_passthrough__ """
+	#include <stdio.h>
+    int same = 5;
+"""
+
+|int| main() {
+
+    __if_comp__ __C__ __simple_passthrough__ """
+        printf("same_file: %d\n", same);
+    """
+    c_passthrough_diff::print_it()
+    return 0
+}
+
+
+
