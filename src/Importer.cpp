@@ -3,6 +3,12 @@
 Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std::string outputNameIn) {
 	//constructor
     outputName = outputNameIn;
+
+    if (mkdir(("./" + outputName).c_str(), 0755)) {
+        std::cerr << "\n\n =====IMPORTER===== \n\n" << std::endl;
+        std::cerr << "Could not make directory " << outputName << std::endl;
+    }
+
 	parser = parserIn;
 	this->includePaths = includePaths;
 	ASTTransformer = new ASTTransformation(this);
@@ -126,11 +132,6 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 
     std::cout << "outputName " << outputName << std::endl;
     std::cout << "fileName " << fileName << std::endl;
-
-    if (mkdir(("./" + outputName).c_str(), 0755)) {
-        std::cerr << "\n\n =====IMPORTER===== \n\n" << std::endl;
-        std::cerr << "Could not make directory " << outputName << std::endl;
-    }
 
     auto pathPieces = split(fileName, '/');
     std::string outputFileName = outputName + "/" + pathPieces[pathPieces.size()-1] + "out";
