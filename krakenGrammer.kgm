@@ -25,8 +25,10 @@ back_slash = "\\" ;
 line_break = "
 +" ;
 actual_white = "( |	)+" | line_break | line_break actual_white | "( |	)+" actual_white ;
-WS = actual_white | WS comment WS | ;
-SEMI = ";" | line_break ;
+# Why is WS comment necessary? The null case SHOULD handle it, I think. I'm just a tad worred......
+WS = actual_white | WS comment WS | WS comment | ;
+# cpp_comment lets us do stuff like ending a statement with a cpp comment - c comments already work as they don't eat the return
+SEMI = ";" | line_break | cpp_comment ;
 #SEMI = ";" ;
 
 if_comp = "__if_comp__" WS identifier WS if_comp_pred ;
@@ -112,7 +114,8 @@ alpha = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|
 numeric = "(0|1|2|3|4|5|6|7|8|9)+" ;
 string = triple_quoted_string | "\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
 |z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )*\"" ;
-
-comment = "//(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )*
-" | "(/\*+((`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
+comment = cpp_comment | c_comment ;
+cpp_comment = "//(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )*
+" ;
+c_comment = "(/\*+((`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
 |z|x|c|v|b|n|m|,|.|~|!|@|#|$|%|^|&|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )/*\**)+\*/)|(/\*\*/)" ;

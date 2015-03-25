@@ -2,6 +2,8 @@
 import io:*;
 
 |int| main() {
-    println(1337);
+    println(1337) /*how bout now*/
+    println(42) //or now
     return 0;
+    //hmm
 }
