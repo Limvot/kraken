@@ -1,4 +1,4 @@
-__if_comp__ __C__ __simple_passthrough__ """
+__if_comp__ __C__ simple_passthrough """
 	#include <stdlib.h>
 """
 
@@ -7,7 +7,7 @@ __if_comp__ __C__ __simple_passthrough__ """
 template <T> |T*| malloc(|int| size) {
 	|T*| memPtr = 0;
 	__if_comp__ __C__ {
-		__simple_passthrough__ """
+        simple_passthrough( size = size : memPtr = memPtr :) """
 			memPtr = malloc(size);
 		"""
 	}
@@ -16,7 +16,7 @@ template <T> |T*| malloc(|int| size) {
 
 template <T> |void| free(|T*| memPtr) {
 	__if_comp__ __C__ {
-		__simple_passthrough__ """
+		simple_passthrough(memPtr = memPtr ::) """
 			free(memPtr);
 		"""
 	}
@@ -26,7 +26,7 @@ template <T> |int| sizeof() {
 	|int| result = 0;
 	|T| testObj;
 	__if_comp__ __C__ {
-		__simple_passthrough__ """
+		simple_passthrough(testObj = testObj : result = result:) """
 			result = sizeof(testObj);
 		"""
 	}
@@ -55,10 +55,10 @@ template <T(Destructable)> |void| delete(|T*| toDelete, |int| itemCount) {
 
 /* We specilize on the trait Destructable to decide on whether or not the destructor should be called */
 template <T> |void| delete(|T*| toDelete) {
-    free(toDelete);
+    free<T>(toDelete);
 }
 
 template <T(Destructable)> |void| delete(|T*| toDelete) {
     toDelete->destruct();
-    free(toDelete);
+    free<T>(toDelete);
 }

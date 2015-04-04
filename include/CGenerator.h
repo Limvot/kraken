@@ -31,6 +31,7 @@ class CGenerator {
 		static std::string ValueTypeToCTypeDecoration(Type *type);
         static std::string ValueTypeToCTypeThingHelper(Type *type, std::string ptrStr);
 		static std::string CifyName(std::string name);
+		static std::string scopePrefix(NodeTree<ASTData>* from);
         std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from, std::string *functionPrototype);
         NodeTree<ASTData>* getMethodsObjectType(NodeTree<ASTData>* scope, std::string functionName);
 		std::string generatorString;

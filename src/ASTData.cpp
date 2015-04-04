@@ -66,6 +66,8 @@ std::string ASTData::ASTTypeToString(ASTType type) {
 			return "if_comp";
 		case simple_passthrough:
 			return "simple_passthrough";
+		case passthrough_params:
+			return "passthrough_params";
 		case function_call:
 			return "function_call";
 		case value:

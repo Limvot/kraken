@@ -11,13 +11,6 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
 	//Generate an entire set of files
 	std::string buildString = "#!/bin/sh\ncc -std=c99 ";
 	std::cout << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
-    // This is made earlier now, as we want to put the dot files here too
-    //if (mkdir(("./" + outputName).c_str(), 0755)) {
-        //std::cerr << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
-        //std::cerr << "Could not make directory " << outputName << std::endl;
-        ////throw "could not make directory ";
-    //}
-
     std::cout << "\n\nGenerate pass for: " << outputName << std::endl;
     buildString += outputName + ".c ";
     std::ofstream outputCFile, outputHFile;
@@ -51,7 +44,7 @@ std::string CGenerator::tabs() {
 std::string CGenerator::generateClassStruct(NodeTree<ASTData>* from) {
     auto data = from->getData();
     auto children = from->getChildren();
-    std::string objectString = "struct __struct_dummy_" + CifyName(data.symbol.getName()) + "__ {\n";
+    std::string objectString = "struct __struct_dummy_" + scopePrefix(from) + CifyName(data.symbol.getName()) + "__ {\n";
     tabLevel++;
     for (int i = 0; i < children.size(); i++) {
         std::cout << children[i]->getName() << std::endl;
@@ -73,7 +66,9 @@ std::string CGenerator::generateAliasChains(std::map<std::string, NodeTree<ASTDa
                 if (declarationData->type == type_def
                         && declarationData->valueType->typeDefinition != declaration
                         && declarationData->valueType->typeDefinition == definition) {
-                    output += "typedef " + CifyName(definition->getDataRef()->symbol.getName()) + " " +  CifyName(declarationData->symbol.getName()) + ";\n";
+                    output += "typedef " +
+                        scopePrefix(definition) + CifyName(definition->getDataRef()->symbol.getName()) + " " +
+                        scopePrefix(declaration) + CifyName(declarationData->symbol.getName()) + ";\n";
                     // Recursively add the ones that depend on this one
                     output += generateAliasChains(ASTs, declaration);
                 }
@@ -178,7 +173,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                 ASTData declarationData = declaration->getData();
                 switch(declarationData.type) {
                     case identifier:
-                        variableDeclarations += ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*identifier*/\n";
+                        variableDeclarations += ValueTypeToCType(declarationData.valueType) + " " + scopePrefix(declaration) + declarationData.symbol.getName() + "; /*identifier*/\n";
                         variableExternDeclarations += "extern " + ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*extern identifier*/\n";
                         break;
                     case function:
@@ -196,9 +191,12 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                     parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], nullptr);
                                     nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
                                 }
-                                functionPrototypes += CifyName(declarationData.symbol.getName() + nameDecoration) + "(" + parameters + "); /*func*/\n";
+                                functionPrototypes += scopePrefix(declaration) +
+                                                    CifyName(declarationData.symbol.getName() + nameDecoration) +
+                                                    "(" + parameters + "); /*func*/\n";
                                 // generate function
-                                std::cout << "Generating " << CifyName(declarationData.symbol.getName()) << std::endl;
+                                std::cout << "Generating " << scopePrefix(declaration) +
+                                                            CifyName(declarationData.symbol.getName()) << std::endl;
                                 functionDefinitions += generate(declaration, nullptr);
                             }
                         }
@@ -213,10 +211,14 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                             if (declarationData.valueType->typeDefinition)
                                 continue; // Aliases of objects are done with the thing it alises
                             // Otherwise, we're actually a renaming of a primitive, can generate here
-                            plainTypedefs += "typedef " + ValueTypeToCType(declarationData.valueType) + " " + CifyName(declarationData.symbol.getName()) + ";\n";
+                            plainTypedefs += "typedef " + ValueTypeToCType(declarationData.valueType) + " " +
+                                                scopePrefix(declaration) +
+                                                CifyName(declarationData.symbol.getName()) + ";\n";
                             plainTypedefs += generateAliasChains(ASTs, declaration);
                         } else {
-                            plainTypedefs += "typedef struct __struct_dummy_" + CifyName(declarationData.symbol.getName()) + "__ " + CifyName(declarationData.symbol.getName())  + ";\n";
+                            plainTypedefs += "typedef struct __struct_dummy_" +
+                                                scopePrefix(declaration) + CifyName(declarationData.symbol.getName()) + "__ " +
+                                                scopePrefix(declaration) + CifyName(declarationData.symbol.getName())  + ";\n";
                             functionPrototypes += "/* Method Prototypes for " + declarationData.symbol.getName() + " */\n";
                             // We use a seperate string for this because we only include it if this is the file we're defined in
                             std::string objectFunctionDefinitions = "/* Method Definitions for " + declarationData.symbol.getName() + " */\n";
@@ -278,7 +280,8 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			std::string preName;
 			if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
 				preName += "this->";
-			return preName + CifyName(data.symbol.getName()); //Cifying does nothing if not an operator overload
+            // we're scope prefixing EVERYTHING
+			return preName + scopePrefix(from) + CifyName(data.symbol.getName()); //Cifying does nothing if not an operator overload
 		}
 		case function:
 		{
@@ -292,7 +295,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				parameters += ValueTypeToCType(children[j]->getData().valueType) + " " + generate(children[j], enclosingObject);
 				nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
 			}
-			output += CifyName(data.symbol.getName() + nameDecoration) + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
+			output += scopePrefix(from) + CifyName(data.symbol.getName() + nameDecoration) + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
 			return output;
 		}
 		case code_block:
@@ -315,7 +318,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                         continue;
                     if (typeDefinition->getDataRef()->scope.find("destruct") == typeDefinition->getDataRef()->scope.end())
                         continue;
-                    destructorString += tabs() + CifyName(typeDefinition->getDataRef()->symbol.getName())
+                    destructorString += tabs() + scopePrefix(from) + CifyName(typeDefinition->getDataRef()->symbol.getName())
                         + "__" + "destruct" + "(&" + generate(identifier, enclosingObject) + ");\n";//Call the destructor
                 }
             }
@@ -370,7 +373,9 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             } else
 				return ValueTypeToCType(children[0]->getData().valueType) + " " + generate(children[0], enclosingObject) + " = " + generate(children[1], enclosingObject) + ";";
 		case if_comp:
-			if (generate(children[0], enclosingObject) == generatorString)
+            // Lol, this doesn't work because the string gets prefixed now
+			//if (generate(children[0], enclosingObject) == generatorString)
+			if (children[0]->getDataRef()->symbol.getName() == generatorString)
 				return generate(children[1], enclosingObject);
 			return "";
 		case simple_passthrough:
@@ -415,7 +420,9 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 		    std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
 					 		    for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
 					 		    	nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
-/*HERE*/				 	    return CifyName(unaliasedTypeDef->getDataRef()->symbol.getName()) +"__" + CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
+                                // Note that we only add scoping to the object, as this specifies our member function too
+/*HERE*/				 	    return scopePrefix(unaliasedTypeDef) + CifyName(unaliasedTypeDef->getDataRef()->symbol.getName()) +"__" +
+                                        CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
 					 		    //The comma lets the upper function call know we already started the param list
 					 		    //Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
                             } else {
@@ -439,11 +446,13 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				 		nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
 				 	//Check to see if we're inside of an object and this is a method call
 					bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
-					if (isSelfObjectMethod)
-						output += CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__";
-/*HERE*/			output += CifyName(name + nameDecoration) + "(";
-				 	if (isSelfObjectMethod)
+					if (isSelfObjectMethod) {
+						output += scopePrefix(children[0]) + CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__";
+                       	output += CifyName(name + nameDecoration) + "(";
 				 		output += children.size() > 1 ? "this," : "this";
+                    } else {
+                       	output += scopePrefix(children[0]) + CifyName(name + nameDecoration) + "(";
+                    }
 				}
 			} else {
 				//This part handles cases where our definition isn't the function definition (that is, it is probabally the return from another function)
@@ -491,7 +500,7 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType) + " " + generate(children[i]);
 		nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
 	}
-    std::string functionSignature = "\n" + ValueTypeToCType(data.valueType) + " " + CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
+    std::string functionSignature = "\n" + ValueTypeToCType(data.valueType) + " " + scopePrefix(from) +  CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
 		+ CifyName(data.symbol.getName()) + nameDecoration + "(" + ValueTypeToCType(&enclosingObjectType)
 		+ " this" + parameters + ")";
     *functionPrototype += functionSignature + ";\n";
@@ -506,7 +515,7 @@ std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string ptrS
 	switch (type->baseType) {
 		case none:
 			if (type->typeDefinition)
-				return_type = CifyName(type->typeDefinition->getDataRef()->symbol.getName());
+				return_type = scopePrefix(type->typeDefinition) + CifyName(type->typeDefinition->getDataRef()->symbol.getName());
 			else
 				return_type = "none";
 			break;
@@ -588,5 +597,18 @@ std::string CGenerator::CifyName(std::string name) {
 		}
 	}
 	return name;
+}
+// Generate the scope prefix, that is "file_class_" for a method, etc
+// What do we still need to handle? Packages! But we don't have thoes yet....
+std::string CGenerator::scopePrefix(NodeTree<ASTData>* from) {
+    //return "";
+    std::string suffix = "_scp_";
+    ASTData data = from->getData();
+    if (data.type == translation_unit)
+        return CifyName(data.symbol.getName()) + suffix;
+    // so we do prefixing for stuff that c doesn't already scope:
+    // different files. That's it for now. Methods are already lowered correctly with their parent object,
+    // that parent object will get scoped. When we add a package system, we'll have to then add their scoping here
+    return scopePrefix(from->getDataRef()->scope["~enclosing_scope"][0]);
 }
 

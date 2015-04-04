@@ -1,6 +1,6 @@
 import string:*;
 
-__if_comp__ __C__ __simple_passthrough__ """
+__if_comp__ __C__ simple_passthrough """
 	#include <stdio.h>
 """
 
@@ -10,7 +10,7 @@ __if_comp__ __C__ __simple_passthrough__ """
 
 |void| print(|char*| toPrint) {
 	__if_comp__ __C__ {
-		__simple_passthrough__ """
+		simple_passthrough(toPrint = toPrint::) """
 			printf(toPrint);
 		"""
 	}
@@ -32,7 +32,7 @@ __if_comp__ __C__ __simple_passthrough__ """
 
 |void| print(|int| toPrint) {
 	__if_comp__ __C__ {
-		__simple_passthrough__ """
+		simple_passthrough(toPrint = toPrint::) """
 			printf("%d", toPrint);
 		"""
 	}
@@ -46,7 +46,7 @@ __if_comp__ __C__ __simple_passthrough__ """
 
 |void| print(|float| toPrint) {
 	__if_comp__ __C__ {
-		__simple_passthrough__ """
+		simple_passthrough(toPrint = toPrint::) """
 			printf("%f", toPrint);
 		"""
 	}
@@ -55,7 +55,7 @@ __if_comp__ __C__ __simple_passthrough__ """
 
 |void| print(|double| toPrint) {
 	__if_comp__ __C__ {
-		__simple_passthrough__ """
+		simple_passthrough(toPrint = toPrint::) """
 			printf("%f", toPrint);
 		"""
 	}

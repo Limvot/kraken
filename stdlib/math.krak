@@ -1,4 +1,4 @@
-__if_comp__ __C__ __simple_passthrough__ """
+__if_comp__ __C__ simple_passthrough """
   #include <math.h>
 """
 
@@ -16,11 +16,11 @@ __if_comp__ __C__ __simple_passthrough__ """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    __simple_Passthrough__ """
+    simple_passthrough(arg = arg : ans = ans :) """
       ans = atan(arg);
     """
   }//end C wrapper
-  
+
   return ans;
 }//end atan function
 
@@ -28,11 +28,11 @@ __if_comp__ __C__ __simple_passthrough__ """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    __simple_Passthrough__ """
+    simple_passthrough(x = x, y = y : ans = ans :) """
       ans = atan2(x,y);
     """
   }//end C wrapper
-  
+
   return ans;
 }//end atan2 function
 
@@ -40,11 +40,11 @@ __if_comp__ __C__ __simple_passthrough__ """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    __simple_Passthrough__ """
+    simple_passthrough(arg = arg : ans = ans :) """
       ans = acos(arg);
     """
   }//end C wrapper
-  
+
   return ans;
 }//end acos function
 
@@ -52,11 +52,11 @@ __if_comp__ __C__ __simple_passthrough__ """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    __simple_Passthrough__ """
+    simple_passthrough(arg = arg : ans = ans :) """
       ans = asin(arg);
     """
   }//end C wrapper
-  
+
   return ans;
 }//end asin function
 
@@ -64,11 +64,11 @@ __if_comp__ __C__ __simple_passthrough__ """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    __simple_Passthrough__ """
+    simple_passthrough(arg = arg : ans = ans :) """
       ans = tan(arg);
     """
   }//end C wrapper
-  
+
   return ans;
 }//end tan function
 
@@ -76,11 +76,11 @@ __if_comp__ __C__ __simple_passthrough__ """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    __simple_Passthrough__ """
+    simple_passthrough(arg = arg : ans = ans :) """
       ans = cos(arg);
     """
   }//end C wrapper
-  
+
   return ans;
 }//end cos function
 
@@ -88,11 +88,11 @@ __if_comp__ __C__ __simple_passthrough__ """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    __simple_Passthrough__ """
+    simple_passthrough(arg = arg : ans = ans :) """
       ans = sin(arg);
     """
   }//end C wrapper
-  
+
   return ans;
 }//end sin function
 

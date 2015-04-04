@@ -47,13 +47,16 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
         std::vector<NodeTree<ASTData>*> scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules, std::vector<NodeTree<ASTData>*> visited);
 
         NodeTree<ASTData>* getUpperTranslationUnit(NodeTree<ASTData>* node);
+        NodeTree<ASTData>* addToScope(std::string name, NodeTree<ASTData>* toAdd, NodeTree<ASTData>* addTo);
         Type* typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements);
         NodeTree<ASTData>* templateClassLookup(NodeTree<ASTData>* scope, std::string name, std::vector<Type*> templateInstantiationTypes);
 		NodeTree<ASTData>* findOrInstantiateFunctionTemplate(std::vector<NodeTree<Symbol>*> children, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements);
         std::map<std::string, Type*> makeTemplateFunctionTypeMap(NodeTree<Symbol>* templateNode, std::vector<Type*> types);
         std::vector<std::pair<std::string, std::set<std::string>>> makeTemplateNameTraitPairs(NodeTree<Symbol>* templateNode);
+
 	private:
 		Importer * importer;
+		NodeTree<ASTData>* builtin_trans_unit; // the top scope for language level stuff
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelReservedWords;
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelOperators;
 		NodeTree<ASTData>* topScope; //maintained for templates that need to add themselves to the top scope no matter where they are instantiated

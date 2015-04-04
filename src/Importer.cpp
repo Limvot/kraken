@@ -18,7 +18,7 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std:
 	removeSymbols.push_back(Symbol("\\(", true));
 	removeSymbols.push_back(Symbol("\\)", true));
 	//removeSymbols.push_back(Symbol("::", true));
-	removeSymbols.push_back(Symbol(":", true));
+	//removeSymbols.push_back(Symbol(":", true));
 	removeSymbols.push_back(Symbol(";", true));
 	removeSymbols.push_back(Symbol("SEMI", false));
 	removeSymbols.push_back(Symbol("{", true));
@@ -30,13 +30,13 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std:
 	removeSymbols.push_back(Symbol("if", true));
 	removeSymbols.push_back(Symbol("while", true));
 	removeSymbols.push_back(Symbol("__if_comp__", true));
-	removeSymbols.push_back(Symbol("__simple_passthrough__", true));
+	removeSymbols.push_back(Symbol("simple_passthrough", true));
 	removeSymbols.push_back(Symbol("comp_simple_passthrough", true));
 	removeSymbols.push_back(Symbol("typedef", true));
 	removeSymbols.push_back(Symbol("template", true));
 	removeSymbols.push_back(Symbol("\\|", true));
-
 	//collapseSymbols.push_back(Symbol("scoped_identifier", false));
+	collapseSymbols.push_back(Symbol("opt_param_assign_list", false));
 	collapseSymbols.push_back(Symbol("opt_typed_parameter_list", false));
 	collapseSymbols.push_back(Symbol("opt_parameter_list", false));
 	collapseSymbols.push_back(Symbol("opt_import_list", false));
