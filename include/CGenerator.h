@@ -35,6 +35,7 @@ class CGenerator {
         std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from, std::string *functionPrototype);
         NodeTree<ASTData>* getMethodsObjectType(NodeTree<ASTData>* scope, std::string functionName);
 		std::string generatorString;
+        std::string linkerString;
 	private:
 		std::string tabs();
 		int tabLevel;

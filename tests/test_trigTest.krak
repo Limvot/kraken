@@ -5,7 +5,8 @@ import math:*;
 {
   |double| ans;
   |double| STD_PI = 4.0*atan(1.0);
-  
+  println(STD_PI);
+
   /*
   ans = 4.0*atan(1.0);
   print("atan = ");
@@ -18,11 +19,11 @@ import math:*;
   ans = acos(1.0);
   print("acos = ");
   println(ans);
-  
+
   ans = 2.0 * asin(1.0);
   print("asin = ");
   println(ans);
-  
+
   ans = tan(STD_PI / 4.0);
   print("tan = ");
   println(ans);

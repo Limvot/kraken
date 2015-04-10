@@ -1,0 +1,36 @@
+import io:*
+import sameNameOne
+import sameNameTwo
+
+|int| sameVar;
+|int| sameFun() { return 4; }
+
+typedef classTester {
+    |int| method() {
+        return 7
+    }
+}
+
+|int| main() {
+    sameVar = 1
+    sameNameOne::sameVar = 2
+    sameNameTwo::sameVar = 3
+
+    |classTester| class1;
+    |sameNameOne::classTester| class2;
+    |sameNameTwo::classTester| class3;
+
+    println(sameVar)
+    println(sameNameOne::sameVar)
+    println(sameNameTwo::sameVar)
+
+    println(sameFun())
+    println(sameNameOne::sameFun())
+    println(sameNameTwo::sameFun())
+
+    println(class1.method())
+    println(class2.method())
+    println(class3.method())
+
+    return 0
+}

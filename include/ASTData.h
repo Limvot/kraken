@@ -16,7 +16,8 @@ class Type;
 enum ASTType {undef, translation_unit, interpreter_directive, import, identifier, type_def,
 	function, code_block, typed_parameter, expression, boolean_expression, statement,
 	if_statement, while_loop, for_loop, return_statement, assignment_statement, declaration_statement,
-	if_comp, simple_passthrough, passthrough_params, function_call, value};
+	if_comp, simple_passthrough, passthrough_params, in_passthrough_params, out_passthrough_params,
+    opt_string, param_assign, function_call, value};
 
 class ASTData {
 	public:

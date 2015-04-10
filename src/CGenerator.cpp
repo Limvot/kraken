@@ -27,6 +27,7 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
     outputCFile.close();
     outputHFile.close();
 
+	buildString += linkerString;
 	buildString += "-o " + outputName;
 	std::ofstream outputBuild;
 	outputBuild.open(outputName + "/" + split(outputName, '/').back() + ".sh");
@@ -191,7 +192,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                     parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], nullptr);
                                     nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
                                 }
-                                functionPrototypes += scopePrefix(declaration) +
+                                functionPrototypes += ((declarationData.symbol.getName() == "main") ? "" : scopePrefix(declaration)) +
                                                     CifyName(declarationData.symbol.getName() + nameDecoration) +
                                                     "(" + parameters + "); /*func*/\n";
                                 // generate function
@@ -295,7 +296,9 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				parameters += ValueTypeToCType(children[j]->getData().valueType) + " " + generate(children[j], enclosingObject);
 				nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
 			}
-			output += scopePrefix(from) + CifyName(data.symbol.getName() + nameDecoration) + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
+
+			output += ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) +
+                        CifyName(data.symbol.getName() + nameDecoration) + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
 			return output;
 		}
 		case code_block:
@@ -379,7 +382,28 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				return generate(children[1], enclosingObject);
 			return "";
 		case simple_passthrough:
-			return strSlice(generate(children[0], enclosingObject), 3, -4);
+            {
+                // Stuff is bit more interesting now! XXX
+                std::string pre_passthrough, post_passthrough;
+                // Handle input/output parameters
+                if (children.front()->getDataRef()->type == passthrough_params) {
+                    auto optParamAssignLists = children.front()->getChildren();
+                    for (auto in_or_out : optParamAssignLists) {
+                        for (auto assign : in_or_out->getChildren()) {
+                            auto assignChildren = assign->getChildren();
+                            if (in_or_out->getDataRef()->type == in_passthrough_params)
+                                pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType) + " " + assignChildren[1]->getDataRef()->symbol.getName() + " = " + generate(assignChildren[0], enclosingObject) + ";\n";
+                            else if (in_or_out->getDataRef()->type == out_passthrough_params)
+                                post_passthrough += generate(assignChildren[0], enclosingObject) + " = " + assignChildren[1]->getDataRef()->symbol.getName() + ";\n";
+                            else
+                                linkerString += " " + strSlice(generate(in_or_out, enclosingObject), 1, -2) + " ";
+                        }
+                    }
+                }
+                // The actual passthrough string is the last child now, as we might
+                // have passthrough_params be the first child
+                return pre_passthrough + strSlice(generate(children.back(), enclosingObject), 3, -4) + post_passthrough;
+            }
 		case function_call:
 		{
 			//NOTE: The first (0th) child of a function call node is the declaration of the function

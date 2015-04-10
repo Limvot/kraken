@@ -15,7 +15,7 @@ template_param = identifier WS traits | identifier ;
 import = "import" WS identifier WS SEMI | "import" WS identifier WS ":" WS "\*" WS SEMI | "import" WS identifier WS ":" WS import_list WS SEMI ;
 import_list = identifier | identifier WS "," WS import_list ; 
 
-# all for optional semicolons    k          k      
+# all for optional semicolons      
 line_break = "
 +" ;
 actual_white = "( |	)+" | line_break | line_break actual_white | "( |	)+" actual_white ;
@@ -28,9 +28,12 @@ SEMI = ";" | line_break | cpp_comment ;
 if_comp = "__if_comp__" WS identifier WS if_comp_pred ;
 if_comp_pred = code_block | simple_passthrough ;
 simple_passthrough = "simple_passthrough" WS passthrough_params WS triple_quoted_string ;
-passthrough_params = "\(" WS opt_param_assign_list WS ":" WS opt_param_assign_list WS ":" WS opt_string WS "\)" | ;
+passthrough_params = "\(" WS in_passthrough_params WS ":" WS out_passthrough_params WS ":" WS opt_string WS "\)" | ;
+in_passthrough_params = opt_param_assign_list ;
+out_passthrough_params = opt_param_assign_list ;
 opt_param_assign_list = param_assign_list | ;
-param_assign_list = identifier WS "=" WS identifier | identifier WS "=" WS identifier WS "," WS param_assign_list ;
+param_assign_list = param_assign WS "," WS param_assign_list | param_assign ;
+param_assign = identifier WS "=" WS identifier ;
 opt_string = string | ;
 
 triple_quoted_string = "\"\"\"((\"\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|

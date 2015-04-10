@@ -1,4 +1,4 @@
-__if_comp__ __C__ simple_passthrough """
+__if_comp__ __C__ simple_passthrough(::"-lm") """
   #include <math.h>
 """
 
@@ -16,7 +16,7 @@ __if_comp__ __C__ simple_passthrough """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    simple_passthrough(arg = arg : ans = ans :) """
+    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = atan(arg);
     """
   }//end C wrapper
@@ -28,7 +28,7 @@ __if_comp__ __C__ simple_passthrough """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    simple_passthrough(x = x, y = y : ans = ans :) """
+    simple_passthrough(x = x, y = y, ans = ans : ans = ans :) """
       ans = atan2(x,y);
     """
   }//end C wrapper
@@ -40,7 +40,7 @@ __if_comp__ __C__ simple_passthrough """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    simple_passthrough(arg = arg : ans = ans :) """
+    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = acos(arg);
     """
   }//end C wrapper
@@ -52,7 +52,7 @@ __if_comp__ __C__ simple_passthrough """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    simple_passthrough(arg = arg : ans = ans :) """
+    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = asin(arg);
     """
   }//end C wrapper
@@ -64,7 +64,7 @@ __if_comp__ __C__ simple_passthrough """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    simple_passthrough(arg = arg : ans = ans :) """
+    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = tan(arg);
     """
   }//end C wrapper
@@ -76,7 +76,7 @@ __if_comp__ __C__ simple_passthrough """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    simple_passthrough(arg = arg : ans = ans :) """
+    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = cos(arg);
     """
   }//end C wrapper
@@ -88,7 +88,7 @@ __if_comp__ __C__ simple_passthrough """
 {
   |double| ans = 0;
   __if_comp__ __C__{
-    simple_passthrough(arg = arg : ans = ans :) """
+    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = sin(arg);
     """
   }//end C wrapper

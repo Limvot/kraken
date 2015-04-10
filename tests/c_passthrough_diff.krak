@@ -1,11 +1,17 @@
 
-__if_comp__ __C__ __simple_passthrough__ """
+__if_comp__ __C__ simple_passthrough """
 	#include <stdio.h>
     int diff = 7;
 """
 
 |void| print_it() {
-    __if_comp__ __C__ __simple_passthrough__ """
+    __if_comp__ __C__ simple_passthrough """
         printf("diff_file: %d\n", diff);
+    """
+}
+
+|void| print_it(|int| i) {
+    __if_comp__ __C__ simple_passthrough(i = i::) """
+        printf("diff_file: %d\n", i);
     """
 }

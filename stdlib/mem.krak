@@ -5,9 +5,9 @@ __if_comp__ __C__ simple_passthrough """
 /* we have a template versions so we don't have to cast (because we don't have that yet) */
 
 template <T> |T*| malloc(|int| size) {
-	|T*| memPtr = 0;
+    |T*| memPtr;
 	__if_comp__ __C__ {
-        simple_passthrough( size = size : memPtr = memPtr :) """
+        simple_passthrough( size = size, memPtr = memPtr : memPtr = memPtr :) """
 			memPtr = malloc(size);
 		"""
 	}
@@ -23,11 +23,11 @@ template <T> |void| free(|T*| memPtr) {
 }
 
 template <T> |int| sizeof() {
-	|int| result = 0;
 	|T| testObj;
+    |int| result;
 	__if_comp__ __C__ {
 		simple_passthrough(testObj = testObj : result = result:) """
-			result = sizeof(testObj);
+			int result = sizeof(testObj);
 		"""
 	}
 	return result;

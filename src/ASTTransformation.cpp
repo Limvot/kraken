@@ -56,6 +56,8 @@ NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<S
 			else 															//It's not
 				name = concatSymbolTree(i->getChildren()[0]);
 			NodeTree<ASTData>* firstDec = addToScope("~enclosing_scope", translationUnit, new NodeTree<ASTData>("type_def", ASTData(type_def, Symbol(name, true, name))));
+            addToScope(name, firstDec, translationUnit);
+			translationUnit->addChild(firstDec);
 			//If this is a template, go ahead and set it up. Pass 2 needs templates set up so it can (partially) instantiate them.
 				//So we give this typedef its name without any template types and make its type template_type, and point to this from node.
 				//Then, when this template is instantiated, it will run transform on from with the types filled in.
@@ -71,9 +73,6 @@ NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<S
             else if (typedefChildren.size() == 1 || typedefChildren[1]->getData().getName() != "type") //We don't make the type for alises, because the second pass will assign it the type it points to
                 firstDec->getDataRef()->valueType = new Type(firstDec);
 
-			translationUnit->addChild(firstDec);
-			translationUnit->getDataRef()->scope[name].push_back(firstDec);
-			firstDec->getDataRef()->scope["~enclosing_scope"].push_back(translationUnit);
 		}  else if (i->getDataRef()->getName() == "if_comp") {
             std::cout << "IF COMP" << std::endl;
             NodeTree<ASTData>* newNode = addToScope("~enclosing_scope", translationUnit, new NodeTree<ASTData>(i->getDataRef()->getName(), ASTData(if_comp)));
@@ -154,7 +153,9 @@ void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
 			if (typedefChildren.size() > 1 && typedefChildren[1]->getData().getName() == "type") {
         		Type* aliasedType = typeFromTypeNode(typedefChildren[1], ast, std::map<std::string, Type*>());
         		typeDef->getDataRef()->valueType = aliasedType;
-                typeDef->getDataRef()->scope["~enclosing_scope"][0] = aliasedType->typeDefinition; //So that object lookups find the right member. Note that this overrides translation_unit as a parent scope
+                // only put in scope if it has a definition, that is it is not an aliased primitive
+                if (aliasedType->typeDefinition)
+                    typeDef->getDataRef()->scope["~enclosing_scope"][0] = aliasedType->typeDefinition; //So that object lookups find the right member. Note that this overrides translation_unit as a parent scope
                // std::cout << name << " alias's to " << aliasedType->typeDefinition << std::endl;
                // std::cout << "that is " << aliasedType->typeDefinition->getDataRef()->toString() << std::endl;
 				continue;
@@ -628,6 +629,18 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         std::cout << "XXX scope is " << scope << std::endl;
 	} else if (name == "passthrough_params") {
 		newNode = new NodeTree<ASTData>(name, ASTData(passthrough_params));
+        addToScope("~enclosing_scope", scope, newNode);
+	} else if (name == "in_passthrough_params") {
+		newNode = new NodeTree<ASTData>(name, ASTData(in_passthrough_params));
+        addToScope("~enclosing_scope", scope, newNode);
+	} else if (name == "out_passthrough_params") {
+		newNode = new NodeTree<ASTData>(name, ASTData(out_passthrough_params));
+        addToScope("~enclosing_scope", scope, newNode);
+	} else if (name == "opt_string") {
+		newNode = new NodeTree<ASTData>(name, ASTData(opt_string));
+        addToScope("~enclosing_scope", scope, newNode);
+	} else if (name == "param_assign") {
+		newNode = new NodeTree<ASTData>(name, ASTData(param_assign));
         addToScope("~enclosing_scope", scope, newNode);
 	} else if (name == "function_call") {
 		std::string functionCallName = concatSymbolTree(children[0]);
