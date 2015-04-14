@@ -3,12 +3,12 @@ translation_unit = WS unorderd_list_part WS ;
 unorderd_list_part = import WS unorderd_list_part | function WS unorderd_list_part | type_def WS SEMI WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | declaration_statement WS SEMI WS unorderd_list_part | import | function | type_def WS SEMI | if_comp | simple_passthrough | declaration_statement WS SEMI ;
 
 type = type WS "\*" | "void" | "int" | "float" | "double" | "char" | scoped_identifier | scoped_identifier WS template_inst ;
-dec_type = "\|" WS type WS "\|" ;
+dec_type = ":" WS type ;
 
 template_inst = "<" WS type_list WS ">" ;
 type_list = type_list WS "," WS type | type ;
 
-template_dec = "template" WS "<" WS template_param_list WS ">" ;
+template_dec = "<" WS template_param_list WS ">" ;
 template_param_list = template_param_list WS "," WS template_param | template_param ;
 template_param = identifier WS traits | identifier ;
 
@@ -52,27 +52,21 @@ scoped_identifier = scoped_identifier WS scope_op WS identifier | identifier ;
 right_shift = ">" ">" ;
 overloadable_operator = "\+" | "-" | "\*" | "/" | "%" | "^" | "&" | "\|" | "~" | "!" | "," | "=" | "\+\+" | "--" | "<<" | right_shift | "==" | "!=" | "&&" | "\|\|" | "\+=" | "-=" | "/=" | "%=" | "^=" | "&=" | "\|=" | "\*=" | "<<=" | ">>=" | "->" ;
 func_identifier = identifier | identifier overloadable_operator ;
-function = template_dec WS dec_type WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block | dec_type WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS code_block ;
+function = "fun" WS func_identifier WS template_dec WS "\(" WS opt_typed_parameter_list WS "\)" WS dec_type WS code_block | "fun" WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS dec_type WS code_block ;
 
 opt_typed_parameter_list = typed_parameter_list | ;
 typed_parameter_list = typed_parameter_list WS "," WS typed_parameter | typed_parameter ;
-typed_parameter = dec_type WS identifier ;
+typed_parameter = identifier WS dec_type ;
 
 opt_parameter_list = parameter_list | ;
 parameter_list = parameter_list WS "," WS parameter | parameter ;
 parameter = boolean_expression ;
 
-type_def = "typedef" WS identifier WS type | "typedef" WS template_dec WS identifier WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS "{" WS declaration_block WS "}" | "typedef" WS template_dec WS identifier WS traits WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS traits WS "{" WS declaration_block WS "}" ;
+type_def = "typedef" WS identifier WS type | "typedef" WS identifier WS template_dec WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS template_dec WS traits WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS traits WS "{" WS declaration_block WS "}" ;
 
 declaration_block = declaration_statement WS SEMI WS declaration_block | function WS declaration_block | declaration_statement WS SEMI | function | ;
 traits = "\(" WS trait_list WS "\)" ;
 trait_list = trait_list WS "," WS scoped_identifier | scoped_identifier ;
-
-#Older rule for stuff with visibility labels - this should be added sometime
-#type_def = "typedef" WS identifier WS type | "typedef" WS template_dec WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS identifier WS "{" WS class_innerds WS "}" | "typedef" WS template_dec WS identifier WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS "{" WS declaration_block WS "}" ;
-#class_innerds = visibility_block WS class_innerds | visibility_block ;
-#visibility_block = "public:" WS declaration_block | "protected:" WS declaration_block | "private:" WS declaration_block ;
-
 
 if_statement = "if" WS "\(" WS boolean_expression WS "\)" WS statement | "if" WS "\(" WS boolean_expression WS "\)" WS statement WS "else" WS statement ;
 
@@ -102,7 +96,7 @@ number = integer | floating_literal ;
 access_operation = unarad "." identifier | unarad "->" identifier ;
 
 assignment_statement = factor WS "=" WS boolean_expression | factor WS "\+=" WS boolean_expression | factor WS "-=" WS boolean_expression | factor WS "\*=" WS boolean_expression | factor WS "/=" WS boolean_expression ;
-declaration_statement = dec_type WS identifier WS "=" WS boolean_expression | dec_type WS identifier | dec_type WS identifier WS "." WS identifier WS "\(" WS opt_parameter_list WS "\)" ;
+declaration_statement = "var" WS identifier WS dec_type WS "=" WS boolean_expression | "var" WS identifier WS dec_type | "var" WS identifier WS "." WS identifier WS "\(" WS opt_parameter_list WS "\)" WS dec_type ;
 
 alphanumeric = alphanumeric numeric | alphanumeric alpha | numeric | alpha ;
 hexadecimal = "0x(1|2|3|4|5|6|7|8|9|a|b|c|d|e|f)+" ;
