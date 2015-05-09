@@ -1,0 +1,36 @@
+
+
+typedef Swapper<T> {
+    fun doit(a: T*, b: T*) : void {
+        var temp: T = *a;
+        *a = *b;
+        *b = temp;
+    }
+}
+
+
+fun swap<T>(a: T*, b: T*) : void {
+    var temp: T = *a
+    *a = *b
+    *b = temp;
+}
+
+fun print2int(a: int, b: int) : void {
+    simple_passthrough(a = a, b = b::) """
+        printf("yeah new syntax: %d, %d\n", a, b);
+    """
+}
+
+
+fun main() : int {
+    var i: int = 7;
+    var j: int = 6;
+    print2int(i,j)
+    swap<int>(&i, &j)
+    print2int(i,j)
+    var it: Swapper<int>
+    it.doit(&i,&j);
+    print2int(i,j)
+    return 0
+}
+

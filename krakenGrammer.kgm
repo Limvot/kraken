@@ -1,6 +1,6 @@
 Goal = translation_unit ;
 translation_unit = WS unorderd_list_part WS ;
-unorderd_list_part = import WS unorderd_list_part | function WS unorderd_list_part | type_def WS SEMI WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | declaration_statement WS SEMI WS unorderd_list_part | import | function | type_def WS SEMI | if_comp | simple_passthrough | declaration_statement WS SEMI ;
+unorderd_list_part = import WS unorderd_list_part | function WS unorderd_list_part | type_def line_end WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | declaration_statement line_end WS unorderd_list_part | import | function | type_def line_end | if_comp | simple_passthrough | declaration_statement line_end ;
 
 type = type WS "\*" | "void" | "int" | "float" | "double" | "char" | scoped_identifier | scoped_identifier WS template_inst ;
 dec_type = ":" WS type ;
@@ -12,18 +12,26 @@ template_dec = "<" WS template_param_list WS ">" ;
 template_param_list = template_param_list WS "," WS template_param | template_param ;
 template_param = identifier WS traits | identifier ;
 
-import = "import" WS identifier WS SEMI | "import" WS identifier WS ":" WS "\*" WS SEMI | "import" WS identifier WS ":" WS import_list WS SEMI ;
+import = "import" WS identifier line_end | "import" WS identifier WS ":" WS "\*" line_end | "import" WS identifier WS ":" WS import_list line_end ;
 import_list = identifier | identifier WS "," WS import_list ; 
 
 # all for optional semicolons      
 line_break = "
 +" ;
-actual_white = "( |	)+" | line_break | line_break actual_white | "( |	)+" actual_white ;
+# why use line_white here but not below? who knows. It's wayy faster this way. Or maybe when I changed it there was a typing mistake. Noone knows.
+line_white = "( |	)+" ;
+actual_white = line_white | line_break | line_break actual_white | line_white actual_white ;
 # Why is WS comment necessary? The null case SHOULD handle it, I think. I'm just a tad worred......
 WS = actual_white | WS comment WS | WS comment | ;
 # cpp_comment lets us do stuff like ending a statement with a cpp comment - c comments already work as they don't eat the return
-SEMI = ";" | line_break | cpp_comment ;
-#SEMI = ";" ;
+
+maybe_line_white = "( |	)+" | ;
+line_end = maybe_line_white ";" | maybe_line_white line_break | maybe_line_white cpp_comment ;
+
+# line_end = "( |	)+" ";" | "( |	)+" line_break | "( |	)+" cpp_comment | ";" | line_break | cpp_comment ;
+# line_end = WS ";" | WS line_break | WS cpp_comment ;
+# line_end = "( |	)+" ending | ending ;
+# ending = ";" | line_break | cpp_comment ;
 
 if_comp = "__if_comp__" WS identifier WS if_comp_pred ;
 if_comp_pred = code_block | simple_passthrough ;
@@ -44,7 +52,7 @@ triple_quoted_string = "\"\"\"((\"\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i
 |z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )+\"\")|((`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
 |z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )+))*\"\"\"" ;
 
-identifier = alpha | alpha alphanumeric ;
+identifier = alpha_alphanumeric ;
 scope_op = ":" ":" ;
 scoped_identifier = scoped_identifier WS scope_op WS identifier | identifier ;
 
@@ -64,7 +72,7 @@ parameter = boolean_expression ;
 
 type_def = "typedef" WS identifier WS type | "typedef" WS identifier WS template_dec WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS template_dec WS traits WS "{" WS declaration_block WS "}" | "typedef" WS identifier WS traits WS "{" WS declaration_block WS "}" ;
 
-declaration_block = declaration_statement WS SEMI WS declaration_block | function WS declaration_block | declaration_statement WS SEMI | function | ;
+declaration_block = declaration_statement line_end WS declaration_block | function WS declaration_block | declaration_statement line_end | function | ;
 traits = "\(" WS trait_list WS "\)" ;
 trait_list = trait_list WS "," WS scoped_identifier | scoped_identifier ;
 
@@ -72,14 +80,14 @@ if_statement = "if" WS "\(" WS boolean_expression WS "\)" WS statement | "if" WS
 
 while_loop = "while" WS boolean_expression WS statement ;
 
-for_loop = "for" WS "\(" WS statement WS boolean_expression WS SEMI WS statement WS "\)"  WS statement ;
+for_loop = "for" WS "\(" WS statement WS boolean_expression line_end WS statement WS "\)"  WS statement ;
 
 return_statement = "return" | "return" WS boolean_expression ;
 
 code_block = "{" WS statement_list WS "}" | "{" WS "}" ;
 
 statement_list = statement_list WS statement | statement ;
-statement = if_statement | while_loop | for_loop | return_statement WS SEMI | boolean_expression WS SEMI | assignment_statement WS SEMI | declaration_statement WS SEMI | code_block | if_comp | simple_passthrough ; 
+statement = if_statement | while_loop | for_loop | return_statement line_end | boolean_expression line_end | assignment_statement line_end | declaration_statement line_end | code_block | if_comp | simple_passthrough ; 
 function_call = unarad "\(" WS opt_parameter_list WS "\)" ;
 
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;
@@ -97,15 +105,13 @@ access_operation = unarad "." identifier | unarad "->" identifier ;
 
 assignment_statement = factor WS "=" WS boolean_expression | factor WS "\+=" WS boolean_expression | factor WS "-=" WS boolean_expression | factor WS "\*=" WS boolean_expression | factor WS "/=" WS boolean_expression ;
 declaration_statement = "var" WS identifier WS dec_type WS "=" WS boolean_expression | "var" WS identifier WS dec_type | "var" WS identifier WS "." WS identifier WS "\(" WS opt_parameter_list WS "\)" WS dec_type ;
-
-alphanumeric = alphanumeric numeric | alphanumeric alpha | numeric | alpha ;
 hexadecimal = "0x(1|2|3|4|5|6|7|8|9|a|b|c|d|e|f)+" ;
 integer = numeric | hexadecimal ;
-floating_literal = numeric "." numeric | numeric "." numeric alpha ;
+floating_literal = numeric "." numeric ;
 bool = "true" | "false" ;
 character = "'(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
 |z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )'" ;
-alpha = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|_)+" ;
+alpha_alphanumeric = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|_)(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|_|0|1|2|3|4|5|6|7|8|9)*" ;
 numeric = "(0|1|2|3|4|5|6|7|8|9)+" ;
 string = triple_quoted_string | "\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
 |z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|Z|X|C|V|B|N|M|<|>|\?| )*\"" ;
