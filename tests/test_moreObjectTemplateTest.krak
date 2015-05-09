@@ -2,30 +2,30 @@ import io:*;
 import trivial_container:*;
 
 typedef RegularObject {
-	|int| num;
-	|trivialContainer<char*>| innerContainer;
-	|void| set(|char*| message, |int| number) {
+	var num: int;
+	var innerContainer: trivialContainer<char*>;
+	fun set(message: char*, number: int): void {
 		innerContainer.data = message;
 		num = number;
 	}
-	|char*| get() {
+	fun get(): char* {
 		return innerContainer.data;
 	}
-	|void| print() {
+	fun print(): void {
 		print(num);
 		innerContainer.print();
 	}
 };
 
 typedef MyIntContainer trivialContainer<int>;
-|MyIntContainer| roundabout;
-|RegularObject| outsideDec;
+var roundabout: MyIntContainer;
+var outsideDec: RegularObject;
 
-|void| print(|trivialContainer<char*>| toPrint) {
+fun print(toPrint: trivialContainer<char*>): void {
 	print(toPrint.data);
 }
 
-|int| main() {
+fun main(): int {
 	roundabout.data = 4;
 	outsideDec.set("Hello!", 5);
 	roundabout.print();

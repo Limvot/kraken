@@ -3,25 +3,25 @@ import mem:*;
 import vector:*;
 
 typedef AbleToBeDestroyed (Destructable) {
-    |void| destruct() {
+    fun destruct(): void {
         println("Destroyed!");
     }
 };
 
-|int| main() {
-    |vector<int>| intVec.construct();
+fun main(): int {
+    var intVec.construct(): vector<int>;
     intVec.addEnd(1);
     intVec.addEnd(3);
     intVec.addEnd(3);
     intVec.addEnd(7);
     println(intVec.size);
-    for (|int| i = 0; i < intVec.size; i++;)
+    for (var i: int = 0; i < intVec.size; i++;)
         print(intVec.at(i));
 
     println();
 
-    |vector<AbleToBeDestroyed>*| desVec = new<vector<AbleToBeDestroyed>>()->construct();
-    |AbleToBeDestroyed| testDestruct;
+    var desVec: vector<AbleToBeDestroyed>* = new<vector<AbleToBeDestroyed>>()->construct();
+    var testDestruct: AbleToBeDestroyed;
     desVec->addEnd(testDestruct);
     delete<vector<AbleToBeDestroyed>>(desVec);
 

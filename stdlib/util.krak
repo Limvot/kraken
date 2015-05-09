@@ -1,11 +1,11 @@
 
-template<T> |T| greater(|T| a, |T| b) {
+fun greater<T>(a: T, b: T): T {
     if (a > b)
         return a;
     return b;
 }
 
-template<T> |T| lesser(|T| a, |T| b) {
+fun lesser<T>(a: T, b: T): T {
     if (a > b)
         return b;
     return a;

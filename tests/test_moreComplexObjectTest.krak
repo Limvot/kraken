@@ -1,25 +1,25 @@
 import io:*;
 
 typedef firstObject {
-	|int| objectNum;
-	|int| other;
-	|void| print() {
+	var objectNum: int;
+	var other: int;
+	fun print(): void {
 		print(other);
 	}
-	|void| printInd() {
+	fun printInd(): void {
 		print();
 	}
 };
 
 typedef Int int;
 
-|Int| aliasNum;
+var aliasNum: Int;
 
-|int| main() {
-	|firstObject| wooObject;
+fun main(): int {
+	var wooObject: firstObject;
 	wooObject.objectNum = 7;
 	print(wooObject.objectNum);
-	|firstObject*| objPtr = &wooObject;
+	var objPtr: firstObject* = &wooObject;
 	objPtr->objectNum = 42;
 	print(objPtr->objectNum);
 	print("\n");

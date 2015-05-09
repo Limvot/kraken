@@ -1,8 +1,8 @@
 import io;
 
-|void| nothing() {}
+fun nothing(): void {}
 
-|int| main() {
+fun main(): int {
     nothing();
     io::println("It was nothing");
     return 0;

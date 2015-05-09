@@ -1,6 +1,6 @@
 import io:*
 
-|int| main() {
+fun main(): int {
     println("no semicolons!")
     if (1 < 2) println("still no!")
     println("and again")

@@ -1,10 +1,10 @@
 import io:*;
 
-template <T,J> |void| addAndPrint(|T| a, |J| b) {
+fun addAndPrint<T,J>(a: T, b: J): void {
 	print(a+b);
 }
 
-|int| main() {
+fun main(): int {
 
 	addAndPrint<int,double>(10,12.14159);
 	print("\n");

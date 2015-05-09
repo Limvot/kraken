@@ -1,44 +1,44 @@
 import io:*;
 
 typedef Vec2 {
-	|int| x;
-	|int| y;
+	var x: int;
+	var y: int;
 
-	|void| print() {
+	fun print(): void {
 		print(x);
 		print(" ");
 		print(y);
 	}
 
-	|Vec2| add(|Vec2| other) {
-		|Vec2| toReturn;
+	fun add(other: Vec2): Vec2 {
+		var toReturn: Vec2;
 		toReturn.x = x + other.x;
 		toReturn.y = y + other.y;
 		print();
 		return toReturn;
 	}
 
-	|Vec2| subtract(|Vec2| other) {
-		|Vec2| toReturn;
+	fun subtract(other: Vec2): Vec2 {
+		var toReturn: Vec2;
 		toReturn.x = x - other.x;
 		toReturn.y = y - other.y;
 		print();
 		return toReturn;
 	}
 
-	|Vec2| operator+(|Vec2| other) {
+	fun operator+(other: Vec2): Vec2 {
 		return add(other);
 	}
 
 };
 
-|Vec2| operator-(|Vec2| lhs, |Vec2| rhs) {
+fun operator-(lhs: Vec2, rhs: Vec2): Vec2 {
 	return lhs.subtract(rhs);
 }
 
-|int| main() {
-	|Vec2| vector1;
-	|Vec2| vector2;
+fun main(): int {
+	var vector1: Vec2;
+	var vector2: Vec2;
 	vector1.x = 3;
 	vector1.y = 9;
 	vector2 = vector1;
@@ -48,13 +48,13 @@ typedef Vec2 {
 	vector3.y = vector1.y + vector2.y;
 	vector2.print();
 	*/
-	|Vec2| addition = vector1 + vector2;
+	var addition: Vec2 = vector1 + vector2;
 	print("\n");
 	addition.print();
 	print("\nSubtraction\n");
 	vector2.x = 100;
 	vector2.y = 70;
-	|Vec2| subtraction = vector1 - vector2;
+	var subtraction: Vec2 = vector1 - vector2;
 	print("\n");
 	print(subtraction.x); print(" "); print(subtraction.y);
 

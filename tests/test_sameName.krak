@@ -2,23 +2,23 @@ import io:*
 import sameNameOne
 import sameNameTwo
 
-|int| sameVar;
-|int| sameFun() { return 4; }
+var sameVar: int;
+fun sameFun(): int { return 4; }
 
 typedef classTester {
-    |int| method() {
+    fun method(): int {
         return 7
     }
 }
 
-|int| main() {
+fun main(): int {
     sameVar = 1
     sameNameOne::sameVar = 2
     sameNameTwo::sameVar = 3
 
-    |classTester| class1;
-    |sameNameOne::classTester| class2;
-    |sameNameTwo::classTester| class3;
+    var class1: classTester;
+    var class2: sameNameOne::classTester;
+    var class3: sameNameTwo::classTester;
 
     println(sameVar)
     println(sameNameOne::sameVar)

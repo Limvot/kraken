@@ -1,9 +1,9 @@
 import io:*;
 import mem:*;
 
-|int| main() {
-	|int| b;
-	|int*| a = &b;
+fun main(): int {
+	var b: int;
+	var a: int* = &b;
 	a [ 0 ] = 7;
 	print(a [ 0 ] );
 	print(*a);

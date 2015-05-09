@@ -1,15 +1,15 @@
 import io;
 
 typedef FirstObject {
-	|int| objectNum;
-	|void| PrintSelf(|int| a) {
+	var objectNum: int;
+	fun PrintSelf(a: int): void {
         io::print(objectNum);
         io::print(a);
 	}
 };
 
-|int| main() {
-	|FirstObject| wooObject;
+fun main(): int {
+	var wooObject: FirstObject;
 	wooObject.objectNum = 5;
 	wooObject.PrintSelf(7);
     io::print("\n");

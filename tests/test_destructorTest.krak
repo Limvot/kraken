@@ -1,27 +1,27 @@
 import io:*;
 
 typedef DestructorPrint {
-    |char*| myStr;
-    |DestructorPrint*| construct(|char*| str) {
+    var myStr: char*;
+    fun construct(str: char*): DestructorPrint* {
         myStr = str;
         return this;
     }
-    |void| destruct() {
+    fun destruct(): void {
         println(myStr);
     }
 };
 
 typedef NoDistruction {
-    |int| a;
-    |void| dummyFunc() {}
+    var a: int;
+    fun dummyFunc(): void {}
 };
 
-|void| indirPrint() {
-    |DestructorPrint| testObj.construct("Hello Destructors!");
-    |NoDistruction| dummy;
+fun indirPrint(): void {
+    var testObj.construct("Hello Destructors!"): DestructorPrint;
+    var dummy: NoDistruction;
 }
 
-|int| main() {
+fun main(): int {
     indirPrint();
     return 0;
 }

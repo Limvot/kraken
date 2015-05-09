@@ -4,13 +4,13 @@ __if_comp__ __C__ simple_passthrough """
     int diff = 7;
 """
 
-|void| print_it() {
+fun print_it(): void {
     __if_comp__ __C__ simple_passthrough """
         printf("diff_file: %d\n", diff);
     """
 }
 
-|void| print_it(|int| i) {
+fun print_it(i: int): void {
     __if_comp__ __C__ simple_passthrough(i = i::) """
         printf("diff_file: %d\n", i);
     """

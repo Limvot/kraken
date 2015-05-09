@@ -2,7 +2,7 @@ __if_comp__ __C__ simple_passthrough(::"-lm") """
   #include <math.h>
 """
 
-|int| fibanacci(|int| num) {
+fun fibanacci(num: int): int {
 	if (num < 2)
 		return 1;
 	return fibanacci(num-1) + fibanacci(num-2);
@@ -12,9 +12,9 @@ __if_comp__ __C__ simple_passthrough(::"-lm") """
  *  Trig Functions
  ********************/
 
-|double| atan(|double| arg)
+fun atan(arg: double): double
 {
-  |double| ans = 0;
+  var ans: double = 0;
   __if_comp__ __C__{
     simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = atan(arg);
@@ -24,9 +24,9 @@ __if_comp__ __C__ simple_passthrough(::"-lm") """
   return ans;
 }//end atan function
 
-|double| atan2(|double| x, |double| y)
+fun atan2(x: double, y: double): double
 {
-  |double| ans = 0;
+  var ans: double = 0;
   __if_comp__ __C__{
     simple_passthrough(x = x, y = y, ans = ans : ans = ans :) """
       ans = atan2(x,y);
@@ -36,9 +36,9 @@ __if_comp__ __C__ simple_passthrough(::"-lm") """
   return ans;
 }//end atan2 function
 
-|double| acos(|double| arg)
+fun acos(arg: double): double
 {
-  |double| ans = 0;
+  var ans: double = 0;
   __if_comp__ __C__{
     simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = acos(arg);
@@ -48,9 +48,9 @@ __if_comp__ __C__ simple_passthrough(::"-lm") """
   return ans;
 }//end acos function
 
-|double| asin(|double| arg)
+fun asin(arg: double): double
 {
-  |double| ans = 0;
+  var ans: double = 0;
   __if_comp__ __C__{
     simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = asin(arg);
@@ -60,9 +60,9 @@ __if_comp__ __C__ simple_passthrough(::"-lm") """
   return ans;
 }//end asin function
 
-|double| tan(|double| arg)
+fun tan(arg: double): double
 {
-  |double| ans = 0;
+  var ans: double = 0;
   __if_comp__ __C__{
     simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = tan(arg);
@@ -72,9 +72,9 @@ __if_comp__ __C__ simple_passthrough(::"-lm") """
   return ans;
 }//end tan function
 
-|double| cos(|double| arg)
+fun cos(arg: double): double
 {
-  |double| ans = 0;
+  var ans: double = 0;
   __if_comp__ __C__{
     simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = cos(arg);
@@ -84,9 +84,9 @@ __if_comp__ __C__ simple_passthrough(::"-lm") """
   return ans;
 }//end cos function
 
-|double| sin(|double| arg)
+fun sin(arg: double): double
 {
-  |double| ans = 0;
+  var ans: double = 0;
   __if_comp__ __C__{
     simple_passthrough(arg = arg, ans = ans : ans = ans :) """
       ans = sin(arg);
@@ -98,12 +98,4 @@ __if_comp__ __C__ simple_passthrough(::"-lm") """
 
 //|int| NotPi = 3;
 //|double| STD_PI = 4*atan(1);
-
-
-
-
-
-
-
-
 

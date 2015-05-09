@@ -580,7 +580,12 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		// NodeTree<ASTData>* newIdentifier = transform(children[1], scope); //Transform the identifier
 		// newIdentifier->getDataRef()->valueType = Type(concatSymbolTree(children[0]));//set the type of the identifier
 		std::string newIdentifierStr = concatSymbolTree(children[0]);
-		Type* identifierType = typeFromTypeNode(children[2], scope, templateTypeReplacements);
+		Type* identifierType;
+        if (children.size() > 1 && concatSymbolTree(children[1]) == ".")
+            identifierType = typeFromTypeNode(children.back(), scope, templateTypeReplacements);
+        else
+            identifierType = typeFromTypeNode(children[2], scope, templateTypeReplacements);
+
 		std::cout << "Declaring an identifier " << newIdentifierStr << " to be of type " << identifierType->toString() << std::endl;
 		NodeTree<ASTData>* newIdentifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), identifierType));
         addToScope(newIdentifierStr, newIdentifier, scope);
@@ -588,20 +593,20 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         addToScope("~enclosing_scope", newNode, newIdentifier);
 		newNode->addChild(newIdentifier);
 
-        if (children.size() > 2 && concatSymbolTree(children[2]) == ".") {
+        if (children.size() > 1 && concatSymbolTree(children[1]) == ".") {
             //A bit of a special case for declarations - if there's anything after just the normal 1 node declaration, it's either
             //an expression that is assigned to the declaration (int a = 4;) or a member call (Object a.constructAThing())
             //This code is a simplified version of the code in function_call with respect to access_operation.
             //Note that in this case, what is lhs there is our newIdentifier here (the declaration of the left side of the access operation)
-            auto sliced = slice(children, 4, -1);
+            auto sliced = slice(children, 3, -3);
             std::vector<NodeTree<ASTData>*> initPositionFuncParams = transformChildren(sliced, std::set<int>(), scope, types, templateTypeReplacements);
-            NodeTree<ASTData>* rhs = transform(children[3], identifierType->typeDefinition, mapNodesToTypes(initPositionFuncParams), templateTypeReplacements); //If an access operation, then the right side will be in the lhs's type's scope
+            NodeTree<ASTData>* rhs = transform(children[2], identifierType->typeDefinition, mapNodesToTypes(initPositionFuncParams), templateTypeReplacements); //If an access operation, then the right side will be in the lhs's type's scope
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(newIdentifier); transformedChildren.push_back(rhs);
 			NodeTree<ASTData>* accessFuncCall = doFunction(scope, ".", transformedChildren, templateTypeReplacements);
 		    accessFuncCall->getDataRef()->valueType = rhs->getDataRef()->valueType;
             //Now we borrow a bit of code from function_call below to actually use our new accessFuncCall to setup a "initPosition" function call
             //that will follow the identifier in this declaration node
-            std::string initPosFuncName = newIdentifierStr + "." + concatSymbolTree(children[3]);
+            std::string initPosFuncName = newIdentifierStr + "." + concatSymbolTree(children[2]);
             NodeTree<ASTData>* initPositionFuncCall = new NodeTree<ASTData>(initPosFuncName, ASTData(function_call, Symbol(initPosFuncName, true)));
             initPositionFuncCall->addChild(accessFuncCall);
             initPositionFuncCall->getDataRef()->valueType = accessFuncCall->getDataRef()->valueType;
@@ -998,7 +1003,7 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         if (!traitsEqual)
             continue;
 
-        std::vector<NodeTree<Symbol>*> functionParameters = slice(templateSyntaxTree->getChildren(), 2, -3, 2); //skip name, intervening commas, return type, and the code block
+        std::vector<NodeTree<Symbol>*> functionParameters = slice(templateSyntaxTree->getChildren(), 2, -4, 2); //skip name, intervening commas, return type, and the code block
         std::cout << functionParameters.size() << " " << types.size() << std::endl;
         if (functionParameters.size() != types.size())
             continue;

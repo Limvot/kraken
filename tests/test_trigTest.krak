@@ -1,10 +1,10 @@
 import io:*;
 import math:*;
 
-|int| main()
+fun main(): int
 {
-  |double| ans;
-  |double| STD_PI = 4.0*atan(1.0);
+  var ans: double;
+  var STD_PI: double = 4.0*atan(1.0);
   println(STD_PI);
 
   /*

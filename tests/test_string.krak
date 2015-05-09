@@ -2,8 +2,8 @@ import io;
 import string;
 
 
-|int| main() {
-    |string::string| str.construct("hello strings");
+fun main(): int {
+    var str.construct("hello strings"): string::string;
     io::println(str);
     return 0;
 }

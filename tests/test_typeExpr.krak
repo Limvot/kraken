@@ -1,20 +1,20 @@
 import io;
 
 typedef ClassWithConstructor {
-    |int| data;
-    |ClassWithConstructor*| construct(|int| inData) {
+    var data: int;
+    fun construct(inData: int): ClassWithConstructor* {
         data = inData;
         return this;
     }
-    |void| printData() {
+    fun printData(): void {
         io::println(data);
     }
 };
 
-|int| main() {
-    |ClassWithConstructor| object.construct(4);
+fun main(): int {
+     var object.construct(4): ClassWithConstructor;
     object.printData();
-    |int| a = 8;
+    var a :int = 8;
     io::println(a);
     return 0;
 }

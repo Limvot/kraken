@@ -1,8 +1,8 @@
 import io;
 
-|int| a = 42;
+var a: int = 42;
 
-|int| main() {
+fun main(): int {
     io::println(a);
     return 0;
 }

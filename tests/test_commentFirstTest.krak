@@ -1,7 +1,7 @@
 /* Comment first! */
 import io:*;
 
-|int| main() {
+fun main(): int {
     println(1337) /*how bout now*/
     println(42) //or now
     return 0;

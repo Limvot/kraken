@@ -6,15 +6,15 @@ __if_comp__ __C__ simple_passthrough """
     int same = 5;
 """
 
-|int| main() {
+fun main(): int {
 
     __if_comp__ __C__ simple_passthrough """
         printf("same_file: %d\n", same);
     """
 
     c_passthrough_diff::print_it();
-    |int| i = 7;
-    |int| j = 6;
+    var i: int = 7;
+    var j: int = 6;
     __if_comp__ __C__ simple_passthrough(i = i, j = j : j = j:) """
         j = i + j;
     """

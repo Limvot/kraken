@@ -1,6 +1,6 @@
 
-|int| sameVar;
-|int| sameFun() { return 6; }
+var sameVar: int;
+fun sameFun(): int { return 6; }
 typedef classTester {
-    |int| method() { return 9; }
+    fun method(): int { return 9; }
 }

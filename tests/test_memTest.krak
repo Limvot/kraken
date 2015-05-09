@@ -2,11 +2,11 @@ import mem:*;
 import io:*;
 
 typedef AnObject {
-	|int| a;
-	|int| b;
-	|char*| c;
+	var a: int;
+	var b: int;
+	var c: char*;
 
-	|void| print() {
+	fun print(): void {
 		print(a+b);
 		print("\n");
 		print(c);
@@ -15,8 +15,8 @@ typedef AnObject {
 };
 
 
-|int| main() {
-	|AnObject*| ptr = new<AnObject>();
+fun main(): int {
+	var ptr: AnObject* = new<AnObject>();
 	ptr->a = 4;
 	ptr->b = 7;
 	ptr->c = "Hello decent memory! Quite a nice feeling\n";

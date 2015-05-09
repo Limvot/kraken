@@ -2,27 +2,27 @@ import mem:*;
 import util:*;
 import io:*;
 
-typedef template<T> vector (Destructable) {
-    |T*| data;
-    |int| size;
-    |int| available;
+typedef vector<T> (Destructable) {
+    var data: T*;
+    var size: int;
+    var available: int;
 
-    |vector<T>*| construct() {
+    fun construct(): vector<T>* {
         size = 0;
         available = 8;
         data = new<T>(8);
         return this;
     }
 
-    |void| destruct() {
+    fun destruct(): void {
         delete<T>(data);
     }
 
-    |bool| resize(|int| newSize) {
-        |T*| newData = new<T>(newSize);
+    fun resize(newSize: int): bool {
+        var newData: T* = new<T>(newSize);
         if (!newData)
             return false;
-        for (|int| i = 0; i < lesser<int>(size, newSize); i++;)
+        for (var i: int = 0; i < lesser<int>(size, newSize); i++;)
             newData[i] = data[i];
         delete<T>(data, 0);
         data = newData;
@@ -30,11 +30,11 @@ typedef template<T> vector (Destructable) {
         return true;
     }
 
-    |T| at(|int| index) {
+    fun at(index: int): T {
         return get(index);
     }
 
-    |T| get(|int| index) {
+    fun get(index: int): T {
         if (index < 0 || index >= size) {
             println("Vector access out of bounds! Retuning 0th element as sanest option");
             print("Vector tried to access element: ");
@@ -44,17 +44,18 @@ typedef template<T> vector (Destructable) {
         return data[index];
     }
 
-    |T*| getBackingMemory() { return data; }
+    fun getBackingMemory(): T* { return data; }
 
-    |void| set(|int| index, |T| dataIn) {
+    fun set(index: int, dataIn: T): void {
         if (index < 0 || index  >= size)
             return;
         data[index] = dataIn;
     }
-    |void| addEnd(|T| dataIn) {
+    fun addEnd(dataIn: T): void {
         size++;
         if (size >= available)
             resize(size*2);
         data[size-1] = dataIn;
     }
 };
+

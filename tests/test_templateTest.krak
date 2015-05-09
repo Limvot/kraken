@@ -1,11 +1,11 @@
 import io:*;
 import trivial_container:*;
 
-typedef template <T> TemplateTest {
-	|int| a;
-	|T| b;
-	|trivialContainer<T>| c;
-	|void| print() {
+typedef TemplateTest<T> {
+	var a: int;
+	var b: T;
+	var c: trivialContainer<T>;
+	fun print(): void {
 		print("a: ");
 		print(a);
 		print("\n");
@@ -19,17 +19,17 @@ typedef template <T> TemplateTest {
 
 typedef MyInt int;
 
-|MyInt| c;
+var c: MyInt;
 
 
-template <T> |T| addAndPrint(|T| a, |T| b) {
+fun addAndPrint<T>(a: T, b: T): T {
 	print(a+b);
 	return a+b;
 }
 
-|int| main() {
-	|TemplateTest<int>| test;
-	|TemplateTest<char*>| test2;
+fun main(): int {
+	var test: TemplateTest<int>;
+	var test2: TemplateTest<char*>;
 	test.a = 5;
 	test.b = 7;
 	test.c.data = 1337;
@@ -40,7 +40,7 @@ template <T> |T| addAndPrint(|T| a, |T| b) {
 	test.print();
 	test2.print();
 
-	|trivialContainer<char*>| testImport;
+	var testImport: trivialContainer<char*>;
 	testImport.data = "From another file! Whoh!";
 	testImport.print();
 	print("\n");

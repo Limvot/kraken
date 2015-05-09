@@ -1,10 +1,10 @@
 import io;
 
 
-typedef template <T> TemplateTest {
-	|int| a;
-	|T| b;
-	|void| print() {
+typedef TemplateTest<T> {
+	var a: int;
+	var b: T;
+	fun print(): void {
         io::print("a: ");
         io::print(a);
         io::print("\n");
@@ -14,10 +14,10 @@ typedef template <T> TemplateTest {
 	}
 };
 
-|int| main() {
+fun main(): int {
 
-	|TemplateTest<int>| test;
-	|TemplateTest<char*>| test2;
+	var test: TemplateTest<int>;
+	var test2: TemplateTest<char*>;
 	test.a = 5;
 	test.b = 7;
 	test2.a = 9;

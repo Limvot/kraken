@@ -1,27 +1,27 @@
-|int| unqualifed_variable = 8;
-|int| unqualified_func() { return 10; }
+var unqualifed_variable: int = 8;
+fun unqualified_func(): int { return 10; }
 
 typedef unqualified_class {
-    |int| number;
-    |unqualified_class*| construct(|int| num) {
+    var number: int;
+    fun construct(num: int): unqualified_class* {
         number = num;
         return this;
     }
-    |int| get() {
+    fun get(): int {
         return number;
     }
 };
 
-typedef template <T> unqualified_container {
-    |T| data;
-    |unqualified_container<T>*| construct(|T| dataIn) {
+typedef unqualified_container<T> {
+    var data: T;
+    fun construct(dataIn: T): unqualified_container<T>* {
         data = dataIn;
     }
-    |T| get() {
+    fun get(): T {
         return data;
     }
 };
 
-template<T> |T| unqualified_id(|T| it) {
+fun unqualified_id<T>(it: T): T {
     return it;
 }

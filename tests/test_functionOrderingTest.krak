@@ -1,17 +1,17 @@
 import io:*;
 
-|int| ret1() {
+fun ret1(): int {
 	return ret2() / 2;
 }
 
 
-|int| main() {
+fun main(): int {
 	print(ret1());
 	print(ret2());
 	print("\n");
 	return 0;
 }
 
-|int| ret2() {
+fun ret2(): int {
 	return 2;
 }

@@ -1,11 +1,11 @@
 import io;
 
-template <T> |T| addAndPrint(|T| a, |T| b) {
+fun addAndPrint<T>(a: T, b: T): T {
     io::print(a+b);
 	return a+b;
 }
 
-|int| main() {
+fun main(): int {
 	addAndPrint<int>(10,12);
     io::print("\n");
 

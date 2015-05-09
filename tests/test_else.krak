@@ -1,7 +1,7 @@
 import io:*;
 
 
-|int| main() {
+fun main(): int {
     if (1>2) {
         println("Wrong");
     } else {

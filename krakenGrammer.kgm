@@ -26,7 +26,7 @@ WS = actual_white | WS comment WS | WS comment | ;
 # cpp_comment lets us do stuff like ending a statement with a cpp comment - c comments already work as they don't eat the return
 
 maybe_line_white = "( |	)+" | ;
-line_end = maybe_line_white ";" | maybe_line_white line_break | maybe_line_white cpp_comment ;
+line_end = maybe_line_white ";" | maybe_line_white line_break | maybe_line_white cpp_comment | WS c_comment line_end ;
 
 # line_end = "( |	)+" ";" | "( |	)+" line_break | "( |	)+" cpp_comment | ";" | line_break | cpp_comment ;
 # line_end = WS ";" | WS line_break | WS cpp_comment ;

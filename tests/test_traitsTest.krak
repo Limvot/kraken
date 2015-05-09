@@ -7,19 +7,19 @@ typedef Trait2 (SecondTrait) {};
 typedef TwoTrait (FirstTrait, SecondTrait) {};
 typedef AlreadySpecilized (FirstTrait, SecondTrait) {};
 
-template <T> |void| OneTwoFunc(|T| obj) {
+fun OneTwoFunc<T>(obj: T): void {
     println("No Traits");
 }
 
-template <T(FirstTrait)> |void| OneTwoFunc(|T| obj) {
+fun OneTwoFunc<T(FirstTrait)>(obj: T): void {
     println("First Trait");
 }
 
-template <T(SecondTrait)> |void| OneTwoFunc(|T| obj) {
+fun OneTwoFunc<T(SecondTrait)>(obj: T): void {
     println("Second Trait");
 }
 
-template <T(FirstTrait, SecondTrait)> |void| OneTwoFunc(|T| obj) {
+fun OneTwoFunc<T(FirstTrait, SecondTrait)>(obj: T): void {
     println("Both Traits");
 }
 /*
@@ -30,10 +30,10 @@ template <AlreadySpecilized> |void| OneTwoFunc(|AlreadySpecilized| obj) {
 //This should work for objects too!
 //To test, we cycle the mapping of traits
 
-typedef template<T> OneTwoObj (FirstTrait) {};
-typedef template<T(FirstTrait)> OneTwoObj (SecondTrait) {};
-typedef template<T(SecondTrait)> OneTwoObj (FirstTrait, SecondTrait) {};
-typedef template<T(FirstTrait, SecondTrait)> OneTwoObj {};
+typedef OneTwoObj<T> (FirstTrait) {};
+typedef OneTwoObj<T(FirstTrait)> (SecondTrait) {};
+typedef OneTwoObj<T(SecondTrait)> (FirstTrait, SecondTrait) {};
+typedef OneTwoObj<T(FirstTrait, SecondTrait)> {};
 /*
  *typedef template<AlreadySpecilized> OneTwoObj {
  *    void proveSpecilized() {
@@ -42,12 +42,12 @@ typedef template<T(FirstTrait, SecondTrait)> OneTwoObj {};
  *};
  */
 
-|int| main() {
-    |NoTraits| a;
-    |Trait1| b;
-    |Trait2| c;
-    |TwoTrait| d;
-    |AlreadySpecilized| e;
+fun main(): int {
+    var a: NoTraits;
+    var b: Trait1;
+    var c: Trait2;
+    var d: TwoTrait;
+    var e: AlreadySpecilized;
 
     OneTwoFunc<NoTraits>(a);
     OneTwoFunc<Trait1>(b);
@@ -57,10 +57,10 @@ typedef template<T(FirstTrait, SecondTrait)> OneTwoObj {};
 
     println();
 
-    |OneTwoObj<NoTraits>| alpha;
-    |OneTwoObj<Trait1>| beta;
-    |OneTwoObj<Trait2>| gamma;
-    |OneTwoObj<TwoTrait>| delta;
+    var alpha: OneTwoObj<NoTraits>;
+    var beta: OneTwoObj<Trait1>;
+    var gamma: OneTwoObj<Trait2>;
+    var delta: OneTwoObj<TwoTrait>;
 //    |OneTwoObj<AlreadySpecilized>| epsilon;
 
     OneTwoFunc<OneTwoObj<NoTraits>>(alpha);

@@ -4,11 +4,11 @@ __if_comp__ __C__ simple_passthrough """
 	#include <stdio.h>
 """
 
-|void| println() {
+fun println() : void {
     print("\n");
 }
 
-|void| print(|char*| toPrint) {
+fun print(toPrint: char*) : void {
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
 			printf(toPrint);
@@ -17,20 +17,20 @@ __if_comp__ __C__ simple_passthrough """
 	return;
 }
 
-|void| println(|char*| toPrint) {
+fun println(toPrint: char*) : void {
     print(toPrint);
     println();
 }
 
-|void| print(|string| toPrint) {
+fun print(toPrint: string) : void {
     print(toPrint.toCharArray());
 }
 
-|void| println(|string| toPrint) {
+fun println(toPrint: string): void {
     println(toPrint.toCharArray());
 }
 
-|void| print(|int| toPrint) {
+fun print(toPrint: int): void {
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
 			printf("%d", toPrint);
@@ -39,12 +39,12 @@ __if_comp__ __C__ simple_passthrough """
 	return;
 }
 
-|void| println(|int| toPrint) {
+fun println(toPrint: int): void {
     print(toPrint);
     println();
 }
 
-|void| print(|float| toPrint) {
+fun print(toPrint: float): void {
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
 			printf("%f", toPrint);
@@ -53,7 +53,7 @@ __if_comp__ __C__ simple_passthrough """
 	return;
 }
 
-|void| print(|double| toPrint) {
+fun print(toPrint: double) : void{
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
 			printf("%f", toPrint);
@@ -62,20 +62,15 @@ __if_comp__ __C__ simple_passthrough """
 	return;
 }
 
-|void| println(|float| toPrint) {
+fun println(toPrint: float): void {
     print(toPrint);
     println();
 }
 
-|void| println(|double| toPrint){
+fun println(toPrint: double): void {
     print(toPrint);
     println();
 }
-
-
-
-
-
 
 
 

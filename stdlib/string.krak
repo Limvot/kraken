@@ -2,12 +2,12 @@ import vector;
 import mem;
 
 typedef string (Destructable) {
-    |vector::vector<char>| data;
-    |string*| construct() {
+    var data: vector::vector<char>;
+    fun construct(): string* {
         data.construct();
         return this;
     }
-    |string*| construct(|char*| str) {
+    fun construct(str: char*): string* {
         data.construct();
         while(*str) {
             data.addEnd(*str);
@@ -16,9 +16,9 @@ typedef string (Destructable) {
         return this;
     }
 
-    |char*| toCharArray() {
-        |char*| out = mem::new<char>(data.size);
-        for (|int| i = 0; i < data.size; i++;)
+    fun toCharArray(): char* {
+        var out: char* = mem::new<char>(data.size);
+        for (var i: int = 0; i < data.size; i++;)
             out[i] = data.get(i);
         return out;
     }

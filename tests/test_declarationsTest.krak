@@ -2,24 +2,24 @@ import io:*;
 import mem:*;
 
 typedef ClassWithConstructor {
-    |int| data;
-    |ClassWithConstructor*| construct(|int| inData) {
+    var data: int;
+    fun construct(inData: int): ClassWithConstructor* {
         data = inData;
         return this;
     }
-    |void| printData() {
+    fun printData(): void {
         println(data);
     }
 };
 
-|int| main() {
-    |ClassWithConstructor| object.construct(4);
+fun main(): int {
+    var object.construct(4): ClassWithConstructor;
     //ClassWithConstructor object;
     //object.construct(4);
     object.printData();
-    |int| a = 8;
+    var a: int = 8;
     println(a);
-    |ClassWithConstructor*| objPtr = new<ClassWithConstructor>()->construct(11);
+    var objPtr: ClassWithConstructor* = new<ClassWithConstructor>()->construct(11);
     objPtr->printData();
     delete<ClassWithConstructor>(objPtr);
     return 0;
