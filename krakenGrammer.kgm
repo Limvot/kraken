@@ -104,7 +104,8 @@ number = integer | floating_literal ;
 access_operation = unarad "." identifier | unarad "->" identifier ;
 
 assignment_statement = factor WS "=" WS boolean_expression | factor WS "\+=" WS boolean_expression | factor WS "-=" WS boolean_expression | factor WS "\*=" WS boolean_expression | factor WS "/=" WS boolean_expression ;
-declaration_statement = "var" WS identifier WS dec_type WS "=" WS boolean_expression | "var" WS identifier WS dec_type | "var" WS identifier WS "." WS identifier WS "\(" WS opt_parameter_list WS "\)" WS dec_type ;
+# if it's being assigned to, we allow type inferencing
+declaration_statement = "var" WS identifier WS "=" WS boolean_expression | "var" WS identifier WS dec_type WS "=" WS boolean_expression | "var" WS identifier WS dec_type | "var" WS identifier WS "." WS identifier WS "\(" WS opt_parameter_list WS "\)" WS dec_type ;
 hexadecimal = "0x(1|2|3|4|5|6|7|8|9|a|b|c|d|e|f)+" ;
 integer = numeric | hexadecimal ;
 floating_literal = numeric "." numeric ;

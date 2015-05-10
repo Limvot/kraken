@@ -19,6 +19,11 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		ASTTransformation(Importer* importerIn);
 		~ASTTransformation();
 
+        NodeTree<Symbol>* getNode(std::string lookup, std::vector<NodeTree<Symbol>*> nodes);
+        NodeTree<Symbol>* getNode(std::string lookup, NodeTree<Symbol>* parent);
+        std::vector<NodeTree<Symbol>*> getNodes(std::string lookup, std::vector<NodeTree<Symbol>*> nodes);
+        std::vector<NodeTree<Symbol>*> getNodes(std::string lookup, NodeTree<Symbol>* parent);
+
 		//First pass defines all type_defs (objects and ailises)
 		NodeTree<ASTData>* firstPass(std::string fileName, NodeTree<Symbol>* parseTree);
         std::set<std::string> parseTraits(NodeTree<Symbol>* traitsNode);

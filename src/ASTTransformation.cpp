@@ -39,6 +39,33 @@ ASTTransformation::ASTTransformation(Importer *importerIn) {
 ASTTransformation::~ASTTransformation() {
 }
 
+NodeTree<Symbol>* ASTTransformation::getNode(std::string lookup, NodeTree<Symbol>* parent) {
+    auto results = getNodes(lookup, parent);
+    if (results.size() > 1)
+        throw "too many results";
+    if (results.size())
+        return results[0];
+    return nullptr;
+}
+NodeTree<Symbol>* ASTTransformation::getNode(std::string lookup, std::vector<NodeTree<Symbol>*> nodes) {
+    auto results = getNodes(lookup, nodes);
+    if (results.size() > 1)
+        throw "too many results";
+    if (results.size())
+        return results[0];
+    return nullptr;
+}
+std::vector<NodeTree<Symbol>*> ASTTransformation::getNodes(std::string lookup, NodeTree<Symbol>* parent) {
+    return getNodes(lookup, parent->getChildren());
+}
+std::vector<NodeTree<Symbol>*> ASTTransformation::getNodes(std::string lookup, std::vector<NodeTree<Symbol>*> nodes) {
+    std::vector<NodeTree<Symbol>*> results;
+    for (auto i : nodes)
+        if (i->getDataRef()->getName() == lookup)
+            results.push_back(i);
+    return results;
+}
+
 //First pass defines all type_defs (objects and ailises), and if_comp/simple_passthrough
 NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<Symbol>* parseTree) {
 	NodeTree<ASTData>* translationUnit = new NodeTree<ASTData>("translation_unit", ASTData(translation_unit, Symbol(fileName, false)));
@@ -580,20 +607,24 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		// NodeTree<ASTData>* newIdentifier = transform(children[1], scope); //Transform the identifier
 		// newIdentifier->getDataRef()->valueType = Type(concatSymbolTree(children[0]));//set the type of the identifier
 		std::string newIdentifierStr = concatSymbolTree(children[0]);
-		Type* identifierType;
-        if (children.size() > 1 && concatSymbolTree(children[1]) == ".")
-            identifierType = typeFromTypeNode(children.back(), scope, templateTypeReplacements);
-        else
-            identifierType = typeFromTypeNode(children[2], scope, templateTypeReplacements);
+		NodeTree<Symbol>* typeSyntaxNode = getNode("type", children);
+		Type* identifierType = typeSyntaxNode ? typeFromTypeNode(typeSyntaxNode, scope, templateTypeReplacements) : nullptr;
+        //if (children.size() > 1 && concatSymbolTree(children[1]) == ".")
+            //identifierType = typeFromTypeNode(children.back(), scope, templateTypeReplacements);
+        //else
+            //identifierType = typeFromTypeNode(children[2], scope, templateTypeReplacements);
 
-		std::cout << "Declaring an identifier " << newIdentifierStr << " to be of type " << identifierType->toString() << std::endl;
-		NodeTree<ASTData>* newIdentifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), identifierType));
-        addToScope(newIdentifierStr, newIdentifier, scope);
-        addToScope("~enclosing_scope", scope, newNode);
-        addToScope("~enclosing_scope", newNode, newIdentifier);
-		newNode->addChild(newIdentifier);
+        if (identifierType)
+            std::cout << "Declaring an identifier " << newIdentifierStr << " to be of type " << identifierType->toString() << std::endl;
+        else
+            std::cout << "Declaring an identifier " << newIdentifierStr << " with type to be type-inferenced " << std::endl;
 
         if (children.size() > 1 && concatSymbolTree(children[1]) == ".") {
+            NodeTree<ASTData>* newIdentifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), identifierType));
+            addToScope(newIdentifierStr, newIdentifier, scope);
+            addToScope("~enclosing_scope", scope, newNode);
+            addToScope("~enclosing_scope", newNode, newIdentifier);
+            newNode->addChild(newIdentifier);
             //A bit of a special case for declarations - if there's anything after just the normal 1 node declaration, it's either
             //an expression that is assigned to the declaration (int a = 4;) or a member call (Object a.constructAThing())
             //This code is a simplified version of the code in function_call with respect to access_operation.
@@ -615,9 +646,28 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
             return newNode;
         }
 
-		skipChildren.insert(0); //These, the type and the identifier, have been taken care of.
-		skipChildren.insert(2);
-        newNode->addChildren(transformChildren(children, skipChildren, scope, types, templateTypeReplacements));
+		//skipChildren.insert(0); //These, the type and the identifier, have been taken care of.
+		//skipChildren.insert(2);
+        //auto transChildren = transformChildren(children, skipChildren, scope, types, templateTypeReplacements);
+        auto boolExp = getNode("boolean_expression", children);
+        NodeTree<ASTData>* toAssign = boolExp ? transform(boolExp, scope, types, templateTypeReplacements) : nullptr;
+        // for type inferencing
+        if (!identifierType) {
+            if (toAssign)
+                identifierType = toAssign->getDataRef()->valueType;
+            else
+                throw "have to inference but no expression";
+        }
+
+		NodeTree<ASTData>* newIdentifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), identifierType));
+        addToScope(newIdentifierStr, newIdentifier, scope);
+        addToScope("~enclosing_scope", scope, newNode);
+        addToScope("~enclosing_scope", newNode, newIdentifier);
+
+		newNode->addChild(newIdentifier);
+        if (toAssign)
+            newNode->addChild(toAssign);
+        //newNode->addChildren(transChildren);
 	    return newNode;
     } else if (name == "if_comp") {
 		newNode = new NodeTree<ASTData>(name, ASTData(if_comp));

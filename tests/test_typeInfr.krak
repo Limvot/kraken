@@ -1,0 +1,51 @@
+import io:*
+import mem:*
+import vector:*
+
+fun retMessage(): char* {
+    return "I do like type inference"
+}
+fun id<T>(in: T): T { return in; }
+
+typedef CustomObj {
+    var data: int;
+}
+
+typedef CustomObjTmplt<T> {
+    var data: T;
+}
+fun inFun<T>(in: T):T {
+    var src: CustomObjTmplt<T>
+    src.data = in
+    var dst = src
+    return dst.data
+}
+
+fun main():int {
+    var str = "hello"
+    var avar = 9
+    var mul = 9 * 3
+    var add = 9 + 3
+    var flt = 9.3
+    var msg = retMessage()
+    var fromTemplateFun = id<int>(11);
+    var vec = new<vector<int>>()->construct()
+    vec->addEnd(avar)
+
+    var src: CustomObj
+    src.data = 80
+    var dst = src
+    var throughTemp = inFun<char*>("complicated");
+
+    println(str)
+    println(avar)
+    println(mul)
+    println(add)
+    println(flt)
+    println(msg)
+    println(fromTemplateFun)
+    println(vec->at(0))
+    println(dst.data)
+    println(throughTemp)
+    return 0
+}
