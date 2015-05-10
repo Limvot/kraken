@@ -321,8 +321,11 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                         continue;
                     if (typeDefinition->getDataRef()->scope.find("destruct") == typeDefinition->getDataRef()->scope.end())
                         continue;
-                    destructorString += tabs() + scopePrefix(from) + CifyName(typeDefinition->getDataRef()->symbol.getName())
-                        + "__" + "destruct" + "(&" + generate(identifier, enclosingObject) + ");\n";//Call the destructor
+                    // ***************************************************************************************
+                    // I've decided not to do the destructor thing. This will come back soon for defer though!
+                    // ***************************************************************************************
+                    //destructorString += tabs() + scopePrefix(from) + CifyName(typeDefinition->getDataRef()->symbol.getName())
+                        //+ "__" + "destruct" + "(&" + generate(identifier, enclosingObject) + ");\n";//Call the destructor
                 }
             }
             output += destructorString;
