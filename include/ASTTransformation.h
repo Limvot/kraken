@@ -47,7 +47,7 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		NodeTree<ASTData>* doFunction(NodeTree<ASTData>* scope, std::string lookup, std::vector<NodeTree<ASTData>*> nodes, std::map<std::string, Type*> templateTypeReplacements);
 
         NodeTree<ASTData>* functionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type> types);
-        NodeTree<ASTData>* templateFunctionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*> templateInstantiationTypes, std::vector<Type> types);
+        NodeTree<ASTData>* templateFunctionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*>* templateInstantiationTypes, std::vector<Type> types);
         std::vector<NodeTree<ASTData>*> scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules = false);
         std::vector<NodeTree<ASTData>*> scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules, std::vector<NodeTree<ASTData>*> visited);
 
@@ -55,6 +55,8 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
         NodeTree<ASTData>* addToScope(std::string name, NodeTree<ASTData>* toAdd, NodeTree<ASTData>* addTo);
         Type* typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements);
         NodeTree<ASTData>* templateClassLookup(NodeTree<ASTData>* scope, std::string name, std::vector<Type*> templateInstantiationTypes);
+        void unifyType(NodeTree<Symbol> *syntaxType, Type type, std::map<std::string, Type>* templateTypeMap);
+        void unifyTemplateFunction(NodeTree<ASTData>* templateFunction, std::vector<Type> types, std::vector<Type*>* templateInstantiationTypes);
 		NodeTree<ASTData>* findOrInstantiateFunctionTemplate(std::vector<NodeTree<Symbol>*> children, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements);
         std::map<std::string, Type*> makeTemplateFunctionTypeMap(NodeTree<Symbol>* templateNode, std::vector<Type*> types);
         std::vector<std::pair<std::string, std::set<std::string>>> makeTemplateNameTraitPairs(NodeTree<Symbol>* templateNode);

@@ -375,8 +375,10 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		if (types.size()) {
             newNode = functionLookup(scope, lookupName, types);
 		    if (newNode == NULL) {
-			    std::cerr << "scope lookup error! Could not find " << lookupName << " in identifier (functionLookup)" << std::endl;
-			    throw "LOOKUP ERROR: " + lookupName;
+			    std::cout << "scope lookup failed! Could not find " << lookupName << " in identifier (functionLookup)" << std::endl;
+			    std::cout << "(maybe this is supposted to happen because the function is a template and we're infrencing)" << std::endl;
+				//throw "LOOKUP ERROR: " + lookupName;
+                return nullptr;
 		    }
         } else {
             auto possibleMatches = scopeLookup(scope, lookupName);
@@ -520,8 +522,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			if (name == "access_operation") {
 				std::cout << "lhs is: " << lhs->getDataRef()->toString() << std::endl;
 				rhs = transform(children[2], lhs->getDataRef()->valueType->typeDefinition, types, templateTypeReplacements); //If an access operation, then the right side will be in the lhs's type's scope
-			}
-			else
+			} else
 				rhs = transform(children[2], scope, types, templateTypeReplacements);
 
 			std::string functionCallName = concatSymbolTree(children[1]);
@@ -536,12 +537,17 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			}
 			return newNode;
 			//skipChildren.insert(1);
-		} else if (children.size() == 2) {
-			//Is template instantiation
-			return findOrInstantiateFunctionTemplate(children, scope, types, templateTypeReplacements);
-		} else {
-			return transform(children[0], scope, types, templateTypeReplacements); //Just a promoted child, so do it instead
 		}
+        if (children.size() == 1) {
+			newNode = transform(children[0], scope, types, templateTypeReplacements); //Just a promoted child, so do it instead
+            if (newNode)
+                return newNode;
+        }
+        // So if children.size() != 1, or that returned null because the function lookup failed,
+        // we try to do a template instatiation. If it had 2 children, it's an instantion, if it has 1
+        // maybe it's a template instantiation we're supposed to infer the types for. Either way, we let
+        // findorinstantiatefunctiontemplate take care of it.
+        return findOrInstantiateFunctionTemplate(children, scope, types, templateTypeReplacements);
 	} else if (name == "factor") { //Do factor here, as it has all the weird unary operators
 		//If this is an actual part of an expression, not just a premoted child
 		//NO SUPPORT FOR CASTING YET
@@ -917,11 +923,10 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
 			for (int j = 0; j < types.size(); j++) {
 				Type* tmpType = children[j]->getDataRef()->valueType;
 				//Don't worry if types don't match if it's a template type
-				// std::cout << "Checking for segfaults, we have" << std::endl;
-				// std::cout << types[j].toString() << std::endl;
-				// std::cout << tmpType->toString() << std::endl;
-				// std::cout << "Done!" << std::endl;
-				if (types[j] != *tmpType && tmpType->baseType != template_type_type) {
+				//if (types[j] != *tmpType && tmpType->baseType != template_type_type) {
+                // WE DO WORRY NOW B/C template type infrence is ugly and we need this to fail
+                // for regular function lookups so that we know to retry with a template
+				if (types[j] != *tmpType) {
 					typesMatch = false;
 					std::cout << "Types do not match between two " << lookup << " " << types[j].toString();
 					std::cout << " vs " << children[j]->getDataRef()->valueType->toString() << std::endl;
@@ -1005,8 +1010,41 @@ NodeTree<ASTData>* ASTTransformation::templateClassLookup(NodeTree<ASTData>* sco
     return *mostFittingTemplates.begin();
 }
 
+void ASTTransformation::unifyType(NodeTree<Symbol> *syntaxType, Type type, std::map<std::string, Type>* templateTypeMap) {
+    // Ok, 3 options for syntaxType here.
+    //  1) This a basic type. (int, or object, etc)
+    //      then check to see if it's the same as our type
+    //  2) This is a template type type (i.e. T)
+    //      match! set up templateTypeMap[T] -> type
+    //  3) This some sort of instantiated template
+    //      a) instantiated with some other type (i.e. vector<int>)
+    //          this will be a bit of a pain
+    //      b) instantiated with a template type type (i.e. vector<T>)
+    //          this will be a bit of a pain too
+
+    auto children = syntaxType->getChildren();
+    if (children.size() == 1) {
+        (*templateTypeMap)[concatSymbolTree(children.back())] = type;
+    } else {
+        throw "the inference just isn't good enough";
+    }
+}
+
+void ASTTransformation::unifyTemplateFunction(NodeTree<ASTData>* templateFunction, std::vector<Type> types, std::vector<Type*>* templateInstantiationTypes) {
+    NodeTree<Symbol>* templateSyntaxTree = templateFunction->getDataRef()->valueType->templateDefinition;
+    std::vector<NodeTree<Symbol>*> templateParameters = getNodes("typed_parameter", templateSyntaxTree);
+    if (templateParameters.size() != types.size())
+        return;
+    std::map<std::string, Type> templateTypeMap;
+    for (int i = 0; i < types.size(); i++)
+        unifyType(getNode("type", templateParameters[i]), types[i], &templateTypeMap);
+    for (auto instantiationParam : getNodes("template_param", getNode("template_dec", templateSyntaxTree)))
+        templateInstantiationTypes->push_back(templateTypeMap[concatSymbolTree(instantiationParam)].clone());
+}
+
 //Lookup function for template functions. It has some extra concerns compared to function lookup, namely traits
-NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*> templateInstantiationTypes, std::vector<Type> types) {
+NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*>* templateInstantiationTypes, std::vector<Type> types) {
+    std::map<NodeTree<ASTData>*, std::vector<Type*>> templateInstantiationTypesPerFunction;
     std::set<NodeTree<ASTData>*> mostFittingTemplates;
     int bestNumTraitsSatisfied = -1;
     auto possibleMatches = scopeLookup(scope, lookup);
@@ -1019,10 +1057,14 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
             std::cout << "Not a template, skipping" << std::endl;
             continue;
         }
-
+        // If template instantiation was explicit, use those types. Otherwise, unify to find them
+        if (templateInstantiationTypes->size())
+            templateInstantiationTypesPerFunction[i] = *templateInstantiationTypes;
+        else
+            unifyTemplateFunction(i, types, &templateInstantiationTypesPerFunction[i]);
         auto nameTraitsPairs = makeTemplateNameTraitPairs(templateSyntaxTree->getChildren()[1]);
         //Check if sizes match between the placeholder and actual template types
-        if (nameTraitsPairs.size() != templateInstantiationTypes.size())
+        if (nameTraitsPairs.size() != templateInstantiationTypesPerFunction[i].size())
             continue;
 
         std::map<std::string, Type*> typeMap;
@@ -1030,23 +1072,23 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         int typeIndex = 0;
         int currentTraitsSatisfied = 0;
         for (auto j : nameTraitsPairs) {
-            if (!subset(j.second, templateInstantiationTypes[typeIndex]->traits)) {
+            if (!subset(j.second, templateInstantiationTypesPerFunction[i][typeIndex]->traits)) {
                 traitsEqual = false;
-                std::cout << "Traits not a subset for " << j.first << " and " << templateInstantiationTypes[typeIndex]->toString() << ": ";
+                std::cout << "Traits not a subset for " << j.first << " and " << templateInstantiationTypesPerFunction[i][typeIndex]->toString() << ": ";
                 std::copy(j.second.begin(), j.second.end(), std::ostream_iterator<std::string>(std::cout, " "));
                 std::cout << " vs ";
-                std::copy(templateInstantiationTypes[typeIndex]->traits.begin(), templateInstantiationTypes[typeIndex]->traits.end(), std::ostream_iterator<std::string>(std::cout, " "));
+                std::copy(templateInstantiationTypesPerFunction[i][typeIndex]->traits.begin(), templateInstantiationTypesPerFunction[i][typeIndex]->traits.end(), std::ostream_iterator<std::string>(std::cout, " "));
                 std::cout << std::endl;
                 break;
             } else {
-                std::cout << "Traits ARE a subset for " << j.first << " and " << templateInstantiationTypes[typeIndex]->toString() << ": ";
+                std::cout << "Traits ARE a subset for " << j.first << " and " << templateInstantiationTypesPerFunction[i][typeIndex]->toString() << ": ";
                 std::copy(j.second.begin(), j.second.end(), std::ostream_iterator<std::string>(std::cout, " "));
                 std::cout << " vs ";
-                std::copy(templateInstantiationTypes[typeIndex]->traits.begin(), templateInstantiationTypes[typeIndex]->traits.end(), std::ostream_iterator<std::string>(std::cout, " "));
+                std::copy(templateInstantiationTypesPerFunction[i][typeIndex]->traits.begin(), templateInstantiationTypesPerFunction[i][typeIndex]->traits.end(), std::ostream_iterator<std::string>(std::cout, " "));
                 std::cout << std::endl;
             }
             //As we go, build up the typeMap for when we transform the parameters for parameter checking
-            typeMap[j.first] = templateInstantiationTypes[typeIndex];
+            typeMap[j.first] = templateInstantiationTypesPerFunction[i][typeIndex];
             currentTraitsSatisfied += j.second.size();
             typeIndex++;
         }
@@ -1087,6 +1129,11 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         std::cerr << "Multiple template functions fit with equal number of traits satisfied for " << lookup << "!" << std::endl;
         throw "Multiple matching template functions";
     }
+    // Assign our most fitting instantiation types to what we were passed in
+    // if it was empty
+    if (templateInstantiationTypes->size() == 0)
+        *templateInstantiationTypes = templateInstantiationTypesPerFunction[*mostFittingTemplates.begin()];
+    std::cout << *mostFittingTemplates.begin() << std::endl;
     return *mostFittingTemplates.begin();
 }
 
@@ -1263,7 +1310,7 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
                  * WE RETURN EARLY IF ONE OF OUR REPLACEMENT INST TYPES IS TEMPLATE_TYPE_TYPE
                  * WE DO THIS BECAUSE WE CAN'T ACTUALLY INSTATNTIATE WITH THIS.
                  * THIS CAN HAPPEN IN THE FOLLOWING SITUATIONS.
-                 * template<T> |T| fun(|vec<T>| a) { return a.at(0); }
+                 * fun example<T>(a:vec<T>):T { return a.at(0); }
                  * etc
                  *******************************************************************************/
                 if (instType->baseType == template_type_type)
@@ -1351,24 +1398,34 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
 	//First look to see if we can find this already instantiated
 	std::cout << "\n\nFinding or instantiating templated function\n\n" << std::endl;
 	std::string functionName = concatSymbolTree(children[0]);
-
-    auto unsliced = children[1]->getChildren();
-    std::vector<NodeTree<Symbol>*> templateParamInstantiationNodes = slice(unsliced, 1 , -2, 2);//skip <, >, and commas
-    std::string instTypeString = "";
+    std::string fullyInstantiatedName;
     std::vector<Type*> templateActualTypes;
-    for (int i = 0; i < templateParamInstantiationNodes.size(); i++) {
-        Type* instType = typeFromTypeNode(templateParamInstantiationNodes[i],scope, templateTypeReplacements);
-        instTypeString += (instTypeString == "" ? instType->toString() : "," + instType->toString());
-        templateActualTypes.push_back(instType);
-    }
-    std::cout << "Size: " << templateParamInstantiationNodes.size() << std::endl;
-	std::string fullyInstantiatedName = functionName + "<" + instTypeString + ">";
-	std::cout << "Looking for " << fullyInstantiatedName << std::endl;
+	NodeTree<ASTData>* templateDefinition = NULL;
 
+    // Are we supposed to infer our instantiation, or not? If we have only one child we're inferring as we don't
+    // have the actual instantiation part. If do have the instantiation part, then we'll use that.
+    // Note that as a part o finferring the instantiation we already find the template, so we make that
+    // condtitional too (templateDefinition)
+    if (children.size() == 1) {
+        // templateFunctionLookup adds the actual types to templateActualTypes if it's currently empty
+        templateDefinition = templateFunctionLookup(scope, functionName, &templateActualTypes, types);
+    } else {
+        auto unsliced = children[1]->getChildren();
+        std::vector<NodeTree<Symbol>*> templateParamInstantiationNodes = slice(unsliced, 1 , -2, 2);//skip <, >, and commas
+        std::string instTypeString = "";
+        for (int i = 0; i < templateParamInstantiationNodes.size(); i++) {
+            Type* instType = typeFromTypeNode(templateParamInstantiationNodes[i],scope, templateTypeReplacements);
+            instTypeString += (instTypeString == "" ? instType->toString() : "," + instType->toString());
+            templateActualTypes.push_back(instType);
+        }
+        std::cout << "Size: " << templateParamInstantiationNodes.size() << std::endl;
+        fullyInstantiatedName = functionName + "<" + instTypeString + ">";
+        std::cout << "Looking for " << fullyInstantiatedName << std::endl;
+    }
     std::cout << "Types are : ";
-	for (auto i : types)
-		std::cout << " " << i.toString();
-	std::cout << std::endl;
+    for (auto i : types)
+        std::cout << " " << i.toString();
+    std::cout << std::endl;
 
 	NodeTree<ASTData>* instantiatedFunction = functionLookup(scope, fullyInstantiatedName, types);
 	//If it already exists, return it
@@ -1386,7 +1443,11 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
 
 	//Otherwise, we're going to instantiate it
 	//Find the template definitions
-	NodeTree<ASTData>* templateDefinition = templateFunctionLookup(scope, functionName, templateActualTypes, types);
+    // templateFunctionLookup adds the actual types to templateActualTypes if it's currently empty
+    // by here, it's not as either we had the instantiation already or we figured out out before
+    // and are not actually doing this call
+    if (!templateDefinition)
+        templateDefinition = templateFunctionLookup(scope, functionName, &templateActualTypes, types);
 	if (templateDefinition == NULL) {
 		std::cout << functionName << " search turned up null, returing null" << std::endl;
 		return NULL;
@@ -1402,17 +1463,12 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
 	std::cout << std::endl;
 
 	instantiatedFunction = new NodeTree<ASTData>("function", ASTData(function, Symbol(fullyInstantiatedName, true), typeFromTypeNode(templateChildren[templateChildren.size()-2], scope, newTemplateTypeReplacement)));
-	//scope->getDataRef()->scope[fullyInstantiatedName].push_back(instantiatedFunction);
-	//instantiatedFunction->getDataRef()->scope["~enclosing_scope"].push_back(templateDefinition->getDataRef()->scope["~enclosing_scope"][0]); //Instantiated Template Function's scope is it's template's definition's scope
     addToScope("~enclosing_scope", templateDefinition->getDataRef()->scope["~enclosing_scope"][0], instantiatedFunction);
     // Arrrrrgh this has a hard time working because the functions will need to see their parameter once they are emitted as C.
     // HAHAHAHAHA DOESN'T MATTER ALL ONE C FILE NOW, swap back to old way
     auto templateTopScope = getUpperTranslationUnit(templateDefinition);
-    //templateTopScope->getDataRef()->scope[fullyInstantiatedName].push_back(instantiatedFunction);
     addToScope(fullyInstantiatedName, instantiatedFunction, templateTopScope);
     templateTopScope->addChild(instantiatedFunction); // Add this object the the highest scope's
-    //topScope->getDataRef()->scope[fullyInstantiatedName].push_back(instantiatedFunction);
-    //topScope->addChild(instantiatedFunction); //Add this object the the highest scope's
 
 	std::set<int> skipChildren;
 	skipChildren.insert(0);

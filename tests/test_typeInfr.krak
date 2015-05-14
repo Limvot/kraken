@@ -28,14 +28,14 @@ fun main():int {
     var add = 9 + 3
     var flt = 9.3
     var msg = retMessage()
-    var fromTemplateFun = id<int>(11);
+    var fromTemplateFun = id(11);
     var vec = new<vector<int>>()->construct()
     vec->addEnd(avar)
 
     var src: CustomObj
     src.data = 80
     var dst = src
-    var throughTemp = inFun<char*>("complicated");
+    var throughTemp = inFun("complicated");
 
     println(str)
     println(avar)
