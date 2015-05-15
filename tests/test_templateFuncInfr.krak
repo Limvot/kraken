@@ -9,7 +9,6 @@ fun main():int {
     var fromTemplateFun = id(11)
     var aVec.construct(): vector<int>
     aVec.addEnd(12)
-    //var fromTemplateFun = id<int>(11);
     println(fromTemplateFun)
     println(idVec(aVec))
     //println(idVec<int>(aVec))

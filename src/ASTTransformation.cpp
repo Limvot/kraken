@@ -1026,6 +1026,24 @@ void ASTTransformation::unifyType(NodeTree<Symbol> *syntaxType, Type type, std::
     if (children.size() == 1) {
         (*templateTypeMap)[concatSymbolTree(children.back())] = type;
     } else {
+        if (type.typeDefinition) {
+            // ok, what happens here is that we get the origional type from our type. This is
+            // the same as the type we have now but it still has extra data from when it was instantiated
+            // like the templateTypeReplacement map, which we'll use.
+            // We get the <T, int, ...> etc part from the template we're matching against and unify it with the
+            // actual types the type we're unifying with used by passing it's <A, B, ...> through the templateTypeReplacement
+            // to get the type it was instantiated with.
+            auto origionalType = type.typeDefinition->getDataRef()->valueType;
+            auto typeTemplateDefinition = origionalType->templateDefinition;
+            if (typeTemplateDefinition && concatSymbolTree(getNode("scoped_identifier", children)) == concatSymbolTree(getNode("identifier", typeTemplateDefinition->getChildren()))) {
+                    std::vector<NodeTree<Symbol>*> uninTypeInstTypes = getNodes("type", getNode("template_inst", children));
+                    std::vector<NodeTree<Symbol>*> typeInstTypes = getNodes("template_param", getNode("template_dec", typeTemplateDefinition->getChildren()));
+                    for (int i = 0; i < uninTypeInstTypes.size(); i++)
+                        unifyType(uninTypeInstTypes[i], *origionalType->templateTypeReplacement[concatSymbolTree(typeInstTypes[i])], templateTypeMap);
+
+                    return;
+            }
+        }
         throw "the inference just isn't good enough";
     }
 }
@@ -1333,10 +1351,6 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
                 std::cout << "Did not find already instantiated template of " << templateLookupName << " at second check" << std::endl;
                 //Look up this template's plain definition. It's type has the syntax tree that we need to parse
                 NodeTree<ASTData>* templateDefinition = templateClassLookup(scope, concatSymbolTree(typeNode->getChildren()[0]), templateParamInstantiationTypes);
-                if (templateDefinition == NULL)
-                    std::cout << "Template definition is null!" << std::endl;
-                else
-                    std::cout << "Template definition is not null!" << std::endl;
 
                 std::string fullyInstantiatedName = templateDefinition->getDataRef()->symbol.getName() + "<" + instTypeString + ">";
 
