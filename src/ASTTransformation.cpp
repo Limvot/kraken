@@ -1013,12 +1013,14 @@ NodeTree<ASTData>* ASTTransformation::templateClassLookup(NodeTree<ASTData>* sco
 void ASTTransformation::unifyType(NodeTree<Symbol> *syntaxType, Type type, std::map<std::string, Type>* templateTypeMap) {
     // Ok, 3 options for syntaxType here.
     //  1) This a basic type. (int, or object, etc)
-    //      then check to see if it's the same as our type
+    //      THIS ONE will fall through and get put in the map, but it
+    //      doesn't matter b/c it'll get filterd out in unifyTemplateFunction
     //  2) This is a template type type (i.e. T)
     //      match! set up templateTypeMap[T] -> type
     //  3) This some sort of instantiated template
     //      a) instantiated with some other type (i.e. vector<int>)
-    //          this will be a bit of a pain
+    //          THIS ONE will fall through and get put in the map, but it
+    //          doesn't matter b/c it'll get filterd out in unifyTemplateFunction
     //      b) instantiated with a template type type (i.e. vector<T>)
     //          this will be a bit of a pain too
 

@@ -2,8 +2,18 @@ import io:*
 import mem:*
 import vector:*
 
+typedef pair<T, U> {
+    var first: T
+    var second: U
+}
+
 fun id<T>(in: T): T { return in; }
 fun idVec<T>(in: vector<T>): T { return in.get(0); }
+fun pairFun<T>(in: pair<T, int>, another:double): T {
+    println(in.second)
+    println(another)
+    return in.first;
+}
 
 fun main():int {
     var fromTemplateFun = id(11)
@@ -11,6 +21,10 @@ fun main():int {
     aVec.addEnd(12)
     println(fromTemplateFun)
     println(idVec(aVec))
-    //println(idVec<int>(aVec))
+    var testPair: pair<char*, int>
+    testPair.first = "test string"
+    testPair.second = 9
+    var someFloat = 13.88
+    println(pairFun(testPair, someFloat))
     return 0
 }
