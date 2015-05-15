@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <utility>
+#include <stack>
 #include <sys/stat.h>
 
 #include "NodeTree.h"
@@ -34,10 +35,13 @@ class CGenerator {
 		static std::string scopePrefix(NodeTree<ASTData>* from);
         std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from, std::string *functionPrototype);
         NodeTree<ASTData>* getMethodsObjectType(NodeTree<ASTData>* scope, std::string functionName);
+		std::string tabs();
+
+		int tabLevel;
 		std::string generatorString;
         std::string linkerString;
+        std::vector<std::vector<NodeTree<ASTData>*>> deferDoubleStack;
+        std::stack<int> loopDeferStackDepth;
 	private:
-		std::string tabs();
-		int tabLevel;
 };
 #endif

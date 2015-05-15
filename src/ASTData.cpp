@@ -58,6 +58,12 @@ std::string ASTData::ASTTypeToString(ASTType type) {
 			return "for_loop";
 		case return_statement:
 			return "return_statement";
+		case break_statement:
+			return "break_statement";
+		case continue_statement:
+			return "continue_statement";
+		case defer_statement:
+			return "defer_statement";
 		case assignment_statement:
 			return "assignment_statement";
 		case declaration_statement:

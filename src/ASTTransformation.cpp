@@ -586,6 +586,12 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		newNode = new NodeTree<ASTData>(name, ASTData(for_loop));
 	} else if (name == "return_statement") {
 		newNode = new NodeTree<ASTData>(name, ASTData(return_statement));
+	} else if (name == "break_statement") {
+		newNode = new NodeTree<ASTData>(name, ASTData(break_statement));
+	} else if (name == "continue_statement") {
+		newNode = new NodeTree<ASTData>(name, ASTData(continue_statement));
+	} else if (name == "defer_statement") {
+		newNode = new NodeTree<ASTData>(name, ASTData(defer_statement));
 	} else if (name == "assignment_statement") {
 		newNode = new NodeTree<ASTData>(name, ASTData(assignment_statement));
 		std::string assignFuncName = concatSymbolTree(children[1]);
@@ -609,16 +615,9 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		return newNode;
 	} else if (name == "declaration_statement") {
 		newNode = new NodeTree<ASTData>(name, ASTData(declaration_statement));
-
-		// NodeTree<ASTData>* newIdentifier = transform(children[1], scope); //Transform the identifier
-		// newIdentifier->getDataRef()->valueType = Type(concatSymbolTree(children[0]));//set the type of the identifier
 		std::string newIdentifierStr = concatSymbolTree(children[0]);
 		NodeTree<Symbol>* typeSyntaxNode = getNode("type", children);
 		Type* identifierType = typeSyntaxNode ? typeFromTypeNode(typeSyntaxNode, scope, templateTypeReplacements) : nullptr;
-        //if (children.size() > 1 && concatSymbolTree(children[1]) == ".")
-            //identifierType = typeFromTypeNode(children.back(), scope, templateTypeReplacements);
-        //else
-            //identifierType = typeFromTypeNode(children[2], scope, templateTypeReplacements);
 
         if (identifierType)
             std::cout << "Declaring an identifier " << newIdentifierStr << " to be of type " << identifierType->toString() << std::endl;
@@ -652,9 +651,6 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
             return newNode;
         }
 
-		//skipChildren.insert(0); //These, the type and the identifier, have been taken care of.
-		//skipChildren.insert(2);
-        //auto transChildren = transformChildren(children, skipChildren, scope, types, templateTypeReplacements);
         auto boolExp = getNode("boolean_expression", children);
         NodeTree<ASTData>* toAssign = boolExp ? transform(boolExp, scope, types, templateTypeReplacements) : nullptr;
         // for type inferencing
@@ -673,7 +669,6 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		newNode->addChild(newIdentifier);
         if (toAssign)
             newNode->addChild(toAssign);
-        //newNode->addChildren(transChildren);
 	    return newNode;
     } else if (name == "if_comp") {
 		newNode = new NodeTree<ASTData>(name, ASTData(if_comp));

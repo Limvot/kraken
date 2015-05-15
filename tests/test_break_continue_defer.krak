@@ -1,0 +1,20 @@
+import io:*
+
+fun main():int {
+    for (var i = 1; i < 10; i++;) {
+        {
+            defer println("happens every time, even when breaking or continueing")
+            if (i % 2 == 0)
+                continue
+            if (i == 9)
+                break
+            println(i)
+        }
+    }
+    {
+        println("first")
+        defer println("deferred")
+        println("last")
+    }
+    return 0
+}

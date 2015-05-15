@@ -87,7 +87,10 @@ return_statement = "return" | "return" WS boolean_expression ;
 code_block = "{" WS statement_list WS "}" | "{" WS "}" ;
 
 statement_list = statement_list WS statement | statement ;
-statement = if_statement | while_loop | for_loop | return_statement line_end | boolean_expression line_end | assignment_statement line_end | declaration_statement line_end | code_block | if_comp | simple_passthrough ; 
+statement = if_statement | while_loop | for_loop | return_statement line_end | boolean_expression line_end | assignment_statement line_end | declaration_statement line_end | code_block | if_comp | simple_passthrough | break_statement | continue_statement | defer_statement ; 
+break_statement = "break" ;
+continue_statement = "continue" ;
+defer_statement = "defer" WS statement ;
 function_call = unarad "\(" WS opt_parameter_list WS "\)" ;
 
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;

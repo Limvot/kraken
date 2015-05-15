@@ -304,31 +304,15 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		case code_block:
         {
 			output += "{\n";
-            std::string destructorString = "";
             tabLevel++;
-			for (int i = 0; i < children.size(); i++) {
-				//std::cout << "Line " << i << std::endl;
-				std::string line = generate(children[i], enclosingObject);
-				//std::cout << line << std::endl;
-				output += line;
-                if (children[i]->getChildren().size() && children[i]->getChildren()[0]->getDataRef()->type == declaration_statement) {
-                    NodeTree<ASTData> *identifier = children[i]->getChildren()[0]->getChildren()[0];
-                    Type* declarationType = identifier->getDataRef()->valueType;
-                    if (declarationType->getIndirection())
-                        continue;
-                    NodeTree<ASTData> *typeDefinition = declarationType->typeDefinition;
-                    if (!typeDefinition)
-                        continue;
-                    if (typeDefinition->getDataRef()->scope.find("destruct") == typeDefinition->getDataRef()->scope.end())
-                        continue;
-                    // ***************************************************************************************
-                    // I've decided not to do the destructor thing. This will come back soon for defer though!
-                    // ***************************************************************************************
-                    //destructorString += tabs() + scopePrefix(from) + CifyName(typeDefinition->getDataRef()->symbol.getName())
-                        //+ "__" + "destruct" + "(&" + generate(identifier, enclosingObject) + ");\n";//Call the destructor
-                }
-            }
-            output += destructorString;
+            // we push on a new vector to hold deferred statements
+            deferDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
+			for (int i = 0; i < children.size(); i++)
+				output += generate(children[i], enclosingObject);
+            // we pop off the vector and go through them in reverse emitting them
+            for (auto iter = deferDoubleStack.back().rbegin(); iter != deferDoubleStack.back().rend(); iter++)
+                output += generate(*iter, enclosingObject);
+            deferDoubleStack.pop_back();
             tabLevel--;
 			output += tabs() + "}";
 			return output;
@@ -348,24 +332,59 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 std::cout << "Then statement is a block, emitting the block not the statement so no trailing semicolon" << std::endl;
                 output += generate(children[1]->getChildren()[0], enclosingObject);
             } else {
+                // ALSO we always emit blocks now, to handle cases like defer when several statements need to be
+                // run in C even though it is a single Kraken statement
                 std::cout << "Then statement is a simple statement, regular emitting the statement so trailing semicolon" << std::endl;
-                output += generate(children[1], enclosingObject);
+                output += "{ " + generate(children[1], enclosingObject) + " }";
             }
+            // Always emit blocks here too
 			if (children.size() > 2)
-				output += " else " + generate(children[2], enclosingObject);
+				output += " else { " + generate(children[2], enclosingObject) + " }";
 			return output;
 		case while_loop:
+            // keep track of the current size of the deferDoubleStack so that statements that
+            // break or continue inside this loop can correctly emit all of the defers through
+            // all of the inbetween scopes
+            loopDeferStackDepth.push(deferDoubleStack.size());
 			output += "while (" + generate(children[0], enclosingObject) + ")\n\t" + generate(children[1], enclosingObject);
+            // and pop it off again
+            loopDeferStackDepth.pop();
 			return output;
 		case for_loop:
+            // keep track of the current size of the deferDoubleStack so that statements that
+            // break or continue inside this loop can correctly emit all of the defers through
+            // all of the inbetween scopes
+            loopDeferStackDepth.push(deferDoubleStack.size());
 			//The strSlice's are there to get ride of an unwanted return and an unwanted semicolon(s)
 			output += "for (" + strSlice(generate(children[0], enclosingObject),0,-3) + generate(children[1], enclosingObject) + ";" + strSlice(generate(children[2], enclosingObject),0,-3) + ")\n\t" + generate(children[3], enclosingObject);
+            // and pop it off again
+            loopDeferStackDepth.pop();
 			return output;
 		case return_statement:
+            // we pop off the vector and go through them in reverse emitting them, going
+            // through all of both arrays, as return will go through all scopes
+            for (auto topItr = deferDoubleStack.rbegin(); topItr != deferDoubleStack.rend(); topItr++)
+                for (auto iter = (*topItr).rbegin(); iter != (*topItr).rend(); iter++)
+                    output += generate(*iter, enclosingObject);
 			if (children.size())
 				return "return " + generate(children[0], enclosingObject);
 			else
 				return "return";
+		case break_statement:
+            // handle everything that's been deferred all the way back to the loop's scope
+            for (int i = deferDoubleStack.size()-1; i >= loopDeferStackDepth.top(); i--)
+                for (auto iter = deferDoubleStack[i].rbegin(); iter != deferDoubleStack[i].rend(); iter++)
+                    output += generate(*iter, enclosingObject);
+            return output + "break";
+		case continue_statement:
+            // handle everything that's been deferred all the way back to the loop's scope
+            for (int i = deferDoubleStack.size()-1; i >= loopDeferStackDepth.top(); i--)
+                for (auto iter = deferDoubleStack[i].rbegin(); iter != deferDoubleStack[i].rend(); iter++)
+                    output += generate(*iter, enclosingObject);
+            return output + "continue";
+		case defer_statement:
+            deferDoubleStack.back().push_back(children[0]);
+            return "/*defer " + generate(children[0], enclosingObject) + "*/";
 		case assignment_statement:
 			return generate(children[0], enclosingObject) + " = " + generate(children[1], enclosingObject);
 		case declaration_statement:
