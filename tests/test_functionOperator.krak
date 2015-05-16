@@ -1,0 +1,17 @@
+import io:*
+
+typedef FuncObj {
+    fun operator()(a:int, b:char*): void {
+        println(a)
+        println(b)
+    }
+}
+
+fun main():int {
+    var obj:FuncObj
+    obj(7, "hi")
+    return 0;
+}
+
+
+

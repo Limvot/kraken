@@ -376,8 +376,24 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
             newNode = functionLookup(scope, lookupName, types);
 		    if (newNode == NULL) {
 			    std::cout << "scope lookup failed! Could not find " << lookupName << " in identifier (functionLookup)" << std::endl;
-			    std::cout << "(maybe this is supposted to happen because the function is a template and we're infrencing)" << std::endl;
-				//throw "LOOKUP ERROR: " + lookupName;
+			    std::cout << "(maybe this is supposted to happen because the function is a template and we're infrencing), or this is a operator() call" << std::endl;
+                // Ok, now we try the case where the lookupName is an object, and we'll try to look for operator()
+                // in its scope
+                for (auto possibleObj : scopeLookup(scope, lookupName)) {
+                    NodeTree<ASTData> *typeDefinition = possibleObj->getDataRef()->valueType->typeDefinition;
+                    if (typeDefinition) {
+                        // ugly for now, it's just operator because the ( and ) have been removed by a removal
+                        // pass
+                        NodeTree<ASTData>* perenOp = functionLookup(typeDefinition, "operator", types);
+                        if (perenOp) {
+                            NodeTree<ASTData>* dotFunctionCall = new NodeTree<ASTData>(".", ASTData(function_call, Symbol(".", true)));
+                            dotFunctionCall->addChild(languageLevelOperators["."][0]); //function definition
+                            dotFunctionCall->addChild(possibleObj); // The object whose method we're calling
+                            dotFunctionCall->addChild(perenOp); //The method we're calling
+                            return dotFunctionCall;
+                        }
+                    }
+                }
                 return nullptr;
 		    }
         } else {
@@ -536,7 +552,6 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 				throw "LOOKUP ERROR: " + functionCallName;
 			}
 			return newNode;
-			//skipChildren.insert(1);
 		}
         if (children.size() == 1) {
 			newNode = transform(children[0], scope, types, templateTypeReplacements); //Just a promoted child, so do it instead
