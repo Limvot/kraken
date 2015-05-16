@@ -13,6 +13,14 @@ typedef vector<T> (Destructable) {
         data = new<T>(8);
         return this;
     }
+    
+    fun construct(newSize: int): vector<T>*{
+        size = newSize;
+        available = newSize;
+
+        data = new<T>(newSize);
+        return this;
+    }
 
     fun destruct(): void {
         delete<T>(data);
@@ -39,6 +47,8 @@ typedef vector<T> (Destructable) {
             println("Vector access out of bounds! Retuning 0th element as sanest option");
             print("Vector tried to access element: ");
             println(index);
+            print("Max Index of vector: ");
+            println(size-1); 
             return data[0];
         }
         return data[index];

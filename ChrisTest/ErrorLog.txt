@@ -1,5 +1,0 @@
-If two directories away from /GitHub/kraken/, can't find grammer file
-error with templated functions and templates
-
-else statements don't work FIXED
-!= doesn't work FIXED
