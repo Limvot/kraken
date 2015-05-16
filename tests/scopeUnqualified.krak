@@ -1,7 +1,7 @@
 var unqualifed_variable: int = 8;
 fun unqualified_func(): int { return 10; }
 
-typedef unqualified_class {
+obj unqualified_class {
     var number: int;
     fun construct(num: int): unqualified_class* {
         number = num;
@@ -12,7 +12,7 @@ typedef unqualified_class {
     }
 };
 
-typedef unqualified_container<T> {
+obj unqualified_container<T> {
     var data: T;
     fun construct(dataIn: T): unqualified_container<T>* {
         data = dataIn;

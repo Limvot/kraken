@@ -2,7 +2,7 @@ import mem:*;
 import util:*;
 import io:*;
 
-typedef vector<T> (Destructable) {
+obj vector<T> (Destructable) {
     var data: T*;
     var size: int;
     var available: int;
@@ -13,7 +13,7 @@ typedef vector<T> (Destructable) {
         data = new<T>(8);
         return this;
     }
-    
+
     fun construct(newSize: int): vector<T>*{
         size = newSize;
         available = newSize;
@@ -48,7 +48,7 @@ typedef vector<T> (Destructable) {
             print("Vector tried to access element: ");
             println(index);
             print("Max Index of vector: ");
-            println(size-1); 
+            println(size-1);
             return data[0];
         }
         return data[index];

@@ -1,6 +1,6 @@
 import io:*
 
-typedef FuncObj {
+obj FuncObj {
     fun operator()(a:int, b:char*): void {
         println(a)
         println(b)

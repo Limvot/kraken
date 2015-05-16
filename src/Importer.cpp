@@ -35,7 +35,8 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std:
 	removeSymbols.push_back(Symbol("__if_comp__", true));
 	removeSymbols.push_back(Symbol("simple_passthrough", true));
 	removeSymbols.push_back(Symbol("comp_simple_passthrough", true));
-	removeSymbols.push_back(Symbol("typedef", true));
+	removeSymbols.push_back(Symbol("def_nonterm", false));
+	removeSymbols.push_back(Symbol("obj_nonterm", false));
 	removeSymbols.push_back(Symbol("template", true));
 	removeSymbols.push_back(Symbol("\\|", true));
 	//collapseSymbols.push_back(Symbol("scoped_identifier", false));

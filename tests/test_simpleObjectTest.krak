@@ -1,6 +1,6 @@
 import io;
 
-typedef FirstObject {
+obj FirstObject {
 	var objectNum: int;
 	fun PrintSelf(a: int): void {
         io::print(objectNum);

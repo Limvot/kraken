@@ -1,6 +1,6 @@
 import io;
 
-typedef trivialContainer<T> {
+obj trivialContainer<T> {
 	var data: T;
 	fun print(): void {
         io::print(data);

@@ -1,7 +1,7 @@
 import io;
 
 
-typedef TemplateTest<T> {
+obj TemplateTest<T> {
 	var a: int;
 	var b: T;
 	fun print(): void {

@@ -2,7 +2,7 @@ import io:*;
 import mem:*;
 import vector:*;
 
-typedef AbleToBeDestroyed (Destructable) {
+obj AbleToBeDestroyed (Destructable) {
     fun destruct(): void {
         println("Destroyed!");
     }

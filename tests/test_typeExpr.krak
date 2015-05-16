@@ -1,6 +1,6 @@
 import io;
 
-typedef ClassWithConstructor {
+obj ClassWithConstructor {
     var data: int;
     fun construct(inData: int): ClassWithConstructor* {
         data = inData;

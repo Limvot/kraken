@@ -5,7 +5,7 @@ import sameNameTwo
 var sameVar: int;
 fun sameFun(): int { return 4; }
 
-typedef classTester {
+obj classTester {
     fun method(): int {
         return 7
     }

@@ -1,6 +1,6 @@
 
 var sameVar: int;
 fun sameFun(): int { return 6; }
-typedef classTester {
+obj classTester {
     fun method(): int { return 9; }
 }

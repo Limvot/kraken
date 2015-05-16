@@ -1,6 +1,6 @@
 import io:*;
 
-typedef firstObject {
+obj firstObject {
 	var objectNum: int;
 	var other: int;
 	fun print(): void {
@@ -11,7 +11,7 @@ typedef firstObject {
 	}
 };
 
-typedef Int int;
+def Int int;
 
 var aliasNum: Int;
 

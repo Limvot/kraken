@@ -1,7 +1,7 @@
 import mem:*;
 import io:*;
 
-typedef AnObject {
+obj AnObject {
 	var a: int;
 	var b: int;
 	var c: char*;

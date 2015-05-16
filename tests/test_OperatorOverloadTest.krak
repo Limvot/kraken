@@ -1,6 +1,6 @@
 import io:*;
 
-typedef Vec2 {
+obj Vec2 {
 	var x: int;
 	var y: int;
 

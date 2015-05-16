@@ -1,7 +1,7 @@
 import vector;
 import mem;
 
-typedef string (Destructable) {
+obj string (Destructable) {
     var data: vector::vector<char>;
     fun construct(): string* {
         data.construct();

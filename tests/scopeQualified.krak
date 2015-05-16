@@ -1,7 +1,7 @@
 var qualified_variable: int = 7;
 fun qualified_func(): int { return 9; }
 
-typedef qualified_class {
+obj qualified_class {
     var number: int;
     fun construct(num: int): qualified_class* {
         number = num;
@@ -12,7 +12,7 @@ typedef qualified_class {
     }
 };
 
-typedef qualified_container<T> {
+obj qualified_container<T> {
     var data: T;
     fun construct(dataIn: T): qualified_container<T>* {
         data = dataIn;

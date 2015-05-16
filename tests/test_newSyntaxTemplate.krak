@@ -1,6 +1,6 @@
 
 
-typedef Swapper<T> {
+obj Swapper<T> {
     fun doit(a: T*, b: T*) : void {
         var temp: T = *a;
         *a = *b;

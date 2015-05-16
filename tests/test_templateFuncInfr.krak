@@ -2,7 +2,7 @@ import io:*
 import mem:*
 import vector:*
 
-typedef pair<T, U> {
+obj pair<T, U> {
     var first: T
     var second: U
 }

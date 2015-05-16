@@ -7,11 +7,11 @@ fun retMessage(): char* {
 }
 fun id<T>(in: T): T { return in; }
 
-typedef CustomObj {
+obj CustomObj {
     var data: int;
 }
 
-typedef CustomObjTmplt<T> {
+obj CustomObjTmplt<T> {
     var data: T;
 }
 fun inFun<T>(in: T):T {

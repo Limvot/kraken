@@ -1,7 +1,7 @@
 import io:*;
 import trivial_container:*;
 
-typedef TemplateTest<T> {
+obj TemplateTest<T> {
 	var a: int;
 	var b: T;
 	var c: trivialContainer<T>;
@@ -17,7 +17,7 @@ typedef TemplateTest<T> {
 	}
 };
 
-typedef MyInt int;
+def MyInt int;
 
 var c: MyInt;
 

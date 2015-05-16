@@ -1,7 +1,7 @@
 import io:*;
 import mem:*;
 
-typedef ClassWithConstructor {
+obj ClassWithConstructor {
     var data: int;
     fun construct(inData: int): ClassWithConstructor* {
         data = inData;

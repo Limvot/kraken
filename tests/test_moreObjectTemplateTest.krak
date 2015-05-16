@@ -1,7 +1,7 @@
 import io:*;
 import trivial_container:*;
 
-typedef RegularObject {
+obj RegularObject {
 	var num: int;
 	var innerContainer: trivialContainer<char*>;
 	fun set(message: char*, number: int): void {
@@ -17,7 +17,7 @@ typedef RegularObject {
 	}
 };
 
-typedef MyIntContainer trivialContainer<int>;
+def MyIntContainer trivialContainer<int>;
 var roundabout: MyIntContainer;
 var outsideDec: RegularObject;
 

@@ -1,10 +1,10 @@
 import io:*;
 
-typedef objectA {
+obj objectA {
 	var a: int;
 };
 
-typedef BigObject {
+obj BigObject {
 	var a: objectA;
 	var b: objectB;
 	fun add(): int {
@@ -12,7 +12,7 @@ typedef BigObject {
 	}
 };
 
-typedef objectB {
+obj objectB {
 	var b: int;
 };
 
