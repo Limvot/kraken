@@ -3,30 +3,30 @@
 Type::Type() {
 	indirection = 0;
 	baseType = none;
-	typeDefinition = NULL;
-	templateDefinition = NULL;
+	typeDefinition = nullptr;
+	templateDefinition = nullptr;
 }
 
 Type::Type(ValueType typeIn, int indirectionIn) {
 	indirection = indirectionIn;
 	baseType = typeIn;
-	typeDefinition = NULL;
-	templateDefinition = NULL;
+	typeDefinition = nullptr;
+	templateDefinition = nullptr;
 }
 
 Type::Type(ValueType typeIn, std::set<std::string> traitsIn) {
 	indirection = 0;
 	baseType = typeIn;
     traits = traitsIn;
-	typeDefinition = NULL;
-	templateDefinition = NULL;
+	typeDefinition = nullptr;
+	templateDefinition = nullptr;
 }
 
 Type::Type(NodeTree<ASTData>* typeDefinitionIn, int indirectionIn) {
 	indirection = indirectionIn;
 	baseType = none;
 	typeDefinition = typeDefinitionIn;
-	templateDefinition = NULL;
+	templateDefinition = nullptr;
 }
 
 Type::Type(NodeTree<ASTData>* typeDefinitionIn, std::set<std::string> traitsIn) {
@@ -34,7 +34,7 @@ Type::Type(NodeTree<ASTData>* typeDefinitionIn, std::set<std::string> traitsIn) 
 	baseType = none;
 	typeDefinition = typeDefinitionIn;
     traits = traitsIn;
-	templateDefinition = NULL;
+	templateDefinition = nullptr;
 }
 
 Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, std::set<std::string> traitsIn) {
@@ -42,13 +42,31 @@ Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectio
 	indirection = indirectionIn;
 	typeDefinition = typeDefinitionIn;
     traits = traitsIn;
-    templateDefinition = NULL;
+    templateDefinition = nullptr;
+}
+
+Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, std::set<std::string> traitsIn, std::vector<Type*> parameterTypesIn, Type* returnTypeIn) {
+	baseType = typeIn;
+	indirection = indirectionIn;
+	typeDefinition = typeDefinitionIn;
+    traits = traitsIn;
+    templateDefinition = nullptr;
+    parameterTypes = parameterTypesIn;
+    returnType = returnTypeIn;
+}
+Type::Type(std::vector<Type*> parameterTypesIn, Type* returnTypeIn) {
+	baseType = function_type;
+	indirection = 0;
+	typeDefinition = nullptr;
+    templateDefinition = nullptr;
+    parameterTypes = parameterTypesIn;
+    returnType = returnTypeIn;
 }
 
 Type::Type(ValueType typeIn, NodeTree<Symbol>* templateDefinitionIn, std::set<std::string> traitsIn) {
 	indirection = 0;
 	baseType = typeIn;
-	typeDefinition = NULL;
+	typeDefinition = nullptr;
 	templateDefinition = templateDefinitionIn;
     traits = traitsIn;
 }
@@ -98,6 +116,12 @@ std::string Type::toString(bool showTraits) {
 		case character:
 			typeString = "char";
 			break;
+		case function_type:
+			typeString = "function(";
+            for (Type *param : parameterTypes)
+                typeString += param->toString();
+            typeString += "): " + returnType->toString();
+			break;
 		default:
 			if (typeDefinition)
 				typeString = typeDefinition->getDataRef()->symbol.getName();
@@ -117,7 +141,7 @@ std::string Type::toString(bool showTraits) {
 }
 
 Type* Type::clone() {
-	return new Type(baseType, typeDefinition, indirection, traits);
+	return new Type(baseType, typeDefinition, indirection, traits, parameterTypes, returnType);
 }
 
 int Type::getIndirection() {

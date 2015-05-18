@@ -14,7 +14,7 @@ class ASTData;
 #include "ASTData.h"
 #include "util.h"
 
-enum ValueType {none, template_type, template_type_type, void_type, boolean, integer, floating, double_percision, character };
+enum ValueType {none, template_type, template_type_type, void_type, boolean, integer, floating, double_percision, character, function_type };
 
 
 class Type {
@@ -25,6 +25,8 @@ class Type {
 		Type(NodeTree<ASTData>* typeDefinitionIn, int indirectionIn = 0);
 		Type(NodeTree<ASTData>* typeDefinitionIn, std::set<std::string> traitsIn);
 		Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, std::set<std::string> traitsIn);
+		Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, std::set<std::string> traitsIn, std::vector<Type*> parameterTypesIn, Type* returnTypeIn);
+		Type(std::vector<Type*> parameterTypesIn, Type* returnTypeIn);
 		Type(ValueType typeIn, NodeTree<Symbol>* templateDefinitionIn, std::set<std::string> traitsIn = std::set<std::string>());
 		~Type();
 		bool const operator==(const Type &other)const;
@@ -42,6 +44,8 @@ class Type {
 		NodeTree<Symbol>* templateDefinition;
         std::map<std::string, Type*> templateTypeReplacement;
         std::set<std::string> traits;
+        std::vector<Type*> parameterTypes;
+        Type *returnType;
     private:
 		int indirection;
 };

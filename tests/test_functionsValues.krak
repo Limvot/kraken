@@ -1,0 +1,13 @@
+import io:*
+
+fun test(): void {
+    println(9)
+}
+
+fun main(): int {
+    var val = test
+    val()
+    return 0
+}
+
+

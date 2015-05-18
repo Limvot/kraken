@@ -259,13 +259,9 @@ NodeTree<ASTData>* ASTTransformation::secondPassFunction(NodeTree<Symbol>* from,
 	//We only do the parameter nodes. We don't do the body yet, as this is the secondPass
     auto transChildren = transformChildren(slice(children,1,-3, 2), std::set<int>(), functionDef, std::vector<Type>(), templateTypeReplacements);
 
-	// std::cout << "REGULAR function " << functionName << " has " << transChildren.size() << " parameters: ";
-	// for (auto i : transChildren)
-	// 	std::cout << "||" << i->getDataRef()->toString() << "|| ";
-	// std::cout << "DoneList" << std::endl;
-
-
 	functionDef->addChildren(transChildren);
+    // Swap the function type over to be the correct type (a function with parameter and return types, etc)
+    functionDef->getDataRef()->valueType = new Type(mapNodesToTypePointers(transChildren), functionDef->getDataRef()->valueType);
 	return functionDef;
 }
 
@@ -351,7 +347,6 @@ NodeTree<ASTData>* ASTTransformation::searchScopeForFunctionDef(NodeTree<ASTData
 //It is used in the third pass to finish things up
 //Note that it may instantiate class OR function templates, which need to be fully instantiated
 void ASTTransformation::thirdPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* functionDef, std::map<std::string, Type*> templateTypeReplacements) {
-	//NodeTree<Symbol>* codeBlock = from->getChildren()[from->getChildren().size()-1];
 	NodeTree<Symbol>* codeBlock = from->getChildren().back();
 	functionDef->addChild(transform(codeBlock, functionDef, std::vector<Type>(), templateTypeReplacements));
 }
@@ -386,7 +381,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
                         // pass
                         NodeTree<ASTData>* perenOp = functionLookup(typeDefinition, "operator", types);
                         if (perenOp) {
-                            NodeTree<ASTData>* dotFunctionCall = new NodeTree<ASTData>(".", ASTData(function_call, Symbol(".", true)));
+                            NodeTree<ASTData>* dotFunctionCall = new NodeTree<ASTData>(".", ASTData(function_call, Symbol(".", true), perenOp->getDataRef()->valueType));
                             dotFunctionCall->addChild(languageLevelOperators["."][0]); //function definition
                             dotFunctionCall->addChild(possibleObj); // The object whose method we're calling
                             dotFunctionCall->addChild(perenOp); //The method we're calling
@@ -440,9 +435,6 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			}
 			newNode->getDataRef()->valueType = objectType; //Type is self-referential since this is the definition
 		}
-        // ?? why not this?
-		//scope->getDataRef()->scope[typeAlias].push_back(newNode);
-		//newNode->getDataRef()->scope["~enclosing_scope"].push_back(scope);
         addToScope("~enclosing_scope", scope, newNode);
 
 
@@ -477,21 +469,18 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         for (auto child: children)
             std::cout << "Function child: " << child->getDataRef()->toString() << std::endl;
 		newNode = new NodeTree<ASTData>(name, ASTData(function, Symbol(functionName, true), typeFromTypeNode(children[children.size()-2], scope, templateTypeReplacements)));
-		skipChildren.insert(0);
-		skipChildren.insert(children.size()-1);
         addToScope(functionName, newNode, scope);
         addToScope("~enclosing_scope", scope, newNode);
 		scope = newNode;
 
-		// auto transChildren = transformChildren(children, skipChildren, scope, types);
-		// std::cout << functionName << " ";
-		// for (auto i : transChildren)
-		// 	std::cout << "||" << i->getDataRef()->toString() << "|| ";
-		// std::cout << "??||" << std::endl;
-		// newNode->addChildren(transChildren);
-		// return newNode;
+        auto parameters = transformChildren(getNodes("typed_parameter", children), skipChildren, scope, types, templateTypeReplacements);
+        newNode->addChildren(parameters);
+        // update type with actual type
+        newNode->getDataRef()->valueType = new Type(mapNodesToTypePointers(parameters), newNode->getDataRef()->valueType);
+        newNode->addChild(transform(getNode("code_block", children), scope, types, templateTypeReplacements));
+		std::cout << "finished function" << functionName << std::endl;
+        return newNode;
 
-		std::cout << "finished function (kinda, not children) " << functionName << std::endl;
 	} else if (name == "code_block") {
 		newNode = new NodeTree<ASTData>(name, ASTData(code_block));
         addToScope("~enclosing_scope", scope, newNode);
@@ -519,11 +508,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 				throw "LOOKUP ERROR: " + functionCallString;
 			}
 			newNode = function;
-			// newNode = new NodeTree<ASTData>(functionCallString, ASTData(function_call, function->getDataRef()->valueType));
-			// newNode->addChild(function); // First child of function call is a link to the function
-			// newNode->addChildren(transformedChildren);
 		} else {
-			//std::cout << children.size() << std::endl;
             // XXX What the heck is this
 			if (children.size() == 0)
 				return new NodeTree<ASTData>();
@@ -591,7 +576,6 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			return transform(children[0], scope, types, templateTypeReplacements); //Just a promoted child, so do it instead
 		}
 	} else if (name == "statement") {
-        //XXX
 		newNode = new NodeTree<ASTData>(name, ASTData(statement));
 	} else if (name == "if_statement") {
 		newNode = new NodeTree<ASTData>(name, ASTData(if_statement));
@@ -688,13 +672,11 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
     } else if (name == "if_comp") {
 		newNode = new NodeTree<ASTData>(name, ASTData(if_comp));
 		newNode->addChild(addToScope("~enclosing_scope", scope, new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(concatSymbolTree(children[0]),true)))));
-        std::cout << "XXX scope is " << scope << std::endl;
         addToScope("~enclosing_scope", scope, newNode);
 		skipChildren.insert(0); //Don't do the identifier. The identifier lookup will fail. That's why we do it here.
 	} else if (name == "simple_passthrough") {
 		newNode = new NodeTree<ASTData>(name, ASTData(simple_passthrough));
         addToScope("~enclosing_scope", scope, newNode);
-        std::cout << "XXX scope is " << scope << std::endl;
 	} else if (name == "passthrough_params") {
 		newNode = new NodeTree<ASTData>(name, ASTData(passthrough_params));
         addToScope("~enclosing_scope", scope, newNode);
@@ -726,7 +708,8 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			std::cout << i->getName() << " ";
 		std::cout << std::endl;
 		newNode->addChild(function);
-		newNode->getDataRef()->valueType = function->getDataRef()->valueType;
+        // note that we now get the return type from the function call's type
+		newNode->getDataRef()->valueType = function->getDataRef()->valueType->returnType;
 		newNode->addChildren(transformedChildren);
 		return newNode;
 	} else if (name == "parameter") {
@@ -791,6 +774,16 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::transformChildren(std::vector
 }
 
 //Extract types from already transformed nodes
+std::vector<Type*> ASTTransformation::mapNodesToTypePointers(std::vector<NodeTree<ASTData>*> nodes) {
+	std::vector<Type*> types;
+	for (auto i : nodes) {
+		std::cout << i->getDataRef()->toString() << std::endl;
+		types.push_back((i->getDataRef()->valueType));
+	}
+	return types;
+}
+
+//Extract types from already transformed nodes
 std::vector<Type> ASTTransformation::mapNodesToTypes(std::vector<NodeTree<ASTData>*> nodes) {
 	std::vector<Type> types;
 	for (auto i : nodes) {
@@ -831,7 +824,7 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 			std::cout << "Early method level operator was found" << std::endl;
 			//return operatorMethod;
 			NodeTree<ASTData>* newNode = new NodeTree<ASTData>(lookupOp, ASTData(function_call, Symbol(lookupOp, true)));
-			NodeTree<ASTData>* dotFunctionCall = new NodeTree<ASTData>(".", ASTData(function_call, Symbol(".", true)));
+			NodeTree<ASTData>* dotFunctionCall = new NodeTree<ASTData>(".", ASTData(function_call, Symbol(".", true), operatorMethod->getDataRef()->valueType));
 			dotFunctionCall->addChild(languageLevelOperators["."][0]); //function definition
 			dotFunctionCall->addChild(nodes[0]); // The object whose method we're calling
 			dotFunctionCall->addChild(operatorMethod); //The method we're calling
@@ -840,7 +833,7 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 
 
 			//Set the value of this function call
-			newNode->getDataRef()->valueType = operatorMethod->getDataRef()->valueType;
+			newNode->getDataRef()->valueType = operatorMethod->getDataRef()->valueType->returnType;
 			return newNode;
 		}
 		std::cout << "Early method level operator was NOT found" << std::endl;
@@ -874,7 +867,9 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 
 		newNode->getDataRef()->valueType = newType, std::cout << "Operator " + lookup << " is altering indirection from " << oldTypes[0].toString() << " to " << newType->toString() << std::endl;
 	} else {
-		newNode->getDataRef()->valueType = function->getDataRef()->valueType, std::cout << "Some other ||" << lookup << "||" << std::endl;
+        std::cout << "Some other ||" << lookup << "||" << std::endl;
+        if (function->getDataRef()->valueType)
+            newNode->getDataRef()->valueType = function->getDataRef()->valueType->returnType;
 	}
 
     // Set the value of this function call if it has not already been set
@@ -1496,13 +1491,14 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
     addToScope(fullyInstantiatedName, instantiatedFunction, templateTopScope);
     templateTopScope->addChild(instantiatedFunction); // Add this object the the highest scope's
 
-	std::set<int> skipChildren;
-	skipChildren.insert(0);
-	skipChildren.insert(1);
-	skipChildren.insert(templateSyntaxTree->getChildren().size()-3);
-	skipChildren.insert(templateSyntaxTree->getChildren().size()-2);
 	std::cout << "About to do children of " << functionName << " to " << fullyInstantiatedName << std::endl;
-    instantiatedFunction->addChildren(transformChildren(templateSyntaxTree->getChildren(), skipChildren, instantiatedFunction, std::vector<Type>(), newTemplateTypeReplacement));
+
+    std::set<int> skipChildren;
+    auto parameters = transformChildren(getNodes("typed_parameter", templateSyntaxTree->getChildren()), skipChildren, instantiatedFunction, std::vector<Type>(), newTemplateTypeReplacement);
+    instantiatedFunction->addChildren(parameters);
+    // update type with actual type
+    instantiatedFunction->getDataRef()->valueType = new Type(mapNodesToTypePointers(parameters), instantiatedFunction->getDataRef()->valueType);
+    instantiatedFunction->addChild(transform(getNode("code_block", templateSyntaxTree->getChildren()), instantiatedFunction, std::vector<Type>(), newTemplateTypeReplacement));
 
 	std::cout << "Fully Instantiated function " << functionName << " to " << fullyInstantiatedName << std::endl;
 	return instantiatedFunction;

@@ -174,8 +174,8 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                 ASTData declarationData = declaration->getData();
                 switch(declarationData.type) {
                     case identifier:
-                        variableDeclarations += ValueTypeToCType(declarationData.valueType) + " " + scopePrefix(declaration) + declarationData.symbol.getName() + "; /*identifier*/\n";
-                        variableExternDeclarations += "extern " + ValueTypeToCType(declarationData.valueType) + " " + declarationData.symbol.getName() + "; /*extern identifier*/\n";
+                        variableDeclarations += ValueTypeToCType(declarationData.valueType,  scopePrefix(declaration) + declarationData.symbol.getName()) + "; /*identifier*/\n";
+                        variableExternDeclarations += "extern " + ValueTypeToCType(declarationData.valueType, declarationData.symbol.getName()) + "; /*extern identifier*/\n";
                         break;
                     case function:
                         {
@@ -184,16 +184,15 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                             else if (decChildren.size() == 0) //Not a real function, must be a built in passthrough
                                 functionPrototypes += "/* built in function: " + declarationData.symbol.toString() + " */\n";
                             else {
-                                functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType) + " ";
                                 std::string nameDecoration, parameters;
                                 for (int j = 0; j < decChildren.size()-1; j++) {
                                     if (j > 0)
                                         parameters += ", ";
-                                    parameters += ValueTypeToCType(decChildren[j]->getData().valueType) + " " + generate(decChildren[j], nullptr);
+                                    parameters += ValueTypeToCType(decChildren[j]->getData().valueType, generate(decChildren[j], nullptr));
                                     nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
                                 }
-                                functionPrototypes += ((declarationData.symbol.getName() == "main") ? "" : scopePrefix(declaration)) +
-                                                    CifyName(declarationData.symbol.getName() + nameDecoration) +
+                                functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType->returnType, ((declarationData.symbol.getName() == "main") ? "" : scopePrefix(declaration)) +
+                                                    CifyName(declarationData.symbol.getName() + nameDecoration)) +
                                                     "(" + parameters + "); /*func*/\n";
                                 // generate function
                                 std::cout << "Generating " << scopePrefix(declaration) +
@@ -212,9 +211,9 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                             if (declarationData.valueType->typeDefinition)
                                 continue; // Aliases of objects are done with the thing it alises
                             // Otherwise, we're actually a renaming of a primitive, can generate here
-                            plainTypedefs += "typedef " + ValueTypeToCType(declarationData.valueType) + " " +
+                            plainTypedefs += "typedef " + ValueTypeToCType(declarationData.valueType,
                                                 scopePrefix(declaration) +
-                                                CifyName(declarationData.symbol.getName()) + ";\n";
+                                                CifyName(declarationData.symbol.getName())) + ";\n";
                             plainTypedefs += generateAliasChains(ASTs, declaration);
                         } else {
                             plainTypedefs += "typedef struct __struct_dummy_" +
@@ -249,7 +248,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
 }
 
 //The enclosing object is for when we're generating the inside of object methods. They allow us to check scope lookups against the object we're in
-std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject) {
+std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject, bool justFuncName) {
 	ASTData data = from->getData();
 	std::vector<NodeTree<ASTData>*> children = from->getChildren();
     std::string output;
@@ -288,17 +287,18 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		{
 			if (data.valueType->baseType == template_type)
 				return "/* template function: " + data.symbol.getName() + " */";
-			output += "\n" + ValueTypeToCType(data.valueType) + " ";
 			std::string nameDecoration, parameters;
 			for (int j = 0; j < children.size()-1; j++) {
 				if (j > 0)
 					parameters += ", ";
-				parameters += ValueTypeToCType(children[j]->getData().valueType) + " " + generate(children[j], enclosingObject);
+				parameters += ValueTypeToCType(children[j]->getData().valueType, generate(children[j], enclosingObject, justFuncName));
 				nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
 			}
-
-			output += ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) +
-                        CifyName(data.symbol.getName() + nameDecoration) + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject);
+            // this is for using functions as values
+            if (justFuncName)
+                return ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) + CifyName(data.symbol.getName() + nameDecoration);
+			output += "\n" + ValueTypeToCType(data.valueType->returnType, ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) +
+                        CifyName(data.symbol.getName() + nameDecoration)) + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject, justFuncName);
 			return output;
 		}
 		case code_block:
@@ -308,10 +308,10 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             // we push on a new vector to hold deferred statements
             deferDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
 			for (int i = 0; i < children.size(); i++)
-				output += generate(children[i], enclosingObject);
+				output += generate(children[i], enclosingObject, justFuncName);
             // we pop off the vector and go through them in reverse emitting them
             for (auto iter = deferDoubleStack.back().rbegin(); iter != deferDoubleStack.back().rend(); iter++)
-                output += generate(*iter, enclosingObject);
+                output += generate(*iter, enclosingObject, justFuncName);
             deferDoubleStack.pop_back();
             tabLevel--;
 			output += tabs() + "}";
@@ -322,31 +322,31 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		case boolean_expression:
 			output += " " + data.symbol.getName() + " ";
 		case statement:
-			return tabs() + generate(children[0], enclosingObject) + ";\n";
+			return tabs() + generate(children[0], enclosingObject, justFuncName) + ";\n";
 		case if_statement:
-			output += "if (" + generate(children[0], enclosingObject) + ")\n\t";
+			output += "if (" + generate(children[0], enclosingObject, true) + ")\n\t";
             // We have to see if the then statement is a regular single statement or a block.
             // If it's a block, because it's also a statement a semicolon will be emitted even though
             // we don't want it to be, as if (a) {b}; else {c}; is not legal C, but if (a) {b} else {c}; is.
             if (children[1]->getChildren()[0]->getDataRef()->type == code_block) {
                 std::cout << "Then statement is a block, emitting the block not the statement so no trailing semicolon" << std::endl;
-                output += generate(children[1]->getChildren()[0], enclosingObject);
+                output += generate(children[1]->getChildren()[0], enclosingObject, justFuncName);
             } else {
                 // ALSO we always emit blocks now, to handle cases like defer when several statements need to be
                 // run in C even though it is a single Kraken statement
                 std::cout << "Then statement is a simple statement, regular emitting the statement so trailing semicolon" << std::endl;
-                output += "{ " + generate(children[1], enclosingObject) + " }";
+                output += "{ " + generate(children[1], enclosingObject, justFuncName) + " }";
             }
             // Always emit blocks here too
 			if (children.size() > 2)
-				output += " else { " + generate(children[2], enclosingObject) + " }";
+				output += " else { " + generate(children[2], enclosingObject, justFuncName) + " }";
 			return output;
 		case while_loop:
             // keep track of the current size of the deferDoubleStack so that statements that
             // break or continue inside this loop can correctly emit all of the defers through
             // all of the inbetween scopes
             loopDeferStackDepth.push(deferDoubleStack.size());
-			output += "while (" + generate(children[0], enclosingObject) + ")\n\t" + generate(children[1], enclosingObject);
+			output += "while (" + generate(children[0], enclosingObject, true) + ")\n\t" + generate(children[1], enclosingObject, justFuncName);
             // and pop it off again
             loopDeferStackDepth.pop();
 			return output;
@@ -356,7 +356,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             // all of the inbetween scopes
             loopDeferStackDepth.push(deferDoubleStack.size());
 			//The strSlice's are there to get ride of an unwanted return and an unwanted semicolon(s)
-			output += "for (" + strSlice(generate(children[0], enclosingObject),0,-3) + generate(children[1], enclosingObject) + ";" + strSlice(generate(children[2], enclosingObject),0,-3) + ")\n\t" + generate(children[3], enclosingObject);
+			output += "for (" + strSlice(generate(children[0], enclosingObject, true),0,-3) + generate(children[1], enclosingObject, true) + ";" + strSlice(generate(children[2], enclosingObject, true),0,-3) + ")\n\t" + generate(children[3], enclosingObject, justFuncName);
             // and pop it off again
             loopDeferStackDepth.pop();
 			return output;
@@ -365,43 +365,43 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             // through all of both arrays, as return will go through all scopes
             for (auto topItr = deferDoubleStack.rbegin(); topItr != deferDoubleStack.rend(); topItr++)
                 for (auto iter = (*topItr).rbegin(); iter != (*topItr).rend(); iter++)
-                    output += generate(*iter, enclosingObject);
+                    output += generate(*iter, enclosingObject, justFuncName);
 			if (children.size())
-				return "return " + generate(children[0], enclosingObject);
+				return "return " + generate(children[0], enclosingObject, true);
 			else
 				return "return";
 		case break_statement:
             // handle everything that's been deferred all the way back to the loop's scope
             for (int i = deferDoubleStack.size()-1; i >= loopDeferStackDepth.top(); i--)
                 for (auto iter = deferDoubleStack[i].rbegin(); iter != deferDoubleStack[i].rend(); iter++)
-                    output += generate(*iter, enclosingObject);
+                    output += generate(*iter, enclosingObject, justFuncName);
             return output + "break";
 		case continue_statement:
             // handle everything that's been deferred all the way back to the loop's scope
             for (int i = deferDoubleStack.size()-1; i >= loopDeferStackDepth.top(); i--)
                 for (auto iter = deferDoubleStack[i].rbegin(); iter != deferDoubleStack[i].rend(); iter++)
-                    output += generate(*iter, enclosingObject);
+                    output += generate(*iter, enclosingObject, justFuncName);
             return output + "continue";
 		case defer_statement:
             deferDoubleStack.back().push_back(children[0]);
-            return "/*defer " + generate(children[0], enclosingObject) + "*/";
+            return "/*defer " + generate(children[0], enclosingObject, justFuncName) + "*/";
 		case assignment_statement:
-			return generate(children[0], enclosingObject) + " = " + generate(children[1], enclosingObject);
+			return generate(children[0], enclosingObject, justFuncName) + " = " + generate(children[1], enclosingObject, true);
 		case declaration_statement:
 			if (children.size() == 1)
-				return ValueTypeToCType(children[0]->getData().valueType) + " " + generate(children[0], enclosingObject) + ";";
+				return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName)) + ";";
 			else if (children[1]->getChildren().size() && children[1]->getChildren()[0]->getChildren().size() > 1
                                                  && children[1]->getChildren()[0]->getChildren()[1] == children[0]) {
                 //That is, if we're a declaration with an init position call (Object a.construct())
                 //We can tell if our function call (children[1])'s access operation([0])'s lhs ([1]) is the thing we just declared (children[0])
-                return ValueTypeToCType(children[0]->getData().valueType) + " " + generate(children[0], enclosingObject) + "; " + generate(children[1]) + "/*Init Position Call*/";
+                return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName)) + "; " + generate(children[1]) + "/*Init Position Call*/";
             } else
-				return ValueTypeToCType(children[0]->getData().valueType) + " " + generate(children[0], enclosingObject) + " = " + generate(children[1], enclosingObject) + ";";
+				return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName)) + " = " + generate(children[1], enclosingObject, true) + ";";
 		case if_comp:
             // Lol, this doesn't work because the string gets prefixed now
 			//if (generate(children[0], enclosingObject) == generatorString)
 			if (children[0]->getDataRef()->symbol.getName() == generatorString)
-				return generate(children[1], enclosingObject);
+				return generate(children[1], enclosingObject, justFuncName);
 			return "";
 		case simple_passthrough:
             {
@@ -414,17 +414,17 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                         for (auto assign : in_or_out->getChildren()) {
                             auto assignChildren = assign->getChildren();
                             if (in_or_out->getDataRef()->type == in_passthrough_params)
-                                pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType) + " " + assignChildren[1]->getDataRef()->symbol.getName() + " = " + generate(assignChildren[0], enclosingObject) + ";\n";
+                                pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, assignChildren[1]->getDataRef()->symbol.getName()) + " = " + generate(assignChildren[0], enclosingObject) + ";\n";
                             else if (in_or_out->getDataRef()->type == out_passthrough_params)
-                                post_passthrough += generate(assignChildren[0], enclosingObject) + " = " + assignChildren[1]->getDataRef()->symbol.getName() + ";\n";
+                                post_passthrough += generate(assignChildren[0], enclosingObject, justFuncName) + " = " + assignChildren[1]->getDataRef()->symbol.getName() + ";\n";
                             else
-                                linkerString += " " + strSlice(generate(in_or_out, enclosingObject), 1, -2) + " ";
+                                linkerString += " " + strSlice(generate(in_or_out, enclosingObject, justFuncName), 1, -2) + " ";
                         }
                     }
                 }
                 // The actual passthrough string is the last child now, as we might
                 // have passthrough_params be the first child
-                return pre_passthrough + strSlice(generate(children.back(), enclosingObject), 3, -4) + post_passthrough;
+                return pre_passthrough + strSlice(generate(children.back(), enclosingObject, justFuncName), 3, -4) + post_passthrough;
             }
 		case function_call:
 		{
@@ -440,19 +440,19 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			//Test for specail functions only if what we're testing is, indeed, the definition, not a function call that returns a callable function pointer
 			if (funcType == function) {
 				if (name == "++" || name == "--")
-					return generate(children[1], enclosingObject) + name;
+					return generate(children[1], enclosingObject, true) + name;
 				if ( (name == "*" || name == "&" || name == "!" || name == "-" || name == "+" ) && children.size() == 2) //Is dereference, not multiplication, address-of, or other unary operator
-					return name + "(" + generate(children[1], enclosingObject) + ")";
+					return name + "(" + generate(children[1], enclosingObject, true) + ")";
 				if (name == "[]")
-					return "(" + generate(children[1], enclosingObject) + ")[" +generate(children[2],enclosingObject) + "]";
+					return "(" + generate(children[1], enclosingObject, true) + ")[" +generate(children[2],enclosingObject, true) + "]";
 				if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
 					|| name == "<" || name == ">" || name == "%" || name == "+=" || name == "-=" || name == "*=" || name == "/=" || name == "||"
 					|| name == "&&") {
                     std::cout << "THIS IS IT NAME: " << name << std::endl;
-					return "((" + generate(children[1], enclosingObject) + ")" + name + "(" + generate(children[2], enclosingObject) + "))";
+					return "((" + generate(children[1], enclosingObject, true) + ")" + name + "(" + generate(children[2], enclosingObject, true) + "))";
                 } else if (name == "." || name == "->") {
 					if (children.size() == 1)
-					 	return "/*dot operation with one child*/" + generate(children[0], enclosingObject) + "/*end one child*/";
+					 	return "/*dot operation with one child*/" + generate(children[0], enclosingObject, true) + "/*end one child*/";
 					 //If this is accessing an actual function, find the function in scope and take the appropriate action. Probabally an object method
 					 if (children[2]->getDataRef()->type == function) {
 					 	std::string functionName = children[2]->getDataRef()->symbol.getName();
@@ -468,20 +468,20 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 		    	nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
                                 // Note that we only add scoping to the object, as this specifies our member function too
 /*HERE*/				 	    return scopePrefix(unaliasedTypeDef) + CifyName(unaliasedTypeDef->getDataRef()->symbol.getName()) +"__" +
-                                        CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject) + ",";
+                                        CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject, true) + ",";
 					 		    //The comma lets the upper function call know we already started the param list
 					 		    //Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
                             } else {
 					 	        std::cout << "Is not in scope or not type" << std::endl;
-					            return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
+					            return "((" + generate(children[1], enclosingObject, true) + ")" + name + functionName + ")";
                             }
                         } else {
 					 	    std::cout << "Is not in scope or not type" << std::endl;
-					        return "((" + generate(children[1], enclosingObject) + ")" + name + functionName + ")";
+					        return "((" + generate(children[1], enclosingObject, true) + ")" + name + functionName + ")";
 					 	}
 					} else {
 						//return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
-						return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2]) + ")";
+						return "((" + generate(children[1], enclosingObject, true) + ")" + name + generate(children[2], nullptr, true) + ")";
 					}
 				} else {
 					//It's a normal function call, not a special one or a method or anything. Name decorate.
@@ -503,7 +503,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			} else {
 				//This part handles cases where our definition isn't the function definition (that is, it is probabally the return from another function)
 				//It's probabally the result of an access function call (. or ->) to access an object method.
-				std::string functionCallSource = generate(children[0], enclosingObject);
+				std::string functionCallSource = generate(children[0], enclosingObject, true);
 				if (functionCallSource[functionCallSource.size()-1] == ',') //If it's a member method, it's already started the parameter list.
 					output += children.size() > 1 ? functionCallSource : functionCallSource.substr(0, functionCallSource.size()-1);
 				else
@@ -511,9 +511,9 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			}
 			for (int i = 1; i < children.size(); i++) //children[0] is the declaration
 				if (i < children.size()-1)
-					output += generate(children[i], enclosingObject) + ", ";
+					output += generate(children[i], enclosingObject, true) + ", ";
 				else
-					output += generate(children[i], enclosingObject);
+					output += generate(children[i], enclosingObject, true);
 			output += ") ";
 			return output;
 		}
@@ -524,7 +524,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			std::cout << "Nothing!" << std::endl;
 	}
 	for (int i = 0; i < children.size(); i++)
-		output += generate(children[i], enclosingObject);
+		output += generate(children[i], enclosingObject, justFuncName);
 
 	return output;
 }
@@ -543,27 +543,46 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 	std::vector<NodeTree<ASTData>*> children = from->getChildren();
 	std::string nameDecoration, parameters;
 	for (int i = 0; i < children.size()-1; i++) {
-		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType) + " " + generate(children[i]);
+		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType, generate(children[i]));
 		nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
 	}
-    std::string functionSignature = "\n" + ValueTypeToCType(data.valueType) + " " + scopePrefix(from) +  CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
-		+ CifyName(data.symbol.getName()) + nameDecoration + "(" + ValueTypeToCType(&enclosingObjectType)
-		+ " this" + parameters + ")";
+    std::string functionSignature = "\n" + ValueTypeToCType(data.valueType->returnType, scopePrefix(from) +  CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
+		+ CifyName(data.symbol.getName()) + nameDecoration) + "(" + ValueTypeToCType(&enclosingObjectType, "this") + parameters + ")";
     *functionPrototype += functionSignature + ";\n";
     return functionSignature + "\n" +  generate(children[children.size()-1], enclosingObject); //Pass in the object so we can properly handle access to member stuff
 }
 
 
-std::string CGenerator::ValueTypeToCType(Type *type) { return ValueTypeToCTypeThingHelper(type, "*"); }
-std::string CGenerator::ValueTypeToCTypeDecoration(Type *type) { return ValueTypeToCTypeThingHelper(type, "_P__"); }
-std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string ptrStr) {
+std::string CGenerator::ValueTypeToCType(Type *type, std::string declaration) { return ValueTypeToCTypeThingHelper(type, " " + declaration); }
+std::string CGenerator::ValueTypeToCTypeDecoration(Type *type) { return CifyName(ValueTypeToCTypeThingHelper(type, "")); }
+std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string declaration) {
 	std::string return_type;
+    bool do_ending = true;
 	switch (type->baseType) {
 		case none:
 			if (type->typeDefinition)
 				return_type = scopePrefix(type->typeDefinition) + CifyName(type->typeDefinition->getDataRef()->symbol.getName());
 			else
 				return_type = "none";
+			break;
+		case function_type:
+            {
+                std::string indr_str;
+                for (int i = 0; i < type->getIndirection(); i++)
+                    indr_str += "*";
+                return_type = ValueTypeToCTypeThingHelper(type->returnType, "");
+                if (type->getIndirection())
+                    return_type += " (" + indr_str + "(*" + declaration + "))(";
+                else
+                    return_type += " (*" + declaration + ")(";
+                if (type->parameterTypes.size() == 0)
+                    return_type += "void";
+                else
+                    for (int i = 0; i < type->parameterTypes.size(); i++)
+                        return_type += (i != 0 ? ", " : "") + ValueTypeToCTypeThingHelper(type->parameterTypes[i], "");
+                return_type += ")";
+                do_ending = false;
+            }
 			break;
 		case void_type:
 			return_type = "void";
@@ -587,9 +606,11 @@ std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string ptrS
 			return_type = "unknown_ValueType";
 			break;
 	}
+    if (!do_ending)
+        return return_type;
 	for (int i = 0; i < type->getIndirection(); i++)
-		return_type += ptrStr;
-	return return_type;
+		return_type += "*";
+    return return_type + declaration;
 }
 
 std::string CGenerator::CifyName(std::string name) {
@@ -610,6 +631,7 @@ std::string CGenerator::CifyName(std::string name) {
 											"<<", "doubleleft",
 											">>", "doubleright",
 											"::", "scopeop",
+											":", "colon",
 											"==", "doubleequals",
 											"!=", "notequals",
 											"&&", "doubleamprsnd",
