@@ -126,6 +126,9 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
     std::string classStructs = "/**\n * Class Structs\n */\n\n";
     std::string functionPrototypes = "/**\n * Function Prototypes\n */\n\n";
     std::string functionDefinitions = "/**\n * Function Definitions\n */\n\n";
+    // There also exists functionTypedefString which is a member variable that keeps
+    // track of utility typedefs that allow our C type generation to be more sane
+    // it is emitted in the h file right before functionPrototypes
 
 
     // And get the correct order for emiting classes, but not if they're not in our file, then they will get included
@@ -242,7 +245,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
             }
         }
     }
-    hOutput += plainTypedefs + importIncludes + topLevelCPassthrough + variableExternDeclarations + classStructs + functionPrototypes;
+    hOutput += plainTypedefs + importIncludes + topLevelCPassthrough + variableExternDeclarations + classStructs + functionTypedefString + functionPrototypes;
     cOutput += variableDeclarations + functionDefinitions;
     return std::make_pair(hOutput, cOutput);
 }
@@ -568,19 +571,20 @@ std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string decl
 		case function_type:
             {
                 std::string indr_str;
+                std::string typedefStr  = "typedef ";
+                std::string typedefID = "ID" + CifyName(type->toString(false));
                 for (int i = 0; i < type->getIndirection(); i++)
                     indr_str += "*";
-                return_type = ValueTypeToCTypeThingHelper(type->returnType, "");
-                if (type->getIndirection())
-                    return_type += " (" + indr_str + "(*" + declaration + "))(";
-                else
-                    return_type += " (*" + declaration + ")(";
+                typedefStr += ValueTypeToCTypeThingHelper(type->returnType, "");
+                typedefStr += " (*" + typedefID + ")(";
                 if (type->parameterTypes.size() == 0)
-                    return_type += "void";
+                    typedefStr += "void";
                 else
                     for (int i = 0; i < type->parameterTypes.size(); i++)
-                        return_type += (i != 0 ? ", " : "") + ValueTypeToCTypeThingHelper(type->parameterTypes[i], "");
-                return_type += ")";
+                        typedefStr += (i != 0 ? ", " : "") + ValueTypeToCTypeThingHelper(type->parameterTypes[i], "");
+                typedefStr += ");\n";
+                functionTypedefString += typedefStr;
+                return_type = typedefID + indr_str + " " + declaration;
                 do_ending = false;
             }
 			break;

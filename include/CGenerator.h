@@ -28,9 +28,9 @@ class CGenerator {
         std::pair<std::string, std::string> generateTranslationUnit(std::string name, std::map<std::string, NodeTree<ASTData>*> ASTs);
 		std::string generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject = NULL, bool justFuncName = false);
         std::string generateAliasChains(std::map<std::string, NodeTree<ASTData>*> ASTs, NodeTree<ASTData>* definition);
-		static std::string ValueTypeToCType(Type *type, std::string);
-		static std::string ValueTypeToCTypeDecoration(Type *type);
-        static std::string ValueTypeToCTypeThingHelper(Type *type, std::string ptrStr);
+		std::string ValueTypeToCType(Type *type, std::string);
+		std::string ValueTypeToCTypeDecoration(Type *type);
+        std::string ValueTypeToCTypeThingHelper(Type *type, std::string ptrStr);
 		static std::string CifyName(std::string name);
 		static std::string scopePrefix(NodeTree<ASTData>* from);
         std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from, std::string *functionPrototype);
@@ -40,6 +40,7 @@ class CGenerator {
 		int tabLevel;
 		std::string generatorString;
         std::string linkerString;
+        std::string functionTypedefString;
         std::vector<std::vector<NodeTree<ASTData>*>> deferDoubleStack;
         std::stack<int> loopDeferStackDepth;
 	private:

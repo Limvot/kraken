@@ -904,29 +904,23 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
 			//We're not looking for types
 			if (i->getDataRef()->type == type_def)
 				continue;
+            Type* functionType = i->getDataRef()->valueType;
 
-            std::vector<NodeTree<ASTData>*> children = i->getChildren();
-			//We subtract one from the children to get the type size only if there is at least one child AND
-			// the last node is actually a body node, as it may not have been generated yet if we're in the body
-			//and this function is recursive or if this is a non-instantiated template function
-            int numTypes = (children.size() > 0 && children[children.size()-1]->getDataRef()->type == code_block) ? children.size()-1 : children.size();
+            int numTypes = functionType->parameterTypes.size();
 			if (types.size() != numTypes) {
 				std::cout << "Type sizes do not match between two " << lookup << "(" << types.size() << "," << numTypes << "), types are: ";
 				for (auto j : types)
 					std::cout << j.toString() << " ";
 				std::cout << std::endl;
                 std::cout << "Versus" << std::endl;
-                for (int j = 0; j < numTypes; j++) {
-                    std::cout << " vs " << children[j]->getDataRef()->valueType->toString() << std::endl;
-                }
-                for (auto child: children)
-                    std::cout << "\t" << child->getDataRef()->toString() << std::endl;
+                for (int j = 0; j < numTypes; j++)
+                    std::cout << functionType->parameterTypes[j]->toString() << " ";
                 std::cout << std::endl;
 				continue;
 			}
 			bool typesMatch = true;
 			for (int j = 0; j < types.size(); j++) {
-				Type* tmpType = children[j]->getDataRef()->valueType;
+				Type* tmpType = functionType->parameterTypes[j];
 				//Don't worry if types don't match if it's a template type
 				//if (types[j] != *tmpType && tmpType->baseType != template_type_type) {
                 // WE DO WORRY NOW B/C template type infrence is ugly and we need this to fail
@@ -934,7 +928,7 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
 				if (types[j] != *tmpType) {
 					typesMatch = false;
 					std::cout << "Types do not match between two " << lookup << " " << types[j].toString();
-					std::cout << " vs " << children[j]->getDataRef()->valueType->toString() << std::endl;
+					std::cout << " vs " << tmpType->toString() << std::endl;
 					break;
 				}
 			}
@@ -1277,7 +1271,11 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 	ValueType baseType;
 	NodeTree<ASTData>* typeDefinition = NULL;
     std::set<std::string> traits;
-	while (typeIn[typeIn.size() - indirection - 1] == '*') indirection++;
+    // To counter this, for every indirection we step down a level
+	while (typeIn[typeIn.size() - indirection - 1] == '*') {
+        indirection++;
+        typeNode = typeNode->getChildren()[0];
+    };
 	std::string edited = strSlice(typeIn, 0, -(indirection + 1));
 	if (edited == "void")
 		baseType = void_type;
@@ -1291,7 +1289,13 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 		baseType = double_percision;
 	else if (edited == "char")
 		baseType = character;
-	else {
+	else if (typeNode->getChildren().size() && typeNode->getChildren()[0]->getDataRef()->getName() == "function_type") {
+		baseType = function_type;
+        std::vector<Type*> types;
+        for (auto typeSyntaxNode : getNodes("type", typeNode->getChildren()[0]->getChildren()))
+            types.push_back(typeFromTypeNode(typeSyntaxNode, scope, templateTypeReplacements));
+        return new Type(slice(types, 0, -2),types.back());
+    } else {
 		baseType = none;
 
         auto possibleMatches = scopeLookup(scope, edited);
@@ -1312,11 +1316,6 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 		for (auto i : templateTypeReplacements)
 			std::cout << i.first << " ";
 		std::cout << std::endl;
-
-        // getChildren()[1] is \* because of pointer instead of template_inst
-        // To counter this, for every indirection we step down a level
-        for (int i = 0; i < indirection; i++)
-            typeNode = typeNode->getChildren()[0];
 
         std::cout << possibleMatches.size() << " " << typeNode->getChildren().size() << std::endl;
         if (typeNode->getChildren().size() > 1)
