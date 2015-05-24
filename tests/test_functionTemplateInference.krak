@@ -1,0 +1,12 @@
+import io:*
+
+fun ptrFn<T>(ptr: T*):void {
+    println(*ptr)
+}
+
+fun main():int  {
+    var a = 8
+    ptrFn(&a)
+    return 0
+}
+

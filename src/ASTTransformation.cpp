@@ -1022,11 +1022,22 @@ void ASTTransformation::unifyType(NodeTree<Symbol> *syntaxType, Type type, std::
     //          doesn't matter b/c it'll get filterd out in unifyTemplateFunction
     //      b) instantiated with a template type type (i.e. vector<T>)
     //          this will be a bit of a pain too
+    //   4) This is a pointer type, go down a pointer level
 
     auto children = syntaxType->getChildren();
     if (children.size() == 1) {
         (*templateTypeMap)[concatSymbolTree(children.back())] = type;
     } else {
+        // go down one in our pointer
+        if (children.back()->getDataRef()->getValue() == "*") {
+            // gotta be a better way to do this
+            Type* clonedType = type.clone();
+            clonedType->decreaseIndirection();
+            unifyType(children.front(), *clonedType, templateTypeMap);
+            delete clonedType;
+            return;
+        }
+
         if (type.typeDefinition) {
             // ok, what happens here is that we get the origional type from our type. This is
             // the same as the type we have now but it still has extra data from when it was instantiated
