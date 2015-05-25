@@ -1023,8 +1023,21 @@ void ASTTransformation::unifyType(NodeTree<Symbol> *syntaxType, Type type, std::
     //      b) instantiated with a template type type (i.e. vector<T>)
     //          this will be a bit of a pain too
     //   4) This is a pointer type, go down a pointer level
+    //   5) This is a function type, unify on parameter types and return type
 
     auto children = syntaxType->getChildren();
+
+    if (children.back()->getDataRef()->getName() == "function_type") {
+        if (!type.returnType)
+            return;
+        auto childrenTypes = getNodes("type", children.back()->getChildren());
+        // unify params
+        for (int i = 0; i < childrenTypes.size()-1; i++)
+            unifyType(childrenTypes[i], *type.parameterTypes[i], templateTypeMap);
+        unifyType(childrenTypes.back(), *type.returnType, templateTypeMap);
+        return;
+    }
+
     if (children.size() == 1) {
         (*templateTypeMap)[concatSymbolTree(children.back())] = type;
     } else {
@@ -1437,22 +1450,24 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
     // have the actual instantiation part. If do have the instantiation part, then we'll use that.
     // Note that as a part o finferring the instantiation we already find the template, so we make that
     // condtitional too (templateDefinition)
+    std::string instTypeString = "";
     if (children.size() == 1) {
         // templateFunctionLookup adds the actual types to templateActualTypes if it's currently empty
         templateDefinition = templateFunctionLookup(scope, functionName, &templateActualTypes, types);
+        for (auto instType : templateActualTypes)
+            instTypeString += (instTypeString == "" ? instType->toString() : "," + instType->toString());
     } else {
         auto unsliced = children[1]->getChildren();
         std::vector<NodeTree<Symbol>*> templateParamInstantiationNodes = slice(unsliced, 1 , -2, 2);//skip <, >, and commas
-        std::string instTypeString = "";
         for (int i = 0; i < templateParamInstantiationNodes.size(); i++) {
             Type* instType = typeFromTypeNode(templateParamInstantiationNodes[i],scope, templateTypeReplacements);
             instTypeString += (instTypeString == "" ? instType->toString() : "," + instType->toString());
             templateActualTypes.push_back(instType);
         }
         std::cout << "Size: " << templateParamInstantiationNodes.size() << std::endl;
-        fullyInstantiatedName = functionName + "<" + instTypeString + ">";
-        std::cout << "Looking for " << fullyInstantiatedName << std::endl;
     }
+    fullyInstantiatedName = functionName + "<" + instTypeString + ">";
+    std::cout << "Looking for " << fullyInstantiatedName << std::endl;
     std::cout << "Types are : ";
     for (auto i : types)
         std::cout << " " << i.toString();
