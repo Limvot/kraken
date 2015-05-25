@@ -1,5 +1,22 @@
 import io:*
 
+fun funcID<T>(genFun: fun():T):T {
+    return genFun()
+}
+
+fun retInt():int {
+    return 9
+}
+
+fun doThePrint<T>(func: fun(T):void):void {
+    func(10)
+}
+
+fun printInt(it:int):void {
+    println(it)
+}
+
+
 fun ptrFn<T>(ptr: T*):void {
     println(*ptr)
 }
@@ -7,6 +24,8 @@ fun ptrFn<T>(ptr: T*):void {
 fun main():int  {
     var a = 8
     ptrFn(&a)
+    println(funcID(retInt))
+    doThePrint(printInt)
     return 0
 }
 
