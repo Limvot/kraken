@@ -68,6 +68,7 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelReservedWords;
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelOperators;
 		NodeTree<ASTData>* topScope; //maintained for templates that need to add themselves to the top scope no matter where they are instantiated
+        int lambdaID = 0;
 };
 
 #endif

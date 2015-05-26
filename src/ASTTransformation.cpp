@@ -442,7 +442,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		if (children[1]->getData().getName() == "template_dec")
 			return newNode;
 		scope = newNode;
-	} else if (name == "function") {
+	} else if (name == "function" || name == "lambda") {
 		std::string functionName;
 		//If this is a function template
 		if (children[1]->getData().getName() == "template_dec") {
@@ -465,13 +465,17 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			std::cout << "Finished Non-Instantiated Template function " << functionName << std::endl;
 			return newNode;
 		}
-		functionName = concatSymbolTree(children[0]);
-        for (auto child: children)
-            std::cout << "Function child: " << child->getDataRef()->toString() << std::endl;
+        if (name == "lambda")
+            functionName = "lambda" + intToString(lambdaID++);
+        else
+            functionName = concatSymbolTree(children[0]);
 		newNode = new NodeTree<ASTData>(name, ASTData(function, Symbol(functionName, true), typeFromTypeNode(children[children.size()-2], scope, templateTypeReplacements)));
         addToScope(functionName, newNode, scope);
         addToScope("~enclosing_scope", scope, newNode);
 		scope = newNode;
+        // If lambda, add to top scope so it gets emitted
+        if (name == "lambda")
+            addToScope(functionName, newNode, topScope);
 
         auto parameters = transformChildren(getNodes("typed_parameter", children), skipChildren, scope, types, templateTypeReplacements);
         newNode->addChildren(parameters);

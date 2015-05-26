@@ -64,6 +64,7 @@ right_shift = ">" ">" ;
 overloadable_operator = "\+" | "-" | "\*" | "/" | "%" | "^" | "&" | "\|" | "~" | "!" | "," | "=" | "\+\+" | "--" | "<<" | right_shift | "==" | "!=" | "&&" | "\|\|" | "\+=" | "-=" | "/=" | "%=" | "^=" | "&=" | "\|=" | "\*=" | "<<=" | ">>=" | "->" | "\(" "\)" ;
 func_identifier = identifier | identifier overloadable_operator ;
 function = "fun" WS func_identifier WS template_dec WS "\(" WS opt_typed_parameter_list WS "\)" WS dec_type WS code_block | "fun" WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS dec_type WS code_block ;
+lambda = "fun" WS "\(" WS opt_typed_parameter_list WS "\)" WS dec_type WS code_block ;
 
 opt_typed_parameter_list = typed_parameter_list | ;
 typed_parameter_list = typed_parameter_list WS "," WS typed_parameter | typed_parameter ;
@@ -107,7 +108,7 @@ expression = expression WS "<<" WS term | expression WS right_shift WS shiftand 
 shiftand = shiftand WS "-" WS term | shiftand WS "\+" WS term | term ;
 term = term WS "/" WS factor | term WS "\*" WS factor | term WS "%" WS factor | factor ;
 factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\(" WS type WS "\)" WS unarad | "\*" WS unarad | "&" WS unarad | unarad ;
-unarad = number | scoped_identifier | scoped_identifier WS template_inst | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | access_operation | unarad WS "[" WS expression WS "]" ; 
+unarad = number | scoped_identifier | scoped_identifier WS template_inst | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | access_operation | unarad WS "[" WS expression WS "]" | lambda ; 
 number = integer | floating_literal ;
 access_operation = unarad "." identifier | unarad "->" identifier ;
 
