@@ -1,0 +1,30 @@
+import io:*
+
+obj templd<T> {
+    var data: T
+    fun construct(dataIn:T):void {
+        data = dataIn
+    }
+    fun conv<U>(func: fun(T):U): U {
+        return func(data)
+    }
+}
+
+obj onlyMember {
+    var data: int
+    fun printAThing<T>(otherDat: T):void {
+        println(data)
+        println(otherDat)
+    }
+}
+
+fun main():int {
+    var hmm.construct(3): templd<int>
+    println(hmm.conv(fun(it:int):double { return it + 0.141592; }))
+
+    var onlyM: onlyMember
+    onlyM.data = 7
+    onlyM.printAThing("hi")
+    return 0
+}
+

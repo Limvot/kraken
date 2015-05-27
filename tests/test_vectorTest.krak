@@ -17,7 +17,22 @@ fun main(): int {
     println(intVec.size);
     for (var i: int = 0; i < intVec.size; i++;)
         print(intVec.at(i));
+    println();
 
+    // in place lambda map
+    intVec.in_place(fun(it:int):int { return it*2; })
+    for (var i: int = 0; i < intVec.size; i++;)
+        print(intVec.at(i));
+    println();
+
+    var subd = intVec.map(fun(it:int):int { return it-1; })
+    for (var i: int = 0; i < subd.size; i++;)
+        print(subd.at(i));
+    println();
+
+    var newType = intVec.map(fun(it:int):double { return it+1.7; })
+    for (var i: int = 0; i < newType.size; i++;)
+        print(newType.at(i));
     println();
 
     var desVec: vector<AbleToBeDestroyed>* = new<vector<AbleToBeDestroyed>>()->construct();

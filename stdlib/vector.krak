@@ -26,6 +26,13 @@ obj vector<T> (Destructable) {
         delete<T>(data);
     }
 
+    fun clone(): vector<T> {
+        var newVec.construct(size): vector<T>
+        for (var i = 0; i < size; i++;)
+            newVec.set(i, data[i])
+        return newVec
+    }
+
     fun resize(newSize: int): bool {
         var newData: T* = new<T>(newSize);
         if (!newData)
@@ -66,6 +73,16 @@ obj vector<T> (Destructable) {
         if (size >= available)
             resize(size*2);
         data[size-1] = dataIn;
+    }
+    fun in_place(func: fun(T):T):void {
+        for (var i = 0; i < size; i++;)
+            data[i] = func(data[i])
+    }
+    fun map<U>(func: fun(T):U):vector<U> {
+        var newVec.construct(size): vector<U>
+        for (var i = 0; i < size; i++;)
+            newVec.set(i, func(data[i]))
+        return newVec
     }
 };
 

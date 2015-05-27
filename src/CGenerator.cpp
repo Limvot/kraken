@@ -227,7 +227,8 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                             std::string objectFunctionDefinitions = "/* Method Definitions for " + declarationData.symbol.getName() + " */\n";
                             for (int j = 0; j < decChildren.size(); j++) {
                                 std::cout << decChildren[j]->getName() << std::endl;
-                                if (decChildren[j]->getName() == "function") //If object method
+                                if (decChildren[j]->getName() == "function"
+                                        && decChildren[j]->getDataRef()->valueType->baseType != template_type) //If object method and not template
                                     objectFunctionDefinitions += generateObjectMethod(declaration, decChildren[j], &functionPrototypes) + "\n";
                             }
                             // Add all aliases to the plain typedefs. This will add any alias that aliases to this object, and any alias that aliases to that, and so on
@@ -397,7 +398,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                                                  && children[1]->getChildren()[0]->getChildren()[1] == children[0]) {
                 //That is, if we're a declaration with an init position call (Object a.construct())
                 //We can tell if our function call (children[1])'s access operation([0])'s lhs ([1]) is the thing we just declared (children[0])
-                return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName)) + "; " + generate(children[1]) + "/*Init Position Call*/";
+                return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName)) + "; " + generate(children[1], enclosingObject, true) + "/*Init Position Call*/";
             } else
 				return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName)) + " = " + generate(children[1], enclosingObject, true) + ";";
 		case if_comp:

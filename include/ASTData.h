@@ -27,6 +27,7 @@ class ASTData {
 		~ASTData();
 		std::string toString();
 		static std::string ASTTypeToString(ASTType type);
+
 		ASTType type;
 		Type* valueType;
 		Symbol symbol;
