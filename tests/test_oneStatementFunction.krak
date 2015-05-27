@@ -1,0 +1,24 @@
+import io:*
+
+fun oneLine1():void println(7)
+fun oneLine2():int return 8
+fun oneLineID<T>(a:T):T return a
+
+obj methods {
+    fun m1():void println("method")
+    fun m2<T>(a:T):T return a
+}
+
+fun main():int {
+    oneLine1()
+    println(oneLine2())
+    println(oneLineID("oh yeah"))
+    var lambda = fun():void println("better?");
+    lambda()
+
+    var o: methods
+    o.m1()
+    println(o.m2("templated method"))
+    return 0
+}
+

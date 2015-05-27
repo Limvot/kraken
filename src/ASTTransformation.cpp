@@ -474,7 +474,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         newNode->addChildren(parameters);
         // update type with actual type
         newNode->getDataRef()->valueType = new Type(mapNodesToTypePointers(parameters), newNode->getDataRef()->valueType);
-        newNode->addChild(transform(getNode("code_block", children), scope, types, templateTypeReplacements));
+        newNode->addChild(transform(getNode("statement", children), scope, types, templateTypeReplacements));
 		std::cout << "finished function" << functionName << std::endl;
         return newNode;
 
@@ -1545,7 +1545,7 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
     instantiatedFunction->addChildren(parameters);
     // update type with actual type
     instantiatedFunction->getDataRef()->valueType = new Type(mapNodesToTypePointers(parameters), instantiatedFunction->getDataRef()->valueType);
-    instantiatedFunction->addChild(transform(getNode("code_block", templateSyntaxTree->getChildren()), instantiatedFunction, std::vector<Type>(), newTemplateTypeReplacement));
+    instantiatedFunction->addChild(transform(getNode("statement", templateSyntaxTree->getChildren()), instantiatedFunction, std::vector<Type>(), newTemplateTypeReplacement));
 
 	std::cout << "Fully Instantiated function " << functionName << " to " << fullyInstantiatedName << std::endl;
 	return instantiatedFunction;

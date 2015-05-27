@@ -301,8 +301,9 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             // this is for using functions as values
             if (justFuncName)
                 return ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) + CifyName(data.symbol.getName() + nameDecoration);
+            // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
 			output += "\n" + ValueTypeToCType(data.valueType->returnType, ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) +
-                        CifyName(data.symbol.getName() + nameDecoration)) + "(" + parameters + ")\n" + generate(children[children.size()-1], enclosingObject, justFuncName);
+                        CifyName(data.symbol.getName() + nameDecoration)) + "(" + parameters + ") {\n" + generate(children[children.size()-1], enclosingObject, justFuncName) + "}\n";
 			return output;
 		}
 		case code_block:
@@ -441,7 +442,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			std::string name = children[0]->getDataRef()->symbol.getName();
 			ASTType funcType = children[0]->getDataRef()->type;
 			std::cout << "Doing function: " << name << std::endl;
-			//Test for specail functions only if what we're testing is, indeed, the definition, not a function call that returns a callable function pointer
+			//Test for special functions only if what we're testing is, indeed, the definition, not a function call that returns a callable function pointer
 			if (funcType == function) {
 				if (name == "++" || name == "--")
 					return generate(children[1], enclosingObject, true) + name;
@@ -553,7 +554,8 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
     std::string functionSignature = "\n" + ValueTypeToCType(data.valueType->returnType, scopePrefix(from) +  CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
 		+ CifyName(data.symbol.getName()) + nameDecoration) + "(" + ValueTypeToCType(&enclosingObjectType, "this") + parameters + ")";
     *functionPrototype += functionSignature + ";\n";
-    return functionSignature + "\n" +  generate(children[children.size()-1], enclosingObject); //Pass in the object so we can properly handle access to member stuff
+    // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
+    return functionSignature + " {\n" +  generate(children[children.size()-1], enclosingObject) + "}\n"; //Pass in the object so we can properly handle access to member stuff
 }
 
 
