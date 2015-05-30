@@ -32,6 +32,21 @@ bool contains(std::vector<T> vec, T item) {
 }
 
 template <typename T>
+std::vector<T> flatten(std::vector<std::vector<T>> vec) {
+    std::vector<T> flat;
+    for (auto i : vec)
+        flat.insert(flat.end(), i.begin(), i.end());
+    return flat;
+}
+
+template <typename T>
+std::vector<T> reverse(std::vector<T> vec) {
+    std::vector<T> flat;
+    flat.insert(flat.end(), vec.rbegin(), vec.rend());
+    return flat;
+}
+
+template <typename T>
 std::vector<T> slice(std::vector<T> vec, int begin, int end, int step = 1) {
     std::vector<T> toReturn;
     if (begin < 0)

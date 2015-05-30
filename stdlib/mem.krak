@@ -23,11 +23,11 @@ fun free<T>(memPtr: T*): void {
 }
 
 fun sizeof<T>(): int {
-	var testObj: T;
+	var testObj: T*;
     var result: int;
 	__if_comp__ __C__ {
 		simple_passthrough(testObj = testObj : result = result:) """
-			int result = sizeof(testObj);
+			int result = sizeof(*testObj);
 		"""
 	}
 	return result;

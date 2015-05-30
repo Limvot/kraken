@@ -2,6 +2,7 @@
 
 CGenerator::CGenerator() : generatorString("__C__") {
 	tabLevel = 0;
+    id = 0;
 }
 CGenerator::~CGenerator() {
 }
@@ -33,6 +34,7 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
 	outputBuild.open(outputName + "/" + split(outputName, '/').back() + ".sh");
 	outputBuild << buildString;
 	outputBuild.close();
+    std::cout << "DEFER DOUBLE STACK " << deferDoubleStack.size() << std::endl;
 }
 
 std::string CGenerator::tabs() {
@@ -40,6 +42,10 @@ std::string CGenerator::tabs() {
 	for (int i = 0; i < tabLevel; i++)
 		returnTabs += "\t";
 	return returnTabs;
+}
+
+std::string CGenerator::getID() {
+    return intToString(id++);
 }
 
 std::string CGenerator::generateClassStruct(NodeTree<ASTData>* from) {
@@ -50,7 +56,7 @@ std::string CGenerator::generateClassStruct(NodeTree<ASTData>* from) {
     for (int i = 0; i < children.size(); i++) {
         std::cout << children[i]->getName() << std::endl;
         if (children[i]->getName() != "function")
-            objectString += tabs() + generate(children[i], nullptr) + "\n";
+            objectString += tabs() + generate(children[i], nullptr).oneString() + "\n";
     }
     tabLevel--;
     objectString += "};";
@@ -131,8 +137,6 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
     // it is emitted in the h file right before functionPrototypes
 
 
-    // And get the correct order for emiting classes, but not if they're not in our file, then they will get included
-    // Note that this is not sufsticated enough for some multiple file mutually recursive types, but I want to get this simple version working first
     Poset<NodeTree<ASTData>*> typedefPoset;
     for (auto trans : ASTs) {
         auto children = trans.second->getChildren();
@@ -168,7 +172,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
         // First go through and emit all the passthroughs, etc
         for (auto i : trans.second->getChildren()) {
             if (i->getDataRef()->type == if_comp)
-                topLevelCPassthrough += generate(i, nullptr);
+                topLevelCPassthrough += generate(i, nullptr).oneString();
         }
 
         for (auto i = trans.second->getDataRef()->scope.begin(); i != trans.second->getDataRef()->scope.end(); i++) {
@@ -191,7 +195,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                 for (int j = 0; j < decChildren.size()-1; j++) {
                                     if (j > 0)
                                         parameters += ", ";
-                                    parameters += ValueTypeToCType(decChildren[j]->getData().valueType, generate(decChildren[j], nullptr));
+                                    parameters += ValueTypeToCType(decChildren[j]->getData().valueType, generate(decChildren[j], nullptr).oneString());
                                     nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
                                 }
                                 functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType->returnType, ((declarationData.symbol.getName() == "main") ? "" : scopePrefix(declaration)) +
@@ -200,7 +204,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                 // generate function
                                 std::cout << "Generating " << scopePrefix(declaration) +
                                                             CifyName(declarationData.symbol.getName()) << std::endl;
-                                functionDefinitions += generate(declaration, nullptr);
+                                functionDefinitions += generate(declaration, nullptr).oneString();
                             }
                         }
                         break;
@@ -252,10 +256,11 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
 }
 
 //The enclosing object is for when we're generating the inside of object methods. They allow us to check scope lookups against the object we're in
-std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject, bool justFuncName) {
+CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject, bool justFuncName) {
 	ASTData data = from->getData();
 	std::vector<NodeTree<ASTData>*> children = from->getChildren();
-    std::string output;
+    //std::string output;
+    CCodeTriple output;
 	switch (data.type) {
 		case translation_unit:
 		{
@@ -268,15 +273,13 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			//Do nothing
 			break;
 		case import:
-            return "/* never reached import? */\n";
-			//return "include \"" + data.symbol.getName() + ".h\" //woo importing!\n";
-			//return "#include <" + data.symbol.getName() + ">\n";
+            return CCodeTriple("/* never reached import? */\n");
 		case identifier:
 		{
             //but first, if we're this, we should just emit. (assuming enclosing object) (note that technically this would fall through, but for errors)
             if (data.symbol.getName() == "this") {
                 if (enclosingObject)
-                    return "this";
+                    return CCodeTriple("this");
                 else
                     std::cerr << "Error: this used in non-object scope" << std::endl;
             }
@@ -291,35 +294,54 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		{
 			if (data.valueType->baseType == template_type)
 				return "/* template function: " + data.symbol.getName() + " */";
+
+            // we push on a new vector to hold parameters that might need a destructor call
+            distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
+
 			std::string nameDecoration, parameters;
 			for (int j = 0; j < children.size()-1; j++) {
 				if (j > 0)
 					parameters += ", ";
-				parameters += ValueTypeToCType(children[j]->getData().valueType, generate(children[j], enclosingObject, justFuncName));
+				parameters += ValueTypeToCType(children[j]->getData().valueType, generate(children[j], enclosingObject, justFuncName).oneString());
 				nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
+                // add parameters to distructDoubleStack so that their destructors will be called at return (if they exist)
+                distructDoubleStack.back().push_back(children[j]);
 			}
             // this is for using functions as values
-            if (justFuncName)
-                return ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) + CifyName(data.symbol.getName() + nameDecoration);
+            if (justFuncName) {
+                output = ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) + CifyName(data.symbol.getName() + nameDecoration);
+            } else {
             // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
-			output += "\n" + ValueTypeToCType(data.valueType->returnType, ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) +
-                        CifyName(data.symbol.getName() + nameDecoration)) + "(" + parameters + ") {\n" + generate(children[children.size()-1], enclosingObject, justFuncName) + "}\n";
+                output = "\n" + ValueTypeToCType(data.valueType->returnType, ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) +
+                        CifyName(data.symbol.getName() + nameDecoration)) + "(" + parameters + ") {\n" + generate(children[children.size()-1], enclosingObject, justFuncName).oneString();
+                output += emitDestructors(reverse(distructDoubleStack.back()), enclosingObject);
+                output += "}\n";
+            }
+
+            distructDoubleStack.pop_back();
 			return output;
 		}
 		case code_block:
         {
 			output += "{\n";
             tabLevel++;
+
+            // we push on a new vector to hold parameters that might need a destructor call
+            distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
             // we push on a new vector to hold deferred statements
             deferDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
 			for (int i = 0; i < children.size(); i++)
-				output += generate(children[i], enclosingObject, justFuncName);
+				output += generate(children[i], enclosingObject, justFuncName).oneString();
             // we pop off the vector and go through them in reverse emitting them
             for (auto iter = deferDoubleStack.back().rbegin(); iter != deferDoubleStack.back().rend(); iter++)
-                output += generate(*iter, enclosingObject, justFuncName);
+                output += generate(*iter, enclosingObject, justFuncName).oneString();
             deferDoubleStack.pop_back();
+            output += emitDestructors(reverse(distructDoubleStack.back()), enclosingObject);
+            distructDoubleStack.pop_back();
+
             tabLevel--;
 			output += tabs() + "}";
+
 			return output;
         }
         case expression:
@@ -327,87 +349,147 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		case boolean_expression:
 			output += " " + data.symbol.getName() + " ";
 		case statement:
-			return tabs() + generate(children[0], enclosingObject, justFuncName) + ";\n";
+            {
+			CCodeTriple stat = generate(children[0], enclosingObject, justFuncName);
+			return tabs() + stat.preValue + stat.value + ";\n" + stat.postValue ;
+            }
 		case if_statement:
-			output += "if (" + generate(children[0], enclosingObject, true) + ")\n\t";
+			output += "if (" + generate(children[0], enclosingObject, true).oneString() + ")\n\t";
             // We have to see if the then statement is a regular single statement or a block.
             // If it's a block, because it's also a statement a semicolon will be emitted even though
             // we don't want it to be, as if (a) {b}; else {c}; is not legal C, but if (a) {b} else {c}; is.
             if (children[1]->getChildren()[0]->getDataRef()->type == code_block) {
                 std::cout << "Then statement is a block, emitting the block not the statement so no trailing semicolon" << std::endl;
-                output += generate(children[1]->getChildren()[0], enclosingObject, justFuncName);
+                output += generate(children[1]->getChildren()[0], enclosingObject, justFuncName).oneString();
             } else {
                 // ALSO we always emit blocks now, to handle cases like defer when several statements need to be
                 // run in C even though it is a single Kraken statement
                 std::cout << "Then statement is a simple statement, regular emitting the statement so trailing semicolon" << std::endl;
-                output += "{ " + generate(children[1], enclosingObject, justFuncName) + " }";
+                output += "{ " + generate(children[1], enclosingObject, justFuncName).oneString() + " }";
             }
             // Always emit blocks here too
 			if (children.size() > 2)
-				output += " else { " + generate(children[2], enclosingObject, justFuncName) + " }";
+				output += " else { " + generate(children[2], enclosingObject, justFuncName).oneString() + " }";
 			return output;
 		case while_loop:
+            // we push on a new vector to hold while stuff that might need a destructor call
+            loopDistructStackDepth.push(distructDoubleStack.size());
+            distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
             // keep track of the current size of the deferDoubleStack so that statements that
             // break or continue inside this loop can correctly emit all of the defers through
             // all of the inbetween scopes
             loopDeferStackDepth.push(deferDoubleStack.size());
-			output += "while (" + generate(children[0], enclosingObject, true) + ")\n\t" + generate(children[1], enclosingObject, justFuncName);
+			output += "while (" + generate(children[0], enclosingObject, true).oneString() + ") {\n\t";
+            output += generate(children[1], enclosingObject, justFuncName).oneString();
+            output += emitDestructors(reverse(distructDoubleStack.back()),enclosingObject);
+            output +=  + "}";
+
+            distructDoubleStack.pop_back();
+            loopDistructStackDepth.pop();
             // and pop it off again
             loopDeferStackDepth.pop();
 			return output;
 		case for_loop:
+            // we push on a new vector to hold for stuff that might need a destructor call
+            loopDistructStackDepth.push(distructDoubleStack.size());
+            distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
             // keep track of the current size of the deferDoubleStack so that statements that
             // break or continue inside this loop can correctly emit all of the defers through
             // all of the inbetween scopes
             loopDeferStackDepth.push(deferDoubleStack.size());
 			//The strSlice's are there to get ride of an unwanted return and an unwanted semicolon(s)
-			output += "for (" + strSlice(generate(children[0], enclosingObject, true),0,-3) + generate(children[1], enclosingObject, true) + ";" + strSlice(generate(children[2], enclosingObject, true),0,-3) + ")\n\t" + generate(children[3], enclosingObject, justFuncName);
+			output += "for (" + strSlice(generate(children[0], enclosingObject, true).oneString(),0,-3) + generate(children[1], enclosingObject, true).oneString() + ";" + strSlice(generate(children[2], enclosingObject, true).oneString(),0,-3) + ")";
+            output += " {\n\t" + generate(children[3], enclosingObject, justFuncName).oneString();
+            output += emitDestructors(reverse(distructDoubleStack.back()),enclosingObject);
+            output +=  + "}";
+            distructDoubleStack.pop_back();
+            loopDistructStackDepth.pop();
             // and pop it off again
             loopDeferStackDepth.pop();
 			return output;
 		case return_statement:
+            {
             // we pop off the vector and go through them in reverse emitting them, going
             // through all of both arrays, as return will go through all scopes
             for (auto topItr = deferDoubleStack.rbegin(); topItr != deferDoubleStack.rend(); topItr++)
                 for (auto iter = (*topItr).rbegin(); iter != (*topItr).rend(); iter++)
-                    output += generate(*iter, enclosingObject, justFuncName);
-			if (children.size())
-				return "return " + generate(children[0], enclosingObject, true);
-			else
-				return "return";
+                    output += generate(*iter, enclosingObject, justFuncName).oneString();
+
+            std::string destructors = emitDestructors(reverse(flatten(distructDoubleStack)),enclosingObject);
+			if (children.size()) {
+                CCodeTriple expr = generate(children[0], enclosingObject, true);
+                output.preValue += expr.preValue;
+                std::string retTemp = "ret_temp" + getID();
+                output.preValue += ValueTypeToCType(children[0]->getDataRef()->valueType, retTemp) + ";\n";
+                if (methodExists(children[0]->getDataRef()->valueType, "copy_construct"))
+                    output.preValue += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&"+retTemp + ", &" + expr.value);
+                else
+                    output.preValue += retTemp + " = " + expr.value + ";\n";
+                // move expr post to before return
+                output.value += expr.postValue;
+                output.value += destructors;
+                output.value += "return " + retTemp;
+            } else {
+                output.value += destructors;
+				output += "return";
+            }
+            return output;
+            }
 		case break_statement:
             // handle everything that's been deferred all the way back to the loop's scope
             for (int i = deferDoubleStack.size()-1; i >= loopDeferStackDepth.top(); i--)
                 for (auto iter = deferDoubleStack[i].rbegin(); iter != deferDoubleStack[i].rend(); iter++)
-                    output += generate(*iter, enclosingObject, justFuncName);
+                    output += generate(*iter, enclosingObject, justFuncName).oneString();
+            // ok, emit destructors to where the loop ends
+            output += emitDestructors(reverse(flatten(slice(distructDoubleStack,loopDistructStackDepth.top(),-1))),enclosingObject);
             return output + "break";
 		case continue_statement:
             // handle everything that's been deferred all the way back to the loop's scope
             for (int i = deferDoubleStack.size()-1; i >= loopDeferStackDepth.top(); i--)
                 for (auto iter = deferDoubleStack[i].rbegin(); iter != deferDoubleStack[i].rend(); iter++)
-                    output += generate(*iter, enclosingObject, justFuncName);
+                    output += generate(*iter, enclosingObject, justFuncName).oneString();
+            // ok, emit destructors to where the loop ends
+            output += emitDestructors(reverse(flatten(slice(distructDoubleStack,loopDistructStackDepth.top(),-1))),enclosingObject);
             return output + "continue";
 		case defer_statement:
             deferDoubleStack.back().push_back(children[0]);
-            return "/*defer " + generate(children[0], enclosingObject, justFuncName) + "*/";
+            return CCodeTriple("/*defer " + generate(children[0], enclosingObject, justFuncName).oneString() + "*/");
 		case assignment_statement:
-			return generate(children[0], enclosingObject, justFuncName) + " = " + generate(children[1], enclosingObject, true);
+            //if (methodExists(retType, "operator=")) {
+			return generate(children[0], enclosingObject, justFuncName).oneString() + " = " + generate(children[1], enclosingObject, true);
 		case declaration_statement:
+            // adding declaration to the distructDoubleStack so that we can call their destructors when leaving scope (}, return, break, continue)
+            // but only if we're inside an actual doublestack
+            if ((distructDoubleStack.size()))
+                distructDoubleStack.back().push_back(children[0]);
+
 			if (children.size() == 1)
-				return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName)) + ";";
+				return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName).oneString()) + ";";
 			else if (children[1]->getChildren().size() && children[1]->getChildren()[0]->getChildren().size() > 1
                                                  && children[1]->getChildren()[0]->getChildren()[1] == children[0]) {
                 //That is, if we're a declaration with an init position call (Object a.construct())
                 //We can tell if our function call (children[1])'s access operation([0])'s lhs ([1]) is the thing we just declared (children[0])
-                return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName)) + "; " + generate(children[1], enclosingObject, true) + "/*Init Position Call*/";
-            } else
-				return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName)) + " = " + generate(children[1], enclosingObject, true) + ";";
+                return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName).oneString()) + "; " + generate(children[1], enclosingObject, true).oneString() + "/*Init Position Call*/";
+            } else {
+                // copy constructor if of the same type
+                if (*children[0]->getDataRef()->valueType == *children[1]->getDataRef()->valueType && methodExists(children[1]->getDataRef()->valueType, "copy_construct")) {
+                    CCodeTriple toAssign = generate(children[1], enclosingObject, true);
+                    std::string assignedTo = generate(children[0], enclosingObject, justFuncName).oneString();
+                    output.value = toAssign.preValue;
+                    output.value += ValueTypeToCType(children[0]->getData().valueType, assignedTo) + ";\n";
+                    output.value += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&" + assignedTo + ", &" + toAssign.value) + ";\n" + output.postValue;
+                    output.value += toAssign.postValue;
+                    return output;
+                } else {
+                    return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName).oneString()) + " = " + generate(children[1], enclosingObject, true) + ";";
+                }
+            }
 		case if_comp:
             // Lol, this doesn't work because the string gets prefixed now
 			//if (generate(children[0], enclosingObject) == generatorString)
 			if (children[0]->getDataRef()->symbol.getName() == generatorString)
 				return generate(children[1], enclosingObject, justFuncName);
-			return "";
+			return CCodeTriple("");
 		case simple_passthrough:
             {
                 // Stuff is bit more interesting now! XXX
@@ -419,17 +501,17 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                         for (auto assign : in_or_out->getChildren()) {
                             auto assignChildren = assign->getChildren();
                             if (in_or_out->getDataRef()->type == in_passthrough_params)
-                                pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, assignChildren[1]->getDataRef()->symbol.getName()) + " = " + generate(assignChildren[0], enclosingObject) + ";\n";
+                                pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, assignChildren[1]->getDataRef()->symbol.getName()) + " = " + generate(assignChildren[0], enclosingObject).oneString() + ";\n";
                             else if (in_or_out->getDataRef()->type == out_passthrough_params)
-                                post_passthrough += generate(assignChildren[0], enclosingObject, justFuncName) + " = " + assignChildren[1]->getDataRef()->symbol.getName() + ";\n";
+                                post_passthrough += generate(assignChildren[0], enclosingObject, justFuncName).oneString() + " = " + assignChildren[1]->getDataRef()->symbol.getName() + ";\n";
                             else
-                                linkerString += " " + strSlice(generate(in_or_out, enclosingObject, justFuncName), 1, -2) + " ";
+                                linkerString += " " + strSlice(generate(in_or_out, enclosingObject, justFuncName).oneString(), 1, -2) + " ";
                         }
                     }
                 }
                 // The actual passthrough string is the last child now, as we might
                 // have passthrough_params be the first child
-                return pre_passthrough + strSlice(generate(children.back(), enclosingObject, justFuncName), 3, -4) + post_passthrough;
+                return pre_passthrough + strSlice(generate(children.back(), enclosingObject, justFuncName).oneString(), 3, -4) + post_passthrough;
             }
 		case function_call:
 		{
@@ -445,19 +527,19 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			//Test for special functions only if what we're testing is, indeed, the definition, not a function call that returns a callable function pointer
 			if (funcType == function) {
 				if (name == "++" || name == "--")
-					return generate(children[1], enclosingObject, true) + name;
+					return generate(children[1], enclosingObject, true).oneString() + name;
 				if ( (name == "*" || name == "&" || name == "!" || name == "-" || name == "+" ) && children.size() == 2) //Is dereference, not multiplication, address-of, or other unary operator
-					return name + "(" + generate(children[1], enclosingObject, true) + ")";
+					return name + "(" + generate(children[1], enclosingObject, true).oneString() + ")";
 				if (name == "[]")
-					return "(" + generate(children[1], enclosingObject, true) + ")[" +generate(children[2],enclosingObject, true) + "]";
+					return "(" + generate(children[1], enclosingObject, true) + ")[" + generate(children[2],enclosingObject, true) + "]";
 				if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
 					|| name == "<" || name == ">" || name == "%" || name == "+=" || name == "-=" || name == "*=" || name == "/=" || name == "||"
 					|| name == "&&") {
                     std::cout << "THIS IS IT NAME: " << name << std::endl;
-					return "((" + generate(children[1], enclosingObject, true) + ")" + name + "(" + generate(children[2], enclosingObject, true) + "))";
+					return "((" + generate(children[1], enclosingObject, true).oneString() + ")" + name + "(" + generate(children[2], enclosingObject, true).oneString() + "))";
                 } else if (name == "." || name == "->") {
 					if (children.size() == 1)
-					 	return "/*dot operation with one child*/" + generate(children[0], enclosingObject, true) + "/*end one child*/";
+					 	return "/*dot operation with one child*/" + generate(children[0], enclosingObject, true).oneString() + "/*end one child*/";
 					 //If this is accessing an actual function, find the function in scope and take the appropriate action. Probabally an object method
 					 if (children[2]->getDataRef()->type == function) {
 					 	std::string functionName = children[2]->getDataRef()->symbol.getName();
@@ -473,20 +555,20 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 		    	nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
                                 // Note that we only add scoping to the object, as this specifies our member function too
 /*HERE*/				 	    return scopePrefix(unaliasedTypeDef) + CifyName(unaliasedTypeDef->getDataRef()->symbol.getName()) +"__" +
-                                        CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject, true) + ",";
+                                        CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject, true).oneString() + ",";
 					 		    //The comma lets the upper function call know we already started the param list
 					 		    //Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
                             } else {
 					 	        std::cout << "Is not in scope or not type" << std::endl;
-					            return "((" + generate(children[1], enclosingObject, true) + ")" + name + functionName + ")";
+					            return "((" + generate(children[1], enclosingObject, true).oneString() + ")" + name + functionName + ")";
                             }
                         } else {
 					 	    std::cout << "Is not in scope or not type" << std::endl;
-					        return "((" + generate(children[1], enclosingObject, true) + ")" + name + functionName + ")";
+					        return "((" + generate(children[1], enclosingObject, true).oneString() + ")" + name + functionName + ")";
 					 	}
 					} else {
 						//return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
-						return "((" + generate(children[1], enclosingObject, true) + ")" + name + generate(children[2], nullptr, true) + ")";
+						return "((" + generate(children[1], enclosingObject, true).oneString() + ")" + name + generate(children[2], nullptr, true).oneString() + ")";
 					}
 				} else {
 					//It's a normal function call, not a special one or a method or anything. Name decorate.
@@ -508,18 +590,37 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			} else {
 				//This part handles cases where our definition isn't the function definition (that is, it is probabally the return from another function)
 				//It's probabally the result of an access function call (. or ->) to access an object method.
-				std::string functionCallSource = generate(children[0], enclosingObject, true);
+				std::string functionCallSource = generate(children[0], enclosingObject, true).oneString();
 				if (functionCallSource[functionCallSource.size()-1] == ',') //If it's a member method, it's already started the parameter list.
 					output += children.size() > 1 ? functionCallSource : functionCallSource.substr(0, functionCallSource.size()-1);
 				else
 					output += functionCallSource + "(";
 			}
-			for (int i = 1; i < children.size(); i++) //children[0] is the declaration
+            // see if we should copy_construct all the parameters
+			for (int i = 1; i < children.size(); i++) { //children[0] is the declaration
+                if (methodExists(children[i]->getDataRef()->valueType, "copy_construct")) {
+                    std::string tmpParamName = "param" + getID();
+                    CCodeTriple paramValue = generate(children[i], enclosingObject, true);
+                    output.preValue += paramValue.preValue;
+                    output.preValue += ValueTypeToCType(children[i]->getDataRef()->valueType, tmpParamName) + ";\n";
+                    output.preValue += generateMethodIfExists(children[i]->getDataRef()->valueType, "copy_construct", "&"+tmpParamName + ", &" + paramValue.value);
+                    output.value += tmpParamName;
+                    output.postValue += paramValue.postValue;
+                } else {
+                    output += generate(children[i], enclosingObject, true);
+                }
 				if (i < children.size()-1)
-					output += generate(children[i], enclosingObject, true) + ", ";
-				else
-					output += generate(children[i], enclosingObject, true);
+					output += ", ";
+            }
 			output += ") ";
+            // see if we should add a destructer call to this postValue
+			Type* retType = children[0]->getDataRef()->valueType->returnType;
+            if (methodExists(retType, "destruct")) {
+                std::string retTempName = "return_temp" + getID();
+                output.preValue += ValueTypeToCType(retType, retTempName) + " = " + output.value + ";\n";
+                output.value = retTempName;
+                output.postValue = generateMethodIfExists(retType, "destruct", "&"+retTempName) + ";\n" + output.postValue;
+            }
 			return output;
 		}
 		case value:
@@ -529,7 +630,7 @@ std::string CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			std::cout << "Nothing!" << std::endl;
 	}
 	for (int i = 0; i < children.size(); i++)
-		output += generate(children[i], enclosingObject, justFuncName);
+		output += generate(children[i], enclosingObject, justFuncName).oneString();
 
 	return output;
 }
@@ -548,14 +649,49 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 	std::vector<NodeTree<ASTData>*> children = from->getChildren();
 	std::string nameDecoration, parameters;
 	for (int i = 0; i < children.size()-1; i++) {
-		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType, generate(children[i]));
+		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType, generate(children[i]).oneString());
 		nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
 	}
     std::string functionSignature = "\n" + ValueTypeToCType(data.valueType->returnType, scopePrefix(from) +  CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
 		+ CifyName(data.symbol.getName()) + nameDecoration) + "(" + ValueTypeToCType(&enclosingObjectType, "this") + parameters + ")";
     *functionPrototype += functionSignature + ";\n";
     // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
-    return functionSignature + " {\n" +  generate(children[children.size()-1], enclosingObject) + "}\n"; //Pass in the object so we can properly handle access to member stuff
+    return functionSignature + " {\n" +  generate(children[children.size()-1], enclosingObject).oneString() + "}\n"; //Pass in the object so we can properly handle access to member stuff
+}
+
+NodeTree<ASTData>* CGenerator::getMethod(Type* type, std::string method) {
+    if (type->getIndirection())
+        return nullptr;
+    NodeTree<ASTData> *typeDefinition = type->typeDefinition;
+    if (typeDefinition) {
+        auto definitionItr = typeDefinition->getDataRef()->scope.find(method);
+        if (definitionItr != typeDefinition->getDataRef()->scope.end())
+            return definitionItr->second[0];
+    }
+    return nullptr;
+}
+
+bool CGenerator::methodExists(Type* type, std::string method) {
+    return getMethod(type, method) != nullptr;
+}
+
+std::string CGenerator::generateMethodIfExists(Type* type, std::string method, std::string parameter) {
+    NodeTree<ASTData> *typeDefinition = type->typeDefinition;
+    NodeTree<ASTData> *methodDef = getMethod(type, method);
+    if (methodDef) {
+        std::string nameDecoration;
+        for (Type *paramType : methodDef->getDataRef()->valueType->parameterTypes)
+            nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
+        return scopePrefix(typeDefinition) + CifyName(typeDefinition->getDataRef()->symbol.getName()) + "__" + method + nameDecoration + "(" + parameter + ");\n";
+    }
+    return "";
+}
+
+std::string CGenerator::emitDestructors(std::vector<NodeTree<ASTData>*> identifiers, NodeTree<ASTData>* enclosingObject) {
+    std::string destructorString = "";
+    for (auto identifier : identifiers)
+        destructorString += tabs() + generateMethodIfExists(identifier->getDataRef()->valueType, "destruct", "&" + generate(identifier, enclosingObject).oneString());
+    return destructorString;
 }
 
 

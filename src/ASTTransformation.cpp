@@ -1229,7 +1229,17 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>
 	auto LLElementIterator = languageLevelReservedWords.find(lookup);
 	if (LLElementIterator != languageLevelReservedWords.end()) {
 		std::cout << "found it at language level as reserved word." << std::endl;
-		return LLElementIterator->second;
+		NodeTree<ASTData>* identifier = LLElementIterator->second[0];
+        if (lookup == "this") {
+            identifier = new NodeTree<ASTData>("identifier", identifier->getData());
+            // if we're looking for this, traverse up until we find the declaration of this object and assign it's type to this
+            NodeTree<ASTData>* trans;
+            for (trans = scope; trans->getDataRef()->type != type_def; trans = trans->getDataRef()->scope["~enclosing_scope"][0]);
+            identifier->getDataRef()->valueType = trans->getDataRef()->valueType->clone();
+            identifier->getDataRef()->valueType->increaseIndirection();
+        }
+        std::vector<NodeTree<ASTData>*> thingy; thingy.push_back(identifier);
+        return thingy;
     }
     std::vector<NodeTree<ASTData>*> matches;
     // First, we check for scope operator (::) but only if occurs before a "<" as this would signal the beginning of a template instatiation inside type

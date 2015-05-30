@@ -22,6 +22,12 @@ obj vector<T> (Destructable) {
         return this;
     }
 
+    fun copy_construct(old: vector<T>*): void {
+        construct(old->size)
+        for (var i = 0; i < size; i++;)
+            set(i, old->get(i))
+    }
+
     fun destruct(): void {
         delete<T>(data);
     }
@@ -73,6 +79,10 @@ obj vector<T> (Destructable) {
         if (size >= available)
             resize(size*2);
         data[size-1] = dataIn;
+    }
+    fun do(func: fun(T):void):void {
+        for (var i = 0; i < size; i++;)
+            func(data[i])
     }
     fun in_place(func: fun(T):T):void {
         for (var i = 0; i < size; i++;)

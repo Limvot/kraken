@@ -3,6 +3,10 @@ import mem:*;
 import vector:*;
 
 obj AbleToBeDestroyed (Destructable) {
+    fun copy_construct(other:AbleToBeDestroyed*):void {
+        println("Copied!");
+    }
+
     fun destruct(): void {
         println("Destroyed!");
     }
@@ -23,6 +27,8 @@ fun main(): int {
     intVec.in_place(fun(it:int):int { return it*2; })
     for (var i: int = 0; i < intVec.size; i++;)
         print(intVec.at(i));
+    println();
+    intVec.do(fun(it:int):void print(it+7);)
     println();
 
     var subd = intVec.map(fun(it:int):int { return it-1; })
