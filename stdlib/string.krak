@@ -13,15 +13,45 @@ obj string (Destructable) {
             data.addEnd(*str);
             str += 1;
         }
+        // no null terminator
+        return this;
+    }
+    fun construct(vec: vector::vector<char>): string* {
+        data.copy_construct(&vec);
         return this;
     }
 
+    fun copy_construct(old: string*): void {
+        data.copy_construct(&old->data)
+    }
+
+    fun destruct():void {
+        data.destruct()
+    }
+
+    fun operator=(str: char*): void {
+        destruct();
+        construct(str)
+    }
+
+    fun operator+(str: char*): string {
+        var newStr.construct(str):string
+        var ret.construct(data + newStr.data):string
+        return ret
+    }
+
+    fun operator+=(str: char*): void {
+        var newStr.construct(str):string
+        data += newStr.data
+    }
+
     fun toCharArray(): char* {
-        var out: char* = mem::new<char>(data.size);
+        var out: char* = mem::new<char>(data.size+1);
         for (var i: int = 0; i < data.size; i++;)
             out[i] = data.get(i);
+        // null terminator
+        out[data.size] = 0
         return out;
     }
 };
-
 

@@ -29,7 +29,29 @@ obj vector<T> (Destructable) {
     }
 
     fun destruct(): void {
-        delete<T>(data);
+        if (data)
+            delete<T>(data);
+        data = 0
+    }
+
+    fun operator=(other:vector<T>):void {
+        resize(other.size)
+        for (var i = 0; i < other.size; i++;)
+            set(i, other.get(i))
+    }
+
+    fun operator+(other:vector<T>):vector<T> {
+        var newVec.construct(size + other.size):vector<T>
+        for (var i = 0; i < size; i++;)
+            newVec.set(i, get(i))
+        for (var i = 0; i < other.size; i++;)
+            newVec.set(i+size, other.get(i))
+        return newVec
+    }
+
+    fun operator+=(other:vector<T>):void {
+        for (var i = 0; i < other.size; i++;)
+            addEnd(other.get(i))
     }
 
     fun clone(): vector<T> {
@@ -48,6 +70,7 @@ obj vector<T> (Destructable) {
         delete<T>(data, 0);
         data = newData;
         available = newSize;
+        size = lesser(size, newSize)
         return true;
     }
 

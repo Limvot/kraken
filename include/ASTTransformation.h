@@ -50,7 +50,7 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
         NodeTree<ASTData>* functionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type> types);
         NodeTree<ASTData>* templateFunctionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*>* templateInstantiationTypes, std::vector<Type> types, std::map<std::string, Type*> scopeTypeMap);
         std::vector<NodeTree<ASTData>*> scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules = false);
-        std::vector<NodeTree<ASTData>*> scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules, std::vector<NodeTree<ASTData>*> visited);
+        std::vector<NodeTree<ASTData>*> scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules, std::set<NodeTree<ASTData>*> visited);
 
         NodeTree<ASTData>* getUpperTranslationUnit(NodeTree<ASTData>* node);
         NodeTree<ASTData>* addToScope(std::string name, NodeTree<ASTData>* toAdd, NodeTree<ASTData>* addTo);

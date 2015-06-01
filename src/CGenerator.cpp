@@ -10,7 +10,7 @@ CGenerator::~CGenerator() {
 // Note the use of std::pair to hold two strings - the running string for the header file and the running string for  the c file.
 void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName) {
 	//Generate an entire set of files
-	std::string buildString = "#!/bin/sh\ncc -std=c99 ";
+	std::string buildString = "#!/bin/sh\ncc -g -std=c99 ";
 	std::cout << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
     std::cout << "\n\nGenerate pass for: " << outputName << std::endl;
     buildString += outputName + ".c ";
@@ -305,8 +305,13 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				parameters += ValueTypeToCType(children[j]->getData().valueType, generate(children[j], enclosingObject, justFuncName).oneString());
 				nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
                 // add parameters to distructDoubleStack so that their destructors will be called at return (if they exist)
+                std::cout << "HAHA: " << generate(children[j], enclosingObject, justFuncName).oneString() << std::endl;
                 distructDoubleStack.back().push_back(children[j]);
 			}
+            if (children.size() == 1)
+                std::cout << "HEHE: " << data.symbol.getName() << " has only one child" << std::endl;
+            else if (children.size() == 0)
+                std::cout << "HEHE: " << data.symbol.getName() << " has only 0 child" << std::endl;
             // this is for using functions as values
             if (justFuncName) {
                 output = ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) + CifyName(data.symbol.getName() + nameDecoration);
@@ -455,7 +460,6 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             deferDoubleStack.back().push_back(children[0]);
             return CCodeTriple("/*defer " + generate(children[0], enclosingObject, justFuncName).oneString() + "*/");
 		case assignment_statement:
-            //if (methodExists(retType, "operator=")) {
 			return generate(children[0], enclosingObject, justFuncName).oneString() + " = " + generate(children[1], enclosingObject, true);
 		case declaration_statement:
             // adding declaration to the distructDoubleStack so that we can call their destructors when leaving scope (}, return, break, continue)
@@ -469,7 +473,8 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                                                  && children[1]->getChildren()[0]->getChildren()[1] == children[0]) {
                 //That is, if we're a declaration with an init position call (Object a.construct())
                 //We can tell if our function call (children[1])'s access operation([0])'s lhs ([1]) is the thing we just declared (children[0])
-                return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName).oneString()) + "; " + generate(children[1], enclosingObject, true).oneString() + "/*Init Position Call*/";
+                // be sure to end value by passing oneString true
+                return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName).oneString()) + "; " + generate(children[1], enclosingObject, true).oneString(true) + "/*Init Position Call*/";
             } else {
                 // copy constructor if of the same type
                 if (*children[0]->getDataRef()->valueType == *children[1]->getDataRef()->valueType && methodExists(children[1]->getDataRef()->valueType, "copy_construct")) {
@@ -533,7 +538,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				if (name == "[]")
 					return "(" + generate(children[1], enclosingObject, true) + ")[" + generate(children[2],enclosingObject, true) + "]";
 				if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
-					|| name == "<" || name == ">" || name == "%" || name == "+=" || name == "-=" || name == "*=" || name == "/=" || name == "||"
+					|| name == "<" || name == ">" || name == "%" || name == "=" || name == "+=" || name == "-=" || name == "*=" || name == "/=" || name == "||"
 					|| name == "&&") {
                     std::cout << "THIS IS IT NAME: " << name << std::endl;
 					return "((" + generate(children[1], enclosingObject, true).oneString() + ")" + name + "(" + generate(children[2], enclosingObject, true).oneString() + "))";
@@ -643,6 +648,8 @@ NodeTree<ASTData>* CGenerator::getMethodsObjectType(NodeTree<ASTData>* scope, st
 
 // Returns the function prototype in the out param and the full definition normally
 std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from, std::string *functionPrototype) {
+    distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
+
 	ASTData data = from->getData();
 	Type enclosingObjectType = *(enclosingObject->getDataRef()->valueType); //Copy a new type so we can turn it into a pointer if we need to
 	enclosingObjectType.increaseIndirection();
@@ -651,12 +658,20 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 	for (int i = 0; i < children.size()-1; i++) {
 		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType, generate(children[i]).oneString());
 		nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
+
+        distructDoubleStack.back().push_back(children[i]);
 	}
     std::string functionSignature = "\n" + ValueTypeToCType(data.valueType->returnType, scopePrefix(from) +  CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
 		+ CifyName(data.symbol.getName()) + nameDecoration) + "(" + ValueTypeToCType(&enclosingObjectType, "this") + parameters + ")";
     *functionPrototype += functionSignature + ";\n";
     // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
-    return functionSignature + " {\n" +  generate(children[children.size()-1], enclosingObject).oneString() + "}\n"; //Pass in the object so we can properly handle access to member stuff
+    //
+    std::string output;
+    output += functionSignature + " {\n" +  generate(children[children.size()-1], enclosingObject).oneString();
+    output += emitDestructors(reverse(distructDoubleStack.back()), enclosingObject);
+    output += "}\n"; //Pass in the object so we can properly handle access to member stuff
+    distructDoubleStack.pop_back();
+    return output;
 }
 
 NodeTree<ASTData>* CGenerator::getMethod(Type* type, std::string method) {
@@ -683,6 +698,8 @@ std::string CGenerator::generateMethodIfExists(Type* type, std::string method, s
         for (Type *paramType : methodDef->getDataRef()->valueType->parameterTypes)
             nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
         return scopePrefix(typeDefinition) + CifyName(typeDefinition->getDataRef()->symbol.getName()) + "__" + method + nameDecoration + "(" + parameter + ");\n";
+    } else {
+        std::cout << method << " DOESN'T EXIST FOR TYPE " << type->toString() << std::endl;
     }
     return "";
 }

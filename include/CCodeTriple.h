@@ -12,7 +12,7 @@ class CCodeTriple {
         CCodeTriple(const char* val);
 		CCodeTriple();
 		~CCodeTriple();
-        std::string oneString();
+        std::string oneString(bool endValue = false);
         CCodeTriple & operator=(const CCodeTriple &rhs);
         CCodeTriple & operator+=(const CCodeTriple &rhs);
 

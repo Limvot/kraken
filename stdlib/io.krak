@@ -1,4 +1,5 @@
 import string:*;
+import mem:*
 
 __if_comp__ __C__ simple_passthrough """
 	#include <stdio.h>
@@ -6,6 +7,11 @@ __if_comp__ __C__ simple_passthrough """
 
 fun println() : void {
     print("\n");
+}
+
+fun println<T>(toPrint: T) : void {
+    print(toPrint)
+    print("\n")
 }
 
 fun print(toPrint: char*) : void {
@@ -17,17 +23,10 @@ fun print(toPrint: char*) : void {
 	return;
 }
 
-fun println(toPrint: char*) : void {
-    print(toPrint);
-    println();
-}
-
 fun print(toPrint: string) : void {
-    print(toPrint.toCharArray());
-}
-
-fun println(toPrint: string): void {
-    println(toPrint.toCharArray());
+    var charArr = toPrint.toCharArray()
+    defer delete(charArr)
+    print(charArr);
 }
 
 fun print(toPrint: int): void {
@@ -37,11 +36,6 @@ fun print(toPrint: int): void {
 		"""
 	}
 	return;
-}
-
-fun println(toPrint: int): void {
-    print(toPrint);
-    println();
 }
 
 fun print(toPrint: float): void {
@@ -61,16 +55,4 @@ fun print(toPrint: double) : void{
 	}
 	return;
 }
-
-fun println(toPrint: float): void {
-    print(toPrint);
-    println();
-}
-
-fun println(toPrint: double): void {
-    print(toPrint);
-    println();
-}
-
-
 

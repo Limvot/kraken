@@ -19,8 +19,8 @@ CCodeTriple::CCodeTriple() {
 CCodeTriple::~CCodeTriple() {
 }
 
-std::string CCodeTriple::oneString() {
-    return preValue + value + postValue;
+std::string CCodeTriple::oneString(bool endValue) {
+    return preValue + value + (endValue ? ";" : "") + postValue;
 }
 
 CCodeTriple & CCodeTriple::operator=(const CCodeTriple &rhs) {
