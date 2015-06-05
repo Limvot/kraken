@@ -1048,7 +1048,7 @@ void ASTTransformation::unifyType(NodeTree<Symbol> *syntaxType, Type type, std::
     }
 
     if (children.size() == 1) {
-        (*templateTypeMap)[concatSymbolTree(children.back())] = type;
+        (*templateTypeMap)[concatSymbolTree(children.front())] = type;
     //      I also kina feel like maybe I need to worry about typeMap, which is why
     //      I passed it in... It would contain the typemap from our scope if we are
     //      doing a template member function of a templated object
@@ -1093,8 +1093,9 @@ void ASTTransformation::unifyTemplateFunction(NodeTree<ASTData>* templateFunctio
     std::map<std::string, Type> templateTypeMap;
     for (int i = 0; i < types.size(); i++)
         unifyType(getNode("type", templateParameters[i]), types[i], &templateTypeMap, typeMap);
-    for (auto instantiationParam : getNodes("template_param", getNode("template_dec", templateSyntaxTree)))
-        templateInstantiationTypes->push_back(templateTypeMap[concatSymbolTree(instantiationParam)].clone());
+    for (auto instantiationParam : getNodes("template_param", getNode("template_dec", templateSyntaxTree))) {
+        templateInstantiationTypes->push_back(templateTypeMap[concatSymbolTree(getNode("identifier", instantiationParam))].clone()); // gotta be careful of catching the traits in the concat
+    }
 }
 
 //Lookup function for template functions. It has some extra concerns compared to function lookup, namely traits
@@ -1116,10 +1117,17 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         // the current scope, which would happen if we're trying to instantiate a template member function
         std::map<std::string, Type*> typeMap = scopeTypeMap;
         // If template instantiation was explicit, use those types. Otherwise, unify to find them
-        if (templateInstantiationTypes->size())
+        if (templateInstantiationTypes->size()) {
             templateInstantiationTypesPerFunction[i] = *templateInstantiationTypes;
-        else
+            std::cout << "passed in types" << std::endl;
+        }else{
             unifyTemplateFunction(i, types, &templateInstantiationTypesPerFunction[i], typeMap);
+            std::cout << "unified types" << std::endl;
+        }
+        std::cout << "TYPES ARE: ";
+        for (Type *a : templateInstantiationTypesPerFunction[i])
+            std::cout << a->toString() << " : ";
+        std::cout << std::endl;
         auto nameTraitsPairs = makeTemplateNameTraitPairs(templateSyntaxTree->getChildren()[1]);
         //Check if sizes match between the placeholder and actual template types
         if (nameTraitsPairs.size() != templateInstantiationTypesPerFunction[i].size())
@@ -1131,11 +1139,11 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         for (auto j : nameTraitsPairs) {
             if (!subset(j.second, templateInstantiationTypesPerFunction[i][typeIndex]->traits)) {
                 traitsEqual = false;
-                std::cout << "Traits not a subset for " << j.first << " and " << templateInstantiationTypesPerFunction[i][typeIndex]->toString() << ": ";
+                std::cout << "Traits not a subset for " << j.first << " and " << templateInstantiationTypesPerFunction[i][typeIndex]->toString() << ": |";
                 std::copy(j.second.begin(), j.second.end(), std::ostream_iterator<std::string>(std::cout, " "));
-                std::cout << " vs ";
+                std::cout << "| vs |";
                 std::copy(templateInstantiationTypesPerFunction[i][typeIndex]->traits.begin(), templateInstantiationTypesPerFunction[i][typeIndex]->traits.end(), std::ostream_iterator<std::string>(std::cout, " "));
-                std::cout << std::endl;
+                std::cout << "|" << std::endl;
                 break;
             } else {
                 std::cout << "Traits ARE a subset for " << j.first << " and " << templateInstantiationTypesPerFunction[i][typeIndex]->toString() << ": ";

@@ -426,8 +426,8 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 output.preValue += expr.preValue;
                 std::string retTemp = "ret_temp" + getID();
                 output.preValue += ValueTypeToCType(children[0]->getDataRef()->valueType, retTemp) + ";\n";
-                if (methodExists(children[0]->getDataRef()->valueType, "copy_construct"))
-                    output.preValue += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&"+retTemp + ", &" + expr.value);
+                if (methodExists(children[0]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[0]->getDataRef()->valueType->withIncreasedIndirection()}))
+                    output.preValue += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&"+retTemp + ", &" + expr.value, std::vector<Type>{children[0]->getDataRef()->valueType->withIncreasedIndirection()});
                 else
                     output.preValue += retTemp + " = " + expr.value + ";\n";
                 // move expr post to before return
@@ -477,12 +477,12 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName).oneString()) + "; " + generate(children[1], enclosingObject, true).oneString(true) + "/*Init Position Call*/";
             } else {
                 // copy constructor if of the same type
-                if (*children[0]->getDataRef()->valueType == *children[1]->getDataRef()->valueType && methodExists(children[1]->getDataRef()->valueType, "copy_construct")) {
+                if (*children[0]->getDataRef()->valueType == *children[1]->getDataRef()->valueType && methodExists(children[1]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[1]->getDataRef()->valueType->withIncreasedIndirection()})) {
                     CCodeTriple toAssign = generate(children[1], enclosingObject, true);
                     std::string assignedTo = generate(children[0], enclosingObject, justFuncName).oneString();
                     output.value = toAssign.preValue;
                     output.value += ValueTypeToCType(children[0]->getData().valueType, assignedTo) + ";\n";
-                    output.value += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&" + assignedTo + ", &" + toAssign.value) + ";\n" + output.postValue;
+                    output.value += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&" + assignedTo + ", &" + toAssign.value, std::vector<Type>{children[0]->getDataRef()->valueType->withIncreasedIndirection()}) + ";\n" + output.postValue;
                     output.value += toAssign.postValue;
                     return output;
                 } else {
@@ -540,8 +540,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
 					|| name == "<" || name == ">" || name == "%" || name == "=" || name == "+=" || name == "-=" || name == "*=" || name == "/=" || name == "||"
 					|| name == "&&") {
-                    std::cout << "THIS IS IT NAME: " << name << std::endl;
-					return "((" + generate(children[1], enclosingObject, true).oneString() + ")" + name + "(" + generate(children[2], enclosingObject, true).oneString() + "))";
+					return "((" + generate(children[1], enclosingObject, true) + ")" + name + "(" + generate(children[2], enclosingObject, true) + "))";
                 } else if (name == "." || name == "->") {
 					if (children.size() == 1)
 					 	return "/*dot operation with one child*/" + generate(children[0], enclosingObject, true).oneString() + "/*end one child*/";
@@ -603,12 +602,12 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			}
             // see if we should copy_construct all the parameters
 			for (int i = 1; i < children.size(); i++) { //children[0] is the declaration
-                if (methodExists(children[i]->getDataRef()->valueType, "copy_construct")) {
+                if (methodExists(children[i]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[i]->getDataRef()->valueType->withIncreasedIndirection()})) {
                     std::string tmpParamName = "param" + getID();
                     CCodeTriple paramValue = generate(children[i], enclosingObject, true);
                     output.preValue += paramValue.preValue;
                     output.preValue += ValueTypeToCType(children[i]->getDataRef()->valueType, tmpParamName) + ";\n";
-                    output.preValue += generateMethodIfExists(children[i]->getDataRef()->valueType, "copy_construct", "&"+tmpParamName + ", &" + paramValue.value);
+                    output.preValue += generateMethodIfExists(children[i]->getDataRef()->valueType, "copy_construct", "&"+tmpParamName + ", &" + paramValue.value, std::vector<Type>{children[i]->getDataRef()->valueType->withIncreasedIndirection()});
                     output.value += tmpParamName;
                     output.postValue += paramValue.postValue;
                 } else {
@@ -620,11 +619,11 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			output += ") ";
             // see if we should add a destructer call to this postValue
 			Type* retType = children[0]->getDataRef()->valueType->returnType;
-            if (methodExists(retType, "destruct")) {
+            if (methodExists(retType, "destruct", std::vector<Type>())) {
                 std::string retTempName = "return_temp" + getID();
                 output.preValue += ValueTypeToCType(retType, retTempName) + " = " + output.value + ";\n";
                 output.value = retTempName;
-                output.postValue = generateMethodIfExists(retType, "destruct", "&"+retTempName) + ";\n" + output.postValue;
+                output.postValue = generateMethodIfExists(retType, "destruct", "&"+retTempName, std::vector<Type>()) + ";\n" + output.postValue;
             }
 			return output;
 		}
@@ -674,32 +673,44 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
     return output;
 }
 
-NodeTree<ASTData>* CGenerator::getMethod(Type* type, std::string method) {
+NodeTree<ASTData>* CGenerator::getMethod(Type* type, std::string method, std::vector<Type> types) {
     if (type->getIndirection())
         return nullptr;
     NodeTree<ASTData> *typeDefinition = type->typeDefinition;
     if (typeDefinition) {
         auto definitionItr = typeDefinition->getDataRef()->scope.find(method);
-        if (definitionItr != typeDefinition->getDataRef()->scope.end())
-            return definitionItr->second[0];
+        if (definitionItr != typeDefinition->getDataRef()->scope.end()) {
+            for (auto method : definitionItr->second) {
+                bool methodFits = true;
+                std::vector<Type> methodTypes = dereferenced(method->getDataRef()->valueType->parameterTypes);
+                if (types.size() != methodTypes.size())
+                    continue;
+                for (int i = 0; i < types.size(); i++) {
+                    if (types[i] != methodTypes[i]) {
+                        methodFits = false;
+                        break;
+                    }
+                }
+                if (methodFits)
+                    return method;
+            }
+        }
     }
     return nullptr;
 }
 
-bool CGenerator::methodExists(Type* type, std::string method) {
-    return getMethod(type, method) != nullptr;
+bool CGenerator::methodExists(Type* type, std::string method, std::vector<Type> types) {
+    return getMethod(type, method, types) != nullptr;
 }
 
-std::string CGenerator::generateMethodIfExists(Type* type, std::string method, std::string parameter) {
-    NodeTree<ASTData> *typeDefinition = type->typeDefinition;
-    NodeTree<ASTData> *methodDef = getMethod(type, method);
+std::string CGenerator::generateMethodIfExists(Type* type, std::string method, std::string parameter, std::vector<Type> methodTypes) {
+    NodeTree<ASTData> *methodDef = getMethod(type, method, methodTypes);
     if (methodDef) {
+        NodeTree<ASTData> *typeDefinition = type->typeDefinition;
         std::string nameDecoration;
         for (Type *paramType : methodDef->getDataRef()->valueType->parameterTypes)
             nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
         return scopePrefix(typeDefinition) + CifyName(typeDefinition->getDataRef()->symbol.getName()) + "__" + method + nameDecoration + "(" + parameter + ");\n";
-    } else {
-        std::cout << method << " DOESN'T EXIST FOR TYPE " << type->toString() << std::endl;
     }
     return "";
 }
@@ -707,7 +718,7 @@ std::string CGenerator::generateMethodIfExists(Type* type, std::string method, s
 std::string CGenerator::emitDestructors(std::vector<NodeTree<ASTData>*> identifiers, NodeTree<ASTData>* enclosingObject) {
     std::string destructorString = "";
     for (auto identifier : identifiers)
-        destructorString += tabs() + generateMethodIfExists(identifier->getDataRef()->valueType, "destruct", "&" + generate(identifier, enclosingObject).oneString());
+        destructorString += tabs() + generateMethodIfExists(identifier->getDataRef()->valueType, "destruct", "&" + generate(identifier, enclosingObject).oneString(), std::vector<Type>());
     return destructorString;
 }
 

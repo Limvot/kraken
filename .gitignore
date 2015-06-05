@@ -4,6 +4,7 @@ build-ninja
 *.comp
 stats
 *.swp
+*.swo
 *.png
 *krakout*
 kraklist.txt

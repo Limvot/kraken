@@ -36,9 +36,9 @@ class CGenerator {
 		static std::string scopePrefix(NodeTree<ASTData>* from);
         std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from, std::string *functionPrototype);
         NodeTree<ASTData>* getMethodsObjectType(NodeTree<ASTData>* scope, std::string functionName);
-        NodeTree<ASTData>* getMethod(Type* type, std::string method);
-        bool methodExists(Type* type, std::string method);
-        std::string generateMethodIfExists(Type* type, std::string method, std::string parameter);
+        NodeTree<ASTData>* getMethod(Type* type, std::string method, std::vector<Type> types);
+        bool methodExists(Type* type, std::string method, std::vector<Type> types);
+        std::string generateMethodIfExists(Type* type, std::string method, std::string parameter, std::vector<Type> methodTypes);
         std::string emitDestructors(std::vector<NodeTree<ASTData>*> possibleDeclarations, NodeTree<ASTData>* enclosingObject);
 		std::string tabs();
 		std::string getID();

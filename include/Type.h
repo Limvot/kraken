@@ -38,6 +38,8 @@ class Type {
 		void increaseIndirection();
 		void decreaseIndirection();
 		void modifyIndirection(int mod);
+		Type withIncreasedIndirection();
+		Type withDecreasedIndirection();
 
         ValueType baseType;
 		NodeTree<ASTData>* typeDefinition;

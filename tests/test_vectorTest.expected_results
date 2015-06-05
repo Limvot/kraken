@@ -4,6 +4,11 @@
 9131321
 15513
 3.7000007.7000007.70000015.700000
-Copied!
-Destroyed!
-Destroyed!
+Constructed: 0
+Copied: 0 to 1
+Copied: 1 to 2
+Destroyed: 1
+delete vector
+Destroyed: 2
+done
+Destroyed: 0

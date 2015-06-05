@@ -2,7 +2,7 @@ import mem:*;
 import util:*;
 import io:*;
 
-obj vector<T> (Destructable) {
+obj vector<T> (Object) {
     var data: T*;
     var size: int;
     var available: int;
@@ -23,14 +23,14 @@ obj vector<T> (Destructable) {
     }
 
     fun copy_construct(old: vector<T>*): void {
-        construct(old->size)
-        for (var i = 0; i < size; i++;)
-            set(i, old->get(i))
+        construct()
+        for (var i = 0; i < old->size; i++;)
+            addEnd(old->get(i))
     }
 
     fun destruct(): void {
         if (data)
-            delete<T>(data);
+            delete(data, size);
         data = 0
     }
 
@@ -41,11 +41,11 @@ obj vector<T> (Destructable) {
     }
 
     fun operator+(other:vector<T>):vector<T> {
-        var newVec.construct(size + other.size):vector<T>
+        var newVec.construct():vector<T>
         for (var i = 0; i < size; i++;)
-            newVec.set(i, get(i))
+            newVec.addEnd(get(i))
         for (var i = 0; i < other.size; i++;)
-            newVec.set(i+size, other.get(i))
+            newVec.addEnd(other.get(i))
         return newVec
     }
 
@@ -55,9 +55,9 @@ obj vector<T> (Destructable) {
     }
 
     fun clone(): vector<T> {
-        var newVec.construct(size): vector<T>
+        var newVec.construct(): vector<T>
         for (var i = 0; i < size; i++;)
-            newVec.set(i, data[i])
+            newVec.addEnd(data[i])
         return newVec
     }
 
@@ -66,8 +66,8 @@ obj vector<T> (Destructable) {
         if (!newData)
             return false;
         for (var i: int = 0; i < lesser<int>(size, newSize); i++;)
-            newData[i] = data[i];
-        delete<T>(data, 0);
+            maybe_copy_construct(&newData[i], &data[i]);
+        delete(data, size);
         data = newData;
         available = newSize;
         size = lesser(size, newSize)
@@ -101,7 +101,7 @@ obj vector<T> (Destructable) {
         size++;
         if (size >= available)
             resize(size*2);
-        data[size-1] = dataIn;
+        maybe_copy_construct(&data[size-1], &dataIn);
     }
     fun do(func: fun(T):void):void {
         for (var i = 0; i < size; i++;)
@@ -112,9 +112,9 @@ obj vector<T> (Destructable) {
             data[i] = func(data[i])
     }
     fun map<U>(func: fun(T):U):vector<U> {
-        var newVec.construct(size): vector<U>
+        var newVec.construct(): vector<U>
         for (var i = 0; i < size; i++;)
-            newVec.set(i, func(data[i]))
+            newVec.addEnd(func(data[i]))
         return newVec
     }
 };

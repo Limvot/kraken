@@ -47,6 +47,14 @@ std::vector<T> reverse(std::vector<T> vec) {
 }
 
 template <typename T>
+std::vector<T> dereferenced(std::vector<T*> vec) {
+    std::vector<T> de;
+    for (T* i:vec)
+        de.push_back(*i);
+    return de;
+}
+
+template <typename T>
 std::vector<T> slice(std::vector<T> vec, int begin, int end, int step = 1) {
     std::vector<T> toReturn;
     if (begin < 0)

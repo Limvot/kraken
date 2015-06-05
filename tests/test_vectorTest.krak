@@ -2,13 +2,34 @@ import io:*;
 import mem:*;
 import vector:*;
 
-obj AbleToBeDestroyed (Destructable) {
+obj AbleToBeDestroyed (Object) {
+    var data:int
+    fun construct(dat:int):void {
+        data = dat
+        print("Constructed: ")
+        println(data)
+    }
     fun copy_construct(other:AbleToBeDestroyed*):void {
-        println("Copied!");
+        data = other->data+1
+        print("Copied: ")
+        print(other->data)
+        print(" to ")
+        println(data)
+    }
+
+    fun operator=(other:AbleToBeDestroyed):void {
+        print("Assigned: ")
+        print(other.data)
+        print(" to ")
+        print(data)
+        print(" is now ")
+        data = other.data+1
+        println(data)
     }
 
     fun destruct(): void {
-        println("Destroyed!");
+        print("Destroyed: ")
+        println(data)
     }
 };
 
@@ -42,9 +63,11 @@ fun main(): int {
     println();
 
     var desVec: vector<AbleToBeDestroyed>* = new<vector<AbleToBeDestroyed>>()->construct();
-    var testDestruct: AbleToBeDestroyed;
+    var testDestruct.construct(0): AbleToBeDestroyed;
     desVec->addEnd(testDestruct);
-    delete<vector<AbleToBeDestroyed>>(desVec);
+    println("delete vector")
+    delete(desVec);
+    println("done")
 
     return 0;
 }

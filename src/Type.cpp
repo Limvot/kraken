@@ -169,3 +169,15 @@ void Type::decreaseIndirection() {
 void Type::modifyIndirection(int mod) {
 	setIndirection(indirection + mod);
 }
+
+Type Type::withIncreasedIndirection() {
+   Type *newOne = clone();
+    newOne->increaseIndirection();
+    return *newOne;
+}
+Type Type::withDecreasedIndirection() {
+   Type *newOne = clone();
+    newOne->decreaseIndirection();
+    return *newOne;
+}
+
