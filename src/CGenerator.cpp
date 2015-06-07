@@ -476,13 +476,17 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 // be sure to end value by passing oneString true
                 return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName).oneString()) + "; " + generate(children[1], enclosingObject, true).oneString(true) + "/*Init Position Call*/";
             } else {
-                // copy constructor if of the same type
-                if (*children[0]->getDataRef()->valueType == *children[1]->getDataRef()->valueType && methodExists(children[1]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[1]->getDataRef()->valueType->withIncreasedIndirection()})) {
+                // copy constructor if exists (even for non same types)
+                if (methodExists(children[0]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[1]->getDataRef()->valueType->withIncreasedIndirection()})) {
                     CCodeTriple toAssign = generate(children[1], enclosingObject, true);
                     std::string assignedTo = generate(children[0], enclosingObject, justFuncName).oneString();
                     output.value = toAssign.preValue;
                     output.value += ValueTypeToCType(children[0]->getData().valueType, assignedTo) + ";\n";
-                    output.value += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&" + assignedTo + ", &" + toAssign.value, std::vector<Type>{children[0]->getDataRef()->valueType->withIncreasedIndirection()}) + ";\n" + output.postValue;
+                    // we put the thing about to be copy constructed in a variable so we can for sure take its address
+                    std::string toAssignTemp = "copy_construct_param" + getID();
+                    output.value += ValueTypeToCType(children[1]->getData().valueType, toAssignTemp) + " = " + toAssign.value + ";\n";
+
+                    output.value += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&" + assignedTo + ", &" + toAssignTemp, std::vector<Type>{children[1]->getDataRef()->valueType->withIncreasedIndirection()}) + ";\n" + output.postValue;
                     output.value += toAssign.postValue;
                     return output;
                 } else {

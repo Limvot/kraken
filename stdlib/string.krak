@@ -25,6 +25,10 @@ obj string (Object) {
         data.copy_construct(&old->data)
     }
 
+    fun copy_construct(old: char**): void {
+        construct(*old)
+    }
+
     fun destruct():void {
         data.destruct()
     }

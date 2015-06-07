@@ -10,9 +10,9 @@ fun main(): int {
     io::println(str + "2");
     str += " with additional"
     io::println(str);
-    //var initilized:string::string = "hope"
-    //io::println(initilized)
-    //io::println(initilized+ "3")
+    var initilized:string::string = "hope"
+    io::println(initilized)
+    io::println(initilized+ "3")
     return 0;
 }
 
