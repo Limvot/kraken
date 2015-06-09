@@ -1,6 +1,11 @@
 import vector;
 import mem;
 
+fun string(in:char*):string {
+    var out:string = in
+    return out
+}
+
 obj string (Object) {
     var data: vector::vector<char>;
     fun construct(): string* {
@@ -32,6 +37,9 @@ obj string (Object) {
     fun destruct():void {
         data.destruct()
     }
+
+    fun operator[](index: int): char { return data[index]; }
+    fun length():int { return data.size; }
 
     fun operator=(str: char*): void {
         destruct();

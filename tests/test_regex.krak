@@ -1,0 +1,9 @@
+import io:*
+import regex:*
+
+fun main():int {
+    var reg = regex("a")
+    println(reg.regexString)
+    println(reg.long_match("a"))
+    return 0
+}

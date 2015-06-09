@@ -359,7 +359,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			return tabs() + stat.preValue + stat.value + ";\n" + stat.postValue ;
             }
 		case if_statement:
-			output += "if (" + generate(children[0], enclosingObject, true).oneString() + ")\n\t";
+			output += "if (" + generate(children[0], enclosingObject, true) + ")\n\t";
             // We have to see if the then statement is a regular single statement or a block.
             // If it's a block, because it's also a statement a semicolon will be emitted even though
             // we don't want it to be, as if (a) {b}; else {c}; is not legal C, but if (a) {b} else {c}; is.
@@ -798,16 +798,16 @@ std::string CGenerator::CifyName(std::string name) {
 											"&", "amprsd",
 											"|", "pipe",
 											"~", "tilde",
-											"!", "exclamationpt",
+											"!", "exlmtnpt",
 											",", "comma",
-											"=", "equals",
-											"++", "doubleplus",
-											"--", "doubleminus",
-											"<<", "doubleleft",
-											">>", "doubleright",
+											"=", "eq",
+											"++", "dbplus",
+											"--", "dbminus",
+											"<<", "dbleft",
+											">>", "dbright",
 											"::", "scopeop",
 											":", "colon",
-											"==", "doubleequals",
+											"==", "dbq",
 											"!=", "notequals",
 											"&&", "doubleamprsnd",
 											"||", "doublepipe",
@@ -820,13 +820,13 @@ std::string CGenerator::CifyName(std::string name) {
 											"|=", "pipeequals",
 											"*=", "starequals",
 											"<<=", "doublerightequals",
-											"<", "lessthan",
-											">", "greaterthan",
+											"<", "lt",
+											">", "gt",
 											">>=", "doubleleftequals",
 											"(", "openparen",
 											")", "closeparen",
-											"[", "openbracket",
-											"]", "closebracket",
+											"[", "obk",
+											"]", "cbk",
 											" ", "space",
 											".", "dot",
 											"->", "arrow" };

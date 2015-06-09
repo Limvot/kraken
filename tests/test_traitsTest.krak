@@ -48,13 +48,22 @@ fun main(): int {
     var c: Trait2;
     var d: TwoTrait;
     var e: AlreadySpecilized;
+    var f: TwoTrait*;
 
     OneTwoFunc<NoTraits>(a);
     OneTwoFunc<Trait1>(b);
     OneTwoFunc<Trait2>(c);
     OneTwoFunc<TwoTrait>(d);
 //    OneTwoFunc<AlreadySpecilized>(e);
+    OneTwoFunc<TwoTrait*>(f);
+    println();
 
+    OneTwoFunc(a);
+    OneTwoFunc(b);
+    OneTwoFunc(c);
+    OneTwoFunc(d);
+//    OneTwoFunc(e);
+    OneTwoFunc(f);
     println();
 
     var alpha: OneTwoObj<NoTraits>;
@@ -62,11 +71,20 @@ fun main(): int {
     var gamma: OneTwoObj<Trait2>;
     var delta: OneTwoObj<TwoTrait>;
 //    |OneTwoObj<AlreadySpecilized>| epsilon;
+    var zeta: OneTwoObj<TwoTrait*>;
 
     OneTwoFunc<OneTwoObj<NoTraits>>(alpha);
     OneTwoFunc<OneTwoObj<Trait1>>(beta);
     OneTwoFunc<OneTwoObj<Trait2>>(gamma);
     OneTwoFunc<OneTwoObj<TwoTrait>>(delta);
+    OneTwoFunc<OneTwoObj<TwoTrait*>>(zeta);
+    println()
+
+    OneTwoFunc(alpha);
+    OneTwoFunc(beta);
+    OneTwoFunc(gamma);
+    OneTwoFunc(delta);
+    OneTwoFunc(zeta);
 
     //We can't pass along our inner part, so let's just make sure that it is the right object.
     //epsilon.proveSpecilized();

@@ -43,6 +43,9 @@ fun main(): int {
     for (var i: int = 0; i < intVec.size; i++;)
         print(intVec.at(i));
     println();
+    for (var i: int = 0; i < intVec.size; i++;)
+        print(intVec[i]);
+    println();
 
     // in place lambda map
     intVec.in_place(fun(it:int):int { return it*2; })

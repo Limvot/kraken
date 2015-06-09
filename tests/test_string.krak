@@ -13,6 +13,9 @@ fun main(): int {
     var initilized:string::string = "hope"
     io::println(initilized)
     io::println(initilized+ "3")
+    var newWay = string::string("new way!")
+    io::println(newWay)
+    io::println(newWay[5])
     return 0;
 }
 

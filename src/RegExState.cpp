@@ -1,17 +1,11 @@
 #include "RegExState.h"
 
-RegExState::RegExState(RegExState* inInnerState) {
-	inner = inInnerState;
-}
-
 RegExState::RegExState(char inCharacter) {
 	character = inCharacter;
-	inner = NULL;
 }
 
 RegExState::RegExState() {
 	character = 0;
-	inner = NULL;
 }
 
 RegExState::~RegExState() {
@@ -29,22 +23,17 @@ bool RegExState::characterIs(char inCharacter) {
 std::vector<RegExState*>* RegExState::advance(char advanceCharacter) {
 	std::vector<RegExState*>* advanceStates = new std::vector<RegExState*>();
 	for (std::vector<RegExState*>::size_type i = 0; i < nextStates.size(); i++) {
-		if (nextStates[i] != NULL && nextStates[i]->characterIs(advanceCharacter)) 
+		if (nextStates[i] != NULL && nextStates[i]->characterIs(advanceCharacter))
 			advanceStates->push_back(nextStates[i]);
 	}
 	return advanceStates;
 }
 
-RegExState* RegExState::getInner() {
-	return inner;
-}
-
-std::vector<RegExState*>* RegExState::getNextStates() {
-	return &nextStates;
+std::vector<RegExState*> RegExState::getNextStates() {
+	return nextStates;
 }
 
 bool RegExState::isGoal() {
-	//return inner == NULL && nextStates.size() == 0;
 	for (std::vector<RegExState*>::size_type i = 0; i < nextStates.size(); i++)
 		if (nextStates[i] == NULL)
 			return true;
@@ -66,11 +55,6 @@ std::string RegExState::toString(std::vector<RegExState*>* avoid) {
 	avoid->push_back(this);
 	std::string string = "";
 	string += std::string("\"") + character + "\"";
-	if (inner != NULL) {
-		string += "inner: ";
-		string += inner->toString(avoid);
-		string += " end inner ";
-	}
 	for (std::vector<RegExState*>::size_type i = 0; i < nextStates.size(); i++) {
 		bool inAvoid = false;
 		for (std::vector<RegExState*>::size_type j = 0; j < avoid->size(); j++) {
@@ -90,7 +74,6 @@ std::string RegExState::toString(std::vector<RegExState*>* avoid) {
 		else
 			string += "->this";
 	}
-	//std::cout << "inner = " << inner << " nextStates size = " << nextStates.size() <<std::endl;
 	return string;
 }
 

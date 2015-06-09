@@ -74,10 +74,8 @@ obj vector<T> (Object) {
         return true;
     }
 
-    fun at(index: int): T {
-        return get(index);
-    }
-
+    fun at(index: int): T { return get(index); }
+    fun operator[](index: int): T { return get(index); }
     fun get(index: int): T {
         if (index < 0 || index >= size) {
             println("Vector access out of bounds! Retuning 0th element as sanest option");
@@ -97,6 +95,7 @@ obj vector<T> (Object) {
             return;
         data[index] = dataIn;
     }
+    fun add(dataIn: T): void { addEnd(dataIn); }
     fun addEnd(dataIn: T): void {
         size++;
         if (size >= available)
@@ -116,6 +115,21 @@ obj vector<T> (Object) {
         for (var i = 0; i < size; i++;)
             newVec.addEnd(func(data[i]))
         return newVec
+    }
+    fun flatten_map<U>(func: fun(T):vector<U>):vector<U> {
+        var newVec.construct(): vector<U>
+        for (var i = 0; i < size; i++;) {
+            var to_add = func(data[i])
+            for (var j = 0; j < to_add.size; j++;)
+                newVec.addEnd(to_add.get(j))
+        }
+        return newVec
+    }
+    fun any_true(func: fun(T):bool):bool {
+        for (var i = 0; i < size; i++;)
+            if (func(data[i]))
+                return true
+        return false
     }
 };
 

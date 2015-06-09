@@ -972,7 +972,8 @@ NodeTree<ASTData>* ASTTransformation::templateClassLookup(NodeTree<ASTData>* sco
         int typeIndex = 0;
         int currentTraitsSatisfied = 0;
         for (auto j : nameTraitsPairs) {
-            if (!subset(j.second, templateInstantiationTypes[typeIndex]->traits)) {
+            // error out if not subset, or if we're a pointer but should have traits
+            if (!subset(j.second, templateInstantiationTypes[typeIndex]->traits) || (templateInstantiationTypes[typeIndex]->getIndirection() && j.second.size())) {
                 traitsEqual = false;
                 std::cout << "Traits not subset for " << j.first << " and " << templateInstantiationTypes[typeIndex]->toString() << ": ";
 				//std::cout <<  baseType << " " <<  indirection << " " << typeDefinition << " " <<  templateDefinition << " " <<  traits << ;
@@ -1137,7 +1138,8 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         int typeIndex = 0;
         int currentTraitsSatisfied = 0;
         for (auto j : nameTraitsPairs) {
-            if (!subset(j.second, templateInstantiationTypesPerFunction[i][typeIndex]->traits)) {
+            // error out if not subset, or if we're a pointer but should have traits
+            if (!subset(j.second, templateInstantiationTypesPerFunction[i][typeIndex]->traits) || (templateInstantiationTypesPerFunction[i][typeIndex]->getIndirection() && j.second.size())) {
                 traitsEqual = false;
                 std::cout << "Traits not a subset for " << j.first << " and " << templateInstantiationTypesPerFunction[i][typeIndex]->toString() << ": |";
                 std::copy(j.second.begin(), j.second.end(), std::ostream_iterator<std::string>(std::cout, " "));

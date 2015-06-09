@@ -9,19 +9,15 @@
 
 class RegExState {
 	public:
-		RegExState(RegExState* inInnerState);
 		RegExState(char inCharacter);
 		RegExState();
-
 		~RegExState();
 
 		void addNext(RegExState* nextState);
 		bool characterIs(char inCharacter);
 		std::vector<RegExState*>* advance(char advanceCharacter);
-		std::vector<RegExState*>* getNextStates();
+		std::vector<RegExState*> getNextStates();
 
-		RegExState* getInner();
-		
 		bool isGoal();
 		std::string toString();
 		std::string toString(RegExState* avoid);
@@ -31,7 +27,6 @@ class RegExState {
 
 	private:
 		std::vector<RegExState*> nextStates;
-		RegExState* inner;
 		char character;
 };
 #endif

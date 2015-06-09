@@ -17,7 +17,16 @@ fun println<T>(toPrint: T) : void {
 fun print(toPrint: char*) : void {
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
-			printf(toPrint);
+			printf("%s", toPrint);
+		"""
+	}
+	return;
+}
+
+fun print(toPrint: char) : void {
+	__if_comp__ __C__ {
+		simple_passthrough(toPrint = toPrint::) """
+			printf("%c", toPrint);
 		"""
 	}
 	return;

@@ -70,7 +70,7 @@ RegExState* RegEx::construct(std::vector<RegExState*>* ending, std::string patte
 				int perenEnd = findPerenEnd(pattern, i);
 				RegExState* innerBegin = construct(&innerEnds, strSlice(pattern, i+1, perenEnd));
 				i = perenEnd;
-				std::vector<RegExState*> innerBegins = *(innerBegin->getNextStates());
+				std::vector<RegExState*> innerBegins = innerBegin->getNextStates();
 				if (alternating) {
 					for (std::vector<RegExState*>::size_type j = 0; j < previousStatesEnd.size(); j++)
 						for (std::vector<RegExState*>::size_type k = 0; k < innerBegins.size(); k++)
