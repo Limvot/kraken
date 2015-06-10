@@ -426,8 +426,13 @@ bool RNGLRParser::fullyReducesToNull(ParseRule* rule) {
 }
 
 bool RNGLRParser::reducesToNull(ParseRule* rule) {
+    auto itr = reduceToNullMap.find(rule);
+    if (itr != reduceToNullMap.end())
+        return itr->second;
 	std::vector<Symbol> avoidList;
-	return reducesToNull(rule, avoidList);
+	auto val = reducesToNull(rule, avoidList);
+    reduceToNullMap[rule] = val;
+	return val;
 }
 
 bool RNGLRParser::reducesToNull(ParseRule* rule, std::vector<Symbol> avoidList) {

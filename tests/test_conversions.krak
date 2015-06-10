@@ -1,0 +1,8 @@
+import io:*
+import conversions:*
+
+
+fun main():int {
+    println(to_char(65))
+    return 0
+}

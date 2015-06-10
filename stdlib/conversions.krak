@@ -1,0 +1,11 @@
+
+fun to_char<T>(in: T) : char {
+    var out:char
+	__if_comp__ __C__ {
+		simple_passthrough(in = in: out = out:) """
+        char out = (char) in;
+		"""
+	}
+	return out;
+}
+

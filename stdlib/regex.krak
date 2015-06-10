@@ -1,6 +1,8 @@
 import io
 import vector
 import string
+import mem
+import conversions
 
 fun regex(in: char*):regex {
     return regex(string::string(in))
@@ -19,11 +21,11 @@ obj regexState(Object) {
         return this
     }
     fun construct(): regexState* {
-        return construct(0)
+        return construct(conversions::to_char(0))
     }
     fun copy_construct(old:regexState*): void {
-        character = regexState->character
-        next_states.copy_construct(&regexState->next_states)
+        character = old->character
+        next_states.copy_construct(&old->next_states)
     }
     fun destruct():void {
         next_states.destruct()
@@ -37,17 +39,16 @@ obj regex(Object) {
     var regexString: string::string
     var begin: regexState
     fun construct(regexStringIn: string::string): regex* {
-        regexState.construct()
+        begin.construct()
         regexString.copy_construct(&regexStringIn)
 
         var traverse = &begin
         for (var i = 0; i < regexString.length(); i++;) {
-            var next = new<regexState>()->construct(regexString[i])
+            var next = mem::new<regexState>()->construct(regexString[i])
             traverse->next_states->add(next)
             traverse = next
         }
-        traverse->next_states->add(new<regexState>()->construct(1))
-
+        traverse->next_states->add(mem::new<regexState>()->construct(conversions::to_char(1)))
         return this
     }
     fun copy_construct(old:regex*):void {
@@ -61,13 +62,16 @@ obj regex(Object) {
     fun long_match(to_match: char*): int { return long_match(string::string(to_match)); }
     fun long_match(to_match: string::string): int {
         var next = vector::vector(&begin)
+        //var next.construct() :vector::vector<regexState*>
         var longest = 0
         for (var i = 0; i < to_match.length(); i++;) {
             if (next.size == 0)
                 return longest
             if (next.any_true(fun(state: regexState*):bool { return state->character == 1; }))
                 longest = i
-            next = next.flatten_map(fun(state: regexState*): vector::vector<regexState*> { return state->match(to_match[i]); })
+            //next = next.flatten_map<regexState*>(fun(state: regexState*): vector::vector<regexState*> { return state->match(to_match[i]); })
+            next = next.flatten_map<regexState*>(fun(state: regexState*): vector::vector<regexState*> { return state->match('a'); })
+            //next = next.flatten_map(fun(state: regexState*): vector::vector<regexState*> { return state->match('a'); })
         }
         if (next.any_true(fun(state: regexState*):bool { return state->character == 1; }))
             return to_match.length()

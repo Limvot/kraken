@@ -1,5 +1,5 @@
-import vector;
-import mem;
+import vector
+import mem
 
 fun string(in:char*):string {
     var out:string = in

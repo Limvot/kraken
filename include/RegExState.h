@@ -15,7 +15,7 @@ class RegExState {
 
 		void addNext(RegExState* nextState);
 		bool characterIs(char inCharacter);
-		std::vector<RegExState*>* advance(char advanceCharacter);
+		std::vector<RegExState*> advance(char advanceCharacter);
 		std::vector<RegExState*> getNextStates();
 
 		bool isGoal();

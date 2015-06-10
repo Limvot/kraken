@@ -148,15 +148,10 @@ int RegEx::longMatch(std::string stringToMatch) {
 		//Go through every current state. Check to see if it is goal, if so update last goal.
 		//Also, add each state's advance to nextStates
 		for (std::vector<RegExState*>::size_type j = 0; j < currentStates.size(); j++) {
-			if (currentStates[j]->isGoal()) {
+			if (currentStates[j]->isGoal())
 				lastMatch = i;
-				//std::cout << "Hit goal at " << i << " character: " << stringToMatch[i-1] << std::endl;
-			} else {
-				//std::cout << "currentState " << j << ", " << currentStates[j]->toString() << " is not goal" <<std::endl;
-			}
-			std::vector<RegExState*>* addStates = currentStates[j]->advance(stringToMatch.at(i));
-			nextStates.insert(nextStates.end(), addStates->begin(), addStates->end());
-			delete addStates;
+			std::vector<RegExState*> addStates = currentStates[j]->advance(stringToMatch.at(i));
+			nextStates.insert(nextStates.end(), addStates.begin(), addStates.end());
 		}
 		//Now, clear our current states and add eaczh one of our addStates if it is not already in current states
 

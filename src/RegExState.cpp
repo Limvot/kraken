@@ -20,11 +20,11 @@ bool RegExState::characterIs(char inCharacter) {
 	return character == inCharacter;
 }
 
-std::vector<RegExState*>* RegExState::advance(char advanceCharacter) {
-	std::vector<RegExState*>* advanceStates = new std::vector<RegExState*>();
+std::vector<RegExState*> RegExState::advance(char advanceCharacter) {
+	std::vector<RegExState*> advanceStates;
 	for (std::vector<RegExState*>::size_type i = 0; i < nextStates.size(); i++) {
 		if (nextStates[i] != NULL && nextStates[i]->characterIs(advanceCharacter))
-			advanceStates->push_back(nextStates[i]);
+			advanceStates.push_back(nextStates[i]);
 	}
 	return advanceStates;
 }

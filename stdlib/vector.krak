@@ -2,6 +2,12 @@ import mem:*;
 import util:*;
 import io:*;
 
+fun vector<T>(in:T):vector<T> {
+    var out.construct():vector<T>
+    out.add(in)
+    return out
+}
+
 obj vector<T> (Object) {
     var data: T*;
     var size: int;
@@ -123,6 +129,13 @@ obj vector<T> (Object) {
             for (var j = 0; j < to_add.size; j++;)
                 newVec.addEnd(to_add.get(j))
         }
+        return newVec
+    }
+    fun filter(func: fun(T):bool):vector<T> {
+        var newVec.construct(): vector<T>
+        for (var i = 0; i < size; i++;)
+            if (func(data[i]))
+                newVec.addEnd(data[i])
         return newVec
     }
     fun any_true(func: fun(T):bool):bool {

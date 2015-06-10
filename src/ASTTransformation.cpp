@@ -267,7 +267,7 @@ void ASTTransformation::thirdPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* pars
 	//Note that this pass can instantiate class AND function templates
 	for (NodeTree<Symbol>* i : children) {
 		if (i->getDataRef()->getName() == "type_def") {
-			if (i->getChildren()[1]->getData().getName() == "template_dec") // It's a template
+			if (i->getChildren().size() > 1 && i->getChildren()[1]->getData().getName() == "template_dec") // It's a template
 				continue;	//We've already set up the class templates
 			std::vector<NodeTree<Symbol>*> typedefChildren = i->getChildren();
 			std::string name = concatSymbolTree(typedefChildren[0]);
@@ -751,6 +751,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         std::cerr << "///////////////////////////////////////////////////////////////////////////////" << std::endl;
         std::cerr << "Ambigious program when parsed by this grammer! This is a bug, please report it." << std::endl;
         std::cerr << "///////////////////////////////////////////////////////////////////////////////" << std::endl;
+        std::cerr << concatSymbolTree(from) << std::endl;
         throw "Ambigious parse!";
     } else {
         // Should get rid of this eventually. Right now it handles cases like sign, alpha, a comma, etc
@@ -961,6 +962,8 @@ NodeTree<ASTData>* ASTTransformation::templateClassLookup(NodeTree<ASTData>* sco
     auto possibleMatches = scopeLookup(scope, lookup);
     std::cout << "Template Class instantiation has " << possibleMatches.size() << " possible matches." << std::endl;
     for (auto i : possibleMatches) {
+        if (i->getDataRef()->type != type_def)
+            continue;
 	    NodeTree<Symbol>* templateSyntaxTree = i->getDataRef()->valueType->templateDefinition;
 
         auto nameTraitsPairs = makeTemplateNameTraitPairs(templateSyntaxTree->getChildren()[1]);
@@ -1108,6 +1111,8 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
     std::cout << "Template Function instantiation has " << possibleMatches.size() << " possible matches." << std::endl;
     int index = 1;
     for (auto i : possibleMatches) {
+        if (i->getDataRef()->type != function)
+            continue;
         std::cout << "Possibility " << index++ << std::endl;
 	    NodeTree<Symbol>* templateSyntaxTree = i->getDataRef()->valueType->templateDefinition;
         if (!templateSyntaxTree) {
@@ -1239,6 +1244,10 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>
 
 std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules, std::set<NodeTree<ASTData>*> visited) {
     std::cout << "Scp]|[e looking up " << lookup << std::endl;
+    std::cout << "current: " << scope->getDataRef()->toString() << std::endl;
+    for (auto i : scope->getDataRef()->scope)
+        std::cout << "\t" << i.first << std::endl;
+        //std::cout << i.first << " : " << i.second->toString() << std::endl;
     // Don't visit this node again when looking for the smae lookup. Note that we don't prevent coming back for the scope operator, as that should be able to come back.
     if (visited.find(scope) != visited.end())
         return std::vector<NodeTree<ASTData>*>();
@@ -1510,7 +1519,7 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
         auto unsliced = children[1]->getChildren();
         std::vector<NodeTree<Symbol>*> templateParamInstantiationNodes = slice(unsliced, 1 , -2, 2);//skip <, >, and commas
         for (int i = 0; i < templateParamInstantiationNodes.size(); i++) {
-            Type* instType = typeFromTypeNode(templateParamInstantiationNodes[i],scope, templateTypeReplacements);
+            Type* instType = typeFromTypeNode(templateParamInstantiationNodes[i], scope, templateTypeReplacements);
             instTypeString += (instTypeString == "" ? instType->toString() : "," + instType->toString());
             templateActualTypes.push_back(instType);
         }
@@ -1559,7 +1568,8 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
 		std::cout << ", " << i << " : " << templateChildren[i]->getDataRef()->getName();
 	std::cout << std::endl;
 
-	instantiatedFunction = new NodeTree<ASTData>("function", ASTData(function, Symbol(scopelessFullyInstantiatedName, true), typeFromTypeNode(templateChildren[templateChildren.size()-2], scope, newTemplateTypeReplacement)));
+    // return type should be looked up in template's scope
+	instantiatedFunction = new NodeTree<ASTData>("function", ASTData(function, Symbol(scopelessFullyInstantiatedName, true), typeFromTypeNode(templateChildren[templateChildren.size()-2], templateDefinition, newTemplateTypeReplacement)));
     addToScope("~enclosing_scope", templateDefinition->getDataRef()->scope["~enclosing_scope"][0], instantiatedFunction);
     addToScope(scopelessFullyInstantiatedName, instantiatedFunction, templateDefinition->getDataRef()->scope["~enclosing_scope"][0]);
     templateDefinition->getDataRef()->scope["~enclosing_scope"][0]->addChild(instantiatedFunction); // Add this object the the highest scope's

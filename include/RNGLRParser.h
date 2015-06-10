@@ -61,6 +61,8 @@ class RNGLRParser: public Parser {
 
 		std::vector<NodeTree<Symbol>*> nullableParts;
 		std::map<NodeTree<Symbol>, bool> packedMap;
+
+        std::map<ParseRule*, bool> reduceToNullMap;
 };
 
 #endif
