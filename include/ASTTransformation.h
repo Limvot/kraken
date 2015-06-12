@@ -40,8 +40,8 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		void thirdPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* functionDef, std::map<std::string, Type*> templateTypeReplacements);
 
 		virtual NodeTree<ASTData>* transform(NodeTree<Symbol>* from);
-		NodeTree<ASTData>* transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements);
-		std::vector<NodeTree<ASTData>*> transformChildren(std::vector<NodeTree<Symbol>*> children, std::set<int> skipChildren, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements);
+		NodeTree<ASTData>* transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::vector<Type> types, bool limitToFunction, std::map<std::string, Type*> templateTypeReplacements);
+		std::vector<NodeTree<ASTData>*> transformChildren(std::vector<NodeTree<Symbol>*> children, std::set<int> skipChildren, NodeTree<ASTData>* scope, std::vector<Type> types, bool limitToFunction, std::map<std::string, Type*> templateTypeReplacements);
 		std::vector<Type> mapNodesToTypes(std::vector<NodeTree<ASTData>*> nodes);
 		std::vector<Type*> mapNodesToTypePointers(std::vector<NodeTree<ASTData>*> nodes);
 		std::string concatSymbolTree(NodeTree<Symbol>* root);

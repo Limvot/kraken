@@ -9,3 +9,13 @@ fun to_char<T>(in: T) : char {
 	return out;
 }
 
+fun to_int<T>(in: T) : int {
+    var out:int
+	__if_comp__ __C__ {
+		simple_passthrough(in = in: out = out:) """
+        int out = (int) in;
+		"""
+	}
+	return out;
+}
+

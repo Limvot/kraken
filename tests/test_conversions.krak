@@ -4,5 +4,6 @@ import conversions:*
 
 fun main():int {
     println(to_char(65))
+    println(to_int('B'))
     return 0
 }

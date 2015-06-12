@@ -3,6 +3,7 @@
 CGenerator::CGenerator() : generatorString("__C__") {
 	tabLevel = 0;
     id = 0;
+    function_header = "fun_";
 }
 CGenerator::~CGenerator() {
 }
@@ -198,7 +199,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                     parameters += ValueTypeToCType(decChildren[j]->getData().valueType, generate(decChildren[j], nullptr).oneString());
                                     nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
                                 }
-                                functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType->returnType, ((declarationData.symbol.getName() == "main") ? "" : scopePrefix(declaration)) +
+                                functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType->returnType, ((declarationData.symbol.getName() == "main") ? "" : function_header + scopePrefix(declaration)) +
                                                     CifyName(declarationData.symbol.getName() + nameDecoration)) +
                                                     "(" + parameters + "); /*func*/\n";
                                 // generate function
@@ -305,19 +306,14 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				parameters += ValueTypeToCType(children[j]->getData().valueType, generate(children[j], enclosingObject, justFuncName).oneString());
 				nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
                 // add parameters to distructDoubleStack so that their destructors will be called at return (if they exist)
-                std::cout << "HAHA: " << generate(children[j], enclosingObject, justFuncName).oneString() << std::endl;
                 distructDoubleStack.back().push_back(children[j]);
 			}
-            if (children.size() == 1)
-                std::cout << "HEHE: " << data.symbol.getName() << " has only one child" << std::endl;
-            else if (children.size() == 0)
-                std::cout << "HEHE: " << data.symbol.getName() << " has only 0 child" << std::endl;
             // this is for using functions as values
             if (justFuncName) {
-                output = ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) + CifyName(data.symbol.getName() + nameDecoration);
+                output = ((data.symbol.getName() == "main") ? "" : function_header + scopePrefix(from)) + CifyName(data.symbol.getName() + nameDecoration);
             } else {
             // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
-                output = "\n" + ValueTypeToCType(data.valueType->returnType, ((data.symbol.getName() == "main") ? "" : scopePrefix(from)) +
+                output = "\n" + ValueTypeToCType(data.valueType->returnType, ((data.symbol.getName() == "main") ? "" : function_header + scopePrefix(from)) +
                         CifyName(data.symbol.getName() + nameDecoration)) + "(" + parameters + ") {\n" + generate(children[children.size()-1], enclosingObject, justFuncName).oneString();
                 output += emitDestructors(reverse(distructDoubleStack.back()), enclosingObject);
                 output += "}\n";
@@ -562,7 +558,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 		    for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
 					 		    	nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
                                 // Note that we only add scoping to the object, as this specifies our member function too
-/*HERE*/				 	    return scopePrefix(unaliasedTypeDef) + CifyName(unaliasedTypeDef->getDataRef()->symbol.getName()) +"__" +
+/*HERE*/				 	    return function_header + scopePrefix(unaliasedTypeDef) + CifyName(unaliasedTypeDef->getDataRef()->symbol.getName()) +"__" +
                                         CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject, true).oneString() + ",";
 					 		    //The comma lets the upper function call know we already started the param list
 					 		    //Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
@@ -588,11 +584,11 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				 	//Check to see if we're inside of an object and this is a method call
 					bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
 					if (isSelfObjectMethod) {
-						output += scopePrefix(children[0]) + CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__";
+						output += function_header + scopePrefix(children[0]) + CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__";
                        	output += CifyName(name + nameDecoration) + "(";
 				 		output += children.size() > 1 ? "this," : "this";
                     } else {
-                       	output += scopePrefix(children[0]) + CifyName(name + nameDecoration) + "(";
+                       	output += function_header + scopePrefix(children[0]) + CifyName(name + nameDecoration) + "(";
                     }
 				}
 			} else {
@@ -664,7 +660,7 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 
         distructDoubleStack.back().push_back(children[i]);
 	}
-    std::string functionSignature = "\n" + ValueTypeToCType(data.valueType->returnType, scopePrefix(from) +  CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
+    std::string functionSignature = "\n" + ValueTypeToCType(data.valueType->returnType, function_header + scopePrefix(from) +  CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
 		+ CifyName(data.symbol.getName()) + nameDecoration) + "(" + ValueTypeToCType(&enclosingObjectType, "this") + parameters + ")";
     *functionPrototype += functionSignature + ";\n";
     // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
@@ -714,7 +710,7 @@ std::string CGenerator::generateMethodIfExists(Type* type, std::string method, s
         std::string nameDecoration;
         for (Type *paramType : methodDef->getDataRef()->valueType->parameterTypes)
             nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
-        return scopePrefix(typeDefinition) + CifyName(typeDefinition->getDataRef()->symbol.getName()) + "__" + method + nameDecoration + "(" + parameter + ");\n";
+        return function_header + scopePrefix(typeDefinition) + CifyName(typeDefinition->getDataRef()->symbol.getName()) + "__" + method + nameDecoration + "(" + parameter + ");\n";
     }
     return "";
 }

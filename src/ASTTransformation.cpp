@@ -102,7 +102,7 @@ NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<S
             newNode->addChild(addToScope("~enclosing_scope", newNode, new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(concatSymbolTree(i->getChildren()[0]),true)))));
             std::set<int> skipChildren;
             skipChildren.insert(0); //Don't do the identifier. The identifier lookup will fail. That's why we do it here.
-            newNode->addChildren(transformChildren(i->getChildren(), skipChildren, translationUnit, std::vector<Type>(), std::map<std::string, Type*>()));
+            newNode->addChildren(transformChildren(i->getChildren(), skipChildren, translationUnit, std::vector<Type>(), false, std::map<std::string, Type*>()));
 			translationUnit->addChild(newNode);
         }
 	}
@@ -250,7 +250,7 @@ NodeTree<ASTData>* ASTTransformation::secondPassFunction(NodeTree<Symbol>* from,
     addToScope("~enclosing_scope", scope, functionDef);
     addToScope(functionName, functionDef, scope);
 	//We only do the parameter nodes. We don't do the body yet, as this is the secondPass
-    auto transChildren = transformChildren(slice(children,1,-3, 2), std::set<int>(), functionDef, std::vector<Type>(), templateTypeReplacements);
+    auto transChildren = transformChildren(slice(children,1,-3, 2), std::set<int>(), functionDef, std::vector<Type>(), false, templateTypeReplacements);
 
 	functionDef->addChildren(transChildren);
     // Swap the function type over to be the correct type (a function with parameter and return types, etc)
@@ -296,12 +296,15 @@ void ASTTransformation::thirdPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* pars
     // even inside of class templates. As its methods may cause partial instantiation of
     // other class templates, we need to do this until the size no longer changes.
     std::vector<NodeTree<ASTData>*> classTemplates;
+    std::set<Type*> finishedClassTemplateTypes;
     int lastSize = 0;
     while (lastSize != ast->getDataRef()->scope.size()) {
         lastSize = ast->getDataRef()->scope.size();
         classTemplates.clear();
         for (auto i : ast->getDataRef()->scope) {
-            if (i.second[0]->getDataRef()->type == type_def && i.second[0]->getDataRef()->valueType->templateTypeReplacement.size()) {
+            // we actually keep track of the template type replacements now, and need them after they're instantiated, so we use a set to check if we've done it now
+            if (i.second[0]->getDataRef()->type == type_def && i.second[0]->getDataRef()->valueType->templateTypeReplacement.size()
+                    && finishedClassTemplateTypes.find(i.second[0]->getDataRef()->valueType) == finishedClassTemplateTypes.end()) {
                 classTemplates.push_back(i.second[0]);
                 std::cout << "Saving " << i.second[0]->getDataRef()->toString() << " to instantiate." << std::endl;
             }
@@ -312,7 +315,7 @@ void ASTTransformation::thirdPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* pars
             for (NodeTree<Symbol>* j : classTemplateType->templateDefinition->getChildren())
                 if (j->getDataRef()->getName() == "function" && j->getChildren()[1]->getDataRef()->getName() != "template_dec")
                     thirdPassFunction(j, searchScopeForFunctionDef(i, j, classTemplateType->templateTypeReplacement), classTemplateType->templateTypeReplacement); 	//do member method
-            classTemplateType->templateTypeReplacement.clear(); // This template has been fully instantiated, clear it's map so it won't be instantiated again
+            finishedClassTemplateTypes.insert(classTemplateType);
         }
     }
 }
@@ -342,15 +345,15 @@ NodeTree<ASTData>* ASTTransformation::searchScopeForFunctionDef(NodeTree<ASTData
 //Note that it may instantiate class OR function templates, which need to be fully instantiated
 void ASTTransformation::thirdPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* functionDef, std::map<std::string, Type*> templateTypeReplacements) {
 	NodeTree<Symbol>* codeBlock = from->getChildren().back();
-	functionDef->addChild(transform(codeBlock, functionDef, std::vector<Type>(), templateTypeReplacements));
+	functionDef->addChild(transform(codeBlock, functionDef, std::vector<Type>(), false, templateTypeReplacements));
 }
 
 NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from) {
 	//Set up top scope
-	return transform(from, NULL, std::vector<Type>(), std::map<std::string, Type*>());
+	return transform(from, NULL, std::vector<Type>(), false, std::map<std::string, Type*>());
 }
 
-NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements) {
+NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::vector<Type> types, bool limitToFunction, std::map<std::string, Type*> templateTypeReplacements) {
 	Symbol current = from->getData();
 	std::string name = current.getName();
 	NodeTree<ASTData>* newNode = NULL;
@@ -361,7 +364,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		//Make sure we get the entire name
 		std::string lookupName = concatSymbolTree(from);
 		std::cout << "Looking up: " << lookupName << std::endl;
-		if (types.size()) {
+		if (limitToFunction) {
             newNode = functionLookup(scope, lookupName, types);
 		    if (newNode == NULL) {
 			    std::cout << "scope lookup failed! Could not find " << lookupName << " in identifier (functionLookup)" << std::endl;
@@ -391,7 +394,19 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			    std::cerr << "scope lookup error! Could not find " << lookupName << " in identifier (scopeLookup)" << std::endl;
 			    throw "LOOKUP ERROR: " + lookupName;
             }
+            // can't cull out functiokns b/c we might want them as values
             newNode = possibleMatches[0];
+            //newNode = nullptr;
+            //for (auto i : possibleMatches) {
+                //if (i->getDataRef()->valueType->baseType != function_type) {
+                    //newNode = i;
+                    //break;
+                //}
+            //}
+            //if (!newNode) {
+				//std::cerr << "scope lookup error! only found functions for " << lookupName << " in identifier (scopeLookup)" << std::endl;
+				//throw "LOOKUP ERROR: " + lookupName;
+            //}
         }
         return newNode;
 	} else if (name == "type_def") {
@@ -449,7 +464,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		    for (auto i : slice(children[1]->getChildren(), 1, -1, 2)) //skip commas
                 yetToBeInstantiatedTemplateTypes[concatSymbolTree(i)] = new Type(template_type_type); //This may have to be combined with templateTypeReplacements if we do templated member functions inside of templated classes
 
-            auto transChildren = transformChildren(slice(children,3,-2), std::set<int>(), newNode, types, yetToBeInstantiatedTemplateTypes);
+            auto transChildren = transformChildren(slice(children,3,-2), std::set<int>(), newNode, types, limitToFunction, yetToBeInstantiatedTemplateTypes);
 			std::cout << "Template function " << functionName << " has these parameters: ";
 			for (auto i : transChildren)
 				std::cout << "||" << i->getDataRef()->toString() << "|| ";
@@ -471,11 +486,11 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         if (name == "lambda")
             addToScope(functionName, newNode, topScope);
 
-        auto parameters = transformChildren(getNodes("typed_parameter", children), skipChildren, scope, types, templateTypeReplacements);
+        auto parameters = transformChildren(getNodes("typed_parameter", children), skipChildren, scope, types, limitToFunction, templateTypeReplacements);
         newNode->addChildren(parameters);
         // update type with actual type
         newNode->getDataRef()->valueType = new Type(mapNodesToTypePointers(parameters), newNode->getDataRef()->valueType);
-        newNode->addChild(transform(getNode("statement", children), scope, types, templateTypeReplacements));
+        newNode->addChild(transform(getNode("statement", children), scope, types, limitToFunction, templateTypeReplacements));
 		std::cout << "finished function" << functionName << std::endl;
         return newNode;
 
@@ -498,7 +513,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		if (children.size() > 1) {
 			//We do children first so we can do appropriate scope searching with types (yay operator overloading!)
 			skipChildren.insert(1);
-			std::vector<NodeTree<ASTData>*> transformedChildren = transformChildren(children, skipChildren, scope, types, templateTypeReplacements);
+			std::vector<NodeTree<ASTData>*> transformedChildren = transformChildren(children, skipChildren, scope, types, limitToFunction, templateTypeReplacements);
 			std::string functionCallString = concatSymbolTree(children[1]);
 			NodeTree<ASTData>* function = doFunction(scope, functionCallString, transformedChildren, templateTypeReplacements);
 			if (function == NULL) {
@@ -510,22 +525,22 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
             // XXX What the heck is this
 			if (children.size() == 0)
 				return new NodeTree<ASTData>();
-			return transform(children[0], scope, types, templateTypeReplacements); //Just a promoted term, so do child
+			return transform(children[0], scope, types, limitToFunction, templateTypeReplacements); //Just a promoted term, so do child
 		}
 	//Here's the order of ops stuff
 	} else if (name == "expression" || name == "shiftand" || name == "term" || name == "unarad" || name == "access_operation") {
 		//If this is an actual part of an expression, not just a premoted child
 		if (children.size() > 2) {
-			NodeTree<ASTData>* lhs = transform(children[0], scope, std::vector<Type>(), templateTypeReplacements); //LHS does not inherit types
+			NodeTree<ASTData>* lhs = transform(children[0], scope, std::vector<Type>(),limitToFunction, templateTypeReplacements); //LHS does not inherit types
 			NodeTree<ASTData>* rhs;
 			if (name == "access_operation") {
 				std::cout << "lhs is: " << lhs->getDataRef()->toString() << std::endl;
-				rhs = transform(children[2], lhs->getDataRef()->valueType->typeDefinition, types, templateTypeReplacements); //If an access operation, then the right side will be in the lhs's type's scope
+				rhs = transform(children[2], lhs->getDataRef()->valueType->typeDefinition, types, limitToFunction, templateTypeReplacements); //If an access operation, then the right side will be in the lhs's type's scope
                 // this might be a template member function, so do like below would do, but make it our rhs
                 if (rhs == nullptr)
                     rhs = findOrInstantiateFunctionTemplate(slice(children,2,-1), lhs->getDataRef()->valueType->typeDefinition, types, templateTypeReplacements);
 			} else
-				rhs = transform(children[2], scope, types, templateTypeReplacements);
+				rhs = transform(children[2], scope, types, limitToFunction, templateTypeReplacements);
 
 			std::string functionCallName = concatSymbolTree(children[1]);
 			if (functionCallName == "[")
@@ -540,7 +555,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			return newNode;
 		}
         if (children.size() == 1) {
-			newNode = transform(children[0], scope, types, templateTypeReplacements); //Just a promoted child, so do it instead
+			newNode = transform(children[0], scope, types, limitToFunction, templateTypeReplacements); //Just a promoted child, so do it instead
             if (newNode)
                 return newNode;
         }
@@ -558,9 +573,9 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 			NodeTree<ASTData>* param;
             // I think this is where we look at pre vs post operators
 			if (funcName == "*" || funcName == "&" || funcName == "++" || funcName == "--" || funcName == "+" || funcName == "-" || funcName == "!" || funcName == "~")
-				param = transform(children[1], scope, types, templateTypeReplacements);
+				param = transform(children[1], scope, types, limitToFunction, templateTypeReplacements);
 			else
-				funcName = concatSymbolTree(children[1]), param = transform(children[0], scope, types, templateTypeReplacements);
+				funcName = concatSymbolTree(children[1]), param = transform(children[0], scope, types, limitToFunction, templateTypeReplacements);
 
             std::cout << "\t\t\t funcName= " << funcName << " param: " << param->getDataRef()->symbol.getName() << std::endl;
 			//std::cout << "scope lookup from factor" << std::endl;
@@ -574,7 +589,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 
 			return function;
 		} else {
-			return transform(children[0], scope, types, templateTypeReplacements); //Just a promoted child, so do it instead
+			return transform(children[0], scope, types, limitToFunction, templateTypeReplacements); //Just a promoted child, so do it instead
 		}
 	} else if (name == "statement") {
 		newNode = new NodeTree<ASTData>(name, ASTData(statement));
@@ -594,8 +609,8 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		newNode = new NodeTree<ASTData>(name, ASTData(defer_statement));
 	} else if (name == "assignment_statement") {
 		std::string assignFuncName = concatSymbolTree(children[1]);
-        NodeTree<ASTData>* lhs = transform(children[0], scope, types, templateTypeReplacements);
-        NodeTree<ASTData>* rhs = transform(children[2], scope, types, templateTypeReplacements);
+        NodeTree<ASTData>* lhs = transform(children[0], scope, types, limitToFunction, templateTypeReplacements);
+        NodeTree<ASTData>* rhs = transform(children[2], scope, types, limitToFunction, templateTypeReplacements);
         std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(lhs); transformedChildren.push_back(rhs);
 
         // see if this is an overloaded assignment
@@ -640,8 +655,8 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
             //This code is a simplified version of the code in function_call with respect to access_operation.
             //Note that in this case, what is lhs there is our newIdentifier here (the declaration of the left side of the access operation)
             auto sliced = slice(children, 3, -3);
-            std::vector<NodeTree<ASTData>*> initPositionFuncParams = transformChildren(sliced, std::set<int>(), scope, types, templateTypeReplacements);
-            NodeTree<ASTData>* rhs = transform(children[2], identifierType->typeDefinition, mapNodesToTypes(initPositionFuncParams), templateTypeReplacements); //If an access operation, then the right side will be in the lhs's type's scope
+            std::vector<NodeTree<ASTData>*> initPositionFuncParams = transformChildren(sliced, std::set<int>(), scope, types, limitToFunction, templateTypeReplacements);
+            NodeTree<ASTData>* rhs = transform(children[2], identifierType->typeDefinition, mapNodesToTypes(initPositionFuncParams), true, templateTypeReplacements); //If an access operation, then the right side will be in the lhs's type's scope
 			std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(newIdentifier); transformedChildren.push_back(rhs);
 			NodeTree<ASTData>* accessFuncCall = doFunction(scope, ".", transformedChildren, templateTypeReplacements);
 		    accessFuncCall->getDataRef()->valueType = rhs->getDataRef()->valueType;
@@ -657,7 +672,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         }
 
         auto boolExp = getNode("boolean_expression", children);
-        NodeTree<ASTData>* toAssign = boolExp ? transform(boolExp, scope, types, templateTypeReplacements) : nullptr;
+        NodeTree<ASTData>* toAssign = boolExp ? transform(boolExp, scope, types, limitToFunction, templateTypeReplacements) : nullptr;
         // for type inferencing
         if (!identifierType) {
             if (toAssign)
@@ -703,12 +718,12 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		newNode = new NodeTree<ASTData>(functionCallName, ASTData(function_call, Symbol(functionCallName, true)));
 
 		skipChildren.insert(0);
-		std::vector<NodeTree<ASTData>*> transformedChildren = transformChildren(children, skipChildren, scope, types, templateTypeReplacements);
+		std::vector<NodeTree<ASTData>*> transformedChildren = transformChildren(children, skipChildren, scope, types, limitToFunction, templateTypeReplacements);
 		std::cout << "scope lookup from function_call: " << functionCallName << std::endl;
 		for (auto i : children)
 			std::cout << i << " : " << i->getName()  << " : " << i->getDataRef()->getName() << std::endl;
 
-		NodeTree<ASTData>* function = transform(children[0], scope, mapNodesToTypes(transformedChildren), templateTypeReplacements);
+		NodeTree<ASTData>* function = transform(children[0], scope, mapNodesToTypes(transformedChildren), true, templateTypeReplacements);
 		std::cout << "The thing: " << function << " : " << function->getName() << std::endl;
 		for (auto i : function->getChildren())
 			std::cout << i->getName() << " ";
@@ -719,13 +734,13 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		newNode->addChildren(transformedChildren);
 		return newNode;
 	} else if (name == "parameter") {
-		return transform(children[0], scope, types, templateTypeReplacements); //Don't need a parameter node, just the value
+		return transform(children[0], scope, types, limitToFunction, templateTypeReplacements); //Don't need a parameter node, just the value
 	} else if (name == "type") {
 		std::string theConcat = concatSymbolTree(from); //We have no symbol, so this will concat our children
 		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(theConcat, true), typeFromTypeNode(from, scope, templateTypeReplacements)));
         addToScope("~enclosing_scope", scope, newNode);
 	} else if (name == "number") {
-		return transform(children[0], scope, types, templateTypeReplacements);
+		return transform(children[0], scope, types, limitToFunction, templateTypeReplacements);
 	} else if (name == "integer") {
 		newNode = new NodeTree<ASTData>(name, ASTData(value, Symbol(concatSymbolTree(from), true), new Type(integer)));
 	} else if (name == "floating_literal") {
@@ -760,17 +775,17 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	}
 
 	//Do all children but the ones we skip
-    newNode->addChildren(transformChildren(children, skipChildren, scope, types, templateTypeReplacements));
+    newNode->addChildren(transformChildren(children, skipChildren, scope, types, limitToFunction, templateTypeReplacements));
 	return newNode;
 }
 
 //We use this functionality a lot at different places
-std::vector<NodeTree<ASTData>*> ASTTransformation::transformChildren(std::vector<NodeTree<Symbol>*> children, std::set<int> skipChildren, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements) {
+std::vector<NodeTree<ASTData>*> ASTTransformation::transformChildren(std::vector<NodeTree<Symbol>*> children, std::set<int> skipChildren, NodeTree<ASTData>* scope, std::vector<Type> types, bool limitToFunction, std::map<std::string, Type*> templateTypeReplacements) {
 	std::vector<NodeTree<ASTData>*> transformedChildren;
 	// In general, iterate through children and do them. Might not do this for all children.
 	for (int i = 0; i < children.size(); i++) {
 		if (skipChildren.find(i) == skipChildren.end()) {
-			NodeTree<ASTData>* transChild = transform(children[i], scope, types, templateTypeReplacements);
+			NodeTree<ASTData>* transChild = transform(children[i], scope, types, limitToFunction, templateTypeReplacements);
 			if (transChild->getDataRef()->type) //Only add the children that have a real ASTData::ASTType, that is, legit ASTData.
 				transformedChildren.push_back(transChild);
 			else
@@ -1079,8 +1094,12 @@ void ASTTransformation::unifyType(NodeTree<Symbol> *syntaxType, Type type, std::
             if (typeTemplateDefinition && concatSymbolTree(getNode("scoped_identifier", children)) == concatSymbolTree(getNode("identifier", typeTemplateDefinition->getChildren()))) {
                     std::vector<NodeTree<Symbol>*> uninTypeInstTypes = getNodes("type", getNode("template_inst", children));
                     std::vector<NodeTree<Symbol>*> typeInstTypes = getNodes("template_param", getNode("template_dec", typeTemplateDefinition->getChildren()));
-                    for (int i = 0; i < uninTypeInstTypes.size(); i++)
+                    for (int i = 0; i < uninTypeInstTypes.size(); i++) {
+                        std::cout << concatSymbolTree(uninTypeInstTypes[i]) << " : " << origionalType->toString() << " : " <<  concatSymbolTree(typeInstTypes[i]) << std::endl;
+                        std::cout << "which is  " <<  origionalType->templateTypeReplacement[concatSymbolTree(typeInstTypes[i])]->toString() << std::endl;
+                        //std::cout << "which is  " <<  *origionalType->templateTypeReplacement[concatSymbolTree(typeInstTypes[i])] << std::endl;
                         unifyType(uninTypeInstTypes[i], *origionalType->templateTypeReplacement[concatSymbolTree(typeInstTypes[i])], templateTypeMap, typeMap);
+                    }
 
                     return;
             }
@@ -1195,7 +1214,10 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         std::cout << "Current function fits, satisfying " << currentTraitsSatisfied << " traits" << std::endl;
     }
     if (!mostFittingTemplates.size()) {
-        std::cerr << "No template functions fit for " << lookup << "!" << std::endl;
+        std::cerr << "No template functions fit for " << lookup << "(";
+        for (auto t : types)
+            std::cerr << t.toString() + ", ";
+        std::cerr << ")!" << std::endl;
         throw "No matching template functions";
     } else if (mostFittingTemplates.size() > 1) {
         std::cerr << "Multiple template functions fit with equal number of traits satisfied for " << lookup << "!" << std::endl;
@@ -1471,6 +1493,11 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
                 // deferred method allowing us to correctly instantiate multiple levels of mututally recursive definitions.
                 selfType->templateDefinition = templateSyntaxTree; //We're going to still need this when we finish instantiating
                 selfType->templateTypeReplacement = newTemplateTypeReplacement; //Save the types for use when this is fully instantiated in pass 4
+                for (auto daPair : selfType->templateTypeReplacement) {
+                    std::cout << " BREAK HERE " << daPair.first << " : " << daPair.second->toString() << std::endl;
+                    if (daPair.second == NULL)
+                        std::cout << " BREAK HERE " << std::endl;
+                }
                 secondPassDoClassInsides(typeDefinition, templateSyntaxTree->getChildren(), newTemplateTypeReplacement); //Use these types when instantiating data members
             }
         } else if (possibleMatches.size() == 0) {
@@ -1577,11 +1604,11 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
 	std::cout << "About to do children of " << functionName << " to " << fullyInstantiatedName << std::endl;
 
     std::set<int> skipChildren;
-    auto parameters = transformChildren(getNodes("typed_parameter", templateSyntaxTree->getChildren()), skipChildren, instantiatedFunction, std::vector<Type>(), newTemplateTypeReplacement);
+    auto parameters = transformChildren(getNodes("typed_parameter", templateSyntaxTree->getChildren()), skipChildren, instantiatedFunction, std::vector<Type>(), false, newTemplateTypeReplacement);
     instantiatedFunction->addChildren(parameters);
     // update type with actual type
     instantiatedFunction->getDataRef()->valueType = new Type(mapNodesToTypePointers(parameters), instantiatedFunction->getDataRef()->valueType);
-    instantiatedFunction->addChild(transform(getNode("statement", templateSyntaxTree->getChildren()), instantiatedFunction, std::vector<Type>(), newTemplateTypeReplacement));
+    instantiatedFunction->addChild(transform(getNode("statement", templateSyntaxTree->getChildren()), instantiatedFunction, std::vector<Type>(), false, newTemplateTypeReplacement));
 
 	std::cout << "Fully Instantiated function " << functionName << " to " << fullyInstantiatedName << std::endl;
 	return instantiatedFunction;

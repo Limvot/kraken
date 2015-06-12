@@ -45,6 +45,7 @@ class CGenerator {
 
 		int tabLevel;
 		int id;
+        std::string function_header;
 		std::string generatorString;
         std::string linkerString;
         std::string functionTypedefString;
