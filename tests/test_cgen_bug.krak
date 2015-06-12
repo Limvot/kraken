@@ -1,0 +1,14 @@
+import io:*
+import vector:*
+
+fun onlyMatch(vec: vector<int>, matchWith: int): vector<int> {
+    return vec.filter(fun(it:int, other:int):bool { return it == other; }, matchWith)
+}
+
+fun main():int {
+    var vec = vector(7)
+    println(onlyMatch(vec,7).size)
+    println(onlyMatch(vec,9).size)
+
+    return 0
+}
