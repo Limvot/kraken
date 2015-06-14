@@ -67,6 +67,16 @@ fun delete<T(Object)>(toDelete: T*): void {
     free<T>(toDelete);
 }
 
+// a wrapper for construct if it has the Object trait
+fun maybe_construct<T>(it:T*):T* {
+    return it
+}
+
+fun maybe_construct<T(Object)>(it:T*):T* {
+    return it->construct()
+}
+
+
 // a wrapper for copy constructing if it has the Object trait
 fun maybe_copy_construct<T>(to:T*, from:T*):void {
     *to = *from
@@ -75,4 +85,12 @@ fun maybe_copy_construct<T>(to:T*, from:T*):void {
 fun maybe_copy_construct<T(Object)>(to:T*, from:T*):void {
     to->copy_construct(from)
 }
+
+// a wrapper for destruct if it has the Object trait
+fun maybe_destruct<T>(it:T*):void {}
+
+fun maybe_destruct<T(Object)>(it:T*):void {
+    it->destruct()
+}
+
 

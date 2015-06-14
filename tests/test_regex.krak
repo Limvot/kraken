@@ -5,5 +5,15 @@ fun main():int {
     var reg = regex("ab")
     println(reg.long_match("abab"))
     println(reg.long_match("aab"))
+
+    println("second")
+
+    reg = regex("a*b+c")
+    println(reg.long_match("bc"))
+    println(reg.long_match("aaaaaaaaaaaaaaaabc"))
+    println(reg.long_match("aaaaaaaaaaaaaaaabbbbbbbbbc"))
+    println(reg.long_match("aaaaaaaaaaaaaaaa"))
+    println(reg.long_match("aaaaaaaaaaaaaaaac"))
+    println(reg.long_match("aaaaaaaaaaaaaaaab"))
     return 0
 }

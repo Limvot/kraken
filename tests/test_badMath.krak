@@ -15,4 +15,7 @@ fun main(): void {
     for (var i:int = 0; i < 20; i++;) z++;
     if (z > 20) io::println("We'll find out.");
     io::println(z);
+    var boolean = false
+    if ( z > 20 && !boolean)
+        io::println("woo not")
 }

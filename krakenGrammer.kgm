@@ -100,7 +100,7 @@ defer_statement = "defer" WS statement ;
 function_call = unarad "\(" WS opt_parameter_list WS "\)" ;
 
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;
-and_boolean_expression = and_boolean_expression "&&" bool_exp | bool_exp ;
+and_boolean_expression = and_boolean_expression WS "&&" WS bool_exp | bool_exp ;
 bool_exp = expression WS comparator WS expression | expression ;
 comparator = "==" | "<=" | ">=" | "!=" | "<" | ">" ;
 
@@ -119,8 +119,7 @@ hexadecimal = "0x(1|2|3|4|5|6|7|8|9|a|b|c|d|e|f)+" ;
 integer = numeric | hexadecimal ;
 floating_literal = numeric "." numeric ;
 bool = "true" | "false" ;
-character = "'(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
-|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| )'" ;
+character = "'(`|1|2|3|4|5|6|7|8|9|0|-|=|(\\t)|q|w|e|r|t|y|u|i|o|p|[|]|(\\\\)|a|s|d|f|g|h|j|k|l|;|'|(\\n)|z|x|c|v|b|n|m|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|Q|W|E|R|T|Y|U|I|O|P|{|}|\||A|S|D|F|G|H|J|K|L|:|\"|Z|X|C|V|B|N|M|<|>|\?| |(\\0))'" ;
 
 keywords_also_identifiers = "obj" | "def" | "fun" | "var" ;
 alpha_alphanumeric = "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|_)(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|_|0|1|2|3|4|5|6|7|8|9)*" ;

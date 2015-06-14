@@ -8,6 +8,11 @@ fun vector<T>(in:T):vector<T> {
     return out
 }
 
+fun vector<T>():vector<T> {
+    var out.construct():vector<T>
+    return out
+}
+
 obj vector<T> (Object) {
     var data: T*;
     var size: int;
@@ -41,9 +46,8 @@ obj vector<T> (Object) {
     }
 
     fun operator=(other:vector<T>):void {
-        resize(other.size)
-        for (var i = 0; i < other.size; i++;)
-            set(i, other.get(i))
+        destruct()
+        copy_construct(&other)
     }
 
     fun operator+(other:vector<T>):vector<T> {
@@ -101,6 +105,10 @@ obj vector<T> (Object) {
             return;
         data[index] = dataIn;
     }
+    fun add_all(dataIn: vector<T>): void {
+        for (var i = 0; i < dataIn.size; i++;)
+            addEnd(dataIn[i]);
+    }
     fun add(dataIn: T): void { addEnd(dataIn); }
     fun addEnd(dataIn: T): void {
         size++;
@@ -111,6 +119,10 @@ obj vector<T> (Object) {
     fun do(func: fun(T):void):void {
         for (var i = 0; i < size; i++;)
             func(data[i])
+    }
+    fun do<U>(func: fun(T,U):void, extraParam: U):void {
+        for (var i = 0; i < size; i++;)
+            func(data[i], extraParam)
     }
     fun in_place(func: fun(T):T):void {
         for (var i = 0; i < size; i++;)

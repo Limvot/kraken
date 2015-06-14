@@ -2,6 +2,7 @@ import io
 import vector
 import string
 import mem
+import util
 import conversions
 
 fun regex(in: char*):regex {
@@ -52,27 +53,95 @@ obj regexState(Object) {
 obj regex(Object) {
     var regexString: string::string
     var begin: regexState
+
     fun construct(regexStringIn: string::string): regex* {
         begin.construct()
         regexString.copy_construct(&regexStringIn)
 
-        var traverse = &begin
-        for (var i = 0; i < regexString.length(); i++;) {
-            var next = mem::new<regexState>()->construct(regexString[i])
-            traverse->next_states.add(next)
-            traverse = next
-        }
-        traverse->next_states.add(mem::new<regexState>()->construct(conversions::to_char(1)))
+        var beginningAndEnd = compile(regexStringIn)
+        // add each beginning state as a next state of our begin, and the end state as the next state of each end
+        beginningAndEnd.first.do(fun(it: regexState*, begin: regexState*): void { begin->next_states.add(it); }, &begin)
+        beginningAndEnd.second.do(fun(it: regexState*, end: regexState*): void { it->next_states.add(end); }, mem::new<regexState>()->construct(conversions::to_char(1)))
+
+        io::print("begin: ")
+        beginningAndEnd.first.do(fun(it: regexState*): void { io::print(it->character); })
+        io::print("\nend: ")
+        beginningAndEnd.second.do(fun(it: regexState*): void { io::print(it->character); })
+        io::println()
+
         return this
     }
+
     fun copy_construct(old:regex*):void {
         begin.copy_construct(&old->begin)
         regexString.copy_construct(&old->regexString)
     }
+
     fun destruct():void {
         begin.destruct()
         regexString.destruct()
     }
+
+    fun operator=(other: regex):void {
+        destruct()
+        construct(other.regexString)
+    }
+
+    fun compile(regex_string: string::string): util::pair<vector::vector<regexState*>, vector::vector<regexState*>> {
+        var first = mem::new<regexState>()->construct()
+        var previous_begin = vector::vector<regexState*>()
+        var previous_end = vector::vector<regexState*>()
+        var current_begin = vector::vector(first)
+        var current_end = vector::vector(first)
+        var alternating = false
+        var escapeing = false
+
+        for (var i = 0; i < regex_string.length(); i++;) {
+            //io::print("i: "); io::println(i)
+            if (regex_string[i] == '*' && !escapeing) {
+                for (var j = 0; j < current_end.size; j++;)
+                    current_end[j]->next_states.add_all(current_begin)
+                //io::print("previous_begin size: "); io::println(previous_begin.size)
+                current_begin.add_all(previous_begin)
+                current_end.add_all(previous_end)
+            } else if (regex_string[i] == '+' && !escapeing) {
+                for (var j = 0; j < current_end.size; j++;)
+                    current_end[j]->next_states.add_all(current_begin)
+                //io::print("previous_begin size +: "); io::println(previous_begin.size)
+            } else if (regex_string[i] == '?' && !escapeing) {
+                current_begin.add_all(previous_begin)
+                current_end.add_all(previous_end)
+            } else if (regex_string[i] == '|' && !escapeing) {
+                alternating = true
+            } else if (regex_string[i] == '(' && !escapeing) {
+            } else if (regex_string[i] == '\\' && !escapeing) {
+                escapeing = true
+            } else {
+                var next = mem::new<regexState>()->construct(regex_string[i])
+                if (alternating) {
+                    previous_end.do(fun(it: regexState*, next: regexState*):void { it->next_states.add(next); }, next)
+                    current_begin.add(next)
+                    current_end.add(next)
+                } else {
+                    current_end.do(fun(it: regexState*, next: regexState*):void { io::print("adding: "); io::print(next->character); io::print(" to "); io::println(it->character); it->next_states.add(next); }, next)
+                    //current_end.do(fun(it: regexState*, next: regexState*):void { it->next_states.add(next); }, next)
+                    //io::print("previous_begin size before current: "); io::println(previous_begin.size)
+                    //io::print("current_begin size before current: "); io::println(current_begin.size)
+                    previous_begin = current_begin
+                    //io::print("previous_begin size after current: "); io::println(previous_begin.size)
+                    previous_end = current_end
+                    current_begin = vector::vector(next)
+                    //io::print("current_begin size after current: "); io::println(current_begin.size)
+                    current_end = vector::vector(next)
+                }
+            }
+        }
+        var beginAndEnd = util::make_pair(first->next_states, current_end)
+        mem::delete(first)
+        return beginAndEnd
+    }
+
+
     fun long_match(to_match: char*): int { return long_match(string::string(to_match)); }
     fun long_match(to_match: string::string): int {
         var next = vector::vector(&begin)

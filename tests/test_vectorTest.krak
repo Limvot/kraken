@@ -70,6 +70,21 @@ fun main(): int {
     desVec->addEnd(testDestruct);
     println("delete vector")
     delete(desVec);
+
+    var newOne = vector("hayyy")
+    println(newOne[0])
+    var noParam = vector<double>()
+    noParam.add(4.7)
+    println(noParam[0])
+
+    var assignTest = vector("first")
+    println(assignTest[0])
+    var toAssign = vector("first")
+    toAssign.add("second")
+    assignTest = toAssign
+    println(assignTest[0])
+    println(assignTest[1])
+
     println("done")
 
     return 0;

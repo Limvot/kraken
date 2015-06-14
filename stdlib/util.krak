@@ -1,3 +1,4 @@
+import mem
 
 fun greater<T>(a: T, b: T): T {
     if (a > b)
@@ -10,3 +11,36 @@ fun lesser<T>(a: T, b: T): T {
         return b;
     return a;
 }
+
+fun make_pair<T,U>(first: T, second: U): pair<T,U> {
+    var it.construct(first, second): pair<T,U>
+    return it
+}
+
+obj pair<T,U>(Object) {
+    var first: T
+    var second: U
+
+    fun construct(firstIn: T, secondIn: U): pair<T,U>* {
+        mem::maybe_copy_construct(&first, &firstIn)
+        mem::maybe_copy_construct(&second, &secondIn)
+        return this
+    }
+
+    fun construct(): pair<T,U>* {
+        mem::maybe_construct(&first)
+        mem::maybe_construct(&second)
+        return this
+    }
+
+    fun copy_construct(old: pair<T,U>*):void {
+        mem::maybe_copy_construct(&first, &old->first)
+        mem::maybe_copy_construct(&second, &old->second)
+    }
+
+    fun destruct():void {
+        mem::maybe_destruct(&first)
+        mem::maybe_destruct(&second)
+    }
+}
+
