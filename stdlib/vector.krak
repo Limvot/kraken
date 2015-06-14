@@ -42,6 +42,7 @@ obj vector<T> (Object) {
     fun destruct(): void {
         if (data)
             delete(data, size);
+        //data = 1337
         data = 0
     }
 
@@ -82,6 +83,17 @@ obj vector<T> (Object) {
         available = newSize;
         size = lesser(size, newSize)
         return true;
+    }
+
+    fun slice(start: int, end: int): vector<T> {
+        var new.construct(): vector<T>
+        if (start < 0)
+            start += size + 1
+        if (end < 0)
+            end += size + 1
+        for (var i = start; i < end; i++;)
+            new.add(data[i])
+        return new
     }
 
     fun at(index: int): T { return get(index); }

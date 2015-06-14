@@ -39,6 +39,10 @@ obj string (Object) {
     }
 
     fun operator[](index: int): char { return data[index]; }
+    fun slice(first: int, second: int): string {
+        var new.construct(data.slice(first,second)): string
+        return new
+    }
     fun length():int { return data.size; }
 
     fun operator=(str: char*): void {

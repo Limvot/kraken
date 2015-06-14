@@ -532,9 +532,9 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			//Test for special functions only if what we're testing is, indeed, the definition, not a function call that returns a callable function pointer
 			if (funcType == function) {
 				if (name == "++" || name == "--")
-					return generate(children[1], enclosingObject, true).oneString() + name;
+					return generate(children[1], enclosingObject, true) + name;
 				if ( (name == "*" || name == "&" || name == "!" || name == "-" || name == "+" ) && children.size() == 2) //Is dereference, not multiplication, address-of, or other unary operator
-					return name + "(" + generate(children[1], enclosingObject, true).oneString() + ")";
+					return name + "(" + generate(children[1], enclosingObject, true) + ")";
 				if (name == "[]")
 					return "(" + generate(children[1], enclosingObject, true) + ")[" + generate(children[2],enclosingObject, true) + "]";
 				if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
@@ -559,16 +559,16 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 		    	nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
                                 // Note that we only add scoping to the object, as this specifies our member function too
 /*HERE*/				 	    return function_header + scopePrefix(unaliasedTypeDef) + CifyName(unaliasedTypeDef->getDataRef()->symbol.getName()) +"__" +
-                                        CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject, true).oneString() + ",";
+                                        CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject, true) + ",";
 					 		    //The comma lets the upper function call know we already started the param list
 					 		    //Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
                             } else {
 					 	        std::cout << "Is not in scope or not type" << std::endl;
-					            return "((" + generate(children[1], enclosingObject, true).oneString() + ")" + name + functionName + ")";
+					            return "((" + generate(children[1], enclosingObject, true) + ")" + name + functionName + ")";
                             }
                         } else {
 					 	    std::cout << "Is not in scope or not type" << std::endl;
-					        return "((" + generate(children[1], enclosingObject, true).oneString() + ")" + name + functionName + ")";
+					        return "((" + generate(children[1], enclosingObject, true) + ")" + name + functionName + ")";
 					 	}
 					} else {
 						//return "((" + generate(children[1], enclosingObject) + ")" + name + generate(children[2], enclosingObject) + ")";
@@ -594,9 +594,9 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			} else {
 				//This part handles cases where our definition isn't the function definition (that is, it is probabally the return from another function)
 				//It's probabally the result of an access function call (. or ->) to access an object method.
-				std::string functionCallSource = generate(children[0], enclosingObject, true).oneString();
-				if (functionCallSource[functionCallSource.size()-1] == ',') //If it's a member method, it's already started the parameter list.
-					output += children.size() > 1 ? functionCallSource : functionCallSource.substr(0, functionCallSource.size()-1);
+				CCodeTriple functionCallSource = generate(children[0], enclosingObject, true);
+				if (functionCallSource.value[functionCallSource.value.size()-1] == ',') //If it's a member method, it's already started the parameter list.
+					output += children.size() > 1 ? functionCallSource : CCodeTriple(functionCallSource.preValue, functionCallSource.value.substr(0, functionCallSource.value.size()-1), functionCallSource.postValue);
 				else
 					output += functionCallSource + "(";
 			}
