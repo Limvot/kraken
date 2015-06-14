@@ -1,5 +1,5 @@
 import io;
-fun main(): void {
+fun main(): int {
     io::println("Spam");
     var x: int = 4;
     x += 3;
