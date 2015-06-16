@@ -43,6 +43,12 @@ fun main():int {
     println(reg.long_match("b"))
     println(reg.long_match("ab"))
 
+    println("escape!")
+    reg = regex("a\\?+")
+    println(reg.long_match("a"))
+    println(reg.long_match("a?"))
+    println(reg.long_match("a??"))
+
     println("Old Contributed")
     var re = regex("a*");
     println(re.long_match("a"));

@@ -70,7 +70,6 @@ obj regex(Object) {
     }
 
     fun destruct():void {
-        //begin->destruct()
         regexString.destruct()
     }
 
@@ -89,22 +88,23 @@ obj regex(Object) {
         var escapeing = false
 
         for (var i = 0; i < regex_string.length(); i++;) {
-            //io::print("i: "); io::print(i); io::print(" : "); io::println(regex_string[i])
             if (regex_string[i] == '*' && !escapeing) {
                 for (var j = 0; j < current_end.size; j++;)
                     current_end[j]->next_states.add_all(current_begin)
-                //io::print("previous_begin size: "); io::println(previous_begin.size)
                 current_begin.add_all(previous_begin)
                 current_end.add_all(previous_end)
+
             } else if (regex_string[i] == '+' && !escapeing) {
                 for (var j = 0; j < current_end.size; j++;)
                     current_end[j]->next_states.add_all(current_begin)
-                //io::print("previous_begin size +: "); io::println(previous_begin.size)
+
             } else if (regex_string[i] == '?' && !escapeing) {
                 current_begin.add_all(previous_begin)
                 current_end.add_all(previous_end)
+
             } else if (regex_string[i] == '|' && !escapeing) {
                 alternating = true
+
             } else if (regex_string[i] == '(' && !escapeing) {
                 // note that we don't have a ')' case, as we skip past it with our indicies
                 var perenEnd = i + 1
@@ -113,8 +113,6 @@ obj regex(Object) {
                         depth++
                     else if (regex_string[perenEnd] == ')')
                         depth--
-                //io::print("unperened: ")
-                //io::println(regex_string.slice(i+1, perenEnd-1))
                 var innerBeginEnd = compile(regex_string.slice(i+1, perenEnd-1))
                 // NOTE: perenEnd is one past the close peren
                 i = perenEnd-1
@@ -131,8 +129,10 @@ obj regex(Object) {
                     current_end = innerBeginEnd.second
                 }
                 alternating = false
+
             } else if (regex_string[i] == '\\' && !escapeing) {
                 escapeing = true
+
             } else {
                 var next = mem::new<regexState>()->construct(regex_string[i])
                 if (alternating) {
@@ -141,14 +141,9 @@ obj regex(Object) {
                     current_end.add(next)
                 } else {
                     current_end.do(fun(it: regexState*, next: regexState*):void { it->next_states.add(next); }, next)
-                    //current_end.do(fun(it: regexState*, next: regexState*):void { io::print("adding: "); io::print(next->character); io::print(" to "); io::println(it->character); it->next_states.add(next); }, next)
-                    //io::print("previous_begin size before current: "); io::println(previous_begin.size)
-                    //io::print("current_begin size before current: "); io::println(current_begin.size)
                     previous_begin = current_begin
-                    //io::print("previous_begin size after current: "); io::println(previous_begin.size)
                     previous_end = current_end
                     current_begin = vector::vector(next)
-                    //io::print("current_begin size after current: "); io::println(current_begin.size)
                     current_end = vector::vector(next)
                 }
                 escapeing = false
