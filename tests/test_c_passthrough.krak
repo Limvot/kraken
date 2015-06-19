@@ -19,6 +19,14 @@ fun main(): int {
         j = i + j;
     """
     c_passthrough_diff::print_it(j)
+
+    // test new shorthand for same name assignments
+    var r: int = 1000;
+    var s: int = 337;
+    __if_comp__ __C__ simple_passthrough(r, s : s:) """
+        s = r + s;
+    """
+    c_passthrough_diff::print_it(s)
     return 0
 }
 

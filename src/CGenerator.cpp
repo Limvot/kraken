@@ -512,9 +512,15 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                         for (auto assign : in_or_out->getChildren()) {
                             auto assignChildren = assign->getChildren();
                             if (in_or_out->getDataRef()->type == in_passthrough_params)
-                                pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, assignChildren[1]->getDataRef()->symbol.getName()) + " = " + generate(assignChildren[0], enclosingObject).oneString() + ";\n";
+                                if (assignChildren.size() == 2)
+                                    pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, assignChildren[1]->getDataRef()->symbol.getName()) + " = " + generate(assignChildren[0], enclosingObject).oneString() + ";\n";
+                                else
+                                    pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, assignChildren[0]->getDataRef()->symbol.getName()) + " = " + generate(assignChildren[0], enclosingObject).oneString() + ";\n";
                             else if (in_or_out->getDataRef()->type == out_passthrough_params)
-                                post_passthrough += generate(assignChildren[0], enclosingObject, justFuncName).oneString() + " = " + assignChildren[1]->getDataRef()->symbol.getName() + ";\n";
+                                if (assignChildren.size() == 2)
+                                    post_passthrough += generate(assignChildren[0], enclosingObject, justFuncName).oneString() + " = " + assignChildren[1]->getDataRef()->symbol.getName() + ";\n";
+                                else
+                                    post_passthrough += generate(assignChildren[0], enclosingObject, justFuncName).oneString() + " = " + assignChildren[0]->getDataRef()->symbol.getName() + ";\n";
                             else
                                 linkerString += " " + strSlice(generate(in_or_out, enclosingObject, justFuncName).oneString(), 1, -2) + " ";
                         }

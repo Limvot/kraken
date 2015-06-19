@@ -43,7 +43,7 @@ in_passthrough_params = opt_param_assign_list ;
 out_passthrough_params = opt_param_assign_list ;
 opt_param_assign_list = param_assign_list | ;
 param_assign_list = param_assign WS "," WS param_assign_list | param_assign ;
-param_assign = identifier WS "=" WS identifier ;
+param_assign = identifier WS "=" WS identifier | identifier ;
 opt_string = string | ;
 
 triple_quoted_string = "\"\"\"((\"\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i|o|p|[|]|\\|a|s|d|f|g|h|j|k|l|;|'|
