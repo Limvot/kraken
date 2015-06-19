@@ -27,8 +27,9 @@ actual_white = line_white | line_break | line_break actual_white | line_white ac
 WS = actual_white | WS comment WS | WS comment | ;
 # cpp_comment lets us do stuff like ending a statement with a cpp comment - c comments already work as they don't eat the return
 
-maybe_line_white = "( |	)+" | ;
-line_end = maybe_line_white ";" | maybe_line_white line_break | maybe_line_white cpp_comment | WS c_comment line_end ;
+maybe_line_white = "( |	)+" | c_comment | maybe_line_white c_comment | maybe_line_white "( |	)+" | ;
+line_end = maybe_line_white ";" | maybe_line_white line_break | maybe_line_white cpp_comment ;
+#line_end = maybe_line_white ";" | maybe_line_white line_break | maybe_line_white cpp_comment | WS c_comment line_end ;
 
 # line_end = "( |	)+" ";" | "( |	)+" line_break | "( |	)+" cpp_comment | ";" | line_break | cpp_comment ;
 # line_end = WS ";" | WS line_break | WS cpp_comment ;
@@ -99,7 +100,7 @@ statement = if_statement | while_loop | for_loop | return_statement line_end | b
 break_statement = "break" ;
 continue_statement = "continue" ;
 defer_statement = "defer" WS statement ;
-function_call = unarad "\(" WS opt_parameter_list WS "\)" ;
+function_call = unarad WS "\(" WS opt_parameter_list WS "\)" ;
 
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;
 and_boolean_expression = and_boolean_expression WS "&&" WS bool_exp | bool_exp ;
