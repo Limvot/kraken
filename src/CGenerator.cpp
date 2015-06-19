@@ -516,7 +516,9 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 }
                 // The actual passthrough string is the last child now, as we might
                 // have passthrough_params be the first child
-                return pre_passthrough + strSlice(generate(children.back(), enclosingObject, justFuncName).oneString(), 3, -4) + post_passthrough;
+                // we don't generate, as that will escape the returns and we don't want that. We'll just grab the string
+                //return pre_passthrough + strSlice(generate(children.back(), enclosingObject, justFuncName).oneString(), 3, -4) + post_passthrough;
+                return pre_passthrough + strSlice(children.back()->getDataRef()->symbol.getName(), 3, -4) + post_passthrough;
             }
 		case function_call:
 		{
@@ -628,7 +630,24 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			return output;
 		}
 		case value:
+        {
+            // ok, we now check for it being a string and escape all returns if it is (so that multiline strings work)
+            if (data.symbol.getName()[0] == '"') {
+                std::string innerString = strSlice(data.symbol.getName(), 0, 3) == "\"\"\""
+                                            ? strSlice(data.symbol.getName(), 3, -4)
+                                            : strSlice(data.symbol.getName(), 1, -2);
+                std::string newStr;
+                for (auto character: innerString)
+                    if (character == '\n')
+                        newStr += "\\n";
+                    else if (character == '"')
+                        newStr += "\\\"";
+                    else
+                        newStr += character;
+                return "\"" + newStr + "\"";
+            }
 			return data.symbol.getName();
+        }
 
 		default:
 			std::cout << "Nothing!" << std::endl;

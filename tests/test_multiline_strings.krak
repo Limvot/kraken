@@ -1,0 +1,18 @@
+import io:*
+
+fun main():int {
+    println("multi
+line")
+    var str = "first
+second
+third"
+    println(str)
+    var tripQute = """
+How about this?
+multi line?
+inner quote "
+"""
+
+    println(tripQute)
+    return 0
+}
