@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <map>
+#include <set>
 
 #include "Symbol.h"
 //Circular dependency
@@ -32,6 +33,7 @@ class ASTData {
 		Type* valueType;
 		Symbol symbol;
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> scope;
+        std::set<NodeTree<ASTData>*> closedVariables;
 	private:
 
 };

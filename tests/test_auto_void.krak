@@ -1,0 +1,16 @@
+import io:*
+
+fun retVoid() {
+    println("Woooo")
+}
+
+fun withParams(a:int, b:char*) {
+    println(a)
+    println(b)
+}
+
+fun main():int {
+    retVoid()
+    withParams(7, "uh huh")
+    return 0
+}

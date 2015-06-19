@@ -20,6 +20,10 @@ fun main():int {
     callLambda(fun(a:int):void { println(a);})
     var j = 0
     while (j < 10) j = itr(j, fun(a:int):int { return a+1; })
+
+    //println("closures now")
+    //var a = 1337
+    //runLambda(fun():int { return a;})
     return 0
 }
 

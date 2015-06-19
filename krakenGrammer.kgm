@@ -63,8 +63,10 @@ scoped_identifier = scoped_identifier WS scope_op WS identifier | identifier ;
 right_shift = ">" ">" ;
 overloadable_operator = "\+" | "-" | "\*" | "/" | "%" | "^" | "&" | "\|" | "~" | "!" | "," | "=" | "\+\+" | "--" | "<<" | right_shift | "==" | "!=" | "&&" | "\|\|" | "\+=" | "-=" | "/=" | "%=" | "^=" | "&=" | "\|=" | "\*=" | "<<=" | ">>=" | "->" | "\(" "\)" | "[]" ;
 func_identifier = identifier | identifier overloadable_operator ;
-function = "fun" WS func_identifier WS template_dec WS "\(" WS opt_typed_parameter_list WS "\)" WS dec_type WS statement | "fun" WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS dec_type WS statement ;
-lambda = "fun" WS "\(" WS opt_typed_parameter_list WS "\)" WS dec_type WS statement ;
+# allow omitting of return type (automatic void)
+typed_return = dec_type | ;
+function = "fun" WS func_identifier WS template_dec WS "\(" WS opt_typed_parameter_list WS "\)" WS typed_return WS statement | "fun" WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" WS typed_return WS statement ;
+lambda = "fun" WS "\(" WS opt_typed_parameter_list WS "\)" WS typed_return WS statement ;
 
 opt_typed_parameter_list = typed_parameter_list | ;
 typed_parameter_list = typed_parameter_list WS "," WS typed_parameter | typed_parameter ;

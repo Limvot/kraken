@@ -246,11 +246,14 @@ NodeTree<ASTData>* ASTTransformation::secondPassFunction(NodeTree<Symbol>* from,
 		return functionDef;
 	}
 	functionName = concatSymbolTree(children[0]);
-    functionDef = new NodeTree<ASTData>("function", ASTData(function, Symbol(functionName, true), typeFromTypeNode(children[children.size()-2], scope, templateTypeReplacements)));
+    auto returnTypeNode = getNode("type", getNode("typed_return", children)); // if null, the typed_return had no children and we're supposed to automatically do a void type
+    auto returnType = returnTypeNode ? typeFromTypeNode(returnTypeNode, scope, templateTypeReplacements): new Type(void_type);
+    functionDef = new NodeTree<ASTData>("function", ASTData(function, Symbol(functionName, true), returnType));
     addToScope("~enclosing_scope", scope, functionDef);
     addToScope(functionName, functionDef, scope);
 	//We only do the parameter nodes. We don't do the body yet, as this is the secondPass
-    auto transChildren = transformChildren(slice(children,1,-3, 2), std::set<int>(), functionDef, std::vector<Type>(), false, templateTypeReplacements);
+    //auto transChildren = transformChildren(slice(children,1,-3, 2), std::set<int>(), functionDef, std::vector<Type>(), false, templateTypeReplacements);
+    auto transChildren = transformChildren(getNodes("typed_parameter", children), std::set<int>(), functionDef, std::vector<Type>(), false, templateTypeReplacements);
 
 	functionDef->addChildren(transChildren);
     // Swap the function type over to be the correct type (a function with parameter and return types, etc)
@@ -327,10 +330,9 @@ NodeTree<ASTData>* ASTTransformation::searchScopeForFunctionDef(NodeTree<ASTData
 	std::vector<NodeTree<Symbol>*> children = parseTree->getChildren();
 	//Skipping the initial return type and identifier as well as the final code block
 	std::cout << "\n Searching scope for function def, function is: " << concatSymbolTree(children[0]) << ", children size is " << children.size() << std::endl;
-	for (int i = 1; i < children.size()-3; i+=2) { //Skip over commas
-		std::cout << "Making type for lookup ||" << concatSymbolTree(children[i]) << "||" << std::endl;
-		Type type = *typeFromTypeNode(children[i]->getChildren().back(), scope, templateTypeReplacements);
-		//Type type = *typeFromTypeNode(children[i]->getChildren()[0], scope, templateTypeReplacements);
+	for (auto param: getNodes("typed_parameter", children)) { //Skip over commas
+		std::cout << "Making type for lookup ||" << concatSymbolTree(param) << "||" << std::endl;
+		Type type = *typeFromTypeNode(param->getChildren().back(), scope, templateTypeReplacements);
 		std::cout << "Type made: " << type.toString() << std::endl;
 		types.push_back(type);
 	}
@@ -478,7 +480,9 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
             functionName = "lambda" + intToString(lambdaID++);
         else
             functionName = concatSymbolTree(children[0]);
-		newNode = new NodeTree<ASTData>(name, ASTData(function, Symbol(functionName, true), typeFromTypeNode(children[children.size()-2], scope, templateTypeReplacements)));
+        auto returnTypeNode = getNode("type", getNode("typed_return", children)); // if null, the typed_return had no children and we're supposed to automatically do a void type
+        auto returnType = returnTypeNode ? typeFromTypeNode(returnTypeNode, scope, templateTypeReplacements): new Type(void_type);
+        newNode = new NodeTree<ASTData>(name, ASTData(function, Symbol(functionName, true), returnType));
         addToScope(functionName, newNode, scope);
         addToScope("~enclosing_scope", scope, newNode);
 		scope = newNode;
@@ -1186,7 +1190,8 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         if (!traitsEqual)
             continue;
 
-        std::vector<NodeTree<Symbol>*> functionParameters = slice(templateSyntaxTree->getChildren(), 2, -4, 2); //skip name, intervening commas, return type, and the code block
+        //std::vector<NodeTree<Symbol>*> functionParameters = slice(templateSyntaxTree->getChildren(), 2, -4, 2); //skip name, intervening commas, return type, and the code block
+        std::vector<NodeTree<Symbol>*> functionParameters = getNodes("typed_parameter", templateSyntaxTree->getChildren());
         std::cout << functionParameters.size() << " " << types.size() << std::endl;
         if (functionParameters.size() != types.size())
             continue;
@@ -1596,7 +1601,9 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
 	std::cout << std::endl;
 
     // return type should be looked up in template's scope
-	instantiatedFunction = new NodeTree<ASTData>("function", ASTData(function, Symbol(scopelessFullyInstantiatedName, true), typeFromTypeNode(templateChildren[templateChildren.size()-2], templateDefinition, newTemplateTypeReplacement)));
+    auto returnTypeNode = getNode("type", getNode("typed_return", templateChildren)); // if null, the typed_return had no children and we're supposed to automatically do a void type
+    auto returnType = returnTypeNode ? typeFromTypeNode(returnTypeNode, templateDefinition, newTemplateTypeReplacement): new Type(void_type);
+	instantiatedFunction = new NodeTree<ASTData>("function", ASTData(function, Symbol(scopelessFullyInstantiatedName, true), returnType));
     addToScope("~enclosing_scope", templateDefinition->getDataRef()->scope["~enclosing_scope"][0], instantiatedFunction);
     addToScope(scopelessFullyInstantiatedName, instantiatedFunction, templateDefinition->getDataRef()->scope["~enclosing_scope"][0]);
     templateDefinition->getDataRef()->scope["~enclosing_scope"][0]->addChild(instantiatedFunction); // Add this object the the highest scope's
