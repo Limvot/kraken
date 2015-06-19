@@ -137,6 +137,8 @@ std::string Type::toString(bool showTraits) {
 	}
 	for (int i = 0; i < indirection; i++)
 		typeString += "*";
+    if (indirection < 0)
+		typeString += "negative indirection: " + intToString(indirection);
     if (traits.size() && showTraits) {
         typeString += "[ ";
         for (auto i : traits)

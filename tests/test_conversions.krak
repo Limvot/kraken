@@ -1,9 +1,25 @@
 import io:*
 import conversions:*
 
-
 fun main():int {
     println(to_char(65))
     println(to_int('B'))
+
+    var a = 1337
+    var b = &a
+    var c = cast<int, char>(b)
+    //var d = c + 1
+    //var e = 1 + c
+    println(to_int(*(c+0)))
+    println(to_int(*(c+1)))
+    println(to_int(*(c+2)))
+    println(to_int(*(c+3)))
+
+    println()
+
+    println(to_int(c[0]))
+    println(to_int(c[1]))
+    println(to_int(c[2]))
+    println(to_int(c[3]))
     return 0
 }

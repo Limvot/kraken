@@ -893,7 +893,19 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
     // because of the . operator, etc
     if (newNode->getDataRef()->valueType == NULL) {
         std::cout << "The value type from doFunction was null! (for " << lookup << ")" << std::endl;
-        newNode->getDataRef()->valueType = oldTypes[oldTypes.size()-1].clone();
+        Type* newType = nullptr;
+        if (lookup == "->")
+            newType = oldTypes.back().clone();
+        else if (oldTypes.front().getIndirection())
+            newType = oldTypes.front().clone();
+        else if (oldTypes.back().getIndirection())
+            newType = oldTypes.back().clone();
+        else
+            newType = (oldTypes.front().baseType > oldTypes.back().baseType) ? oldTypes.front().clone() : oldTypes.back().clone();
+        //if (!newType)
+            //newType = oldTypes.back().clone();
+
+        newNode->getDataRef()->valueType = newType;
         std::cout << "function call to " << lookup << " - " << newNode->getName() << " is now " << newNode->getDataRef()->valueType  << std::endl;
     }
 	return newNode;

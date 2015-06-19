@@ -18,4 +18,11 @@ fun to_int<T>(in: T) : int {
 	}
 	return out;
 }
+fun cast<T,U>(in: T*):U* {
+    var out:U*
+        simple_passthrough(in:out:) """
+            void* out = (void*)in;
+        """
+    return out
+}
 

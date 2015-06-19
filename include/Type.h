@@ -14,7 +14,7 @@ class ASTData;
 #include "ASTData.h"
 #include "util.h"
 
-enum ValueType {none, template_type, template_type_type, void_type, boolean, integer, floating, double_percision, character, function_type };
+enum ValueType {none, template_type, template_type_type, void_type, boolean, character, integer, floating, double_percision, function_type };
 
 
 class Type {

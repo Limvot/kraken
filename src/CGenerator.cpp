@@ -542,7 +542,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			// std::cout << name << " == " << children[0]->getData().symbol.getName() << std::endl;
 			std::string name = children[0]->getDataRef()->symbol.getName();
 			ASTType funcType = children[0]->getDataRef()->type;
-			std::cout << "Doing function: " << name << std::endl;
+			//std::cout << "Doing function: " << name << std::endl;
 			//Test for special functions only if what we're testing is, indeed, the definition, not a function call that returns a callable function pointer
 			if (funcType == function) {
 				if (name == "++" || name == "--")
