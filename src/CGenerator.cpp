@@ -182,9 +182,15 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                 ASTData declarationData = declaration->getData();
                 switch(declarationData.type) {
                     case identifier:
-                        variableDeclarations += ValueTypeToCType(declarationData.valueType,  scopePrefix(declaration) + declarationData.symbol.getName()) + "; /*identifier*/\n";
+                        {
+                        auto parent = declaration->getDataRef()->scope["~enclosing_scope"][0];
+                        if (parent->getChildren().size() == 1)
+                            variableDeclarations += ValueTypeToCType(declarationData.valueType,  scopePrefix(declaration) + declarationData.symbol.getName()) + "; /*identifier*/\n";
+                        else
+                            variableDeclarations += ValueTypeToCType(declarationData.valueType, generate(parent->getChildren()[0], nullptr, true).oneString()) + " = " + generate(parent->getChildren()[1], nullptr, true).oneString() + ";";
                         variableExternDeclarations += "extern " + ValueTypeToCType(declarationData.valueType, declarationData.symbol.getName()) + "; /*extern identifier*/\n";
                         break;
+                        }
                     case function:
                         {
                             if (declarationData.valueType->baseType == template_type)

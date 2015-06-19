@@ -210,17 +210,7 @@ void ASTTransformation::secondPassDoClassInsides(NodeTree<ASTData>* typeDef, std
 
 //This function may need to partially instantiate a class template
 NodeTree<ASTData>* ASTTransformation::secondPassDeclaration(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements) {
-	//Check here for method call (an error here)
-    NodeTree<ASTData>* decStmt = addToScope("~enclosing_scope", scope, new NodeTree<ASTData>("declaration_statement", ASTData(declaration_statement)));
-	std::string newIdentifierStr = concatSymbolTree(from->getChildren()[0]);
-    Type* identifierType = typeFromTypeNode(from->getChildren()[2], scope, templateTypeReplacements);
-	std::cout << "Declaring an identifier " << newIdentifierStr << " to be of type " << identifierType->toString() << std::endl;
-	NodeTree<ASTData>* newIdentifier = addToScope("~enclosing_scope", decStmt, new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), identifierType)));
-	//scope->getDataRef()->scope[newIdentifierStr].push_back(newIdentifier);
-    addToScope(newIdentifierStr, newIdentifier, scope); // NEW WAY!
-	decStmt->addChild(newIdentifier);
-
-	return decStmt;
+    return transform(from, scope, std::vector<Type>(), false, templateTypeReplacements);
 }
 
 //This function may need to partially instantiate a class template
