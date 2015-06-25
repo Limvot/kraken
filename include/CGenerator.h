@@ -18,6 +18,8 @@
 
 // Note the use of std::pair to hold two strings - the running string for the header file and the running string for  the c file.
 
+enum ClosureTypeSpecialType { ClosureTypeRegularNone, ClosureFunctionPointerTypeWithClosedParam };
+
 class CGenerator {
 	public:
 		CGenerator();
@@ -27,11 +29,11 @@ class CGenerator {
         bool isUnderTranslationUnit(NodeTree<ASTData>* from, NodeTree<ASTData>* typeDefinition);
         NodeTree<ASTData>* highestScope(NodeTree<ASTData>* node);
         std::pair<std::string, std::string> generateTranslationUnit(std::string name, std::map<std::string, NodeTree<ASTData>*> ASTs);
-		CCodeTriple generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject = NULL, bool justFuncName = false);
+		CCodeTriple generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject = NULL, bool justFuncName = false, NodeTree<ASTData>* enclosingFunction = NULL);
         std::string generateAliasChains(std::map<std::string, NodeTree<ASTData>*> ASTs, NodeTree<ASTData>* definition);
-		std::string ValueTypeToCType(Type *type, std::string);
-		std::string ValueTypeToCTypeDecoration(Type *type);
-        std::string ValueTypeToCTypeThingHelper(Type *type, std::string ptrStr);
+		std::string ValueTypeToCType(Type *type, std::string, ClosureTypeSpecialType closureSpecial = ClosureTypeRegularNone);
+		std::string ValueTypeToCTypeDecoration(Type *type, ClosureTypeSpecialType closureSpecial = ClosureTypeRegularNone);
+        std::string ValueTypeToCTypeThingHelper(Type *type, std::string ptrStr, ClosureTypeSpecialType closureSpecial);
 		static std::string CifyName(std::string name);
 		static std::string scopePrefix(NodeTree<ASTData>* from);
         std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from, std::string *functionPrototype);
@@ -49,6 +51,7 @@ class CGenerator {
 		std::string generatorString;
         std::string linkerString;
         std::string functionTypedefString;
+        std::map<Type, std::pair<std::string, std::string>> functionTypedefMap;
         std::vector<std::vector<NodeTree<ASTData>*>> distructDoubleStack;
         std::stack<int> loopDistructStackDepth;
         std::vector<std::vector<NodeTree<ASTData>*>> deferDoubleStack;

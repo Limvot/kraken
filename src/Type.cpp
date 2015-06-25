@@ -83,11 +83,47 @@ Type::~Type() {
 }
 
 const bool Type::operator==(const Type &other) const {
-	return( baseType == other.baseType && indirection == other.indirection && typeDefinition == other.typeDefinition && templateDefinition == other.templateDefinition && other.traits == traits);
+	bool first_part = ( baseType == other.baseType && indirection == other.indirection && typeDefinition == other.typeDefinition && templateDefinition == other.templateDefinition && other.traits == traits);
+    if (!first_part)
+        return false;
+    if ((returnType && !other.returnType) || (!returnType && other.returnType))
+        return false;
+    if (returnType && other.returnType)
+        if (*returnType != *other.returnType)
+            return false;
+    if (parameterTypes.size() != other.parameterTypes.size())
+        return false;
+    for (int i = 0; i < parameterTypes.size(); i++)
+        if (*parameterTypes[i] != *other.parameterTypes[i])
+            return false;
+    return true;
 }
 
 const bool Type::operator!=(const Type &other) const {
 	return(!this->operator==(other));
+}
+const bool Type::operator<(const Type &other) const {
+    if (baseType != other.baseType)
+        return baseType < other.baseType;
+    if (indirection != other.indirection)
+        return indirection < other.indirection;
+    if (typeDefinition != other.typeDefinition)
+        return typeDefinition < other.typeDefinition;
+    if (templateDefinition != other.templateDefinition)
+        return templateDefinition < other.templateDefinition;
+    if (traits != other.traits)
+        return traits < other.traits;
+    if ((returnType && !other.returnType) || (!returnType && other.returnType))
+        return returnType < other.returnType;
+    if (returnType && other.returnType)
+        if (*returnType != *other.returnType)
+            return *returnType < *other.returnType;
+    if (parameterTypes.size() != other.parameterTypes.size())
+        return parameterTypes.size() < other.parameterTypes.size();
+    for (int i = 0; i < parameterTypes.size(); i++)
+        if (*parameterTypes[i] != *other.parameterTypes[i])
+            return *parameterTypes[i] < *other.parameterTypes[i];
+    return false;
 }
 
 std::string Type::toString(bool showTraits) {

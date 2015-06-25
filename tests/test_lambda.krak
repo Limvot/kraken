@@ -4,26 +4,29 @@ fun runLambda(func: fun():int):void {
     println(func())
 }
 
-fun callLambda(func: fun(int):void):void {
-    func(10)
-}
+fun somethingElse():int { return 4; }
 
-fun itr<T>(it: T, func: fun(T):T):T {
-    println(it)
-    return func(it);
-}
+//fun callLambda(func: fun(int):void):void {
+    //func(10)
+//}
+
+//fun itr<T>(it: T, func: fun(T):T):T {
+    //println(it)
+    //return func(it);
+//}
 
 fun main():int {
-    var func = fun():void { println("8"); }
-    func()
-    runLambda(fun():int { return 9;})
-    callLambda(fun(a:int):void { println(a);})
-    var j = 0
-    while (j < 10) j = itr(j, fun(a:int):int { return a+1; })
+    //var func = fun():void { println("8"); }
+    //func()
+    //runLambda(fun():int { return 9;})
+    //callLambda(fun(a:int):void { println(a);})
+    //var j = 0
+    //while (j < 10) j = itr(j, fun(a:int):int { return a+1; })
 
-    //println("closures now")
-    //var a = 1337
-    //runLambda(fun():int { return a;})
+    runLambda(somethingElse)
+    println("closures now")
+    var a = 1337
+    runLambda(fun():int { return a;})
     return 0
 }
 

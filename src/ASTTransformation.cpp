@@ -484,7 +484,12 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         newNode->addChildren(parameters);
         // update type with actual type
         newNode->getDataRef()->valueType = new Type(mapNodesToTypePointers(parameters), newNode->getDataRef()->valueType);
-        newNode->addChild(transform(getNode("statement", children), scope, types, limitToFunction, templateTypeReplacements));
+        auto statement = transform(getNode("statement", children), scope, types, limitToFunction, templateTypeReplacements);
+        if (name == "lambda")
+            newNode->getDataRef()->closedVariables = findVariablesToClose(newNode, statement);
+        for (auto i : newNode->getDataRef()->closedVariables)
+            std::cout << "OK, CLOSED: " << i->getDataRef()->toString() << std::endl;
+        newNode->addChild(statement);
 		std::cout << "finished function" << functionName << std::endl;
         return newNode;
 
@@ -909,6 +914,43 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
         std::cout << "function call to " << lookup << " - " << newNode->getName() << " is now " << newNode->getDataRef()->valueType  << std::endl;
     }
 	return newNode;
+}
+// checks to see if scope is in node's parent scope chain
+bool ASTTransformation::inScopeChain(NodeTree<ASTData>* node, NodeTree<ASTData>* scope) {
+    auto nodeScope = node->getDataRef()->scope;
+    auto enclosingItr = nodeScope.find("~enclosing_scope");
+    if (enclosingItr == nodeScope.end())
+        return false;
+    if (enclosingItr->second[0] == scope)
+        return true;
+    return inScopeChain(enclosingItr->second[0], scope);
+}
+// We return a set of all identifers used in the children of stat that are not declared somewhere below stat
+// used to calculate the closedvariables for closures
+std::set<NodeTree<ASTData>*> ASTTransformation::findVariablesToClose(NodeTree<ASTData>* func, NodeTree<ASTData>* stat) {
+    std::set<NodeTree<ASTData>*> closed;
+    for (auto child: stat->getChildren()) {
+//enum ASTType {undef, translation_unit, interpreter_directive, import, identifier, type_def,
+	//function, code_block, typed_parameter, expression, boolean_expression, statement,
+	//if_statement, while_loop, for_loop, return_statement, break_statement, continue_statement, defer_statement,
+    //assignment_statement, declaration_statement, if_comp, simple_passthrough, passthrough_params,
+    //in_passthrough_params, out_passthrough_params, opt_string, param_assign, function_call, value};
+        if (child->getDataRef()->type == function || child->getDataRef()->type == translation_unit
+            || child->getDataRef()->type == type_def || child->getDataRef()->type == value
+                )
+            continue;
+        if (child->getDataRef()->type == function_call && (child->getDataRef()->symbol.getName() == "." || child->getDataRef()->symbol.getName() == "->")) {
+            // only search on the left side of access operators like . and ->
+            auto recClosed = findVariablesToClose(func, child->getChildren().front());
+            closed.insert(recClosed.begin(), recClosed.end());
+            continue;
+        }
+        if (child->getDataRef()->type == identifier && !inScopeChain(child, func))
+            closed.insert(child);
+        auto recClosed = findVariablesToClose(func, child);
+        closed.insert(recClosed.begin(), recClosed.end());
+    }
+    return closed;
 }
 
 //Lookup a function that takes in parameters matching the types passed in
