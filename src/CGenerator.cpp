@@ -200,7 +200,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                             else {
                                 std::string nameDecoration, parameters;
                                 if (declarationData.closedVariables.size())
-                                    parameters += "struct closed *closed_varibles";
+                                    parameters += closureStructType(declarationData.closedVariables) + "*";
                                 for (int j = 0; j < decChildren.size()-1; j++) {
                                     if (j > 0 || declarationData.closedVariables.size() )
                                         parameters += ", ";
@@ -319,7 +319,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 
 			std::string nameDecoration, parameters;
             if (data.closedVariables.size())
-                parameters += "struct closed *closed_varibles";
+                parameters += closureStructType(data.closedVariables) + " *closed_varibles";
 			for (int j = 0; j < children.size()-1; j++) {
 				if (j > 0 || data.closedVariables.size())
 					parameters += ", ";
@@ -336,8 +336,16 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 funcName += CifyName(data.symbol.getName() + nameDecoration);
                 if (from->getDataRef()->closedVariables.size()) {
                     std::string tmpStruct = "closureStruct" + getID();
-                    output.preValue += "struct specialClosure " + tmpStruct + ";\n";
-                    output += "("+ ValueTypeToCType(data.valueType, "") +"){" + funcName + ", &" + tmpStruct + "}";
+                    output.preValue += closureStructType(data.closedVariables) + " " + tmpStruct + " = {";
+                    bool notFirst = false;
+                    for (auto var : data.closedVariables) {
+                        if (notFirst)
+                            output.preValue += ", ";
+                        notFirst = true;
+                        output.preValue += "." + scopePrefix(var) + var->getDataRef()->symbol.getName() + " = &" + scopePrefix(var) + var->getDataRef()->symbol.getName();
+                    }
+                    output.preValue += "};\n";
+                    output += "("+ ValueTypeToCType(data.valueType, "") +"){(void*)" + funcName + ", &" + tmpStruct + "}";
                 } else {
                     output += "("+ ValueTypeToCType(data.valueType, "") +"){" + funcName + ", NULL}";
                 }
@@ -802,6 +810,22 @@ std::string CGenerator::emitDestructors(std::vector<NodeTree<ASTData>*> identifi
     return destructorString;
 }
 
+std::string CGenerator::closureStructType(std::set<NodeTree<ASTData>*> closedVariables) {
+    auto it = closureStructMap.find(closedVariables);
+    if (it != closureStructMap.end())
+        return it->second;
+    std::string typedefString = "typedef struct { ";
+    // note the increased indirection b/c we're using references to what we closed over
+    for (auto var : closedVariables) {
+        auto tmp = var->getDataRef()->valueType->withIncreasedIndirection();
+        typedefString += ValueTypeToCType(&tmp, scopePrefix(var) + var->getDataRef()->symbol.getName()) + ";";
+    }
+    std::string structName = "closureStructType" + getID();
+    typedefString += " } " + structName + ";\n";
+    functionTypedefString += typedefString;
+    closureStructMap[closedVariables] = structName;
+    return structName;
+}
 
 std::string CGenerator::ValueTypeToCType(Type *type, std::string declaration, ClosureTypeSpecialType closureSpecial) { return ValueTypeToCTypeThingHelper(type, " " + declaration, closureSpecial); }
 std::string CGenerator::ValueTypeToCTypeDecoration(Type *type, ClosureTypeSpecialType closureSpecial) { return CifyName(ValueTypeToCTypeThingHelper(type, "", closureSpecial)); }

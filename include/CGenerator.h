@@ -12,6 +12,8 @@
 #include "NodeTree.h"
 #include "ASTData.h"
 #include "Type.h"
+// for mapNodesToTypes
+#include "ASTTransformation.h"
 
 #include "util.h"
 #include "Poset.h"
@@ -31,6 +33,8 @@ class CGenerator {
         std::pair<std::string, std::string> generateTranslationUnit(std::string name, std::map<std::string, NodeTree<ASTData>*> ASTs);
 		CCodeTriple generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject = NULL, bool justFuncName = false, NodeTree<ASTData>* enclosingFunction = NULL);
         std::string generateAliasChains(std::map<std::string, NodeTree<ASTData>*> ASTs, NodeTree<ASTData>* definition);
+
+        std::string closureStructType(std::set<NodeTree<ASTData>*> closedVariables);
 		std::string ValueTypeToCType(Type *type, std::string, ClosureTypeSpecialType closureSpecial = ClosureTypeRegularNone);
 		std::string ValueTypeToCTypeDecoration(Type *type, ClosureTypeSpecialType closureSpecial = ClosureTypeRegularNone);
         std::string ValueTypeToCTypeThingHelper(Type *type, std::string ptrStr, ClosureTypeSpecialType closureSpecial);
@@ -52,6 +56,7 @@ class CGenerator {
         std::string linkerString;
         std::string functionTypedefString;
         std::map<Type, std::pair<std::string, std::string>> functionTypedefMap;
+        std::map<std::set<NodeTree<ASTData>*>, std::string> closureStructMap;
         std::vector<std::vector<NodeTree<ASTData>*>> distructDoubleStack;
         std::stack<int> loopDistructStackDepth;
         std::vector<std::vector<NodeTree<ASTData>*>> deferDoubleStack;

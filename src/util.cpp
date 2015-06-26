@@ -17,7 +17,7 @@ std::string replaceExEscape(std::string first, std::string search, std::string r
         if (pos > 0) {
             int numBackslashes = 0;
             int countBack = 1;
-            while (pos-countBack >= 0 && first[pos-countBack] == '\\') {
+            while ((int)pos-countBack >= 0 && first[pos-countBack] == '\\') {
                 numBackslashes++;
                 countBack++;
             }

@@ -32,18 +32,7 @@ obj regexState(Object) {
         next_states.destruct()
     }
     fun match(input: char): vector::vector<regexState*> {
-        return next_states.filter(fun(it:regexState*, input:char):bool { return it->character == input; }, input)
-
-        io::print("in match for: "); io::println(character)
-        io::println("pre")
-        for (var i = 0; i < next_states.size; i++;)
-            io::println(next_states[i]->character)
-        var nx = next_states.filter(fun(it:regexState*, input:char):bool { return it->character == input; }, input)
-        io::println("next")
-        for (var i = 0; i < nx.size; i++;)
-            io::println(nx[i]->character)
-        //return next_states.filter(fun(it:regexState*, input:char):bool { return it->character == input; }, input)
-        return nx
+        return next_states.filter(fun(it:regexState*):bool { return it->character == input; })
     }
     fun is_end():bool {
         return next_states.any_true(fun(state: regexState*):bool { return state->character == 1; })
@@ -60,7 +49,8 @@ obj regex(Object) {
         var beginningAndEnd = compile(regexStringIn)
         // init our begin, and the end state as the next state of each end
         begin = beginningAndEnd.first
-        beginningAndEnd.second.do(fun(it: regexState*, end: regexState*): void { it->next_states.add(end); }, mem::new<regexState>()->construct(conversions::to_char(1)))
+        var end = mem::new<regexState>()->construct(conversions::to_char(1))
+        beginningAndEnd.second.do(fun(it: regexState*): void { it->next_states.add(end); })
         return this
     }
 
@@ -118,11 +108,11 @@ obj regex(Object) {
                 i = perenEnd-1
 
                 if (alternating) {
-                    previous_end.do(fun(it: regexState*, innerBegin: vector::vector<regexState*>):void { it->next_states.add_all(innerBegin); }, innerBeginEnd.first->next_states)
+                    previous_end.do(fun(it: regexState*):void { it->next_states.add_all(innerBeginEnd.first->next_states); } )
                     current_begin.add_all(innerBeginEnd.first->next_states)
                     current_end.add_all(innerBeginEnd.second)
                 } else {
-                    current_end.do(fun(it: regexState*, innerBegin: vector::vector<regexState*>):void { it->next_states.add_all(innerBegin); }, innerBeginEnd.first->next_states)
+                    current_end.do(fun(it: regexState*):void { it->next_states.add_all(innerBeginEnd.first->next_states); } )
                     previous_begin = current_begin
                     previous_end = current_end
                     current_begin = innerBeginEnd.first->next_states
@@ -136,11 +126,11 @@ obj regex(Object) {
             } else {
                 var next = mem::new<regexState>()->construct(regex_string[i])
                 if (alternating) {
-                    previous_end.do(fun(it: regexState*, next: regexState*):void { it->next_states.add(next); }, next)
+                    previous_end.do(fun(it: regexState*):void { it->next_states.add(next); })
                     current_begin.add(next)
                     current_end.add(next)
                 } else {
-                    current_end.do(fun(it: regexState*, next: regexState*):void { it->next_states.add(next); }, next)
+                    current_end.do(fun(it: regexState*):void { it->next_states.add(next); })
                     previous_begin = current_begin
                     previous_end = current_end
                     current_begin = vector::vector(next)
@@ -154,7 +144,6 @@ obj regex(Object) {
         return beginAndEnd
     }
 
-
     fun long_match(to_match: char*): int { return long_match(string::string(to_match)); }
     fun long_match(to_match: string::string): int {
         var next = vector::vector(begin)
@@ -165,12 +154,11 @@ obj regex(Object) {
             if (next.any_true(fun(state: regexState*):bool { return state->is_end(); }))
                 longest = i
             //next = next.flatten_map<regexState*>(fun(state: regexState*): vector::vector<regexState*> { return state->match(to_match[i]); })
-            next = next.flatten_map(fun(state: regexState*, c:char): vector::vector<regexState*> { return state->match(c); }, to_match[i])
+            next = next.flatten_map(fun(state: regexState*): vector::vector<regexState*> { return state->match(to_match[i]); })
         }
         if (next.any_true(fun(state: regexState*):bool { return state->is_end(); }))
             return to_match.length()
         return longest
     }
 }
-
 

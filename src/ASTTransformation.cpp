@@ -794,26 +794,6 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::transformChildren(std::vector
 	return transformedChildren;
 }
 
-//Extract types from already transformed nodes
-std::vector<Type*> ASTTransformation::mapNodesToTypePointers(std::vector<NodeTree<ASTData>*> nodes) {
-	std::vector<Type*> types;
-	for (auto i : nodes) {
-		std::cout << i->getDataRef()->toString() << std::endl;
-		types.push_back((i->getDataRef()->valueType));
-	}
-	return types;
-}
-
-//Extract types from already transformed nodes
-std::vector<Type> ASTTransformation::mapNodesToTypes(std::vector<NodeTree<ASTData>*> nodes) {
-	std::vector<Type> types;
-	for (auto i : nodes) {
-		std::cout << i->getDataRef()->toString() << std::endl;
-		types.push_back(*(i->getDataRef()->valueType));
-	}
-	return types;
-}
-
 //Simple way to extract strings from syntax trees. Used often for identifiers, strings, types
 std::string ASTTransformation::concatSymbolTree(NodeTree<Symbol>* root) {
 	std::string concatString;
@@ -929,24 +909,24 @@ bool ASTTransformation::inScopeChain(NodeTree<ASTData>* node, NodeTree<ASTData>*
 // used to calculate the closedvariables for closures
 std::set<NodeTree<ASTData>*> ASTTransformation::findVariablesToClose(NodeTree<ASTData>* func, NodeTree<ASTData>* stat) {
     std::set<NodeTree<ASTData>*> closed;
-    for (auto child: stat->getChildren()) {
 //enum ASTType {undef, translation_unit, interpreter_directive, import, identifier, type_def,
 	//function, code_block, typed_parameter, expression, boolean_expression, statement,
 	//if_statement, while_loop, for_loop, return_statement, break_statement, continue_statement, defer_statement,
     //assignment_statement, declaration_statement, if_comp, simple_passthrough, passthrough_params,
     //in_passthrough_params, out_passthrough_params, opt_string, param_assign, function_call, value};
-        if (child->getDataRef()->type == function || child->getDataRef()->type == translation_unit
-            || child->getDataRef()->type == type_def || child->getDataRef()->type == value
-                )
-            continue;
-        if (child->getDataRef()->type == function_call && (child->getDataRef()->symbol.getName() == "." || child->getDataRef()->symbol.getName() == "->")) {
-            // only search on the left side of access operators like . and ->
-            auto recClosed = findVariablesToClose(func, child->getChildren().front());
-            closed.insert(recClosed.begin(), recClosed.end());
-            continue;
-        }
-        if (child->getDataRef()->type == identifier && !inScopeChain(child, func))
-            closed.insert(child);
+    if (stat->getDataRef()->type == function || stat->getDataRef()->type == translation_unit
+            || stat->getDataRef()->type == type_def || stat->getDataRef()->type == value
+       )
+        return closed;
+    if (stat->getDataRef()->type == function_call && (stat->getDataRef()->symbol.getName() == "." || stat->getDataRef()->symbol.getName() == "->")) {
+        // only search on the left side of access operators like . and ->
+        auto recClosed = findVariablesToClose(func, stat->getChildren()[1]);
+        closed.insert(recClosed.begin(), recClosed.end());
+        return closed;
+    }
+    if (stat->getDataRef()->type == identifier && !inScopeChain(stat, func))
+        closed.insert(stat);
+    for (auto child: stat->getChildren()) {
         auto recClosed = findVariablesToClose(func, child);
         closed.insert(recClosed.begin(), recClosed.end());
     }
@@ -1671,3 +1651,22 @@ NodeTree<ASTData>* ASTTransformation::addToScope(std::string name, NodeTree<ASTD
 }
 
 
+//Extract types from already transformed nodes
+std::vector<Type*> mapNodesToTypePointers(std::vector<NodeTree<ASTData>*> nodes) {
+	std::vector<Type*> types;
+	for (auto i : nodes) {
+		std::cout << i->getDataRef()->toString() << std::endl;
+		types.push_back((i->getDataRef()->valueType));
+	}
+	return types;
+}
+
+//Extract types from already transformed nodes
+std::vector<Type> mapNodesToTypes(std::vector<NodeTree<ASTData>*> nodes) {
+	std::vector<Type> types;
+	for (auto i : nodes) {
+		std::cout << i->getDataRef()->toString() << std::endl;
+		types.push_back(*(i->getDataRef()->valueType));
+	}
+	return types;
+}

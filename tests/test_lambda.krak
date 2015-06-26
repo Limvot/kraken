@@ -1,4 +1,5 @@
 import io:*
+import vector:*
 
 fun runLambda(func: fun():int):void {
     println(func())
@@ -6,27 +7,33 @@ fun runLambda(func: fun():int):void {
 
 fun somethingElse():int { return 4; }
 
-//fun callLambda(func: fun(int):void):void {
-    //func(10)
-//}
+fun callLambda(func: fun(int):void):void {
+    func(10)
+}
 
-//fun itr<T>(it: T, func: fun(T):T):T {
-    //println(it)
-    //return func(it);
-//}
+fun itr<T>(it: T, func: fun(T):T):T {
+    println(it)
+    return func(it);
+}
 
 fun main():int {
-    //var func = fun():void { println("8"); }
-    //func()
-    //runLambda(fun():int { return 9;})
-    //callLambda(fun(a:int):void { println(a);})
-    //var j = 0
-    //while (j < 10) j = itr(j, fun(a:int):int { return a+1; })
+    var func = fun():void { println("8"); }
+    func()
+    runLambda(fun():int { return 9;})
+    callLambda(fun(a:int):void { println(a);})
+    var j = 0
+    while (j < 10) j = itr(j, fun(a:int):int { return a+1; })
 
     runLambda(somethingElse)
     println("closures now")
     var a = 1337
     runLambda(fun():int { return a;})
+    runLambda(fun():int { print(a); print(j); return j;})
+
+    var v = vector(80)
+    var idx = 0
+    runLambda(fun():int { return v.get(idx);})
+
     return 0
 }
 
