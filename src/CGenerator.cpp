@@ -294,20 +294,23 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             }
 			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
             std::string preName;
+            std::string postName;
 			//std::string preName = "/*ident*/";
             // check for this being a closed over variable
             // first, get declaring function, if it exists
             if (enclosingFunction) {
                 if (enclosingFunction->getDataRef()->closedVariables.size()) {
                     std::cout << "WHOH IS A CLOSER" << std::endl;
-                    if (enclosingFunction->getDataRef()->closedVariables.find(from) != enclosingFunction->getDataRef()->closedVariables.end())
-                        preName += "/* SPECIAL CLOSED */ *closed_varibles->";
+                    if (enclosingFunction->getDataRef()->closedVariables.find(from) != enclosingFunction->getDataRef()->closedVariables.end()) {
+                        preName += "(*closed_varibles->";
+                        postName += ")";
+                    }
                 }
             }
 			if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
 				preName += "this->";
             // we're scope prefixing EVERYTHING
-			return preName + scopePrefix(from) + CifyName(data.symbol.getName()); //Cifying does nothing if not an operator overload
+			return preName + scopePrefix(from) + CifyName(data.symbol.getName()) + postName; //Cifying does nothing if not an operator overload
 		}
 		case function:
 		{

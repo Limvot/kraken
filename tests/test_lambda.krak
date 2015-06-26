@@ -34,6 +34,12 @@ fun main():int {
     var idx = 0
     runLambda(fun():int { return v.get(idx);})
 
+    var outside = 40
+    runLambda(fun():int { var toRet = outside; outside += 1; return toRet;})
+    println(outside)
+    runLambda(fun():int { var toRet = outside; outside++; return toRet;})
+    println(outside)
+
     return 0
 }
 
