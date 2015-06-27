@@ -21,5 +21,9 @@ middle: 23
 all but first: 234
 all but last: 123
 just some: 2
+find test
+0
+1
+2
 done
 Destroyed: 0

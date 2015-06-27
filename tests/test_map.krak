@@ -1,0 +1,18 @@
+import io:*
+import map:*
+
+fun main():int {
+    var m = map(3,1)
+    m.set(2,2)
+    m.set(1,3)
+    println(m[1])
+    println(m[2])
+    println(m[3])
+    m.set(3,4)
+    m.set(4,20)
+    println(m[1])
+    println(m[4])
+    println(m[2])
+    println(m[3])
+    return 0
+}

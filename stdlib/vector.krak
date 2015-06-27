@@ -2,16 +2,32 @@ import mem:*;
 import util:*;
 import io:*;
 
+fun vector<T>():vector<T> {
+    var out.construct():vector<T>
+    return out
+}
+
 fun vector<T>(in:T):vector<T> {
     var out.construct():vector<T>
     out.add(in)
     return out
 }
 
-fun vector<T>():vector<T> {
+fun vector<T>(first:T, second:T):vector<T> {
     var out.construct():vector<T>
+    out.add(first)
+    out.add(second)
     return out
 }
+
+fun vector<T>(first:T, second:T, third:T):vector<T> {
+    var out.construct():vector<T>
+    out.add(first)
+    out.add(second)
+    out.add(third)
+    return out
+}
+
 
 obj vector<T> (Object) {
     var data: T*;
@@ -111,6 +127,18 @@ obj vector<T> (Object) {
     }
 
     fun getBackingMemory(): T* { return data; }
+
+    // This is a template for the interesting reason that structs
+    // can not be compared for equality in C, and maybe we haven't defined equality
+    // on an object that we want to put in a vector. In this way we avoid the problem
+    // by not generating this function unless it's called - we also get the ability to
+    // do a find index using a different type, which could be fun.
+    fun find_index<U>(value: U): int {
+        for (var i = 0; i < size; i++;)
+            if (data[i] == value)
+                return i;
+        return -1;
+    }
 
     fun set(index: int, dataIn: T): void {
         if (index < 0 || index  >= size)

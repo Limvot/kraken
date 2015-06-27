@@ -105,6 +105,12 @@ fun main(): int {
     sliceTest.slice(1,2).do(fun(it:int):void print(it);)
     println()
 
+    println("find test")
+    var multipleFindTest = vector(1,2,3)
+    println(multipleFindTest.find_index(1))
+    println(multipleFindTest.find_index(2))
+    println(multipleFindTest.find_index(3))
+
     println("done")
 
     return 0;

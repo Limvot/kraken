@@ -1,0 +1,48 @@
+import vector
+
+fun map<T,U>(): map<T,U> {
+    var toRet.construct(): map<T,U>
+    return toRet
+}
+fun map<T,U>(key:T, value:U): map<T,U> {
+    var toRet.construct(): map<T,U>
+    toRet.set(key, value)
+    return toRet
+}
+
+obj map<T,U> {
+    var keys: vector::vector<T>
+    var values: vector::vector<T>
+
+    fun construct() {
+        keys.construct()
+        values.construct()
+    }
+    fun copy_construct(old: map<T,U>*) {
+        keys.copy_construct(&old->keys)
+        values.copy_construct(&old->values)
+    }
+    fun destruct() {
+        keys.destruct()
+        values.destruct()
+    }
+    fun find_index(key: T): int {
+        return keys.find_index(key)
+    }
+    fun set(key: T, value: U) {
+        var keyIdx = find_index(key)
+        if (keyIdx >= 0) {
+            values.set(keyIdx, value)
+            return;
+        }
+        keys.add(key)
+        values.add(value)
+    }
+    fun get(key: T): U {
+        return values.get(keys.find_index(key))
+    }
+    fun operator[](key: T): U {
+        return get(key)
+    }
+}
+
