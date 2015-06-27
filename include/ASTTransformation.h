@@ -45,7 +45,8 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		std::string concatSymbolTree(NodeTree<Symbol>* root);
 		NodeTree<ASTData>* doFunction(NodeTree<ASTData>* scope, std::string lookup, std::vector<NodeTree<ASTData>*> nodes, std::map<std::string, Type*> templateTypeReplacements);
 
-        std::set<NodeTree<ASTData>*> findVariablesToClose(NodeTree<ASTData>* func, NodeTree<ASTData>* stat);
+        NodeTree<ASTData>* generateThis(NodeTree<ASTData>* scope);
+        std::set<NodeTree<ASTData>*> findVariablesToClose(NodeTree<ASTData>* func, NodeTree<ASTData>* stat, NodeTree<ASTData>* scope);
         bool inScopeChain(NodeTree<ASTData>* node, NodeTree<ASTData>* scope);
         NodeTree<ASTData>* functionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type> types);
         NodeTree<ASTData>* templateFunctionLookup(NodeTree<ASTData>* scope, std::string lookup, std::vector<Type*>* templateInstantiationTypes, std::vector<Type> types, std::map<std::string, Type*> scopeTypeMap);

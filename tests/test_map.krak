@@ -21,6 +21,7 @@ fun main():int {
     mapEx[30] = "we'll look for for_each too"
     println(mapEx[7])
     println(mapEx[20])
+    mapEx.remove(20)
     mapEx.for_each(fun(key:int, value:char*) { print("key: "); print(key); print(", value: "); println(value); })
     return 0
 }

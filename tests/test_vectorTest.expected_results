@@ -25,10 +25,83 @@ find test
 0
 1
 2
-set and []= test
+set, []=, and delete test
 4
 8
 9
 7
+delete
+4
+8
+7
+delete v2
+Constructed: 100
+Constructed: 200
+Constructed: 300
+Copied: 100 to 101
+Copied: 200 to 201
+Copied: 300 to 301
+Copied: 101 to 102
+Copied: 102 to 103
+Copied: 103 to 104
+Destroyed: 103
+Destroyed: 102
+Copied: 201 to 202
+Copied: 202 to 203
+Copied: 203 to 204
+Destroyed: 203
+Destroyed: 202
+Copied: 301 to 302
+Copied: 302 to 303
+Copied: 303 to 304
+Destroyed: 303
+Destroyed: 302
+Copied: 104 to 105
+Copied: 105 to 106
+Copied: 106 to 107
+Destroyed: 106
+Destroyed: 105
+Copied: 204 to 205
+Copied: 205 to 206
+Copied: 206 to 207
+Destroyed: 206
+Destroyed: 205
+Copied: 304 to 305
+Copied: 305 to 306
+Copied: 306 to 307
+Destroyed: 306
+Destroyed: 305
+Destroyed: 204
+Destroyed: 304
+Destroyed: 104
+Destroyed: 301
+Destroyed: 201
+Destroyed: 101
+Copied: 107 to 108
+Copied: 108 to 109
+Copied: 109 to 110
+Destroyed: 109
+Destroyed: 108
+Copied: 207 to 208
+Copied: 208 to 209
+Copied: 209 to 210
+Destroyed: 209
+Destroyed: 208
+Copied: 307 to 308
+Copied: 308 to 309
+Copied: 309 to 310
+Destroyed: 309
+Destroyed: 308
+Destroyed: 207
+Destroyed: 307
+Destroyed: 107
+Destroyed: 210
+Copied: 310 to 311
+Destroyed: 310
 done
+Destroyed: 311
+Destroyed: 110
+Destroyed: 300
+Destroyed: 200
+Destroyed: 100
 Destroyed: 0

@@ -38,6 +38,14 @@ fun print(toPrint: string) : void {
     print(charArr);
 }
 
+fun print(toPrint: bool): void {
+    if (toPrint)
+        print("true")
+    else
+        print("false")
+	return;
+}
+
 fun print(toPrint: int): void {
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """

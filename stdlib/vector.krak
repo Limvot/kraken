@@ -133,7 +133,7 @@ obj vector<T> (Object) {
     // on an object that we want to put in a vector. In this way we avoid the problem
     // by not generating this function unless it's called - we also get the ability to
     // do a find index using a different type, which could be fun.
-    fun find_index<U>(value: U): int {
+    fun find<U>(value: U): int {
         for (var i = 0; i < size; i++;)
             if (data[i] == value)
                 return i;
@@ -159,6 +159,16 @@ obj vector<T> (Object) {
             resize(size*2);
         maybe_copy_construct(&data[size-1], &dataIn);
     }
+
+    fun remove(index: int) {
+        maybe_destruct(&data[index])
+        for (var i = index+1; i < size; i++;) {
+            maybe_copy_construct(&data[i-1], &data[i])
+            maybe_destruct(&data[i])
+        }
+        size--
+    }
+
     fun do(func: fun(T):void):void {
         for (var i = 0; i < size; i++;)
             func(data[i])

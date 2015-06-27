@@ -1,4 +1,5 @@
 import vector
+import io
 
 fun map<T,U>(): map<T,U> {
     var toRet.construct(): map<T,U>
@@ -22,18 +23,19 @@ obj map<T,U> {
         keys.copy_construct(&old->keys)
         values.copy_construct(&old->values)
     }
+    fun operator=(rhs: map<T,U>) {
+        destruct()
+        copy_construct(&rhs)
+    }
     fun destruct() {
         keys.destruct()
         values.destruct()
-    }
-    fun find_index(key: T): int {
-        return keys.find_index(key)
     }
     fun operator[]=(key: T, value: U) {
         set(key,value)
     }
     fun set(key: T, value: U) {
-        var keyIdx = find_index(key)
+        var keyIdx = keys.find(key)
         if (keyIdx >= 0) {
             values.set(keyIdx, value)
             return;
@@ -42,7 +44,16 @@ obj map<T,U> {
         values.add(value)
     }
     fun get(key: T): U {
-        return values.get(keys.find_index(key))
+        return values.get(keys.find(key))
+    }
+    fun remove(key: T) {
+        var idx = keys.find(key)
+        if (idx < 0) {
+            io::println("trying to remove nonexistant key-value!")
+            return;
+        }
+        keys.remove(idx)
+        values.remove(idx)
     }
     fun operator[](key: T): U {
         return get(key)

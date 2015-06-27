@@ -1,4 +1,4 @@
-import io:*
+import set
 
 __if_comp__ __C__ simple_passthrough """
 	#include <stdlib.h>
@@ -91,6 +91,17 @@ fun maybe_destruct<T>(it:T*):void {}
 
 fun maybe_destruct<T(Object)>(it:T*):void {
     it->destruct()
+}
+
+// a function that allows the safe deletion of recursive and complicated data structures
+fun safe_recursive_delete<T>(first: T*, addingFunc: fun(T*): set::set<T*>) {
+    var toDelete = set::set<T*>()
+    var next = set::set(first)
+    while (toDelete != next) {
+        toDelete = next
+        toDelete.for_each( fun(it: T*) next.add(addingFunc(it)); )
+    }
+    toDelete.for_each( fun(it: T*) delete(it); )
 }
 
 

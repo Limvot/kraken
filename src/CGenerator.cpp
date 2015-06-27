@@ -302,7 +302,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 if (enclosingFunction->getDataRef()->closedVariables.size()) {
                     std::cout << "WHOH IS A CLOSER" << std::endl;
                     if (enclosingFunction->getDataRef()->closedVariables.find(from) != enclosingFunction->getDataRef()->closedVariables.end()) {
-                        preName += "(*closed_varibles->";
+                        preName += "(*closed_variables->";
                         postName += ")";
                     }
                 }
@@ -322,7 +322,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 
 			std::string nameDecoration, parameters;
             if (data.closedVariables.size())
-                parameters += closureStructType(data.closedVariables) + " *closed_varibles";
+                parameters += closureStructType(data.closedVariables) + " *closed_variables";
 			for (int j = 0; j < children.size()-1; j++) {
 				if (j > 0 || data.closedVariables.size())
 					parameters += ", ";
@@ -345,7 +345,12 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                         if (notFirst)
                             output.preValue += ", ";
                         notFirst = true;
-                        output.preValue += "." + scopePrefix(var) + var->getDataRef()->symbol.getName() + " = &" + scopePrefix(var) + var->getDataRef()->symbol.getName();
+                        std::string varName = var->getDataRef()->symbol.getName();
+                        std::string preName;
+                        if (enclosingObject && enclosingObject->getDataRef()->scope.find(varName) != enclosingObject->getDataRef()->scope.end())
+                            preName += "this->";
+                        varName = (varName == "this") ? varName : scopePrefix(var) + varName;
+                        output.preValue += "." + varName + " = &" + preName + varName;
                     }
                     output.preValue += "};\n";
                     output += "("+ ValueTypeToCType(data.valueType, "") +"){(void*)" + funcName + ", &" + tmpStruct + "}";
@@ -636,12 +641,23 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					std::string nameDecoration;
 					for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
 				 		nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
+                    // it is possible that this is an object method from inside a closure
+                    // in which case, recover the enclosing object from this
+                    bool addClosedOver = false;
+                    if (enclosingFunction && enclosingFunction->getDataRef()->closedVariables.size()) {
+                        for (auto closedVar : enclosingFunction->getDataRef()->closedVariables) {
+                            if (closedVar->getDataRef()->symbol.getName() == "this") {
+                                enclosingObject = closedVar->getDataRef()->valueType->typeDefinition;
+                                addClosedOver = true;
+                            }
+                        }
+                    }
 				 	//Check to see if we're inside of an object and this is a method call
 					bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
 					if (isSelfObjectMethod) {
 						output += function_header + scopePrefix(children[0]) + CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__";
                        	output += CifyName(name + nameDecoration) + "(";
-				 		output += children.size() > 1 ? "this," : "this";
+				 		output += std::string(addClosedOver ? "(*closed_variables->this)" : "this") + (children.size() > 1 ? "," : "");
                     } else {
                        	output += function_header + scopePrefix(children[0]) + CifyName(name + nameDecoration) + "(";
                     }
@@ -745,7 +761,8 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 	enclosingObjectType.increaseIndirection();
 	std::vector<NodeTree<ASTData>*> children = from->getChildren();
 	std::string nameDecoration, parameters;
-	for (int i = 0; i < children.size()-1; i++) {
+    // note how we get around children.size() being an unsigned type
+	for (int i = 0; i+1 < children.size(); i++) {
 		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType, generate(children[i]).oneString());
 		nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
 
@@ -821,7 +838,9 @@ std::string CGenerator::closureStructType(std::set<NodeTree<ASTData>*> closedVar
     // note the increased indirection b/c we're using references to what we closed over
     for (auto var : closedVariables) {
         auto tmp = var->getDataRef()->valueType->withIncreasedIndirection();
-        typedefString += ValueTypeToCType(&tmp, scopePrefix(var) + var->getDataRef()->symbol.getName()) + ";";
+        std::string varName = var->getDataRef()->symbol.getName();
+        varName = (varName == "this") ? varName : scopePrefix(var) + varName;
+        typedefString += ValueTypeToCType(&tmp, varName) + ";";
     }
     std::string structName = "closureStructType" + getID();
     typedefString += " } " + structName + ";\n";

@@ -487,7 +487,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         newNode->getDataRef()->valueType = new Type(mapNodesToTypePointers(parameters), newNode->getDataRef()->valueType);
         auto statement = transform(getNode("statement", children), scope, types, limitToFunction, templateTypeReplacements);
         if (name == "lambda")
-            newNode->getDataRef()->closedVariables = findVariablesToClose(newNode, statement);
+            newNode->getDataRef()->closedVariables = findVariablesToClose(newNode, statement, scope);
         for (auto i : newNode->getDataRef()->closedVariables)
             std::cout << "OK, CLOSED: " << i->getDataRef()->toString() << std::endl;
         newNode->addChild(statement);
@@ -520,7 +520,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 				std::cerr << "scope lookup error! Could not find " << functionCallString << " in boolean stuff " << std::endl;
 				throw "LOOKUP ERROR: " + functionCallString;
 			}
-			newNode = function;
+            return function;
 		} else {
             // XXX What the heck is this
 			if (children.size() == 0)
@@ -928,7 +928,7 @@ bool ASTTransformation::inScopeChain(NodeTree<ASTData>* node, NodeTree<ASTData>*
 }
 // We return a set of all identifers used in the children of stat that are not declared somewhere below stat
 // used to calculate the closedvariables for closures
-std::set<NodeTree<ASTData>*> ASTTransformation::findVariablesToClose(NodeTree<ASTData>* func, NodeTree<ASTData>* stat) {
+std::set<NodeTree<ASTData>*> ASTTransformation::findVariablesToClose(NodeTree<ASTData>* func, NodeTree<ASTData>* stat, NodeTree<ASTData>* scope) {
     std::set<NodeTree<ASTData>*> closed;
 //enum ASTType {undef, translation_unit, interpreter_directive, import, identifier, type_def,
 	//function, code_block, typed_parameter, expression, boolean_expression, statement,
@@ -937,18 +937,26 @@ std::set<NodeTree<ASTData>*> ASTTransformation::findVariablesToClose(NodeTree<AS
     //in_passthrough_params, out_passthrough_params, opt_string, param_assign, function_call, value};
     if (stat->getDataRef()->type == function || stat->getDataRef()->type == translation_unit
             || stat->getDataRef()->type == type_def || stat->getDataRef()->type == value
-       )
+       ) {
+        // if this is a method we know that it is a method of our current enclosing object (as we already know that we're not on the right side of . or ->, see below)
+        // we should add our enclosing object, this, to our closed over variables
+        if (stat->getDataRef()->type == function) {
+            auto statEnclosingScope = stat->getDataRef()->scope["~enclosing_scope"][0];
+            if (statEnclosingScope && statEnclosingScope->getDataRef()->valueType && statEnclosingScope->getDataRef()->valueType->typeDefinition)
+                closed.insert(generateThis(scope));
+        }
         return closed;
+    }
     if (stat->getDataRef()->type == function_call && (stat->getDataRef()->symbol.getName() == "." || stat->getDataRef()->symbol.getName() == "->")) {
         // only search on the left side of access operators like . and ->
-        auto recClosed = findVariablesToClose(func, stat->getChildren()[1]);
+        auto recClosed = findVariablesToClose(func, stat->getChildren()[1], scope);
         closed.insert(recClosed.begin(), recClosed.end());
         return closed;
     }
     if (stat->getDataRef()->type == identifier && !inScopeChain(stat, func))
         closed.insert(stat);
     for (auto child: stat->getChildren()) {
-        auto recClosed = findVariablesToClose(func, child);
+        auto recClosed = findVariablesToClose(func, child, scope);
         closed.insert(recClosed.begin(), recClosed.end());
     }
     return closed;
@@ -1140,7 +1148,18 @@ void ASTTransformation::unifyType(NodeTree<Symbol> *syntaxType, Type type, std::
             // to get the type it was instantiated with.
             auto origionalType = type.typeDefinition->getDataRef()->valueType;
             auto typeTemplateDefinition = origionalType->templateDefinition;
-            if (typeTemplateDefinition && concatSymbolTree(getNode("scoped_identifier", children)) == concatSymbolTree(getNode("identifier", typeTemplateDefinition->getChildren()))) {
+            // we have to get rid of the scope partion of the scoped_identifier so we can compare properly with the typeTemplateDefinition's identifier
+            auto scoped = getNode("scoped_identifier", children);
+            NodeTree<Symbol>* ident = nullptr;
+            while(scoped && !ident) {
+                ident = getNode("identifier", scoped);
+                scoped = getNode("scoped_identifier", scoped);
+            }
+            //if (typeTemplateDefinition)  {
+                //std::cout << concatSymbolTree(ident) << std::endl;
+                //std::cout << concatSymbolTree(getNode("identifier", typeTemplateDefinition->getChildren())) << std::endl;
+            //}
+            if (typeTemplateDefinition && concatSymbolTree(ident) == concatSymbolTree(getNode("identifier", typeTemplateDefinition->getChildren()))) {
                     std::vector<NodeTree<Symbol>*> uninTypeInstTypes = getNodes("type", getNode("template_inst", children));
                     std::vector<NodeTree<Symbol>*> typeInstTypes = getNodes("template_param", getNode("template_dec", typeTemplateDefinition->getChildren()));
                     for (int i = 0; i < uninTypeInstTypes.size(); i++) {
@@ -1152,6 +1171,7 @@ void ASTTransformation::unifyType(NodeTree<Symbol> *syntaxType, Type type, std::
 
                     return;
             }
+            throw "the inference just isn't good enough";
         }
         throw "the inference just isn't good enough";
     }
@@ -1314,6 +1334,18 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>
     return scopeLookup(scope, lookup, includeModules, std::set<NodeTree<ASTData>*>());
 }
 
+NodeTree<ASTData>* ASTTransformation::generateThis(NodeTree<ASTData>* scope) {
+    NodeTree<ASTData>* identifier = languageLevelReservedWords["this"][0];
+    identifier = new NodeTree<ASTData>("identifier", identifier->getData());
+    // if we're looking for this, traverse up until we find the declaration of this object and assign it's type to this
+    NodeTree<ASTData>* trans;
+    for (trans = scope; trans->getDataRef()->type != type_def; trans = trans->getDataRef()->scope["~enclosing_scope"][0]);
+    identifier->getDataRef()->valueType = trans->getDataRef()->valueType->clone();
+    identifier->getDataRef()->valueType->increaseIndirection();
+    identifier->getDataRef()->scope = trans->getDataRef()->scope;
+    return identifier;
+}
+
 std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules, std::set<NodeTree<ASTData>*> visited) {
     std::cout << "Scp]|[e looking up " << lookup << std::endl;
     std::cout << "current: " << scope->getDataRef()->toString() << std::endl;
@@ -1330,12 +1362,7 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>
 		std::cout << "found it at language level as reserved word." << std::endl;
 		NodeTree<ASTData>* identifier = LLElementIterator->second[0];
         if (lookup == "this") {
-            identifier = new NodeTree<ASTData>("identifier", identifier->getData());
-            // if we're looking for this, traverse up until we find the declaration of this object and assign it's type to this
-            NodeTree<ASTData>* trans;
-            for (trans = scope; trans->getDataRef()->type != type_def; trans = trans->getDataRef()->scope["~enclosing_scope"][0]);
-            identifier->getDataRef()->valueType = trans->getDataRef()->valueType->clone();
-            identifier->getDataRef()->valueType->increaseIndirection();
+            identifier = generateThis(scope);
         }
         std::vector<NodeTree<ASTData>*> thingy; thingy.push_back(identifier);
         return thingy;

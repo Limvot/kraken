@@ -107,16 +107,26 @@ fun main(): int {
 
     println("find test")
     var multipleFindTest = vector(1,2,3)
-    println(multipleFindTest.find_index(1))
-    println(multipleFindTest.find_index(2))
-    println(multipleFindTest.find_index(3))
+    println(multipleFindTest.find(1))
+    println(multipleFindTest.find(2))
+    println(multipleFindTest.find(3))
 
-    println("set and []= test")
+    println("set, []=, and delete test")
     var setTest = vector(4,5,6)
     setTest.add(7)
     setTest.set(1,8)
     setTest[2] = 9
     setTest.do(fun(it: int) println(it);)
+    println("delete")
+    setTest.remove(2)
+    setTest.do(fun(it: int) println(it);)
+
+    println("delete v2")
+    var firstRem.construct(100): AbleToBeDestroyed;
+    var secondRem.construct(200): AbleToBeDestroyed;
+    var thirdRem.construct(300): AbleToBeDestroyed;
+    var remTest = vector(firstRem, secondRem, thirdRem);
+    remTest.remove(1)
 
     println("done")
 

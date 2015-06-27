@@ -2,6 +2,7 @@ import io
 import vector
 import string
 import mem
+import set
 import util
 import conversions
 
@@ -55,12 +56,14 @@ obj regex(Object) {
     }
 
     fun copy_construct(old:regex*):void {
-        begin = old->begin
-        regexString.copy_construct(&old->regexString)
+        //begin = old->begin
+        //regexString.copy_construct(&old->regexString)
+        construct(old->regexString)
     }
 
     fun destruct():void {
         regexString.destruct()
+        //mem::safe_recursive_delete(begin, fun(it: regexState*): set::set<regexState*> { return set::set(it); } )
     }
 
     fun operator=(other: regex):void {

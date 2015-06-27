@@ -1,0 +1,60 @@
+import vector
+import io
+
+fun set<T>(): set<T> {
+    var toRet.construct() : set<T>
+    return toRet
+}
+
+fun set<T>(item: T): set<T> {
+    var toRet.construct() : set<T>
+    toRet.add(item)
+    return toRet
+}
+
+obj set<T> {
+    var data: vector::vector<T>
+    fun construct() {
+        data.construct()
+    }
+    fun copy_construct(old: set<T>*) {
+        data.copy_construct(&old->data)
+    }
+    fun operator=(rhs: set<T>) {
+        destruct()
+        copy_construct(&rhs)
+    }
+    fun operator==(rhs: set<T>): bool {
+        if (size() != rhs.size())
+            return false
+        return !data.any_true( fun(item: T): bool return !rhs.contains(item); )
+    }
+    fun destruct() {
+        data.destruct()
+    }
+    fun size():int {
+        return data.size
+    }
+    fun contains(item: T): bool {
+        return data.find(item) != -1
+    }
+    fun add(item: T) {
+        if (!contains(item))
+            data.add(item)
+    }
+    fun add(items: set<T>) {
+        items.for_each( fun(item: T) add(item); )
+    }
+    fun remove(item: T) {
+        var idx = data.find(item)
+        if (idx == -1) {
+            io::println("CANNOT FIND ITEM TO REMOVE")
+            return
+        }
+        data.remove(idx)
+    }
+    fun for_each(func: fun(T):void) {
+        data.do(func)
+    }
+}
+

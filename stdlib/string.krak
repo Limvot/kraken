@@ -34,6 +34,16 @@ obj string (Object) {
         construct(*old)
     }
 
+    fun operator=(str: char*): void {
+        destruct();
+        construct(str)
+    }
+
+    fun operator=(str: string): void {
+        destruct();
+        data.copy_construct(&str.data)
+    }
+
     fun destruct():void {
         data.destruct()
     }
@@ -50,11 +60,6 @@ obj string (Object) {
         data.set(index, toSet)
     }
     fun length():int { return data.size; }
-
-    fun operator=(str: char*): void {
-        destruct();
-        construct(str)
-    }
 
     fun operator+(str: char*): string {
         var newStr.construct(str):string

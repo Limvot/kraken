@@ -1,0 +1,24 @@
+import io:*
+import set:*
+
+fun main():int {
+    var s = set(3)
+    println(s.contains(3))
+    println(s.contains(1))
+    s.remove(3)
+    s.add(4)
+    println(s.contains(3))
+    println(s.contains(4))
+
+    println(s == set(4))
+    println(s == set(5))
+    s.add(set(5))
+    println(s == set(4))
+    println(s == set(5))
+    println(s.contains(3))
+    println(s.contains(4))
+    println(s.contains(5))
+
+    s.for_each( fun(it: int) println(it); )
+    return 0
+}
