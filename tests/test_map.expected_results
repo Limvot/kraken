@@ -6,3 +6,8 @@
 2
 30
 4
+Lookie, a map!
+What I get for not testing different types
+key: 7, value: Lookie, a map!
+key: 20, value: What I get for not testing different types
+key: 30, value: we'll look for for_each too

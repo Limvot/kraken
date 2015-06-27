@@ -12,7 +12,7 @@ fun map<T,U>(key:T, value:U): map<T,U> {
 
 obj map<T,U> {
     var keys: vector::vector<T>
-    var values: vector::vector<T>
+    var values: vector::vector<U>
 
     fun construct() {
         keys.construct()
@@ -46,6 +46,10 @@ obj map<T,U> {
     }
     fun operator[](key: T): U {
         return get(key)
+    }
+    fun for_each(func: fun(T, U):void) {
+        for (var i = 0; i < keys.size; i++;)
+            func(keys[i], values[i])
     }
 }
 

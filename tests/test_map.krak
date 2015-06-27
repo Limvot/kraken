@@ -16,5 +16,11 @@ fun main():int {
     println(m[2])
     println(m[6])
     println(m[3])
+    var mapEx = map(7, "Lookie, a map!")
+    mapEx[20] = "What I get for not testing different types"
+    mapEx[30] = "we'll look for for_each too"
+    println(mapEx[7])
+    println(mapEx[20])
+    mapEx.for_each(fun(key:int, value:char*) { print("key: "); print(key); print(", value: "); println(value); })
     return 0
 }
