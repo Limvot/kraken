@@ -62,7 +62,7 @@ scoped_identifier = scoped_identifier WS scope_op WS identifier | identifier ;
 
 #Note that to prevent confilct with nested templates (T<A<B>>) it is a nonterminal contructed as follows
 right_shift = ">" ">" ;
-overloadable_operator = "\+" | "-" | "\*" | "/" | "%" | "^" | "&" | "\|" | "~" | "!" | "," | "=" | "\+\+" | "--" | "<<" | right_shift | "==" | "!=" | "&&" | "\|\|" | "\+=" | "-=" | "/=" | "%=" | "^=" | "&=" | "\|=" | "\*=" | "<<=" | ">>=" | "->" | "\(" "\)" | "[]" ;
+overloadable_operator = "\+" | "-" | "\*" | "/" | "%" | "^" | "&" | "\|" | "~" | "!" | "," | "=" | "\+\+" | "--" | "<<" | right_shift | "==" | "!=" | "&&" | "\|\|" | "\+=" | "-=" | "/=" | "%=" | "^=" | "&=" | "\|=" | "\*=" | "<<=" | ">>=" | "->" | "\(" "\)" | "[]" | "[]=" ;
 func_identifier = identifier | identifier overloadable_operator ;
 # allow omitting of return type (automatic void)
 typed_return = dec_type | ;

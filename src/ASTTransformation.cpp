@@ -35,6 +35,7 @@ ASTTransformation::ASTTransformation(Importer *importerIn) {
 	languageLevelOperators["."].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol(".", true), NULL))));
 	languageLevelOperators["->"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("->", true), NULL))));
 	languageLevelOperators["[]"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("[]", true), NULL))));
+	languageLevelOperators["[]="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("[]=", true), NULL))));
 }
 
 ASTTransformation::~ASTTransformation() {
@@ -608,6 +609,22 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		newNode = new NodeTree<ASTData>(name, ASTData(defer_statement));
 	} else if (name == "assignment_statement") {
 		std::string assignFuncName = concatSymbolTree(children[1]);
+        // but first check to see if the lefthand side is a factor which is a unarad with "[" in order to first check for operator []=?
+        // checking for this very specific case
+        // ok, assuming the left side is a factor, we grab the unarad
+        auto unarad =  getNode("unarad", children[0]);
+        if (unarad && getNode("[", unarad)) {
+            // allrightly, check to see if we have []=
+            NodeTree<ASTData>* lhs = transform(getNode("unarad", unarad), scope, types, limitToFunction, templateTypeReplacements);
+            NodeTree<ASTData>* indexArg = transform(getNode("expression", unarad), scope, types, limitToFunction, templateTypeReplacements);
+            NodeTree<ASTData>* rhs = transform(children[2], scope, types, limitToFunction, templateTypeReplacements);
+            std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(lhs); transformedChildren.push_back(indexArg); transformedChildren.push_back(rhs);
+            // doFunction special cases []= to return null if it's not found as a method
+            NodeTree<ASTData>* function = doFunction(scope, "[]=", transformedChildren, templateTypeReplacements);
+            if (function)
+                return function;
+            // otherwise, screw it and do it regularly
+        }
         NodeTree<ASTData>* lhs = transform(children[0], scope, types, limitToFunction, templateTypeReplacements);
         NodeTree<ASTData>* rhs = transform(children[2], scope, types, limitToFunction, templateTypeReplacements);
         std::vector<NodeTree<ASTData>*> transformedChildren; transformedChildren.push_back(lhs); transformedChildren.push_back(rhs);
@@ -838,6 +855,10 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 			return newNode;
 		}
 		std::cout << "Early method level operator was NOT found" << std::endl;
+        if (lookup == "[]=") {
+            std::cout << "as the operator was []= we're returning nullptr now and gonna let our above handle it as seperate ones" << std::endl;
+            return nullptr;
+        }
 	}
 
 	newNode = new NodeTree<ASTData>(lookup, ASTData(function_call, Symbol(lookup, true)));

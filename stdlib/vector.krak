@@ -140,6 +140,9 @@ obj vector<T> (Object) {
         return -1;
     }
 
+    fun operator[]=(index: int, dataIn: T) {
+        set(index, dataIn)
+    }
     fun set(index: int, dataIn: T): void {
         if (index < 0 || index  >= size)
             return;

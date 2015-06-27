@@ -16,6 +16,10 @@ fun main(): int {
     var newWay = string::string("new way!")
     io::println(newWay)
     io::println(newWay[5])
+    newWay.set(1, 'o')
+    newWay[5] = 'i'
+    newWay[6] = 'n'
+    io::println(newWay)
     return 0;
 }
 

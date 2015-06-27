@@ -43,6 +43,12 @@ obj string (Object) {
         var new.construct(data.slice(first,second)): string
         return new
     }
+    fun operator[]=(index: int, toSet: char) {
+        data[index] = toSet
+    }
+    fun set(index: int, toSet: char) {
+        data.set(index, toSet)
+    }
     fun length():int { return data.size; }
 
     fun operator=(str: char*): void {

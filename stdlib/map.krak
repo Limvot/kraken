@@ -29,6 +29,9 @@ obj map<T,U> {
     fun find_index(key: T): int {
         return keys.find_index(key)
     }
+    fun operator[]=(key: T, value: U) {
+        set(key,value)
+    }
     fun set(key: T, value: U) {
         var keyIdx = find_index(key)
         if (keyIdx >= 0) {

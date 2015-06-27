@@ -111,6 +111,13 @@ fun main(): int {
     println(multipleFindTest.find_index(2))
     println(multipleFindTest.find_index(3))
 
+    println("set and []= test")
+    var setTest = vector(4,5,6)
+    setTest.add(7)
+    setTest.set(1,8)
+    setTest[2] = 9
+    setTest.do(fun(it: int) println(it);)
+
     println("done")
 
     return 0;

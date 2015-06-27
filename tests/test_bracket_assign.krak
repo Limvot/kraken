@@ -1,0 +1,16 @@
+import io:*
+
+obj BracketAssign {
+    fun operator[]=(index:int, rhs:int) {
+        print("bracket assign: index: ")
+        print(index)
+        print(", rhs: ")
+        println(rhs)
+    }
+}
+
+fun main():int {
+    var test:BracketAssign
+    test[4] = 9
+    return 0
+}
