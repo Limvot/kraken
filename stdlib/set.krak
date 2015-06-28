@@ -12,6 +12,12 @@ fun set<T>(item: T): set<T> {
     return toRet
 }
 
+fun from_vector<T>(items: vector::vector<T>): set<T> {
+    var toRet.construct() : set<T>
+    items.do( fun(item: T) toRet.add(item); )
+    return toRet
+}
+
 obj set<T> {
     var data: vector::vector<T>
     fun construct() {
@@ -28,6 +34,9 @@ obj set<T> {
         if (size() != rhs.size())
             return false
         return !data.any_true( fun(item: T): bool return !rhs.contains(item); )
+    }
+    fun operator!=(rhs: set<T>): bool {
+        return ! (*this == rhs)
     }
     fun destruct() {
         data.destruct()

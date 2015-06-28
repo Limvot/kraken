@@ -6,6 +6,7 @@ Type::Type() {
 	typeDefinition = nullptr;
 	templateDefinition = nullptr;
     returnType = nullptr;
+    templateInstantiated = false;
 }
 
 Type::Type(ValueType typeIn, int indirectionIn) {
@@ -14,6 +15,7 @@ Type::Type(ValueType typeIn, int indirectionIn) {
 	typeDefinition = nullptr;
 	templateDefinition = nullptr;
     returnType = nullptr;
+    templateInstantiated = false;
 }
 
 Type::Type(ValueType typeIn, std::set<std::string> traitsIn) {
@@ -23,6 +25,7 @@ Type::Type(ValueType typeIn, std::set<std::string> traitsIn) {
 	typeDefinition = nullptr;
 	templateDefinition = nullptr;
     returnType = nullptr;
+    templateInstantiated = false;
 }
 
 Type::Type(NodeTree<ASTData>* typeDefinitionIn, int indirectionIn) {
@@ -31,6 +34,7 @@ Type::Type(NodeTree<ASTData>* typeDefinitionIn, int indirectionIn) {
 	typeDefinition = typeDefinitionIn;
 	templateDefinition = nullptr;
     returnType = nullptr;
+    templateInstantiated = false;
 }
 
 Type::Type(NodeTree<ASTData>* typeDefinitionIn, std::set<std::string> traitsIn) {
@@ -40,6 +44,7 @@ Type::Type(NodeTree<ASTData>* typeDefinitionIn, std::set<std::string> traitsIn) 
     traits = traitsIn;
 	templateDefinition = nullptr;
     returnType = nullptr;
+    templateInstantiated = false;
 }
 
 Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, std::set<std::string> traitsIn) {
@@ -49,6 +54,7 @@ Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectio
     traits = traitsIn;
     templateDefinition = nullptr;
     returnType = nullptr;
+    templateInstantiated = false;
 }
 
 Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, std::set<std::string> traitsIn, std::vector<Type*> parameterTypesIn, Type* returnTypeIn) {
@@ -59,6 +65,7 @@ Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectio
     templateDefinition = nullptr;
     parameterTypes = parameterTypesIn;
     returnType = returnTypeIn;
+    templateInstantiated = false;
 }
 Type::Type(std::vector<Type*> parameterTypesIn, Type* returnTypeIn) {
 	baseType = function_type;
@@ -67,6 +74,7 @@ Type::Type(std::vector<Type*> parameterTypesIn, Type* returnTypeIn) {
     templateDefinition = nullptr;
     parameterTypes = parameterTypesIn;
     returnType = returnTypeIn;
+    templateInstantiated = false;
 }
 
 Type::Type(ValueType typeIn, NodeTree<Symbol>* templateDefinitionIn, std::set<std::string> traitsIn) {
@@ -76,6 +84,7 @@ Type::Type(ValueType typeIn, NodeTree<Symbol>* templateDefinitionIn, std::set<st
 	templateDefinition = templateDefinitionIn;
     traits = traitsIn;
     returnType = nullptr;
+    templateInstantiated = false;
 }
 
 

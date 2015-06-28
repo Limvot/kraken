@@ -34,10 +34,15 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		NodeTree<ASTData>* secondPassDeclaration(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements);
 		NodeTree<ASTData>* secondPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements);
 
-		//The third pass finishes up by doing all function bodies
+		//The third pass does all the function bodies
 		void thirdPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree);
 		NodeTree<ASTData>* searchScopeForFunctionDef(NodeTree<ASTData>* scope, NodeTree<Symbol>* parseTree, std::map<std::string, Type*> templateTypeReplacements);
 		void thirdPassFunction(NodeTree<Symbol>* from, NodeTree<ASTData>* functionDef, std::map<std::string, Type*> templateTypeReplacements);
+
+		//The fourth pass finishes instantiation of templated objects
+        //it used to be a part of the third pass, but it was split out because it has to be done in a loop
+        //with all the other asts until none change anymore (it returns a bool if it instantiated a new one)
+        bool fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree);
 
 		virtual NodeTree<ASTData>* transform(NodeTree<Symbol>* from);
 		NodeTree<ASTData>* transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::vector<Type> types, bool limitToFunction, std::map<std::string, Type*> templateTypeReplacements);

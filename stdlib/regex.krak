@@ -63,7 +63,7 @@ obj regex(Object) {
 
     fun destruct():void {
         regexString.destruct()
-        //mem::safe_recursive_delete(begin, fun(it: regexState*): set::set<regexState*> { return set::set(it); } )
+        mem::safe_recursive_delete(begin, fun(it: regexState*): set::set<regexState*> { return set::from_vector(it->next_states); } )
     }
 
     fun operator=(other: regex):void {

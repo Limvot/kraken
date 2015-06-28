@@ -46,6 +46,7 @@ class Type {
 		NodeTree<ASTData>* typeDefinition;
 		NodeTree<Symbol>* templateDefinition;
         std::map<std::string, Type*> templateTypeReplacement;
+        bool templateInstantiated;
         std::set<std::string> traits;
         std::vector<Type*> parameterTypes;
         Type *returnType;

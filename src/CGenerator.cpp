@@ -419,6 +419,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				output += " else { " + generate(children[2], enclosingObject, justFuncName, enclosingFunction).oneString() + " }";
 			return output;
 		case while_loop:
+            {
             // we push on a new vector to hold while stuff that might need a destructor call
             loopDistructStackDepth.push(distructDoubleStack.size());
             distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
@@ -426,7 +427,12 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             // break or continue inside this loop can correctly emit all of the defers through
             // all of the inbetween scopes
             loopDeferStackDepth.push(deferDoubleStack.size());
-			output += "while (" + generate(children[0], enclosingObject, true, enclosingFunction).oneString() + ") {\n\t";
+            // gotta do like this so that the preconditions can happen every loop
+			output += "while (1) {\n";
+            CCodeTriple condtition = generate(children[0], enclosingObject, true, enclosingFunction);
+            output += condtition.preValue;
+            output += "if (!( " + condtition.value + ")) break;\n";
+            output += condtition.postValue;
             output += generate(children[1], enclosingObject, justFuncName, enclosingFunction).oneString();
             output += emitDestructors(reverse(distructDoubleStack.back()),enclosingObject);
             output +=  + "}";
@@ -436,6 +442,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             // and pop it off again
             loopDeferStackDepth.pop();
 			return output;
+            }
 		case for_loop:
             // we push on a new vector to hold for stuff that might need a destructor call
             loopDistructStackDepth.push(distructDoubleStack.size());
@@ -761,8 +768,11 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 	enclosingObjectType.increaseIndirection();
 	std::vector<NodeTree<ASTData>*> children = from->getChildren();
 	std::string nameDecoration, parameters;
-    // note how we get around children.size() being an unsigned type
-	for (int i = 0; i+1 < children.size(); i++) {
+    if (!children.size()) {
+        //problem
+        std::cerr << " no children " << std::endl;
+    }
+	for (int i = 0; i < children.size()-1; i++) {
 		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType, generate(children[i]).oneString());
 		nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
 
@@ -774,7 +784,7 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
     // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
     //
     std::string output;
-    output += functionSignature + " {\n" +  generate(children[children.size()-1], enclosingObject).oneString();
+    output += functionSignature + " {\n" +  generate(children.back(), enclosingObject).oneString();
     output += emitDestructors(reverse(distructDoubleStack.back()), enclosingObject);
     output += "}\n"; //Pass in the object so we can properly handle access to member stuff
     distructDoubleStack.pop_back();
@@ -837,10 +847,12 @@ std::string CGenerator::closureStructType(std::set<NodeTree<ASTData>*> closedVar
     std::string typedefString = "typedef struct { ";
     // note the increased indirection b/c we're using references to what we closed over
     for (auto var : closedVariables) {
-        auto tmp = var->getDataRef()->valueType->withIncreasedIndirection();
+        // unfortunatly we can't just do it with increased indirection b/c closing over function values
+        // will actually change the underlying function's type. We cheat and just add a *
+        //auto tmp = var->getDataRef()->valueType->withIncreasedIndirection();
         std::string varName = var->getDataRef()->symbol.getName();
         varName = (varName == "this") ? varName : scopePrefix(var) + varName;
-        typedefString += ValueTypeToCType(&tmp, varName) + ";";
+        typedefString += ValueTypeToCType(var->getDataRef()->valueType, "*"+varName) + ";";
     }
     std::string structName = "closureStructType" + getID();
     typedefString += " } " + structName + ";\n";

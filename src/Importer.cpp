@@ -105,8 +105,18 @@ void Importer::import(std::string fileName) {
 		std::cout << "\n\nSecond pass for: " << i.name << std::endl, ASTTransformer->secondPass(i.ast, i.syntaxTree);		//function prototypes, and identifiers (as we now have all type defs)
 
 	std::cout << "\n\n =====THIRD PASS===== \n\n" << std::endl;
-	for (importTriplet i : importedTrips)					//Third pass finishes up by doing all function bodies
-		std::cout << "\n\nFourth pass for: " << i.name << std::endl, ASTTransformer->thirdPass(i.ast, i.syntaxTree);		//With that, we're done
+	for (importTriplet i : importedTrips)					//Third pass does all function bodies
+		std::cout << "\n\nThird pass for: " << i.name << std::endl, ASTTransformer->thirdPass(i.ast, i.syntaxTree);
+
+	std::cout << "\n\n =====FOURTH PASS===== \n\n" << std::endl;
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (importTriplet i : importedTrips) {					//Fourth pass finishes up by doing all template classes
+            std::cout << "\n\nFourth pass for: " << i.name << std::endl;
+            changed = changed ? changed : ASTTransformer->fourthPass(i.ast, i.syntaxTree);
+        }
+    }
 
 	//Note that class template instantiation can happen in the second or third passes and that function template instantion
 	//can happen in the third pass.

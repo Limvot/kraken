@@ -285,12 +285,15 @@ void ASTTransformation::thirdPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* pars
 			thirdPassFunction(i, searchScopeForFunctionDef(ast, i, std::map<std::string, Type*>()), std::map<std::string, Type*>());
 		}
 	}
+}
+bool ASTTransformation::fourthPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree) {
+	topScope = ast; //Top scope is maintained for templates, which need to add themselves to the top scope from where ever they are instantiated
 
+    bool changed = false;
     // We do these here, in a loop, so that we can do mututally recursive definitions
     // even inside of class templates. As its methods may cause partial instantiation of
     // other class templates, we need to do this until the size no longer changes.
     std::vector<NodeTree<ASTData>*> classTemplates;
-    std::set<Type*> finishedClassTemplateTypes;
     int lastSize = 0;
     while (lastSize != ast->getDataRef()->scope.size()) {
         lastSize = ast->getDataRef()->scope.size();
@@ -298,9 +301,10 @@ void ASTTransformation::thirdPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* pars
         for (auto i : ast->getDataRef()->scope) {
             // we actually keep track of the template type replacements now, and need them after they're instantiated, so we use a set to check if we've done it now
             if (i.second[0]->getDataRef()->type == type_def && i.second[0]->getDataRef()->valueType->templateTypeReplacement.size()
-                    && finishedClassTemplateTypes.find(i.second[0]->getDataRef()->valueType) == finishedClassTemplateTypes.end()) {
+                    && !i.second[0]->getDataRef()->valueType->templateInstantiated) {
                 classTemplates.push_back(i.second[0]);
                 std::cout << "Saving " << i.second[0]->getDataRef()->toString() << " to instantiate." << std::endl;
+                changed = true;
             }
         }
         for (auto i : classTemplates) {
@@ -309,9 +313,10 @@ void ASTTransformation::thirdPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* pars
             for (NodeTree<Symbol>* j : classTemplateType->templateDefinition->getChildren())
                 if (j->getDataRef()->getName() == "function" && j->getChildren()[1]->getDataRef()->getName() != "template_dec")
                     thirdPassFunction(j, searchScopeForFunctionDef(i, j, classTemplateType->templateTypeReplacement), classTemplateType->templateTypeReplacement); 	//do member method
-            finishedClassTemplateTypes.insert(classTemplateType);
+            classTemplateType->templateInstantiated = true;
         }
     }
+    return changed;
 }
 
 //This function finds the right AST definition in a scope given its parseTree
@@ -1552,6 +1557,7 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
                 // At least, hopefully it will if we also check it's scope for it. Which I think it should be anyway. Yeah, I think it should work.
                 std::cout << "Adding to template top scope and template's origional scope with fullyInstantiatedName " << fullyInstantiatedName << std::endl;
                 auto templateTopScope = getUpperTranslationUnit(templateDefinition);
+                std::cout << "UPPER TRANS for " << fullyInstantiatedName << " " << templateTopScope->getDataRef()->toString() << std::endl;
                 templateTopScope->getDataRef()->scope[fullyInstantiatedName].push_back(typeDefinition);
                 templateTopScope->addChild(typeDefinition); // Add this object the the highest scope's
 
