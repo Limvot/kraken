@@ -7,7 +7,7 @@ fun main():int {
 
     var a = 1337
     var b = &a
-    var c = cast<int, char>(b)
+    var c = cast_ptr<int*, char*>(b)
     //var d = c + 1
     //var e = 1 + c
     println(to_int(*(c+0)))
