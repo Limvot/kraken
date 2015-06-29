@@ -2,7 +2,7 @@ import io:*
 import vector:*
 
 fun onlyMatch(vec: vector<int>, matchWith: int): vector<int> {
-    return vec.filter(fun(it:int, other:int):bool { return it == other; }, matchWith)
+    return vec.filter(fun(it:int):bool { return it == matchWith; })
 }
 
 fun main():int {

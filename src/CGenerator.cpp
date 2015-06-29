@@ -444,6 +444,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			return output;
             }
 		case for_loop:
+            {
             // we push on a new vector to hold for stuff that might need a destructor call
             loopDistructStackDepth.push(distructDoubleStack.size());
             distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
@@ -452,15 +453,37 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             // all of the inbetween scopes
             loopDeferStackDepth.push(deferDoubleStack.size());
 			//The strSlice's are there to get ride of an unwanted return and an unwanted semicolon(s)
-			output += "for (" + strSlice(generate(children[0], enclosingObject, true, enclosingFunction).oneString(),0,-3) + generate(children[1], enclosingObject, true, enclosingFunction).oneString() + ";" + strSlice(generate(children[2], enclosingObject, true, enclosingFunction).oneString(),0,-3) + ")";
-            output += " {\n\t" + generate(children[3], enclosingObject, justFuncName, enclosingFunction).oneString();
+
+            std::string doUpdateName = "do_update" + getID();
+            // INITIALIZER
+			output += "{";
+            output += generate(children[0], enclosingObject, true, enclosingFunction).oneString();
+            output += "bool " + doUpdateName + " = false;\n";
+			output += "for (;;) {";
+            // UPDATE
+            output += "if (" + doUpdateName + ") {";
+            output += generate(children[2], enclosingObject, true, enclosingFunction).oneString();
+            output += "}\n";
+            output += doUpdateName + " = true;\n";
+            // CONDITION
+            // note that the postValue happens whether or not we break
+            CCodeTriple condition = generate(children[1], enclosingObject, true, enclosingFunction);
+            output += condition.preValue;
+            output += "if (!(" + condition.value + ")) {\n";
+            output += condition.postValue;
+            output += "break;\n}";
+            output += condition.postValue;
+            // BODY
+            output += generate(children[3], enclosingObject, justFuncName, enclosingFunction).oneString();
             output += emitDestructors(reverse(distructDoubleStack.back()),enclosingObject);
-            output +=  + "}";
+            output += "}";
+			output += "}";
             distructDoubleStack.pop_back();
             loopDistructStackDepth.pop();
             // and pop it off again
             loopDeferStackDepth.pop();
 			return output;
+            }
 		case return_statement:
             {
             // we pop off the vector and go through them in reverse emitting them, going
@@ -716,11 +739,14 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             }
             // see if we should add a destructer call to this postValue
 			Type* retType = children[0]->getDataRef()->valueType->returnType;
-            if (methodExists(retType, "destruct", std::vector<Type>())) {
+            if (retType->baseType != void_type) {
+                // we always use return temps now :( (for psudo-pod objects that still have methods called on them, like range(1,3).for_each(...)
                 std::string retTempName = "return_temp" + getID();
                 output.preValue += ValueTypeToCType(retType, retTempName) + " = " + output.value + ";\n";
                 output.value = retTempName;
-                output.postValue = generateMethodIfExists(retType, "destruct", "&"+retTempName, std::vector<Type>()) + ";\n" + output.postValue;
+                if (methodExists(retType, "destruct", std::vector<Type>())) {
+                    output.postValue = generateMethodIfExists(retType, "destruct", "&"+retTempName, std::vector<Type>()) + ";\n" + output.postValue;
+                }
             }
 			return output;
 		}

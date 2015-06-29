@@ -20,6 +20,8 @@ fun main(): int {
     newWay[5] = 'i'
     newWay[6] = 'n'
     io::println(newWay)
+    io::println( string::string("yes") == string::string("yes") )
+    io::println( string::string("no") == string::string("yes") )
     return 0;
 }
 

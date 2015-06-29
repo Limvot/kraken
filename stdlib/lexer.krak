@@ -1,0 +1,45 @@
+import regex
+import symbol
+import string
+import vector
+import util
+
+obj lexer {
+    var regs: vector::vector<regex::regex>
+    var input: string::string
+    var position: int
+    fun construct(): lexer* {
+        regs.construct()
+        input.construct()
+        position = 0
+        return this
+    }
+    fun destruct() {
+        regs.destruct()
+        input.destruct()
+    }
+    fun copy_construct(old: lexer*) {
+        regs.copy_construct(&old->regs)
+        input.copy_construct(&old->input)
+        position = old->position
+    }
+    fun operator=(old: lexer) {
+        destruct()
+        copy_construct(&old)
+    }
+    fun add_regex(newOne: regex::regex) {
+        regs.add(newOne)
+    }
+    fun set_input(in: string::string) {
+        input = in
+    }
+    fun next(): symbol::symbol {
+        var max = regs.map(fun(reg: regex::regex): util::pair<int, string::string> {
+                return util::make_pair(reg.long_match(input.slice(position, -1)), reg.regexString); })
+                .max(fun(first: util::pair<int, string::string>, second: util::pair<int, string::string>): bool
+                        { return first.first < second.first; })
+        position += max.first
+        return symbol::symbol(input.slice(position-max.first, position), max.second, true)
+    }
+}
+

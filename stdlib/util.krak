@@ -44,3 +44,38 @@ obj pair<T,U>(Object) {
     }
 }
 
+fun range(end:int): range {
+    var toRet.construct(0, end, 1): range
+    return toRet
+}
+
+fun range(begin: int, end:int): range {
+    var toRet.construct(begin, end, 1): range
+    return toRet
+}
+fun range(begin: int, end:int, step: int): range {
+    var toRet.construct(begin, end, step): range
+    return toRet
+}
+
+obj range {
+    var begin: int
+    var end: int
+    var step: int
+    fun construct(beginIn: int, endIn: int, stepIn: int) : range* {
+        begin = beginIn
+        end = endIn
+        step = stepIn
+    }
+    fun for_each(func: fun(int):void):void {
+        for (var i = begin; i < end; i+= step;)
+            func(i)
+    }
+    fun any_true(func: fun(int):bool):bool {
+        for (var i = begin; i < end; i+= step;)
+            if (func(i))
+                return true
+        return false
+    }
+}
+

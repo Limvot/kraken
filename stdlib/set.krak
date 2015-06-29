@@ -14,7 +14,7 @@ fun set<T>(item: T): set<T> {
 
 fun from_vector<T>(items: vector::vector<T>): set<T> {
     var toRet.construct() : set<T>
-    items.do( fun(item: T) toRet.add(item); )
+    items.for_each( fun(item: T) toRet.add(item); )
     return toRet
 }
 
@@ -63,7 +63,7 @@ obj set<T> {
         data.remove(idx)
     }
     fun for_each(func: fun(T):void) {
-        data.do(func)
+        data.for_each(func)
     }
 }
 

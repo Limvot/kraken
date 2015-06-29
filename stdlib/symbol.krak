@@ -1,0 +1,54 @@
+import string
+
+fun symbol(dataIn: char*, nameIn: char*, terminalIn: bool): symbol {
+    var toRet.construct(string::string(dataIn), string::string(nameIn), terminalIn): symbol
+    return toRet
+}
+
+fun symbol(dataIn: string::string, nameIn: string::string, terminalIn: bool): symbol {
+    var toRet.construct(dataIn, nameIn, terminalIn): symbol
+    return toRet
+}
+
+obj symbol {
+    var data: string::string
+    var name: string::string
+    var terminal: bool
+
+    fun construct(): symbol* {
+        data.construct()
+        name.construct()
+        return this
+    }
+    fun construct(dataIn: string::string, nameIn: string::string, terminalIn: bool): symbol* {
+        data.construct(dataIn)
+        name.construct(nameIn)
+        terminal = terminalIn
+        return this
+    }
+    fun destruct() {
+        data.destruct()
+        name.destruct()
+    }
+    fun copy_construct(old: symbol*) {
+        data.copy_construct(&old->data)
+        name.copy_construct(&old->name)
+        terminal = old->terminal
+    }
+    fun operator=(old: symbol) {
+        destruct()
+        copy_construct(&old)
+    }
+    fun operator==(other: symbol): bool {
+        return data == other.data && name == other.name && terminal == other.terminal;
+    }
+    fun to_string(): string::string {
+        var terminalString: char*
+        if (terminal)
+            terminalString = "true"
+        else
+            terminalString = "false"
+        return name + ": " + data + " " + terminalString
+    }
+}
+

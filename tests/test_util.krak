@@ -31,6 +31,13 @@ fun main():int {
     println(greater(1,2))
     println(greater(7.0,8.0))
 
+    range(3,13, 3).for_each(fun(i: int) { print(i); })
+    println()
+    range(2,8).for_each(fun(i: int) { print(i); })
+    println()
+    println(range(2,8,2).any_true(fun(i: int): bool { return i%2 == 1; } ))
+    println(range(3).any_true(fun(i: int): bool { return i%2 == 1; } ))
+
     var oddPair = make_pair(3, "hi")
     println(oddPair.first)
     println(oddPair.second)

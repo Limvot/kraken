@@ -51,7 +51,7 @@ obj regex(Object) {
         // init our begin, and the end state as the next state of each end
         begin = beginningAndEnd.first
         var end = mem::new<regexState>()->construct(conversions::to_char(1))
-        beginningAndEnd.second.do(fun(it: regexState*): void { it->next_states.add(end); })
+        beginningAndEnd.second.for_each(fun(it: regexState*): void { it->next_states.add(end); })
         return this
     }
 
@@ -111,11 +111,11 @@ obj regex(Object) {
                 i = perenEnd-1
 
                 if (alternating) {
-                    previous_end.do(fun(it: regexState*):void { it->next_states.add_all(innerBeginEnd.first->next_states); } )
+                    previous_end.for_each(fun(it: regexState*):void { it->next_states.add_all(innerBeginEnd.first->next_states); } )
                     current_begin.add_all(innerBeginEnd.first->next_states)
                     current_end.add_all(innerBeginEnd.second)
                 } else {
-                    current_end.do(fun(it: regexState*):void { it->next_states.add_all(innerBeginEnd.first->next_states); } )
+                    current_end.for_each(fun(it: regexState*):void { it->next_states.add_all(innerBeginEnd.first->next_states); } )
                     previous_begin = current_begin
                     previous_end = current_end
                     current_begin = innerBeginEnd.first->next_states
@@ -129,11 +129,11 @@ obj regex(Object) {
             } else {
                 var next = mem::new<regexState>()->construct(regex_string[i])
                 if (alternating) {
-                    previous_end.do(fun(it: regexState*):void { it->next_states.add(next); })
+                    previous_end.for_each(fun(it: regexState*):void { it->next_states.add(next); })
                     current_begin.add(next)
                     current_end.add(next)
                 } else {
-                    current_end.do(fun(it: regexState*):void { it->next_states.add(next); })
+                    current_end.for_each(fun(it: regexState*):void { it->next_states.add(next); })
                     previous_begin = current_begin
                     previous_end = current_end
                     current_begin = vector::vector(next)

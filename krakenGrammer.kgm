@@ -113,7 +113,7 @@ term = term WS "/" WS factor | term WS "\*" WS factor | term WS "%" WS factor | 
 factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\(" WS type WS "\)" WS unarad | "\*" WS unarad | "&" WS unarad | unarad ;
 unarad = number | scoped_identifier | scoped_identifier WS template_inst | access_operation | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | unarad WS "[" WS expression WS "]" | lambda ; 
 number = integer | floating_literal ;
-access_operation = unarad "." identifier | unarad "->" identifier | unarad "." identifier WS template_inst | unarad "->" identifier WS template_inst ;
+access_operation = unarad WS "." WS identifier | unarad WS "->" WS identifier | unarad WS "." WS identifier WS template_inst | unarad WS "->" WS identifier WS template_inst ;
 
 assignment_statement = factor WS "=" WS boolean_expression | factor WS "\+=" WS boolean_expression | factor WS "-=" WS boolean_expression | factor WS "\*=" WS boolean_expression | factor WS "/=" WS boolean_expression ;
 # if it's being assigned to, we allow type inferencing

@@ -52,7 +52,7 @@ fun main(): int {
     for (var i: int = 0; i < intVec.size; i++;)
         print(intVec.at(i));
     println();
-    intVec.do(fun(it:int):void print(it+7);)
+    intVec.for_each(fun(it:int):void print(it+7);)
     println();
 
     var subd = intVec.map(fun(it:int):int { return it-1; })
@@ -90,19 +90,19 @@ fun main(): int {
     sliceTest.add(3)
     sliceTest.add(4)
     print("full: ")
-    sliceTest.do(fun(it:int):void print(it);)
+    sliceTest.for_each(fun(it:int):void print(it);)
     println()
     print("middle: ")
-    sliceTest.slice(1,-2).do(fun(it:int):void print(it);)
+    sliceTest.slice(1,-2).for_each(fun(it:int):void print(it);)
     println()
     print("all but first: ")
-    sliceTest.slice(1,-1).do(fun(it:int):void print(it);)
+    sliceTest.slice(1,-1).for_each(fun(it:int):void print(it);)
     println()
     print("all but last: ")
-    sliceTest.slice(0,-2).do(fun(it:int):void print(it);)
+    sliceTest.slice(0,-2).for_each(fun(it:int):void print(it);)
     println()
     print("just some: ")
-    sliceTest.slice(1,2).do(fun(it:int):void print(it);)
+    sliceTest.slice(1,2).for_each(fun(it:int):void print(it);)
     println()
 
     println("find test")
@@ -116,10 +116,10 @@ fun main(): int {
     setTest.add(7)
     setTest.set(1,8)
     setTest[2] = 9
-    setTest.do(fun(it: int) println(it);)
+    setTest.for_each(fun(it: int) println(it);)
     println("delete")
     setTest.remove(2)
-    setTest.do(fun(it: int) println(it);)
+    setTest.for_each(fun(it: int) println(it);)
 
     println("delete v2")
     var firstRem.construct(100): AbleToBeDestroyed;

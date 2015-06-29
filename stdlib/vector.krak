@@ -169,13 +169,9 @@ obj vector<T> (Object) {
         size--
     }
 
-    fun do(func: fun(T):void):void {
+    fun for_each(func: fun(T):void):void {
         for (var i = 0; i < size; i++;)
             func(data[i])
-    }
-    fun do<U>(func: fun(T,U):void, extraParam: U):void {
-        for (var i = 0; i < size; i++;)
-            func(data[i], extraParam)
     }
     fun in_place(func: fun(T):T):void {
         for (var i = 0; i < size; i++;)
@@ -196,26 +192,10 @@ obj vector<T> (Object) {
         }
         return newVec
     }
-    fun flatten_map<U,V>(func: fun(T,V):vector<U>, extraParam:V):vector<U> {
-        var newVec.construct(): vector<U>
-        for (var i = 0; i < size; i++;) {
-            var to_add = func(data[i], extraParam)
-            for (var j = 0; j < to_add.size; j++;)
-                newVec.addEnd(to_add.get(j))
-        }
-        return newVec
-    }
     fun filter(func: fun(T):bool):vector<T> {
         var newVec.construct(): vector<T>
         for (var i = 0; i < size; i++;)
             if (func(data[i]))
-                newVec.addEnd(data[i])
-        return newVec
-    }
-    fun filter<U>(func: fun(T,U):bool, extraParam: U):vector<T> {
-        var newVec.construct(): vector<T>
-        for (var i = 0; i < size; i++;)
-            if (func(data[i], extraParam))
                 newVec.addEnd(data[i])
         return newVec
     }
@@ -224,6 +204,13 @@ obj vector<T> (Object) {
             if (func(data[i]))
                 return true
         return false
+    }
+    fun max(func: fun(T,T):bool): T {
+        var maxIdx = 0
+        for (var i = 1; i < size; i++;)
+            if (func(data[maxIdx], data[i]))
+                maxIdx = i
+        return data[maxIdx]
     }
 };
 

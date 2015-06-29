@@ -52,9 +52,10 @@ fun delete<T>(toDelete: T*, itemCount: int): void {
 fun delete<T(Object)>(toDelete: T*, itemCount: int): void {
     // start at one because the actual delete will call the destructor of the first one as it
     // finishes the pointer
-    for (var i: int = 1; i < itemCount; i++;)
+    for (var i: int = 0; i < itemCount; i++;)
         toDelete[i].destruct();
-    delete<T>(toDelete);
+    free<T>(toDelete);
+    //delete<T>(toDelete);
 }
 
 /* We specilize on the trait Object to decide on whether or not the destructor should be called */

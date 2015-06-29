@@ -1,0 +1,16 @@
+import lexer:*
+import regex:*
+import string:*
+import symbol:*
+import io:*
+
+fun main(): int {
+    var lex.construct(): lexer
+    lex.set_input(string("aaaatesta"))
+    lex.add_regex(regex("a+"))
+    lex.add_regex(regex("test"))
+    println(lex.next().to_string())
+    println(lex.next().to_string())
+    return 0
+}
+

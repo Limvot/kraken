@@ -1,4 +1,5 @@
 import vector
+import util
 import mem
 
 fun string(in:char*):string {
@@ -24,6 +25,9 @@ obj string (Object) {
     fun construct(vec: vector::vector<char>): string* {
         data.copy_construct(&vec);
         return this;
+    }
+    fun construct(str: string): string* {
+        return construct(str.data);
     }
 
     fun copy_construct(old: string*): void {
@@ -61,13 +65,28 @@ obj string (Object) {
     }
     fun length():int { return data.size; }
 
+    fun operator==(other: string): bool {
+        return length() == other.length() && !util::range(length()).any_true(fun(i: int):bool { return data[i] != other[i]; } )
+    }
+
     fun operator+(str: char*): string {
         var newStr.construct(str):string
         var ret.construct(data + newStr.data):string
         return ret
     }
 
+    fun operator+(str: string): string {
+        var newStr.construct(str):string
+        var ret.construct(data + newStr.data):string
+        return ret
+    }
+
     fun operator+=(str: char*): void {
+        var newStr.construct(str):string
+        data += newStr.data
+    }
+
+    fun operator+=(str: string): void {
         var newStr.construct(str):string
         data += newStr.data
     }
