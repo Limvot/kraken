@@ -1,6 +1,7 @@
 import io:*;
 import mem:*;
 import vector:*;
+import vector_literals:*
 
 obj AbleToBeDestroyed (Object) {
     var data:int
@@ -64,6 +65,9 @@ fun main(): int {
     for (var i: int = 0; i < newType.size; i++;)
         print(newType.at(i));
     println();
+
+    vector(1,2,3,4,5,6,7,8,9,10,11,12).for_each(fun(i:int) { print(i); })
+    println()
 
     var desVec: vector<AbleToBeDestroyed>* = new<vector<AbleToBeDestroyed>>()->construct();
     var testDestruct.construct(0): AbleToBeDestroyed;

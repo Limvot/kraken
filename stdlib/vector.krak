@@ -13,22 +13,6 @@ fun vector<T>(in:T):vector<T> {
     return out
 }
 
-fun vector<T>(first:T, second:T):vector<T> {
-    var out.construct():vector<T>
-    out.add(first)
-    out.add(second)
-    return out
-}
-
-fun vector<T>(first:T, second:T, third:T):vector<T> {
-    var out.construct():vector<T>
-    out.add(first)
-    out.add(second)
-    out.add(third)
-    return out
-}
-
-
 obj vector<T> (Object) {
     var data: T*;
     var size: int;

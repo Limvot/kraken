@@ -1,0 +1,104 @@
+import vector
+
+fun vector<T>(first:T, second:T):vector::vector<T> {
+    var out.construct():vector::vector<T>
+    out.add(first)
+    out.add(second)
+    return out
+}
+
+fun vector<T>(first:T, second:T, third:T):vector::vector<T> {
+    var out.construct():vector::vector<T>
+    out.add(first)
+    out.add(second)
+    out.add(third)
+    return out
+}
+
+fun vector<T>(first:T, second:T, third:T, fourth:T):vector::vector<T> {
+    var out.construct():vector::vector<T>
+    out.add(first)
+    out.add(second)
+    out.add(third)
+    out.add(fourth)
+    return out
+}
+
+fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T):vector::vector<T> {
+    var out.construct():vector::vector<T>
+    out.add(first)
+    out.add(second)
+    out.add(third)
+    out.add(fourth)
+    out.add(fifth)
+    return out
+}
+
+fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T):vector::vector<T> {
+    var out.construct():vector::vector<T>
+    out.add(first)
+    out.add(second)
+    out.add(third)
+    out.add(fourth)
+    out.add(fifth)
+    out.add(sixth)
+    return out
+}
+
+fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T):vector::vector<T> {
+    var out.construct():vector::vector<T>
+    out.add(first)
+    out.add(second)
+    out.add(third)
+    out.add(fourth)
+    out.add(fifth)
+    out.add(sixth)
+    out.add(seventh)
+    return out
+}
+
+fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T):vector::vector<T> {
+    var out.construct():vector::vector<T>
+    out.add(first)
+    out.add(second)
+    out.add(third)
+    out.add(fourth)
+    out.add(fifth)
+    out.add(sixth)
+    out.add(seventh)
+    out.add(eighth)
+    return out
+}
+
+fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T, ninth:T):vector::vector<T> {
+    var out.construct():vector::vector<T>
+    out.add(first)
+    out.add(second)
+    out.add(third)
+    out.add(fourth)
+    out.add(fifth)
+    out.add(sixth)
+    out.add(seventh)
+    out.add(eighth)
+    out.add(ninth)
+    return out
+}
+
+fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T, ninth:T, tenth:T, eleventh:T, twelveth:T):vector::vector<T> {
+    var out.construct():vector::vector<T>
+    out.add(first)
+    out.add(second)
+    out.add(third)
+    out.add(fourth)
+    out.add(fifth)
+    out.add(sixth)
+    out.add(seventh)
+    out.add(eighth)
+    out.add(ninth)
+    out.add(tenth)
+    out.add(eleventh)
+    out.add(twelveth)
+    return out
+}
+
+
