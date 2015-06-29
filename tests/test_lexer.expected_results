@@ -1,2 +1,22 @@
 a+: aaaa true
 test: test true
+old contributed tests
+b: b true
+b: b true
+$EOF$: no_value true
+
+a*: aaa true
+b: b true
+a*: aa true
+b: b true
+b: b true
+$EOF$: no_value true
+
+a|b: b true
+$INVALID$: no_value true
+
+xyzzy: xyzzy true
+$EOF$: no_value true
+
+(i|n|t|e)+: intent true
+$EOF$: no_value true

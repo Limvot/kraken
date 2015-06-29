@@ -30,16 +30,23 @@ obj lexer {
     fun add_regex(newOne: regex::regex) {
         regs.add(newOne)
     }
+    fun add_regex(newOne: char*) {
+        regs.add(regex::regex(newOne))
+    }
     fun set_input(in: string::string) {
         input = in
     }
     fun next(): symbol::symbol {
+        if (position >= input.length())
+            return symbol::symbol("$EOF$", true)
         var max = regs.map(fun(reg: regex::regex): util::pair<int, string::string> {
                 return util::make_pair(reg.long_match(input.slice(position, -1)), reg.regexString); })
                 .max(fun(first: util::pair<int, string::string>, second: util::pair<int, string::string>): bool
                         { return first.first < second.first; })
+        if (max.first < 0)
+            return symbol::symbol("$INVALID$", true)
         position += max.first
-        return symbol::symbol(input.slice(position-max.first, position), max.second, true)
+        return symbol::symbol(max.second, true, input.slice(position-max.first, position))
     }
 }
 

@@ -1,12 +1,22 @@
 import string
 
-fun symbol(dataIn: char*, nameIn: char*, terminalIn: bool): symbol {
-    var toRet.construct(string::string(dataIn), string::string(nameIn), terminalIn): symbol
+fun symbol(nameIn: char*, terminalIn: bool): symbol {
+    var toRet.construct(string::string(nameIn), terminalIn, string::string("no_value")): symbol
     return toRet
 }
 
-fun symbol(dataIn: string::string, nameIn: string::string, terminalIn: bool): symbol {
-    var toRet.construct(dataIn, nameIn, terminalIn): symbol
+fun symbol(nameIn: string::string, terminalIn: bool): symbol {
+    var toRet.construct(nameIn, terminalIn, string::string("no_value")): symbol
+    return toRet
+}
+
+fun symbol(nameIn: char*, terminalIn: bool, dataIn: char*): symbol {
+    var toRet.construct(string::string(nameIn), terminalIn, string::string(dataIn)): symbol
+    return toRet
+}
+
+fun symbol(nameIn: string::string, terminalIn: bool, dataIn: string::string): symbol {
+    var toRet.construct(nameIn, terminalIn, dataIn): symbol
     return toRet
 }
 
@@ -20,10 +30,10 @@ obj symbol {
         name.construct()
         return this
     }
-    fun construct(dataIn: string::string, nameIn: string::string, terminalIn: bool): symbol* {
-        data.construct(dataIn)
+    fun construct(nameIn: string::string, terminalIn: bool, dataIn: string::string): symbol* {
         name.construct(nameIn)
         terminal = terminalIn
+        data.construct(dataIn)
         return this
     }
     fun destruct() {

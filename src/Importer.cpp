@@ -130,7 +130,7 @@ void Importer::import(std::string fileName) {
 			return;
 		}
 		if (i.ast) {
-			outFileAST << i.ast->DOTGraphString() << std::endl;
+			//outFileAST << i.ast->DOTGraphString() << std::endl;
 		} else {
 			std::cout << "Tree returned from ASTTransformation for " << fileName << " is NULL!" << std::endl;
 		}
@@ -186,8 +186,8 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 	NodeTree<Symbol>* parseTree = parser->parseInput(programInputFileString);
 
 	if (parseTree) {
-		//std::cout << parseTree->DOTGraphString() << std::endl;
-		outFile << parseTree->DOTGraphString() << std::endl;
+        //std::cout << parseTree->DOTGraphString() << std::endl;
+		//outFile << parseTree->DOTGraphString() << std::endl;
 	} else {
 		std::cout << "ParseTree returned from parser for " << fileName << " is NULL!" << std::endl;
 	    outFile.close(); outFileTransformed.close();
@@ -207,7 +207,7 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 		parseTree = CollapseTransformation<Symbol>(collapseSymbols[i]).transform(parseTree);
 
 	if (parseTree) {
-		outFileTransformed << parseTree->DOTGraphString() << std::endl;
+		//outFileTransformed << parseTree->DOTGraphString() << std::endl;
 	} else {
 		std::cout << "Tree returned from transformation is NULL!" << std::endl;
 	}
