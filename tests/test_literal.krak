@@ -1,0 +1,25 @@
+import io:*
+
+fun do_num(it: int) {
+    print("int: ")
+    println(it)
+}
+
+fun do_num(it: float) {
+    print("float: ")
+    println(it)
+}
+
+fun do_num(it: double) {
+    print("double: ")
+    println(it)
+}
+
+fun main():int {
+    do_num(1)
+    do_num(1.0)
+    do_num(1.0f)
+    do_num(1.0d)
+    return 0
+}
+
