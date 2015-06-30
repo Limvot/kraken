@@ -17,7 +17,7 @@ fun make_pair<T,U>(first: T, second: U): pair<T,U> {
     return it
 }
 
-obj pair<T,U>(Object) {
+obj pair<T,U> (Object) {
     var first: T
     var second: U
 

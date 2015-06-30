@@ -4,7 +4,7 @@ import string
 import vector
 import util
 
-obj lexer {
+obj lexer (Object) {
     var regs: vector::vector<regex::regex>
     var input: string::string
     var position: int

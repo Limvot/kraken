@@ -14,7 +14,7 @@ fun regex(in: string::string):regex {
     return out
 }
 
-obj regexState(Object) {
+obj regexState (Object) {
     var character: char
     var next_states: vector::vector<regexState*>
     fun construct(charIn:char): regexState* {
@@ -40,7 +40,7 @@ obj regexState(Object) {
     }
 }
 
-obj regex(Object) {
+obj regex (Object) {
     var regexString: string::string
     var begin: regexState*
 

@@ -1,0 +1,34 @@
+import string
+import vector
+import set
+import symbol
+
+obj rule (Object) {
+    var lhs: symbol::symbol
+    var rhs: vector::vector<symbol::symbol>
+    var position: int
+    var lookahead: set::set<symbol::symbol>
+
+    fun construct(): rule* {
+        lhs.construct()
+        rhs.construct()
+        position = 0
+        lookahead.construct()
+    }
+    fun copy_construct(old: rule*) {
+        lhs.copy_construct(&rule->lhs)
+        rhs.copy_construct(&rule->rhs)
+        position = rule->position
+        lookahead.copy_construct(&rule->lookahead)
+    }
+    fun operator=(other: rule) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+        lhs.destruct()
+        rhs.destruct()
+        lookahead.destruct()
+    }
+}
+

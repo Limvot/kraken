@@ -20,7 +20,7 @@ fun symbol(nameIn: string::string, terminalIn: bool, dataIn: string::string): sy
     return toRet
 }
 
-obj symbol {
+obj symbol (Object) {
     var data: string::string
     var name: string::string
     var terminal: bool

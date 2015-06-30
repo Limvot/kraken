@@ -18,7 +18,7 @@ fun from_vector<T>(items: vector::vector<T>): set<T> {
     return toRet
 }
 
-obj set<T> {
+obj set<T> (Object) {
     var data: vector::vector<T>
     fun construct() {
         data.construct()

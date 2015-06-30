@@ -11,7 +11,7 @@ fun map<T,U>(key:T, value:U): map<T,U> {
     return toRet
 }
 
-obj map<T,U> {
+obj map<T,U> (Object) {
     var keys: vector::vector<T>
     var values: vector::vector<U>
 
