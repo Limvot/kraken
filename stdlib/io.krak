@@ -1,4 +1,4 @@
-import string:*;
+import string;
 import mem:*
 
 __if_comp__ __C__ simple_passthrough """
@@ -32,7 +32,7 @@ fun print(toPrint: char) : void {
 	return;
 }
 
-fun print(toPrint: string) : void {
+fun print(toPrint: string::string) : void {
     var charArr = toPrint.toCharArray()
     defer delete(charArr)
     print(charArr);
@@ -71,5 +71,31 @@ fun print(toPrint: double) : void{
 		"""
 	}
 	return;
+}
+
+// Ok, just some DEAD simple file io for now
+fun read_file(path: string::string): string::string {
+    var char_path = path.toCharArray()
+    defer delete(char_path)
+    var data: char*
+	__if_comp__ __C__ {
+		simple_passthrough(char_path = char_path:data = data:) """
+			FILE *fp = fopen(char_path, "r");
+            fseek(fp, 0L, SEEK_END);
+            long size = ftell(fp);
+            fseek(fp, 0L, SEEK_SET);
+            char *data = malloc(size+1);
+            size_t readSize = fread(data, 1, size, fp);
+            data[readSize] = 0;
+            fclose(fp);
+		"""
+	}
+    var toRet = string::string(data)
+	__if_comp__ __C__ {
+		simple_passthrough(data = data::) """
+            free(data)
+		"""
+	}
+    return toRet
 }
 

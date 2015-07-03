@@ -20,7 +20,7 @@ class ASTTransformation;
 
 class Importer {
 	public:
-		Importer(Parser* parserIn, std::vector<std::string> includePaths, std::string outputName);
+		Importer(Parser* parserIn, std::vector<std::string> includePaths, std::string outputName, bool only_parseIn = false);
 		~Importer();
 		void import(std::string fileName);
 		NodeTree<ASTData>* getUnit(std::string fileName);
@@ -36,6 +36,7 @@ class Importer {
 			NodeTree<ASTData>* ast;
 			NodeTree<Symbol>* syntaxTree;
 		};
+        bool only_parse;
 		std::vector<importTriplet> importedTrips;
 		std::vector<std::string> includePaths;
 		Parser* parser;

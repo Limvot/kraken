@@ -1,0 +1,7 @@
+import io
+
+fun main():int {
+    return 0
+}
+
+

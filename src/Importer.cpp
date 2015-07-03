@@ -1,12 +1,15 @@
 #include "Importer.h"
 
-Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std::string outputNameIn) {
+Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std::string outputNameIn, bool only_parseIn) {
+    only_parse = only_parseIn;
 	//constructor
     outputName = outputNameIn;
 
-    if (mkdir(("./" + outputName).c_str(), 0755)) {
-        std::cerr << "\n\n =====IMPORTER===== \n\n" << std::endl;
-        std::cerr << "Could not make directory " << outputName << std::endl;
+    if (!only_parse) {
+        if (mkdir(("./" + outputName).c_str(), 0755)) {
+            //std::cerr << "\n\n =====IMPORTER===== \n\n" << std::endl;
+            //std::cerr << "Could not make directory " << outputName << std::endl;
+        }
     }
 
 	parser = parserIn;
@@ -69,13 +72,13 @@ void Importer::registerAST(std::string name, NodeTree<ASTData>* ast, NodeTree<Sy
 }
 
 NodeTree<ASTData>* Importer::getUnit(std::string fileName) {
-	std::cout << "\n\nImporting " << fileName << " ";
+	//std::cout << "\n\nImporting " << fileName << " ";
 	//Check to see if we've already done it
 	if (imported.find(fileName) != imported.end()) {
-		std::cout << "Already Imported!" << std::endl;
+		//std::cout << "Already Imported!" << std::endl;
 		return imported[fileName];
 	}
-	std::cout << "Not yet imported" << std::endl;
+	//std::cout << "Not yet imported" << std::endl;
 
 	return NULL;
 }
@@ -87,7 +90,8 @@ NodeTree<ASTData>* Importer::importFirstPass(std::string fileName) {
         if (!parseTree)
             return NULL;
 		//Call with ourself to allow the transformation to call us to import files that it needs
-		ast = ASTTransformer->firstPass(fileName, parseTree); //This firstPass will register itself
+        if (!only_parse)
+            ast = ASTTransformer->firstPass(fileName, parseTree); //This firstPass will register itself
 	}
 	return ast;
 }
@@ -97,8 +101,10 @@ void Importer::import(std::string fileName) {
 	//Start the ball rolling by importing and running the first pass on the first file.
 	//This will import, first pass and register all the other files too.
 
-	std::cout << "\n\n =====FIRST PASS===== \n\n" << std::endl;
+	//std::cout << "\n\n =====FIRST PASS===== \n\n" << std::endl;
 	importFirstPass(fileName);	//First pass defines all objects
+    if (only_parse)
+        return;
 
 	std::cout << "\n\n =====SECOND PASS===== \n\n" << std::endl;
 	for (importTriplet i : importedTrips)					//Second pass defines data inside objects, outside declaration statements,
@@ -141,39 +147,41 @@ void Importer::import(std::string fileName) {
 NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 
 	std::ifstream programInFile;
-	std::ofstream outFile, outFileTransformed;
+	//std::ofstream outFile, outFileTransformed;
 
-
-    std::cout << "outputName " << outputName << std::endl;
-    std::cout << "fileName " << fileName << std::endl;
+    //std::cout << "outputName " << outputName << std::endl;
+    //std::cout << "fileName " << fileName << std::endl;
 
     auto pathPieces = split(fileName, '/');
     std::string outputFileName = outputName + "/" + pathPieces[pathPieces.size()-1] + "out";
-    std::cout << "outputFileName " << outputFileName << std::endl;
+    //std::cout << "outputFileName " << outputFileName << std::endl;
 
+    std::string inputFileName;
 	for (auto i : includePaths) {
 		programInFile.open(i+fileName);
-		if (programInFile.is_open())
+		if (programInFile.is_open()) {
+            inputFileName = i+fileName;
 			break;
-		else
+        } else {
 			std::cout << i+fileName << " is no good" << std::endl;
+        }
 	}
 	if (!programInFile.is_open()) {
 		std::cout << "Problem opening programInFile " << fileName << "\n";
 		return NULL;
 	}
 
-	outFile.open(outputFileName);
-	if (!outFile.is_open()) {
-		std::cout << "Probelm opening output file " << outputFileName << "\n";
-		return NULL;
-	}
+	//outFile.open(outputFileName);
+	//if (!outFile.is_open()) {
+		//std::cout << "Probelm opening output file " << outputFileName << "\n";
+		//return NULL;
+	//}
 
-	outFileTransformed.open((outputFileName + ".transformed.dot").c_str());
-	if (!outFileTransformed.is_open()) {
-		std::cout << "Probelm opening second output file " << outputFileName + ".transformed.dot" << "\n";
-		return NULL;
-	}
+	//outFileTransformed.open((outputFileName + ".transformed.dot").c_str());
+	//if (!outFileTransformed.is_open()) {
+		//std::cout << "Probelm opening second output file " << outputFileName + ".transformed.dot" << "\n";
+		//return NULL;
+	//}
 
 	std::string programInputFileString, line;
 	while(programInFile.good()) {
@@ -183,18 +191,18 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 	programInFile.close();
 
 	//std::cout << programInputFileString << std::endl;
-	NodeTree<Symbol>* parseTree = parser->parseInput(programInputFileString);
+	NodeTree<Symbol>* parseTree = parser->parseInput(programInputFileString, inputFileName);
 
 	if (parseTree) {
         //std::cout << parseTree->DOTGraphString() << std::endl;
 		//outFile << parseTree->DOTGraphString() << std::endl;
 	} else {
 		std::cout << "ParseTree returned from parser for " << fileName << " is NULL!" << std::endl;
-	    outFile.close(); outFileTransformed.close();
+		//outFile.close(); outFileTransformed.close();
         throw "unexceptablblllll";
         return NULL;
     }
-	outFile.close();
+	//outFile.close();
 
 	//Remove Transformations
 
@@ -211,7 +219,7 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 	} else {
 		std::cout << "Tree returned from transformation is NULL!" << std::endl;
 	}
-	outFileTransformed.close();
+	//outFileTransformed.close();
 
     std::cout << "Returning parse tree" << std::endl;
 	return parseTree;

@@ -28,7 +28,7 @@ class Parser {
 		virtual void loadGrammer(std::string grammerInputString);
 		virtual void createStateSet();
 		virtual std::string stateSetToString();
-		virtual NodeTree<Symbol>* parseInput(std::string inputString) = 0;
+		virtual NodeTree<Symbol>* parseInput(std::string inputString, std::string filename) = 0; // filename for error reporting
 		virtual std::string grammerToString();
 		virtual std::string grammerToDOT();
 

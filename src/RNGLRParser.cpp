@@ -22,7 +22,7 @@ void RNGLRParser::printReconstructedFrontier(int frontier) {
     }
 }
 
-NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
+NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString, std::string filename) {
 	input.clear();
 	gss.clear();
 	while(!toReduce.empty()) toReduce.pop();
@@ -30,6 +30,7 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 	SPPFStepNodes.clear();
 	nullableParts.clear();
 	packedMap.clear();
+    bool errord = false;
 
 	//Check for no tokens
 	bool accepting = false;
@@ -52,16 +53,21 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 	lexer.setInput(inputString);
 	//Now fully lex our input because this algorithm was designed in that manner and simplifies this first implementation.
 	//It could be converted to on-line later.
+    int tokenNum = 1;
 	Symbol currentToken = lexer.next();
 	input.push_back(currentToken);
 	while (currentToken != EOFSymbol) {
 		currentToken = lexer.next();
 		//std::cout << "CurrentToken is " << currentToken.toString() << std::endl;
 		if (currentToken == invalidSymbol) {
+			std::cerr << filename << ":" << findLine(tokenNum) << std::endl;
+            errord = true;
+            std::cerr << "lex error" << std::endl;
 			std::cerr << "Invalid Symbol!" << std::endl;
 			throw "Invalid Symbol, cannot lex";
 		}
 		input.push_back(currentToken);
+        tokenNum++;
 	}
 
 	// std::cout << "\nDone with Lexing, length:" << input.size() << std::endl;
@@ -99,8 +105,11 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 		// std::cout << "Checking if frontier " << i << " is empty" << std::endl;
 		if (gss.frontierIsEmpty(i)) {
 			//std::cout << "Frontier " << i << " is empty." << std::endl;
-			std::cerr << "Parsing failed on " << input[i].toString() << std::endl;
-			std::cerr << "Problem is on line: " << findLine(i) << std::endl;
+			//std::cerr << "Parsing failed on " << input[i].toString() << std::endl;
+			//std::cerr << "Problem is on line: " << findLine(i) << std::endl;
+			std::cerr << filename << ":" << findLine(i) << std::endl;
+            errord = true;
+            std::cerr << "parse error" << std::endl;
 			std::cerr << "Nearby is:" << std::endl;
 			int range = 10;
 			for (int j = (i-range >= 0 ? i-range : 0); j < (i+range < input.size() ? i+range : input.size()); j++)
@@ -137,6 +146,12 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString) {
 		std::cout << "Accepted!" << std::endl;
 		return gss.getEdge(accState, v0);
 	}
+
+    if (!errord) {
+        std::cerr << filename << ":" << findLine(input.size())-2 << std::endl;
+        std::cerr << "parse error" << std::endl;
+        std::cerr << "Nearby is:" << std::endl;
+    }
 
 	std::cerr << "Rejected!" << std::endl;
 	// std::cout << "GSS:\n" << gss.toString() << std::endl;
@@ -522,7 +537,7 @@ std::vector<NodeTree<Symbol>*> RNGLRParser::getPathEdges(std::vector<NodeTree<in
 }
 
 int RNGLRParser::findLine(int tokenNum) {
-	int lineNo = 0;
+	int lineNo = 1;
 	for (int i = 0; i < tokenNum; i++) {
 		std::string tokenString = input[i].getValue();
 		for (int j = 0; j < tokenString.size(); j++)

@@ -2,6 +2,29 @@ import string
 import vector
 import set
 import symbol
+import regex
+
+obj grammer (Object) {
+    var rules: vector::vector<rule>
+    var regexs: set::set<regex>
+
+    fun construct(): grammer* {
+        rules.construct()
+        regexs.construct()
+    }
+    fun copy_construct(old: grammer*) {
+        rules.copy_construct(&old->rules)
+        regexs.copy_construct(&old->regexs)
+    }
+    fun operator=(other: grammer) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+        rules.destruct()
+        regexs.destruct()
+    }
+}
 
 obj rule (Object) {
     var lhs: symbol::symbol
@@ -16,10 +39,10 @@ obj rule (Object) {
         lookahead.construct()
     }
     fun copy_construct(old: rule*) {
-        lhs.copy_construct(&rule->lhs)
-        rhs.copy_construct(&rule->rhs)
-        position = rule->position
-        lookahead.copy_construct(&rule->lookahead)
+        lhs.copy_construct(&other->lhs)
+        rhs.copy_construct(&other->rhs)
+        position = other->position
+        lookahead.copy_construct(&other->lookahead)
     }
     fun operator=(other: rule) {
         destruct()

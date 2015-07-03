@@ -29,6 +29,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Or for testing do: kraken --test [optional list of names of file (.krak .expected_results) without extentions to run]" << std::endl;
         return 0;
     }
+	std::string grammerFileString = "../krakenGrammer.kgm";
 
 	if (argc >= 2 && std::string(argv[1]) == "--test") {
 		StringReader::test();
@@ -40,7 +41,7 @@ int main(int argc, char* argv[]) {
 		if (argc >= 3) {
 			std::string testResults, line;
 			int passed = 0, failed = 0;
-			Tester test(argv[0], "../krakenGrammer.kgm");
+			Tester test(argv[0], grammerFileString);
             // find the max length so we can pad the string and align the results
             unsigned int maxLineLength = 0;
 			for (int i = 2; i < argc; i++) {
@@ -66,10 +67,16 @@ int main(int argc, char* argv[]) {
 	krakenDir = strSlice(krakenDir, 0, -(std::string("kraken").length()+1));
 	includePaths.push_back(krakenDir + "stdlib/"); //Add the stdlib directory that exists in the same directory as the kraken executable to the path
 
-	std::string grammerFileString = "../krakenGrammer.kgm";
 	std::string programName;
 	std::string outputName;
-    if (argc > 3) {
+    bool parse_only = false;
+    //std::cout << "argv[1] == " << argv[1] << std::endl;
+    if (std::string(argv[1]) == "--parse-only") {
+        parse_only = true;
+        grammerFileString = argv[2];
+        programName = argv[3];
+        //outputName = argv[3];
+    } else if (argc > 3) {
         grammerFileString = argv[1];
         programName = argv[2];
         outputName = argv[3];
@@ -103,14 +110,13 @@ int main(int argc, char* argv[]) {
 	}
 	grammerInFile.close();
 
-	//LALRParser parser;
 	RNGLRParser parser;
 	parser.loadGrammer(grammerInputFileString);
 
 	//Start binary stuff
 	bool compGramGood = false;
 	if (compiledGrammerInFile.is_open()) {
-		std::cout << "Compiled grammer file exists, reading it in" << std::endl;
+		//std::cout << "Compiled grammer file exists, reading it in" << std::endl;
 		std::streampos compGramSize = compiledGrammerInFile.tellg();
 		char* binaryTablePointer = new char [compGramSize];
 		compiledGrammerInFile.seekg(0, std::ios::beg);
@@ -118,7 +124,7 @@ int main(int argc, char* argv[]) {
 		compiledGrammerInFile.close();
 		//Check magic number
 		if (binaryTablePointer[0] == 'K' && binaryTablePointer[1] == 'R' && binaryTablePointer[2] == 'A' && binaryTablePointer[3] == 'K') {
-			std::cout << "Valid Kraken Compiled Grammer File" << std::endl;
+			//std::cout << "Valid Kraken Compiled Grammer File" << std::endl;
 			int gramStringLength = *((int*)(binaryTablePointer+4));
 			//std::cout << "The grammer string is stored to be " << gramStringLength << " characters long, gramString is "
 			//<< grammerInputFileString.length() << " long. Remember 1 extra for null terminator!" << std::endl;
@@ -128,7 +134,7 @@ int main(int argc, char* argv[]) {
 				std::cout << "The Grammer has been changed, will re-create" << std::endl;
 			} else {
 				compGramGood = true;
-				std::cout << "Grammer file is up to date." << std::endl;
+				//std::cout << "Grammer file is up to date." << std::endl;
 				parser.importTable(binaryTablePointer + 4 + sizeof(int) + gramStringLength); //Load table starting at the table section
 			}
 		} else {
@@ -158,17 +164,18 @@ int main(int argc, char* argv[]) {
 	}
 	//End binary stuff
 
-	std::cout << "\nParsing" << std::endl;
+    //std::cout << "\nParsing" << std::endl;
+	//std::cout << "\toutput name: " << outputName << std::endl;
+	//std::cout << "\tprogram name: " << programName << std::endl;
+	Importer importer(&parser, includePaths, outputName, parse_only); // Output name for directory to put stuff in
 
-	std::cout << "\n output name: " << outputName << std::endl;
-	std::cout << "\n program name: " << programName << std::endl;
-	Importer importer(&parser, includePaths, outputName); // Output name for directory to put stuff in
-
-	for (auto i : includePaths)
-		std::cout << i << std::endl;
+	//for (auto i : includePaths)
+		//std::cout << i << std::endl;
 
 	importer.import(programName);
 	std::map<std::string, NodeTree<ASTData>*> ASTs = importer.getASTMap();
+    if (parse_only)
+        return 0;
 
 	//Do optimization, etc. here.
 	//None at this time, instead going straight to C in this first (more naive) version
