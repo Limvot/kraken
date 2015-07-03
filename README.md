@@ -6,6 +6,7 @@ The Kraken Programming Language
 (more info and examples at http://limvot.github.io/kraken/)
 
 (try it out online at http://www.kraken-lang.org/)
+
 (vim integration (filetype, syntax highlighting, Syntastic) at https://github.com/Limvot/kraken.vim)
 
 The Kraken Programming Language is in its infancy.
