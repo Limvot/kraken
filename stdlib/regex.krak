@@ -66,6 +66,10 @@ obj regex (Object) {
         mem::safe_recursive_delete(begin, fun(it: regexState*): set::set<regexState*> { return set::from_vector(it->next_states); } )
     }
 
+    fun operator==(other: regex):bool {
+        return regexString == other.regexString
+    }
+
     fun operator=(other: regex):void {
         destruct()
         construct(other.regexString)

@@ -81,6 +81,10 @@ obj string (Object) {
         return ret
     }
 
+    fun operator+=(character: char): void {
+        data += character
+    }
+
     fun operator+=(str: char*): void {
         var newStr.construct(str):string
         data += newStr.data
@@ -98,6 +102,21 @@ obj string (Object) {
         // null terminator
         out[data.size] = 0
         return out;
+    }
+
+    fun lines(): vector::vector<string> {
+        var out.construct(): vector::vector<string>
+        var current = string("")
+        for (var i = 0; i < data.size; i++;) {
+            if (data[i] == '\n') {
+                out.add(current)
+                current = string("")
+            } else {
+                current += data[i]
+            }
+        }
+        out.add(current)
+        return out
     }
 };
 

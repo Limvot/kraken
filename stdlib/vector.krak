@@ -60,6 +60,10 @@ obj vector<T> (Object) {
         return newVec
     }
 
+    fun operator+=(other: T):void {
+        addEnd(other)
+    }
+
     fun operator+=(other:vector<T>):void {
         for (var i = 0; i < other.size; i++;)
             addEnd(other.get(i))

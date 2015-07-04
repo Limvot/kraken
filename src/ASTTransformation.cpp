@@ -840,7 +840,9 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 			std::cout << i->getDataRef()->toString() << " ";
 		std::cout << std::endl;
 		NodeTree<ASTData>* operatorMethod = NULL;
-		if (nodes[0]->getDataRef()->valueType && nodes[0]->getDataRef()->valueType->typeDefinition)
+
+        // make sure this isn't a pointer, also. Silly vector<string> bug
+		if (nodes[0]->getDataRef()->valueType && !nodes[0]->getDataRef()->valueType->getIndirection() && nodes[0]->getDataRef()->valueType->typeDefinition)
 			operatorMethod = functionLookup(nodes[0]->getDataRef()->valueType->typeDefinition, lookupOp, mapNodesToTypes(slice(nodes,1,-1)));
 		if (operatorMethod) {
 			//Ok, so we construct

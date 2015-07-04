@@ -22,6 +22,7 @@ fun main(): int {
     io::println(newWay)
     io::println( string::string("yes") == string::string("yes") )
     io::println( string::string("no") == string::string("yes") )
+    string::string("2\nlines").lines().for_each(fun(i: string::string) io::println(i);)
     return 0;
 }
 

@@ -3,10 +3,54 @@ import vector
 import set
 import symbol
 import regex
+import io
+
+fun parse_line(line: string::string): vector::vector<string::string> {
+    var out.construct(): vector::vector<string>
+    var begin = 0
+    for (var i = 1; i < line.length(); i++;) {
+        if (line[i] == '=') {
+            i += 2
+            begin = i
+        }
+        if (line[i] == ' ') {
+            out.add(line.slice(begin, i))
+            begin = i + 1
+        }
+    }
+    return out
+}
+
+fun load_grammer(path: string::string): grammer {
+    var gram.construct(): grammer
+    io::read_file(path).lines().for_each(fun(line: string::string) {
+        if (line.length() == 0)
+            return;
+        if (line[0] == '#') {
+            io::print("comment: "); io::println(line)
+            return;
+        }
+        var parts = parse_line(line)
+        /*io::print("parts: ")*/
+        /*parts.for_each(fun(i :string::string){ io::print(i); io::print(" "); })*/
+        /*io::println()*/
+        gram.rules.add(rule(symbol::symbol(parts[0], true),
+            parts.slice(1,-1).map(fun(i: string::string):symbol::symbol {
+                return symbol::symbol(i, true);
+            })
+        ))
+    })
+
+
+    /*gram.rules.add(rule(symbol::symbol("test", true), vector::vector(symbol::symbol("rhs", true))))*/
+    /*gram.rules.add(rule(symbol::symbol("lhs", true), vector::vector(symbol::symbol("rhs2", true))))*/
+    /*gram.regexs.add(regex::regex("reg"))*/
+    return gram
+}
 
 obj grammer (Object) {
     var rules: vector::vector<rule>
-    var regexs: set::set<regex>
+    var regexs: set::set<regex::regex>
 
     fun construct(): grammer* {
         rules.construct()
@@ -24,6 +68,21 @@ obj grammer (Object) {
         rules.destruct()
         regexs.destruct()
     }
+
+    fun to_string(): string::string {
+        var result = string::string("grammer rules:")
+        rules.for_each( fun(i : rule) { result += string::string("\n\t") + i.to_string(); } )
+        result += "\nregexs:"
+        regexs.for_each( fun(i : regex::regex) { result += string::string("\n\t") + i.regexString; } )
+        return result
+    }
+}
+
+fun rule(lhs: symbol::symbol, rhs: vector::vector<symbol::symbol>): rule {
+    var toRet.construct(): rule
+    toRet.lhs = lhs
+    toRet.rhs = rhs
+    return toRet
 }
 
 obj rule (Object) {
@@ -38,7 +97,7 @@ obj rule (Object) {
         position = 0
         lookahead.construct()
     }
-    fun copy_construct(old: rule*) {
+    fun copy_construct(other: rule*) {
         lhs.copy_construct(&other->lhs)
         rhs.copy_construct(&other->rhs)
         position = other->position
@@ -52,6 +111,12 @@ obj rule (Object) {
         lhs.destruct()
         rhs.destruct()
         lookahead.destruct()
+    }
+
+    fun to_string(): string::string {
+        var result = lhs.name + " -> "
+        rhs.for_each( fun(i : symbol::symbol) { result += i.name + " "; } )
+        return result
     }
 }
 

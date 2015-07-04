@@ -1,0 +1,11 @@
+import io:*
+import grammer:*
+import string:*
+
+fun main():int {
+    var a = load_grammer(string("grammer.kgm"))
+    println(a.to_string())
+    return 0
+}
+
+

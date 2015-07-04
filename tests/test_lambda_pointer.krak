@@ -1,0 +1,6 @@
+
+fun main():int {
+    var wr: fun():int*
+    return 0
+}
+
