@@ -142,10 +142,10 @@ obj vector<T> (Object) {
     }
     fun add(dataIn: T): void { addEnd(dataIn); }
     fun addEnd(dataIn: T): void {
+        if (size+1 >= available)
+            resize((size+1)*2);
+        maybe_copy_construct(&data[size], &dataIn);
         size++;
-        if (size >= available)
-            resize(size*2);
-        maybe_copy_construct(&data[size-1], &dataIn);
     }
 
     fun remove(index: int) {
