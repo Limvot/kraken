@@ -11,9 +11,9 @@ fun main(): int {
     var qClass.construct(11): scopeQualified::qualified_class;
     io::println(qClass.get());
 
-    var sayQualified.construct("Qualified Container!"): scopeQualified::qualified_container<char*>;
+    var sayQualified.construct("Qualified Container!"): scopeQualified::qualified_container<*char>;
     io::println(sayQualified.get());
-    io::println(scopeQualified::qualified_id<char*>("Even template functions qualified!"));
+    io::println(scopeQualified::qualified_id<*char>("Even template functions qualified!"));
 
     io::println();
 
@@ -24,9 +24,9 @@ fun main(): int {
     var uqClass.construct(12): unqualified_class;
     io::println(uqClass.get());
 
-    var sayUnqualified.construct("Unqualified Container!"): unqualified_container<char*>;
+    var sayUnqualified.construct("Unqualified Container!"): unqualified_container<*char>;
     io::println(sayUnqualified.get());
-    io::println(unqualified_id<char*>("Even template functions unqualified!"));
+    io::println(unqualified_id<*char>("Even template functions unqualified!"));
 
     return 0;
 }

@@ -3,7 +3,7 @@ fun qualified_func(): int { return 9; }
 
 obj qualified_class {
     var number: int;
-    fun construct(num: int): qualified_class* {
+    fun construct(num: int): *qualified_class {
         number = num;
         return this;
     }
@@ -14,7 +14,7 @@ obj qualified_class {
 
 obj qualified_container<T> {
     var data: T;
-    fun construct(dataIn: T): qualified_container<T>* {
+    fun construct(dataIn: T): *qualified_container<T> {
         data = dataIn;
     }
     fun get(): T {

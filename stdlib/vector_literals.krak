@@ -101,4 +101,3 @@ fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T,
     return out
 }
 
-

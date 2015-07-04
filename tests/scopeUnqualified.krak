@@ -3,7 +3,7 @@ fun unqualified_func(): int { return 10; }
 
 obj unqualified_class {
     var number: int;
-    fun construct(num: int): unqualified_class* {
+    fun construct(num: int): *unqualified_class {
         number = num;
         return this;
     }
@@ -14,7 +14,7 @@ obj unqualified_class {
 
 obj unqualified_container<T> {
     var data: T;
-    fun construct(dataIn: T): unqualified_container<T>* {
+    fun construct(dataIn: T): *unqualified_container<T> {
         data = dataIn;
     }
     fun get(): T {

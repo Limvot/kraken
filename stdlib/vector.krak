@@ -14,18 +14,18 @@ fun vector<T>(in:T):vector<T> {
 }
 
 obj vector<T> (Object) {
-    var data: T*;
+    var data: *T;
     var size: int;
     var available: int;
 
-    fun construct(): vector<T>* {
+    fun construct(): *vector<T> {
         size = 0;
         available = 8;
         data = new<T>(8);
         return this;
     }
 
-    fun construct(newSize: int): vector<T>*{
+    fun construct(newSize: int): *vector<T>{
         size = newSize;
         available = newSize;
 
@@ -33,7 +33,7 @@ obj vector<T> (Object) {
         return this;
     }
 
-    fun copy_construct(old: vector<T>*): void {
+    fun copy_construct(old: *vector<T>): void {
         construct()
         for (var i = 0; i < old->size; i++;)
             addEnd(old->get(i))
@@ -77,7 +77,7 @@ obj vector<T> (Object) {
     }
 
     fun resize(newSize: int): bool {
-        var newData: T* = new<T>(newSize);
+        var newData: *T = new<T>(newSize);
         if (!newData)
             return false;
         for (var i: int = 0; i < lesser<int>(size, newSize); i++;)
@@ -114,7 +114,7 @@ obj vector<T> (Object) {
         return data[index];
     }
 
-    fun getBackingMemory(): T* { return data; }
+    fun getBackingMemory(): *T { return data; }
 
     // This is a template for the interesting reason that structs
     // can not be compared for equality in C, and maybe we haven't defined equality

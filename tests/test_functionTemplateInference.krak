@@ -18,15 +18,15 @@ fun printInt(it:int):void {
 }
 
 
-fun ptrFn<T>(ptr: T*):void {
+fun ptrFn<T>(ptr: *T):void {
     println(*ptr)
 }
 
-fun traitAware<T>(it:T*):void {
+fun traitAware<T>(it:*T):void {
     println("Does not have Traits")
 }
 
-fun traitAware<T(Traits)>(it:T*):void {
+fun traitAware<T(Traits)>(it:*T):void {
     println("Does have Traits")
 }
 

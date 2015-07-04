@@ -21,19 +21,19 @@ obj pair<T,U> (Object) {
     var first: T
     var second: U
 
-    fun construct(firstIn: T, secondIn: U): pair<T,U>* {
+    fun construct(firstIn: T, secondIn: U): *pair<T,U> {
         mem::maybe_copy_construct(&first, &firstIn)
         mem::maybe_copy_construct(&second, &secondIn)
         return this
     }
 
-    fun construct(): pair<T,U>* {
+    fun construct(): *pair<T,U> {
         mem::maybe_construct(&first)
         mem::maybe_construct(&second)
         return this
     }
 
-    fun copy_construct(old: pair<T,U>*):void {
+    fun copy_construct(old: *pair<T,U>):void {
         mem::maybe_copy_construct(&first, &old->first)
         mem::maybe_copy_construct(&second, &old->second)
     }
@@ -62,7 +62,7 @@ obj range {
     var begin: int
     var end: int
     var step: int
-    fun construct(beginIn: int, endIn: int, stepIn: int) : range* {
+    fun construct(beginIn: int, endIn: int, stepIn: int) : *range {
         begin = beginIn
         end = endIn
         step = stepIn

@@ -48,14 +48,14 @@ fun main(): int {
     var c: Trait2;
     var d: TwoTrait;
     var e: AlreadySpecilized;
-    var f: TwoTrait*;
+    var f: *TwoTrait;
 
     OneTwoFunc<NoTraits>(a);
     OneTwoFunc<Trait1>(b);
     OneTwoFunc<Trait2>(c);
     OneTwoFunc<TwoTrait>(d);
 //    OneTwoFunc<AlreadySpecilized>(e);
-    OneTwoFunc<TwoTrait*>(f);
+    OneTwoFunc<*TwoTrait>(f);
     println();
 
     OneTwoFunc(a);
@@ -71,13 +71,13 @@ fun main(): int {
     var gamma: OneTwoObj<Trait2>;
     var delta: OneTwoObj<TwoTrait>;
 //    |OneTwoObj<AlreadySpecilized>| epsilon;
-    var zeta: OneTwoObj<TwoTrait*>;
+    var zeta: OneTwoObj<*TwoTrait>;
 
     OneTwoFunc<OneTwoObj<NoTraits>>(alpha);
     OneTwoFunc<OneTwoObj<Trait1>>(beta);
     OneTwoFunc<OneTwoObj<Trait2>>(gamma);
     OneTwoFunc<OneTwoObj<TwoTrait>>(delta);
-    OneTwoFunc<OneTwoObj<TwoTrait*>>(zeta);
+    OneTwoFunc<OneTwoObj<*TwoTrait>>(zeta);
     println()
 
     OneTwoFunc(alpha);

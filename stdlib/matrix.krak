@@ -1,7 +1,7 @@
 import vector:*;
 import io:*;
 
-typedef matrix (Object) {
+obj matrix (Object) {
   var data: vector<double>;
   var rows: int;
   var cols: int;
@@ -12,7 +12,7 @@ typedef matrix (Object) {
 
   //Constructor with no arguments
   //No matrix is made
-  fun construct(): matrix* {
+  fun construct(): *matrix {
      rows = 0;
      cols = 0;
      data.construct();
@@ -21,7 +21,7 @@ typedef matrix (Object) {
 
   //Constructor with single argument
   //Creates an N x N matrix
-  fun construct(size: int): matrix* {
+  fun construct(size: int): *matrix {
     rows = size;
     cols = size;
     data.construct(rows*cols);
@@ -30,7 +30,7 @@ typedef matrix (Object) {
 
   //Constructor with two arguments
   //Creates an N x M matrix
-  fun construct(r: int, c: int): matrix* {
+  fun construct(r: int, c: int): *matrix {
     rows = r;
     cols = c;
     data.construct(rows*cols);
@@ -143,24 +143,4 @@ typedef matrix (Object) {
   }
 
 };//end Matrix class
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

@@ -1137,11 +1137,11 @@ void ASTTransformation::unifyType(NodeTree<Symbol> *syntaxType, Type type, std::
     //      doing a template member function of a templated object
     } else {
         // go down one in our pointer
-        if (children.back()->getDataRef()->getValue() == "*") {
+        if (children.front()->getDataRef()->getValue() == "*") {
             // gotta be a better way to do this
             Type* clonedType = type.clone();
             clonedType->decreaseIndirection();
-            unifyType(children.front(), *clonedType, templateTypeMap, typeMap);
+            unifyType(children.back(), *clonedType, templateTypeMap, typeMap);
             delete clonedType;
             return;
         }
@@ -1449,11 +1449,13 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 	NodeTree<ASTData>* typeDefinition = NULL;
     std::set<std::string> traits;
     // To counter this, for every indirection we step down a level
-	while (typeIn[typeIn.size() - indirection - 1] == '*') {
+	//while (typeIn[indirection] == '*') {
+    //since fun(*T):int gets transformed to *T:int, the text based way doesn't work anymore
+	while (typeNode->getChildren().size() && typeNode->getChildren().front()->getDataRef()->getValue() == "*") {
         indirection++;
-        typeNode = typeNode->getChildren()[0];
+        typeNode = typeNode->getChildren().back();
     };
-	std::string edited = strSlice(typeIn, 0, -(indirection + 1));
+	std::string edited = strSlice(typeIn, indirection, -1);
 	if (edited == "void")
 		baseType = void_type;
 	else if (edited == "bool")

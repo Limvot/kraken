@@ -19,7 +19,7 @@ fun main(): int {
 	var wooObject: firstObject;
 	wooObject.objectNum = 7;
 	print(wooObject.objectNum);
-	var objPtr: firstObject* = &wooObject;
+	var objPtr: *firstObject = &wooObject;
 	objPtr->objectNum = 42;
 	print(objPtr->objectNum);
 	print("\n");

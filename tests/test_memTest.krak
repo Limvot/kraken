@@ -4,7 +4,7 @@ import io:*;
 obj AnObject {
 	var a: int;
 	var b: int;
-	var c: char*;
+	var c: *char;
 
 	fun print(): void {
 		print(a+b);
@@ -16,7 +16,7 @@ obj AnObject {
 
 
 fun main(): int {
-	var ptr: AnObject* = new<AnObject>();
+	var ptr: *AnObject = new<AnObject>();
 	ptr->a = 4;
 	ptr->b = 7;
 	ptr->c = "Hello decent memory! Quite a nice feeling\n";

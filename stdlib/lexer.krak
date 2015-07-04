@@ -8,7 +8,7 @@ obj lexer (Object) {
     var regs: vector::vector<regex::regex>
     var input: string::string
     var position: int
-    fun construct(): lexer* {
+    fun construct(): *lexer {
         regs.construct()
         input.construct()
         position = 0
@@ -18,7 +18,7 @@ obj lexer (Object) {
         regs.destruct()
         input.destruct()
     }
-    fun copy_construct(old: lexer*) {
+    fun copy_construct(old: *lexer) {
         regs.copy_construct(&old->regs)
         input.copy_construct(&old->input)
         position = old->position
@@ -30,7 +30,7 @@ obj lexer (Object) {
     fun add_regex(newOne: regex::regex) {
         regs.add(newOne)
     }
-    fun add_regex(newOne: char*) {
+    fun add_regex(newOne: *char) {
         regs.add(regex::regex(newOne))
     }
     fun set_input(in: string::string) {

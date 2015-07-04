@@ -23,7 +23,7 @@ fun main():int {
     aVec.addEnd(12)
     println(fromTemplateFun)
     println(idVec(aVec))
-    var testPair: pair2<char*, int>
+    var testPair: pair2<*char, int>
     testPair.first = "test string"
     testPair.second = 9
     var someFloat = 13.88

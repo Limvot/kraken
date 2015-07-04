@@ -16,8 +16,8 @@ obj TemplateTest<T,J> {
 
 fun main(): int {
 
-	var test: TemplateTest<int, char*>;
-	var test2: TemplateTest<char*, char*>;
+	var test: TemplateTest<int, *char>;
+	var test2: TemplateTest<*char, *char>;
 	test.a = 24;
 	test.b = "Hello World";
 	test2.a = "Pi incoming";

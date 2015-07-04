@@ -6,8 +6,8 @@ __if_comp__ __C__ simple_passthrough """
 
 /* we have a template versions so we don't have to cast (because we don't have that yet) */
 
-fun malloc<T>(size: int): T* {
-    var memPtr: T*;
+fun malloc<T>(size: int): *T {
+    var memPtr: *T;
 	__if_comp__ __C__ {
         simple_passthrough( size = size, memPtr = memPtr : memPtr = memPtr :) """
 			memPtr = malloc(size);
@@ -16,7 +16,7 @@ fun malloc<T>(size: int): T* {
 	return memPtr;
 }
 
-fun free<T>(memPtr: T*): void {
+fun free<T>(memPtr: *T): void {
 	__if_comp__ __C__ {
 		simple_passthrough(memPtr = memPtr ::) """
 			free(memPtr);
@@ -25,7 +25,7 @@ fun free<T>(memPtr: T*): void {
 }
 
 fun sizeof<T>(): int {
-	var testObj: T*;
+	var testObj: *T;
     var result: int;
 	__if_comp__ __C__ {
 		simple_passthrough(testObj = testObj : result = result:) """
@@ -35,21 +35,21 @@ fun sizeof<T>(): int {
 	return result;
 }
 
-fun new<T>(count: int): T* {
+fun new<T>(count: int): *T {
 	return malloc<T>( sizeof<T>() * count );
 }
 
-fun new<T>(): T* {
+fun new<T>(): *T {
 	return new<T>(1);
 }
 
 /* We specilize on the trait Object to decide on whether or not the destructor should be called */
-fun delete<T>(toDelete: T*, itemCount: int): void {
+fun delete<T>(toDelete: *T, itemCount: int): void {
     delete<T>(toDelete);
 }
 
 /* Calling this with itemCount = 0 allows you to delete destructable objects without calling their destructors. */
-fun delete<T(Object)>(toDelete: T*, itemCount: int): void {
+fun delete<T(Object)>(toDelete: *T, itemCount: int): void {
     // start at one because the actual delete will call the destructor of the first one as it
     // finishes the pointer
     for (var i: int = 0; i < itemCount; i++;)
@@ -59,50 +59,50 @@ fun delete<T(Object)>(toDelete: T*, itemCount: int): void {
 }
 
 /* We specilize on the trait Object to decide on whether or not the destructor should be called */
-fun delete<T>(toDelete: T*): void {
+fun delete<T>(toDelete: *T): void {
     free<T>(toDelete);
 }
 
-fun delete<T(Object)>(toDelete: T*): void {
+fun delete<T(Object)>(toDelete: *T): void {
     toDelete->destruct();
     free<T>(toDelete);
 }
 
 // a wrapper for construct if it has the Object trait
-fun maybe_construct<T>(it:T*):T* {
+fun maybe_construct<T>(it:*T):*T {
     return it
 }
 
-fun maybe_construct<T(Object)>(it:T*):T* {
+fun maybe_construct<T(Object)>(it:*T):*T {
     return it->construct()
 }
 
 
 // a wrapper for copy constructing if it has the Object trait
-fun maybe_copy_construct<T>(to:T*, from:T*):void {
+fun maybe_copy_construct<T>(to:*T, from:*T):void {
     *to = *from
 }
 
-fun maybe_copy_construct<T(Object)>(to:T*, from:T*):void {
+fun maybe_copy_construct<T(Object)>(to:*T, from:*T):void {
     to->copy_construct(from)
 }
 
 // a wrapper for destruct if it has the Object trait
-fun maybe_destruct<T>(it:T*):void {}
+fun maybe_destruct<T>(it:*T):void {}
 
-fun maybe_destruct<T(Object)>(it:T*):void {
+fun maybe_destruct<T(Object)>(it:*T):void {
     it->destruct()
 }
 
 // a function that allows the safe deletion of recursive and complicated data structures
-fun safe_recursive_delete<T>(first: T*, addingFunc: fun(T*): set::set<T*>) {
-    var toDelete = set::set<T*>()
+fun safe_recursive_delete<T>(first: *T, addingFunc: fun(*T): set::set<*T>) {
+    var toDelete = set::set<*T>()
     var next = set::set(first)
     while (toDelete != next) {
         toDelete = next
-        toDelete.for_each( fun(it: T*) next.add(addingFunc(it)); )
+        toDelete.for_each( fun(it: *T) next.add(addingFunc(it)); )
     }
-    toDelete.for_each( fun(it: T*) delete(it); )
+    toDelete.for_each( fun(it: *T) delete(it); )
 }
 
 

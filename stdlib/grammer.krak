@@ -52,11 +52,11 @@ obj grammer (Object) {
     var rules: vector::vector<rule>
     var regexs: set::set<regex::regex>
 
-    fun construct(): grammer* {
+    fun construct(): *grammer {
         rules.construct()
         regexs.construct()
     }
-    fun copy_construct(old: grammer*) {
+    fun copy_construct(old: *grammer) {
         rules.copy_construct(&old->rules)
         regexs.copy_construct(&old->regexs)
     }
@@ -91,13 +91,13 @@ obj rule (Object) {
     var position: int
     var lookahead: set::set<symbol::symbol>
 
-    fun construct(): rule* {
+    fun construct(): *rule {
         lhs.construct()
         rhs.construct()
         position = 0
         lookahead.construct()
     }
-    fun copy_construct(other: rule*) {
+    fun copy_construct(other: *rule) {
         lhs.copy_construct(&other->lhs)
         rhs.copy_construct(&other->rhs)
         position = other->position

@@ -14,7 +14,7 @@ fun println<T>(toPrint: T) : void {
     print("\n")
 }
 
-fun print(toPrint: char*) : void {
+fun print(toPrint: *char) : void {
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
 			printf("%s", toPrint);
@@ -77,7 +77,7 @@ fun print(toPrint: double) : void{
 fun read_file(path: string::string): string::string {
     var char_path = path.toCharArray()
     defer delete(char_path)
-    var data: char*
+    var data: *char
 	__if_comp__ __C__ {
 		simple_passthrough(char_path = char_path:data = data:) """
 			FILE *fp = fopen(char_path, "r");

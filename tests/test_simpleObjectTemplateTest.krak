@@ -17,7 +17,7 @@ obj TemplateTest<T> {
 fun main(): int {
 
 	var test: TemplateTest<int>;
-	var test2: TemplateTest<char*>;
+	var test2: TemplateTest<*char>;
 	test.a = 5;
 	test.b = 7;
 	test2.a = 9;

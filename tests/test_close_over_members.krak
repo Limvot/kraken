@@ -21,12 +21,12 @@ obj ToClose {
 }
 
 obj One (Object) {
-    fun construct(): One* {
+    fun construct(): *One {
         return this
     }
     fun destruct() {
         var a:One
-        mem::safe_recursive_delete(&a, fun(it: One*): set::set<One*> { return set::set(it); } )
+        mem::safe_recursive_delete(&a, fun(it: *One): set::set<*One> { return set::set(it); } )
     }
 }
 

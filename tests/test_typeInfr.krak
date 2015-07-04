@@ -2,7 +2,7 @@ import io:*
 import mem:*
 import vector:*
 
-fun retMessage(): char* {
+fun retMessage(): *char {
     return "I do like type inference"
 }
 fun id<T>(in: T): T { return in; }

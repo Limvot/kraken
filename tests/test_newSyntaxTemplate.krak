@@ -1,7 +1,7 @@
 
 
 obj Swapper<T> {
-    fun doit(a: T*, b: T*) : void {
+    fun doit(a: *T, b: *T) : void {
         var temp: T = *a;
         *a = *b;
         *b = temp;
@@ -9,7 +9,7 @@ obj Swapper<T> {
 }
 
 
-fun swap<T>(a: T*, b: T*) : void {
+fun swap<T>(a: *T, b: *T) : void {
     var temp: T = *a
     *a = *b
     *b = temp;

@@ -3,19 +3,19 @@ import io:*
 
 obj test(Object) {
     var counter:int
-    fun construct(): test* {
+    fun construct(): *test {
         counter = 0
         println("construct with 0")
         return this
     }
 
-    fun construct(it:int): test* {
+    fun construct(it:int): *test {
         counter = it
         print("construct with "); println(it)
         return this
     }
 
-    fun copy_construct(old: test*):void {
+    fun copy_construct(old: *test):void {
         counter = old->counter+1
         print("copy construct from "); print(old->counter); print(" to "); println(counter)
     }

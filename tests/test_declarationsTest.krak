@@ -3,7 +3,7 @@ import mem:*;
 
 obj ClassWithConstructor {
     var data: int;
-    fun construct(inData: int): ClassWithConstructor* {
+    fun construct(inData: int): *ClassWithConstructor {
         data = inData;
         return this;
     }
@@ -19,7 +19,7 @@ fun main(): int {
     object.printData();
     var a: int = 8;
     println(a);
-    var objPtr: ClassWithConstructor* = new<ClassWithConstructor>()->construct(11);
+    var objPtr: *ClassWithConstructor = new<ClassWithConstructor>()->construct(11);
     objPtr->printData();
     delete<ClassWithConstructor>(objPtr);
     return 0;

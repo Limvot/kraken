@@ -4,7 +4,7 @@ fun retVoid() {
     println("Woooo")
 }
 
-fun withParams(a:int, b:char*) {
+fun withParams(a:int, b:*char) {
     println(a)
     println(b)
 }

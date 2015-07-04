@@ -3,12 +3,12 @@ import trivial_container:*;
 
 obj RegularObject {
 	var num: int;
-	var innerContainer: trivialContainer<char*>;
-	fun set(message: char*, number: int): void {
+	var innerContainer: trivialContainer<*char>;
+	fun set(message: *char, number: int): void {
 		innerContainer.data = message;
 		num = number;
 	}
-	fun get(): char* {
+	fun get(): *char {
 		return innerContainer.data;
 	}
 	fun print(): void {
@@ -21,7 +21,7 @@ def MyIntContainer trivialContainer<int>;
 var roundabout: MyIntContainer;
 var outsideDec: RegularObject;
 
-fun print(toPrint: trivialContainer<char*>): void {
+fun print(toPrint: trivialContainer<*char>): void {
 	print(toPrint.data);
 }
 

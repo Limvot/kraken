@@ -2,7 +2,7 @@ import io;
 
 obj ClassWithConstructor {
     var data: int;
-    fun construct(inData: int): ClassWithConstructor* {
+    fun construct(inData: int): *ClassWithConstructor {
         data = inData;
         return this;
     }

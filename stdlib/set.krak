@@ -23,7 +23,7 @@ obj set<T> (Object) {
     fun construct() {
         data.construct()
     }
-    fun copy_construct(old: set<T>*) {
+    fun copy_construct(old: *set<T>) {
         data.copy_construct(&old->data)
     }
     fun operator=(rhs: set<T>) {

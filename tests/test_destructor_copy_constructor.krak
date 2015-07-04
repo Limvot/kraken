@@ -1,14 +1,14 @@
 import io:*
 
 obj wDestructor {
-    var data: char*
+    var data: *char
     var count: int
-    fun construct(dat:char*):wDestructor* {
+    fun construct(dat:*char):*wDestructor {
         data = dat
         count = 0
         return this
     }
-    fun copy_construct(other: wDestructor*):void {
+    fun copy_construct(other: *wDestructor):void {
         data = other->data
         count = other->count + 1
         print("copy_construct ")
@@ -17,7 +17,7 @@ obj wDestructor {
         print(count)
         println("!")
     }
-    fun operator=(other: wDestructor*):void {
+    fun operator=(other: *wDestructor):void {
         data = other->data
         count = other->count + 1
         print("copy assign ")

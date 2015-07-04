@@ -1,7 +1,7 @@
 import io:*
 
 obj FuncObj {
-    fun operator()(a:int, b:char*): void {
+    fun operator()(a:int, b:*char): void {
         println(a)
         println(b)
     }

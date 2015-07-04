@@ -1,6 +1,6 @@
 import string
 
-fun symbol(nameIn: char*, terminalIn: bool): symbol {
+fun symbol(nameIn: *char, terminalIn: bool): symbol {
     var toRet.construct(string::string(nameIn), terminalIn, string::string("no_value")): symbol
     return toRet
 }
@@ -10,7 +10,7 @@ fun symbol(nameIn: string::string, terminalIn: bool): symbol {
     return toRet
 }
 
-fun symbol(nameIn: char*, terminalIn: bool, dataIn: char*): symbol {
+fun symbol(nameIn: *char, terminalIn: bool, dataIn: *char): symbol {
     var toRet.construct(string::string(nameIn), terminalIn, string::string(dataIn)): symbol
     return toRet
 }
@@ -25,12 +25,12 @@ obj symbol (Object) {
     var name: string::string
     var terminal: bool
 
-    fun construct(): symbol* {
+    fun construct(): *symbol {
         data.construct()
         name.construct()
         return this
     }
-    fun construct(nameIn: string::string, terminalIn: bool, dataIn: string::string): symbol* {
+    fun construct(nameIn: string::string, terminalIn: bool, dataIn: string::string): *symbol {
         name.construct(nameIn)
         terminal = terminalIn
         data.construct(dataIn)
@@ -40,7 +40,7 @@ obj symbol (Object) {
         data.destruct()
         name.destruct()
     }
-    fun copy_construct(old: symbol*) {
+    fun copy_construct(old: *symbol) {
         data.copy_construct(&old->data)
         name.copy_construct(&old->name)
         terminal = old->terminal
@@ -53,7 +53,7 @@ obj symbol (Object) {
         return data == other.data && name == other.name && terminal == other.terminal;
     }
     fun to_string(): string::string {
-        var terminalString: char*
+        var terminalString: *char
         if (terminal)
             terminalString = "true"
         else
