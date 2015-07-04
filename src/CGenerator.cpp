@@ -4,6 +4,8 @@ CGenerator::CGenerator() : generatorString("__C__") {
 	tabLevel = 0;
     id = 0;
     function_header = "fun_";
+    functionTypedefString = "";
+    functionTypedefStringPre = "";
 }
 CGenerator::~CGenerator() {
 }
@@ -259,7 +261,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
             }
         }
     }
-    hOutput += plainTypedefs + importIncludes + topLevelCPassthrough + variableExternDeclarations + classStructs + functionTypedefString + functionPrototypes;
+    hOutput += plainTypedefs + importIncludes + topLevelCPassthrough + functionTypedefStringPre + variableExternDeclarations + classStructs + functionTypedefString + functionPrototypes;
     cOutput += variableDeclarations + functionDefinitions;
     return std::make_pair(hOutput, cOutput);
 }
@@ -730,8 +732,8 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 std::string retTmpName = "closureRetTemp" + getID();
                 output += CCodeTriple(parameters.preValue + functionCallSource.preValue + ValueTypeToCType(funcType, tmpName) + " = " + functionCallSource.value + ";\n"
                         + (doRet ? ValueTypeToCType(retType, retTmpName) + ";\n" : "")
-                        + "if (" + tmpName + ".val) { " + (doRet ? (retTmpName + " =") : "") + " (("+ ValueTypeToCTypeDecoration(funcType,ClosureFunctionPointerTypeWithClosedParam)  +") (" + tmpName + ".func))(" + tmpName + ".val" + (children.size() > 1 ? ", " : "")  + parameters.value + "); }\n"
-                        + "else { " + (doRet ? (retTmpName + " = ") : "") + tmpName + ".func(" + parameters.value + "); }\n",
+                        + "if (" + tmpName + ".data) { " + (doRet ? (retTmpName + " =") : "") + " (("+ ValueTypeToCTypeDecoration(funcType,ClosureFunctionPointerTypeWithClosedParam)  +") (" + tmpName + ".func))(" + tmpName + ".data" + (children.size() > 1 ? ", " : "")  + parameters.value + "); }\n"
+                        + "else { " + (doRet ? (retTmpName + " = ") : "") + " (("+ ValueTypeToCTypeDecoration(funcType,ClosureFunctionPointerTypeWithoutClosedParam)  +") (" + tmpName + ".func))(" + parameters.value + "); }\n",
                         (doRet ? retTmpName : ""),
                         parameters.postValue + functionCallSource.postValue);
             } else {
@@ -909,6 +911,8 @@ std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string decl
                 if (it != functionTypedefMap.end()) {
                     if (closureSpecial == ClosureFunctionPointerTypeWithClosedParam)
                         return_type = it->second.second + declaration;
+                    else if (closureSpecial == ClosureFunctionPointerTypeWithoutClosedParam)
+                        return_type = it->second.third + declaration;
                     else
                         return_type = it->second.first + declaration;
                 } else {
@@ -918,7 +922,11 @@ std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string decl
                     std::string typedefWithVoidID = "ID_withvoid_" + CifyName(type->toString(false));
                     std::string typedefStructID = "ID_struct_" + CifyName(type->toString(false));
 
-                    std::string typedefStructStr  = "typedef struct {" + typedefWithoutVoidID + " func; void* val; } " + typedefStructID + ";\n";
+                    // How I wish the world were this kind. Because of C name resolution not looking ahead, this definition needs to be BEFORE
+                    // the object definitions. So to prevent circular dependencies, I'm making this take in a void pointer and we'll simply
+                    // cast in both cases, whether or not there's a data pointer. Sigh.
+                    //std::string typedefStructStr  = "typedef struct {" + typedefWithoutVoidID + " func; void* val; } " + typedefStructID + ";\n";
+                    std::string typedefStructStr  = "typedef struct { void* func; void* data; } " + typedefStructID + ";\n";
 
                     typedefWithoutVoidStr += ValueTypeToCTypeThingHelper(type->returnType, "", closureSpecial);
                     typedefWithVoidStr += ValueTypeToCTypeThingHelper(type->returnType, "", closureSpecial);
@@ -935,15 +943,17 @@ std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string decl
                         }
                     typedefWithoutVoidStr += ");\n";
                     typedefWithVoidStr += ");\n";
+                    // again, sigh
                     functionTypedefString += typedefWithoutVoidStr;
                     functionTypedefString += typedefWithVoidStr;
-                    functionTypedefString += typedefStructStr;
+                    functionTypedefStringPre += typedefStructStr;
+                    //functionTypedefString += typedefStructStr;
                     if (closureSpecial == ClosureFunctionPointerTypeWithClosedParam)
                         return_type = typedefWithVoidID + indr_str + declaration;
                     else
                         return_type = typedefStructID + indr_str + declaration;
 
-                    functionTypedefMap[*type] = std::make_pair(typedefStructID, typedefWithVoidID);
+                    functionTypedefMap[*type] = make_triple(typedefStructID, typedefWithVoidID, typedefWithoutVoidID);
                 }
                 do_ending = false;
             }

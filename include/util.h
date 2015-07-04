@@ -22,6 +22,21 @@ std::string join(const std::vector<std::string> &strVec, std::string joinStr);
 std::string readFile(std::istream &file);
 std::string padWithSpaces(std::string str, int padTo);
 
+template <typename T, typename U, typename V>
+class triple {
+    public:
+        T first;
+        U second;
+        V third;
+};
+template <typename T, typename U, typename V>
+triple<T,U,V> make_triple(T f, U s, V t) {
+    triple<T,U,V> out;
+    out.first = f;
+    out.second = s;
+    out.third = t;
+    return out;
+}
 
 template <typename T>
 bool contains(std::vector<T> vec, T item) {

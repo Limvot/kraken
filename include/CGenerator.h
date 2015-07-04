@@ -20,7 +20,7 @@
 
 // Note the use of std::pair to hold two strings - the running string for the header file and the running string for  the c file.
 
-enum ClosureTypeSpecialType { ClosureTypeRegularNone, ClosureFunctionPointerTypeWithClosedParam };
+enum ClosureTypeSpecialType { ClosureTypeRegularNone, ClosureFunctionPointerTypeWithoutClosedParam, ClosureFunctionPointerTypeWithClosedParam };
 
 class CGenerator {
 	public:
@@ -55,7 +55,8 @@ class CGenerator {
 		std::string generatorString;
         std::string linkerString;
         std::string functionTypedefString;
-        std::map<Type, std::pair<std::string, std::string>> functionTypedefMap;
+        std::string functionTypedefStringPre;
+        std::map<Type, triple<std::string, std::string, std::string>> functionTypedefMap;
         std::map<std::set<NodeTree<ASTData>*>, std::string> closureStructMap;
         std::vector<std::vector<NodeTree<ASTData>*>> distructDoubleStack;
         std::stack<int> loopDistructStackDepth;
