@@ -1,0 +1,79 @@
+import io:*
+
+__if_comp__ __C__ simple_passthrough(::"-pthread") """
+#include <pthread.h>
+"""
+
+def pthread_t float
+
+fun pthread_create(thrd : *pthread_t, strt_routine : fun() : void) : int {
+    __if_comp__ __C__ { 
+    simple_passthrough(thrd,strt_routine::) """
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+    int ret = pthread_create((pthread_t*)thrd, &attr, strt_routine.func, strt_routine.data);
+    pthread_attr_destroy(&attr);
+    return ret;
+    """
+    }
+    return 0
+}
+
+fun pthread_join(thrd : *pthread_t) : int {
+    __if_comp__ __C__ { simple_passthrough(thrd::) """
+    pthread_t thread = *((pthread_t*)thrd);
+    return pthread_join(thread, NULL);
+    """
+    }
+    return 0
+}
+
+fun pthread_exit() : *void {
+    __if_comp__ __C__ { simple_passthrough """
+    pthread_exit(NULL);
+    """
+    }
+}
+
+
+
+fun future<T>(in : fun() : T ) : future<T> {
+    var out.construct(in) : future<T>
+    return out
+}
+
+obj future<T> {
+    var result : T
+    var status : int
+    var psy : fun() : T
+    var wrapper : fun() : void
+    var thread : pthread_t
+
+    fun construct(in : fun() : T) : *future<T> {
+        status = 0
+        psy = in
+        wrapper = fun() : void{
+            result = psy()
+            println(status)
+            pthread_exit()
+        }
+        return this
+    }
+
+    fun run() {
+        status = pthread_create(&thread,wrapper)
+    }
+
+    fun get_status() {
+        return status
+    }
+
+    fun finish() : T {
+        pthread_join(&thread)
+        print("FINISHED THREAD ")
+        print(result)
+        print("\n")
+        return result
+    }
+}
