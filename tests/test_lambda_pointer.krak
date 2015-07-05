@@ -1,8 +1,0 @@
-import io:*
-
-fun main():int {
-    var wa: fun():*int
-    var wb: *fun():int
-    var wc: *fun():*int
-    return 0
-}

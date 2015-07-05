@@ -35,8 +35,21 @@ fun main():int {
     var it: ToClose
     it.testMethod()
     it.testVariable()
-    //var a = 7
-    //mem::safe_recursive_delete(&a, fun(it: int*): set::set<int*> { return set::set(it); } )
+
+    var a = 129
+    var b = 222
+    fun() {
+        fun() {
+            println(a)
+        }()
+    }()
+    var c = fun() {
+        println(b)
+        fun() {
+            println(a)
+        }()
+    }
+    c()
     return 0
 }
 

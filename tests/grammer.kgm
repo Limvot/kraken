@@ -1,4 +1,6 @@
 # comment
 a = b ;
 b = "c" ;
-b = "c" "d" ;
+b = c "d" ;
+c = "a" | d ;
+d  = "hasreturn" ;

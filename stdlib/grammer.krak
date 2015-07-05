@@ -34,17 +34,23 @@ fun load_grammer(path: string::string): grammer {
         /*io::print("parts: ")*/
         /*parts.for_each(fun(i :string::string){ io::print(i); io::print(" "); })*/
         /*io::println()*/
-        gram.rules.add(rule(symbol::symbol(parts[0], true),
-            parts.slice(1,-1).map(fun(i: string::string):symbol::symbol {
-                return symbol::symbol(i, true);
-            })
-        ))
+        /*gram.rules.add(rule(symbol::symbol(parts[0], true),*/
+            /*parts.slice(1,-1).map(fun(i: string::string):symbol::symbol {*/
+                /*return symbol::symbol(i, true);*/
+            /*})*/
+        /*))*/
+        var rightSide = vector::vector<symbol::symbol>()
+        parts.slice(1,-1).for_each( fun(part: string::string) {
+            if (part == "|") {
+                gram.rules.add(rule(symbol::symbol(parts[0], false), rightSide))
+                rightSide = vector::vector<symbol::symbol>()
+            } else {
+                rightSide.add(symbol::symbol(part, part[0] == '"'))
+            }
+        })
+        gram.rules.add(rule(symbol::symbol(parts[0], false), rightSide))
     })
 
-
-    /*gram.rules.add(rule(symbol::symbol("test", true), vector::vector(symbol::symbol("rhs", true))))*/
-    /*gram.rules.add(rule(symbol::symbol("lhs", true), vector::vector(symbol::symbol("rhs2", true))))*/
-    /*gram.regexs.add(regex::regex("reg"))*/
     return gram
 }
 

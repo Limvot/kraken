@@ -68,6 +68,10 @@ obj string (Object) {
     fun operator==(other: string): bool {
         return length() == other.length() && !util::range(length()).any_true(fun(i: int):bool { return data[i] != other[i]; } )
     }
+    fun operator==(other: *char): bool {
+        var str.construct(other) : string
+        return *this == str
+    }
 
     fun operator+(str: *char): string {
         var newStr.construct(str):string

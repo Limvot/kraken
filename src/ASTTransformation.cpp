@@ -19,15 +19,15 @@ ASTTransformation::ASTTransformation(Importer *importerIn) {
 	languageLevelOperators["&"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("&", true), NULL))));
 	languageLevelOperators["--"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("--", true), NULL))));
 	languageLevelOperators["++"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("++", true), NULL))));
-	languageLevelOperators["=="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("==", true), new Type(boolean)))));
-	languageLevelOperators["!="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("!=", true), new Type(boolean)))));
-	languageLevelOperators["<="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("<=", true), new Type(boolean)))));
-	languageLevelOperators[">="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol(">=", true), new Type(boolean)))));
-	languageLevelOperators["<"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("<", true), new Type(boolean)))));
-	languageLevelOperators[">"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol(">", true), new Type(boolean)))));
-	languageLevelOperators["&&"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("&&", true), new Type(boolean)))));
-	languageLevelOperators["||"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("||", true), new Type(boolean)))));
-	languageLevelOperators["!"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("!", true), new Type(boolean)))));
+	languageLevelOperators["=="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("==", true), new Type(std::vector<Type*>(), new Type(boolean))))));
+	languageLevelOperators["!="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("!=", true), new Type(std::vector<Type*>(), new Type(boolean))))));
+	languageLevelOperators["<="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("<=", true), new Type(std::vector<Type*>(), new Type(boolean))))));
+	languageLevelOperators[">="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol(">=", true), new Type(std::vector<Type*>(), new Type(boolean))))));
+	languageLevelOperators["<"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("<", true), new Type(std::vector<Type*>(), new Type(boolean))))));
+	languageLevelOperators[">"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol(">", true), new Type(std::vector<Type*>(), new Type(boolean))))));
+	languageLevelOperators["&&"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("&&", true), new Type(std::vector<Type*>(), new Type(boolean))))));
+	languageLevelOperators["||"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("||", true), new Type(std::vector<Type*>(), new Type(boolean))))));
+	languageLevelOperators["!"].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("!", true), new Type(std::vector<Type*>(), new Type(boolean))))));
 	languageLevelOperators["*="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("*=", true), NULL))));
 	languageLevelOperators["="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("=", true), NULL))));
 	languageLevelOperators["+="].push_back(addToScope("~enclosing_scope", builtin_trans_unit, new NodeTree<ASTData>("function", ASTData(function, Symbol("+=", true), NULL))));
@@ -947,10 +947,17 @@ std::set<NodeTree<ASTData>*> ASTTransformation::findVariablesToClose(NodeTree<AS
        ) {
         // if this is a method we know that it is a method of our current enclosing object (as we already know that we're not on the right side of . or ->, see below)
         // we should add our enclosing object, this, to our closed over variables
+        // also, if this is a lambda, we should close over what it needs to close over too...
         if (stat->getDataRef()->type == function) {
             auto statEnclosingScope = stat->getDataRef()->scope["~enclosing_scope"][0];
             if (statEnclosingScope && statEnclosingScope->getDataRef()->valueType && statEnclosingScope->getDataRef()->valueType->typeDefinition)
                 closed.insert(generateThis(scope));
+            if (stat->getDataRef()->closedVariables.size()) {
+                for (auto item : stat->getDataRef()->closedVariables) {
+                    auto recClosed = findVariablesToClose(func, item, scope);
+                    closed.insert(recClosed.begin(), recClosed.end());
+                }
+            }
         }
         return closed;
     }

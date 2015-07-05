@@ -1,4 +1,6 @@
-import io;
+import io:*
+import string:*
+
 fun main(): int {
     io::println("Spam");
     var x: int = 4;
@@ -18,4 +20,6 @@ fun main(): int {
     var boolean = false
     if ( z > 20 && !boolean)
         io::println("woo not")
+    io::println(string("ab")[0] == 'a')
+    io::println('b' == 'a')
 }

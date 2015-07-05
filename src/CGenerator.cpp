@@ -352,7 +352,9 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                         if (enclosingObject && enclosingObject->getDataRef()->scope.find(varName) != enclosingObject->getDataRef()->scope.end())
                             preName += "this->";
                         varName = (varName == "this") ? varName : scopePrefix(var) + varName;
-                        output.preValue += "." + varName + " = &" + preName + varName;
+                        // so that we can close over things that have been closed over by an enclosing closure
+                        output.preValue += "." + varName + " = &/*woo*/" + generate(var, enclosingObject, justFuncName, enclosingFunction).oneString() + "/*woo*/";
+                        //output.preValue += "." + varName + " = &" + preName + varName;
                     }
                     output.preValue += "};\n";
                     output += "("+ ValueTypeToCType(data.valueType, "") +"){(void*)" + funcName + ", &" + tmpStruct + "}";
@@ -667,31 +669,37 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 						return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + generate(children[2], nullptr, true, enclosingFunction) + ")";
 					}
 				} else {
-					//It's a normal function call, not a special one or a method or anything. Name decorate.
-					std::vector<NodeTree<ASTData>*> functionDefChildren = children[0]->getChildren();
-					std::cout << "Decorating (none-special)" << name << " " << functionDefChildren.size() << std::endl;
-					std::string nameDecoration;
-					for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
-				 		nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
-                    // it is possible that this is an object method from inside a closure
-                    // in which case, recover the enclosing object from this
-                    bool addClosedOver = false;
-                    if (enclosingFunction && enclosingFunction->getDataRef()->closedVariables.size()) {
-                        for (auto closedVar : enclosingFunction->getDataRef()->closedVariables) {
-                            if (closedVar->getDataRef()->symbol.getName() == "this") {
-                                enclosingObject = closedVar->getDataRef()->valueType->typeDefinition;
-                                addClosedOver = true;
+                    // this could a closure literal. sigh, I know.
+                    if (children[0]->getDataRef()->closedVariables.size()) {
+                        functionCallSource = generate(children[0], enclosingObject, true, enclosingFunction);
+                        doClosureInstead = true;
+                    } else {
+                        //It's a normal function call, not a special one or a method or anything. Name decorate.
+                        std::vector<NodeTree<ASTData>*> functionDefChildren = children[0]->getChildren();
+                        std::cout << "Decorating (none-special)" << name << " " << functionDefChildren.size() << std::endl;
+                        std::string nameDecoration;
+                        for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
+                            nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
+                        // it is possible that this is an object method from inside a closure
+                        // in which case, recover the enclosing object from this
+                        bool addClosedOver = false;
+                        if (enclosingFunction && enclosingFunction->getDataRef()->closedVariables.size()) {
+                            for (auto closedVar : enclosingFunction->getDataRef()->closedVariables) {
+                                if (closedVar->getDataRef()->symbol.getName() == "this") {
+                                    enclosingObject = closedVar->getDataRef()->valueType->typeDefinition;
+                                    addClosedOver = true;
+                                }
                             }
                         }
-                    }
-				 	//Check to see if we're inside of an object and this is a method call
-					bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
-					if (isSelfObjectMethod) {
-						output += function_header + scopePrefix(children[0]) + CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__";
-                       	output += CifyName(name + nameDecoration) + "(";
-				 		output += std::string(addClosedOver ? "(*closed_variables->this)" : "this") + (children.size() > 1 ? "," : "");
-                    } else {
-                       	output += function_header + scopePrefix(children[0]) + CifyName(name + nameDecoration) + "(";
+                        //Check to see if we're inside of an object and this is a method call
+                        bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
+                        if (isSelfObjectMethod) {
+                            output += function_header + scopePrefix(children[0]) + CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__";
+                            output += CifyName(name + nameDecoration) + "(";
+                            output += std::string(addClosedOver ? "(*closed_variables->this)" : "this") + (children.size() > 1 ? "," : "");
+                        } else {
+                            output += function_header + scopePrefix(children[0]) + CifyName(name + nameDecoration) + "(";
+                        }
                     }
 				}
 			} else {
