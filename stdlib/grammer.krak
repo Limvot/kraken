@@ -5,16 +5,41 @@ import symbol
 import regex
 import io
 
-fun parse_line(line: string::string): vector::vector<string::string> {
+fun split_into_words(gram_str: string::string): vector::vector<string::string> {
     var out.construct(): vector::vector<string>
     var begin = 0
-    for (var i = 1; i < line.length(); i++;) {
-        if (line[i] == '=') {
-            i += 2
+    for (var i = 0; i < gram_str.length(); i++;) {
+        if (gram_str[i] == '#') {
+            while(gram_str[i] != '\n') i++
+            i++
+            io::print("comment: "); io::print(gram_str.slice(begin, i))
             begin = i
         }
-        if (line[i] == ' ') {
-            out.add(line.slice(begin, i))
+        if (gram_str[i] == '"') {
+            i++
+            while (gram_str[i] != '"') {
+                i++
+                // if we hit a " we check to see if an odd number of backslashes preceed it
+                // (meaning that the " is escaped), and if so, we move on. Otherwise, we found
+                // the end of the quoted string
+                if (gram_str[i] == '"') {
+                    var escaped = 0
+                    while (gram_str[i-(1+escaped)] == '\\') escaped++
+                    if (escaped % 2)
+                        i++
+                }
+            }
+        }
+        if (gram_str[i] == ' ') {
+            out.add(gram_str.slice(begin, i))
+            // allow multiple spaces between words
+            while (gram_str[i] == ' ') i++
+            begin = i
+            i--
+        }
+        if (gram_str[i] == '\n') {
+            if (i != begin)
+                out.add(gram_str.slice(begin, i))
             begin = i + 1
         }
     }
@@ -23,34 +48,31 @@ fun parse_line(line: string::string): vector::vector<string::string> {
 
 fun load_grammer(path: string::string): grammer {
     var gram.construct(): grammer
-    io::read_file(path).lines().for_each(fun(line: string::string) {
-        if (line.length() == 0)
-            return;
-        if (line[0] == '#') {
-            io::print("comment: "); io::println(line)
-            return;
+    var leftSide = symbol::symbol("", false)
+    var doLeftSide = true
+    var rightSide = vector::vector<symbol::symbol>()
+    /*split_into_words(io::read_file(path)).for_each(fun(word: string::string) {*/
+        /*io::print("word: "); io::println(word);*/
+    /*})*/
+    /*return gram*/
+    split_into_words(io::read_file(path)).for_each(fun(word: string::string) {
+        if (word == "=") {
+            // do nothing
+        } else if (word == "|") {
+            gram.rules.add(rule(leftSide, rightSide))
+            rightSide = vector::vector<symbol::symbol>()
+        } else if (word == ";") {
+            gram.rules.add(rule(leftSide, rightSide))
+            rightSide = vector::vector<symbol::symbol>()
+            doLeftSide = true
+        } else {
+            if (doLeftSide)
+                leftSide = symbol::symbol(word, true)
+            else
+                rightSide.add(symbol::symbol(word, word[0] == '"'))
+            doLeftSide = false
         }
-        var parts = parse_line(line)
-        /*io::print("parts: ")*/
-        /*parts.for_each(fun(i :string::string){ io::print(i); io::print(" "); })*/
-        /*io::println()*/
-        /*gram.rules.add(rule(symbol::symbol(parts[0], true),*/
-            /*parts.slice(1,-1).map(fun(i: string::string):symbol::symbol {*/
-                /*return symbol::symbol(i, true);*/
-            /*})*/
-        /*))*/
-        var rightSide = vector::vector<symbol::symbol>()
-        parts.slice(1,-1).for_each( fun(part: string::string) {
-            if (part == "|") {
-                gram.rules.add(rule(symbol::symbol(parts[0], false), rightSide))
-                rightSide = vector::vector<symbol::symbol>()
-            } else {
-                rightSide.add(symbol::symbol(part, part[0] == '"'))
-            }
-        })
-        gram.rules.add(rule(symbol::symbol(parts[0], false), rightSide))
     })
-
     return gram
 }
 
@@ -121,7 +143,7 @@ obj rule (Object) {
 
     fun to_string(): string::string {
         var result = lhs.name + " -> "
-        rhs.for_each( fun(i : symbol::symbol) { result += i.name + " "; } )
+        rhs.for_each( fun(i : symbol::symbol) { result += i.name + ", "; } )
         return result
     }
 }

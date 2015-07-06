@@ -3,4 +3,11 @@ a = b ;
 b = "c" ;
 b = c "d" ;
 c = "a" | d ;
-d  = "hasreturn" ;
+d = "has space" ;
+d = "has
+return" ;
+d = "has \"" ;
+d = "has 
+ll\"
+\\\"y8\" \\\\" ;
+d   =    "has space"      ;
