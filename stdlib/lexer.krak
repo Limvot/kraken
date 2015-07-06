@@ -4,6 +4,12 @@ import string
 import vector
 import util
 
+fun lexer(regs: vector::vector<regex::regex>): lexer {
+    var toRet.construct() :lexer
+    regs.for_each( fun(reg: regex::regex) toRet.add_regex(reg); )
+    return toRet
+}
+
 obj lexer (Object) {
     var regs: vector::vector<regex::regex>
     var input: string::string

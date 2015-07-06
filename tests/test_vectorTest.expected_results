@@ -26,6 +26,14 @@ find test
 0
 1
 2
+contains test
+false
+true
+true
+true
+false
+add_unique test
+ 1 2 3 4
 set, []=, and delete test
 4
 8

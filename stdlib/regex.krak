@@ -56,14 +56,14 @@ obj regex (Object) {
     }
 
     fun copy_construct(old:*regex):void {
-        //begin = old->begin
-        //regexString.copy_construct(&old->regexString)
-        construct(old->regexString)
+        begin = old->begin
+        regexString.copy_construct(&old->regexString)
+        /*construct(old->regexString)*/
     }
 
     fun destruct():void {
         regexString.destruct()
-        mem::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return set::from_vector(it->next_states); } )
+        /*mem::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return set::from_vector(it->next_states); } )*/
     }
 
     fun operator==(other: regex):bool {

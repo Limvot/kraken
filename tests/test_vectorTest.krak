@@ -115,6 +115,20 @@ fun main(): int {
     println(multipleFindTest.find(2))
     println(multipleFindTest.find(3))
 
+    println("contains test")
+    println(multipleFindTest.contains(0))
+    println(multipleFindTest.contains(1))
+    println(multipleFindTest.contains(2))
+    println(multipleFindTest.contains(3))
+    println(multipleFindTest.contains(4))
+
+    println("add_unique test")
+    multipleFindTest.add_unique(1)
+    multipleFindTest.add_unique(4)
+    multipleFindTest.add_unique(4)
+    multipleFindTest.for_each( fun(i:int) { print(" "); print(i); } )
+    println()
+
     println("set, []=, and delete test")
     var setTest = vector(4,5,6)
     setTest.add(7)

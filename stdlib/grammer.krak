@@ -46,7 +46,7 @@ fun split_into_words(gram_str: string::string): vector::vector<string::string> {
     return out
 }
 
-fun load_grammer(path: string::string): grammer {
+fun load_grammer(gram_str: string::string): grammer {
     var gram.construct(): grammer
     var leftSide = symbol::symbol("", false)
     var doLeftSide = true
@@ -55,7 +55,7 @@ fun load_grammer(path: string::string): grammer {
         /*io::print("word: "); io::println(word);*/
     /*})*/
     /*return gram*/
-    split_into_words(io::read_file(path)).for_each(fun(word: string::string) {
+    split_into_words(gram_str).for_each(fun(word: string::string) {
         if (word == "=") {
             // do nothing
         } else if (word == "|") {
@@ -69,7 +69,13 @@ fun load_grammer(path: string::string): grammer {
             if (doLeftSide)
                 leftSide = symbol::symbol(word, true)
             else
-                rightSide.add(symbol::symbol(word, word[0] == '"'))
+                if (word[0] == '"') {
+                    rightSide.add(symbol::symbol(word.slice(1,-2), true))
+                    /*gram.regexs.add_unique(regex::regex(word.slice(1,-2)))*/
+                    gram.regexs.add(regex::regex(word.slice(1,-2)))
+                } else {
+                    rightSide.add(symbol::symbol(word, false))
+                }
             doLeftSide = false
         }
     })
@@ -78,7 +84,7 @@ fun load_grammer(path: string::string): grammer {
 
 obj grammer (Object) {
     var rules: vector::vector<rule>
-    var regexs: set::set<regex::regex>
+    var regexs: vector::vector<regex::regex>
 
     fun construct(): *grammer {
         rules.construct()
@@ -143,7 +149,7 @@ obj rule (Object) {
 
     fun to_string(): string::string {
         var result = lhs.name + " -> "
-        rhs.for_each( fun(i : symbol::symbol) { result += i.name + ", "; } )
+        rhs.for_each( fun(i : symbol::symbol) { result += i.to_string() + ", "; } )
         return result
     }
 }

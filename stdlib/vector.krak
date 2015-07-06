@@ -127,6 +127,10 @@ obj vector<T> (Object) {
                 return i;
         return -1;
     }
+    // ditto
+    fun contains<U>(item: U): bool {
+        return find(item) != -1
+    }
 
     fun operator[]=(index: int, dataIn: T) {
         set(index, dataIn)
@@ -139,6 +143,11 @@ obj vector<T> (Object) {
     fun add_all(dataIn: vector<T>): void {
         for (var i = 0; i < dataIn.size; i++;)
             addEnd(dataIn[i]);
+    }
+    // same darn trick
+    fun add_unique<U>(dataIn: U): void {
+        if (!contains(dataIn))
+            addEnd(dataIn)
     }
     fun add(dataIn: T): void { addEnd(dataIn); }
     fun addEnd(dataIn: T): void {
