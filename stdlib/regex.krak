@@ -56,14 +56,21 @@ obj regex (Object) {
     }
 
     fun copy_construct(old:*regex):void {
-        begin = old->begin
-        regexString.copy_construct(&old->regexString)
-        /*construct(old->regexString)*/
+        construct(old->regexString)
+        /*begin = old->begin*/
+        /*regexString.copy_construct(&old->regexString)*/
+        /*begin = mem::safe_recursive_clone(old->begin, fun(it: *regexState, cloner: fun(*regexState):*regexState, register: fun(*regexState):void): void {*/
+            /*var newOne = mem::new<regexState>()->construct(it->character)*/
+            /*register(newOne)*/
+            /*it->next_states.for_each(fun(next_state: *regexState) {*/
+                /*newOne->next_states.add(cloner(next_state))*/
+            /*})*/
+        /*})*/
     }
 
     fun destruct():void {
         regexString.destruct()
-        /*mem::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return set::from_vector(it->next_states); } )*/
+        mem::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return set::from_vector(it->next_states); } )
     }
 
     fun operator==(other: regex):bool {
@@ -72,7 +79,7 @@ obj regex (Object) {
 
     fun operator=(other: regex):void {
         destruct()
-        construct(other.regexString)
+        copy_construct(&other)
     }
 
     fun compile(regex_string: string::string): util::pair<*regexState, vector::vector<*regexState>> {

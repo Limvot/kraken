@@ -1,0 +1,12 @@
+import io:*
+
+fun main():int {
+    var message = "thingy: "
+    var func: fun(int):void = fun(it: int) {
+        print(message); println(it)
+        if (it > 0)
+            func(it-1)
+    }
+    func(4)
+}
+

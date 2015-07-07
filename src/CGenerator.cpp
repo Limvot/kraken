@@ -566,7 +566,11 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     output.value += toAssign.postValue;
                     return output;
                 } else {
-                    return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName, enclosingFunction).oneString()) + " = " + generate(children[1], enclosingObject, true, enclosingFunction) + ";";
+                    // we might use this address in the right hand side (recursive closures), so split it up
+                    std::string assignTo = generate(children[0], enclosingObject, justFuncName, enclosingFunction).oneString();
+                    output.preValue = ValueTypeToCType(children[0]->getData().valueType, assignTo) + ";\n";
+                    output += assignTo + " = " + generate(children[1], enclosingObject, true, enclosingFunction) + ";";
+                    return output;
                 }
             }
 		case if_comp:

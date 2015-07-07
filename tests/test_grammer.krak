@@ -6,14 +6,15 @@ import util:*
 
 fun main():int {
     var a = load_grammer(read_file(string("../krakenGrammer.kgm")))
-    /*var a = load_grammer(string("grammer.kgm"))*/
+    /*var a = load_grammer(read_file(string("grammer.kgm")))*/
     println(a.to_string())
     var lex = lexer(a.regexs)
     lex.set_input(read_file(string("test_grammer.krak")))
     /*lex.set_input(string("ccdahas spacedhas*/
 /*returndaaaaaaaaaaaaaa"))*/
     println("woo lexing:")
-    range(80).for_each(fun(i: int) { println(lex.next().to_string()); } )
+    range(8).for_each(fun(i: int) { println(lex.next().to_string()); } )
+    /*range(80).for_each(fun(i: int) { println(lex.next().to_string()); } )*/
     return 0
 }
 

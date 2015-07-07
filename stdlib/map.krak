@@ -43,6 +43,9 @@ obj map<T,U> (Object) {
         keys.add(key)
         values.add(value)
     }
+    fun contains_key(key: T): bool {
+        return keys.contains(key)
+    }
     fun get(key: T): U {
         return values.get(keys.find(key))
     }

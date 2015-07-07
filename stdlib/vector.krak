@@ -25,13 +25,6 @@ obj vector<T> (Object) {
         return this;
     }
 
-    fun construct(newSize: int): *vector<T>{
-        size = newSize;
-        available = newSize;
-
-        data = new<T>(newSize);
-        return this;
-    }
 
     fun copy_construct(old: *vector<T>): void {
         construct()

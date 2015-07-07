@@ -1,4 +1,5 @@
 import set
+import map
 
 __if_comp__ __C__ simple_passthrough """
 	#include <stdlib.h>
@@ -103,6 +104,20 @@ fun safe_recursive_delete<T>(first: *T, addingFunc: fun(*T): set::set<*T>) {
         toDelete.for_each( fun(it: *T) next.add(addingFunc(it)); )
     }
     toDelete.for_each( fun(it: *T) delete(it); )
+}
+
+// a function that allows the safe cloning of recursive and complicated data structures
+// cloneing func is the func that does the cloning, it takes in a recursive clone function and
+// a register clone function
+fun safe_recursive_clone<T>(first: *T, cloningFunc: fun(*T, fun(*T):*T, fun(*T):void): void): *T {
+    var rec_map = map::map<*T,*T>()
+    // can't do type infrence if you need the type inside the expression...
+    var rec_it: fun(*T):*T = fun(it: *T): *T {
+        if (!rec_map.contains_key(it))
+            cloningFunc(it, rec_it, fun(cloned: *T) { rec_map[it] = cloned; })
+        return rec_map[it]
+    }
+    return rec_it(first)
 }
 
 

@@ -692,20 +692,22 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
             return newNode;
         }
 
-        auto boolExp = getNode("boolean_expression", children);
-        NodeTree<ASTData>* toAssign = boolExp ? transform(boolExp, scope, types, limitToFunction, templateTypeReplacements) : nullptr;
-        // for type inferencing
-        if (!identifierType) {
-            if (toAssign)
-                identifierType = toAssign->getDataRef()->valueType;
-            else
-                throw "have to inference but no expression";
-        }
-
 		NodeTree<ASTData>* newIdentifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), identifierType));
         addToScope(newIdentifierStr, newIdentifier, scope);
         addToScope("~enclosing_scope", scope, newNode);
         addToScope("~enclosing_scope", newNode, newIdentifier);
+
+        auto boolExp = getNode("boolean_expression", children);
+        NodeTree<ASTData>* toAssign = boolExp ? transform(boolExp, scope, types, limitToFunction, templateTypeReplacements) : nullptr;
+        // for type inferencing
+        if (!identifierType) {
+            if (toAssign) {
+                identifierType = toAssign->getDataRef()->valueType;
+                newIdentifier->getDataRef()->valueType = identifierType;
+            } else
+                throw "have to inference but no expression";
+        }
+
 
 		newNode->addChild(newIdentifier);
         if (toAssign)
@@ -791,7 +793,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         throw "Ambigious parse!";
     } else {
         // Should get rid of this eventually. Right now it handles cases like sign, alpha, a comma, etc
-        std::cout << "Unhandled syntax node: " << name << std::endl;
+        //std::cout << "Unhandled syntax node: " << name << std::endl;
 		return new NodeTree<ASTData>();
 	}
 
