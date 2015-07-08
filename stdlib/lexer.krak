@@ -5,13 +5,19 @@ import vector
 import util
 
 fun lexer(regs: vector::vector<regex::regex>): lexer {
+    return lexer(regs.map( fun(reg: regex::regex): util::pair<string::string, regex::regex> {
+        return util::make_pair(reg.regexString,reg)
+    }))
+}
+
+fun lexer(regs: vector::vector<util::pair<string::string, regex::regex>>): lexer {
     var toRet.construct() :lexer
-    regs.for_each( fun(reg: regex::regex) toRet.add_regex(reg); )
+    regs.for_each( fun(reg: util::pair<string::string, regex::regex>) toRet.add_regex(reg); )
     return toRet
 }
 
 obj lexer (Object) {
-    var regs: vector::vector<regex::regex>
+    var regs: vector::vector<util::pair<string::string, regex::regex>>
     var input: string::string
     var position: int
     fun construct(): *lexer {
@@ -33,11 +39,17 @@ obj lexer (Object) {
         destruct()
         copy_construct(&old)
     }
-    fun add_regex(newOne: regex::regex) {
+    fun add_regex(name: string::string, newOne: regex::regex) {
+        regs.add(util::make_pair(name,newOne))
+    }
+    fun add_regex(newOne: util::pair<string::string,regex::regex>) {
         regs.add(newOne)
     }
+    fun add_regex(newOne: regex::regex) {
+        regs.add(util::make_pair(newOne.regexString, newOne))
+    }
     fun add_regex(newOne: *char) {
-        regs.add(regex::regex(newOne))
+        regs.add(util::make_pair(string::string(newOne), regex::regex(newOne)))
     }
     fun set_input(in: string::string) {
         input = in
@@ -45,8 +57,8 @@ obj lexer (Object) {
     fun next(): symbol::symbol {
         if (position >= input.length())
             return symbol::symbol("$EOF$", true)
-        var max = regs.map(fun(reg: regex::regex): util::pair<int, string::string> {
-                return util::make_pair(reg.long_match(input.slice(position, -1)), reg.regexString); })
+        var max = regs.map(fun(reg_pair: util::pair<string::string,regex::regex>): util::pair<int, string::string> {
+                return util::make_pair(reg_pair.second.long_match(input.slice(position, -1)), reg_pair.first); })
                 .max(fun(first: util::pair<int, string::string>, second: util::pair<int, string::string>): bool
                         { return first.first < second.first; })
         if (max.first < 0)

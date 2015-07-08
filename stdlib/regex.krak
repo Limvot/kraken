@@ -43,9 +43,16 @@ obj regexState (Object) {
 obj regex (Object) {
     var regexString: string::string
     var begin: *regexState
+    var referenceCounter: *int
 
+    fun construct(): *regex {
+        regexString.construct()
+        return this
+    }
     fun construct(regexStringIn: string::string): *regex {
         regexString.copy_construct(&regexStringIn)
+        referenceCounter = mem::new<int>()
+        *referenceCounter = 1
 
         var beginningAndEnd = compile(regexStringIn)
         // init our begin, and the end state as the next state of each end
@@ -56,9 +63,11 @@ obj regex (Object) {
     }
 
     fun copy_construct(old:*regex):void {
-        construct(old->regexString)
-        /*begin = old->begin*/
-        /*regexString.copy_construct(&old->regexString)*/
+        regexString.copy_construct(&old->regexString)
+        begin = old->begin
+        referenceCounter = old->referenceCounter
+        *referenceCounter += 1
+        /*construct(old->regexString)*/
         /*begin = mem::safe_recursive_clone(old->begin, fun(it: *regexState, cloner: fun(*regexState):*regexState, register: fun(*regexState):void): void {*/
             /*var newOne = mem::new<regexState>()->construct(it->character)*/
             /*register(newOne)*/
@@ -70,7 +79,11 @@ obj regex (Object) {
 
     fun destruct():void {
         regexString.destruct()
-        mem::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return set::from_vector(it->next_states); } )
+        *referenceCounter -= 1
+        if (*referenceCounter == 0) {
+            mem::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return set::from_vector(it->next_states); } )
+            mem::delete(referenceCounter)
+        }
     }
 
     fun operator==(other: regex):bool {

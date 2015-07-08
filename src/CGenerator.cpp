@@ -652,7 +652,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                             if (unaliasedTypeDef) { //Test to see if the function's a member of this type_def, or if this is an alias, of the original type. Get this original type if it exists.
 					 		    std::string nameDecoration;
 					 		    std::vector<NodeTree<ASTData>*> functionDefChildren = children[2]->getChildren(); //The function def is the rhs of the access operation
-					 		    std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
+								 //std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
 					 		    for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
 					 		    	nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
                                 // Note that we only add scoping to the object, as this specifies our member function too
@@ -680,7 +680,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     } else {
                         //It's a normal function call, not a special one or a method or anything. Name decorate.
                         std::vector<NodeTree<ASTData>*> functionDefChildren = children[0]->getChildren();
-                        std::cout << "Decorating (none-special)" << name << " " << functionDefChildren.size() << std::endl;
+                        //std::cout << "Decorating (none-special)" << name << " " << functionDefChildren.size() << std::endl;
                         std::string nameDecoration;
                         for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
                             nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);

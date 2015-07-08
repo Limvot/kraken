@@ -4,6 +4,7 @@ import set
 import symbol
 import regex
 import io
+import util
 
 fun split_into_words(gram_str: string::string): vector::vector<string::string> {
     var out.construct(): vector::vector<string>
@@ -56,6 +57,7 @@ fun load_grammer(gram_str: string::string): grammer {
     /*})*/
     /*return gram*/
     split_into_words(gram_str).for_each(fun(word: string::string) {
+        io::print("word: "); io::println(word)
         if (word == "=") {
             // do nothing
         } else if (word == "|") {
@@ -70,9 +72,17 @@ fun load_grammer(gram_str: string::string): grammer {
                 leftSide = symbol::symbol(word, true)
             else
                 if (word[0] == '"') {
-                    rightSide.add(symbol::symbol(word.slice(1,-2), true))
-                    /*gram.regexs.add_unique(regex::regex(word.slice(1,-2)))*/
-                    gram.regexs.add(regex::regex(word.slice(1,-2)))
+                    // ok, we support both plain terminals "hia*"
+                    // and decorated terminals "hia*":hi_with_as
+                    // so first check to find the ending " and see if it's
+                    // the end of the string
+                    var last_quote = word.length()-1
+                    while(word[last_quote] != '"') last_quote--
+                    rightSide.add(symbol::symbol(word.slice(1,last_quote), true))
+                    if (last_quote != word.length()-1)
+                        gram.regexs.add(util::make_pair(word.slice(last_quote+2, -1), regex::regex(word.slice(1,last_quote))))
+                    else
+                        gram.regexs.add(util::make_pair(word, regex::regex(word.slice(1,last_quote))))
                 } else {
                     rightSide.add(symbol::symbol(word, false))
                 }
@@ -84,7 +94,7 @@ fun load_grammer(gram_str: string::string): grammer {
 
 obj grammer (Object) {
     var rules: vector::vector<rule>
-    var regexs: vector::vector<regex::regex>
+    var regexs: vector::vector<util::pair<string::string, regex::regex>>
 
     fun construct(): *grammer {
         rules.construct()
@@ -107,7 +117,7 @@ obj grammer (Object) {
         var result = string::string("grammer rules:")
         rules.for_each( fun(i : rule) { result += string::string("\n\t") + i.to_string(); } )
         result += "\nregexs:"
-        regexs.for_each( fun(i : regex::regex) { result += string::string("\n\t") + i.regexString; } )
+        regexs.for_each( fun(i : util::pair<string::string, regex::regex>) { result += string::string("\n\t") + i.first + ": " + i.second.regexString; } )
         return result
     }
 }

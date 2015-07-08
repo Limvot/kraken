@@ -1099,6 +1099,7 @@ NodeTree<ASTData>* ASTTransformation::templateClassLookup(NodeTree<ASTData>* sco
     }
     if (!mostFittingTemplates.size()) {
         std::cout << "No template classes fit for " << lookup << "!" << std::endl;
+        std::cerr << "in file " << getUpperTranslationUnit(scope)->getDataRef()->symbol.getName() << std::endl;
         throw "No matching template classes";
     } else if (mostFittingTemplates.size() > 1) {
         std::cout << "Multiple template classes fit with equal number of traits satisfied for " << lookup << "!" << std::endl;
@@ -1304,6 +1305,7 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         for (auto t : types)
             std::cerr << t.toString() + ", ";
         std::cerr << ")!" << std::endl;
+        std::cerr << "in file " << getUpperTranslationUnit(scope)->getDataRef()->symbol.getName() << std::endl;
         throw "No matching template functions";
     } else if (mostFittingTemplates.size() > 1) {
         std::cerr << "Multiple template functions fit with equal number of traits satisfied for " << lookup << "!" << std::endl;

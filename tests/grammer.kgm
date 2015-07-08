@@ -1,7 +1,7 @@
 # comment
 a = b ;
-b = "c" ;
-b = c "d" ;
+b = "c":named_c ;
+b = c "d":dname ;
 c = "a" | d ;
 d = "has space" ;
 d = "has
