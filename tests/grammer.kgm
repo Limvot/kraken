@@ -11,3 +11,6 @@ d = "has
 ll\"
 \\\"y8\" \\\\" ;
 d   =    "has space"      ;
+d = e ;
+e = f | ;
+f = ;

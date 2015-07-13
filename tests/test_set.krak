@@ -1,5 +1,6 @@
 import io:*
 import set:*
+import vector_literals:*
 
 fun main():int {
     var s = set(3)
@@ -19,6 +20,12 @@ fun main():int {
     println(s.contains(4))
     println(s.contains(5))
 
+    println("contains set:")
+    println(s.contains(from_vector(vector(1,2,3))))
+    println(s.contains(from_vector(vector(4,5,3))))
+    println(s.contains(from_vector(vector(4,5))))
+
+    println("all:")
     s.for_each( fun(it: int) println(it); )
     return 0
 }

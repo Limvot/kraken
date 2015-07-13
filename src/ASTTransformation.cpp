@@ -389,7 +389,12 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         } else {
             auto possibleMatches = scopeLookup(scope, lookupName);
             if (!possibleMatches.size()) {
+                std::cerr << std::endl;
 			    std::cerr << "scope lookup error! Could not find " << lookupName << " in identifier (scopeLookup)" << std::endl;
+                std::cerr << "lookup failedin file " << getUpperTranslationUnit(scope)->getDataRef()->symbol.getName() << std::endl;
+                std::cerr << "note that this might not be the file where the error is" << std::endl;
+                std::cerr << "obj.non_existant_member would fail in the file that defines obj's type, for instance" << std::endl;
+                std::cerr << std::endl;
 			    throw "LOOKUP ERROR: " + lookupName;
             }
             // can't cull out functiokns b/c we might want them as values

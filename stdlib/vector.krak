@@ -25,7 +25,6 @@ obj vector<T> (Object) {
         return this;
     }
 
-
     fun copy_construct(old: *vector<T>): void {
         construct()
         for (var i = 0; i < old->size; i++;)

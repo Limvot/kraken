@@ -636,9 +636,23 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				if (name == "[]")
 					return "(" + generate(children[1], enclosingObject, true, enclosingFunction) + ")[" + generate(children[2],enclosingObject, true, enclosingFunction) + "]";
 				if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
-					|| name == "<" || name == ">" || name == "%" || name == "=" || name == "+=" || name == "-=" || name == "*=" || name == "/=" || name == "||"
-					|| name == "&&") {
+					|| name == "<" || name == ">" || name == "%" || name == "=" || name == "+=" || name == "-=" || name == "*=" || name == "/=") {
 					return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + "(" + generate(children[2], enclosingObject, true, enclosingFunction) + "))";
+                } else if (name == "&&" || name == "||") {
+                    // b/c short circuiting, these have to be done seperately
+                    CCodeTriple lhs = generate(children[1], enclosingObject, true, enclosingFunction);
+                    CCodeTriple rhs = generate(children[2], enclosingObject, true, enclosingFunction);
+                    output.preValue = lhs.preValue;
+                    std::string shortcircuit_result = "shortcircuit_result" + getID();
+                    output.preValue += "bool " + shortcircuit_result + " = " + lhs.value + ";\n";
+                    output.preValue += lhs.postValue;
+                    output.preValue += "if (" + std::string(name == "||" ? "!":"") + shortcircuit_result + ") { \n";
+                    output.preValue += rhs.preValue;
+                    output.preValue += shortcircuit_result + " = " + rhs.value + ";\n";
+                    output.preValue += rhs.postValue;
+                    output.preValue += "}\n";
+                    output.value = shortcircuit_result;
+                    return output;
                 } else if (name == "." || name == "->") {
 					if (children.size() == 1)
 					 	return "/*dot operation with one child*/" + generate(children[0], enclosingObject, true, enclosingFunction).oneString() + "/*end one child*/";

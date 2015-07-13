@@ -44,6 +44,9 @@ obj set<T> (Object) {
     fun size():int {
         return data.size
     }
+    fun contains(items: set<T>): bool {
+        return items.size() == 0 || !items.any_true( fun(item: T): bool return !contains(item); )
+    }
     fun contains(item: T): bool {
         return data.find(item) != -1
     }
@@ -64,6 +67,9 @@ obj set<T> (Object) {
     }
     fun for_each(func: fun(T):void) {
         data.for_each(func)
+    }
+    fun any_true(func: fun(T):bool):bool {
+        return data.any_true(func)
     }
 }
 

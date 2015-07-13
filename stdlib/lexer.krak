@@ -5,14 +5,20 @@ import vector
 import util
 
 fun lexer(regs: vector::vector<regex::regex>): lexer {
-    return lexer(regs.map( fun(reg: regex::regex): util::pair<string::string, regex::regex> {
-        return util::make_pair(reg.regexString,reg)
-    }))
+    /*var toRet:lexer*/
+    var toRet.construct() :lexer
+    regs.for_each( fun(reg: regex::regex) {
+        toRet.add_regex(util::make_pair(reg.regexString, reg));
+    })
+    return toRet
 }
 
-fun lexer(regs: vector::vector<util::pair<string::string, regex::regex>>): lexer {
+fun lexer(regs: vector::vector<util::pair<symbol::symbol, regex::regex>>): lexer {
+    /*var toRet:lexer*/
     var toRet.construct() :lexer
-    regs.for_each( fun(reg: util::pair<string::string, regex::regex>) toRet.add_regex(reg); )
+    regs.for_each( fun(reg: util::pair<symbol::symbol, regex::regex>)
+        toRet.add_regex(util::make_pair(reg.first.name, reg.second));
+    )
     return toRet
 }
 

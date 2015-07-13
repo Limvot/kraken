@@ -1,6 +1,7 @@
 import string
 import vector
 import set
+import map
 import symbol
 import regex
 import io
@@ -68,9 +69,10 @@ fun load_grammer(gram_str: string::string): grammer {
             rightSide = vector::vector<symbol::symbol>()
             doLeftSide = true
         } else {
-            if (doLeftSide)
+            if (doLeftSide) {
                 leftSide = symbol::symbol(word, true)
-            else
+                gram.non_terminals.add(leftSide)
+            } else {
                 if (word[0] == '"') {
                     // ok, we support both plain terminals "hia*"
                     // and decorated terminals "hia*":hi_with_as
@@ -78,14 +80,19 @@ fun load_grammer(gram_str: string::string): grammer {
                     // the end of the string
                     var last_quote = word.length()-1
                     while(word[last_quote] != '"') last_quote--
-                    rightSide.add(symbol::symbol(word.slice(1,last_quote), true))
-                    if (last_quote != word.length()-1)
-                        gram.regexs.add(util::make_pair(word.slice(last_quote+2, -1), regex::regex(word.slice(1,last_quote))))
-                    else
-                        gram.regexs.add(util::make_pair(word, regex::regex(word.slice(1,last_quote))))
+                    if (last_quote != word.length()-1) {
+                        rightSide.add(symbol::symbol(word.slice(last_quote+2, -1), true))
+                        gram.terminals.add(util::make_pair(symbol::symbol(word.slice(last_quote+2, -1), true), regex::regex(word.slice(1,last_quote))))
+                    } else {
+                        rightSide.add(symbol::symbol(word, true))
+                        gram.terminals.add(util::make_pair(symbol::symbol(word, true), regex::regex(word.slice(1,last_quote))))
+                    }
                 } else {
-                    rightSide.add(symbol::symbol(word, false))
+                    var non_term = symbol::symbol(word, false)
+                    rightSide.add(non_term)
+                    gram.non_terminals.add(non_term)
                 }
+            }
             doLeftSide = false
         }
     })
@@ -94,15 +101,21 @@ fun load_grammer(gram_str: string::string): grammer {
 
 obj grammer (Object) {
     var rules: vector::vector<rule>
-    var regexs: vector::vector<util::pair<string::string, regex::regex>>
+    var non_terminals: set::set<symbol::symbol>
+    var terminals: vector::vector<util::pair<symbol::symbol, regex::regex>>
+    var first_set_map: map::map<symbol::symbol, set::set<symbol::symbol>>
 
     fun construct(): *grammer {
         rules.construct()
-        regexs.construct()
+        non_terminals.construct()
+        terminals.construct()
+        first_set_map.construct()
     }
     fun copy_construct(old: *grammer) {
         rules.copy_construct(&old->rules)
-        regexs.copy_construct(&old->regexs)
+        non_terminals.copy_construct(&old->non_terminals)
+        terminals.copy_construct(&old->terminals)
+        first_set_map.copy_construct(&old->first_set_map)
     }
     fun operator=(other: grammer) {
         destruct()
@@ -110,14 +123,71 @@ obj grammer (Object) {
     }
     fun destruct() {
         rules.destruct()
-        regexs.destruct()
+        non_terminals.destruct()
+        terminals.destruct()
+        first_set_map.destruct()
+    }
+
+    fun calculate_first_set() {
+        // the first set of a terminal is itself
+        terminals.for_each( fun(terminal: util::pair<symbol::symbol, regex::regex>)
+            first_set_map[terminal.first] = set::set(terminal.first)
+        )
+        // start out the non-terminals as empty sets
+        non_terminals.for_each( fun(non_terminal: symbol::symbol)
+            first_set_map[non_terminal] = set::set<symbol::symbol>()
+        )
+        var first_helper = fun(rhs: vector::vector<symbol::symbol>): set::set<symbol::symbol> {
+            var toRet = set::set<symbol::symbol>()
+            rhs.for_each(fun(sym: symbol::symbol) {
+                toRet.add(first_set_map[sym])
+            })
+            return toRet
+        }
+        var changed = true
+        while (changed) {
+            io::println("//////////current state of map/////////////")
+            first_set_map.keys.for_each(fun(sym: symbol::symbol) {
+                io::print("for ")
+                io::println(sym.to_string())
+                io::println("map is:")
+                first_set_map[sym].for_each(fun(look: symbol::symbol) {
+                    io::print("lookahead: "); io::println(look.to_string())
+                })
+            })
+            changed = false
+            rules.for_each( fun(r: rule) {
+                var rule_lookahead = first_helper(r.rhs)
+                if (!changed) {
+                    io::println(r.to_string())
+                    changed = !first_set_map[r.lhs].contains(rule_lookahead)
+                    io::print("changed: "); io::println(changed)
+                    io::print("\tcurrent lookahead is sized:")
+                    io::println(first_set_map[r.lhs].size())
+                    io::println("\tcurrent lookahead is:")
+                    first_set_map[r.lhs].for_each(fun(look: symbol::symbol) {
+                        io::print("\t\tlookahead: "); io::println(look.to_string())
+                    })
+                    io::println()
+                    io::print("\rule lookahead is sized:")
+                    io::println(rule_lookahead.size())
+                    io::println("\trule lookahead is:")
+                    rule_lookahead.for_each(fun(look: symbol::symbol) {
+                        io::print("\t\tlookahead: "); io::println(look.to_string())
+                    })
+                }
+                first_set_map[r.lhs].add(rule_lookahead)
+            })
+        }
     }
 
     fun to_string(): string::string {
         var result = string::string("grammer rules:")
         rules.for_each( fun(i : rule) { result += string::string("\n\t") + i.to_string(); } )
-        result += "\nregexs:"
-        regexs.for_each( fun(i : util::pair<string::string, regex::regex>) { result += string::string("\n\t") + i.first + ": " + i.second.regexString; } )
+        result += "\nnon_terminals:"
+        non_terminals.for_each( fun(i : symbol::symbol) { result += string::string("\n\t") + i.to_string(); } )
+        result += "\nterminals:"
+        terminals.for_each( fun(i : util::pair<symbol::symbol, regex::regex>) { result += string::string("\n\t") + i.first.to_string() + ": " + i.second.regexString; } )
         return result
     }
 }
