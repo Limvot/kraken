@@ -58,6 +58,7 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std:
 	collapseSymbols.push_back(Symbol("template_param_list", false));
 	collapseSymbols.push_back(Symbol("trait_list", false));
 	collapseSymbols.push_back(Symbol("dec_type", false));
+	//collapseSymbols.push_back(Symbol("pre_reffed", false));
 }
 
 Importer::~Importer() {

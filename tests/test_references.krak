@@ -1,0 +1,23 @@
+import io:*
+
+/*fun byRef<T>(it: ref T) {*/
+    /*it = it + 1*/
+/*}*/
+
+/*fun byRef(it: * int) {*/
+    /**it = *it + 1*/
+/*}*/
+
+fun byRef(it: ref int) {
+    it = it + 1
+}
+
+// what about cosures closing over references?
+
+fun main():int {
+    var a = 6
+    byRef(a)
+    println(a)
+    return 0
+}
+

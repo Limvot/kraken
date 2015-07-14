@@ -7,6 +7,7 @@ Type::Type() {
 	templateDefinition = nullptr;
     returnType = nullptr;
     templateInstantiated = false;
+    is_reference = false;
 }
 
 Type::Type(ValueType typeIn, int indirectionIn) {
@@ -16,6 +17,7 @@ Type::Type(ValueType typeIn, int indirectionIn) {
 	templateDefinition = nullptr;
     returnType = nullptr;
     templateInstantiated = false;
+    is_reference = false;
 }
 
 Type::Type(ValueType typeIn, std::set<std::string> traitsIn) {
@@ -26,6 +28,7 @@ Type::Type(ValueType typeIn, std::set<std::string> traitsIn) {
 	templateDefinition = nullptr;
     returnType = nullptr;
     templateInstantiated = false;
+    is_reference = false;
 }
 
 Type::Type(NodeTree<ASTData>* typeDefinitionIn, int indirectionIn) {
@@ -35,6 +38,7 @@ Type::Type(NodeTree<ASTData>* typeDefinitionIn, int indirectionIn) {
 	templateDefinition = nullptr;
     returnType = nullptr;
     templateInstantiated = false;
+    is_reference = false;
 }
 
 Type::Type(NodeTree<ASTData>* typeDefinitionIn, std::set<std::string> traitsIn) {
@@ -45,9 +49,10 @@ Type::Type(NodeTree<ASTData>* typeDefinitionIn, std::set<std::string> traitsIn) 
 	templateDefinition = nullptr;
     returnType = nullptr;
     templateInstantiated = false;
+    is_reference = false;
 }
 
-Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, std::set<std::string> traitsIn) {
+Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, bool referenceIn, std::set<std::string> traitsIn) {
 	baseType = typeIn;
 	indirection = indirectionIn;
 	typeDefinition = typeDefinitionIn;
@@ -55,9 +60,10 @@ Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectio
     templateDefinition = nullptr;
     returnType = nullptr;
     templateInstantiated = false;
+    is_reference = referenceIn;
 }
 
-Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, std::set<std::string> traitsIn, std::vector<Type*> parameterTypesIn, Type* returnTypeIn) {
+Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, bool referenceIn, std::set<std::string> traitsIn, std::vector<Type*> parameterTypesIn, Type* returnTypeIn) {
 	baseType = typeIn;
 	indirection = indirectionIn;
 	typeDefinition = typeDefinitionIn;
@@ -66,8 +72,9 @@ Type::Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectio
     parameterTypes = parameterTypesIn;
     returnType = returnTypeIn;
     templateInstantiated = false;
+    is_reference = referenceIn;
 }
-Type::Type(std::vector<Type*> parameterTypesIn, Type* returnTypeIn) {
+Type::Type(std::vector<Type*> parameterTypesIn, Type* returnTypeIn, bool referenceIn) {
 	baseType = function_type;
 	indirection = 0;
 	typeDefinition = nullptr;
@@ -75,6 +82,7 @@ Type::Type(std::vector<Type*> parameterTypesIn, Type* returnTypeIn) {
     parameterTypes = parameterTypesIn;
     returnType = returnTypeIn;
     templateInstantiated = false;
+    is_reference = referenceIn;
 }
 
 Type::Type(ValueType typeIn, NodeTree<Symbol>* templateDefinitionIn, std::set<std::string> traitsIn) {
@@ -85,6 +93,7 @@ Type::Type(ValueType typeIn, NodeTree<Symbol>* templateDefinitionIn, std::set<st
     traits = traitsIn;
     returnType = nullptr;
     templateInstantiated = false;
+    is_reference = false;
 }
 
 
@@ -92,7 +101,12 @@ Type::~Type() {
 }
 
 const bool Type::operator==(const Type &other) const {
+    return test_equality(other, true);
+}
+const bool Type::test_equality(const Type &other, bool care_about_references) const {
 	bool first_part = ( baseType == other.baseType && indirection == other.indirection && typeDefinition == other.typeDefinition && templateDefinition == other.templateDefinition && other.traits == traits);
+    if (care_about_references && is_reference != other.is_reference)
+        return false;
     if (!first_part)
         return false;
     if ((returnType && !other.returnType) || (!returnType && other.returnType))
@@ -116,6 +130,8 @@ const bool Type::operator<(const Type &other) const {
         return baseType < other.baseType;
     if (indirection != other.indirection)
         return indirection < other.indirection;
+    if (is_reference != other.is_reference)
+        return is_reference;
     if (typeDefinition != other.typeDefinition)
         return typeDefinition < other.typeDefinition;
     if (templateDefinition != other.templateDefinition)
@@ -180,6 +196,8 @@ std::string Type::toString(bool showTraits) {
 			else
 				typeString = "unknown_type";
 	}
+    if (is_reference)
+        typeString = "ref " + typeString;
 	for (int i = 0; i < indirection; i++)
 		typeString += "*";
     if (indirection < 0)
@@ -195,7 +213,7 @@ std::string Type::toString(bool showTraits) {
 }
 
 Type* Type::clone() {
-	return new Type(baseType, typeDefinition, indirection, traits, parameterTypes, returnType);
+	return new Type(baseType, typeDefinition, indirection, is_reference, traits, parameterTypes, returnType);
 }
 
 int Type::getIndirection() {

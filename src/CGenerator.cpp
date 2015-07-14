@@ -291,8 +291,8 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             if (data.symbol.getName() == "this") {
                 if (enclosingObject)
                     return CCodeTriple("this");
-                else
-                    std::cerr << "Error: this used in non-object scope" << std::endl;
+                std::cerr << "Error: this used in non-object scope" << std::endl;
+                throw "Error: this used in non-object scope";
             }
 			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
             std::string preName;
@@ -311,6 +311,11 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             }
 			if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
 				preName += "this->";
+            // dereference references, but only if inside a function
+			if (enclosingFunction && data.valueType->is_reference) {
+				preName += "(*";
+                postName += ")";
+            }
             // we're scope prefixing EVERYTHING
 			return preName + scopePrefix(from) + CifyName(data.symbol.getName()) + postName; //Cifying does nothing if not an operator overload
 		}
@@ -734,18 +739,32 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 }
 			}
             CCodeTriple parameters;
-            // see if we should copy_construct all the parameters
+            // see if we should copy_construct / referencize all the parameters
 			for (int i = 1; i < children.size(); i++) { //children[0] is the declaration
+                Type* func_param_type = children[0]->getDataRef()->valueType->parameterTypes[i-1];
+                Type *param_type = children[i]->getDataRef()->valueType;
                 if (methodExists(children[i]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[i]->getDataRef()->valueType->withIncreasedIndirection()})) {
                     std::string tmpParamName = "param" + getID();
                     CCodeTriple paramValue = generate(children[i], enclosingObject, true, enclosingFunction);
                     parameters.preValue += paramValue.preValue;
-                    parameters.preValue += ValueTypeToCType(children[i]->getDataRef()->valueType, tmpParamName) + ";\n";
-                    parameters.preValue += generateMethodIfExists(children[i]->getDataRef()->valueType, "copy_construct", "&"+tmpParamName + ", &" + paramValue.value, std::vector<Type>{children[i]->getDataRef()->valueType->withIncreasedIndirection()});
-                    parameters.value += tmpParamName;
+                    parameters.preValue += ValueTypeToCType(param_type, tmpParamName) + ";\n";
+                    parameters.preValue += generateMethodIfExists(param_type, "copy_construct", "&"+tmpParamName + ", &" + paramValue.value, std::vector<Type>{children[i]->getDataRef()->valueType->withIncreasedIndirection()});
+                    if (func_param_type->is_reference)
+                        parameters.value += "&" + tmpParamName;
+                    else
+                        parameters.value += tmpParamName;
                     parameters.postValue += paramValue.postValue;
                 } else {
-                    parameters += generate(children[i], enclosingObject, true, enclosingFunction);
+                    if (func_param_type->is_reference) {
+                        //std::string tmpParamName = "param" + getID();
+                        //CCodeTriple paramValue = generate(children[i], enclosingObject, true, enclosingFunction);
+                        //parameters.preValue += paramValue.preValue;
+                        //parameters.preValue += ValueTypeToCType(param_type, tmpParamName) + " = " + paramValue.value + ";\n";
+                        //parameters.value += "&" + tmpParamName;
+                        parameters += "&" + generate(children[i], enclosingObject, true, enclosingFunction);
+                    } else {
+                        parameters += generate(children[i], enclosingObject, true, enclosingFunction);
+                    }
                 }
 				if (i < children.size()-1)
 					parameters += ", ";
@@ -1010,6 +1029,8 @@ std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string decl
         return return_type;
 	for (int i = 0; i < type->getIndirection(); i++)
 		return_type += "*";
+    if (type->is_reference)
+		return_type += " /*ref*/ *";
     return return_type + declaration;
 }
 

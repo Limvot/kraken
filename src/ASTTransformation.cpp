@@ -239,6 +239,8 @@ NodeTree<ASTData>* ASTTransformation::secondPassFunction(NodeTree<Symbol>* from,
 	functionName = concatSymbolTree(children[0]);
     auto returnTypeNode = getNode("type", getNode("typed_return", children)); // if null, the typed_return had no children and we're supposed to automatically do a void type
     auto returnType = returnTypeNode ? typeFromTypeNode(returnTypeNode, scope, templateTypeReplacements): new Type(void_type);
+    if (!returnType)
+        throw "freakout";
     functionDef = new NodeTree<ASTData>("function", ASTData(function, Symbol(functionName, true), returnType));
     addToScope("~enclosing_scope", scope, functionDef);
     addToScope(functionName, functionDef, scope);
@@ -1025,7 +1027,9 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
 				//if (types[j] != *tmpType && tmpType->baseType != template_type_type) {
                 // WE DO WORRY NOW B/C template type infrence is ugly and we need this to fail
                 // for regular function lookups so that we know to retry with a template
-				if (types[j] != *tmpType) {
+                //
+                // we use test_equality so that we can pass in a false to not care about references
+				if (!types[j].test_equality(*tmpType, false)) {
 					typesMatch = false;
 					std::cout << "Types do not match between two " << lookup << " " << types[j].toString();
 					std::cout << " vs " << tmpType->toString() << std::endl;
@@ -1114,6 +1118,9 @@ NodeTree<ASTData>* ASTTransformation::templateClassLookup(NodeTree<ASTData>* sco
 }
 
 void ASTTransformation::unifyType(NodeTree<Symbol> *syntaxType, Type type, std::map<std::string, Type>* templateTypeMap, std::map<std::string, Type*> typeMap) {
+    // First, get rid of the reference part - we don't care for unification
+    syntaxType = syntaxType->getChildren().back();
+
     // Ok, 3 options for syntaxType here.
     //  1) This a basic type. (int, or object, etc)
     //      THIS ONE will fall through and get put in the map, but it
@@ -1287,7 +1294,8 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         for (int j = 0; j < functionParameters.size(); j++) {
             auto paramType = typeFromTypeNode(functionParameters[j]->getChildren()[2], scope, typeMap);
             std::cout << "Template param type: " << paramType->toString() << " : Needed Type: " << types[j].toString() << std::endl;
-            if (*paramType != types[j]) {
+            // use test_equality so we can pass false and not care about references
+            if (!paramType->test_equality(types[j], false)) {
                 parameterTypesMatch = false;
                 std::cout << "Not equal template param: " << paramType->toString() << " : Needed Type actual param: " << types[j].toString() << std::endl;
                 break;
@@ -1458,19 +1466,28 @@ NodeTree<ASTData>* ASTTransformation::getUpperTranslationUnit(NodeTree<ASTData>*
 
 //Create a type from a syntax tree. This can get complicated with templates
 Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<ASTData>* scope, std::map<std::string, Type*> templateTypeReplacements) {
-	std::string typeIn = concatSymbolTree(typeNode);
 
 	int indirection = 0;
+	bool is_reference = false;
 	ValueType baseType;
 	NodeTree<ASTData>* typeDefinition = NULL;
     std::set<std::string> traits;
+    // if this is a reference, we also have to step down a level
+	if (typeNode->getChildren().size() && typeNode->getChildren().front()->getDataRef()->getValue() == "ref") {
+        is_reference = true;
+    }
+    // always step down below the ref level
+    typeNode = typeNode->getChildren().back();
+
+	std::string typeIn = concatSymbolTree(typeNode);
+
     // To counter this, for every indirection we step down a level
 	//while (typeIn[indirection] == '*') {
     //since fun(*T):int gets transformed to *T:int, the text based way doesn't work anymore
 	while (typeNode->getChildren().size() && typeNode->getChildren().front()->getDataRef()->getValue() == "*") {
         indirection++;
         typeNode = typeNode->getChildren().back();
-    };
+    }
 	std::string edited = strSlice(typeIn, indirection, -1);
 	if (edited == "void")
 		baseType = void_type;
@@ -1489,7 +1506,7 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
         std::vector<Type*> types;
         for (auto typeSyntaxNode : getNodes("type", typeNode->getChildren()[0]->getChildren()))
             types.push_back(typeFromTypeNode(typeSyntaxNode, scope, templateTypeReplacements));
-        return new Type(slice(types, 0, -2),types.back());
+        return new Type(slice(types, 0, -2),types.back(), is_reference);
     } else {
 		baseType = none;
 
@@ -1607,10 +1624,10 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
         	std::cout << "Could not find type " << edited << ", returning NULL" << std::endl;
     		return NULL;
 		} else {
-			std::cout << "Type: " << edited << " already instantiated with " << typeDefinition << ", will be " << Type(baseType, typeDefinition, indirection, traits).toString() << std::endl;
+			std::cout << "Type: " << edited << " already instantiated with " << typeDefinition << ", will be " << Type(baseType, typeDefinition, indirection, is_reference, traits).toString() << std::endl;
 		}
 	}
-	Type* toReturn = new Type(baseType, typeDefinition, indirection, traits);
+	Type* toReturn = new Type(baseType, typeDefinition, indirection, is_reference, traits);
 	std::cout << "Returning type " << toReturn->toString() << std::endl;
 	return toReturn;
 }

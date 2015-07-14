@@ -24,11 +24,12 @@ class Type {
         Type(ValueType typeIn, std::set<std::string> traitsIn); //Mostly for template type type's
 		Type(NodeTree<ASTData>* typeDefinitionIn, int indirectionIn = 0);
 		Type(NodeTree<ASTData>* typeDefinitionIn, std::set<std::string> traitsIn);
-		Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, std::set<std::string> traitsIn);
-		Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, std::set<std::string> traitsIn, std::vector<Type*> parameterTypesIn, Type* returnTypeIn);
-		Type(std::vector<Type*> parameterTypesIn, Type* returnTypeIn);
+		Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, bool referenceIn, std::set<std::string> traitsIn);
+		Type(ValueType typeIn, NodeTree<ASTData>* typeDefinitionIn, int indirectionIn, bool referenceIn, std::set<std::string> traitsIn, std::vector<Type*> parameterTypesIn, Type* returnTypeIn);
+		Type(std::vector<Type*> parameterTypesIn, Type* returnTypeIn, bool referenceIn = false);
 		Type(ValueType typeIn, NodeTree<Symbol>* templateDefinitionIn, std::set<std::string> traitsIn = std::set<std::string>());
 		~Type();
+        const bool test_equality(const Type &other, bool care_about_references) const;
 		bool const operator==(const Type &other)const;
 		bool const operator!=(const Type &other)const;
 		bool const operator<(const Type &other)const;
@@ -50,6 +51,7 @@ class Type {
         std::set<std::string> traits;
         std::vector<Type*> parameterTypes;
         Type *returnType;
+		bool is_reference;;
     private:
 		int indirection;
 };
