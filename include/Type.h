@@ -43,6 +43,8 @@ class Type {
 		Type withIncreasedIndirection();
 		Type withDecreasedIndirection();
 
+		Type* withoutReference();
+
         ValueType baseType;
 		NodeTree<ASTData>* typeDefinition;
 		NodeTree<Symbol>* templateDefinition;

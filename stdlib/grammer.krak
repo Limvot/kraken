@@ -70,7 +70,7 @@ fun load_grammer(gram_str: string::string): grammer {
             doLeftSide = true
         } else {
             if (doLeftSide) {
-                leftSide = symbol::symbol(word, true)
+                leftSide = symbol::symbol(word, false)
                 gram.non_terminals.add(leftSide)
             } else {
                 if (word[0] == '"') {

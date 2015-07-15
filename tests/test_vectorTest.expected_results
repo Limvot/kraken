@@ -67,18 +67,12 @@ Destroyed: 303
 Destroyed: 302
 Copied: 104 to 105
 Copied: 105 to 106
-Copied: 106 to 107
-Destroyed: 106
 Destroyed: 105
 Copied: 204 to 205
 Copied: 205 to 206
-Copied: 206 to 207
-Destroyed: 206
 Destroyed: 205
 Copied: 304 to 305
 Copied: 305 to 306
-Copied: 306 to 307
-Destroyed: 306
 Destroyed: 305
 Destroyed: 104
 Destroyed: 204
@@ -86,30 +80,24 @@ Destroyed: 304
 Destroyed: 301
 Destroyed: 201
 Destroyed: 101
+Copied: 106 to 107
 Copied: 107 to 108
-Copied: 108 to 109
-Copied: 109 to 110
-Destroyed: 109
-Destroyed: 108
-Copied: 207 to 208
-Copied: 208 to 209
-Copied: 209 to 210
-Destroyed: 209
-Destroyed: 208
-Copied: 307 to 308
-Copied: 308 to 309
-Copied: 309 to 310
-Destroyed: 309
-Destroyed: 308
 Destroyed: 107
+Copied: 206 to 207
+Copied: 207 to 208
 Destroyed: 207
+Copied: 306 to 307
+Copied: 307 to 308
 Destroyed: 307
-Destroyed: 210
-Copied: 310 to 311
-Destroyed: 310
+Destroyed: 106
+Destroyed: 206
+Destroyed: 306
+Destroyed: 208
+Copied: 308 to 309
+Destroyed: 308
 done
-Destroyed: 110
-Destroyed: 311
+Destroyed: 108
+Destroyed: 309
 Destroyed: 300
 Destroyed: 200
 Destroyed: 100

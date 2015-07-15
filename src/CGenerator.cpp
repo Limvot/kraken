@@ -506,8 +506,11 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 CCodeTriple expr = generate(children[0], enclosingObject, true, enclosingFunction);
                 output.preValue += expr.preValue;
                 std::string retTemp = "ret_temp" + getID();
-                output.preValue += ValueTypeToCType(children[0]->getDataRef()->valueType, retTemp) + ";\n";
-                if (methodExists(children[0]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[0]->getDataRef()->valueType->withIncreasedIndirection()}))
+                // use the function's return value so we do the right thing with references
+                output.preValue += ValueTypeToCType(enclosingFunction->getDataRef()->valueType->returnType, retTemp) + ";\n";
+                if (enclosingFunction->getDataRef()->valueType->returnType->is_reference)
+                    output.preValue += retTemp + " = &" + expr.value + ";\n";
+                else if (methodExists(children[0]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[0]->getDataRef()->valueType->withIncreasedIndirection()}))
                     output.preValue += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&"+retTemp + ", &" + expr.value, std::vector<Type>{children[0]->getDataRef()->valueType->withIncreasedIndirection()});
                 else
                     output.preValue += retTemp + " = " + expr.value + ";\n";
@@ -742,11 +745,12 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             // see if we should copy_construct / referencize all the parameters
 			for (int i = 1; i < children.size(); i++) { //children[0] is the declaration
                 Type* func_param_type = children[0]->getDataRef()->valueType->parameterTypes[i-1];
-                Type *param_type = children[i]->getDataRef()->valueType;
+                // ok, if our param is a reference returned by another function, we don't actually want this type to be a reference if it is now.
+                Type *param_type = children[i]->getDataRef()->valueType->withoutReference();
                 // don't copy_construct references
                 if (func_param_type->is_reference) {
                         parameters += "&" + generate(children[i], enclosingObject, true, enclosingFunction);
-                } else if (methodExists(children[i]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[i]->getDataRef()->valueType->withIncreasedIndirection()})) {
+                } else if (methodExists(children[i]->getDataRef()->valueType, "copy_construct", std::vector<Type>{param_type->withIncreasedIndirection()})) {
                     std::string tmpParamName = "param" + getID();
                     CCodeTriple paramValue = generate(children[i], enclosingObject, true, enclosingFunction);
                     parameters.preValue += paramValue.preValue;
@@ -782,7 +786,9 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 std::string retTempName = "return_temp" + getID();
                 output.preValue += ValueTypeToCType(retType, retTempName) + " = " + output.value + ";\n";
                 output.value = retTempName;
-                if (methodExists(retType, "destruct", std::vector<Type>())) {
+                if (retType->is_reference)
+                    output.value = "(*" + output.value + ")";
+                else if (methodExists(retType, "destruct", std::vector<Type>())) {
                     output.postValue = generateMethodIfExists(retType, "destruct", "&"+retTempName, std::vector<Type>()) + ";\n" + output.postValue;
                 }
             }
@@ -848,7 +854,7 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
     // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
     //
     std::string output;
-    output += functionSignature + " {\n" +  generate(children.back(), enclosingObject).oneString();
+    output += functionSignature + " {\n" +  generate(children.back(), enclosingObject, false, from).oneString();
     output += emitDestructors(reverse(distructDoubleStack.back()), enclosingObject);
     output += "}\n"; //Pass in the object so we can properly handle access to member stuff
     distructDoubleStack.pop_back();
@@ -868,7 +874,8 @@ NodeTree<ASTData>* CGenerator::getMethod(Type* type, std::string method, std::ve
                 if (types.size() != methodTypes.size())
                     continue;
                 for (int i = 0; i < types.size(); i++) {
-                    if (types[i] != methodTypes[i]) {
+                    // don't care about references
+                    if (!types[i].test_equality(methodTypes[i], false)) {
                         methodFits = false;
                         break;
                     }

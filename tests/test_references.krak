@@ -34,6 +34,14 @@ fun byRef(it: ref int) {
     it = it + 1
 }
 
+fun id(it: ref int): ref int {
+    return it
+}
+
+fun id<T>(it: ref T): ref T {
+    return it
+}
+
 // what about cosures closing over references?
 
 fun main():int {
@@ -42,12 +50,15 @@ fun main():int {
     println(a)
     byRef(&a)
     println(a)
+    id(a) = 14
+    println(a)
     var b = 6.7
     byRef(b)
     println(b)
 
     var t.construct() : test_cons
     call(t)
+    id(t).do()
     return 0
 }
 

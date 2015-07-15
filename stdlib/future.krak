@@ -65,7 +65,7 @@ obj future<T> {
         status = pthread_create(&thread,wrapper)
     }
 
-    fun get_status() {
+    fun get_status():int {
         return status
     }
 

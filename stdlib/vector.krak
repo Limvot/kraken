@@ -92,9 +92,9 @@ obj vector<T> (Object) {
         return new
     }
 
-    fun at(index: int): T { return get(index); }
-    fun operator[](index: int): T { return get(index); }
-    fun get(index: int): T {
+    fun at(index: int): ref T { return get(index); }
+    fun operator[](index: int): ref T { return get(index); }
+    fun get(index: int): ref T {
         if (index < 0 || index >= size) {
             println("Vector access out of bounds! Retuning 0th element as sanest option");
             print("Vector tried to access element: ");
@@ -124,9 +124,6 @@ obj vector<T> (Object) {
         return find(item) != -1
     }
 
-    fun operator[]=(index: int, dataIn: T) {
-        set(index, dataIn)
-    }
     fun set(index: int, dataIn: T): void {
         if (index < 0 || index  >= size)
             return;

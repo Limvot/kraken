@@ -245,4 +245,9 @@ Type Type::withDecreasedIndirection() {
     newOne->decreaseIndirection();
     return *newOne;
 }
+Type* Type::withoutReference() {
+   Type *newOne = clone();
+   newOne->is_reference = false;
+    return newOne;
+}
 

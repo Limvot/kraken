@@ -52,13 +52,10 @@ obj string (Object) {
         data.destruct()
     }
 
-    fun operator[](index: int): char { return data[index]; }
+    fun operator[](index: int): ref char { return data[index]; }
     fun slice(first: int, second: int): string {
         var new.construct(data.slice(first,second)): string
         return new
-    }
-    fun operator[]=(index: int, toSet: char) {
-        data[index] = toSet
     }
     fun set(index: int, toSet: char) {
         data.set(index, toSet)

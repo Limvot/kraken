@@ -46,7 +46,7 @@ obj map<T,U> (Object) {
     fun contains_key(key: T): bool {
         return keys.contains(key)
     }
-    fun get(key: T): U {
+    fun get(key: T): ref U {
         return values.get(keys.find(key))
     }
     fun remove(key: T) {
@@ -58,7 +58,7 @@ obj map<T,U> (Object) {
         keys.remove(idx)
         values.remove(idx)
     }
-    fun operator[](key: T): U {
+    fun operator[](key: T): ref U {
         return get(key)
     }
     fun for_each(func: fun(T, U):void) {
