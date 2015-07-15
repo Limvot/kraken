@@ -5,4 +5,7 @@
 construct
 do
 do
+copy_construct
+do
+destruct
 destruct

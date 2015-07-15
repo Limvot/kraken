@@ -139,42 +139,53 @@ obj grammer (Object) {
         )
         var first_helper = fun(rhs: vector::vector<symbol::symbol>): set::set<symbol::symbol> {
             var toRet = set::set<symbol::symbol>()
-            rhs.for_each(fun(sym: symbol::symbol) {
-                toRet.add(first_set_map[sym])
-            })
+            if (rhs.size) {
+                for (var i = 0; i < rhs.size; i++;) {
+                    var lookahead = first_set_map[rhs[i]]
+                    if (lookahead.contains(symbol::null_symbol())) {
+                        lookahead.remove(symbol::null_symbol())
+                        toRet.add(lookahead)
+                    } else {
+                        toRet.add(lookahead)
+                        break
+                    }
+                }
+            } else {
+                toRet.add(symbol::null_symbol())
+            }
             return toRet
         }
         var changed = true
         while (changed) {
-            io::println("//////////current state of map/////////////")
+            /*io::println("//////////current state of map/////////////")*/
             first_set_map.keys.for_each(fun(sym: symbol::symbol) {
-                io::print("for ")
-                io::println(sym.to_string())
-                io::println("map is:")
-                first_set_map[sym].for_each(fun(look: symbol::symbol) {
-                    io::print("lookahead: "); io::println(look.to_string())
-                })
+                /*io::print("for ")*/
+                /*io::println(sym.to_string())*/
+                /*io::println("map is:")*/
+                /*first_set_map[sym].for_each(fun(look: symbol::symbol) {*/
+                    /*io::print("lookahead: "); io::println(look.to_string())*/
+                /*})*/
             })
             changed = false
             rules.for_each( fun(r: rule) {
                 var rule_lookahead = first_helper(r.rhs)
                 if (!changed) {
-                    io::println(r.to_string())
+                    /*io::println(r.to_string())*/
                     changed = !first_set_map[r.lhs].contains(rule_lookahead)
-                    io::print("changed: "); io::println(changed)
-                    io::print("\tcurrent lookahead is sized:")
-                    io::println(first_set_map[r.lhs].size())
-                    io::println("\tcurrent lookahead is:")
-                    first_set_map[r.lhs].for_each(fun(look: symbol::symbol) {
-                        io::print("\t\tlookahead: "); io::println(look.to_string())
-                    })
-                    io::println()
-                    io::print("\rule lookahead is sized:")
-                    io::println(rule_lookahead.size())
-                    io::println("\trule lookahead is:")
-                    rule_lookahead.for_each(fun(look: symbol::symbol) {
-                        io::print("\t\tlookahead: "); io::println(look.to_string())
-                    })
+                    /*io::print("changed: "); io::println(changed)*/
+                    /*io::print("\tcurrent lookahead is sized:")*/
+                    /*io::println(first_set_map[r.lhs].size())*/
+                    /*io::println("\tcurrent lookahead is:")*/
+                    /*first_set_map[r.lhs].for_each(fun(look: symbol::symbol) {*/
+                        /*io::print("\t\tlookahead: "); io::println(look.to_string())*/
+                    /*})*/
+                    /*io::println()*/
+                    /*io::print("\rule lookahead is sized:")*/
+                    /*io::println(rule_lookahead.size())*/
+                    /*io::println("\trule lookahead is:")*/
+                    /*rule_lookahead.for_each(fun(look: symbol::symbol) {*/
+                        /*io::print("\t\tlookahead: "); io::println(look.to_string())*/
+                    /*})*/
                 }
                 first_set_map[r.lhs].add(rule_lookahead)
             })

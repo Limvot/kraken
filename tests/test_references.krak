@@ -59,6 +59,9 @@ fun main():int {
     var t.construct() : test_cons
     call(t)
     id(t).do()
+
+    var do_copy = id(t)
+    do_copy.do()
     return 0
 }
 

@@ -568,7 +568,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     output.value += ValueTypeToCType(children[0]->getData().valueType, assignedTo) + ";\n";
                     // we put the thing about to be copy constructed in a variable so we can for sure take its address
                     std::string toAssignTemp = "copy_construct_param" + getID();
-                    output.value += ValueTypeToCType(children[1]->getData().valueType, toAssignTemp) + " = " + toAssign.value + ";\n";
+                    output.value += ValueTypeToCType(children[1]->getData().valueType->withoutReference(), toAssignTemp) + " = " + toAssign.value + ";\n";
 
                     output.value += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&" + assignedTo + ", &" + toAssignTemp, std::vector<Type>{children[1]->getDataRef()->valueType->withIncreasedIndirection()}) + ";\n" + output.postValue;
                     output.value += toAssign.postValue;

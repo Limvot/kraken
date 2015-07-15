@@ -709,7 +709,8 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         // for type inferencing
         if (!identifierType) {
             if (toAssign) {
-                identifierType = toAssign->getDataRef()->valueType;
+                // no reference variables
+                identifierType = toAssign->getDataRef()->valueType->withoutReference();
                 newIdentifier->getDataRef()->valueType = identifierType;
             } else
                 throw "have to inference but no expression";

@@ -1,0 +1,10 @@
+# comment
+a = b ;
+b = "c":named_c ;
+b = c "d":dname ;
+c = "a" | d ;
+d = e post_null post_non_null ;
+e = f | ;
+f = ;
+post_null = "hi"
+post_non_null = "bye"

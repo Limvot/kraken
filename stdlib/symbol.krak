@@ -1,5 +1,10 @@
 import string
 
+fun null_symbol(): symbol {
+    var toRet.construct(string::string("$NULL"), false, string::string("$NULL$")): symbol
+    return toRet
+}
+
 fun symbol(nameIn: *char, terminalIn: bool): symbol {
     var toRet.construct(string::string(nameIn), terminalIn, string::string("no_value")): symbol
     return toRet
