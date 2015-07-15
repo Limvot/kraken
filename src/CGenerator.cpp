@@ -743,28 +743,19 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			for (int i = 1; i < children.size(); i++) { //children[0] is the declaration
                 Type* func_param_type = children[0]->getDataRef()->valueType->parameterTypes[i-1];
                 Type *param_type = children[i]->getDataRef()->valueType;
-                if (methodExists(children[i]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[i]->getDataRef()->valueType->withIncreasedIndirection()})) {
+                // don't copy_construct references
+                if (func_param_type->is_reference) {
+                        parameters += "&" + generate(children[i], enclosingObject, true, enclosingFunction);
+                } else if (methodExists(children[i]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[i]->getDataRef()->valueType->withIncreasedIndirection()})) {
                     std::string tmpParamName = "param" + getID();
                     CCodeTriple paramValue = generate(children[i], enclosingObject, true, enclosingFunction);
                     parameters.preValue += paramValue.preValue;
                     parameters.preValue += ValueTypeToCType(param_type, tmpParamName) + ";\n";
                     parameters.preValue += generateMethodIfExists(param_type, "copy_construct", "&"+tmpParamName + ", &" + paramValue.value, std::vector<Type>{children[i]->getDataRef()->valueType->withIncreasedIndirection()});
-                    if (func_param_type->is_reference)
-                        parameters.value += "&" + tmpParamName;
-                    else
-                        parameters.value += tmpParamName;
+                    parameters.value += tmpParamName;
                     parameters.postValue += paramValue.postValue;
                 } else {
-                    if (func_param_type->is_reference) {
-                        //std::string tmpParamName = "param" + getID();
-                        //CCodeTriple paramValue = generate(children[i], enclosingObject, true, enclosingFunction);
-                        //parameters.preValue += paramValue.preValue;
-                        //parameters.preValue += ValueTypeToCType(param_type, tmpParamName) + " = " + paramValue.value + ";\n";
-                        //parameters.value += "&" + tmpParamName;
-                        parameters += "&" + generate(children[i], enclosingObject, true, enclosingFunction);
-                    } else {
-                        parameters += generate(children[i], enclosingObject, true, enclosingFunction);
-                    }
+                    parameters += generate(children[i], enclosingObject, true, enclosingFunction);
                 }
 				if (i < children.size()-1)
 					parameters += ", ";
@@ -909,7 +900,8 @@ std::string CGenerator::generateMethodIfExists(Type* type, std::string method, s
 std::string CGenerator::emitDestructors(std::vector<NodeTree<ASTData>*> identifiers, NodeTree<ASTData>* enclosingObject) {
     std::string destructorString = "";
     for (auto identifier : identifiers)
-        destructorString += tabs() + generateMethodIfExists(identifier->getDataRef()->valueType, "destruct", "&" + generate(identifier, enclosingObject).oneString(), std::vector<Type>());
+        if (!identifier->getDataRef()->valueType->is_reference)
+            destructorString += tabs() + generateMethodIfExists(identifier->getDataRef()->valueType, "destruct", "&" + generate(identifier, enclosingObject).oneString(), std::vector<Type>());
     return destructorString;
 }
 

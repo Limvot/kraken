@@ -1521,6 +1521,7 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 			std::cout << "Template type! (" << edited << ")" << std::endl;
 			Type* templateTypeReplacement = templateTypeReplacements[edited]->clone();
 			templateTypeReplacement->modifyIndirection(indirection);
+            templateTypeReplacement->is_reference = is_reference;
 			return templateTypeReplacement;
 		}
 		std::cout << edited << " was not found in templateTypeReplacements" << std::endl;

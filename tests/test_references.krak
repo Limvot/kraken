@@ -1,12 +1,34 @@
 import io:*
 
-/*fun byRef<T>(it: ref T) {*/
-    /*it = it + 1*/
-/*}*/
+obj test_cons(Object) {
+    fun construct(): *test_cons {
+        println("construct")
+    }
+    fun copy_construct(other: *test_cons) {
+        println("copy_construct")
+    }
+    fun destruct() {
+        println("destruct")
+    }
+    fun operator=(other: test_cons) {
+        println("=")
+    }
+    fun do() {
+        println("do")
+    }
+}
 
-/*fun byRef(it: * int) {*/
-    /**it = *it + 1*/
-/*}*/
+fun call<T>(it: ref T) {
+    it.do()
+}
+
+fun byRef<T>(it: ref T) {
+    it = it + 1
+}
+
+fun byRef(it: * int) {
+    *it = *it + 1
+}
 
 fun byRef(it: ref int) {
     it = it + 1
@@ -18,6 +40,14 @@ fun main():int {
     var a = 6
     byRef(a)
     println(a)
+    byRef(&a)
+    println(a)
+    var b = 6.7
+    byRef(b)
+    println(b)
+
+    var t.construct() : test_cons
+    call(t)
     return 0
 }
 
