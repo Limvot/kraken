@@ -143,7 +143,9 @@ obj grammer (Object) {
                 for (var i = 0; i < rhs.size; i++;) {
                     var lookahead = first_set_map[rhs[i]]
                     if (lookahead.contains(symbol::null_symbol())) {
-                        lookahead.remove(symbol::null_symbol())
+                        // remove the null if this is not the last in the rule
+                        if (i != rhs.size-1)
+                            lookahead.remove(symbol::null_symbol())
                         toRet.add(lookahead)
                     } else {
                         toRet.add(lookahead)
