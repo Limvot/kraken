@@ -1319,14 +1319,14 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         std::cout << "Current function fits, satisfying " << currentTraitsSatisfied << " traits" << std::endl;
     }
     if (!mostFittingTemplates.size()) {
-        std::cerr << "No template functions fit for " << lookup << "(";
+        std::cout << "No template functions fit for " << lookup << "(";
         for (auto t : types)
-            std::cerr << t.toString() + ", ";
-        std::cerr << ")!" << std::endl;
-        std::cerr << "in file " << getUpperTranslationUnit(scope)->getDataRef()->symbol.getName() << std::endl;
+            std::cout << t.toString() + ", ";
+        std::cout << ")!" << std::endl;
+        std::cout << "in file " << getUpperTranslationUnit(scope)->getDataRef()->symbol.getName() << std::endl;
         throw "No matching template functions";
     } else if (mostFittingTemplates.size() > 1) {
-        std::cerr << "Multiple template functions fit with equal number of traits satisfied for " << lookup << "!" << std::endl;
+        std::cout << "Multiple template functions fit with equal number of traits satisfied for " << lookup << "!" << std::endl;
         throw "Multiple matching template functions";
     }
     // Assign our most fitting instantiation types to what we were passed in
