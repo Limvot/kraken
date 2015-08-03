@@ -104,18 +104,21 @@ obj grammer (Object) {
     var non_terminals: set::set<symbol::symbol>
     var terminals: vector::vector<util::pair<symbol::symbol, regex::regex>>
     var first_set_map: map::map<symbol::symbol, set::set<symbol::symbol>>
+    var state_automata: state
 
     fun construct(): *grammer {
         rules.construct()
         non_terminals.construct()
         terminals.construct()
         first_set_map.construct()
+        state_automata.construct()
     }
     fun copy_construct(old: *grammer) {
         rules.copy_construct(&old->rules)
         non_terminals.copy_construct(&old->non_terminals)
         terminals.copy_construct(&old->terminals)
         first_set_map.copy_construct(&old->first_set_map)
+        state_automata.copy_construct(&old->state_automata)
     }
     fun operator=(other: grammer) {
         destruct()
@@ -126,6 +129,7 @@ obj grammer (Object) {
         non_terminals.destruct()
         terminals.destruct()
         first_set_map.destruct()
+        state_automata.destruct()
     }
 
     fun calculate_first_set() {
@@ -137,61 +141,73 @@ obj grammer (Object) {
         non_terminals.for_each( fun(non_terminal: symbol::symbol)
             first_set_map[non_terminal] = set::set<symbol::symbol>()
         )
-        var first_helper = fun(rhs: vector::vector<symbol::symbol>): set::set<symbol::symbol> {
-            var toRet = set::set<symbol::symbol>()
-            if (rhs.size) {
-                for (var i = 0; i < rhs.size; i++;) {
-                    var lookahead = first_set_map[rhs[i]]
-                    if (lookahead.contains(symbol::null_symbol())) {
-                        // remove the null if this is not the last in the rule
-                        if (i != rhs.size-1)
-                            lookahead.remove(symbol::null_symbol())
-                        toRet.add(lookahead)
-                    } else {
-                        toRet.add(lookahead)
-                        break
-                    }
-                }
-            } else {
-                toRet.add(symbol::null_symbol())
-            }
-            return toRet
-        }
         var changed = true
         while (changed) {
-            /*io::println("//////////current state of map/////////////")*/
-            first_set_map.keys.for_each(fun(sym: symbol::symbol) {
-                /*io::print("for ")*/
-                /*io::println(sym.to_string())*/
-                /*io::println("map is:")*/
-                /*first_set_map[sym].for_each(fun(look: symbol::symbol) {*/
-                    /*io::print("lookahead: "); io::println(look.to_string())*/
-                /*})*/
-            })
             changed = false
             rules.for_each( fun(r: rule) {
-                var rule_lookahead = first_helper(r.rhs)
+                var rule_lookahead = first_vector(r.rhs)
                 if (!changed) {
-                    /*io::println(r.to_string())*/
                     changed = !first_set_map[r.lhs].contains(rule_lookahead)
-                    /*io::print("changed: "); io::println(changed)*/
-                    /*io::print("\tcurrent lookahead is sized:")*/
-                    /*io::println(first_set_map[r.lhs].size())*/
-                    /*io::println("\tcurrent lookahead is:")*/
-                    /*first_set_map[r.lhs].for_each(fun(look: symbol::symbol) {*/
-                        /*io::print("\t\tlookahead: "); io::println(look.to_string())*/
-                    /*})*/
-                    /*io::println()*/
-                    /*io::print("\rule lookahead is sized:")*/
-                    /*io::println(rule_lookahead.size())*/
-                    /*io::println("\trule lookahead is:")*/
-                    /*rule_lookahead.for_each(fun(look: symbol::symbol) {*/
-                        /*io::print("\t\tlookahead: "); io::println(look.to_string())*/
-                    /*})*/
                 }
                 first_set_map[r.lhs].add(rule_lookahead)
             })
         }
+    }
+    fun first_vector(rhs: vector::vector<symbol::symbol>): set::set<symbol::symbol> {
+        var toRet = set::set<symbol::symbol>()
+            if (rhs.size) {
+                for (var i = 0; i < rhs.size; i++;) {
+                    var lookahead = first_set_map[rhs[i]]
+                        if (lookahead.contains(symbol::null_symbol())) {
+                            // remove the null if this is not the last in the rule
+                            if (i != rhs.size-1)
+                                lookahead.remove(symbol::null_symbol())
+                                    toRet.add(lookahead)
+                        } else {
+                            toRet.add(lookahead)
+                                break
+                        }
+                }
+            } else {
+                toRet.add(symbol::null_symbol())
+            }
+        return toRet
+    }
+
+    fun calculate_state_automaton() {
+    }
+
+    fun closure(initial: vector::vector<rule>): vector::vector<rule> {
+        var continueIt = true
+        while (continueIt) {
+            continueIt = false
+            initial.for_each(fun(i: rule) {
+                rules.for_each(fun(r: rule) {
+                    // if i is |a::=c . Bb, a|, we're doing each B::=... in rules
+                    if (r.lhs != i.next())
+                        return
+                    // add r with lookahead
+                    var newLookahead = first_vector(r.after_next())
+                    if (newLookahead.contains(symbol::null_symbol())) {
+                        newLookahead.remove(symbol::null_symbol())
+                        newLookahead.add(i.lookahead)
+                    }
+                    for (var index = 0; index < initial.size; index++;) {
+                        if (initial[index].equals_but_lookahead(r)) {
+                            initial[index].lookahead += newLookahead
+                            continueIt = true
+                            return; // continuing rule-for_each
+                        }
+                    }
+                    var newRule = r.with_lookahead(newLookahead)
+                    if (!initial.contains(newRule)) {
+                        continueIt = true
+                        initial.add(newRule)
+                    }
+                })
+            })
+        }
+        return initial
     }
 
     fun to_string(): string::string {
@@ -201,6 +217,8 @@ obj grammer (Object) {
         non_terminals.for_each( fun(i : symbol::symbol) { result += string::string("\n\t") + i.to_string(); } )
         result += "\nterminals:"
         terminals.for_each( fun(i : util::pair<symbol::symbol, regex::regex>) { result += string::string("\n\t") + i.first.to_string() + ": " + i.second.regexString; } )
+        result += "\nstate:"
+        result += state_automata.to_string()
         return result
     }
 }
@@ -234,10 +252,32 @@ obj rule (Object) {
         destruct()
         copy_construct(&other)
     }
+    //fun operator==(other: ref rule):bool {
+    fun operator==(other: rule):bool {
+        return lhs == other.lhs && rhs == other.rhs &&
+                position == other.position && lookahead == other.lookahead
+    }
+    fun equals_but_lookahead(other: ref rule):bool {
+        return lhs == other.lhs && rhs == other.rhs &&
+                position == other.position
+    }
     fun destruct() {
         lhs.destruct()
         rhs.destruct()
         lookahead.destruct()
+    }
+
+    fun next(): symbol::symbol {
+        return rhs[position]
+    }
+    fun after_next(): vector::vector<symbol::symbol> {
+        return rhs.slice(position + 1, -1)
+    }
+    fun with_lookahead(newLookahead: set::set<symbol::symbol>): rule {
+        var toRet = rule(lhs, rhs)
+        toRet.position = position
+        toRet.lookahead = newLookahead
+        return toRet
     }
 
     fun to_string(): string::string {
@@ -255,6 +295,10 @@ obj state (Object) {
         kernel.construct()
         rest.construct()
     }
+    fun construct(kernelIn: ref vector::vector<rule>, restIn: ref vector::vector<rule>): *state {
+        kernel.copy_construct(&kernelIn)
+        rest.copy_construct(&restIn)
+    }
     fun copy_construct(other: *state) {
         kernel.copy_construct(&other->kernel)
         rest.copy_construct(&other->rest)
@@ -266,6 +310,9 @@ obj state (Object) {
     fun destruct() {
         kernel.destruct()
         rest.destruct()
+    }
+    fun to_string(): string::string {
+        return string::string("woo a state")
     }
 }
 

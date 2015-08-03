@@ -1,0 +1,14 @@
+import io:*
+
+obj it {
+    fun operator+<U>(other: U): it {
+        println(other)
+        return *this
+    }
+}
+
+fun main():int {
+    var i: it
+    i + "works"
+    return 0
+}

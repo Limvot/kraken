@@ -50,6 +50,12 @@ obj set<T> (Object) {
     fun contains(item: T): bool {
         return data.find(item) != -1
     }
+    fun operator+=(item: T) {
+        add(item)
+    }
+    fun operator+=(items: set<T>) {
+        add(items)
+    }
     fun add(item: T) {
         if (!contains(item))
             data.add(item)

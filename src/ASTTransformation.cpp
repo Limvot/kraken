@@ -852,8 +852,12 @@ NodeTree<ASTData>* ASTTransformation::doFunction(NodeTree<ASTData>* scope, std::
 		NodeTree<ASTData>* operatorMethod = NULL;
 
         // make sure this isn't a pointer, also. Silly vector<string> bug
-		if (nodes[0]->getDataRef()->valueType && !nodes[0]->getDataRef()->valueType->getIndirection() && nodes[0]->getDataRef()->valueType->typeDefinition)
+		if (nodes[0]->getDataRef()->valueType && !nodes[0]->getDataRef()->valueType->getIndirection() && nodes[0]->getDataRef()->valueType->typeDefinition) {
 			operatorMethod = functionLookup(nodes[0]->getDataRef()->valueType->typeDefinition, lookupOp, mapNodesToTypes(slice(nodes,1,-1)));
+            // we're also gonna check to see if this is an operator template method
+            if (!operatorMethod)
+                operatorMethod = tryToFindOrInstantiateFunctionTemplate(lookupOp, nodes[0]->getDataRef()->valueType->typeDefinition, mapNodesToTypes(slice(nodes,1,-1)), templateTypeReplacements);
+        }
 		if (operatorMethod) {
 			//Ok, so we construct
 			std::cout << "Early method level operator was found" << std::endl;
@@ -1634,10 +1638,26 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 	return toReturn;
 }
 
+// So we want to be able to call this with either the children which is one name and one template thingy (func<a>), or just the name (func), or even with just
+// a string as the name if, for example, we're generating the name from an operator overload (which we do) (operator+)
+NodeTree<ASTData>* ASTTransformation::tryToFindOrInstantiateFunctionTemplate(std::string functionName, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements) {
+    try {
+        return findOrInstantiateFunctionTemplate(functionName, std::vector<NodeTree<Symbol>*>(), scope, types, templateTypeReplacements);
+    } catch (const char *ex) {
+        return nullptr;
+    }
+}
 NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vector<NodeTree<Symbol>*> children, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements) {
+    return findOrInstantiateFunctionTemplate("", children, scope, types, templateTypeReplacements);
+}
+NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::string functionName, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements) {
+    return findOrInstantiateFunctionTemplate(functionName, std::vector<NodeTree<Symbol>*>(), scope, types, templateTypeReplacements);
+}
+NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::string functionName, std::vector<NodeTree<Symbol>*> children, NodeTree<ASTData>* scope, std::vector<Type> types, std::map<std::string, Type*> templateTypeReplacements) {
 	//First look to see if we can find this already instantiated
 	std::cout << "\n\nFinding or instantiating templated function\n\n" << std::endl;
-	std::string functionName = concatSymbolTree(children[0]);
+    if (children.size())
+        functionName = concatSymbolTree(children[0]);
     std::string fullyInstantiatedName;
     std::string scopelessFullyInstantiatedName;
     std::vector<Type*> templateActualTypes;
@@ -1659,7 +1679,7 @@ NodeTree<ASTData>* ASTTransformation::findOrInstantiateFunctionTemplate(std::vec
     // Note that as a part o finferring the instantiation we already find the template, so we make that
     // condtitional too (templateDefinition)
     std::string instTypeString = "";
-    if (children.size() == 1) {
+    if (children.size() <= 1) {
         // templateFunctionLookup adds the actual types to templateActualTypes if it's currently empty
         templateDefinition = templateFunctionLookup(scope, functionName, &templateActualTypes, types, scopeTypeMap);
         for (auto instType : templateActualTypes)

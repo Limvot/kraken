@@ -287,17 +287,8 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             return CCodeTriple("/* never reached import? */\n");
 		case identifier:
 		{
-            //but first, if we're this, we should just emit. (assuming enclosing object) (note that technically this would fall through, but for errors)
-            if (data.symbol.getName() == "this") {
-                if (enclosingObject)
-                    return CCodeTriple("this");
-                std::cerr << "Error: this used in non-object scope" << std::endl;
-                throw "Error: this used in non-object scope";
-            }
-			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
-            std::string preName;
-            std::string postName;
-			//std::string preName = "/*ident*/";
+            std::string preName = "";
+            std::string postName = "";
             // check for this being a closed over variable
             // first, get declaring function, if it exists
             if (enclosingFunction) {
@@ -309,6 +300,15 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     }
                 }
             }
+            // enclosing function comes first now, we might have a double closure that both close over the this pointer of an object
+            //but first, if we're this, we should just emit. (assuming enclosing object) (note that technically this would fall through, but for errors)
+            if (data.symbol.getName() == "this") {
+                if (enclosingObject || enclosingFunction)
+                    return CCodeTriple(preName + "this" + postName);
+                std::cerr << "Error: this used in non-object scope" << std::endl;
+                throw "Error: this used in non-object scope";
+            }
+			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
 			if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
 				preName += "this->";
             // dereference references, but only if inside a function

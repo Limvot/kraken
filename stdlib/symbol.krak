@@ -57,6 +57,9 @@ obj symbol (Object) {
     fun operator==(other: symbol): bool {
         return data == other.data && name == other.name && terminal == other.terminal;
     }
+    fun operator!=(other: symbol): bool {
+        return !(*this == other);
+    }
     fun to_string(): string::string {
         var terminalString: *char
         if (terminal)

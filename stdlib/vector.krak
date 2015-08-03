@@ -124,6 +124,16 @@ obj vector<T> (Object) {
         return find(item) != -1
     }
 
+    // yep
+    fun operator==<U>(other:vector<U>):bool {
+        if (size != other.size)
+            return false
+        for (var i = 0; i < size; i++;)
+            if (!(data[i] == other.data[i])) // it's !(==) because we want equality if our members are equal, and overloading etc
+                return false
+        return true
+    }
+
     fun set(index: int, dataIn: T): void {
         if (index < 0 || index  >= size)
             return;
