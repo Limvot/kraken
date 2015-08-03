@@ -7,9 +7,9 @@ import symbol:*
 
 fun main():int {
 
-    var a = load_grammer(read_file(string("../krakenGrammer.kgm")))
+    /*var a = load_grammer(read_file(string("../krakenGrammer.kgm")))*/
     /*var a = load_grammer(read_file(string("grammer.kgm")))*/
-    /*var a = load_grammer(read_file(string("grammer2.kgm")))*/
+    var a = load_grammer(read_file(string("grammer2.kgm")))
     println(a.to_string())
     var doFirstSet = fun() {
         a.calculate_first_set()
@@ -39,10 +39,10 @@ fun main():int {
 
     var lex = lexer(a.terminals)
 
-   lex.set_input(read_file(string("test_grammer.krak")))
+   /*lex.set_input(read_file(string("test_grammer.krak")))*/
     /*lex.set_input(string("ccdahas spacedhas*/
 /*returndaaaaaaaaaaaaaa"))*/
-    /*lex.set_input(string("hibyed"))*/
+    lex.set_input(string("hibyed"))
     println("woo lexing:")
     range(8).for_each(fun(i: int) { println(lex.next().to_string()); } )
     /*range(80).for_each(fun(i: int) { println(lex.next().to_string()); } )*/

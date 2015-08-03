@@ -247,3 +247,25 @@ obj rule (Object) {
     }
 }
 
+obj state (Object) {
+    var kernel: vector::vector<rule>
+    var rest: vector::vector<rule>
+
+    fun construct(): *state {
+        kernel.construct()
+        rest.construct()
+    }
+    fun copy_construct(other: *state) {
+        kernel.copy_construct(&other->kernel)
+        rest.copy_construct(&other->rest)
+    }
+    fun operator=(other: state) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+        kernel.destruct()
+        rest.destruct()
+    }
+}
+
