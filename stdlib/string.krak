@@ -3,7 +3,7 @@ import util
 import mem
 
 fun string(in:*char):string {
-    var out:string = in
+    var out.construct(in):string
     return out
 }
 
@@ -22,11 +22,11 @@ obj string (Object) {
         // no null terminator
         return this;
     }
-    fun construct(vec: vector::vector<char>): *string {
+    fun construct(vec: ref vector::vector<char>): *string {
         data.copy_construct(&vec);
         return this;
     }
-    fun construct(str: string): *string {
+    fun construct(str: ref string): *string {
         return construct(str.data);
     }
 
@@ -43,7 +43,7 @@ obj string (Object) {
         construct(str)
     }
 
-    fun operator=(str: string): void {
+    fun operator=(str: ref string): void {
         destruct();
         data.copy_construct(&str.data)
     }
@@ -62,8 +62,15 @@ obj string (Object) {
     }
     fun length():int { return data.size; }
 
-    fun operator==(other: string): bool {
-        return length() == other.length() && !util::range(length()).any_true(fun(i: int):bool { return data[i] != other[i]; } )
+    fun operator==(other: ref string): bool {
+        // you were too good for this world
+        //return length() == other.length() && !util::range(length()).any_true(fun(i: int):bool { return data[i] != other[i]; } )
+        if (data.size != other.data.size)
+            return false
+        for (var i = 0; i < data.size; i++;)
+            if (data.data[i] != other.data.data[i])
+                return false
+        return true
     }
     fun operator==(other: *char): bool {
         var str.construct(other) : string
@@ -76,7 +83,7 @@ obj string (Object) {
         return ret
     }
 
-    fun operator+(str: string): string {
+    fun operator+(str: ref string): string {
         var newStr.construct(str):string
         var ret.construct(data + newStr.data):string
         return ret
@@ -91,9 +98,10 @@ obj string (Object) {
         data += newStr.data
     }
 
-    fun operator+=(str: string): void {
-        var newStr.construct(str):string
-        data += newStr.data
+    fun operator+=(str: ref string): void {
+        //var newStr.construct(str):string
+        //data += newStr.data
+        data += str.data
     }
 
     fun toCharArray(): *char {

@@ -54,14 +54,14 @@ obj symbol (Object) {
         name.copy_construct(&old->name)
         terminal = old->terminal
     }
-    fun operator=(old: symbol) {
+    fun operator=(old: ref symbol) {
         destruct()
         copy_construct(&old)
     }
-    fun operator==(other: symbol): bool {
+    fun operator==(other: ref symbol): bool {
         return data == other.data && name == other.name && terminal == other.terminal;
     }
-    fun operator!=(other: symbol): bool {
+    fun operator!=(other: ref symbol): bool {
         return !(*this == other);
     }
     fun to_string(): string::string {

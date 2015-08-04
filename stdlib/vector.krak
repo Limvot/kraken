@@ -24,11 +24,19 @@ obj vector<T> (Object) {
         data = new<T>(8);
         return this;
     }
+    fun construct(ammt: int): *vector<T> {
+        size = 0;
+        available = ammt;
+        data = new<T>(ammt);
+        return this;
+    }
 
     fun copy_construct(old: *vector<T>): void {
-        construct()
+        construct(old->size)
+        size = old->size
         for (var i = 0; i < old->size; i++;)
-            addEnd(old->get(i))
+            maybe_copy_construct(&data[i], &old->data[i]);
+            //addEnd(old->get(i))
     }
 
     fun destruct(): void {

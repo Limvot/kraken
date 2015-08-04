@@ -289,6 +289,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		{
             std::string preName = "";
             std::string postName = "";
+            bool closed = false;
             // check for this being a closed over variable
             // first, get declaring function, if it exists
             if (enclosingFunction) {
@@ -297,6 +298,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     if (enclosingFunction->getDataRef()->closedVariables.find(from) != enclosingFunction->getDataRef()->closedVariables.end()) {
                         preName += "(*closed_variables->";
                         postName += ")";
+                        closed = true;
                     }
                 }
             }
@@ -311,8 +313,8 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
 			if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
 				preName += "this->";
-            // dereference references, but only if inside a function
-			if (enclosingFunction && data.valueType->is_reference) {
+            // dereference references, but only if inside a function and not if this is a closed over variable
+			if (enclosingFunction && data.valueType->is_reference && !closed) {
 				preName += "(*";
                 postName += ")";
             }
@@ -924,7 +926,7 @@ std::string CGenerator::closureStructType(std::set<NodeTree<ASTData>*> closedVar
         //auto tmp = var->getDataRef()->valueType->withIncreasedIndirection();
         std::string varName = var->getDataRef()->symbol.getName();
         varName = (varName == "this") ? varName : scopePrefix(var) + varName;
-        typedefString += ValueTypeToCType(var->getDataRef()->valueType, "*"+varName) + ";";
+        typedefString += ValueTypeToCType(var->getDataRef()->valueType->withoutReference(), "*"+varName) + ";";
     }
     std::string structName = "closureStructType" + getID();
     typedefString += " } " + structName + ";\n";
