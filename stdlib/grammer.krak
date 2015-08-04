@@ -175,17 +175,56 @@ obj grammer (Object) {
     }
 
     fun calculate_state_automaton() {
+        state_automata.kernel = vector::vector(rules[0].with_lookahead(set::set(symbol::eof_symbol())))
+        state_automata = closure(state_automata)
+        var states = set::set(state_automata)
+        var newItem = true
+        while (newItem) {
+            newItem = false
+            states.for_each(fun(I: state) {
+                var possGoto = set::set<symbol::symbol>(); // needed to disambiguate next line
+                (I.kernel + I.rest).for_each(fun(r: rule) {
+                    if (!r.at_end())
+                        possGoto.add(r.next())
+                })
+                possGoto.for_each(fun(X: symbol::symbol) {
+                    var goneState = goto(I, X)
+                    if (goneState.kernel.size && !states.contains(goneState)) {
+                        states.add(goneState)
+                        newItem = true
+                    }
+                })
+            })
+        }
+        io::println("ALL STATES:\n")
+        states.for_each(fun(i: state) {
+            io::println("STATE:\n")
+            io::println("\tKERNEL:\n")
+            i.kernel.for_each(fun(r: rule) {
+                io::println(string::string("\t\t") + r.to_string())
+            })
+            io::println("\tREST:\n")
+            i.rest.for_each(fun(r: rule) {
+                io::println(string::string("\t\t") + r.to_string())
+            })
+        })
     }
 
+    fun closure(initial: state): state {
+        initial.rest = closure(initial.kernel)
+        return initial
+    }
     fun closure(initial: vector::vector<rule>): vector::vector<rule> {
         var continueIt = true
         while (continueIt) {
             continueIt = false
             initial.for_each(fun(i: rule) {
+                if (i.at_end())
+                    return; // continue the for-each
                 rules.for_each(fun(r: rule) {
                     // if i is |a::=c . Bb, a|, we're doing each B::=... in rules
                     if (r.lhs != i.next())
-                        return
+                        return // continuing rule-for_each
                     // add r with lookahead
                     var newLookahead = first_vector(r.after_next())
                     if (newLookahead.contains(symbol::null_symbol())) {
@@ -196,7 +235,7 @@ obj grammer (Object) {
                         if (initial[index].equals_but_lookahead(r)) {
                             initial[index].lookahead += newLookahead
                             continueIt = true
-                            return; // continuing rule-for_each
+                            return // continuing rule-for_each
                         }
                     }
                     var newRule = r.with_lookahead(newLookahead)
@@ -208,6 +247,18 @@ obj grammer (Object) {
             })
         }
         return initial
+    }
+
+    fun goto(I: state, X: symbol::symbol): state {
+        // loop through i, find all that have thing::= something . X more,
+        // add thing ::= something X . more
+        var jPrime = vector::vector<rule>(); // ; needed to disambiguate next line
+        (I.kernel + I.rest).for_each(fun(i: rule) {
+            if (i.next() == X)
+                jPrime.add(i.advanced())
+        })
+        // return closure(that)?
+        return state(jPrime, closure(jPrime))
     }
 
     fun to_string(): string::string {
@@ -252,8 +303,7 @@ obj rule (Object) {
         destruct()
         copy_construct(&other)
     }
-    //fun operator==(other: ref rule):bool {
-    fun operator==(other: rule):bool {
+    fun operator==(other: ref rule):bool {
         return lhs == other.lhs && rhs == other.rhs &&
                 position == other.position && lookahead == other.lookahead
     }
@@ -273,18 +323,36 @@ obj rule (Object) {
     fun after_next(): vector::vector<symbol::symbol> {
         return rhs.slice(position + 1, -1)
     }
+    fun at_end(): bool {
+        return position < rhs.size
+    }
     fun with_lookahead(newLookahead: set::set<symbol::symbol>): rule {
         var toRet = rule(lhs, rhs)
         toRet.position = position
         toRet.lookahead = newLookahead
         return toRet
     }
+    fun advanced(): rule {
+        var toRet = rule(lhs, rhs)
+        toRet.position = position+1
+        toRet.lookahead = lookahead
+        return toRet
+    }
 
     fun to_string(): string::string {
         var result = lhs.name + " -> "
-        rhs.for_each( fun(i : symbol::symbol) { result += i.to_string() + ", "; } )
+        for (var i = 0; i < rhs.size; i++;)
+            if (i == position)
+                result += string::string(" . ") + rhs[i].to_string() + ", ";
+            else
+                result += rhs[i].to_string() + ", ";
         return result
     }
+}
+
+fun state(kernelIn: ref vector::vector<rule>, restIn: ref vector::vector<rule>): state {
+    var toRet.construct(kernelIn, restIn): state
+    return toRet
 }
 
 obj state (Object) {
@@ -310,6 +378,9 @@ obj state (Object) {
     fun destruct() {
         kernel.destruct()
         rest.destruct()
+    }
+    fun operator==(other: ref state):bool {
+        return kernel == other.kernel && rest == other.rest
     }
     fun to_string(): string::string {
         return string::string("woo a state")

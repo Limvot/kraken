@@ -1,7 +1,11 @@
 import string
 
 fun null_symbol(): symbol {
-    var toRet.construct(string::string("$NULL"), false, string::string("$NULL$")): symbol
+    var toRet.construct(string::string("$NULL$"), false, string::string("$NULL$")): symbol
+    return toRet
+}
+fun eof_symbol(): symbol {
+    var toRet.construct(string::string("$EOF$"), false, string::string("$EOF$")): symbol
     return toRet
 }
 

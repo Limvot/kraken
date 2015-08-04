@@ -47,6 +47,7 @@ fun main():int {
     range(8).for_each(fun(i: int) { println(lex.next().to_string()); } )
     /*range(80).for_each(fun(i: int) { println(lex.next().to_string()); } )*/
     println(a.to_string())
+    a.calculate_state_automaton()
     return 0
 }
 
