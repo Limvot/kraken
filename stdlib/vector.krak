@@ -121,19 +121,19 @@ obj vector<T> (Object) {
     // on an object that we want to put in a vector. In this way we avoid the problem
     // by not generating this function unless it's called - we also get the ability to
     // do a find index using a different type, which could be fun.
-    fun find<U>(value: U): int {
+    fun find<U>(value: ref U): int {
         for (var i = 0; i < size; i++;)
             if (data[i] == value)
                 return i;
         return -1;
     }
     // ditto
-    fun contains<U>(item: U): bool {
+    fun contains<U>(item: ref U): bool {
         return find(item) != -1
     }
 
     // yep
-    fun operator==<U>(other:vector<U>):bool {
+    fun operator==<U>(other: ref vector<U>):bool {
         if (size != other.size)
             return false
         for (var i = 0; i < size; i++;)
@@ -147,7 +147,7 @@ obj vector<T> (Object) {
             return;
         data[index] = dataIn;
     }
-    fun add_all(dataIn: vector<T>): void {
+    fun add_all(dataIn: ref vector<T>): void {
         for (var i = 0; i < dataIn.size; i++;)
             addEnd(dataIn[i]);
     }
@@ -156,8 +156,8 @@ obj vector<T> (Object) {
         if (!contains(dataIn))
             addEnd(dataIn)
     }
-    fun add(dataIn: T): void { addEnd(dataIn); }
-    fun addEnd(dataIn: T): void {
+    fun add(dataIn: ref T): void { addEnd(dataIn); }
+    fun addEnd(dataIn: ref T): void {
         if (size+1 >= available)
             resize((size+1)*2);
         maybe_copy_construct(&data[size], &dataIn);
@@ -173,6 +173,10 @@ obj vector<T> (Object) {
         size--
     }
 
+    fun for_each(func: fun(ref T):void):void {
+        for (var i = 0; i < size; i++;)
+            func(data[i])
+    }
     fun for_each(func: fun(T):void):void {
         for (var i = 0; i < size; i++;)
             func(data[i])

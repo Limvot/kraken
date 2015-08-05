@@ -27,5 +27,7 @@ fun main():int {
 
     println("all:")
     s.for_each( fun(it: int) println(it); )
+    println("all ref:")
+    s.for_each( fun(it: ref int) println(it); )
     return 0
 }

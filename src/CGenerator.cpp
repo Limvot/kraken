@@ -13,7 +13,7 @@ CGenerator::~CGenerator() {
 // Note the use of std::pair to hold two strings - the running string for the header file and the running string for  the c file.
 void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName) {
 	//Generate an entire set of files
-	std::string buildString = "#!/bin/sh\ncc -g -std=c99 ";
+	std::string buildString = "#!/bin/sh\ncc -g -O3 -std=c99 ";
 	std::cout << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
     std::cout << "\n\nGenerate pass for: " << outputName << std::endl;
     buildString += outputName + ".c ";

@@ -1,5 +1,6 @@
 # comment
-a = b ;
+Goal = a ;
+a = b | rec ;
 b = "c":named_c ;
 b = c "d":dname ;
 c = "a" | d ;
@@ -9,3 +10,4 @@ e = f | ;
 f = ;
 post_null = "hi" ;
 post_non_null = "bye" ;
+rec = "hmm" rec | ;

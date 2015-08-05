@@ -71,6 +71,9 @@ obj set<T> (Object) {
         }
         data.remove(idx)
     }
+    fun for_each(func: fun(ref T):void) {
+        data.for_each(func)
+    }
     fun for_each(func: fun(T):void) {
         data.for_each(func)
     }

@@ -7,9 +7,9 @@ import symbol:*
 
 fun main():int {
 
-    //var a = load_grammer(read_file(string("../krakenGrammer.kgm")))
+    var a = load_grammer(read_file(string("../krakenGrammer.kgm")))
     /*var a = load_grammer(read_file(string("grammer.kgm")))*/
-    var a = load_grammer(read_file(string("grammer2.kgm")))
+    //var a = load_grammer(read_file(string("grammer2.kgm")))
     println(a.to_string())
     var doFirstSet = fun() {
         a.calculate_first_set()

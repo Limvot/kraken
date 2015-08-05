@@ -1,6 +1,7 @@
 import string
 import vector
 import set
+import stack
 import map
 import symbol
 import regex
@@ -176,90 +177,112 @@ obj grammer (Object) {
 
     fun calculate_state_automaton() {
         state_automata.items = vector::vector(rules[0].with_lookahead(set::set(symbol::eof_symbol())))
+            io::println("pre first closure")
         state_automata = closure(state_automata)
-        var states = set::set(state_automata)
-        var newItem = true
-        while (newItem) {
-            newItem = false
-            states.for_each(fun(I: state) {
-                var possGoto = set::set<symbol::symbol>()
-                I.items.for_each(fun(r: rule) {
-                    if (!r.at_end())
-                        possGoto.add(r.next())
-                })
-                possGoto.for_each(fun(X: symbol::symbol) {
-                    var goneState = goto(I, X)
-                    if (goneState.items.size && !states.contains(goneState)) {
-                        states.add(goneState)
-                        newItem = true
-                    }
-                })
+            io::println("post first closure")
+        var states = vector::vector(state_automata) // vector instead of set because we need to iterate by index
+        var newItems = stack::stack(0) // 0 is the index of the first and only item in states
+        var count = 0
+        while (newItems.size()) {
+            if (count%200 == 0) {
+                io::print("calculate_state_automaton while")
+                    io::println(count)
+            }
+            count++
+            var I = newItems.pop()
+            var possGoto = set::set<symbol::symbol>()
+            states[I].items.for_each(fun(r: ref rule) {
+                if (!r.at_end())
+                    possGoto.add(r.next())
+            })
+            possGoto.for_each(fun(X: ref symbol::symbol) {
+                var goneState = goto(states[I], X)
+                if (goneState.items.size && !states.contains(goneState)) {
+                    newItems.push(states.size)
+                    states.add(goneState)
+                }
             })
         }
         io::println("ALL STATES:\n")
-        states.for_each(fun(i: state) {
+        states.for_each(fun(i: ref state) {
             io::println("STATE:\n")
-            i.items.for_each(fun(r: rule) {
+            i.items.for_each(fun(r: ref rule) {
                 io::println(string::string("\t") + r.to_string())
             })
         })
+        io::println(" there were : states")
+        io::println(states.size)
     }
 
-    fun closure(initial: state): state {
+    fun closure(initial: ref state): state {
         initial.items = closure(initial.items)
         return initial
     }
-    fun closure(initial: vector::vector<rule>): vector::vector<rule> {
+    fun closure(initial: ref vector::vector<rule>): vector::vector<rule> {
         var continueIt = true
-        var count = 0
+        //var count = 0
         while (continueIt) {
-            io::print("while")
-            io::println(count)
-            count++
+            //io::print("closure while")
+            //io::println(count)
+            //count++
             continueIt = false
-            initial.for_each(fun(i: rule) {
-                if (i.at_end()) {
-                    return; // continue the for-each
+            for (var i = 0; i < initial.size; i++;) {
+                if (initial[i].at_end()) {
+                    continue
                 }
-                rules.for_each(fun(r: rule) {
+                rules.for_each(fun(r: ref rule) {
                     // if i is |a::=c . Bb, a|, we're doing each B::=... in rules
-                    if (r.lhs != i.next())
-                        return // continuing rule-for_each
+                    if (r.lhs != initial[i].next())
+                        return // continue the for-each
                     // add r with lookahead
-                    var newLookahead = first_vector(i.after_next())
+                    var newLookahead = first_vector(initial[i].after_next())
                     if (newLookahead.contains(symbol::null_symbol())) {
                         newLookahead.remove(symbol::null_symbol())
-                        newLookahead.add(i.lookahead)
+                        newLookahead.add(initial[i].lookahead)
                     }
+                    var alreadyInInSomeForm = false
                     for (var index = 0; index < initial.size; index++;) {
-                        if (initial[index].equals_but_lookahead(r) && !initial[index].lookahead.contains(newLookahead)) {
-                            //io::println(initial[index].to_string())
-                            //io::println("and")
-                            //io::println(r.to_string())
-                            //io::println("are the same with different lookaheads")
-                            initial[index].lookahead += newLookahead
-                            continueIt = true
-                            //io::println("contineu because equal_but_different")
-                            return // continuing rule-for_each
+                        if (initial[index].equals_but_lookahead(r)) {
+                            alreadyInInSomeForm = true
+                            if (!initial[index].lookahead.contains(newLookahead)) {
+                                //io::println("\n\n\n")
+                                //io::println(initial[index].to_string())
+                                //io::println("and")
+                                //io::println(r.to_string())
+                                //io::println("with")
+                                //var result = string::string("|lookahead {")
+                                //newLookahead.for_each(fun(i: symbol::symbol) {
+                                    //result += i.to_string()
+                                //})
+                                //io::println(result)
+                                //io::println("are the same with different lookaheads")
+                                initial[index].lookahead += newLookahead
+                                //io::println("so now it's")
+                                //io::println(initial[index].to_string())
+                                //io::println("contineu because equal_but_different")
+                                continueIt = true
+                                return // continue the rules for-each
+                            }
                         }
                     }
-                    var newRule = r.with_lookahead(newLookahead)
-                    if (!initial.contains(newRule)) {
+                    if (!alreadyInInSomeForm) {
                         continueIt = true
+                            //io::println("\n\n\n")
                         //io::println("contineu because not contains")
-                        initial.add(newRule)
+                        //io::println(newRule.to_string())
+                        initial.add(r.with_lookahead(newLookahead))
                     }
                 })
-            })
+            }
         }
         return initial
     }
 
-    fun goto(I: state, X: symbol::symbol): state {
+    fun goto(I: ref state, X: ref symbol::symbol): state {
         // loop through i, find all that have thing::= something . X more,
         // add thing ::= something X . more
         var jPrime = vector::vector<rule>()
-        I.items.for_each(fun(i: rule) {
+        I.items.for_each(fun(i: ref rule) {
             if (!i.at_end() && i.next() == X)
                 jPrime.add(i.advanced())
         })
@@ -323,7 +346,7 @@ obj rule (Object) {
         lookahead.destruct()
     }
 
-    fun next(): symbol::symbol {
+    fun next(): ref symbol::symbol {
         return rhs[position]
     }
     fun after_next(): vector::vector<symbol::symbol> {

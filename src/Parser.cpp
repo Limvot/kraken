@@ -112,7 +112,11 @@ void Parser::createStateSet() {
 	std::queue<State*> toDo;
 	toDo.push(zeroState);
 	//std::cout << "Begining for main set for loop" << std::endl;
+    int count = 0;
 	while (toDo.size()) {
+        if (count % 200 == 0)
+            std::cout << "while count: " << count << std::endl;
+        count++;
 		//closure
 		closure(toDo.front());
 		//Add the new states
