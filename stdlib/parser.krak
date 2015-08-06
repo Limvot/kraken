@@ -1,26 +1,28 @@
-import grammer
-import symbol
-import tree
-import vector
-import stack
-import map
-import util
-import string
-import io
-import mem
+import grammer:*
+import symbol:*
+import lexer:*
+import tree:*
+import vector:*
+import stack:*
+import map:*
+import util:*
+import string:*
+import mem:*
+import io:*
 
 obj parser (Object) {
-    var input: vector::vector<symbol::symbol>
-    var gram: grammer::grammer
-    // gss
-    var to_reduce: stack::stack<reduction>
-    var to_shift: stack::stack< util::pair<*tree::tree<int>, int> >
-    var SPPFStepNodes: vector::vector< util::pair<*tree::tree<symbol::symbol>, int> >
-    var packed_map: map::map<*tree::tree<symbol::symbol>, bool>
+    var input: vector<symbol>
+    var gram: grammer
+    var gss: gss
+    var to_reduce: stack<reduction>
+    var to_shift: stack< pair<*tree<int>, int> >
+    var SPPFStepNodes: vector< pair<*tree<symbol>, int> >
+    var packed_map: map<*tree<symbol>, bool>
 
-    fun construct(grammerIn: grammer::grammer): *parser {
+    fun construct(grammerIn: grammer): *parser {
         input.construct()
         gram.copy_construct(&grammerIn)
+        gss.construct()
         to_reduce.construct()
         to_shift.construct()
         SPPFStepNodes.construct()
@@ -30,6 +32,7 @@ obj parser (Object) {
     fun copy_construct(old: *parser) {
         input.copy_construct(&old->input)
         gram.copy_construct(&old->gram)
+        gss.copy_construct(&old->gss)
         to_reduce.copy_construct(&old->to_reduce)
         to_shift.copy_construct(&old->to_shift)
         SPPFStepNodes.copy_construct(&old->SPPFStepNodes)
@@ -42,15 +45,16 @@ obj parser (Object) {
     fun destruct() {
         input.destruct()
         gram.destruct()
+        gss.destruct()
         to_reduce.destruct()
         to_shift.destruct()
         SPPFStepNodes.destruct()
         packed_map.destruct()
     }
 
-    fun parse_input(inputStr: string::string, name: string::string): *tree::tree<symbol::symbol> {
+    fun parse_input(inputStr: string, name: string): *tree<symbol> {
         input.clear()
-        // gss.clear
+        gss.clear()
         to_reduce.clear()
         to_shift.clear()
         SPPFStepNodes.clear()
@@ -58,31 +62,215 @@ obj parser (Object) {
 
         // if the zero state contains any reductions for state 0 and eof, then
         // it must be reducing to the goal state
-        io::println("checking the bidness")
-        if (inputStr == "" && gram.parse_table.get(0, symbol::eof_symbol()).contains(grammer::action(grammer::reduce, 0))) {
-            io::println("Accept on no input for ")
-            io::println(name)
-            return mem::new<tree::tree<symbol::symbol>>()->construct(symbol::null_symbol())
+        println("checking the bidness")
+        if (inputStr == "" && gram.parse_table.get(0, eof_symbol()).contains(action(reduce, 0))) {
+            println("Accept on no input for ")
+            println(name)
+            return new<tree<symbol>>()->construct(null_symbol())
         }
-        io::println("failed for ")
-        io::println(name)
-        return mem::new<tree::tree<symbol::symbol>>()->construct(symbol::null_symbol())
+
+        var lex = lexer(gram.terminals)
+        lex.set_input(inputStr)
+        var current_symbol.construct(): symbol
+        for (current_symbol = lex.next(); current_symbol != eof_symbol() && current_symbol != invalid_symbol(); current_symbol = lex.next();) {
+            /*println("current_symbol is ")*/
+            /*println(current_symbol.to_string())*/
+            input.addEnd(current_symbol)
+        }
+        if (current_symbol == invalid_symbol()) {
+            println("lexing failed for ")
+            println(name)
+            return null<tree<symbol>>()
+        }
+
+        var v0 = gss.new_node(0)
+        gss.add_to_frontier(0, v0)
+
+        var null_symbol_tree = null<tree<symbol>>()
+
+        /*println("looking up")*/
+        /*println(input[0].to_string())*/
+        gram.parse_table.get(0, input[0]).for_each(fun(act: action) {
+            /*println("for each action")*/
+            if (act.act == push)
+                to_shift.push(make_pair(v0, act.state_or_rule))
+            else if (act.act == reduce && fully_reduces_to_null(gram.rules[act.state_or_rule]))
+                to_reduce.push(reduction(v0, gram.rules[act.state_or_rule].lhs, 0, null_symbol_tree, null_symbol_tree))
+        })
+
+
+        for (var i = 0; i < input.size; i++;) {
+            if (gss.frontier_is_empty(i)) {
+                print(i)
+                print(" frontier is empty in file '")
+                print(name)
+                print("' with txt ")
+                print(input[i].to_string())
+                println()
+                return null<tree<symbol>>()
+            }
+            SPPFStepNodes.clear()
+            while (to_reduce.size())
+                reducer(i)
+            shifter(i)
+        }
+        var acc_state = gss.frontier_get_acc_state(input.size-1)
+        if (acc_state) {
+            println("ACCEPTED!")
+            return gss.get_edge(acc_state, v0)
+        }
+
+        println("REJECTED")
+        println("parsing (not lexing) failed for ")
+        println(name)
+        return null<tree<symbol>>()
+    }
+    fun reducer(i: int) {
+        println("reducing")
+        var curr_reduction = to_reduce.pop()
+        gss.get_reachable_paths(curr_reduction.from, max(0, curr_reduction.length-1)).
+            for_each(fun(path: ref vector<*tree<int>>) {
+            var path_edges = range(path.size-1).map(fun(indx: int): *tree<symbol> { return gss.get_edge(path[indx], path[indx+1]);}).reverse()
+            if (curr_reduction.length != 0)
+                path_edges.addEnd(curr_reduction.label)
+            var curr_reached = path.last()
+            var shift_to = gram.parse_table.get_shift(curr_reached->data, curr_reduction.sym).state_or_rule
+            var new_label =  null<tree<symbol>>()
+            if (curr_reduction.length == 0) {
+                new_label = curr_reduction.nullable_parts
+            } else {
+                var reached_frontier = gss.get_containing_frontier(curr_reached)
+                for (var j = 0; j < SPPFStepNodes.size; j++;) {
+                    if (SPPFStepNodes[j].second == reached_frontier
+                        && SPPFStepNodes[j].first->data == curr_reduction.sym) {
+                        new_label = SPPFStepNodes[j].first
+                        break
+                    }
+                }
+                if (!new_label) {
+                    new_label = new<tree<symbol>>()->construct(curr_reduction.sym)
+                    SPPFStepNodes.addEnd(make_pair(new_label, reached_frontier))
+                }
+            }
+            var shift_to_node = gss.in_frontier(i, shift_to)
+            if (shift_to_node) {
+                if (!gss.has_edge(shift_to_node, curr_reached)) {
+                    gss.add_edge(shift_to_node, curr_reached, new_label)
+                    // do non-null reductions
+                    if (curr_reduction.length) {
+                        gram.parse_table.get(shift_to, input[i]).for_each(fun(act: action) {
+                            var reduce_rule = gram.rules[act.state_or_rule]
+                            if (act.act == reduce && !fully_reduces_to_null(reduce_rule))
+                                to_reduce.push(reduction(curr_reached, reduce_rule.lhs,
+                                                            reduce_rule.position,
+                                                new<tree<symbol>>()->construct(null_symbol()),
+                                                            new_label))
+                        })
+                    }
+                }
+            } else {
+                shift_to_node = gss.new_node(shift_to)
+                gss.add_to_frontier(i, shift_to_node)
+                gss.add_edge(shift_to_node, curr_reached, new_label)
+            }
+        })
+    }
+    fun shifter(i: int) {
+    }
+
+    fun fully_reduces_to_null(r: ref rule): bool {
+        return r.position == 0 && gram.first_vector(r.rhs).contains(null_symbol())
     }
 }
 
-fun reduction(f: *tree::tree<int>, s: symbol::symbol, l: int, n: *tree::tree<symbol::symbol>, label:*tree::tree<symbol::symbol>): reduction {
+obj gss (Object) {
+    var data: vector<vector<*tree<int>>>
+    var edges: map< pair<*tree<int>, *tree<int>>, *tree<symbol> >
+
+    fun construct(): *gss {
+        data.construct()
+        edges.construct()
+    }
+    fun copy_construct(old: *gss) {
+        data.copy_construct(&old->data)
+        edges.copy_construct(&old->edges)
+    }
+    fun destruct() {
+        data.destruct()
+        edges.destruct()
+    }
+    fun clear() {
+        data.clear()
+        edges.clear()
+    }
+    fun new_node(state: int): *tree<int> {
+        return new<tree<int>>()->construct(state)
+    }
+    fun add_to_frontier(frontier: int, node: *tree<int>) {
+        while(data.size <= frontier)
+            data.addEnd(vector<*tree<int>>())
+        data[frontier].addEnd(node)
+    }
+    fun frontier_is_empty(frontier: int): bool {
+        return frontier >= data.size || data[frontier].size == 0
+    }
+    fun frontier_get_acc_state(frontier: int): *tree<int> {
+        // the accepting state is always state 1, for now
+        return in_frontier(frontier, 1)
+    }
+    fun in_frontier(frontier: int, state: int): *tree<int> {
+        for (var i = 0; i < data[frontier].size; i++;)
+            if (data[frontier][i]->data == state)
+                return data[frontier][i]
+        return null<tree<int>>()
+    }
+    fun get_edge(start: *tree<int>, end: *tree<int>): *tree<symbol> {
+        return edges[make_pair(start, end)]
+    }
+    fun has_edge(start: *tree<int>, end: *tree<int>): bool {
+        // could also look in map, but this is faster...
+        return start->children.find(end) != -1
+    }
+    fun add_edge(start: *tree<int>, end: *tree<int>, edge: *tree<symbol>) {
+        start->children.add(end)
+        edges.set(make_pair(start,end), edge)
+    }
+    fun get_containing_frontier(node: *tree<int>): int {
+        for (var i = 0; i < data.size; i++;)
+            if (data[i].contains(node))
+                return i
+        return -1
+    }
+    fun get_reachable_paths(start: *tree<int>, length: int): vector<vector<*tree<int>>> {
+        var paths = vector<vector<*tree<int>>>()
+        var recursive_path_find: fun(*tree<int>, int, vector<*tree<int>>):void = fun(start: *tree<int>, length: int, current_path: vector<*tree<int>>) {
+            current_path.addEnd(start)
+            if (!length) {
+                paths.addEnd(current_path)
+                return
+            }
+            start->children.for_each(fun(child: *tree<int>) {
+                recursive_path_find(child, length-1, current_path)
+            })
+        }
+        recursive_path_find(start, length, vector<*tree<int>>())
+        return paths
+    }
+}
+
+fun reduction(f: *tree<int>, s: symbol, l: int, n: *tree<symbol>, label:*tree<symbol>): reduction {
     var toRet.construct(f,s,l,n,label): reduction
     return toRet
 }
 
 obj reduction (Object) {
-    var from: *tree::tree<int>
-    var sym: symbol::symbol
+    var from: *tree<int>
+    var sym: symbol
     var length: int
-    var nullable_parts: *tree::tree<symbol::symbol>
-    var label: *tree::tree<symbol::symbol>
+    var nullable_parts: *tree<symbol>
+    var label: *tree<symbol>
 
-    fun construct(f: *tree::tree<int>, s: symbol::symbol, l: int, n: *tree::tree<symbol::symbol>, label:*tree::tree<symbol::symbol>): *reduction {
+    fun construct(f: *tree<int>, s: symbol, l: int, n: *tree<symbol>, label:*tree<symbol>): *reduction {
         from = f
         sym.copy_construct(&s)
         length = l

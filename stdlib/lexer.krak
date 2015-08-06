@@ -62,13 +62,13 @@ obj lexer (Object) {
     }
     fun next(): symbol::symbol {
         if (position >= input.length())
-            return symbol::symbol("$EOF$", true)
+            return symbol::eof_symbol()
         var max = regs.map(fun(reg_pair: util::pair<string::string,regex::regex>): util::pair<int, string::string> {
                 return util::make_pair(reg_pair.second.long_match(input.slice(position, -1)), reg_pair.first); })
                 .max(fun(first: util::pair<int, string::string>, second: util::pair<int, string::string>): bool
                         { return first.first < second.first; })
         if (max.first < 0)
-            return symbol::symbol("$INVALID$", true)
+            return symbol::invalid_symbol()
         position += max.first
         return symbol::symbol(max.second, true, input.slice(position-max.first, position))
     }

@@ -7,6 +7,14 @@ __if_comp__ __C__ simple_passthrough """
 
 /* we have a template versions so we don't have to cast (because we don't have that yet) */
 
+fun null<T>(): *T {
+	__if_comp__ __C__ {
+        simple_passthrough(::) """
+            return (void*)0;
+		"""
+	}
+}
+
 fun malloc<T>(size: int): *T {
     var memPtr: *T;
 	__if_comp__ __C__ {

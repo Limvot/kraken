@@ -26,10 +26,10 @@ obj test(Object) {
 }
 
 fun main():int {
-    println(lesser(1,2))
-    println(lesser(7.0,8.0))
-    println(greater(1,2))
-    println(greater(7.0,8.0))
+    println(min(1,2))
+    println(min(7.0,8.0))
+    println(max(1,2))
+    println(max(7.0,8.0))
 
     range(3,13, 3).for_each(fun(i: int) { print(i); })
     println()

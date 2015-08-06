@@ -8,6 +8,10 @@ fun eof_symbol(): symbol {
     var toRet.construct(string::string("$EOF$"), false, string::string("$EOF$")): symbol
     return toRet
 }
+fun invalid_symbol(): symbol {
+    var toRet.construct(string::string("$INVALID$"), false, string::string("$INVALID$")): symbol
+    return toRet
+}
 
 fun symbol(nameIn: *char, terminalIn: bool): symbol {
     var toRet.construct(string::string(nameIn), terminalIn, string::string("no_value")): symbol

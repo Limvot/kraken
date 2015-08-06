@@ -475,31 +475,48 @@ obj table (Object) {
         while (include_state >= items.size)
             items.addEnd(map::map<symbol::symbol, vector::vector<action>>())
     }
+    // we always "clean" the symbol before using it so that having different data doesn't
+    // prevent us from finding the symbol in the table
+    fun clean_symbol(sym: ref symbol::symbol): symbol::symbol {
+        return symbol::symbol(sym.name, sym.terminal)
+    }
     fun add_push(from_state: int, on_symbol: ref symbol::symbol, to_state: int) {
         expand_to(from_state)
-        if (items[from_state].contains_key(on_symbol))
-            items[from_state][on_symbol].addEnd(action(push, to_state))
+        var cleaned_symbol = clean_symbol(on_symbol)
+        if (items[from_state].contains_key(cleaned_symbol))
+            items[from_state][cleaned_symbol].addEnd(action(push, to_state))
         else
-            items[from_state].set(on_symbol, vector::vector(action(push, to_state)))
+            items[from_state].set(cleaned_symbol, vector::vector(action(push, to_state)))
     }
     fun add_reduce(from_state: int, on_symbol: ref symbol::symbol, by_rule_no: int) {
         expand_to(from_state)
-        if (items[from_state].contains_key(on_symbol))
-            items[from_state][on_symbol].addEnd(action(reduce, by_rule_no))
+        var cleaned_symbol = clean_symbol(on_symbol)
+        if (items[from_state].contains_key(cleaned_symbol))
+            items[from_state][cleaned_symbol].addEnd(action(reduce, by_rule_no))
         else
-            items[from_state].set(on_symbol, vector::vector(action(reduce, by_rule_no)))
+            items[from_state].set(cleaned_symbol, vector::vector(action(reduce, by_rule_no)))
     }
     fun add_accept(from_state: int, on_symbol: ref symbol::symbol) {
         expand_to(from_state)
-        if (items[from_state].contains_key(on_symbol))
-            items[from_state][on_symbol].addEnd(action(accept, 0))
+        var cleaned_symbol = clean_symbol(on_symbol)
+        if (items[from_state].contains_key(cleaned_symbol))
+            items[from_state][cleaned_symbol].addEnd(action(accept, 0))
         else
-            items[from_state].set(on_symbol, vector::vector(action(accept, 0)))
+            items[from_state].set(cleaned_symbol, vector::vector(action(accept, 0)))
     }
-    fun get(state: int, sym: symbol::symbol): vector::vector<action> {
-        return items[state][sym]
+    fun get(state: int, on_symbol: symbol::symbol): vector::vector<action> {
+        var cleaned_symbol = clean_symbol(on_symbol)
+        return items[state][cleaned_symbol]
     }
-    fun print_string(): string::string {
+    fun get_shift(state: int, on_symbol: symbol::symbol): action {
+        var actions = get(state, on_symbol)
+        for (var i = 0; i < actions.size; i++;)
+            if (actions[i].act == push)
+                return actions[i]
+        io::println("tried to get a shift when none existed")
+        return action(-1,-1)
+    }
+    fun print_string() {
         /*return string::string("woo a table of size: ") + items.size*/
         io::print("woo a table of size: ")
         io::println(items.size)

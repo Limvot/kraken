@@ -199,7 +199,7 @@ std::string Type::toString(bool showTraits) {
     if (is_reference)
         typeString = "ref " + typeString;
 	for (int i = 0; i < indirection; i++)
-		typeString += "*";
+		typeString = "*" + typeString;
     if (indirection < 0)
 		typeString += "negative indirection: " + intToString(indirection);
     if (traits.size() && showTraits) {

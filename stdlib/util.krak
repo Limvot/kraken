@@ -1,12 +1,13 @@
 import mem
+import vector
 
-fun greater<T>(a: T, b: T): T {
+fun max<T>(a: T, b: T): T {
     if (a > b)
         return a;
     return b;
 }
 
-fun lesser<T>(a: T, b: T): T {
+fun min<T>(a: T, b: T): T {
     if (a > b)
         return b;
     return a;
@@ -42,6 +43,12 @@ obj pair<T,U> (Object) {
         mem::maybe_destruct(&first)
         mem::maybe_destruct(&second)
     }
+
+    // the old unnecessary template to prevent generation
+    // if not used trick (in this case, changing out U with V)
+    fun operator==<V>(other: ref pair<T,V>): bool {
+        return first == other.first && second == other.second
+    }
 }
 
 fun range(end:int): range {
@@ -70,6 +77,12 @@ obj range {
     fun for_each(func: fun(int):void):void {
         for (var i = begin; i < end; i+= step;)
             func(i)
+    }
+    fun map<T>(func: fun(int): T): vector::vector<T> {
+        var ret.construct( (end-begin)/step + 1 ) : vector::vector<T>
+        for (var i = begin; i < end; i+= step;)
+            ret.addEnd(func(i))
+        return ret
     }
     fun any_true(func: fun(int):bool):bool {
         for (var i = begin; i < end; i+= step;)

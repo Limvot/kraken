@@ -1385,8 +1385,8 @@ NodeTree<ASTData>* ASTTransformation::generateThis(NodeTree<ASTData>* scope) {
 std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules, std::set<NodeTree<ASTData>*> visited) {
     std::cout << "Scp]|[e looking up " << lookup << std::endl;
     std::cout << "current: " << scope->getDataRef()->toString() << std::endl;
-    for (auto i : scope->getDataRef()->scope)
-        std::cout << "\t" << i.first << std::endl;
+    //for (auto i : scope->getDataRef()->scope)
+        //std::cout << "\t" << i.first << std::endl;
         //std::cout << i.first << " : " << i.second->toString() << std::endl;
     // Don't visit this node again when looking for the smae lookup. Note that we don't prevent coming back for the scope operator, as that should be able to come back.
     if (visited.find(scope) != visited.end())

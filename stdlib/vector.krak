@@ -70,9 +70,15 @@ obj vector<T> (Object) {
     }
 
     fun clone(): vector<T> {
-        var newVec.construct(): vector<T>
+        var newVec.construct(size): vector<T>
         for (var i = 0; i < size; i++;)
             newVec.addEnd(data[i])
+        return newVec
+    }
+    fun reverse(): vector<T> {
+        var newVec.construct(size): vector<T>
+        for (var i = 0; i < size; i++;)
+            newVec.addEnd(data[(size-i)-1])
         return newVec
     }
 
@@ -80,12 +86,12 @@ obj vector<T> (Object) {
         var newData: *T = new<T>(newSize);
         if (!newData)
             return false;
-        for (var i: int = 0; i < lesser<int>(size, newSize); i++;)
+        for (var i: int = 0; i < min<int>(size, newSize); i++;)
             maybe_copy_construct(&newData[i], &data[i]);
         delete(data, size);
         data = newData;
         available = newSize;
-        size = lesser(size, newSize)
+        size = min(size, newSize)
         return true;
     }
 
@@ -102,6 +108,12 @@ obj vector<T> (Object) {
 
     fun at(index: int): ref T { return get(index); }
     fun operator[](index: int): ref T { return get(index); }
+    fun first(): ref T {
+        return get(0)
+    }
+    fun last(): ref T {
+        return get(size-1)
+    }
     fun get(index: int): ref T {
         if (index < 0 || index >= size) {
             println("Vector access out of bounds! Retuning 0th element as sanest option");
@@ -192,13 +204,13 @@ obj vector<T> (Object) {
             data[i] = func(data[i])
     }
     fun map<U>(func: fun(T):U):vector<U> {
-        var newVec.construct(): vector<U>
+        var newVec.construct(size): vector<U>
         for (var i = 0; i < size; i++;)
             newVec.addEnd(func(data[i]))
         return newVec
     }
     fun flatten_map<U>(func: fun(T):vector<U>):vector<U> {
-        var newVec.construct(): vector<U>
+        var newVec.construct(size): vector<U>
         for (var i = 0; i < size; i++;) {
             var to_add = func(data[i])
             for (var j = 0; j < to_add.size; j++;)

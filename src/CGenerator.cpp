@@ -57,7 +57,7 @@ std::string CGenerator::generateClassStruct(NodeTree<ASTData>* from) {
     std::string objectString = "struct __struct_dummy_" + scopePrefix(from) + CifyName(data.symbol.getName()) + "__ {\n";
     tabLevel++;
     for (int i = 0; i < children.size(); i++) {
-        std::cout << children[i]->getName() << std::endl;
+        //std::cout << children[i]->getName() << std::endl;
         if (children[i]->getName() != "function")
             objectString += tabs() + generate(children[i], nullptr).oneString() + "\n";
     }
@@ -312,7 +312,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             }
 			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
 			if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
-				preName += "this->";
+				preName = "(" + preName + "this)->"; // incase this is a closed over this that is referencing another thing (I think this happens for a.b when a is supposed to be closed over but isn't)
             // dereference references, but only if inside a function and not if this is a closed over variable
 			if (enclosingFunction && data.valueType->is_reference && !closed) {
 				preName += "(*";
@@ -417,12 +417,10 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             // If it's a block, because it's also a statement a semicolon will be emitted even though
             // we don't want it to be, as if (a) {b}; else {c}; is not legal C, but if (a) {b} else {c}; is.
             if (children[1]->getChildren()[0]->getDataRef()->type == code_block) {
-                std::cout << "Then statement is a block, emitting the block not the statement so no trailing semicolon" << std::endl;
                 output += generate(children[1]->getChildren()[0], enclosingObject, justFuncName, enclosingFunction).oneString();
             } else {
                 // ALSO we always emit blocks now, to handle cases like defer when several statements need to be
                 // run in C even though it is a single Kraken statement
-                std::cout << "Then statement is a simple statement, regular emitting the statement so trailing semicolon" << std::endl;
                 output += "{ " + generate(children[1], enclosingObject, justFuncName, enclosingFunction).oneString() + " }";
             }
             // Always emit blocks here too
@@ -685,11 +683,11 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 		    //The comma lets the upper function call know we already started the param list
 					 		    //Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
                             } else {
-					 	        std::cout << "Is not in scope or not type" << std::endl;
+								 //std::cout << "Is not in scope or not type" << std::endl;
 					            return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + functionName + ")";
                             }
                         } else {
-					 	    std::cout << "Is not in scope or not type" << std::endl;
+							 //std::cout << "Is not in scope or not type" << std::endl;
 					        return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + functionName + ")";
 					 	}
 					} else {
