@@ -58,6 +58,10 @@ obj map<T,U> (Object) {
         keys.remove(idx)
         values.remove(idx)
     }
+    fun clear() {
+        keys.clear()
+        values.clear()
+    }
     fun operator[](key: T): ref U {
         return get(key)
     }

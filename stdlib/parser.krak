@@ -1,0 +1,107 @@
+import grammer
+import symbol
+import tree
+import vector
+import stack
+import map
+import util
+import string
+import io
+import mem
+
+obj parser (Object) {
+    var input: vector::vector<symbol::symbol>
+    var gram: grammer::grammer
+    // gss
+    var to_reduce: stack::stack<reduction>
+    var to_shift: stack::stack< util::pair<*tree::tree<int>, int> >
+    var SPPFStepNodes: vector::vector< util::pair<*tree::tree<symbol::symbol>, int> >
+    var packed_map: map::map<*tree::tree<symbol::symbol>, bool>
+
+    fun construct(grammerIn: grammer::grammer): *parser {
+        input.construct()
+        gram.copy_construct(&grammerIn)
+        to_reduce.construct()
+        to_shift.construct()
+        SPPFStepNodes.construct()
+        packed_map.construct()
+        return this
+    }
+    fun copy_construct(old: *parser) {
+        input.copy_construct(&old->input)
+        gram.copy_construct(&old->gram)
+        to_reduce.copy_construct(&old->to_reduce)
+        to_shift.copy_construct(&old->to_shift)
+        SPPFStepNodes.copy_construct(&old->SPPFStepNodes)
+        packed_map.copy_construct(&old->packed_map)
+    }
+    fun operator=(old: ref parser) {
+        destruct()
+        copy_construct(&old)
+    }
+    fun destruct() {
+        input.destruct()
+        gram.destruct()
+        to_reduce.destruct()
+        to_shift.destruct()
+        SPPFStepNodes.destruct()
+        packed_map.destruct()
+    }
+
+    fun parse_input(inputStr: string::string, name: string::string): *tree::tree<symbol::symbol> {
+        input.clear()
+        // gss.clear
+        to_reduce.clear()
+        to_shift.clear()
+        SPPFStepNodes.clear()
+        packed_map.clear()
+
+        // if the zero state contains any reductions for state 0 and eof, then
+        // it must be reducing to the goal state
+        io::println("checking the bidness")
+        if (inputStr == "" && gram.parse_table.get(0, symbol::eof_symbol()).contains(grammer::action(grammer::reduce, 0))) {
+            io::println("Accept on no input for ")
+            io::println(name)
+            return mem::new<tree::tree<symbol::symbol>>()->construct(symbol::null_symbol())
+        }
+        io::println("failed for ")
+        io::println(name)
+        return mem::new<tree::tree<symbol::symbol>>()->construct(symbol::null_symbol())
+    }
+}
+
+fun reduction(f: *tree::tree<int>, s: symbol::symbol, l: int, n: *tree::tree<symbol::symbol>, label:*tree::tree<symbol::symbol>): reduction {
+    var toRet.construct(f,s,l,n,label): reduction
+    return toRet
+}
+
+obj reduction (Object) {
+    var from: *tree::tree<int>
+    var sym: symbol::symbol
+    var length: int
+    var nullable_parts: *tree::tree<symbol::symbol>
+    var label: *tree::tree<symbol::symbol>
+
+    fun construct(f: *tree::tree<int>, s: symbol::symbol, l: int, n: *tree::tree<symbol::symbol>, label:*tree::tree<symbol::symbol>): *reduction {
+        from = f
+        sym.copy_construct(&s)
+        length = l
+        nullable_parts = n
+        label = label
+        return this
+    }
+    fun copy_construct(old: *reduction) {
+        from = old->from
+        sym.copy_construct(&old->sym)
+        length = old->length
+        nullable_parts = old->nullable_parts
+        label = old->label
+    }
+    fun operator=(other: reduction):void {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+        sym.destruct()
+    }
+}

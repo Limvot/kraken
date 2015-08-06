@@ -56,12 +56,12 @@ obj set<T> (Object) {
     fun operator+=(items: set<T>) {
         add(items)
     }
-    fun add(item: T) {
+    fun add(item: ref T) {
         if (!contains(item))
             data.add(item)
     }
-    fun add(items: set<T>) {
-        items.for_each( fun(item: T) add(item); )
+    fun add(items: ref set<T>) {
+        items.for_each( fun(item: ref T) add(item); )
     }
     fun remove(item: T) {
         var idx = data.find(item)

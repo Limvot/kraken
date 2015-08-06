@@ -105,21 +105,21 @@ obj grammer (Object) {
     var non_terminals: set::set<symbol::symbol>
     var terminals: vector::vector<util::pair<symbol::symbol, regex::regex>>
     var first_set_map: map::map<symbol::symbol, set::set<symbol::symbol>>
-    var state_automata: state
+    var parse_table: table
 
     fun construct(): *grammer {
         rules.construct()
         non_terminals.construct()
         terminals.construct()
         first_set_map.construct()
-        state_automata.construct()
+        parse_table.construct()
     }
     fun copy_construct(old: *grammer) {
         rules.copy_construct(&old->rules)
         non_terminals.copy_construct(&old->non_terminals)
         terminals.copy_construct(&old->terminals)
         first_set_map.copy_construct(&old->first_set_map)
-        state_automata.copy_construct(&old->state_automata)
+        parse_table.copy_construct(&old->parse_table)
     }
     fun operator=(other: grammer) {
         destruct()
@@ -130,7 +130,7 @@ obj grammer (Object) {
         non_terminals.destruct()
         terminals.destruct()
         first_set_map.destruct()
-        state_automata.destruct()
+        parse_table.destruct()
     }
 
     fun calculate_first_set() {
@@ -154,7 +154,7 @@ obj grammer (Object) {
             })
         }
     }
-    fun first_vector(rhs: vector::vector<symbol::symbol>): set::set<symbol::symbol> {
+    fun first_vector(rhs: ref vector::vector<symbol::symbol>): set::set<symbol::symbol> {
         var toRet = set::set<symbol::symbol>()
             if (rhs.size) {
                 for (var i = 0; i < rhs.size; i++;) {
@@ -176,11 +176,8 @@ obj grammer (Object) {
     }
 
     fun calculate_state_automaton() {
-        state_automata.items = vector::vector(rules[0].with_lookahead(set::set(symbol::eof_symbol())))
-            io::println("pre first closure")
-        state_automata = closure(state_automata)
-            io::println("post first closure")
-        var states = vector::vector(state_automata) // vector instead of set because we need to iterate by index
+        var first_state = closure(state(vector::vector(rules[0].with_lookahead(set::set(symbol::eof_symbol())))))
+        var states = vector::vector(first_state) // vector instead of set because we need to iterate by index
         var newItems = stack::stack(0) // 0 is the index of the first and only item in states
         var count = 0
         while (newItems.size()) {
@@ -194,12 +191,25 @@ obj grammer (Object) {
             states[I].items.for_each(fun(r: ref rule) {
                 if (!r.at_end())
                     possGoto.add(r.next())
+                // if r is at end or the rest reduces to null, add a reduce for each lookahead symbol
+                if ( r.at_end() || first_vector(r.after_next()).contains(symbol::null_symbol()) ) {
+                    var rule_no = rules.find(r.plain())
+                    r.lookahead.for_each(fun(sym: ref symbol::symbol) {
+                        parse_table.add_reduce(I, sym, rule_no)
+                    })
+                }
             })
             possGoto.for_each(fun(X: ref symbol::symbol) {
                 var goneState = goto(states[I], X)
-                if (goneState.items.size && !states.contains(goneState)) {
-                    newItems.push(states.size)
-                    states.add(goneState)
+                if (goneState.items.size) {
+                    var already_state = states.find(goneState)
+                    if (already_state == -1) {
+                        parse_table.add_push(I, X, states.size)
+                        newItems.push(states.size)
+                        states.add(goneState)
+                    } else {
+                        parse_table.add_push(I, X, already_state)
+                    }
                 }
             })
         }
@@ -212,6 +222,9 @@ obj grammer (Object) {
         })
         io::println(" there were : states")
         io::println(states.size)
+        io::println(" there were : table")
+        /*io::println(parse_table.to_string())*/
+        parse_table.print_string()
     }
 
     fun closure(initial: ref state): state {
@@ -297,8 +310,6 @@ obj grammer (Object) {
         non_terminals.for_each( fun(i : symbol::symbol) { result += string::string("\n\t") + i.to_string(); } )
         result += "\nterminals:"
         terminals.for_each( fun(i : util::pair<symbol::symbol, regex::regex>) { result += string::string("\n\t") + i.first.to_string() + ": " + i.second.regexString; } )
-        result += "\nstate:"
-        result += state_automata.to_string()
         return result
     }
 }
@@ -354,6 +365,9 @@ obj rule (Object) {
     }
     fun at_end(): bool {
         return position >= rhs.size
+    }
+    fun plain(): rule {
+        return rule(lhs, rhs)
     }
     fun with_lookahead(newLookahead: set::set<symbol::symbol>): rule {
         var toRet = rule(lhs, rhs)
@@ -415,6 +429,101 @@ obj state (Object) {
     }
     fun to_string(): string::string {
         return string::string("woo a state")
+    }
+}
+
+// REALLY need those enums
+var push = 0
+var reduce = 1
+// note that these two are not actually currently used
+// accept is the reduce of the goal rule and reject is the
+// absence of actions
+var accept = 2
+var reject = 3
+fun action(act: int, state_or_rule: int): action {
+    var toRet: action
+    toRet.act = act
+    toRet.state_or_rule = state_or_rule
+    return toRet
+}
+obj action {
+    var act: int // really need those enums
+    var state_or_rule: int // sigh
+    fun operator==(other: action): bool {
+        return act == other.act && state_or_rule == other.state_or_rule
+    }
+}
+
+obj table (Object) {
+    // a 2 dimensional table made of a vector and a map that maps from stateno & symbol to a vector of parse actions
+    var items: vector::vector<map::map<symbol::symbol, vector::vector<action>>>
+
+    fun construct(): *table {
+        items.construct()
+    }
+    fun copy_construct(other: *table) {
+        items.copy_construct(&other->items)
+    }
+    fun operator=(other: table) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+        items.destruct()
+    }
+    fun expand_to(include_state: int) {
+        while (include_state >= items.size)
+            items.addEnd(map::map<symbol::symbol, vector::vector<action>>())
+    }
+    fun add_push(from_state: int, on_symbol: ref symbol::symbol, to_state: int) {
+        expand_to(from_state)
+        if (items[from_state].contains_key(on_symbol))
+            items[from_state][on_symbol].addEnd(action(push, to_state))
+        else
+            items[from_state].set(on_symbol, vector::vector(action(push, to_state)))
+    }
+    fun add_reduce(from_state: int, on_symbol: ref symbol::symbol, by_rule_no: int) {
+        expand_to(from_state)
+        if (items[from_state].contains_key(on_symbol))
+            items[from_state][on_symbol].addEnd(action(reduce, by_rule_no))
+        else
+            items[from_state].set(on_symbol, vector::vector(action(reduce, by_rule_no)))
+    }
+    fun add_accept(from_state: int, on_symbol: ref symbol::symbol) {
+        expand_to(from_state)
+        if (items[from_state].contains_key(on_symbol))
+            items[from_state][on_symbol].addEnd(action(accept, 0))
+        else
+            items[from_state].set(on_symbol, vector::vector(action(accept, 0)))
+    }
+    fun get(state: int, sym: symbol::symbol): vector::vector<action> {
+        return items[state][sym]
+    }
+    fun print_string(): string::string {
+        /*return string::string("woo a table of size: ") + items.size*/
+        io::print("woo a table of size: ")
+        io::println(items.size)
+        for (var i = 0; i < items.size; i++;) {
+            io::print("for state: ")
+            io::println(i)
+            items[i].for_each(fun(sym: symbol::symbol, actions: vector::vector<action>) {
+                actions.for_each(fun(action: action) {
+                    io::print("\ton symbol: ")
+                    io::print(sym.to_string())
+                    io::print(" do action: ")
+                    if (action.act == push)
+                        io::print("push ")
+                    else if (action.act == reduce)
+                        io::print("reduce ")
+                    else if (action.act == accept)
+                        io::print("accept ")
+                    else if (action.act == reject)
+                        io::print("reject ")
+                    io::print(action.state_or_rule)
+                    io::println()
+                })
+            })
+        }
     }
 }
 

@@ -1,15 +1,17 @@
 import io:*
 import grammer:*
+import parser:*
 import lexer:*
 import string:*
 import util:*
 import symbol:*
+import tree:*
 
 fun main():int {
 
-    var a = load_grammer(read_file(string("../krakenGrammer.kgm")))
+    /*var a = load_grammer(read_file(string("../krakenGrammer.kgm")))*/
     /*var a = load_grammer(read_file(string("grammer.kgm")))*/
-    //var a = load_grammer(read_file(string("grammer2.kgm")))
+    var a = load_grammer(read_file(string("grammer2.kgm")))
     println(a.to_string())
     var doFirstSet = fun() {
         a.calculate_first_set()
@@ -48,6 +50,9 @@ fun main():int {
     /*range(80).for_each(fun(i: int) { println(lex.next().to_string()); } )*/
     println(a.to_string())
     a.calculate_state_automaton()
+    var parse.construct(a): parser
+    var result = parse.parse_input(string(""), string("fun name"))
+    /*var parse.construct(): parser*/
     return 0
 }
 

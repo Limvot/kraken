@@ -1,0 +1,28 @@
+import mem
+import vector
+
+obj tree<T> (Object) {
+    var data: T
+    var children: vector::vector<*tree<T>>
+    fun construct(dataIn: T): *tree<T> {
+        mem::maybe_copy_construct(&data, &dataIn)
+        children.construct()
+        return this
+    }
+    // Some of these don't really make much sense considering this tree is all about
+    // heap allocated pointers. Best to have it for saftey, though
+    fun copy_construct(old: *tree<T>) {
+        mem::maybe_copy_construct(&data, &old->data)
+        children.copy_construct(&old->children)
+    }
+    // ditto
+    fun operator=(other: tree<T>):void {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+        mem::maybe_destruct(&data)
+        children.destruct()
+    }
+}
+

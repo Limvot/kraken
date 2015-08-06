@@ -34,6 +34,9 @@ obj stack<T> (Object) {
         data.remove(data.size-1)
         return toRet
     }
+    fun clear() {
+        data.clear()
+    }
     fun top(): T {
         return data[data.size-1]
     }

@@ -173,6 +173,12 @@ obj vector<T> (Object) {
         size--
     }
 
+    fun clear() {
+        for (var i = 0; i < size; i++;)
+            maybe_destruct(&data[i])
+        size = 0
+    }
+
     fun for_each(func: fun(ref T):void):void {
         for (var i = 0; i < size; i++;)
             func(data[i])

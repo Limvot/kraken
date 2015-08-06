@@ -10,4 +10,5 @@ stats
 *krakout*
 kraklist.txt
 .*.un~
-RNGLR.pdf
+papers
+callgrind*
