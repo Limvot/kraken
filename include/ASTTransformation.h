@@ -76,6 +76,7 @@ class ASTTransformation: public NodeTransformation<Symbol,ASTData> {
 		NodeTree<ASTData>* builtin_trans_unit; // the top scope for language level stuff
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelReservedWords;
 		std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelOperators;
+		std::map<NodeTree<ASTData>*, NodeTree<ASTData>*> this_map; // used to map implicit "this" variables to their type
 		NodeTree<ASTData>* topScope; //maintained for templates that need to add themselves to the top scope no matter where they are instantiated
         int lambdaID = 0;
 };

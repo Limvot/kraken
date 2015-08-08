@@ -77,6 +77,7 @@ obj parser (Object) {
             /*println(current_symbol.to_string())*/
             input.addEnd(current_symbol)
         }
+        input.addEnd(current_symbol)
         if (current_symbol == invalid_symbol()) {
             println("lexing failed for ")
             println(name)
@@ -91,7 +92,8 @@ obj parser (Object) {
         /*println("looking up")*/
         /*println(input[0].to_string())*/
         gram.parse_table.get(0, input[0]).for_each(fun(act: action) {
-            /*println("for each action")*/
+            println("for each action")
+            act.print()
             if (act.act == push)
                 to_shift.push(make_pair(v0, act.state_or_rule))
             else if (act.act == reduce && fully_reduces_to_null(gram.rules[act.state_or_rule]))
@@ -102,7 +104,7 @@ obj parser (Object) {
         for (var i = 0; i < input.size; i++;) {
             if (gss.frontier_is_empty(i)) {
                 print(i)
-                print(" frontier is empty in file '")
+                print("th frontier is empty in file '")
                 print(name)
                 print("' with txt ")
                 print(input[i].to_string())
@@ -110,6 +112,10 @@ obj parser (Object) {
                 return null<tree<symbol>>()
             }
             SPPFStepNodes.clear()
+            print("to_reduce size: ")
+            println(to_reduce.size())
+            print("to_shift size: ")
+            println(to_shift.size())
             while (to_reduce.size())
                 reducer(i)
             shifter(i)
@@ -130,11 +136,14 @@ obj parser (Object) {
         var curr_reduction = to_reduce.pop()
         gss.get_reachable_paths(curr_reduction.from, max(0, curr_reduction.length-1)).
             for_each(fun(path: ref vector<*tree<int>>) {
+            println("in get_reachable_paths for_each loop")
             var path_edges = range(path.size-1).map(fun(indx: int): *tree<symbol> { return gss.get_edge(path[indx], path[indx+1]);}).reverse()
+            println("got path edges")
             if (curr_reduction.length != 0)
                 path_edges.addEnd(curr_reduction.label)
             var curr_reached = path.last()
             var shift_to = gram.parse_table.get_shift(curr_reached->data, curr_reduction.sym).state_or_rule
+            println("got shift to")
             var new_label =  null<tree<symbol>>()
             if (curr_reduction.length == 0) {
                 new_label = curr_reduction.nullable_parts
@@ -172,10 +181,86 @@ obj parser (Object) {
                 shift_to_node = gss.new_node(shift_to)
                 gss.add_to_frontier(i, shift_to_node)
                 gss.add_edge(shift_to_node, curr_reached, new_label)
+                gram.parse_table.get(shift_to, input[i]).for_each(fun(act: action) {
+                    if (act.act == push) {
+                        to_shift.push(make_pair(shift_to_node, act.state_or_rule))
+                    } else {
+                        var action_rule = gram.rules[act.state_or_rule]
+                        if (fully_reduces_to_null(action_rule)) {
+                            to_reduce.push(reduction(shift_to_node, action_rule.lhs, 0,
+                                    new<tree<symbol>>()->construct(null_symbol()),
+                                    null<tree<symbol>>() ))
+                        } else if (curr_reduction.length == 0) {
+                            to_reduce.push(reduction(curr_reached, action_rule.lhs, action_rule.position,
+                                    new<tree<symbol>>()->construct(null_symbol()),
+                                    new_label ))
+                        }
+                    }
+                })
             }
+            if (curr_reduction.length)
+                add_children(new_label, path_edges, curr_reduction.nullable_parts)
         })
     }
     fun shifter(i: int) {
+        println("shifting")
+        if (i == input.size)
+            return; // darn ambiguity
+        print("shifting on ")
+        println(input[i].to_string())
+        var next_shifts =  stack< pair<*tree<int>, int> >()
+        var new_label = new<tree<symbol>>()->construct(input[i])
+        while (!to_shift.empty()) {
+            println("to_shift not empty")
+            var shift = to_shift.pop()
+            println("post pop")
+            var shift_to_node = gss.in_frontier(i+1, shift.second)
+            println("post in_frontier")
+            if (shift_to_node) {
+                print("already in frontier ")
+                println(i+1)
+                gram.parse_table.get_reduces(shift.second, input[i+1]).for_each(fun(action: action) {
+                    var reduce_rule = gram.rules[action.state_or_rule]
+                    if (!fully_reduces_to_null(reduce_rule)) {
+                        to_reduce.push(reduction(shift.first, reduce_rule.lhs, reduce_rule.position,
+                                    new<tree<symbol>>()->construct(null_symbol()),
+                                    new_label ))
+                    }
+                })
+            } else {
+                print("adding to frontier ")
+                println(i+1)
+                shift_to_node = gss.new_node(shift.second)
+                gss.add_to_frontier(i+1, shift_to_node)
+                println("post add to frontier")
+                gss.add_edge(shift_to_node, shift.first, new_label)
+                println("post add edger")
+                gram.parse_table.get(shift.second, input[i+1]).for_each(fun(action: action) {
+                    println("looking at an action")
+                    if (action.act == push) {
+                        println("is push")
+                        next_shifts.push(make_pair(shift_to_node, action.state_or_rule))
+                    } else {
+                        println("is reduce")
+                        var action_rule = gram.rules[action.state_or_rule]
+                        if (!fully_reduces_to_null(action_rule)) {
+                            println("does not reduce to null")
+                            to_reduce.push(reduction(shift.first, action_rule.lhs, action_rule.position, 
+                                    new<tree<symbol>>()->construct(null_symbol()),
+                                    new_label ))
+                        } else {
+                            println("does reduce to null")
+                            to_reduce.push(reduction(shift_to_node, action_rule.lhs, 0, 
+                                    new<tree<symbol>>()->construct(null_symbol()),
+                                    null<tree<symbol>>() ))
+                        }
+                    }
+                })
+            }
+        }
+        to_shift = next_shifts
+    }
+    fun add_children(parent: *tree<symbol>, children: vector<*tree<symbol>>, nullable_parts: *tree<symbol>) {
     }
 
     fun fully_reduces_to_null(r: ref rule): bool {
@@ -219,6 +304,8 @@ obj gss (Object) {
         return in_frontier(frontier, 1)
     }
     fun in_frontier(frontier: int, state: int): *tree<int> {
+        if (frontier >= data.size)
+            return null<tree<int>>()
         for (var i = 0; i < data[frontier].size; i++;)
             if (data[frontier][i]->data == state)
                 return data[frontier][i]

@@ -1371,14 +1371,18 @@ std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>
 }
 
 NodeTree<ASTData>* ASTTransformation::generateThis(NodeTree<ASTData>* scope) {
-    NodeTree<ASTData>* identifier = languageLevelReservedWords["this"][0];
-    identifier = new NodeTree<ASTData>("identifier", identifier->getData());
     // if we're looking for this, traverse up until we find the declaration of this object and assign it's type to this
     NodeTree<ASTData>* trans;
     for (trans = scope; trans->getDataRef()->type != type_def; trans = trans->getDataRef()->scope["~enclosing_scope"][0]);
+    auto possible_this = this_map.find(trans); // check to see if we've generated this this before
+    if (possible_this != this_map.end())
+        return possible_this->second;
+    NodeTree<ASTData>* identifier = languageLevelReservedWords["this"][0];
+    identifier = new NodeTree<ASTData>("identifier", identifier->getData());
     identifier->getDataRef()->valueType = trans->getDataRef()->valueType->clone();
     identifier->getDataRef()->valueType->increaseIndirection();
     identifier->getDataRef()->scope = trans->getDataRef()->scope;
+    this_map[trans] = identifier;
     return identifier;
 }
 

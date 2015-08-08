@@ -452,6 +452,18 @@ obj action {
     fun operator==(other: action): bool {
         return act == other.act && state_or_rule == other.state_or_rule
     }
+    fun print() {
+        if (act == push)
+            io::print("push ")
+        else if (act == reduce)
+            io::print("reduce ")
+        else if (act == accept)
+            io::print("accept ")
+        else if (act == reject)
+            io::print("reject ")
+        io::print(state_or_rule)
+        io::println()
+    }
 }
 
 obj table (Object) {
@@ -514,7 +526,14 @@ obj table (Object) {
             if (actions[i].act == push)
                 return actions[i]
         io::println("tried to get a shift when none existed")
+        io::print("for state ")
+        io::print(state)
+        io::print(" and symbol ")
+        io::println(on_symbol.to_string())
         return action(-1,-1)
+    }
+    fun get_reduces(state: int, on_symbol: symbol::symbol): vector::vector<action> {
+        return get(state, on_symbol).filter(fun(act: action):bool { return act.act == reduce; })
     }
     fun print_string() {
         /*return string::string("woo a table of size: ") + items.size*/
@@ -528,16 +547,7 @@ obj table (Object) {
                     io::print("\ton symbol: ")
                     io::print(sym.to_string())
                     io::print(" do action: ")
-                    if (action.act == push)
-                        io::print("push ")
-                    else if (action.act == reduce)
-                        io::print("reduce ")
-                    else if (action.act == accept)
-                        io::print("accept ")
-                    else if (action.act == reject)
-                        io::print("reject ")
-                    io::print(action.state_or_rule)
-                    io::println()
+                    action.print()
                 })
             })
         }

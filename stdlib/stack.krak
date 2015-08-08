@@ -43,4 +43,7 @@ obj stack<T> (Object) {
     fun size(): int {
         return data.size
     }
+    fun empty():bool {
+        return data.size == 0
+    }
 }
