@@ -192,10 +192,10 @@ obj grammer (Object) {
                 if (!r.at_end())
                     possGoto.add(r.next())
                 // if r is at end or the rest reduces to null, add a reduce for each lookahead symbol
-                if ( r.at_end() || first_vector(r.after_next()).contains(symbol::null_symbol()) ) {
+                if ( r.at_end() || first_vector(r.after()).contains(symbol::null_symbol()) ) {
                     var rule_no = rules.find(r.plain())
                     r.lookahead.for_each(fun(sym: ref symbol::symbol) {
-                        parse_table.add_reduce(I, sym, rule_no)
+                        parse_table.add_reduce(I, sym, rule_no, r.position)
                     })
                 }
             })
@@ -360,6 +360,9 @@ obj rule (Object) {
     fun next(): ref symbol::symbol {
         return rhs[position]
     }
+    fun after(): vector::vector<symbol::symbol> {
+        return rhs.slice(position, -1)
+    }
     fun after_next(): vector::vector<symbol::symbol> {
         return rhs.slice(position + 1, -1)
     }
@@ -444,13 +447,22 @@ fun action(act: int, state_or_rule: int): action {
     var toRet: action
     toRet.act = act
     toRet.state_or_rule = state_or_rule
+    toRet.rule_position = -1
+    return toRet
+}
+fun action(act: int, state_or_rule: int, rule_position: int): action {
+    var toRet: action
+    toRet.act = act
+    toRet.state_or_rule = state_or_rule
+    toRet.rule_position = rule_position
     return toRet
 }
 obj action {
     var act: int // really need those enums
     var state_or_rule: int // sigh
+    var rule_position: int // sigh
     fun operator==(other: action): bool {
-        return act == other.act && state_or_rule == other.state_or_rule
+        return act == other.act && state_or_rule == other.state_or_rule && rule_position == other.rule_position
     }
     fun print() {
         if (act == push)
@@ -462,6 +474,8 @@ obj action {
         else if (act == reject)
             io::print("reject ")
         io::print(state_or_rule)
+        io::print(" ")
+        io::print(rule_position)
         io::println()
     }
 }
@@ -500,13 +514,13 @@ obj table (Object) {
         else
             items[from_state].set(cleaned_symbol, vector::vector(action(push, to_state)))
     }
-    fun add_reduce(from_state: int, on_symbol: ref symbol::symbol, by_rule_no: int) {
+    fun add_reduce(from_state: int, on_symbol: ref symbol::symbol, by_rule_no: int, rule_position: int) {
         expand_to(from_state)
         var cleaned_symbol = clean_symbol(on_symbol)
         if (items[from_state].contains_key(cleaned_symbol))
             items[from_state][cleaned_symbol].addEnd(action(reduce, by_rule_no))
         else
-            items[from_state].set(cleaned_symbol, vector::vector(action(reduce, by_rule_no)))
+            items[from_state].set(cleaned_symbol, vector::vector(action(reduce, by_rule_no, rule_position)))
     }
     fun add_accept(from_state: int, on_symbol: ref symbol::symbol) {
         expand_to(from_state)

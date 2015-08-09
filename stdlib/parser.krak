@@ -138,10 +138,25 @@ obj parser (Object) {
             for_each(fun(path: ref vector<*tree<int>>) {
             println("in get_reachable_paths for_each loop")
             var path_edges = range(path.size-1).map(fun(indx: int): *tree<symbol> { return gss.get_edge(path[indx], path[indx+1]);}).reverse()
+            print("path ")
+            path.for_each(fun(part: *tree<int>) {
+                print(part->data)
+                print(" ")
+            })
+            println()
             println("got path edges")
             if (curr_reduction.length != 0)
                 path_edges.addEnd(curr_reduction.label)
             var curr_reached = path.last()
+            print("checking shift for state ")
+            print(curr_reached->data)
+            print(" and ")
+            println(curr_reduction.sym.to_string())
+            // if this is the Goal = a type reduction, then skip the actual reduction part.
+            // the shift lookup will fail, and likely other things, and this is our accept
+            // criteria anyway
+            if (curr_reached->data == 0 && curr_reduction.sym == gram.rules[0].lhs)
+                return;
             var shift_to = gram.parse_table.get_shift(curr_reached->data, curr_reduction.sym).state_or_rule
             println("got shift to")
             var new_label =  null<tree<symbol>>()
@@ -171,7 +186,7 @@ obj parser (Object) {
                             var reduce_rule = gram.rules[act.state_or_rule]
                             if (act.act == reduce && !fully_reduces_to_null(reduce_rule))
                                 to_reduce.push(reduction(curr_reached, reduce_rule.lhs,
-                                                            reduce_rule.position,
+                                                            act.rule_position,
                                                 new<tree<symbol>>()->construct(null_symbol()),
                                                             new_label))
                         })
@@ -190,8 +205,8 @@ obj parser (Object) {
                             to_reduce.push(reduction(shift_to_node, action_rule.lhs, 0,
                                     new<tree<symbol>>()->construct(null_symbol()),
                                     null<tree<symbol>>() ))
-                        } else if (curr_reduction.length == 0) {
-                            to_reduce.push(reduction(curr_reached, action_rule.lhs, action_rule.position,
+                        } else if (curr_reduction.length != 0) {
+                            to_reduce.push(reduction(curr_reached, action_rule.lhs, act.rule_position,
                                     new<tree<symbol>>()->construct(null_symbol()),
                                     new_label ))
                         }
@@ -204,7 +219,7 @@ obj parser (Object) {
     }
     fun shifter(i: int) {
         println("shifting")
-        if (i == input.size)
+        if (i >= input.size-1)
             return; // darn ambiguity
         print("shifting on ")
         println(input[i].to_string())
@@ -219,10 +234,11 @@ obj parser (Object) {
             if (shift_to_node) {
                 print("already in frontier ")
                 println(i+1)
+                gss.add_edge(shift_to_node, shift.first, new_label)
                 gram.parse_table.get_reduces(shift.second, input[i+1]).for_each(fun(action: action) {
                     var reduce_rule = gram.rules[action.state_or_rule]
                     if (!fully_reduces_to_null(reduce_rule)) {
-                        to_reduce.push(reduction(shift.first, reduce_rule.lhs, reduce_rule.position,
+                        to_reduce.push(reduction(shift.first, reduce_rule.lhs, action.rule_position,
                                     new<tree<symbol>>()->construct(null_symbol()),
                                     new_label ))
                     }
@@ -245,7 +261,7 @@ obj parser (Object) {
                         var action_rule = gram.rules[action.state_or_rule]
                         if (!fully_reduces_to_null(action_rule)) {
                             println("does not reduce to null")
-                            to_reduce.push(reduction(shift.first, action_rule.lhs, action_rule.position, 
+                            to_reduce.push(reduction(shift.first, action_rule.lhs, action.rule_position, 
                                     new<tree<symbol>>()->construct(null_symbol()),
                                     new_label ))
                         } else {
@@ -261,8 +277,23 @@ obj parser (Object) {
         to_shift = next_shifts
     }
     fun add_children(parent: *tree<symbol>, children: vector<*tree<symbol>>, nullable_parts: *tree<symbol>) {
+        if (nullable_parts)
+            children.add(nullable_parts)
+        if (!belongs_to_family(parent, children)) {
+            parent->children.add_all(children)
+        } else {
+            if (!are_packed(parent->children)) {
+                // ambiguity inner
+            }
+            // ambiguity outer
+        }
     }
-
+    fun belongs_to_family(node: *tree<symbol>, nodes: vector<*tree<symbol>>): bool {
+        return false
+    }
+    fun are_packed(nodes: vector<*tree<symbol>>): bool {
+        return true
+    }
     fun fully_reduces_to_null(r: ref rule): bool {
         return r.position == 0 && gram.first_vector(r.rhs).contains(null_symbol())
     }
@@ -379,4 +410,20 @@ obj reduction (Object) {
     fun destruct() {
         sym.destruct()
     }
+}
+
+fun syntax_tree_to_dot(root: *tree<symbol>): string {
+    var ret = string("digraph Kaken {\n")
+    var helper: fun(*tree<symbol>):void = fun(node: *tree<symbol>) {
+        ret += node->data.to_string() + ";;;;\n";
+        node->children.for_each(fun(child: *tree<symbol>) {
+            if (!child)
+                return; // where on earth does the null come from
+            ret += node->data.to_string() + " -> " + child->data.to_string() + "\n";
+            helper(child)
+        })
+    }
+    if (root)
+        helper(root)
+    return ret + "}"
 }
