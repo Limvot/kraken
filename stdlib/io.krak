@@ -98,4 +98,17 @@ fun read_file(path: string::string): string::string {
 	}
     return toRet
 }
+fun write_file(path: string::string, data: string::string) {
+    var char_path = path.toCharArray()
+    defer delete(char_path)
+    var char_data = data.toCharArray()
+    defer delete(char_data)
+	__if_comp__ __C__ {
+		simple_passthrough(char_path,char_data::) """
+			FILE *fp = fopen(char_path, "w");
+            fprintf(fp, "%s", char_data);
+            fclose(fp);
+		"""
+	}
+}
 

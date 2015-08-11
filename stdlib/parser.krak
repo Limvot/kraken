@@ -89,8 +89,6 @@ obj parser (Object) {
 
         var null_symbol_tree = null<tree<symbol>>()
 
-        /*println("looking up")*/
-        /*println(input[0].to_string())*/
         gram.parse_table.get(0, input[0]).for_each(fun(act: action) {
             println("for each action")
             act.print()
@@ -99,7 +97,6 @@ obj parser (Object) {
             else if (act.act == reduce && fully_reduces_to_null(gram.rules[act.state_or_rule]))
                 to_reduce.push(reduction(v0, gram.rules[act.state_or_rule].lhs, 0, null_symbol_tree, null_symbol_tree))
         })
-
 
         for (var i = 0; i < input.size; i++;) {
             if (gss.frontier_is_empty(i)) {
@@ -145,8 +142,13 @@ obj parser (Object) {
             })
             println()
             println("got path edges")
-            if (curr_reduction.length != 0)
+            println("there are this many:")
+            println(path_edges.size)
+            if (curr_reduction.length != 0) {
                 path_edges.addEnd(curr_reduction.label)
+                println("also adding the one from the reduction")
+                println(curr_reduction.label->data.to_string())
+            }
             var curr_reached = path.last()
             print("checking shift for state ")
             print(curr_reached->data)
@@ -155,7 +157,8 @@ obj parser (Object) {
             // if this is the Goal = a type reduction, then skip the actual reduction part.
             // the shift lookup will fail, and likely other things, and this is our accept
             // criteria anyway
-            if (curr_reached->data == 0 && curr_reduction.sym == gram.rules[0].lhs)
+            /*if (curr_reached->data == 0 && curr_reduction.sym == gram.rules[0].lhs)*/
+            if (curr_reduction.sym == gram.rules[0].lhs)
                 return;
             var shift_to = gram.parse_table.get_shift(curr_reached->data, curr_reduction.sym).state_or_rule
             println("got shift to")
@@ -187,7 +190,7 @@ obj parser (Object) {
                             if (act.act == reduce && !fully_reduces_to_null(reduce_rule))
                                 to_reduce.push(reduction(curr_reached, reduce_rule.lhs,
                                                             act.rule_position,
-                                                new<tree<symbol>>()->construct(null_symbol()),
+                                                get_nullable_parts(reduce_rule),
                                                             new_label))
                         })
                     }
@@ -203,12 +206,12 @@ obj parser (Object) {
                         var action_rule = gram.rules[act.state_or_rule]
                         if (fully_reduces_to_null(action_rule)) {
                             to_reduce.push(reduction(shift_to_node, action_rule.lhs, 0,
-                                    new<tree<symbol>>()->construct(null_symbol()),
-                                    null<tree<symbol>>() ))
+                                                get_nullable_parts(action_rule),
+                                                null<tree<symbol>>() ))
                         } else if (curr_reduction.length != 0) {
                             to_reduce.push(reduction(curr_reached, action_rule.lhs, act.rule_position,
-                                    new<tree<symbol>>()->construct(null_symbol()),
-                                    new_label ))
+                                                get_nullable_parts(action_rule),
+                                                new_label ))
                         }
                     }
                 })
@@ -239,7 +242,7 @@ obj parser (Object) {
                     var reduce_rule = gram.rules[action.state_or_rule]
                     if (!fully_reduces_to_null(reduce_rule)) {
                         to_reduce.push(reduction(shift.first, reduce_rule.lhs, action.rule_position,
-                                    new<tree<symbol>>()->construct(null_symbol()),
+                                    get_nullable_parts(reduce_rule),
                                     new_label ))
                     }
                 })
@@ -262,12 +265,12 @@ obj parser (Object) {
                         if (!fully_reduces_to_null(action_rule)) {
                             println("does not reduce to null")
                             to_reduce.push(reduction(shift.first, action_rule.lhs, action.rule_position, 
-                                    new<tree<symbol>>()->construct(null_symbol()),
+                                    get_nullable_parts(action_rule),
                                     new_label ))
                         } else {
                             println("does reduce to null")
                             to_reduce.push(reduction(shift_to_node, action_rule.lhs, 0, 
-                                    new<tree<symbol>>()->construct(null_symbol()),
+                                    get_nullable_parts(action_rule),
                                     null<tree<symbol>>() ))
                         }
                     }
@@ -296,6 +299,11 @@ obj parser (Object) {
     }
     fun fully_reduces_to_null(r: ref rule): bool {
         return r.position == 0 && gram.first_vector(r.rhs).contains(null_symbol())
+    }
+    fun get_nullable_parts(r: ref rule): *tree<symbol> {
+        if (fully_reduces_to_null(r))
+            return new<tree<symbol>>()->construct(null_symbol())
+        return null<tree<symbol>>()
     }
 }
 
@@ -388,12 +396,12 @@ obj reduction (Object) {
     var nullable_parts: *tree<symbol>
     var label: *tree<symbol>
 
-    fun construct(f: *tree<int>, s: symbol, l: int, n: *tree<symbol>, label:*tree<symbol>): *reduction {
+    fun construct(f: *tree<int>, s: symbol, l: int, n: *tree<symbol>, labelIn:*tree<symbol>): *reduction {
         from = f
         sym.copy_construct(&s)
         length = l
         nullable_parts = n
-        label = label
+        label = labelIn
         return this
     }
     fun copy_construct(old: *reduction) {
@@ -415,11 +423,18 @@ obj reduction (Object) {
 fun syntax_tree_to_dot(root: *tree<symbol>): string {
     var ret = string("digraph Kaken {\n")
     var helper: fun(*tree<symbol>):void = fun(node: *tree<symbol>) {
-        ret += node->data.to_string() + ";;;;\n";
+        /*ret += node->data.to_string() + ";;;;\n";*/
         node->children.for_each(fun(child: *tree<symbol>) {
             if (!child)
                 return; // where on earth does the null come from
-            ret += node->data.to_string() + " -> " + child->data.to_string() + "\n";
+            var escaped_child = string("")
+            child->data.to_string().data.for_each(fun(c: char) {
+                if (c != '"')
+                    escaped_child += c
+                else
+                    escaped_child += "\\\""
+            })
+            ret += string("\"") + node->data.to_string() + "\" -> \"" + escaped_child + "\"\n";
             helper(child)
         })
     }

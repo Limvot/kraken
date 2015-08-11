@@ -6,6 +6,11 @@ fun string(in:*char):string {
     var out.construct(in):string
     return out
 }
+fun string(in:char):string {
+    var out.construct():string
+    out += in
+    return out
+}
 
 obj string (Object) {
     var data: vector::vector<char>;

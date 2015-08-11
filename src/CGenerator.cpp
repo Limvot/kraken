@@ -796,11 +796,14 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 		}
 		case value:
         {
-            // ok, we now check for it being a string and escape all returns if it is (so that multiline strings work)
-            if (data.symbol.getName()[0] == '"') {
-                std::string innerString = strSlice(data.symbol.getName(), 0, 3) == "\"\"\""
-                                            ? strSlice(data.symbol.getName(), 3, -4)
-                                            : strSlice(data.symbol.getName(), 1, -2);
+            // ok, we now check for it being a multiline string and escape all returns if it is (so that multiline strings work)
+            //if (data.symbol.getName()[0] == '"') {
+            if (data.symbol.getName()[0] == '"' && strSlice(data.symbol.getName(), 0, 3) == "\"\"\"") {
+                //bool multiline_str = strSlice(data.symbol.getName(), 0, 3) == "\"\"\"";
+                //std::string innerString = multiline_str
+                                            //? strSlice(data.symbol.getName(), 3, -4)
+                                            //: strSlice(data.symbol.getName(), 1, -2);
+                std::string innerString = strSlice(data.symbol.getName(), 3, -4);
                 std::string newStr;
                 for (auto character: innerString)
                     if (character == '\n')

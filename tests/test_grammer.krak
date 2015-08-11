@@ -9,9 +9,9 @@ import tree:*
 
 fun main():int {
 
-    /*var a = load_grammer(read_file(string("../krakenGrammer.kgm")))*/
+    var a = load_grammer(read_file(string("../krakenGrammer.kgm")))
     /*var a = load_grammer(read_file(string("grammer.kgm")))*/
-    var a = load_grammer(read_file(string("grammer2.kgm")))
+    /*var a = load_grammer(read_file(string("grammer2.kgm")))*/
     /*var a = load_grammer(read_file(string("grammer3.kgm")))*/
     println(a.to_string())
     var doFirstSet = fun() {
@@ -52,10 +52,14 @@ fun main():int {
     println(a.to_string())
     a.calculate_state_automaton()
     var parse.construct(a): parser
-    var result = parse.parse_input(string("ad"), string("fun name"))
+    var result = parse.parse_input(string("fun main():int { return 0; }"), string("fun name"))
+    /*var result = parse.parse_input(string("ad"), string("fun name"))*/
+    /*var result = parse.parse_input(string("hibyed"), string("fun name"))*/
+    /*var result = parse.parse_input(string("hmmhmm"), string("fun name"))*/
     /*var result = parse.parse_input(string("hid"), string("fun name"))*/
     println("the tree")
     println(syntax_tree_to_dot(result))
+    write_file(string("syntax_tree.dot"), syntax_tree_to_dot(result))
     /*var parse.construct(): parser*/
     return 0
 }
