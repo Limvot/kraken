@@ -287,15 +287,32 @@ obj parser (Object) {
         } else {
             if (!are_packed(parent->children)) {
                 // ambiguity inner
+                var sub_parent = new<tree<symbol>>()->construct(symbol("AmbiguityInner", true))
+                set_packed(sub_parent, true)
+                sub_parent->children.add_all(parent->children)
+                parent->children.clear()
+                parent->children.add(sub_parent)
             }
             // ambiguity outer
+            var next_sub_parent = new<tree<symbol>>()->construct(symbol("AmbiguityOuter", true))
+            set_packed(next_sub_parent, true)
+            parent->children.add(next_sub_parent)
+            next_sub_parent->children.add_all(children)
         }
     }
     fun belongs_to_family(node: *tree<symbol>, nodes: vector<*tree<symbol>>): bool {
-        return false
+        var family_count = 0
+        node->children.for_each(fun(child: *tree<symbol>) {
+            if (nodes.contains(child))
+                family_count++
+        })
+        return family_count == nodes.size
     }
     fun are_packed(nodes: vector<*tree<symbol>>): bool {
-        return true
+        return nodes.any_true(fun(it: *tree<symbol>):bool { return packed_map.contains_key(it) && packed_map[it]; })
+    }
+    fun set_packed(node: *tree<symbol>, packed: bool) {
+        packed_map.set(node, packed)
     }
     fun fully_reduces_to_null(r: ref rule): bool {
         return r.position == 0 && gram.first_vector(r.rhs).contains(null_symbol())

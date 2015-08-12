@@ -52,7 +52,8 @@ fun main():int {
     println(a.to_string())
     a.calculate_state_automaton()
     var parse.construct(a): parser
-    var result = parse.parse_input(string("fun main():int { return 0; }"), string("fun name"))
+    var result = parse.parse_input(string("inport a;"), string("fun name"))
+    /*var result = parse.parse_input(string("fun main():int { return 0; }"), string("fun name"))*/
     /*var result = parse.parse_input(string("ad"), string("fun name"))*/
     /*var result = parse.parse_input(string("hibyed"), string("fun name"))*/
     /*var result = parse.parse_input(string("hmmhmm"), string("fun name"))*/
