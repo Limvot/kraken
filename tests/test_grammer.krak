@@ -52,11 +52,12 @@ fun main():int {
     println(a.to_string())
     a.calculate_state_automaton()
     var parse.construct(a): parser
-    var result = parse.parse_input(string("inport a;"), string("fun name"))
+    var result = parse.parse_input(read_file(string("to_parse.krak")), string("fun name"))
+    /*var result = parse.parse_input(string("inport a;"), string("fun name"))*/
     /*var result = parse.parse_input(string("fun main():int { return 0; }"), string("fun name"))*/
     /*var result = parse.parse_input(string("ad"), string("fun name"))*/
     /*var result = parse.parse_input(string("hibyed"), string("fun name"))*/
-    /*var result = parse.parse_input(string("hmmhmm"), string("fun name"))*/
+    /*var result = parse.parse_input(string("hmmhmmend"), string("fun name"))*/
     /*var result = parse.parse_input(string("hid"), string("fun name"))*/
     println("the tree")
     println(syntax_tree_to_dot(result))

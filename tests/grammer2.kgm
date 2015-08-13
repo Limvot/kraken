@@ -1,11 +1,12 @@
 # comment
 Goal = a ;
-a = b | rec ;
+a = b | rec "end" ;
 b = "c":named_c ;
 b = c "d":dname ;
 c = "a" | d ;
 d = e post_null post_non_null inherit_null ;
 inherit_null = e | post_non_null ;
+e = ;
 e = f | ;
 f = ;
 post_null = "hi" ;

@@ -158,8 +158,10 @@ obj parser (Object) {
             // the shift lookup will fail, and likely other things, and this is our accept
             // criteria anyway
             /*if (curr_reached->data == 0 && curr_reduction.sym == gram.rules[0].lhs)*/
-            if (curr_reduction.sym == gram.rules[0].lhs)
+            if (curr_reduction.sym == gram.rules[0].lhs) {
+                println("would accept here")
                 return;
+            }
             var shift_to = gram.parse_table.get_shift(curr_reached->data, curr_reduction.sym).state_or_rule
             println("got shift to")
             var new_label =  null<tree<symbol>>()
@@ -264,12 +266,12 @@ obj parser (Object) {
                         var action_rule = gram.rules[action.state_or_rule]
                         if (!fully_reduces_to_null(action_rule)) {
                             println("does not reduce to null")
-                            to_reduce.push(reduction(shift.first, action_rule.lhs, action.rule_position, 
+                            to_reduce.push(reduction(shift.first, action_rule.lhs, action.rule_position,
                                     get_nullable_parts(action_rule),
                                     new_label ))
                         } else {
                             println("does reduce to null")
-                            to_reduce.push(reduction(shift_to_node, action_rule.lhs, 0, 
+                            to_reduce.push(reduction(shift_to_node, action_rule.lhs, 0,
                                     get_nullable_parts(action_rule),
                                     null<tree<symbol>>() ))
                         }
@@ -283,30 +285,39 @@ obj parser (Object) {
         if (nullable_parts)
             children.add(nullable_parts)
         if (!belongs_to_family(parent, children)) {
-            parent->children.add_all(children)
-        } else {
-            if (!are_packed(parent->children)) {
-                // ambiguity inner
-                var sub_parent = new<tree<symbol>>()->construct(symbol("AmbiguityInner", true))
-                set_packed(sub_parent, true)
-                sub_parent->children.add_all(parent->children)
-                parent->children.clear()
-                parent->children.add(sub_parent)
+            if (parent->children.size == 0) {
+                parent->children.add_all(children)
+            } else {
+                if (!are_packed(parent->children)) {
+                    // ambiguity inner
+                    var sub_parent = new<tree<symbol>>()->construct(symbol("AmbiguityInner", true))
+                    set_packed(sub_parent, true)
+                    sub_parent->children.add_all(parent->children)
+                    parent->children.clear()
+                    parent->children.add(sub_parent)
+                }
+                // ambiguity outer
+                var next_sub_parent = new<tree<symbol>>()->construct(symbol("AmbiguityOuter", true))
+                set_packed(next_sub_parent, true)
+                parent->children.add(next_sub_parent)
+                next_sub_parent->children.add_all(children)
             }
-            // ambiguity outer
-            var next_sub_parent = new<tree<symbol>>()->construct(symbol("AmbiguityOuter", true))
-            set_packed(next_sub_parent, true)
-            parent->children.add(next_sub_parent)
-            next_sub_parent->children.add_all(children)
         }
     }
     fun belongs_to_family(node: *tree<symbol>, nodes: vector<*tree<symbol>>): bool {
-        var family_count = 0
-        node->children.for_each(fun(child: *tree<symbol>) {
-            if (nodes.contains(child))
-                family_count++
-        })
-        return family_count == nodes.size
+        for (var i = 0; i < nodes.size; i++;) {
+            var contains_one = false
+            for (var j = 0; j < node->children.size; j++;) {
+                var child = node->children[j]
+                if (nodes[i] == child || (nodes[i] && child && *nodes[i] == *child)) {
+                    contains_one = true
+                    break
+                }
+            }
+            if (!contains_one)
+                return false
+        }
+        return true
     }
     fun are_packed(nodes: vector<*tree<symbol>>): bool {
         return nodes.any_true(fun(it: *tree<symbol>):bool { return packed_map.contains_key(it) && packed_map[it]; })
@@ -439,19 +450,27 @@ obj reduction (Object) {
 
 fun syntax_tree_to_dot(root: *tree<symbol>): string {
     var ret = string("digraph Kaken {\n")
+    var counter = 0
+    var node_name_map = map<*tree<symbol>, string>()
+    var get_name = fun(node: *tree<symbol>): string {
+        if (node_name_map.contains_key(node))
+            return node_name_map[node]
+        var escaped = string("")
+        node->data.to_string().data.for_each(fun(c: char) {
+            if (c != '"')
+                escaped += c
+            else
+                escaped += "\\\""
+        })
+        escaped += to_string(counter++)
+        node_name_map.set(node, escaped)
+        return escaped
+    }
     var helper: fun(*tree<symbol>):void = fun(node: *tree<symbol>) {
-        /*ret += node->data.to_string() + ";;;;\n";*/
         node->children.for_each(fun(child: *tree<symbol>) {
             if (!child)
                 return; // where on earth does the null come from
-            var escaped_child = string("")
-            child->data.to_string().data.for_each(fun(c: char) {
-                if (c != '"')
-                    escaped_child += c
-                else
-                    escaped_child += "\\\""
-            })
-            ret += string("\"") + node->data.to_string() + "\" -> \"" + escaped_child + "\"\n";
+            ret += string("\"") + get_name(node) + "\" -> \"" + get_name(child) + "\"\n";
             helper(child)
         })
     }

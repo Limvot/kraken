@@ -20,6 +20,9 @@ obj tree<T> (Object) {
         destruct()
         copy_construct(&other)
     }
+    fun operator==<U>(other: ref tree<U>):bool {
+        return data == other.data
+    }
     fun destruct() {
         mem::maybe_destruct(&data)
         children.destruct()

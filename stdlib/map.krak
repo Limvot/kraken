@@ -47,7 +47,13 @@ obj map<T,U> (Object) {
         return keys.contains(key)
     }
     fun get(key: T): ref U {
-        return values.get(keys.find(key))
+        /*return values.get(keys.find(key))*/
+        var key_loc = keys.find(key)
+        if (key_loc == -1) {
+            io::println("trying to access nonexistant key-value!")
+            /*while (true) {}*/
+        }
+        return values.get(key_loc)
     }
     fun remove(key: T) {
         var idx = keys.find(key)

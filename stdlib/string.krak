@@ -2,6 +2,18 @@ import vector
 import util
 import mem
 
+fun to_string(in: int): string {
+    var dest = mem::new<char>(mem::sizeof<int>() * 8)
+    defer mem::delete(dest)
+	__if_comp__ __C__ {
+		simple_passthrough(dest = dest, in = in::) """
+			sprintf(dest, "%d", in);
+		"""
+	}
+    var ret = string(dest)
+    return ret
+}
+
 fun string(in:*char):string {
     var out.construct(in):string
     return out
