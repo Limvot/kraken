@@ -121,7 +121,7 @@ obj vector<T> (Object) {
             println(index);
             print("Max Index of vector: ");
             println(size-1);
-            /*while(true) {}*/
+            while(true) {}
             return data[0];
         }
         return data[index];

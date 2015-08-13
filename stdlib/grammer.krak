@@ -518,7 +518,7 @@ obj table (Object) {
         expand_to(from_state)
         var cleaned_symbol = clean_symbol(on_symbol)
         if (items[from_state].contains_key(cleaned_symbol))
-            items[from_state][cleaned_symbol].addEnd(action(reduce, by_rule_no))
+            items[from_state][cleaned_symbol].addEnd(action(reduce, by_rule_no, rule_position))
         else
             items[from_state].set(cleaned_symbol, vector::vector(action(reduce, by_rule_no, rule_position)))
     }

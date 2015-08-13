@@ -94,8 +94,12 @@ obj parser (Object) {
             act.print()
             if (act.act == push)
                 to_shift.push(make_pair(v0, act.state_or_rule))
-            else if (act.act == reduce && fully_reduces_to_null(gram.rules[act.state_or_rule]))
+            /*else if (act.act == reduce && fully_reduces_to_null(gram.rules[act.state_or_rule])) {*/
+            else if (act.act == reduce && act.rule_position == 0) {
+                print("act == reduce && == 0 Adding reduction from state: ")
+                println(v0->data)
                 to_reduce.push(reduction(v0, gram.rules[act.state_or_rule].lhs, 0, null_symbol_tree, null_symbol_tree))
+            }
         })
 
         for (var i = 0; i < input.size; i++;) {
@@ -129,10 +133,13 @@ obj parser (Object) {
         return null<tree<symbol>>()
     }
     fun reducer(i: int) {
-        println("reducing")
+        print("reducing from state: ")
         var curr_reduction = to_reduce.pop()
+        println(curr_reduction.from->data)
+        print("curr_reduction.length (not length-1) is: ")
+        println(curr_reduction.length)
         gss.get_reachable_paths(curr_reduction.from, max(0, curr_reduction.length-1)).
-            for_each(fun(path: ref vector<*tree<int>>) {
+                                for_each(fun(path: ref vector<*tree<int>>) {
             println("in get_reachable_paths for_each loop")
             var path_edges = range(path.size-1).map(fun(indx: int): *tree<symbol> { return gss.get_edge(path[indx], path[indx+1]);}).reverse()
             print("path ")
@@ -189,11 +196,15 @@ obj parser (Object) {
                     if (curr_reduction.length) {
                         gram.parse_table.get(shift_to, input[i]).for_each(fun(act: action) {
                             var reduce_rule = gram.rules[act.state_or_rule]
-                            if (act.act == reduce && !fully_reduces_to_null(reduce_rule))
+                            /*if (act.act == reduce && !fully_reduces_to_null(reduce_rule)) {*/
+                            if (act.act == reduce && act.rule_position != 0) {
                                 to_reduce.push(reduction(curr_reached, reduce_rule.lhs,
                                                             act.rule_position,
                                                 get_nullable_parts(reduce_rule),
                                                             new_label))
+                                print("(non null) Adding reduction from state: ")
+                                println(curr_reached->data)
+                            }
                         })
                     }
                 }
@@ -206,14 +217,20 @@ obj parser (Object) {
                         to_shift.push(make_pair(shift_to_node, act.state_or_rule))
                     } else {
                         var action_rule = gram.rules[act.state_or_rule]
-                        if (fully_reduces_to_null(action_rule)) {
+                        // tricky tricky tricky. Fully reduces to null is not the same as act.rule_position being 0
+                        /*if (fully_reduces_to_null(action_rule)) {*/
+                        if (act.rule_position == 0) {
                             to_reduce.push(reduction(shift_to_node, action_rule.lhs, 0,
                                                 get_nullable_parts(action_rule),
                                                 null<tree<symbol>>() ))
+                            print("null reduces Adding reduction from state: ")
+                            println(shift_to_node->data)
                         } else if (curr_reduction.length != 0) {
                             to_reduce.push(reduction(curr_reached, action_rule.lhs, act.rule_position,
                                                 get_nullable_parts(action_rule),
                                                 new_label ))
+                            print("null does not reduce Adding reduction from state: ")
+                            println(curr_reached->data)
                         }
                     }
                 })
@@ -242,10 +259,13 @@ obj parser (Object) {
                 gss.add_edge(shift_to_node, shift.first, new_label)
                 gram.parse_table.get_reduces(shift.second, input[i+1]).for_each(fun(action: action) {
                     var reduce_rule = gram.rules[action.state_or_rule]
-                    if (!fully_reduces_to_null(reduce_rule)) {
+                    /*if (!fully_reduces_to_null(reduce_rule)) {*/
+                    if (action.rule_position != 0) {
                         to_reduce.push(reduction(shift.first, reduce_rule.lhs, action.rule_position,
                                     get_nullable_parts(reduce_rule),
                                     new_label ))
+                        print("if shift to node Adding reduction from state: ")
+                        println(shift.first->data)
                     }
                 })
             } else {
@@ -264,16 +284,23 @@ obj parser (Object) {
                     } else {
                         println("is reduce")
                         var action_rule = gram.rules[action.state_or_rule]
-                        if (!fully_reduces_to_null(action_rule)) {
+                        /*if (!fully_reduces_to_null(action_rule)) {*/
+                        if (action.rule_position != 0) {
                             println("does not reduce to null")
                             to_reduce.push(reduction(shift.first, action_rule.lhs, action.rule_position,
                                     get_nullable_parts(action_rule),
                                     new_label ))
+                            print("not shift to, reduce, != 0 Adding reduction from state: ")
+                            println(shift.first->data)
+                            print("added ruduction rule+position: ")
+                            println(action.rule_position)
                         } else {
                             println("does reduce to null")
                             to_reduce.push(reduction(shift_to_node, action_rule.lhs, 0,
                                     get_nullable_parts(action_rule),
                                     null<tree<symbol>>() ))
+                            print("not shift to, reduce, == 0 Adding reduction from state: ")
+                            println(shift_to_node->data)
                         }
                     }
                 })
@@ -326,10 +353,13 @@ obj parser (Object) {
         packed_map.set(node, packed)
     }
     fun fully_reduces_to_null(r: ref rule): bool {
-        return r.position == 0 && gram.first_vector(r.rhs).contains(null_symbol())
+        return r.position == 0 && reduces_to_null(r)
+    }
+    fun reduces_to_null(r: ref rule): bool {
+        return gram.first_vector(r.rhs).contains(null_symbol())
     }
     fun get_nullable_parts(r: ref rule): *tree<symbol> {
-        if (fully_reduces_to_null(r))
+        if (reduces_to_null(r))
             return new<tree<symbol>>()->construct(null_symbol())
         return null<tree<symbol>>()
     }
