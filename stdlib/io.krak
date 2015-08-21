@@ -1,4 +1,5 @@
 import string;
+import vector;
 import mem:*
 
 __if_comp__ __C__ simple_passthrough """
@@ -75,27 +76,7 @@ fun print(toPrint: double) : void{
 
 // Ok, just some DEAD simple file io for now
 fun read_file(path: string::string): string::string {
-    var char_path = path.toCharArray()
-    defer delete(char_path)
-    var data: *char
-	__if_comp__ __C__ {
-		simple_passthrough(char_path = char_path:data = data:) """
-			FILE *fp = fopen(char_path, "r");
-            fseek(fp, 0L, SEEK_END);
-            long size = ftell(fp);
-            fseek(fp, 0L, SEEK_SET);
-            char *data = malloc(size+1);
-            size_t readSize = fread(data, 1, size, fp);
-            data[readSize] = 0;
-            fclose(fp);
-		"""
-	}
-    var toRet = string::string(data)
-	__if_comp__ __C__ {
-		simple_passthrough(data = data::) """
-            free(data)
-		"""
-	}
+    var toRet.construct(read_file_binary(path)): string::string
     return toRet
 }
 fun write_file(path: string::string, data: string::string) {
@@ -107,6 +88,47 @@ fun write_file(path: string::string, data: string::string) {
 		simple_passthrough(char_path,char_data::) """
 			FILE *fp = fopen(char_path, "w");
             fprintf(fp, "%s", char_data);
+            fclose(fp);
+		"""
+	}
+}
+fun read_file_binary(path: string::string): vector::vector<char> {
+    var char_path = path.toCharArray()
+    defer delete(char_path)
+    var data: *char
+    var size: int
+	__if_comp__ __C__ {
+		simple_passthrough(char_path = char_path:data = data, size = size:) """
+			FILE *fp = fopen(char_path, "r");
+            fseek(fp, 0L, SEEK_END);
+            long size = ftell(fp);
+            fseek(fp, 0L, SEEK_SET);
+            char *data = malloc(size+1);
+            size_t readSize = fread(data, 1, size, fp);
+            data[readSize] = 0;
+            fclose(fp);
+		"""
+	}
+    var toRet.construct(size): vector::vector<char>
+    for (var i = 0; i < size; i++;)
+        toRet.add(data[i])
+
+	__if_comp__ __C__ {
+		simple_passthrough(data = data::) """
+            free(data)
+		"""
+	}
+    return toRet
+}
+fun write_file_binary(path: string::string, vdata: vector::vector<char>) {
+    var char_path = path.toCharArray()
+    defer delete(char_path)
+    var data = vdata.getBackingMemory()
+    var size = vdata.size
+	__if_comp__ __C__ {
+		simple_passthrough(char_path, data, size::) """
+			FILE *fp = fopen(char_path, "w");
+            fwrite(data, 1, size, fp);
             fclose(fp);
 		"""
 	}

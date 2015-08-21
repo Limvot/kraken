@@ -1,0 +1,14 @@
+import io:*
+import serialize:*
+import string:*
+
+fun main():int {
+    var intA = 7
+    write_file_binary(string("bintest.bin"), serialize(intA))
+    var intB = unserialize<int>(read_file_binary(string("bintest.bin")))
+    print(intA)
+    print(" = ")
+    println(intB)
+    return 0
+}
+

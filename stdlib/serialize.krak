@@ -1,0 +1,17 @@
+import vector
+import conversions
+import mem
+
+fun serialize<T>(it: T): vector::vector<char> {
+    var char_data = conversions::cast_ptr<*T,*char>(&it)
+    var toRet = vector::vector<char>()
+    for (var i = 0; i < mem::sizeof<T>(); i++;)
+        toRet.add(char_data[i])
+    return toRet
+}
+
+fun unserialize<T>(it: vector::vector<char>):T {
+    return *conversions::cast_ptr<*char,*T>(it.getBackingMemory())
+}
+
+
