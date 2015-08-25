@@ -1,6 +1,8 @@
 import mem:*;
 import util:*;
 import io:*;
+import serialize:*;
+import util:*;
 
 fun vector<T>():vector<T> {
     var out.construct():vector<T>
@@ -13,7 +15,7 @@ fun vector<T>(in:T):vector<T> {
     return out
 }
 
-obj vector<T> (Object) {
+obj vector<T> (Object, Serializable) {
     var data: *T;
     var size: int;
     var available: int;
@@ -37,6 +39,23 @@ obj vector<T> (Object) {
         for (var i = 0; i < old->size; i++;)
             maybe_copy_construct(&data[i], &old->data[i]);
             //addEnd(old->get(i))
+    }
+    fun serialize(): vector<char> {
+        var toRet = serialize(size)
+        for (var i = 0; i < size; i++;)
+            toRet += serialize(data[i])
+        return toRet
+    }
+    fun unserialize(it: vector<char>, pos: int): int {
+        unpack(size, pos) = unserialize<int>(it, pos)
+        data = new<T>(size)
+        available = size
+        for (var i = 0; i < size; i++;) {
+            var curr = unserialize<T>(it, pos)
+            pos = curr.second
+            maybe_copy_construct(&data[i], &curr.first);
+        }
+        return pos
     }
 
     fun destruct(): void {

@@ -1,14 +1,48 @@
 import io:*
 import serialize:*
 import string:*
+import util:*
+import vector:*
+import vector_literals:*
 
 fun main():int {
     var intA = 7
     write_file_binary(string("bintest.bin"), serialize(intA))
-    var intB = unserialize<int>(read_file_binary(string("bintest.bin")))
+    var intAout = unserialize<int>(read_file_binary(string("bintest.bin")))
     print(intA)
     print(" = ")
-    println(intB)
+    println(intAout)
+
+    // ok, lets do more than one
+
+    var intB = 9
+    var intC = 11
+    write_file_binary(string("bintest.bin"), serialize(intB) + serialize(intC))
+    var bin = read_file_binary(string("bintest.bin"))
+    // remember, these are pairs
+    var intBout: int
+    var intCout: int
+    var pos = 0
+    unpack(intBout, pos) = unserialize<int>(bin, pos)
+    unpack(intCout, pos) = unserialize<int>(bin, pos)
+    print(intB)
+    print(" , ")
+    print(intC)
+    print(" = ")
+    print(intBout)
+    print(" , ")
+    println(intCout)
+
+
+    // ok, lets do a vector
+    write_file_binary(string("bintest.bin"), serialize(vector(1,2,3,4,5)))
+    bin = read_file_binary(string("bintest.bin"))
+    var back = vector<int>()
+    pos = 0
+    unpack(back, pos) = unserialize<vector<int>>(bin, 0)
+    back.for_each(fun(i: int) { print(i); print(" "); })
+    println()
+
     return 0
 }
 

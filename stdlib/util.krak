@@ -18,6 +18,23 @@ fun make_pair<T,U>(first: T, second: U): pair<T,U> {
     return it
 }
 
+// little ugly, but it works
+fun unpack<T,U>(first: ref T, second: ref U): unpack_dummy<T,U> {
+    var toRet: unpack_dummy<T,U>
+    toRet.first = &first
+    toRet.second = &second
+    return toRet
+}
+obj unpack_dummy<T,U> {
+    var first: *T
+    var second: *U
+    fun operator=(p: ref pair<T,U>) {
+        *first = p.first
+        *second = p.second
+    }
+}
+
+
 obj pair<T,U> (Object) {
     var first: T
     var second: U
