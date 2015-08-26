@@ -16,13 +16,13 @@ fun serialize<T>(it: T): vector::vector<char> {
 }
 
 // dead simple wrapper for ease of use
-fun unserialize<T>(it: vector::vector<char>): T {
+fun unserialize<T>(it: ref vector::vector<char>): T {
     return unserialize<T>(it, 0).first
 }
-fun unserialize<T>(it: vector::vector<char>, pos: int): util::pair<T,int> {
+fun unserialize<T>(it: ref vector::vector<char>, pos: int): util::pair<T,int> {
     return util::make_pair(*conversions::cast_ptr<*char,*T>(it.getBackingMemory()+pos), pos + mem::sizeof<T>())
 }
-fun unserialize<T(Serializable)>(it: vector::vector<char>, pos: int): util::pair<T,int> {
+fun unserialize<T(Serializable)>(it: ref vector::vector<char>, pos: int): util::pair<T,int> {
     var toRet: T
     pos = toRet.unserialize(it, pos)
     return util::make_pair(toRet, pos)

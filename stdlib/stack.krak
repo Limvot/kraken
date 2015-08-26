@@ -1,4 +1,6 @@
 import vector
+import serialize
+import util
 
 
 fun stack<T>():stack<T> {
@@ -11,7 +13,7 @@ fun stack<T>(in:T):stack<T> {
     return out
 }
 
-obj stack<T> (Object) {
+obj stack<T> (Object, Serializable) {
     var data: vector::vector<T>
     fun construct(): *stack<T> {
         data.construct()
@@ -25,6 +27,15 @@ obj stack<T> (Object) {
     }
     fun operator=(other: ref stack<T>) {
         data = other.data
+    }
+    fun serialize(): vector::vector<char> {
+        return serialize::serialize(data)
+    }
+    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+        var temp = vector::vector<T>()
+        util::unpack(temp, pos) = serialize::unserialize<vector::vector<T>>(it, pos)
+        data.copy_construct(&temp)
+        return pos
     }
     fun push(it: ref T) {
         data.addEnd(it)

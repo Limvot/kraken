@@ -5,6 +5,7 @@ import mem
 import set
 import util
 import conversions
+import serialize
 
 fun regex(in: *char):regex {
     return regex(string::string(in))
@@ -40,7 +41,7 @@ obj regexState (Object) {
     }
 }
 
-obj regex (Object) {
+obj regex (Object, Serializable) {
     var regexString: string::string
     var begin: *regexState
     var referenceCounter: *int
@@ -84,6 +85,15 @@ obj regex (Object) {
             mem::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return set::from_vector(it->next_states); } )
             mem::delete(referenceCounter)
         }
+    }
+    fun serialize(): vector::vector<char> {
+        return serialize::serialize(regexString)
+    }
+    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+        var temp = string::string()
+        util::unpack(temp, pos) = serialize::unserialize<string::string>(it, pos)
+        construct(temp)
+        return pos
     }
 
     fun operator==(other: regex):bool {

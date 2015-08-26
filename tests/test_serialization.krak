@@ -4,6 +4,7 @@ import string:*
 import util:*
 import vector:*
 import vector_literals:*
+import map:*
 
 fun main():int {
     var intA = 7
@@ -42,6 +43,28 @@ fun main():int {
     unpack(back, pos) = unserialize<vector<int>>(bin, 0)
     back.for_each(fun(i: int) { print(i); print(" "); })
     println()
+
+    // ok, lets do a string
+    write_file_binary(string("bintest.bin"), serialize(string("hello serialize")))
+    bin = read_file_binary(string("bintest.bin"))
+    var backStr = string()
+    pos = 0
+    unpack(backStr, pos) = unserialize<string>(bin, 0)
+    println(backStr)
+
+    // ok, lets do a map
+    var m = map(3, 2.7)
+    m.set(50, 3.14159)
+    write_file_binary(string("bintest.bin"), serialize(m))
+    bin = read_file_binary(string("bintest.bin"))
+    var backM = map<int,double>()
+    pos = 0
+    unpack(backM, pos) = unserialize<map<int,double>>(bin, 0)
+    backM.for_each(fun(key: int, value: double) {
+        print(key)
+        print(" = ")
+        println(value)
+    })
 
     return 0
 }

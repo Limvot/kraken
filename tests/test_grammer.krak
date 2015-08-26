@@ -6,17 +6,81 @@ import string:*
 import util:*
 import symbol:*
 import tree:*
+import serialize:*
 
 fun main():int {
+    
+    var a.construct(): grammer
 
-    var a = load_grammer(read_file(string("../krakenGrammer.kgm")))
-    /*var a = load_grammer(read_file(string("grammer.kgm")))*/
-    /*var a = load_grammer(read_file(string("grammer2.kgm")))*/
-    /*var a = load_grammer(read_file(string("grammer3.kgm")))*/
-    /*var a = load_grammer(read_file(string("grammer4.kgm")))*/
+    var file_name = string("../krakenGrammer.kgm")
+    /*var file_name = string("grammer.kgm")*/
+    /*var file_name = string("grammer2.kgm")*/
+    /*var file_name = string("grammer3.kgm")*/
+    /*var file_name = string("grammer4.kgm")*/
+
+    var compiled_name = file_name + string(".comp_new")
+    var file_contents = read_file(file_name)
+    var loaded_and_valid = false
+
+/*
+    println("gonna serialize")
+    var s = serialize(file_contents)
+    println("gonna write")
+    write_file_binary(compiled_name, s)
+    println("gonna read")
+    var bin = read_file_binary(compiled_name)
+    println("gonna setup")
+    var pos = 0
+    var uns = string()
+    println("gonna unserialize")
+    unpack(uns, pos) = unserialize<string>(bin, pos)
+    println("gonna done")
+
+    return 0
+    */
+
+        /*a = load_grammer(file_contents)*/
+        /*println("grammer loaded, calculate_state_automaton")*/
+        /*a.calculate_first_set()*/
+        /*a.calculate_state_automaton()*/
+    if (file_exists(compiled_name)) {
+        println("cached file exists")
+        var pos = 0
+        var binary = read_file_binary(compiled_name)
+        println("read file!")
+        var cached_contents = string()
+        println("made tmp string!")
+        unpack(cached_contents, pos) = unserialize<string>(binary, pos)
+        println("unserialized the string!")
+        if (cached_contents == file_contents) {
+            println("loaded_and_valid, using cached version!")
+            loaded_and_valid = true
+            unpack(a, pos) = unserialize<grammer>(binary, pos)
+            println("finished unserializeing!!")
+        } else {
+            println("file contents do not match:")
+            println("CACHED:")
+            println(cached_contents)
+            println("REAL:")
+            println(file_contents)
+            println("END")
+        }
+    } else {
+        println("cached file does not exist")
+    }
+    if (!loaded_and_valid) {
+        println("Not loaded_and_valid, re-generating and writing out")
+        a = load_grammer(file_contents)
+        println("grammer loaded, calculate_first_set")
+        a.calculate_first_set()
+        println("grammer loaded, calculate_state_automaton")
+        a.calculate_state_automaton()
+        println("calculated, writing out")
+        write_file_binary(compiled_name, serialize(file_contents) + serialize(a))
+        println("done writing")
+    }
     println(a.to_string())
     var doFirstSet = fun() {
-        a.calculate_first_set()
         println("///////////////////START FIRST SET/////////////")
         println("//TERMINALS//")
         a.terminals.for_each( fun(terminal: util::pair<symbol::symbol, regex::regex>) {
@@ -39,7 +103,7 @@ fun main():int {
         })
         println("///////////////////END FIRST SET/////////////")
     }
-    doFirstSet()
+    /*doFirstSet()*/
 
     var lex = lexer(a.terminals)
 
@@ -50,8 +114,9 @@ fun main():int {
     println("woo lexing:")
     /*range(8).for_each(fun(i: int) { println(lex.next().to_string()); } )*/
     /*range(80).for_each(fun(i: int) { println(lex.next().to_string()); } )*/
-    println(a.to_string())
-    a.calculate_state_automaton()
+    /*println(a.to_string())*/
+
+
     var parse.construct(a): parser
     /*var result = parse.parse_input(string("a"), string("fun name"))*/
     var result = parse.parse_input(read_file(string("to_parse.krak")), string("fun name"))

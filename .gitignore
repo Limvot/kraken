@@ -12,3 +12,7 @@ kraklist.txt
 .*.un~
 papers
 callgrind*
+*.comp_new
+*.comp_bac
+bintest.bin
+*.dot

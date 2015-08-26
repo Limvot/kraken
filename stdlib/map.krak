@@ -1,5 +1,7 @@
 import vector
 import io
+import serialize
+import util
 
 fun map<T,U>(): map<T,U> {
     var toRet.construct(): map<T,U>
@@ -11,13 +13,14 @@ fun map<T,U>(key:T, value:U): map<T,U> {
     return toRet
 }
 
-obj map<T,U> (Object) {
+obj map<T,U> (Object, Serializable) {
     var keys: vector::vector<T>
     var values: vector::vector<U>
 
-    fun construct() {
+    fun construct(): *map<T,U> {
         keys.construct()
         values.construct()
+        return this
     }
     fun copy_construct(old: *map<T,U>) {
         keys.copy_construct(&old->keys)
@@ -30,6 +33,18 @@ obj map<T,U> (Object) {
     fun destruct() {
         keys.destruct()
         values.destruct()
+    }
+    fun serialize(): vector::vector<char> {
+        return serialize::serialize(keys) + serialize::serialize(values)
+    }
+    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+        var tempKeys = vector::vector<T>()
+        var tempValues = vector::vector<U>()
+        util::unpack(tempKeys, pos) = serialize::unserialize<vector::vector<T>>(it, pos)
+        util::unpack(tempValues, pos) = serialize::unserialize<vector::vector<U>>(it, pos)
+        keys.copy_construct(&tempKeys)
+        values.copy_construct(&tempValues)
+        return pos
     }
     fun operator[]=(key: T, value: U) {
         set(key,value)

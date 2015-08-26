@@ -1,6 +1,7 @@
 import vector
 import util
 import mem
+import serialize
 
 fun to_string(in: int): string {
     var dest = mem::new<char>(mem::sizeof<int>() * 8)
@@ -23,8 +24,11 @@ fun string(in:char):string {
     out += in
     return out
 }
+fun string():string {
+    return string("")
+}
 
-obj string (Object) {
+obj string (Object, Serializable) {
     var data: vector::vector<char>;
     fun construct(): *string {
         data.construct();
@@ -67,6 +71,15 @@ obj string (Object) {
 
     fun destruct():void {
         data.destruct()
+    }
+
+    fun serialize(): vector::vector<char> {
+        return serialize::serialize(data)
+    }
+    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+        construct()
+        util::unpack(data, pos) = serialize::unserialize<vector::vector<char>>(it, pos)
+        return pos
     }
 
     fun operator[](index: int): ref char { return data[index]; }

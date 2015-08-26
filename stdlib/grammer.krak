@@ -7,6 +7,7 @@ import symbol
 import regex
 import io
 import util
+import serialize
 
 fun split_into_words(gram_str: string::string): vector::vector<string::string> {
     var out.construct(): vector::vector<string>
@@ -100,7 +101,7 @@ fun load_grammer(gram_str: string::string): grammer {
     return gram
 }
 
-obj grammer (Object) {
+obj grammer (Object, Serializable) {
     var rules: vector::vector<rule>
     var non_terminals: set::set<symbol::symbol>
     var terminals: vector::vector<util::pair<symbol::symbol, regex::regex>>
@@ -131,6 +132,20 @@ obj grammer (Object) {
         terminals.destruct()
         first_set_map.destruct()
         parse_table.destruct()
+    }
+
+    fun serialize(): vector::vector<char> {
+        return serialize::serialize(rules) + serialize::serialize(non_terminals) + serialize::serialize(terminals) + serialize::serialize(first_set_map) + serialize::serialize(parse_table)
+    }
+    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+        // get everything constructed before the assignment
+        construct()
+        util::unpack(rules, pos) = serialize::unserialize<vector::vector<rule>>(it, pos)
+        util::unpack(non_terminals, pos) = serialize::unserialize<set::set<symbol::symbol>>(it, pos)
+        util::unpack(terminals, pos) = serialize::unserialize<vector::vector<util::pair<symbol::symbol, regex::regex>>>(it, pos)
+        util::unpack(first_set_map, pos) = serialize::unserialize<map::map<symbol::symbol, set::set<symbol::symbol>>>(it, pos)
+        util::unpack(parse_table, pos) = serialize::unserialize<table>(it, pos)
+        return pos
     }
 
     fun calculate_first_set() {
@@ -321,11 +336,29 @@ fun rule(lhs: symbol::symbol, rhs: vector::vector<symbol::symbol>): rule {
     return toRet
 }
 
-obj rule (Object) {
+obj rule (Object, Serializable) {
     var lhs: symbol::symbol
     var rhs: vector::vector<symbol::symbol>
     var position: int
     var lookahead: set::set<symbol::symbol>
+
+    fun serialize(): vector::vector<char> {
+        return serialize::serialize(lhs) + serialize::serialize(rhs) + serialize::serialize(position) + serialize::serialize(lookahead)
+    }
+    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+        var tempLhs = symbol::invalid_symbol()
+        var tempRhs = vector::vector<symbol::symbol>()
+        var tempLookahead = set::set<symbol::symbol>()
+        util::unpack(tempLhs, pos) = serialize::unserialize<symbol::symbol>(it, pos)
+        util::unpack(tempRhs, pos) = serialize::unserialize<vector::vector<symbol::symbol>>(it, pos)
+        util::unpack(position, pos) = serialize::unserialize<int>(it, pos)
+        util::unpack(tempLookahead, pos) = serialize::unserialize<set::set<symbol::symbol>>(it, pos)
+
+        lhs.copy_construct(&tempLhs)
+        rhs.copy_construct(&tempRhs)
+        lookahead.copy_construct(&tempLookahead)
+        return pos
+    }
 
     fun construct(): *rule {
         lhs.construct()
@@ -480,7 +513,7 @@ obj action {
     }
 }
 
-obj table (Object) {
+obj table (Object, Serializable) {
     // a 2 dimensional table made of a vector and a map that maps from stateno & symbol to a vector of parse actions
     var items: vector::vector<map::map<symbol::symbol, vector::vector<action>>>
 
@@ -496,6 +529,15 @@ obj table (Object) {
     }
     fun destruct() {
         items.destruct()
+    }
+    fun serialize(): vector::vector<char> {
+        return serialize::serialize(items)
+    }
+    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+        var temp = vector::vector<map::map<symbol::symbol, vector::vector<action>>>()
+        util::unpack(temp, pos) = serialize::unserialize<vector::vector<map::map<symbol::symbol, vector::vector<action>>>>(it, pos)
+        items.copy_construct(&temp)
+        return pos
     }
     fun expand_to(include_state: int) {
         while (include_state >= items.size)

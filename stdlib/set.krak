@@ -1,5 +1,7 @@
 import vector
 import io
+import serialize
+import util
 
 fun set<T>(): set<T> {
     var toRet.construct() : set<T>
@@ -18,10 +20,11 @@ fun from_vector<T>(items: vector::vector<T>): set<T> {
     return toRet
 }
 
-obj set<T> (Object) {
+obj set<T> (Object, Serializable) {
     var data: vector::vector<T>
-    fun construct() {
+    fun construct(): *set<T> {
         data.construct()
+        return this
     }
     fun copy_construct(old: *set<T>) {
         data.copy_construct(&old->data)
@@ -29,6 +32,15 @@ obj set<T> (Object) {
     fun operator=(rhs: set<T>) {
         destruct()
         copy_construct(&rhs)
+    }
+    fun serialize(): vector::vector<char> {
+        return serialize::serialize(data)
+    }
+    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+        var temp = vector::vector<T>()
+        util::unpack(temp, pos) = serialize::unserialize<vector::vector<T>>(it, pos)
+        data.copy_construct(&temp)
+        return pos
     }
     fun operator==(rhs: set<T>): bool {
         if (size() != rhs.size())

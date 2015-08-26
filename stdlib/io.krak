@@ -75,6 +75,22 @@ fun print(toPrint: double) : void{
 }
 
 // Ok, just some DEAD simple file io for now
+fun file_exists(path: string::string): bool {
+    var char_path = path.toCharArray()
+    defer delete(char_path)
+    var result = false
+	__if_comp__ __C__ {
+		simple_passthrough(char_path:result:) """
+            bool result = false;
+			FILE *fp = fopen(char_path, "r");
+            if (fp) {
+                result = true;
+                fclose(fp);
+            }
+		"""
+	}
+    return result
+}
 fun read_file(path: string::string): string::string {
     var toRet.construct(read_file_binary(path)): string::string
     return toRet

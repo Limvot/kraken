@@ -454,6 +454,15 @@ obj reduction (Object) {
     var nullable_parts: *tree<symbol>
     var label: *tree<symbol>
 
+    fun construct(): *reduction {
+        from = null<tree<int>>()
+        sym = invalid_symbol()
+        length = -1
+        nullable_parts = null<tree<symbol>>()
+        label = null<tree<symbol>>()
+        return this
+    }
+
     fun construct(f: *tree<int>, s: symbol, l: int, n: *tree<symbol>, labelIn:*tree<symbol>): *reduction {
         from = f
         sym.copy_construct(&s)

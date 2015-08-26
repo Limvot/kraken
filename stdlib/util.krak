@@ -1,5 +1,6 @@
 import mem
 import vector
+import serialize
 
 fun max<T>(a: T, b: T): T {
     if (a > b)
@@ -35,7 +36,7 @@ obj unpack_dummy<T,U> {
 }
 
 
-obj pair<T,U> (Object) {
+obj pair<T,U> (Object, Serializable) {
     var first: T
     var second: U
 
@@ -59,6 +60,17 @@ obj pair<T,U> (Object) {
     fun destruct():void {
         mem::maybe_destruct(&first)
         mem::maybe_destruct(&second)
+    }
+    fun serialize(): vector::vector<char> {
+        return serialize::serialize(first) + serialize::serialize(second)
+    }
+    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+        // can't use unpack :( (b/c we can't make an already constructed empty one)
+        var first_pair = serialize::unserialize<T>(it, pos)
+        var second_pair = serialize::unserialize<U>(it, first_pair.second)
+        mem::maybe_copy_construct(&first, &first_pair.first)
+        mem::maybe_copy_construct(&second, &second_pair.first)
+        return second_pair.second
     }
 
     // the old unnecessary template to prevent generation

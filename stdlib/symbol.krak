@@ -1,4 +1,7 @@
 import string
+import serialize
+import vector
+import util
 
 fun null_symbol(): symbol {
     var toRet.construct(string::string("$NULL$"), false, string::string("$NULL$")): symbol
@@ -33,7 +36,7 @@ fun symbol(nameIn: string::string, terminalIn: bool, dataIn: string::string): sy
     return toRet
 }
 
-obj symbol (Object) {
+obj symbol (Object, Serializable) {
     var data: string::string
     var name: string::string
     var terminal: bool
@@ -61,6 +64,19 @@ obj symbol (Object) {
     fun operator=(old: ref symbol) {
         destruct()
         copy_construct(&old)
+    }
+    fun serialize(): vector::vector<char> {
+        return serialize::serialize(data) + serialize::serialize(name) + serialize::serialize(terminal)
+    }
+    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+        var tempData = string::string()
+        var tempName = string::string()
+        util::unpack(tempData, pos) = serialize::unserialize<string::string>(it, pos)
+        util::unpack(tempName, pos) = serialize::unserialize<string::string>(it, pos)
+        util::unpack(terminal, pos) = serialize::unserialize<bool>(it, pos)
+        data.copy_construct(&tempData)
+        name.copy_construct(&tempName)
+        return pos
     }
     fun operator==(other: ref symbol): bool {
         return data == other.data && name == other.name && terminal == other.terminal;

@@ -46,7 +46,7 @@ obj vector<T> (Object, Serializable) {
             toRet += serialize(data[i])
         return toRet
     }
-    fun unserialize(it: vector<char>, pos: int): int {
+    fun unserialize(it: ref vector<char>, pos: int): int {
         unpack(size, pos) = unserialize<int>(it, pos)
         data = new<T>(size)
         available = size
