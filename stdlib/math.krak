@@ -96,6 +96,45 @@ fun sin(arg: double): double
   return ans;
 }//end sin function
 
-//|int| NotPi = 3;
-//|double| STD_PI = 4*atan(1);
+fun mod(x: double, y: double): double
+{
+   var ans: double;
+   var intAns: int;
+
+   intAns = x / y;
+   ans = x - intAns*y;
+
+   return ans;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
