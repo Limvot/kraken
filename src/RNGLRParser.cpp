@@ -1,4 +1,15 @@
 #include "RNGLRParser.h"
+#include <fstream>
+
+//sorry about the macros
+#define RESET "\033[0m"
+#define BOLDRED "\033[1m\033[31m"
+#define BOLDWHITE "\033[1m\033[37m"
+#define BOLDGREEN "\033[1m\033[32m"
+#define BOLDYELLOW "\033[1m\033[33m"
+#define BOLDBLUE "\033[1m\033[34m"
+#define BOLDMAGENTA "\033[1m\033[35m"
+#define BOLDCYAN "\033[1m\033[36m"
 
 RNGLRParser::RNGLRParser() {
 	//
@@ -107,25 +118,24 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString, std::string f
 			//std::cout << "Frontier " << i << " is empty." << std::endl;
 			//std::cerr << "Parsing failed on " << input[i].toString() << std::endl;
 			//std::cerr << "Problem is on line: " << findLine(i) << std::endl;
-			std::cerr << filename << ":" << findLine(i) << std::endl;
+//			std::cerr << filename << ":" << findLine(i) << std::endl;
             errord = true;
-            std::cerr << "parse error" << std::endl;
-			std::cerr << "Nearby is:" << std::endl;
-			int range = 10;
-			for (int j = (i-range >= 0 ? i-range : 0); j < (i+range < input.size() ? i+range : input.size()); j++)
-				if (j == i)
-					std::cerr << "||*||*||" << input[j].toString() << "||*||*|| ";
-				else
-					std::cerr << input[j].toString() << " ";
-			std::cerr << std::endl;
-            range = 1;
-/*            std::cout << "\n\n\nThe states in the GSS at last frontiers:" << std::endl;
-			for (int j = (i-range >= 0 ? i-range : 0); j < i; j++) {
-                std::cout << "Frontier:" << j << " (would get): " << input[j].toString() << std::endl;
-                printReconstructedFrontier(j);
-            }
-            std::cout << "\n\n\n\n" << std::endl;
- */           break;
+            std::cout << BOLDMAGENTA << "parse error" << std::endl;
+		      
+            std::cout << BOLDWHITE << "Error at: " << BOLDBLUE << filename  << ":" << findLine(i) << std::endl;
+                     
+                std::ifstream infile(filename);
+                std::string line;
+                int linecount = 0;
+                while(std::getline(infile,line))
+                {
+                  if(linecount == findLine(i) - 1)
+                    std::cout << BOLDRED << line << std::endl;
+                  linecount++; 
+                }
+                std::cout << RESET << std::endl;
+
+            break;
 		}
 
 		//Clear the vector of SPPF nodes created every step
