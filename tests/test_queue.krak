@@ -1,0 +1,39 @@
+import queue
+import io:*;
+
+
+
+
+fun main() : int {
+    
+    var q.construct() :  queue::queue<int>
+    var q2.construct() : queue::queue<int>
+    println("adding to q")
+    for(var i = 0; i < 10; i++;) {
+        defer println(i)
+        println("pushing...")
+        q.push(i)
+    }
+
+    println("adding to q2")
+    for(var i = 9; i >= 0; i--;) {
+        defer println(i)
+        println("pushing...")
+        q2.push(i)
+    }
+
+    println("pop test...")
+    println(q.pop())
+    println("q is about to pop")
+    while(!q.empty()) {
+        q2.push(q.pop())
+    }
+    println("q popped")
+    println("q2 is about to pop")
+    while(!q2.empty()) {
+        println(q2.pop())
+    }
+
+    println("done")
+    return 0
+}
