@@ -150,3 +150,35 @@ fun write_file_binary(path: string::string, vdata: vector::vector<char>) {
 	}
 }
 
+fun BoldRed(): void{
+  print("\033[1m\033[31m");
+}
+
+fun BoldGreen(): void{
+  print("\033[1m\033[32m");
+}
+
+fun BoldYellow(): void{
+  print("\033[1m\033[33m");
+}
+
+fun BoldBlue(): void{
+  print("\033[1m\033[34m");
+}
+
+fun BoldMagenta(): void{
+  print("\033[1m\033[35m");
+}
+
+fun BoldCyan(): void{
+  print("\033[1m\033[36m");
+}
+
+fun Reset(): void{
+  print("\033[0m"); 
+}
+
+
+
+
+

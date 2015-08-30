@@ -1,0 +1,70 @@
+import stack
+import serialize
+import vector
+
+fun queue<T>() : queue<T> {
+    var out.construct() : queue<T>
+    return out
+}
+
+obj queue<T> (Object, Serializable) {
+    var stack1 : stack::stack<T>
+    var stack2 : stack::stack<T>
+
+    fun construct(): *queue<T> {
+        stack1.construct()
+        stack2.construct()
+        return this
+    }
+
+    fun copy_construct(other : *queue<T>) {
+        stack1.copy_construct(&other->stack1)
+        stack2.copy_construct(&other->stack2)
+    }
+
+    fun destruct() {
+        stack1.destruct()
+        stack2.destruct()
+    }
+
+    fun operator=(other : ref queue<T>) {
+        stack1 = other.stack1
+        stack2 = other.stack2
+    }
+
+    fun serialize() : vector::vector<char> {
+        return serialize::serialize(stack1)+serialize::serialize(stack2)
+    }
+
+    fun unserialize(it : ref vector::vector<char>, pos : int) : int {
+        pos = stack1.unserialize(it,pos)
+        pos = stack2.unserialize(it,pos)
+        return pos
+    }
+
+    fun push(it : ref T) {
+        stack1.push(it)
+    }
+
+    fun pop() : T {
+        if(stack2.empty()) {
+            while(!stack1.empty()) {
+                stack2.push(stack1.pop())
+            }
+        }
+        return stack2.pop()
+    }
+
+    fun clear() {
+        stack1.clear()
+        stack2.clear()
+    }
+
+    fun size() : int {
+        return stack1.size()+stack2.size()
+    }
+
+    fun empty() : bool {
+        return ((stack1.size()+stack2.size()) == 0)
+    }
+}
