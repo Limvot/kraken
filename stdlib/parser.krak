@@ -63,7 +63,7 @@ obj parser (Object) {
         // if the zero state contains any reductions for state 0 and eof, then
         // it must be reducing to the goal state
         println("checking the bidness")
-        if (inputStr == "" && gram.parse_table.get(0, eof_symbol()).contains(action(reduce, 0))) {
+        if (inputStr == "" && gram.parse_table.get(0, eof_symbol()).contains(action(action_type::reduce, 0))) {
             println("Accept on no input for ")
             println(name)
             return new<tree<symbol>>()->construct(null_symbol())
@@ -92,10 +92,10 @@ obj parser (Object) {
         gram.parse_table.get(0, input[0]).for_each(fun(act: action) {
             println("for each action")
             act.print()
-            if (act.act == push)
+            if (act.act == action_type::push)
                 to_shift.push(make_pair(v0, act.state_or_rule))
             /*else if (act.act == reduce && fully_reduces_to_null(gram.rules[act.state_or_rule])) {*/
-            else if (act.act == reduce && act.rule_position == 0) {
+            else if (act.act == action_type::reduce && act.rule_position == 0) {
                 print("act == reduce && == 0 Adding reduction from state: ")
                 println(v0->data)
                 to_reduce.push(reduction(v0, gram.rules[act.state_or_rule].lhs, 0, null_symbol_tree, null_symbol_tree))
@@ -197,7 +197,7 @@ obj parser (Object) {
                         gram.parse_table.get(shift_to, input[i]).for_each(fun(act: action) {
                             var reduce_rule = gram.rules[act.state_or_rule]
                             /*if (act.act == reduce && !fully_reduces_to_null(reduce_rule)) {*/
-                            if (act.act == reduce && act.rule_position != 0) {
+                            if (act.act == action_type::reduce && act.rule_position != 0) {
                                 to_reduce.push(reduction(curr_reached, reduce_rule.lhs,
                                                             act.rule_position,
                                                 get_nullable_parts(reduce_rule),
@@ -213,7 +213,7 @@ obj parser (Object) {
                 gss.add_to_frontier(i, shift_to_node)
                 gss.add_edge(shift_to_node, curr_reached, new_label)
                 gram.parse_table.get(shift_to, input[i]).for_each(fun(act: action) {
-                    if (act.act == push) {
+                    if (act.act == action_type::push) {
                         to_shift.push(make_pair(shift_to_node, act.state_or_rule))
                     } else {
                         var action_rule = gram.rules[act.state_or_rule]
@@ -278,7 +278,7 @@ obj parser (Object) {
                 println("post add edger")
                 gram.parse_table.get(shift.second, input[i+1]).for_each(fun(action: action) {
                     println("looking at an action")
-                    if (action.act == push) {
+                    if (action.act == action_type::push) {
                         println("is push")
                         next_shifts.push(make_pair(shift_to_node, action.state_or_rule))
                     } else {

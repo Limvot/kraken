@@ -5,8 +5,12 @@ adt options {
     option1
 }
 
+fun can_pass(it: options): options {
+    return options::option1
+}
+
 fun main():int {
-    var it: options = options::option1
+    var it: options = can_pass(options::option0)
     if (it == options::option0)
         println("nope")
     if (it == options::option1)

@@ -479,22 +479,25 @@ obj state (Object) {
     }
 }
 
-// REALLY need those enums
-var push = 0
-var reduce = 1
+adt action_type {
+    push,
+    reduce,
 // note that these two are not actually currently used
 // accept is the reduce of the goal rule and reject is the
 // absence of actions
-var accept = 2
-var reject = 3
-fun action(act: int, state_or_rule: int): action {
+    accept,
+    reject,
+    invalid
+}
+
+fun action(act: action_type, state_or_rule: int): action {
     var toRet: action
     toRet.act = act
     toRet.state_or_rule = state_or_rule
     toRet.rule_position = -1
     return toRet
 }
-fun action(act: int, state_or_rule: int, rule_position: int): action {
+fun action(act: action_type, state_or_rule: int, rule_position: int): action {
     var toRet: action
     toRet.act = act
     toRet.state_or_rule = state_or_rule
@@ -502,20 +505,20 @@ fun action(act: int, state_or_rule: int, rule_position: int): action {
     return toRet
 }
 obj action {
-    var act: int // really need those enums
+    var act: action_type
     var state_or_rule: int // sigh
     var rule_position: int // sigh
     fun operator==(other: action): bool {
         return act == other.act && state_or_rule == other.state_or_rule && rule_position == other.rule_position
     }
     fun print() {
-        if (act == push)
+        if (act == action_type::push)
             io::print("push ")
-        else if (act == reduce)
+        else if (act == action_type::reduce)
             io::print("reduce ")
-        else if (act == accept)
+        else if (act == action_type::accept)
             io::print("accept ")
-        else if (act == reject)
+        else if (act == action_type::reject)
             io::print("reject ")
         io::print(state_or_rule)
         io::print(" ")
@@ -563,25 +566,25 @@ obj table (Object, Serializable) {
         expand_to(from_state)
         var cleaned_symbol = clean_symbol(on_symbol)
         if (items[from_state].contains_key(cleaned_symbol))
-            items[from_state][cleaned_symbol].addEnd(action(push, to_state))
+            items[from_state][cleaned_symbol].addEnd(action(action_type::push, to_state))
         else
-            items[from_state].set(cleaned_symbol, vector::vector(action(push, to_state)))
+            items[from_state].set(cleaned_symbol, vector::vector(action(action_type::push, to_state)))
     }
     fun add_reduce(from_state: int, on_symbol: ref symbol::symbol, by_rule_no: int, rule_position: int) {
         expand_to(from_state)
         var cleaned_symbol = clean_symbol(on_symbol)
         if (items[from_state].contains_key(cleaned_symbol))
-            items[from_state][cleaned_symbol].addEnd(action(reduce, by_rule_no, rule_position))
+            items[from_state][cleaned_symbol].addEnd(action(action_type::reduce, by_rule_no, rule_position))
         else
-            items[from_state].set(cleaned_symbol, vector::vector(action(reduce, by_rule_no, rule_position)))
+            items[from_state].set(cleaned_symbol, vector::vector(action(action_type::reduce, by_rule_no, rule_position)))
     }
     fun add_accept(from_state: int, on_symbol: ref symbol::symbol) {
         expand_to(from_state)
         var cleaned_symbol = clean_symbol(on_symbol)
         if (items[from_state].contains_key(cleaned_symbol))
-            items[from_state][cleaned_symbol].addEnd(action(accept, 0))
+            items[from_state][cleaned_symbol].addEnd(action(action_type::accept, 0))
         else
-            items[from_state].set(cleaned_symbol, vector::vector(action(accept, 0)))
+            items[from_state].set(cleaned_symbol, vector::vector(action(action_type::accept, 0)))
     }
     fun get(state: int, on_symbol: symbol::symbol): vector::vector<action> {
         var cleaned_symbol = clean_symbol(on_symbol)
@@ -590,17 +593,17 @@ obj table (Object, Serializable) {
     fun get_shift(state: int, on_symbol: symbol::symbol): action {
         var actions = get(state, on_symbol)
         for (var i = 0; i < actions.size; i++;)
-            if (actions[i].act == push)
+            if (actions[i].act == action_type::push)
                 return actions[i]
         io::println("tried to get a shift when none existed")
         io::print("for state ")
         io::print(state)
         io::print(" and symbol ")
         io::println(on_symbol.to_string())
-        return action(-1,-1)
+        return action(action_type::invalid,-1)
     }
     fun get_reduces(state: int, on_symbol: symbol::symbol): vector::vector<action> {
-        return get(state, on_symbol).filter(fun(act: action):bool { return act.act == reduce; })
+        return get(state, on_symbol).filter(fun(act: action):bool { return act.act == action_type::reduce; })
     }
     fun print_string() {
         /*return string::string("woo a table of size: ") + items.size*/

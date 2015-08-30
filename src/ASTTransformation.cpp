@@ -1002,7 +1002,10 @@ std::set<NodeTree<ASTData>*> ASTTransformation::findVariablesToClose(NodeTree<AS
         closed.insert(recClosed.begin(), recClosed.end());
         return closed;
     }
-    if (stat->getDataRef()->type == identifier && !inScopeChain(stat, func))
+    // if it's an identifier and not in the scope chain, and isn't an enum name
+    if (stat->getDataRef()->type == identifier && !inScopeChain(stat, func) &&
+            (!stat->getDataRef()->valueType->typeDefinition ||
+            stat->getDataRef()->valueType->typeDefinition->getDataRef()->type != adt_def) )
         closed.insert(stat);
     for (auto child: stat->getChildren()) {
         auto recClosed = findVariablesToClose(func, child, scope);
