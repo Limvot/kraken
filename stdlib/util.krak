@@ -40,7 +40,7 @@ obj pair<T,U> (Object, Serializable) {
     var first: T
     var second: U
 
-    fun construct(firstIn: T, secondIn: U): *pair<T,U> {
+    fun construct(firstIn: ref T, secondIn: ref U): *pair<T,U> {
         mem::maybe_copy_construct(&first, &firstIn)
         mem::maybe_copy_construct(&second, &secondIn)
         return this

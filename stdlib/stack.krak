@@ -32,10 +32,9 @@ obj stack<T> (Object, Serializable) {
         return serialize::serialize(data)
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
-        var temp = vector::vector<T>()
-        util::unpack(temp, pos) = serialize::unserialize<vector::vector<T>>(it, pos)
-        data.copy_construct(&temp)
-        return pos
+        /*construct()*/
+        /*util::unpack(data, pos) = serialize::unserialize<vector::vector<T>>(it, pos)*/
+        return data.unserialize(it, pos)
     }
     fun push(it: ref T) {
         data.addEnd(it)

@@ -38,12 +38,11 @@ obj map<T,U> (Object, Serializable) {
         return serialize::serialize(keys) + serialize::serialize(values)
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
-        var tempKeys = vector::vector<T>()
-        var tempValues = vector::vector<U>()
-        util::unpack(tempKeys, pos) = serialize::unserialize<vector::vector<T>>(it, pos)
-        util::unpack(tempValues, pos) = serialize::unserialize<vector::vector<U>>(it, pos)
-        keys.copy_construct(&tempKeys)
-        values.copy_construct(&tempValues)
+        /*construct()*/
+        /*util::unpack(keys, pos) = serialize::unserialize<vector::vector<T>>(it, pos)*/
+        /*util::unpack(values, pos) = serialize::unserialize<vector::vector<U>>(it, pos)*/
+        pos = keys.unserialize(it, pos)
+        pos = values.unserialize(it, pos)
         return pos
     }
     fun operator[]=(key: T, value: U) {

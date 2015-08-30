@@ -77,9 +77,9 @@ obj string (Object, Serializable) {
         return serialize::serialize(data)
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
-        construct()
-        util::unpack(data, pos) = serialize::unserialize<vector::vector<char>>(it, pos)
-        return pos
+        /*construct()*/
+        /*util::unpack(data, pos) = serialize::unserialize<vector::vector<char>>(it, pos)*/
+        return data.unserialize(it, pos)
     }
 
     fun operator[](index: int): ref char { return data[index]; }

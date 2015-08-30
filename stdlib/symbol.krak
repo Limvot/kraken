@@ -69,13 +69,12 @@ obj symbol (Object, Serializable) {
         return serialize::serialize(data) + serialize::serialize(name) + serialize::serialize(terminal)
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
-        var tempData = string::string()
-        var tempName = string::string()
-        util::unpack(tempData, pos) = serialize::unserialize<string::string>(it, pos)
-        util::unpack(tempName, pos) = serialize::unserialize<string::string>(it, pos)
+        /*construct()*/
+        /*util::unpack(data, pos) = serialize::unserialize<string::string>(it, pos)*/
+        /*util::unpack(name, pos) = serialize::unserialize<string::string>(it, pos)*/
+        pos = data.unserialize(it, pos)
+        pos = name.unserialize(it, pos)
         util::unpack(terminal, pos) = serialize::unserialize<bool>(it, pos)
-        data.copy_construct(&tempData)
-        name.copy_construct(&tempName)
         return pos
     }
     fun operator==(other: ref symbol): bool {

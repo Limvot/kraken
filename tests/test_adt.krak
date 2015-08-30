@@ -1,0 +1,16 @@
+import io:*
+
+adt options {
+    option0,
+    option1
+}
+
+fun main():int {
+    var it: options = options::option1
+    if (it == options::option0)
+        println("nope")
+    if (it == options::option1)
+        println("option1")
+    return 0
+}
+

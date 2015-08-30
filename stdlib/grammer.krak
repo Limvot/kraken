@@ -139,12 +139,19 @@ obj grammer (Object, Serializable) {
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
         // get everything constructed before the assignment
-        construct()
-        util::unpack(rules, pos) = serialize::unserialize<vector::vector<rule>>(it, pos)
-        util::unpack(non_terminals, pos) = serialize::unserialize<set::set<symbol::symbol>>(it, pos)
-        util::unpack(terminals, pos) = serialize::unserialize<vector::vector<util::pair<symbol::symbol, regex::regex>>>(it, pos)
-        util::unpack(first_set_map, pos) = serialize::unserialize<map::map<symbol::symbol, set::set<symbol::symbol>>>(it, pos)
-        util::unpack(parse_table, pos) = serialize::unserialize<table>(it, pos)
+        /*construct()*/
+        /*util::unpack(rules, pos) = serialize::unserialize<vector::vector<rule>>(it, pos)*/
+        /*util::unpack(non_terminals, pos) = serialize::unserialize<set::set<symbol::symbol>>(it, pos)*/
+        /*util::unpack(terminals, pos) = serialize::unserialize<vector::vector<util::pair<symbol::symbol, regex::regex>>>(it, pos)*/
+        /*util::unpack(first_set_map, pos) = serialize::unserialize<map::map<symbol::symbol, set::set<symbol::symbol>>>(it, pos)*/
+        /*util::unpack(parse_table, pos) = serialize::unserialize<table>(it, pos)*/
+
+        // do it in place. Actually looks nicer too
+        pos = rules.unserialize(it, pos)
+        pos = non_terminals.unserialize(it, pos)
+        pos = terminals.unserialize(it, pos)
+        pos = first_set_map.unserialize(it, pos)
+        pos = parse_table.unserialize(it, pos)
         return pos
     }
 
@@ -346,18 +353,22 @@ obj rule (Object, Serializable) {
         return serialize::serialize(lhs) + serialize::serialize(rhs) + serialize::serialize(position) + serialize::serialize(lookahead)
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
-        var tempLhs = symbol::invalid_symbol()
-        var tempRhs = vector::vector<symbol::symbol>()
-        var tempLookahead = set::set<symbol::symbol>()
-        util::unpack(tempLhs, pos) = serialize::unserialize<symbol::symbol>(it, pos)
-        util::unpack(tempRhs, pos) = serialize::unserialize<vector::vector<symbol::symbol>>(it, pos)
-        util::unpack(position, pos) = serialize::unserialize<int>(it, pos)
-        util::unpack(tempLookahead, pos) = serialize::unserialize<set::set<symbol::symbol>>(it, pos)
+        /*var tempLhs = symbol::invalid_symbol()*/
+        /*var tempRhs = vector::vector<symbol::symbol>()*/
+        /*var tempLookahead = set::set<symbol::symbol>()*/
+        /*util::unpack(tempLhs, pos) = serialize::unserialize<symbol::symbol>(it, pos)*/
+        /*util::unpack(tempRhs, pos) = serialize::unserialize<vector::vector<symbol::symbol>>(it, pos)*/
+        /*util::unpack(position, pos) = serialize::unserialize<int>(it, pos)*/
+        /*util::unpack(tempLookahead, pos) = serialize::unserialize<set::set<symbol::symbol>>(it, pos)*/
 
-        lhs.copy_construct(&tempLhs)
-        rhs.copy_construct(&tempRhs)
-        lookahead.copy_construct(&tempLookahead)
-        return pos
+        /*lhs.copy_construct(&tempLhs)*/
+        /*rhs.copy_construct(&tempRhs)*/
+        /*lookahead.copy_construct(&tempLookahead)*/
+
+        pos = lhs.unserialize(it, pos)
+        pos = rhs.unserialize(it, pos)
+        util::unpack(position, pos) = serialize::unserialize<int>(it, pos)
+        return lookahead.unserialize(it, pos)
     }
 
     fun construct(): *rule {
@@ -534,9 +545,9 @@ obj table (Object, Serializable) {
         return serialize::serialize(items)
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
-        var temp = vector::vector<map::map<symbol::symbol, vector::vector<action>>>()
-        util::unpack(temp, pos) = serialize::unserialize<vector::vector<map::map<symbol::symbol, vector::vector<action>>>>(it, pos)
-        items.copy_construct(&temp)
+        /*construct()*/
+        /*util::unpack(items, pos) = serialize::unserialize<vector::vector<map::map<symbol::symbol, vector::vector<action>>>>(it, pos)*/
+        pos = items.unserialize(it, pos)
         return pos
     }
     fun expand_to(include_state: int) {

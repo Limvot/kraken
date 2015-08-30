@@ -38,6 +38,7 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std:
 	removeSymbols.push_back(Symbol("comp_simple_passthrough", true));
 	removeSymbols.push_back(Symbol("def_nonterm", false));
 	removeSymbols.push_back(Symbol("obj_nonterm", false));
+	removeSymbols.push_back(Symbol("adt_nonterm", false));
 	removeSymbols.push_back(Symbol("template", true));
 	removeSymbols.push_back(Symbol("\\|", true));
 	//collapseSymbols.push_back(Symbol("scoped_identifier", false));
@@ -45,8 +46,7 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std:
 	collapseSymbols.push_back(Symbol("param_assign_list", false));
 	collapseSymbols.push_back(Symbol("opt_typed_parameter_list", false));
 	collapseSymbols.push_back(Symbol("opt_parameter_list", false));
-	collapseSymbols.push_back(Symbol("opt_import_list", false));
-	collapseSymbols.push_back(Symbol("import_list", false));
+	collapseSymbols.push_back(Symbol("identifier_list", false));
 	collapseSymbols.push_back(Symbol("statement_list", false));
 	collapseSymbols.push_back(Symbol("parameter_list", false));
 	collapseSymbols.push_back(Symbol("typed_parameter_list", false));

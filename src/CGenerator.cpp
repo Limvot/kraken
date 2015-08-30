@@ -51,15 +51,20 @@ std::string CGenerator::getID() {
     return intToString(id++);
 }
 
-std::string CGenerator::generateClassStruct(NodeTree<ASTData>* from) {
+std::string CGenerator::generateTypeStruct(NodeTree<ASTData>* from) {
     auto data = from->getData();
     auto children = from->getChildren();
-    std::string objectString = "struct __struct_dummy_" + scopePrefix(from) + CifyName(data.symbol.getName()) + "__ {\n";
+    std::string objectString;
+    if (data.type == type_def)
+        objectString = "struct __struct_dummy_";
+    else if (data.type == adt_def)
+        objectString = "enum __adt_dummy_";
+    objectString += scopePrefix(from) + CifyName(data.symbol.getName()) + "__ {\n";
     tabLevel++;
-    for (int i = 0; i < children.size(); i++) {
+    for (int i = (data.type == adt_def ? 1 : 0); i < children.size(); i++) {
         //std::cout << children[i]->getName() << std::endl;
         if (children[i]->getName() != "function")
-            objectString += tabs() + generate(children[i], nullptr).oneString() + "\n";
+            objectString += tabs() + generate(children[i], nullptr).oneString() + (data.type == adt_def ? ",\n" : "\n");
     }
     tabLevel--;
     objectString += "};";
@@ -161,12 +166,15 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                             typedefPoset.addRelationship(children[i], decType->typeDefinition); // Add a dependency
                     }
                 }
+            } else if (children[i]->getDataRef()->type == adt_def) {
+                //
+                typedefPoset.addVertex(children[i]); // We add this definition by itself just in case there are no dependencies.
             }
         }
     }
     //Now generate the typedef's in the correct, topological order
     for (NodeTree<ASTData>* i : typedefPoset.getTopoSort())
-        classStructs += generateClassStruct(i) + "\n";
+        classStructs += generateTypeStruct(i) + "\n";
 
     // Declare everything in translation unit scope here (now for ALL translation units). (allows stuff from other files, automatic forward declarations)
     // Also, everything in all of the import's scopes
@@ -253,6 +261,24 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                             functionDefinitions += objectFunctionDefinitions + "/* Done with " + declarationData.symbol.getName() + " */\n";
                         }
                         break;
+                    case adt_def:
+                    {
+                        //type
+                        plainTypedefs += "/* adt " + declarationData.symbol.getName() + " */\n";
+                        //plainTypedefs += "typedef struct __adt_dummy_" +
+                        plainTypedefs += "typedef enum __adt_dummy_" +
+                                            scopePrefix(declaration) + CifyName(declarationData.symbol.getName()) + "__ " +
+                                            scopePrefix(declaration) + CifyName(declarationData.symbol.getName())  + ";\n";
+                        // We use a seperate string for this because we only include it if this is the file we're defined in
+                        std::string enumString = "/* Enum Definition for " + declarationData.symbol.getName() + " */\n";
+                        // skip the name of the thing
+                        for (int j = 1; j < decChildren.size(); j++) {
+                            std::cout << decChildren[j]->getName() << std::endl;
+                            if (decChildren[j]->getName() == "identifier") //If object method and not template
+                                enumString += "an_option \n";
+                        }
+                        break;
+                    }
                     default:
                         //std::cout << "Declaration? named " << declaration->getName() << " of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
                         cOutput += "/*unknown declaration named " + declaration->getName() + "*/\n";

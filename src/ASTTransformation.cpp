@@ -68,7 +68,7 @@ std::vector<NodeTree<Symbol>*> ASTTransformation::getNodes(std::string lookup, s
     return results;
 }
 
-//First pass defines all type_defs (objects and ailises), and if_comp/simple_passthrough
+//First pass defines all type_defs (objects and ailises), ADTs, and if_comp/simple_passthrough
 NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<Symbol>* parseTree) {
 	NodeTree<ASTData>* translationUnit = new NodeTree<ASTData>("translation_unit", ASTData(translation_unit, Symbol(fileName, false)));
 	std::vector<NodeTree<Symbol>*> children = parseTree->getChildren();
@@ -97,6 +97,12 @@ NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<S
                 firstDec->getDataRef()->valueType = new Type(firstDec);
             }
 
+        }  else if (i->getDataRef()->getName() == "adt_def") {
+            std::string name = concatSymbolTree(i->getChildren()[0]);
+            NodeTree<ASTData>* adt_dec = addToScope("~enclosing_scope", translationUnit, new NodeTree<ASTData>("adt_def", ASTData(adt_def, Symbol(name, true, name))));
+            addToScope(name, adt_dec, translationUnit);
+            translationUnit->addChild(adt_dec);
+            adt_dec->getDataRef()->valueType = new Type(adt_dec);
 		}  else if (i->getDataRef()->getName() == "if_comp") {
             std::cout << "IF COMP" << std::endl;
             NodeTree<ASTData>* newNode = addToScope("~enclosing_scope", translationUnit, new NodeTree<ASTData>(i->getDataRef()->getName(), ASTData(if_comp)));
@@ -158,7 +164,7 @@ std::set<std::string> ASTTransformation::parseTraits(NodeTree<Symbol>* traitsNod
     return traits;
 }
 
-//Second pass defines data inside objects, outside declaration statements, and function prototypes (since we have type_defs now)
+//Second pass defines data inside objects + ADTs, outside declaration statements, and function prototypes (since we have type_defs+ADTs now)
 void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* parseTree) {
 	topScope = ast; //Top scope is maintained for templates, which need to add themselves to the top scope from where ever they are instantiated
 	std::vector<NodeTree<Symbol>*> children = parseTree->getChildren();
@@ -186,6 +192,19 @@ void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
 			}
 			//Do the inside of classes here
             secondPassDoClassInsides(typeDef, typedefChildren, std::map<std::string, Type*>());
+        } else if (i->getDataRef()->getName() == "adt_def") {
+            std::string name = concatSymbolTree(i->getChildren()[0]);
+            NodeTree<ASTData>* adtDef = ast->getDataRef()->scope[name][0]; //No overloaded types (besides uninstantiated templates, which can have multiple versions based on types or specilizations)
+            for (NodeTree<Symbol>* j : i->getChildren()) {
+                if (j->getDataRef()->getName() == "identifier") {
+                    std::string ident_name = concatSymbolTree(j);
+                    std::cout << "add ing " << ident_name << " to " << name << " for ADT" << std::endl;
+                    NodeTree<ASTData>* enum_variant_identifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(ident_name, true), adtDef->getDataRef()->valueType));
+                    adtDef->addChild(enum_variant_identifier);
+                    addToScope(ident_name, enum_variant_identifier, adtDef);
+                    addToScope("~enclosing_scope", adtDef, enum_variant_identifier);
+                }
+            }
 		} else if (i->getDataRef()->getName() == "function") {
 			//Do prototypes of functions
 			ast->addChild(secondPassFunction(i, ast, std::map<std::string, Type*>()));
@@ -280,6 +299,8 @@ void ASTTransformation::thirdPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* pars
 					thirdPassFunction(j, searchScopeForFunctionDef(typeDef, j, std::map<std::string, Type*>()), std::map<std::string, Type*>()); 	//do member method
 				}
 			}
+        } else if (i->getDataRef()->getName() == "adt_def") {
+            // nothing to do here yet, but eventually we will set up our internal objs, etc
 		} else if (i->getDataRef()->getName() == "function") {
 			//Do prototypes of functions
 			if (i->getChildren()[1]->getData().getName() == "template_dec")
@@ -1009,7 +1030,7 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
     if (possibleMatches.size()) {
 		for (auto i : possibleMatches) {
 			//We're not looking for types
-			if (i->getDataRef()->type == type_def)
+            if (i->getDataRef()->type == type_def || i->getDataRef()->type == adt_def)
 				continue;
             Type* functionType = i->getDataRef()->valueType;
 
