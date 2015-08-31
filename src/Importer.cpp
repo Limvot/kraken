@@ -1,5 +1,9 @@
 #include "Importer.h"
 
+#ifdef _WIN32
+	#include <unistd.h>
+	#define mkdir( A, B ) mkdir(A)
+#endif
 Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std::string outputNameIn, bool only_parseIn) {
     only_parse = only_parseIn;
 	//constructor
