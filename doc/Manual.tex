@@ -1,0 +1,129 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Kraken Documentation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+
+\documentclass{article}
+
+\usepackage{graphicx} % Required for the inclusion of images
+\usepackage{amsmath} % Required for some math elements 
+\renewcommand{\labelenumi}{\alph{enumi}.} % Make numbering in the enumerate environment by letter rather than number (e.g. section 6)
+
+\usepackage{times} % Uncomment to use the Times New Roman font
+\usepackage{listings}
+%----------------------------------------------------------------------------------------
+%	DOCUMENT INFORMATION
+%----------------------------------------------------------------------------------------
+
+\title{Kraken Programming Guide} % Title
+
+\author{Jack \textsc{Sparrow}} % Author name
+
+\date{\today} % Date for the report
+
+\begin{document}
+
+\maketitle % Insert the title, author and date
+
+%----------------------------------------------------------------------------------------
+%       SECTION Compiling
+%----------------------------------------------------------------------------------------
+\section{Compiling}
+  Kraken compilation currently only supports building the compiler from source.
+You can clone the repository from a terminal using:
+  \begin{lstlisting}
+    git clone https://github.com/Limvot/kraken.git
+  \end{lstlisting}
+Once you have the repository, run the following commands:
+  \begin{lstlisting}
+    mkdir build %Create a build directory
+    cd build
+    cmake ..    %Requires cmake to build the compiler
+    make        %Create the compiler executable
+  \end{lstlisting}
+This will create a kraken executable, which is how we will call the compiler.
+Kraken supports several ways of invoking the compiler.  These include:
+  \begin{lstlisting}
+    kraken source.krak
+    kraken source.krak outputExe
+    kraken grammarFile.kgm source.krak outputExe
+  \end{lstlisting}
+The grammar file is a file specific to the compiler, and should be included
+in the github repository.  When you run the compile command, a new directory
+with the name of the outputExe you specified will be created.  In this directory
+is a shell script, which will compile the created C file into a binary executable.
+This binary exectuable can then be run as a normal C executable.
+
+%----------------------------------------------------------------------------------------
+%	SECTION Variables
+%----------------------------------------------------------------------------------------
+
+\section{Variables}
+\label{sec:var}
+
+\subsection{Variable Declaration}
+  \begin{lstlisting}[language=C++]
+    int main(){
+      std::cout << "Hello World" << std::endl;
+      return 0;
+    }
+  \end{lstlisting}
+\subsection{Primitive Types}
+  primitive types
+%----------------------------------------------------------------------------------------
+%	SECTION 2: Functions
+%----------------------------------------------------------------------------------------
+
+\section{Functions}
+  Section func
+
+%----------------------------------------------------------------------------------------
+%	SECTION Classes
+%----------------------------------------------------------------------------------------
+
+\section{Classes}
+  Section class
+%----------------------------------------------------------------------------------------
+%	SECTION Templates
+%----------------------------------------------------------------------------------------
+
+\section{Templates}
+  Section T
+%----------------------------------------------------------------------------------------
+%	SECTION Standard Library
+%----------------------------------------------------------------------------------------
+
+\section{Standard Library}
+  Section STL
+
+%----------------------------------------------------------------------------------------
+%       SECTION Understanding Kraken Errors
+%----------------------------------------------------------------------------------------
+\section{Understanding Kraken Errors}
+  Section error
+%----------------------------------------------------------------------------------------
+%	SECTION C Passthrough
+%----------------------------------------------------------------------------------------
+
+\section{Answers to Definitions}
+
+\begin{enumerate}
+\begin{item}
+  Item 1
+\end{item}
+\begin{item}
+The \emph{units of atomic weight} are two-fold, with an identical numerical value. They are g/mole of atoms (or just g/mol) or amu/atom.
+\end{item}
+\begin{item}
+\emph{Percentage discrepancy} between an accepted (literature) value and an experimental value is
+\begin{equation*}
+  a = 4
+\end{equation*}
+\end{item}
+\end{enumerate}
+
+\end{document}
