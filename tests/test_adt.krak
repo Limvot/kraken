@@ -5,16 +5,42 @@ adt options {
     option1
 }
 
+adt maybe_int {
+    no_int,
+    an_int: int
+}
+
+fun handle_possibility(it: maybe_int) {
+    if (it == maybe_int::no_int())
+        println("no int")
+    /*if (it == maybe_int::an_int) {*/
+    else {
+        print("an int: ")
+        println(it.an_int)
+    }
+}
+
+fun give_maybe(give_it: bool): maybe_int {
+    if (give_it)
+        return maybe_int::an_int(7)
+    return maybe_int::no_int()
+}
+
 fun can_pass(it: options): options {
-    return options::option1
+    return it
 }
 
 fun main():int {
-    var it: options = can_pass(options::option0)
-    if (it == options::option0)
+    var it: options = can_pass(options::option0())
+    if (it == options::option0())
         println("nope")
-    if (it == options::option1)
+    if (it == options::option1())
         println("option1")
+
+    var possibility = give_maybe(false)
+    handle_possibility(possibility)
+    possibility = give_maybe(true)
+    handle_possibility(possibility)
     return 0
 }
 

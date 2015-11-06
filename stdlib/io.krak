@@ -131,7 +131,7 @@ fun read_file_binary(path: string::string): vector::vector<char> {
 
 	__if_comp__ __C__ {
 		simple_passthrough(data = data::) """
-            free(data)
+            free(data);
 		"""
 	}
     return toRet

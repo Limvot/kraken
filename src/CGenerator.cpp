@@ -17,19 +17,22 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
 	std::cout << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
     std::cout << "\n\nGenerate pass for: " << outputName << std::endl;
     buildString += outputName + ".c ";
-    std::ofstream outputCFile, outputHFile;
+    //std::ofstream outputCFile, outputHFile;
+    std::ofstream outputCFile;
     outputCFile.open(outputName + "/" + outputName + ".c");
-    outputHFile.open(outputName + "/" + outputName + ".h");
-    if (outputCFile.is_open() || outputHFile.is_open()) {
+    //outputHFile.open(outputName + "/" + outputName + ".h");
+    //if (outputCFile.is_open() || outputHFile.is_open()) {
+    if (outputCFile.is_open()) {
         // Prequel common to all files
         auto chPair = generateTranslationUnit(outputName, ASTs);
-        outputHFile << "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n" << chPair.first;
-        outputCFile << "#include \"" + outputName + ".h\"\n\n" << chPair.second;
+        //outputHFile << "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n" << chPair.first;
+        //outputCFile << "#include \"" + outputName + ".h\"\n\n" << chPair.second;
+        outputCFile << "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n" << chPair.first << "\n\n// C FILE BEGIN\n\n" << chPair.second;
     } else {
         std::cerr << "Cannot open file " << outputName << ".c/h" << std::endl;
     }
     outputCFile.close();
-    outputHFile.close();
+    //outputHFile.close();
 
 	buildString += linkerString;
 	buildString += "-o " + outputName;
@@ -54,150 +57,186 @@ std::string CGenerator::getID() {
 std::string CGenerator::generateTypeStruct(NodeTree<ASTData>* from) {
     auto data = from->getData();
     auto children = from->getChildren();
-    std::string objectString;
-    if (data.type == type_def)
-        objectString = "struct __struct_dummy_";
-    else if (data.type == adt_def)
-        objectString = "enum __adt_dummy_";
-    objectString += scopePrefix(from) + CifyName(data.symbol.getName()) + "__ {\n";
+    std::string structString, enumString, functionString;
+    std::string enumName = "__enum_dummy_" + prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName())+"__");
+    enumString = "enum " + enumName + " {\n";
+    structString = "struct __struct_dummy_";
+    structString += prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName())+"__") + " {\n";
+    if (data.type == adt_def) {
+        structString = "typedef " + structString + "enum " + enumName + " flag;\n union  { \n";
+    }
     tabLevel++;
-    for (int i = (data.type == adt_def ? 1 : 0); i < children.size(); i++) {
+
+    for (auto child :  children) {
         //std::cout << children[i]->getName() << std::endl;
-        if (children[i]->getName() != "function")
-            objectString += tabs() + generate(children[i], nullptr).oneString() + (data.type == adt_def ? ",\n" : "\n");
+        if (child->getName() != "function") {
+            if (data.type == adt_def) {
+                // if this is not a plain no-data adt member (so if it is a primitive or doesn't have a reference back to)
+                // wait a sec, this is easier
+                if ( child->getDataRef()->valueType->typeDefinition != from)
+                    structString += tabs() + ValueTypeToCType(child->getDataRef()->valueType,  child->getDataRef()->symbol.getName()) + "; /* adt data member */\n";
+            } else {
+                structString += tabs() + generate(child, nullptr).oneString() + "\n";
+            }
+            enumString += tabs() + generate(child, nullptr).oneString() + (data.type == adt_def ? ",\n" : "\n");
+        } else {
+            if (data.type == adt_def) {
+                functionString += "\n" + ValueTypeToCType(child->getDataRef()->valueType->returnType, "fun_" + child->getDataRef()->symbol.getName()) + "(" +
+                    (child->getDataRef()->valueType->parameterTypes.size() ? ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0], "in") : "") + "); /*adt func*/\n";
+            }
+        }
     }
     tabLevel--;
-    objectString += "};";
-    return objectString;
+    if (data.type == adt_def) {
+        //structString += "} data; /*end union*/ \n";
+        structString += "}; /*end union*/\n } " + CifyName(data.symbol.getName()) + "; /* end struct */";
+    } else {
+        structString += "};";
+    }
+    enumString += "};\n";
+    if (data.type == adt_def)
+        return  enumString + structString + functionString;
+    return structString;
 }
 
 // This method recurseivly generates all aliases of some definition
 std::string CGenerator::generateAliasChains(std::map<std::string, NodeTree<ASTData>*> ASTs, NodeTree<ASTData>* definition) {
-    std::string output;
-    for (auto trans : ASTs) {
-        for (auto i = trans.second->getDataRef()->scope.begin(); i != trans.second->getDataRef()->scope.end(); i++) {
-            for (auto declaration : i->second) {
-                auto declarationData = declaration->getDataRef();
-                if (declarationData->type == type_def
-                        && declarationData->valueType->typeDefinition != declaration
-                        && declarationData->valueType->typeDefinition == definition) {
-                    output += "typedef " +
-                        scopePrefix(definition) + CifyName(definition->getDataRef()->symbol.getName()) + " " +
-                        scopePrefix(declaration) + CifyName(declarationData->symbol.getName()) + ";\n";
-                    // Recursively add the ones that depend on this one
-                    output += generateAliasChains(ASTs, declaration);
-                }
+std::string output;
+for (auto trans : ASTs) {
+    for (auto i = trans.second->getDataRef()->scope.begin(); i != trans.second->getDataRef()->scope.end(); i++) {
+        for (auto declaration : i->second) {
+            auto declarationData = declaration->getDataRef();
+            if (declarationData->type == type_def
+                    && declarationData->valueType->typeDefinition != declaration
+                    && declarationData->valueType->typeDefinition == definition) {
+                output += "typedef " +
+                    prefixIfNeeded(scopePrefix(definition), CifyName(definition->getDataRef()->symbol.getName())) + " " +
+                    prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData->symbol.getName())) + ";\n";
+                // Recursively add the ones that depend on this one
+                output += generateAliasChains(ASTs, declaration);
             }
         }
     }
-    return output;
+}
+return output;
+}
+
+bool CGenerator::isUnderNodeWithType(NodeTree<ASTData>* from, ASTType type) {
+auto scope = from->getDataRef()->scope;
+auto upper = scope.find("~enclosing_scope");
+if (upper != scope.end()) {
+    if (upper->second[0]->getDataRef()->type == type)
+        return true;
+    return isUnderNodeWithType(upper->second[0], type);
+}
+return false;
 }
 
 bool CGenerator::isUnderTranslationUnit(NodeTree<ASTData>* from, NodeTree<ASTData>* node) {
-    auto scope = from->getDataRef()->scope;
-    for (auto i : scope)
-        for (auto j : i.second)
-            if (j == node)
-                return true;
+auto scope = from->getDataRef()->scope;
+for (auto i : scope)
+    for (auto j : i.second)
+        if (j == node)
+            return true;
 
-    auto upper = scope.find("~enclosing_scope");
-    if (upper != scope.end())
-        return isUnderTranslationUnit(upper->second[0], node);
-    return false;
+auto upper = scope.find("~enclosing_scope");
+if (upper != scope.end())
+    return isUnderTranslationUnit(upper->second[0], node);
+return false;
 }
 
 NodeTree<ASTData>* CGenerator::highestScope(NodeTree<ASTData>* node) {
-    auto it = node->getDataRef()->scope.find("~enclosing_scope");
-    while (it != node->getDataRef()->scope.end()) {
-        node = it->second[0];
-        it = node->getDataRef()->scope.find("~enclosing_scope");
-    }
-    return node;
+auto it = node->getDataRef()->scope.find("~enclosing_scope");
+while (it != node->getDataRef()->scope.end()) {
+    node = it->second[0];
+    it = node->getDataRef()->scope.find("~enclosing_scope");
+}
+return node;
 }
 
 // We do translation units in their own function so they can do the pariwise h/c stuff and regualr in function body generation does not
 std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::string name, std::map<std::string, NodeTree<ASTData>*> ASTs) {
-    // We now pass in the entire map of ASTs and loop through them so that we generate out into a single file
-    std::string cOutput, hOutput;
-    // Ok, so we've got to do this in passes to preserve mututally recursive definitions.
-    //
-    // First Pass: All classes get "struct dummy_thing; typedef struct dummy_thing thing;".
-    //                  Also, other typedefs follow after their naming.
-    // Second Pass: All top level variable declarations
-    // Third Pass: Define all actual structs of a class, in correct order (done with posets)
-    // Fourth Pass: Declare all function prototypes (as functions may be mutually recursive too).
-    //                  (this includes object methods)
-    // Fifth Pass: Define all functions (including object methods).
+// We now pass in the entire map of ASTs and loop through them so that we generate out into a single file
+std::string cOutput, hOutput;
+// Ok, so we've got to do this in passes to preserve mututally recursive definitions.
+//
+// First Pass: All classes get "struct dummy_thing; typedef struct dummy_thing thing;".
+//                  Also, other typedefs follow after their naming.
+// Second Pass: All top level variable declarations
+// Third Pass: Define all actual structs of a class, in correct order (done with posets)
+// Fourth Pass: Declare all function prototypes (as functions may be mutually recursive too).
+//                  (this includes object methods)
+// Fifth Pass: Define all functions (including object methods).
 
-    // However, most of these do not actually have to be done as separate passes. First, second, fourth, and fifth
-    // are done simultanously, but append to different strings that are then concatinated properly, in order.
+// However, most of these do not actually have to be done as separate passes. First, second, fourth, and fifth
+// are done simultanously, but append to different strings that are then concatinated properly, in order.
 
-    std::string importIncludes = "/**\n * Import Includes\n */\n\n";
-    std::string topLevelCPassthrough = "/**\n * Top Level C Passthrough\n */\n\n";
-    std::string variableExternDeclarations = "/**\n * Extern Variable Declarations \n */\n\n";
-    std::string plainTypedefs = "/**\n * Plain Typedefs\n */\n\n";
-    std::string variableDeclarations = "/**\n * Variable Declarations \n */\n\n";
-    std::string classStructs = "/**\n * Class Structs\n */\n\n";
-    std::string functionPrototypes = "/**\n * Function Prototypes\n */\n\n";
-    std::string functionDefinitions = "/**\n * Function Definitions\n */\n\n";
-    // There also exists functionTypedefString which is a member variable that keeps
-    // track of utility typedefs that allow our C type generation to be more sane
-    // it is emitted in the h file right before functionPrototypes
+std::string importIncludes = "/**\n * Import Includes\n */\n\n";
+std::string topLevelCPassthrough = "/**\n * Top Level C Passthrough\n */\n\n";
+std::string variableExternDeclarations = "/**\n * Extern Variable Declarations \n */\n\n";
+std::string plainTypedefs = "/**\n * Plain Typedefs\n */\n\n";
+std::string variableDeclarations = "/**\n * Variable Declarations \n */\n\n";
+std::string classStructs = "/**\n * Class Structs\n */\n\n";
+std::string functionPrototypes = "/**\n * Function Prototypes\n */\n\n";
+std::string functionDefinitions = "/**\n * Function Definitions\n */\n\n";
+// There also exists functionTypedefString which is a member variable that keeps
+// track of utility typedefs that allow our C type generation to be more sane
+// it is emitted in the h file right before functionPrototypes
 
 
-    Poset<NodeTree<ASTData>*> typedefPoset;
-    for (auto trans : ASTs) {
-        auto children = trans.second->getChildren();
-        for (int i = 0; i < children.size(); i++) {
-            if (children[i]->getDataRef()->type == type_def) {
-                // If we're an alias type, continue. We handle those differently
-                if (children[i]->getDataRef()->valueType->typeDefinition != children[i])
-                    continue;
+Poset<NodeTree<ASTData>*> typedefPoset;
+for (auto trans : ASTs) {
+    auto children = trans.second->getChildren();
+    for (int i = 0; i < children.size(); i++) {
+        if (children[i]->getDataRef()->type == type_def) {
+            // If we're an alias type, continue. We handle those differently
+            if (children[i]->getDataRef()->valueType->typeDefinition != children[i])
+                continue;
 
-                typedefPoset.addVertex(children[i]); // We add this definition by itself just in case there are no dependencies.
-                // If it has dependencies, there's no harm in adding it here
-                // Go through every child in the class looking for declaration statements. For each of these that is not a primitive type
-                // we will add a dependency from this definition to that definition in the poset.
-                std::vector<NodeTree<ASTData>*> classChildren = children[i]->getChildren();
-                for (auto j : classChildren) {
-                    if (j->getDataRef()->type == declaration_statement) {
-                        Type* decType = j->getChildren()[0]->getDataRef()->valueType;           // Type of the declaration
-                        if (decType->typeDefinition && decType->getIndirection() == 0)	        // If this is a custom type and not a pointer
-                            typedefPoset.addRelationship(children[i], decType->typeDefinition); // Add a dependency
-                    }
+            typedefPoset.addVertex(children[i]); // We add this definition by itself just in case there are no dependencies.
+            // If it has dependencies, there's no harm in adding it here
+            // Go through every child in the class looking for declaration statements. For each of these that is not a primitive type
+            // we will add a dependency from this definition to that definition in the poset.
+            std::vector<NodeTree<ASTData>*> classChildren = children[i]->getChildren();
+            for (auto j : classChildren) {
+                if (j->getDataRef()->type == declaration_statement) {
+                    Type* decType = j->getChildren()[0]->getDataRef()->valueType;           // Type of the declaration
+                    if (decType->typeDefinition && decType->getIndirection() == 0)	        // If this is a custom type and not a pointer
+                        typedefPoset.addRelationship(children[i], decType->typeDefinition); // Add a dependency
                 }
-            } else if (children[i]->getDataRef()->type == adt_def) {
-                //
-                typedefPoset.addVertex(children[i]); // We add this definition by itself just in case there are no dependencies.
             }
+        } else if (children[i]->getDataRef()->type == adt_def) {
+            //
+            typedefPoset.addVertex(children[i]); // We add this definition by itself just in case there are no dependencies.
         }
     }
-    //Now generate the typedef's in the correct, topological order
-    for (NodeTree<ASTData>* i : typedefPoset.getTopoSort())
-        classStructs += generateTypeStruct(i) + "\n";
+}
+//Now generate the typedef's in the correct, topological order
+for (NodeTree<ASTData>* i : typedefPoset.getTopoSort())
+    classStructs += generateTypeStruct(i) + "\n";
 
-    // Declare everything in translation unit scope here (now for ALL translation units). (allows stuff from other files, automatic forward declarations)
-    // Also, everything in all of the import's scopes
-    // Also c passthrough
-    for (auto trans : ASTs) {
-        // First go through and emit all the passthroughs, etc
-        for (auto i : trans.second->getChildren()) {
-            if (i->getDataRef()->type == if_comp)
-                topLevelCPassthrough += generate(i, nullptr).oneString();
-        }
+// Declare everything in translation unit scope here (now for ALL translation units). (allows stuff from other files, automatic forward declarations)
+// Also, everything in all of the import's scopes
+// Also c passthrough
+for (auto trans : ASTs) {
+    // First go through and emit all the passthroughs, etc
+    for (auto i : trans.second->getChildren()) {
+        if (i->getDataRef()->type == if_comp)
+            topLevelCPassthrough += generate(i, nullptr).oneString();
+    }
 
-        for (auto i = trans.second->getDataRef()->scope.begin(); i != trans.second->getDataRef()->scope.end(); i++) {
-            for (auto declaration : i->second) {
-                std::vector<NodeTree<ASTData>*> decChildren = declaration->getChildren();
-                ASTData declarationData = declaration->getData();
-                switch(declarationData.type) {
-                    case identifier:
-                        {
-                        auto parent = declaration->getDataRef()->scope["~enclosing_scope"][0];
-                        if (parent->getChildren().size() == 1)
-                            variableDeclarations += ValueTypeToCType(declarationData.valueType,  scopePrefix(declaration) + declarationData.symbol.getName()) + "; /*identifier*/\n";
-                        else
-                            variableDeclarations += ValueTypeToCType(declarationData.valueType, generate(parent->getChildren()[0], nullptr, true, nullptr).oneString()) + " = " + generate(parent->getChildren()[1], nullptr, true, nullptr).oneString() + ";";
+    for (auto i = trans.second->getDataRef()->scope.begin(); i != trans.second->getDataRef()->scope.end(); i++) {
+        for (auto declaration : i->second) {
+            std::vector<NodeTree<ASTData>*> decChildren = declaration->getChildren();
+            ASTData declarationData = declaration->getData();
+            switch(declarationData.type) {
+                case identifier:
+                    {
+                    auto parent = declaration->getDataRef()->scope["~enclosing_scope"][0];
+                    if (parent->getChildren().size() == 1)
+                        variableDeclarations += ValueTypeToCType(declarationData.valueType,  prefixIfNeeded(scopePrefix(declaration), declarationData.symbol.getName())) + "; /*identifier*/\n";
+                    else
+                        variableDeclarations += ValueTypeToCType(declarationData.valueType, generate(parent->getChildren()[0], nullptr, true, nullptr).oneString()) + " = " + generate(parent->getChildren()[1], nullptr, true, nullptr).oneString() + ";";
                         variableExternDeclarations += "extern " + ValueTypeToCType(declarationData.valueType, declarationData.symbol.getName()) + "; /*extern identifier*/\n";
                         break;
                         }
@@ -217,12 +256,11 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                     parameters += ValueTypeToCType(decChildren[j]->getData().valueType, generate(decChildren[j], nullptr).oneString());
                                     nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
                                 }
-                                functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType->returnType, ((declarationData.symbol.getName() == "main") ? "" : function_header + scopePrefix(declaration)) +
-                                                    CifyName(declarationData.symbol.getName() + nameDecoration)) +
-                                                    "(" + parameters + "); /*func*/\n";
+                                std::string funName = (declarationData.symbol.getName() == "main") ? "main" :
+                                    function_header + prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName() + nameDecoration));
+                                functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType->returnType, funName) + "(" + parameters + "); /*func*/\n";
                                 // generate function
-                                std::cout << "Generating " << scopePrefix(declaration) +
-                                                            CifyName(declarationData.symbol.getName()) << std::endl;
+                                std::cout << "Generating " << prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName())) << std::endl;
                                 functionDefinitions += generate(declaration, nullptr).oneString();
                             }
                         }
@@ -238,13 +276,12 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                 continue; // Aliases of objects are done with the thing it alises
                             // Otherwise, we're actually a renaming of a primitive, can generate here
                             plainTypedefs += "typedef " + ValueTypeToCType(declarationData.valueType,
-                                                scopePrefix(declaration) +
-                                                CifyName(declarationData.symbol.getName())) + ";\n";
+                                                prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName()))) + ";\n";
                             plainTypedefs += generateAliasChains(ASTs, declaration);
                         } else {
                             plainTypedefs += "typedef struct __struct_dummy_" +
-                                                scopePrefix(declaration) + CifyName(declarationData.symbol.getName()) + "__ " +
-                                                scopePrefix(declaration) + CifyName(declarationData.symbol.getName())  + ";\n";
+                                                prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName()) + "__") + " " +
+                                                prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName()))  + ";\n";
                             functionPrototypes += "/* Method Prototypes for " + declarationData.symbol.getName() + " */\n";
                             // We use a seperate string for this because we only include it if this is the file we're defined in
                             std::string objectFunctionDefinitions = "/* Method Definitions for " + declarationData.symbol.getName() + " */\n";
@@ -264,19 +301,15 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                     case adt_def:
                     {
                         //type
-                        plainTypedefs += "/* adt " + declarationData.symbol.getName() + " */\n";
-                        //plainTypedefs += "typedef struct __adt_dummy_" +
-                        plainTypedefs += "typedef enum __adt_dummy_" +
-                                            scopePrefix(declaration) + CifyName(declarationData.symbol.getName()) + "__ " +
-                                            scopePrefix(declaration) + CifyName(declarationData.symbol.getName())  + ";\n";
-                        // We use a seperate string for this because we only include it if this is the file we're defined in
-                        std::string enumString = "/* Enum Definition for " + declarationData.symbol.getName() + " */\n";
-                        // skip the name of the thing
-                        for (int j = 1; j < decChildren.size(); j++) {
-                            std::cout << decChildren[j]->getName() << std::endl;
-                            if (decChildren[j]->getName() == "identifier") //If object method and not template
-                                enumString += "an_option \n";
-                        }
+                        //don't even need to do this anymore, it's all earlier
+                        //plainTypedefs += "/* adt " + declarationData.symbol.getName() + " */\n";
+                        //plainTypedefs += "typedef struct __struct_dummy_" +
+                                            //prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName())+ "__") + " " +
+                                            //prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName()))  + ";\n";
+                        //// skip the name of the thing
+                        //for (int j = 1; j < decChildren.size(); j++) {
+                            //std::cout << decChildren[j]->getName() << std::endl;
+                        //}
                         break;
                     }
                     default:
@@ -344,8 +377,8 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 				preName += "(*";
                 postName += ")";
             }
-            // we're scope prefixing EVERYTHING
-			return preName + scopePrefix(from) + CifyName(data.symbol.getName()) + postName; //Cifying does nothing if not an operator overload
+            // we're scope prefixing EVERYTHING, but only if needed
+			return preName + prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName())) + postName; //Cifying does nothing if not an operator overload
 		}
 		case function:
 		{
@@ -370,8 +403,9 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             if (justFuncName) {
                 std::string funcName;
                 if (data.symbol.getName() != "main")
-                    funcName += function_header + scopePrefix(from);
-                funcName += CifyName(data.symbol.getName() + nameDecoration);
+                    funcName += function_header + prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName() + nameDecoration));
+                else
+                    funcName += CifyName(data.symbol.getName() + nameDecoration);
                 if (from->getDataRef()->closedVariables.size()) {
                     std::string tmpStruct = "closureStruct" + getID();
                     output.preValue += closureStructType(data.closedVariables) + " " + tmpStruct + " = {";
@@ -384,7 +418,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                         std::string preName;
                         if (enclosingObject && enclosingObject->getDataRef()->scope.find(varName) != enclosingObject->getDataRef()->scope.end())
                             preName += "this->";
-                        varName = (varName == "this") ? varName : scopePrefix(var) + varName;
+                        varName = (varName == "this") ? varName : prefixIfNeeded(scopePrefix(var), varName);
                         // so that we can close over things that have been closed over by an enclosing closure
                         output.preValue += "." + varName + " = &/*woo*/" + generate(var, enclosingObject, justFuncName, enclosingFunction).oneString() + "/*woo*/";
                         //output.preValue += "." + varName + " = &" + preName + varName;
@@ -396,8 +430,9 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 }
             } else {
             // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
-                output = "\n" + ValueTypeToCType(data.valueType->returnType, ((data.symbol.getName() == "main") ? "" : function_header + scopePrefix(from)) +
-                        CifyName(data.symbol.getName() + nameDecoration)) + "(" + parameters + ") {\n" + generate(children[children.size()-1], enclosingObject, justFuncName, from).oneString();
+                std::string funName = (data.symbol.getName() == "main") ? "main" : function_header + prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName() + nameDecoration));
+                output = "\n" + ValueTypeToCType(data.valueType->returnType, funName) + "(" + parameters + ") {\n" +
+                            generate(children[children.size()-1], enclosingObject, justFuncName, from).oneString();
                 output += emitDestructors(reverse(distructDoubleStack.back()), enclosingObject);
                 output += "}\n";
             }
@@ -615,6 +650,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 			return CCodeTriple("");
 		case simple_passthrough:
             {
+                std::string pre_end_dec, end_assign;
                 // Stuff is bit more interesting now! XXX
                 std::string pre_passthrough, post_passthrough;
                 // Handle input/output parameters
@@ -623,17 +659,27 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     for (auto in_or_out : optParamAssignLists) {
                         for (auto assign : in_or_out->getChildren()) {
                             auto assignChildren = assign->getChildren();
-                            if (in_or_out->getDataRef()->type == in_passthrough_params)
+                            if (in_or_out->getDataRef()->type == in_passthrough_params) {
+                                std::string currentName = generate(assignChildren[0], enclosingObject, enclosingFunction).oneString();
+                                std::string toName;
                                 if (assignChildren.size() == 2)
-                                    pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, assignChildren[1]->getDataRef()->symbol.getName()) + " = " + generate(assignChildren[0], enclosingObject, enclosingFunction).oneString() + ";\n";
+                                    toName = assignChildren[1]->getDataRef()->symbol.getName();
                                 else
-                                    pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, assignChildren[0]->getDataRef()->symbol.getName()) + " = " + generate(assignChildren[0], enclosingObject, enclosingFunction).oneString() + ";\n";
-                            else if (in_or_out->getDataRef()->type == out_passthrough_params)
+                                    toName = assignChildren[0]->getDataRef()->symbol.getName();
+                                if (currentName != toName)
+                                    pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, toName) + " = " + currentName + ";\n";
+                            } else if (in_or_out->getDataRef()->type == out_passthrough_params) {
+                                std::string currentName = generate(assignChildren[0], enclosingObject, justFuncName, enclosingFunction).oneString();
+                                std::string toName;
                                 if (assignChildren.size() == 2)
-                                    post_passthrough += generate(assignChildren[0], enclosingObject, justFuncName, enclosingFunction).oneString() + " = " + assignChildren[1]->getDataRef()->symbol.getName() + ";\n";
+                                    toName = assignChildren[1]->getDataRef()->symbol.getName();
                                 else
-                                    post_passthrough += generate(assignChildren[0], enclosingObject, justFuncName, enclosingFunction).oneString() + " = " + assignChildren[0]->getDataRef()->symbol.getName() + ";\n";
-                            else
+                                    toName += assignChildren[0]->getDataRef()->symbol.getName();
+                                std::string trans_dec_name = currentName + "_end_assign";
+                                pre_end_dec += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, trans_dec_name) + ";\n";
+                                post_passthrough += trans_dec_name + " = " + toName + ";\n";
+                                end_assign += currentName + " = " + trans_dec_name + ";\n";
+                            } else
                                 linkerString += " " + strSlice(generate(in_or_out, enclosingObject, justFuncName, enclosingFunction).oneString(), 1, -2) + " ";
                         }
                     }
@@ -641,8 +687,11 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 // The actual passthrough string is the last child now, as we might
                 // have passthrough_params be the first child
                 // we don't generate, as that will escape the returns and we don't want that. We'll just grab the string
-                //return pre_passthrough + strSlice(generate(children.back(, enclosingFunction), enclosingObject, justFuncName).oneString(), 3, -4) + post_passthrough;
-                return pre_passthrough + strSlice(children.back()->getDataRef()->symbol.getName(), 3, -4) + post_passthrough;
+                // we don't want the scope stuff if we're at top level for an include, etc....
+                if (isUnderNodeWithType(from,function))
+                    return pre_end_dec + "{" + pre_passthrough + strSlice(children.back()->getDataRef()->symbol.getName(), 3, -4) + post_passthrough + "}\n" + end_assign;
+                else
+                    return strSlice(children.back()->getDataRef()->symbol.getName(), 3, -4);
             }
 		case function_call:
 		{
@@ -704,7 +753,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
 					 		    for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
 					 		    	nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
                                 // Note that we only add scoping to the object, as this specifies our member function too
-/*HERE*/				 	    return function_header + scopePrefix(unaliasedTypeDef) + CifyName(unaliasedTypeDef->getDataRef()->symbol.getName()) +"__" +
+/*HERE*/				 	    return function_header + prefixIfNeeded(scopePrefix(unaliasedTypeDef), CifyName(unaliasedTypeDef->getDataRef()->symbol.getName())) +"__" +
                                         CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject, true, enclosingFunction) + ",";
 					 		    //The comma lets the upper function call know we already started the param list
 					 		    //Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
@@ -746,11 +795,11 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                         //Check to see if we're inside of an object and this is a method call
                         bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
                         if (isSelfObjectMethod) {
-                            output += function_header + scopePrefix(children[0]) + CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__";
+                            output += function_header + prefixIfNeeded(scopePrefix(children[0]), CifyName(enclosingObject->getDataRef()->symbol.getName())) +"__";
                             output += CifyName(name + nameDecoration) + "(";
                             output += std::string(addClosedOver ? "(*closed_variables->this)" : "this") + (children.size() > 1 ? "," : "");
                         } else {
-                            output += function_header + scopePrefix(children[0]) + CifyName(name + nameDecoration) + "(";
+                            output += function_header + prefixIfNeeded(scopePrefix(children[0]), CifyName(name + nameDecoration)) + "(";
                         }
                     }
 				}
@@ -877,8 +926,9 @@ std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject,
 
         distructDoubleStack.back().push_back(children[i]);
 	}
-    std::string functionSignature = "\n" + ValueTypeToCType(data.valueType->returnType, function_header + scopePrefix(from) +  CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
-		+ CifyName(data.symbol.getName()) + nameDecoration) + "(" + ValueTypeToCType(&enclosingObjectType, "this") + parameters + ")";
+    std::string functionSignature = "\n" + ValueTypeToCType(data.valueType->returnType, function_header +
+            prefixIfNeeded(scopePrefix(from),  CifyName(enclosingObject->getDataRef()->symbol.getName())) + "__" +
+		    CifyName(data.symbol.getName()) + nameDecoration) + "(" + ValueTypeToCType(&enclosingObjectType, "this") + parameters + ")";
     *functionPrototype += functionSignature + ";\n";
     // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
     //
@@ -928,7 +978,7 @@ std::string CGenerator::generateMethodIfExists(Type* type, std::string method, s
         std::string nameDecoration;
         for (Type *paramType : methodDef->getDataRef()->valueType->parameterTypes)
             nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
-        return function_header + scopePrefix(typeDefinition) + CifyName(typeDefinition->getDataRef()->symbol.getName()) + "__" + method + nameDecoration + "(" + parameter + ");\n";
+        return function_header + prefixIfNeeded(scopePrefix(typeDefinition), CifyName(typeDefinition->getDataRef()->symbol.getName())) + "__" + method + nameDecoration + "(" + parameter + ");\n";
     }
     return "";
 }
@@ -952,7 +1002,7 @@ std::string CGenerator::closureStructType(std::set<NodeTree<ASTData>*> closedVar
         // will actually change the underlying function's type. We cheat and just add a *
         //auto tmp = var->getDataRef()->valueType->withIncreasedIndirection();
         std::string varName = var->getDataRef()->symbol.getName();
-        varName = (varName == "this") ? varName : scopePrefix(var) + varName;
+        varName = (varName == "this") ? varName : prefixIfNeeded(scopePrefix(var), varName);
         typedefString += ValueTypeToCType(var->getDataRef()->valueType->withoutReference(), "*"+varName) + ";";
     }
     std::string structName = "closureStructType" + getID();
@@ -970,7 +1020,7 @@ std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string decl
 	switch (type->baseType) {
 		case none:
 			if (type->typeDefinition)
-				return_type = scopePrefix(type->typeDefinition) + CifyName(type->typeDefinition->getDataRef()->symbol.getName());
+				return_type = prefixIfNeeded(scopePrefix(type->typeDefinition), CifyName(type->typeDefinition->getDataRef()->symbol.getName()));
 			else
 				return_type = "none";
 			break;
@@ -1127,5 +1177,21 @@ std::string CGenerator::scopePrefix(NodeTree<ASTData>* from) {
     // different files. That's it for now. Methods are already lowered correctly with their parent object,
     // that parent object will get scoped. When we add a package system, we'll have to then add their scoping here
     return scopePrefix(from->getDataRef()->scope["~enclosing_scope"][0]);
+}
+std::string CGenerator::prefixIfNeeded(std::string prefix, std::string name) {
+    return simpleComplexName(name, prefix + name);
+}
+std::string CGenerator::simpleComplexName(std::string simpleName, std::string complexName) {
+    auto already = simpleComplexNameMap.find(complexName);
+    if (already != simpleComplexNameMap.end())
+        return already->second;
+    if (usedNameSet.find(simpleName) == usedNameSet.end()) {
+        usedNameSet.insert(simpleName);
+        simpleComplexNameMap[complexName] = simpleName;
+        return simpleName;
+    }
+    usedNameSet.insert(complexName);
+    simpleComplexNameMap[complexName] = complexName;
+    return complexName;
 }
 

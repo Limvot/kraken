@@ -98,7 +98,7 @@ NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<S
             }
 
         }  else if (i->getDataRef()->getName() == "adt_def") {
-            std::string name = concatSymbolTree(i->getChildren()[0]);
+            std::string name = concatSymbolTree(getNode("identifier", i));
             NodeTree<ASTData>* adt_dec = addToScope("~enclosing_scope", translationUnit, new NodeTree<ASTData>("adt_def", ASTData(adt_def, Symbol(name, true, name))));
             addToScope(name, adt_dec, translationUnit);
             translationUnit->addChild(adt_dec);
@@ -193,16 +193,37 @@ void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
 			//Do the inside of classes here
             secondPassDoClassInsides(typeDef, typedefChildren, std::map<std::string, Type*>());
         } else if (i->getDataRef()->getName() == "adt_def") {
-            std::string name = concatSymbolTree(i->getChildren()[0]);
+            std::cout << "ADT DEF" << std::endl;
+            std::cout << "there are " << getNodes("adt_option", i).size() << " adt_options" << std::endl;
+            std::string name = concatSymbolTree(getNode("identifier", i));
             NodeTree<ASTData>* adtDef = ast->getDataRef()->scope[name][0]; //No overloaded types (besides uninstantiated templates, which can have multiple versions based on types or specilizations)
-            for (NodeTree<Symbol>* j : i->getChildren()) {
-                if (j->getDataRef()->getName() == "identifier") {
-                    std::string ident_name = concatSymbolTree(j);
-                    std::cout << "add ing " << ident_name << " to " << name << " for ADT" << std::endl;
-                    NodeTree<ASTData>* enum_variant_identifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(ident_name, true), adtDef->getDataRef()->valueType));
-                    adtDef->addChild(enum_variant_identifier);
-                    addToScope(ident_name, enum_variant_identifier, adtDef);
-                    addToScope("~enclosing_scope", adtDef, enum_variant_identifier);
+            for (NodeTree<Symbol>* j : getNodes("adt_option", i)) {
+                std::string ident_name = concatSymbolTree(getNode("identifier", j));
+                std::cout << "add ing " << ident_name << " to " << name << " for ADT" << std::endl;
+                NodeTree<ASTData>* enum_variant_identifier;
+                NodeTree<Symbol>* possibleType = getNode("type", j);
+                NodeTree<ASTData>* enum_variant_function = nullptr;
+                if (possibleType) {
+                    Type* actual_type = typeFromTypeNode(possibleType, adtDef, std::map<std::string, Type*>());
+                    enum_variant_identifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(ident_name, true), actual_type));
+
+                    // also make a function prototype for a function that returns an instance of this type. If we don't contain a type, it's just the literal
+                    //enum_variant_function = new NodeTree<ASTData>("function", ASTData(function, Symbol("fun_"+ident_name, true), new Type(std::vector<Type*>{actual_type}, adtDef->getDataRef()->valueType)));
+                    enum_variant_function = new NodeTree<ASTData>("function", ASTData(function, Symbol(ident_name, true), new Type(std::vector<Type*>{actual_type}, adtDef->getDataRef()->valueType)));
+                } else {
+                    enum_variant_identifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(ident_name, true), adtDef->getDataRef()->valueType));
+                    // now a function in both cases...
+                    enum_variant_function = new NodeTree<ASTData>("function", ASTData(function, Symbol(ident_name, true), new Type(std::vector<Type*>(), adtDef->getDataRef()->valueType)));
+                }
+                adtDef->addChild(enum_variant_identifier);
+                addToScope(ident_name, enum_variant_identifier, adtDef);
+                addToScope("~enclosing_scope", adtDef, enum_variant_identifier);
+                // this comes second so it is added to the enclosing scope second so that the function is found last on identifer lookup so we can still access members that are not functions
+                // as their names alias each other
+                if (enum_variant_function) {
+                    adtDef->addChild(enum_variant_function);
+                    addToScope(ident_name, enum_variant_function, adtDef);
+                    addToScope("~enclosing_scope", adtDef, enum_variant_function);
                 }
             }
 		} else if (i->getDataRef()->getName() == "function") {
@@ -518,7 +539,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         newNode->addChildren(parameters);
         // update type with actual type
         newNode->getDataRef()->valueType = new Type(mapNodesToTypePointers(parameters), newNode->getDataRef()->valueType);
-        auto statement = transform(getNode("statement", children), scope, types, limitToFunction, templateTypeReplacements);
+        auto statement = transform(getNode("statement", children), scope, types, false, templateTypeReplacements); // definitly do not limit this statement to functions
         if (name == "lambda")
             newNode->getDataRef()->closedVariables = findVariablesToClose(newNode, statement, scope);
         for (auto i : newNode->getDataRef()->closedVariables)
@@ -564,7 +585,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	} else if (name == "expression" || name == "shiftand" || name == "term" || name == "unarad" || name == "access_operation") {
 		//If this is an actual part of an expression, not just a premoted child
 		if (children.size() > 2) {
-			NodeTree<ASTData>* lhs = transform(children[0], scope, std::vector<Type>(),limitToFunction, templateTypeReplacements); //LHS does not inherit types
+			NodeTree<ASTData>* lhs = transform(children[0], scope, std::vector<Type>(),false, templateTypeReplacements); //LHS does not inherit types, or limittofunction
 			NodeTree<ASTData>* rhs;
 			if (name == "access_operation") {
 				std::cout << "lhs is: " << lhs->getDataRef()->toString() << std::endl;
@@ -1033,7 +1054,9 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
     if (possibleMatches.size()) {
 		for (auto i : possibleMatches) {
 			//We're not looking for types
-            if (i->getDataRef()->type == type_def || i->getDataRef()->type == adt_def)
+            //if (i->getDataRef()->type == type_def || i->getDataRef()->type == adt_def)
+            // actually, lets make it we're only looking for things with type function
+            if (i->getDataRef()->valueType->baseType != function_type)
 				continue;
             Type* functionType = i->getDataRef()->valueType;
 
@@ -1389,11 +1412,6 @@ std::map<std::string, Type*> ASTTransformation::makeTemplateFunctionTypeMap(Node
     return typeMap;
 }
 
-// We need recursion protection
-std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules) {
-    return scopeLookup(scope, lookup, includeModules, std::set<NodeTree<ASTData>*>());
-}
-
 NodeTree<ASTData>* ASTTransformation::generateThis(NodeTree<ASTData>* scope) {
     // if we're looking for this, traverse up until we find the declaration of this object and assign it's type to this
     NodeTree<ASTData>* trans;
@@ -1408,6 +1426,11 @@ NodeTree<ASTData>* ASTTransformation::generateThis(NodeTree<ASTData>* scope) {
     identifier->getDataRef()->scope = trans->getDataRef()->scope;
     this_map[trans] = identifier;
     return identifier;
+}
+
+// We need recursion protection
+std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules) {
+    return scopeLookup(scope, lookup, includeModules, std::set<NodeTree<ASTData>*>());
 }
 
 std::vector<NodeTree<ASTData>*> ASTTransformation::scopeLookup(NodeTree<ASTData>* scope, std::string lookup, bool includeModules, std::set<NodeTree<ASTData>*> visited) {

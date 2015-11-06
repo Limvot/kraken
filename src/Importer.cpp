@@ -47,6 +47,7 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std:
 	collapseSymbols.push_back(Symbol("opt_typed_parameter_list", false));
 	collapseSymbols.push_back(Symbol("opt_parameter_list", false));
 	collapseSymbols.push_back(Symbol("identifier_list", false));
+	collapseSymbols.push_back(Symbol("adt_option_list", false));
 	collapseSymbols.push_back(Symbol("statement_list", false));
 	collapseSymbols.push_back(Symbol("parameter_list", false));
 	collapseSymbols.push_back(Symbol("typed_parameter_list", false));
