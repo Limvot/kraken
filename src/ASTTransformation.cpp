@@ -197,6 +197,15 @@ void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
             std::cout << "there are " << getNodes("adt_option", i).size() << " adt_options" << std::endl;
             std::string name = concatSymbolTree(getNode("identifier", i));
             NodeTree<ASTData>* adtDef = ast->getDataRef()->scope[name][0]; //No overloaded types (besides uninstantiated templates, which can have multiple versions based on types or specilizations)
+
+            // Let's make an equality function prototype
+            Type *thisADTType = adtDef->getDataRef()->valueType;
+            NodeTree<ASTData>* equalityFunc = new NodeTree<ASTData>("function", ASTData(function, Symbol("operator==", true), new Type(std::vector<Type*>{thisADTType}, new Type(boolean))));
+            //NodeTree<ASTData>* equalityFunc = new NodeTree<ASTData>("function", ASTData(function, Symbol("operator==", true), new Type(std::vector<Type*>{thisADTType, thisADTType}, new Type(boolean))));
+            adtDef->addChild(equalityFunc);
+            addToScope("operator==", equalityFunc, adtDef);
+            addToScope("~enclosing_scope", adtDef, equalityFunc);
+
             for (NodeTree<Symbol>* j : getNodes("adt_option", i)) {
                 std::string ident_name = concatSymbolTree(getNode("identifier", j));
                 std::cout << "add ing " << ident_name << " to " << name << " for ADT" << std::endl;
@@ -209,11 +218,11 @@ void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
 
                     // also make a function prototype for a function that returns an instance of this type. If we don't contain a type, it's just the literal
                     //enum_variant_function = new NodeTree<ASTData>("function", ASTData(function, Symbol("fun_"+ident_name, true), new Type(std::vector<Type*>{actual_type}, adtDef->getDataRef()->valueType)));
-                    enum_variant_function = new NodeTree<ASTData>("function", ASTData(function, Symbol(ident_name, true), new Type(std::vector<Type*>{actual_type}, adtDef->getDataRef()->valueType)));
+                    enum_variant_function = new NodeTree<ASTData>("function", ASTData(function, Symbol(ident_name, true), new Type(std::vector<Type*>{actual_type}, thisADTType)));
                 } else {
                     enum_variant_identifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(ident_name, true), adtDef->getDataRef()->valueType));
                     // now a function in both cases...
-                    enum_variant_function = new NodeTree<ASTData>("function", ASTData(function, Symbol(ident_name, true), new Type(std::vector<Type*>(), adtDef->getDataRef()->valueType)));
+                    enum_variant_function = new NodeTree<ASTData>("function", ASTData(function, Symbol(ident_name, true), new Type(std::vector<Type*>(), thisADTType)));
                 }
                 adtDef->addChild(enum_variant_identifier);
                 addToScope(ident_name, enum_variant_identifier, adtDef);

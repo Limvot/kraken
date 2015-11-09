@@ -1,4 +1,4 @@
-import io:*
+/*import io:**/
 
 adt options {
     option0,
@@ -11,12 +11,13 @@ adt maybe_int {
 }
 
 fun handle_possibility(it: maybe_int) {
-    if (it == maybe_int::no_int())
-        println("no int")
+    if (it == maybe_int::no_int()) {
+        /*println("no int")*/
+    }
     /*if (it == maybe_int::an_int) {*/
     else {
-        print("an int: ")
-        println(it.an_int)
+        /*print("an int: ")*/
+        /*println(it.an_int)*/
     }
 }
 
@@ -32,10 +33,12 @@ fun can_pass(it: options): options {
 
 fun main():int {
     var it: options = can_pass(options::option0())
-    if (it == options::option0())
-        println("nope")
-    if (it == options::option1())
-        println("option1")
+    if (it == options::option0()) {
+        /*println("nope")*/
+    }
+    if (it == options::option1()) {
+        /*println("option1")*/
+    }
 
     var possibility = give_maybe(false)
     handle_possibility(possibility)

@@ -41,6 +41,7 @@ class Type {
 		void decreaseIndirection();
 		void modifyIndirection(int mod);
 		Type withIncreasedIndirection();
+        Type *withIncreasedIndirectionPtr();
 		Type withDecreasedIndirection();
 
 		Type* withoutReference();
