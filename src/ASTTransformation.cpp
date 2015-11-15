@@ -555,7 +555,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
         auto statement = transform(getNode("statement", children), scope, types, false, templateTypeReplacements); // definitly do not limit this statement to functions
         if (name == "lambda")
             newNode->getDataRef()->closedVariables = findVariablesToClose(newNode, statement, scope);
-        for (auto i : newNode->getDataRef()->closedVariables)
+        //for (auto i : newNode->getDataRef()->closedVariables)
             //std::cout << "OK, CLOSED: " << i->getDataRef()->toString() << std::endl;
         newNode->addChild(statement);
 		//std::cout << "finished function" << functionName << std::endl;

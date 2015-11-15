@@ -33,7 +33,7 @@ obj regexState (Object) {
     fun destruct():void {
         next_states.destruct()
     }
-    fun match(input: char): vector::vector<*regexState> {
+    fun match_char(input: char): vector::vector<*regexState> {
         return next_states.filter(fun(it:*regexState):bool { return it->character == input; })
     }
     fun is_end():bool {
@@ -190,8 +190,8 @@ obj regex (Object, Serializable) {
                 return longest
             if (next.any_true(fun(state: *regexState):bool { return state->is_end(); }))
                 longest = i
-            //next = next.flatten_map<*regexState>(fun(state: *regexState): vector::vector<*regexState> { return state->match(to_match[i]); })
-            next = next.flatten_map(fun(state: *regexState): vector::vector<*regexState> { return state->match(to_match[i]); })
+            //next = next.flatten_map<*regexState>(fun(state: *regexState): vector::vector<*regexState> { return state->match_char(to_match[i]); })
+            next = next.flatten_map(fun(state: *regexState): vector::vector<*regexState> { return state->match_char(to_match[i]); })
         }
         if (next.any_true(fun(state: *regexState):bool { return state->is_end(); }))
             return to_match.length()
