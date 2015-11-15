@@ -526,6 +526,35 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             if (children.size() > 2)
                 output += " else { " + generate(children[2], enclosingObject, justFuncName, enclosingFunction).oneString() + " }";
             return output;
+        case match_statement:
+            {
+                output += "/* match_statement */\n";
+                CCodeTriple thingToMatch = generate(children[0], enclosingObject, false, enclosingFunction);
+                output.preValue += thingToMatch.preValue;
+                output.postValue += thingToMatch.postValue;
+                for (auto case_stmt : slice(children, 1, -1)) {
+                    auto case_children = case_stmt->getChildren();
+                    std::string option = generate(case_children[0], enclosingObject, false, enclosingFunction).oneString();
+                    output += "/* case " + option + " if " + thingToMatch.value + " */\n";
+                    output += tabs() + "if (" + thingToMatch.value + ".flag == " + option + ") {\n";
+                    tabLevel++;
+                    if (case_children.size() > 2) {
+                        output += tabs() + ValueTypeToCType(case_children[1]->getData().valueType, generate(case_children[1], enclosingObject, false, enclosingFunction).oneString())
+                            + " = " + thingToMatch.value + "." + option + ";\n";
+                        output += generate(case_children[2], enclosingObject, false, enclosingFunction).oneString();
+                    } else {
+                        output += generate(case_children[1], enclosingObject, false, enclosingFunction).oneString();
+                    }
+                    tabLevel--;
+                    output += "}\n";
+                }
+                return output;
+            }
+            break;
+        case case_statement:
+            output += "/* case_statement */";
+            throw "case statement isn't actually used, but is generated in match";
+            break;
         case while_loop:
             {
                 // we push on a new vector to hold while stuff that might need a destructor call

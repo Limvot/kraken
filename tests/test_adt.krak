@@ -53,6 +53,21 @@ fun main():int {
         println("equality false works!")
     else
         println("equality false fails!")
+
+    match (maybe_int::an_int(11)) {
+        maybe_int::an_int(the_int) {
+            print("matched an int:")
+            print(the_int)
+            println(" correctly!")
+        }
+        maybe_int::no_int() {
+            println("matched no int incorrectly!")
+        }
+    }
+    match (maybe_int::no_int()) {
+        maybe_int::an_int(the_int) println("matched an int incorrectly!")
+        maybe_int::no_int() println("matched no int correctly!")
+    }
     return 0
 }
 

@@ -95,6 +95,10 @@ adt_option = identifier | identifier WS dec_type ;
 
 if_statement = "if" WS "\(" WS boolean_expression WS "\)" WS statement | "if" WS "\(" WS boolean_expression WS "\)" WS statement WS "else" WS statement ;
 
+match_statement = "match" WS "\(" WS boolean_expression WS "\)" WS "{" WS case_statement_list WS "}" ;
+case_statement_list = case_statement WS case_statement_list | case_statement ;
+case_statement = scoped_identifier WS "\(" WS identifier WS "\)" WS statement | scoped_identifier WS "\(" WS "\)" WS statement ;
+
 while_loop = "while" WS boolean_expression WS statement ;
 
 for_loop = "for" WS "\(" WS statement WS boolean_expression line_end WS statement WS "\)"  WS statement ;
@@ -104,7 +108,7 @@ return_statement = "return" | "return" WS boolean_expression ;
 code_block = "{" WS statement_list WS "}" | "{" WS "}" ;
 
 statement_list = statement_list WS statement | statement ;
-statement = if_statement | while_loop | for_loop | return_statement line_end | boolean_expression line_end | assignment_statement line_end | declaration_statement line_end | code_block | if_comp | simple_passthrough | break_statement | continue_statement | defer_statement ; 
+statement = if_statement | match_statement | while_loop | for_loop | return_statement line_end | boolean_expression line_end | assignment_statement line_end | declaration_statement line_end | code_block | if_comp | simple_passthrough | break_statement | continue_statement | defer_statement ; 
 break_statement = "break" ;
 continue_statement = "continue" ;
 defer_statement = "defer" WS statement ;

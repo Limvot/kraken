@@ -662,6 +662,30 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 		newNode = new NodeTree<ASTData>(name, ASTData(statement));
 	} else if (name == "if_statement") {
 		newNode = new NodeTree<ASTData>(name, ASTData(if_statement));
+	} else if (name == "match_statement") {
+		newNode = new NodeTree<ASTData>(name, ASTData(match_statement));
+	} else if (name == "case_statement") {
+		newNode = new NodeTree<ASTData>(name, ASTData(case_statement));
+		std::string adtOptionStr = concatSymbolTree(getNodes("scoped_identifier", children)[0]);
+        auto optionDefPoss = scopeLookup(scope, adtOptionStr);
+        auto optionDef = optionDefPoss[0];
+        //auto adtDef = optionDef->getDataRef()->scope["~enclosing_scope"][0];
+
+        addToScope("~enclosing_scope", scope, newNode);
+        newNode->addChild(optionDef);
+
+        // we have a destructure
+		auto newIdentifierSymbolNodes = getNodes("identifier", children);
+        if (newIdentifierSymbolNodes.size()) {
+            std::string newIdentifierStr = concatSymbolTree(newIdentifierSymbolNodes[0]);
+            NodeTree<ASTData>* newIdentifier = new NodeTree<ASTData>("identifier", ASTData(identifier, Symbol(newIdentifierStr, true), optionDef->getDataRef()->valueType));
+            addToScope(newIdentifierStr, newIdentifier, newNode);
+            addToScope("~enclosing_scope", newNode, newIdentifier);
+            newNode->addChild(newIdentifier);
+        }
+
+        newNode->addChild(transform(getNode("statement",children), newNode, types, limitToFunction, templateTypeReplacements));
+        return newNode;
 	} else if (name == "while_loop") {
 		newNode = new NodeTree<ASTData>(name, ASTData(while_loop));
 	} else if (name == "for_loop") {
