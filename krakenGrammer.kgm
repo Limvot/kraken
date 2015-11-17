@@ -16,6 +16,7 @@ template_param_list = template_param_list WS "," WS template_param | template_pa
 template_param = identifier WS traits | identifier ;
 
 import = "import" WS identifier line_end | "import" WS identifier WS ":" WS "\*" line_end | "import" WS identifier WS ":" WS identifier_list line_end ;
+identifier_list = identifier | identifier WS "," WS identifier_list ;
 
 # all for optional semicolons      
 line_break = "
@@ -57,7 +58,6 @@ triple_quoted_string = "\"\"\"((\"\"(`|1|2|3|4|5|6|7|8|9|0|-|=|	|q|w|e|r|t|y|u|i
 
 #identifier = alpha_alphanumeric ;
 identifier = augmented_alpha_alphanumeric ;
-identifier_list = identifier | identifier WS "," WS identifier_list ;
 scope_op = ":" ":" ;
 scoped_identifier = scoped_identifier WS scope_op WS identifier | identifier ;
 
@@ -89,9 +89,15 @@ traits = "\(" WS trait_list WS "\)" ;
 trait_list = trait_list WS "," WS scoped_identifier | scoped_identifier ;
 
 adt_nonterm = "adt" ;
-adt_def = adt_nonterm WS identifier WS "{" WS identifier_list WS "}" ;
+adt_def = adt_nonterm WS identifier WS "{" WS adt_option_list WS "}" ;
+adt_option_list = adt_option | adt_option WS "," WS adt_option_list ;
+adt_option = identifier | identifier WS dec_type ;
 
 if_statement = "if" WS "\(" WS boolean_expression WS "\)" WS statement | "if" WS "\(" WS boolean_expression WS "\)" WS statement WS "else" WS statement ;
+
+match_statement = "match" WS "\(" WS boolean_expression WS "\)" WS "{" WS case_statement_list WS "}" ;
+case_statement_list = case_statement WS case_statement_list | case_statement ;
+case_statement = scoped_identifier WS "\(" WS identifier WS "\)" WS statement | scoped_identifier WS "\(" WS "\)" WS statement ;
 
 while_loop = "while" WS boolean_expression WS statement ;
 
@@ -102,7 +108,7 @@ return_statement = "return" | "return" WS boolean_expression ;
 code_block = "{" WS statement_list WS "}" | "{" WS "}" ;
 
 statement_list = statement_list WS statement | statement ;
-statement = if_statement | while_loop | for_loop | return_statement line_end | boolean_expression line_end | assignment_statement line_end | declaration_statement line_end | code_block | if_comp | simple_passthrough | break_statement | continue_statement | defer_statement ; 
+statement = if_statement | match_statement | while_loop | for_loop | return_statement line_end | boolean_expression line_end | assignment_statement line_end | declaration_statement line_end | code_block | if_comp | simple_passthrough | break_statement | continue_statement | defer_statement ; 
 break_statement = "break" ;
 continue_statement = "continue" ;
 defer_statement = "defer" WS statement ;

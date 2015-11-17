@@ -1,7 +1,7 @@
 #include "CGenerator.h"
 
 CGenerator::CGenerator() : generatorString("__C__") {
-	tabLevel = 0;
+    tabLevel = 0;
     id = 0;
     function_header = "fun_";
     functionTypedefString = "";
@@ -12,39 +12,42 @@ CGenerator::~CGenerator() {
 
 // Note the use of std::pair to hold two strings - the running string for the header file and the running string for  the c file.
 void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName) {
-	//Generate an entire set of files
-	std::string buildString = "#!/bin/sh\ncc -g -O3 -std=c99 ";
-	std::cout << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
+    //Generate an entire set of files
+    std::string buildString = "#!/bin/sh\ncc -g -O3 -std=c99 ";
+    std::cout << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
     std::cout << "\n\nGenerate pass for: " << outputName << std::endl;
     buildString += outputName + ".c ";
-    std::ofstream outputCFile, outputHFile;
+    //std::ofstream outputCFile, outputHFile;
+    std::ofstream outputCFile;
     outputCFile.open(outputName + "/" + outputName + ".c");
-    outputHFile.open(outputName + "/" + outputName + ".h");
-    if (outputCFile.is_open() || outputHFile.is_open()) {
+    //outputHFile.open(outputName + "/" + outputName + ".h");
+    //if (outputCFile.is_open() || outputHFile.is_open()) {
+    if (outputCFile.is_open()) {
         // Prequel common to all files
         auto chPair = generateTranslationUnit(outputName, ASTs);
-        outputHFile << "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n" << chPair.first;
-        outputCFile << "#include \"" + outputName + ".h\"\n\n" << chPair.second;
+        //outputHFile << "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n" << chPair.first;
+        //outputCFile << "#include \"" + outputName + ".h\"\n\n" << chPair.second;
+        outputCFile << "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n" << chPair.first << "\n\n// C FILE BEGIN\n\n" << chPair.second;
     } else {
         std::cerr << "Cannot open file " << outputName << ".c/h" << std::endl;
     }
     outputCFile.close();
-    outputHFile.close();
+    //outputHFile.close();
 
-	buildString += linkerString;
-	buildString += "-o " + outputName;
-	std::ofstream outputBuild;
-	outputBuild.open(outputName + "/" + split(outputName, '/').back() + ".sh");
-	outputBuild << buildString;
-	outputBuild.close();
+    buildString += linkerString;
+    buildString += "-o " + outputName;
+    std::ofstream outputBuild;
+    outputBuild.open(outputName + "/" + split(outputName, '/').back() + ".sh");
+    outputBuild << buildString;
+    outputBuild.close();
     std::cout << "DEFER DOUBLE STACK " << deferDoubleStack.size() << std::endl;
 }
 
 std::string CGenerator::tabs() {
-	std::string returnTabs;
-	for (int i = 0; i < tabLevel; i++)
-		returnTabs += "\t";
-	return returnTabs;
+    std::string returnTabs;
+    for (int i = 0; i < tabLevel; i++)
+        returnTabs += "\t";
+    return returnTabs;
 }
 
 std::string CGenerator::getID() {
@@ -54,21 +57,84 @@ std::string CGenerator::getID() {
 std::string CGenerator::generateTypeStruct(NodeTree<ASTData>* from) {
     auto data = from->getData();
     auto children = from->getChildren();
-    std::string objectString;
-    if (data.type == type_def)
-        objectString = "struct __struct_dummy_";
-    else if (data.type == adt_def)
-        objectString = "enum __adt_dummy_";
-    objectString += scopePrefix(from) + CifyName(data.symbol.getName()) + "__ {\n";
+    std::string structString, enumString, functionString;
+    std::string enumName = "__enum_dummy_" + prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName())+"__");
+    enumString = "enum " + enumName + " {\n";
+    structString = "struct __struct_dummy_";
+    structString += prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName())+"__") + " {\n";
+    if (data.type == adt_def) {
+        structString = "typedef " + structString + "    enum " + enumName + " flag;\n    union  { \n";
+        tabLevel++;
+    }
     tabLevel++;
-    for (int i = (data.type == adt_def ? 1 : 0); i < children.size(); i++) {
+
+    for (auto child :  children) {
         //std::cout << children[i]->getName() << std::endl;
-        if (children[i]->getName() != "function")
-            objectString += tabs() + generate(children[i], nullptr).oneString() + (data.type == adt_def ? ",\n" : "\n");
+        if (child->getName() != "function") {
+            if (data.type == adt_def) {
+                // if this is not a plain no-data adt member (so if it is a primitive or doesn't have a reference back to)
+                // wait a sec, this is easier
+                if ( child->getDataRef()->valueType->typeDefinition != from)
+                    structString += tabs() + ValueTypeToCType(child->getDataRef()->valueType,  child->getDataRef()->symbol.getName()) + "; /* adt data member */\n";
+            } else {
+                structString += tabs() + generate(child, nullptr).oneString() + "\n";
+            }
+            enumString += tabs() + generate(child, nullptr).oneString() + (data.type == adt_def ? ",\n" : "\n");
+        } else {
+            if (data.type == adt_def) {
+                std::string orig_fun_name = child->getDataRef()->symbol.getName();
+                std::string fun_name;
+                std::string first_param;
+                if (orig_fun_name == "operator==" || orig_fun_name == "operator!=") {
+                    fun_name = "fun_" + data.symbol.getName() + "__" + CifyName(orig_fun_name);
+                    first_param = ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0]->withIncreasedIndirectionPtr(), "this") + ", ";
+                } else {
+                    fun_name = "fun_" + orig_fun_name;
+                }
+                bool has_param = child->getDataRef()->valueType->parameterTypes.size();
+                functionString += "\n" + ValueTypeToCType(child->getDataRef()->valueType->returnType, fun_name) + "(" + first_param +
+                    (has_param ? ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0], "in") : "") + ") { /*adt func*/\n";
+                if (orig_fun_name == "operator==") {
+                    functionString += "     /* equality woop woop */\n";
+                    functionString += "     if (this->flag != in.flag) return false;\n";
+
+                    for (auto child :  children) {
+                        if (child->getName() != "function" && child->getDataRef()->valueType->typeDefinition != from) {
+                            std::string option_name = child->getDataRef()->symbol.getName();
+                            functionString += "     if (this->flag == " + option_name + ")\n";
+                            functionString += "           return this->" + option_name + " == in." + option_name + ";\n";
+                        }
+                    }
+
+                    functionString += "     return true;\n";
+                } else if (orig_fun_name == "operator!=") {
+                    functionString += "     /* inequality woop woop */\n";
+                    functionString += "     return !fun_" + data.symbol.getName() + "__" + CifyName("operator==") + "(this, in);\n";
+                } else {
+                    // ok, is a constructor function
+                    functionString += "     /* constructor woop woop */\n";
+                    functionString += "     " + data.symbol.getName() + " toRet;\n";
+                    functionString += "     toRet.flag = " + orig_fun_name + ";\n";
+                    if (has_param)
+                        functionString += "     toRet." + orig_fun_name + " = in;\n";
+                    functionString += "     return toRet;\n";
+                }
+                functionString += "}\n";
+            }
+        }
     }
     tabLevel--;
-    objectString += "};";
-    return objectString;
+    if (data.type == adt_def) {
+        //structString += "} data; /*end union*/ \n";
+        tabLevel--;
+        structString += "    }; /*end union*/\n} " + CifyName(data.symbol.getName()) + "; /* end struct */";
+    } else {
+        structString += "};";
+    }
+    enumString += "};\n";
+    if (data.type == adt_def)
+        return  enumString + structString + functionString;
+    return structString;
 }
 
 // This method recurseivly generates all aliases of some definition
@@ -82,8 +148,8 @@ std::string CGenerator::generateAliasChains(std::map<std::string, NodeTree<ASTDa
                         && declarationData->valueType->typeDefinition != declaration
                         && declarationData->valueType->typeDefinition == definition) {
                     output += "typedef " +
-                        scopePrefix(definition) + CifyName(definition->getDataRef()->symbol.getName()) + " " +
-                        scopePrefix(declaration) + CifyName(declarationData->symbol.getName()) + ";\n";
+                        prefixIfNeeded(scopePrefix(definition), CifyName(definition->getDataRef()->symbol.getName())) + " " +
+                        prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData->symbol.getName())) + ";\n";
                     // Recursively add the ones that depend on this one
                     output += generateAliasChains(ASTs, declaration);
                 }
@@ -91,6 +157,17 @@ std::string CGenerator::generateAliasChains(std::map<std::string, NodeTree<ASTDa
         }
     }
     return output;
+}
+
+bool CGenerator::isUnderNodeWithType(NodeTree<ASTData>* from, ASTType type) {
+    auto scope = from->getDataRef()->scope;
+    auto upper = scope.find("~enclosing_scope");
+    if (upper != scope.end()) {
+        if (upper->second[0]->getDataRef()->type == type)
+            return true;
+        return isUnderNodeWithType(upper->second[0], type);
+    }
+    return false;
 }
 
 bool CGenerator::isUnderTranslationUnit(NodeTree<ASTData>* from, NodeTree<ASTData>* node) {
@@ -193,13 +270,13 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                 switch(declarationData.type) {
                     case identifier:
                         {
-                        auto parent = declaration->getDataRef()->scope["~enclosing_scope"][0];
-                        if (parent->getChildren().size() == 1)
-                            variableDeclarations += ValueTypeToCType(declarationData.valueType,  scopePrefix(declaration) + declarationData.symbol.getName()) + "; /*identifier*/\n";
-                        else
-                            variableDeclarations += ValueTypeToCType(declarationData.valueType, generate(parent->getChildren()[0], nullptr, true, nullptr).oneString()) + " = " + generate(parent->getChildren()[1], nullptr, true, nullptr).oneString() + ";";
-                        variableExternDeclarations += "extern " + ValueTypeToCType(declarationData.valueType, declarationData.symbol.getName()) + "; /*extern identifier*/\n";
-                        break;
+                            auto parent = declaration->getDataRef()->scope["~enclosing_scope"][0];
+                            if (parent->getChildren().size() == 1)
+                                variableDeclarations += ValueTypeToCType(declarationData.valueType,  prefixIfNeeded(scopePrefix(declaration), declarationData.symbol.getName())) + "; /*identifier*/\n";
+                            else
+                                variableDeclarations += ValueTypeToCType(declarationData.valueType, generate(parent->getChildren()[0], nullptr, true, nullptr).oneString()) + " = " + generate(parent->getChildren()[1], nullptr, true, nullptr).oneString() + ";";
+                            variableExternDeclarations += "extern " + ValueTypeToCType(declarationData.valueType, declarationData.symbol.getName()) + "; /*extern identifier*/\n";
+                            break;
                         }
                     case function:
                         {
@@ -217,12 +294,11 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                     parameters += ValueTypeToCType(decChildren[j]->getData().valueType, generate(decChildren[j], nullptr).oneString());
                                     nameDecoration += "_" + ValueTypeToCTypeDecoration(decChildren[j]->getData().valueType);
                                 }
-                                functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType->returnType, ((declarationData.symbol.getName() == "main") ? "" : function_header + scopePrefix(declaration)) +
-                                                    CifyName(declarationData.symbol.getName() + nameDecoration)) +
-                                                    "(" + parameters + "); /*func*/\n";
+                                std::string funName = (declarationData.symbol.getName() == "main") ? "main" :
+                                    function_header + prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName() + nameDecoration));
+                                functionPrototypes += "\n" + ValueTypeToCType(declarationData.valueType->returnType, funName) + "(" + parameters + "); /*func*/\n";
                                 // generate function
-                                std::cout << "Generating " << scopePrefix(declaration) +
-                                                            CifyName(declarationData.symbol.getName()) << std::endl;
+                                //std::cout << "Generating " << prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName())) << std::endl;
                                 functionDefinitions += generate(declaration, nullptr).oneString();
                             }
                         }
@@ -238,18 +314,17 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                 continue; // Aliases of objects are done with the thing it alises
                             // Otherwise, we're actually a renaming of a primitive, can generate here
                             plainTypedefs += "typedef " + ValueTypeToCType(declarationData.valueType,
-                                                scopePrefix(declaration) +
-                                                CifyName(declarationData.symbol.getName())) + ";\n";
+                                    prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName()))) + ";\n";
                             plainTypedefs += generateAliasChains(ASTs, declaration);
                         } else {
                             plainTypedefs += "typedef struct __struct_dummy_" +
-                                                scopePrefix(declaration) + CifyName(declarationData.symbol.getName()) + "__ " +
-                                                scopePrefix(declaration) + CifyName(declarationData.symbol.getName())  + ";\n";
+                                prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName()) + "__") + " " +
+                                prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName()))  + ";\n";
                             functionPrototypes += "/* Method Prototypes for " + declarationData.symbol.getName() + " */\n";
                             // We use a seperate string for this because we only include it if this is the file we're defined in
                             std::string objectFunctionDefinitions = "/* Method Definitions for " + declarationData.symbol.getName() + " */\n";
                             for (int j = 0; j < decChildren.size(); j++) {
-                                std::cout << decChildren[j]->getName() << std::endl;
+                                //std::cout << decChildren[j]->getName() << std::endl;
                                 if (decChildren[j]->getName() == "function"
                                         && decChildren[j]->getDataRef()->valueType->baseType != template_type) //If object method and not template
                                     objectFunctionDefinitions += generateObjectMethod(declaration, decChildren[j], &functionPrototypes) + "\n";
@@ -262,23 +337,19 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                         }
                         break;
                     case adt_def:
-                    {
-                        //type
-                        plainTypedefs += "/* adt " + declarationData.symbol.getName() + " */\n";
-                        //plainTypedefs += "typedef struct __adt_dummy_" +
-                        plainTypedefs += "typedef enum __adt_dummy_" +
-                                            scopePrefix(declaration) + CifyName(declarationData.symbol.getName()) + "__ " +
-                                            scopePrefix(declaration) + CifyName(declarationData.symbol.getName())  + ";\n";
-                        // We use a seperate string for this because we only include it if this is the file we're defined in
-                        std::string enumString = "/* Enum Definition for " + declarationData.symbol.getName() + " */\n";
-                        // skip the name of the thing
-                        for (int j = 1; j < decChildren.size(); j++) {
-                            std::cout << decChildren[j]->getName() << std::endl;
-                            if (decChildren[j]->getName() == "identifier") //If object method and not template
-                                enumString += "an_option \n";
+                        {
+                            //type
+                            //don't even need to do this anymore, it's all earlier
+                            //plainTypedefs += "/* adt " + declarationData.symbol.getName() + " */\n";
+                            //plainTypedefs += "typedef struct __struct_dummy_" +
+                            //prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName())+ "__") + " " +
+                            //prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName()))  + ";\n";
+                            //// skip the name of the thing
+                            //for (int j = 1; j < decChildren.size(); j++) {
+                            //std::cout << decChildren[j]->getName() << std::endl;
+                            //}
+                            break;
                         }
-                        break;
-                    }
                     default:
                         //std::cout << "Declaration? named " << declaration->getName() << " of unknown type " << ASTData::ASTTypeToString(declarationData.type) << " in translation unit scope" << std::endl;
                         cOutput += "/*unknown declaration named " + declaration->getName() + "*/\n";
@@ -294,151 +365,153 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
 
 //The enclosing object is for when we're generating the inside of object methods. They allow us to check scope lookups against the object we're in
 CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enclosingObject, bool justFuncName, NodeTree<ASTData>* enclosingFunction) {
-	ASTData data = from->getData();
-	std::vector<NodeTree<ASTData>*> children = from->getChildren();
+    ASTData data = from->getData();
+    std::vector<NodeTree<ASTData>*> children = from->getChildren();
     //std::string output;
     CCodeTriple output;
-	switch (data.type) {
-		case translation_unit:
-		{
-            // Should not happen! We do this in it's own function now!
-            std::cerr << "Trying to normal generate a translation unit! That's a nono! (" << from->getDataRef()->toString() << ")" << std::endl;
-            throw "That's not gonna work";
-		}
-			break;
-		case interpreter_directive:
-			//Do nothing
-			break;
-		case import:
-            return CCodeTriple("/* never reached import? */\n");
-		case identifier:
-		{
-            std::string preName = "";
-            std::string postName = "";
-            bool closed = false;
-            // check for this being a closed over variable
-            // first, get declaring function, if it exists
-            if (enclosingFunction) {
-                if (enclosingFunction->getDataRef()->closedVariables.size()) {
-                    std::cout << "WHOH IS A CLOSER" << std::endl;
-                    if (enclosingFunction->getDataRef()->closedVariables.find(from) != enclosingFunction->getDataRef()->closedVariables.end()) {
-                        preName += "(*closed_variables->";
-                        postName += ")";
-                        closed = true;
-                    }
-                }
-            }
-            // enclosing function comes first now, we might have a double closure that both close over the this pointer of an object
-            //but first, if we're this, we should just emit. (assuming enclosing object) (note that technically this would fall through, but for errors)
-            if (data.symbol.getName() == "this") {
-                if (enclosingObject || enclosingFunction)
-                    return CCodeTriple(preName + "this" + postName);
-                std::cerr << "Error: this used in non-object scope" << std::endl;
-                throw "Error: this used in non-object scope";
-            }
-			//If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
-			if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
-				preName = "(" + preName + "this)->"; // incase this is a closed over this that is referencing another thing (I think this happens for a.b when a is supposed to be closed over but isn't)
-            // dereference references, but only if inside a function and not if this is a closed over variable
-			if (enclosingFunction && data.valueType->is_reference && !closed) {
-				preName += "(*";
-                postName += ")";
-            }
-            // we're scope prefixing EVERYTHING
-			return preName + scopePrefix(from) + CifyName(data.symbol.getName()) + postName; //Cifying does nothing if not an operator overload
-		}
-		case function:
-		{
-			if (data.valueType->baseType == template_type)
-				return "/* template function: " + data.symbol.getName() + " */";
-
-            // we push on a new vector to hold parameters that might need a destructor call
-            distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
-
-			std::string nameDecoration, parameters;
-            if (data.closedVariables.size())
-                parameters += closureStructType(data.closedVariables) + " *closed_variables";
-			for (int j = 0; j < children.size()-1; j++) {
-				if (j > 0 || data.closedVariables.size())
-					parameters += ", ";
-				parameters += ValueTypeToCType(children[j]->getData().valueType, generate(children[j], enclosingObject, justFuncName, enclosingFunction).oneString());
-				nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
-                // add parameters to distructDoubleStack so that their destructors will be called at return (if they exist)
-                distructDoubleStack.back().push_back(children[j]);
-			}
-            // this is for using functions as values
-            if (justFuncName) {
-                std::string funcName;
-                if (data.symbol.getName() != "main")
-                    funcName += function_header + scopePrefix(from);
-                funcName += CifyName(data.symbol.getName() + nameDecoration);
-                if (from->getDataRef()->closedVariables.size()) {
-                    std::string tmpStruct = "closureStruct" + getID();
-                    output.preValue += closureStructType(data.closedVariables) + " " + tmpStruct + " = {";
-                    bool notFirst = false;
-                    for (auto var : data.closedVariables) {
-                        if (notFirst)
-                            output.preValue += ", ";
-                        notFirst = true;
-                        std::string varName = var->getDataRef()->symbol.getName();
-                        std::string preName;
-                        if (enclosingObject && enclosingObject->getDataRef()->scope.find(varName) != enclosingObject->getDataRef()->scope.end())
-                            preName += "this->";
-                        varName = (varName == "this") ? varName : scopePrefix(var) + varName;
-                        // so that we can close over things that have been closed over by an enclosing closure
-                        output.preValue += "." + varName + " = &/*woo*/" + generate(var, enclosingObject, justFuncName, enclosingFunction).oneString() + "/*woo*/";
-                        //output.preValue += "." + varName + " = &" + preName + varName;
-                    }
-                    output.preValue += "};\n";
-                    output += "("+ ValueTypeToCType(data.valueType, "") +"){(void*)" + funcName + ", &" + tmpStruct + "}";
-                } else {
-                    output += "("+ ValueTypeToCType(data.valueType, "") +"){" + funcName + ", NULL}";
-                }
-            } else {
-            // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
-                output = "\n" + ValueTypeToCType(data.valueType->returnType, ((data.symbol.getName() == "main") ? "" : function_header + scopePrefix(from)) +
-                        CifyName(data.symbol.getName() + nameDecoration)) + "(" + parameters + ") {\n" + generate(children[children.size()-1], enclosingObject, justFuncName, from).oneString();
-                output += emitDestructors(reverse(distructDoubleStack.back()), enclosingObject);
-                output += "}\n";
-            }
-
-            distructDoubleStack.pop_back();
-			return output;
-		}
-		case code_block:
-        {
-			output += "{\n";
-            tabLevel++;
-
-            // we push on a new vector to hold parameters that might need a destructor call
-            distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
-            // we push on a new vector to hold deferred statements
-            deferDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
-			for (int i = 0; i < children.size(); i++)
-				output += generate(children[i], enclosingObject, justFuncName, enclosingFunction).oneString();
-            // we pop off the vector and go through them in reverse emitting them
-            for (auto iter = deferDoubleStack.back().rbegin(); iter != deferDoubleStack.back().rend(); iter++)
-                output += generate(*iter, enclosingObject, justFuncName, enclosingFunction).oneString();
-            deferDoubleStack.pop_back();
-            output += emitDestructors(reverse(distructDoubleStack.back()), enclosingObject);
-            distructDoubleStack.pop_back();
-
-            tabLevel--;
-			output += tabs() + "}";
-
-			return output;
-        }
-        case expression:
-			output += " " + data.symbol.getName() + ", ";
-		case boolean_expression:
-			output += " " + data.symbol.getName() + " ";
-		case statement:
+    switch (data.type) {
+        case translation_unit:
             {
-			CCodeTriple stat = generate(children[0], enclosingObject, justFuncName, enclosingFunction);
-			return tabs() + stat.preValue + stat.value + ";\n" + stat.postValue ;
+                // Should not happen! We do this in it's own function now!
+                std::cerr << "Trying to normal generate a translation unit! That's a nono! (" << from->getDataRef()->toString() << ")" << std::endl;
+                throw "That's not gonna work";
             }
-		case if_statement:
-			output += "if (" + generate(children[0], enclosingObject, true, enclosingFunction) + ")\n\t";
+            break;
+        case interpreter_directive:
+            //Do nothing
+            break;
+        case import:
+            return CCodeTriple("/* never reached import? */\n");
+        case identifier:
+            {
+                std::string preName = "";
+                std::string postName = "";
+                bool closed = false;
+                // check for this being a closed over variable
+                // first, get declaring function, if it exists
+                if (enclosingFunction) {
+                    if (enclosingFunction->getDataRef()->closedVariables.size()) {
+                        //std::cout << "WHOH IS A CLOSER" << std::endl;
+                        if (enclosingFunction->getDataRef()->closedVariables.find(from) != enclosingFunction->getDataRef()->closedVariables.end()) {
+                            preName += "(*closed_variables->";
+                            postName += ")";
+                            closed = true;
+                        }
+                    }
+                }
+                // enclosing function comes first now, we might have a double closure that both close over the this pointer of an object
+                //but first, if we're this, we should just emit. (assuming enclosing object) (note that technically this would fall through, but for errors)
+                if (data.symbol.getName() == "this") {
+                    if (enclosingObject || enclosingFunction)
+                        return CCodeTriple(preName + "this" + postName);
+                    std::cerr << "Error: this used in non-object scope" << std::endl;
+                    throw "Error: this used in non-object scope";
+                }
+                //If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
+                if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
+                    preName = "(" + preName + "this)->"; // incase this is a closed over this that is referencing another thing (I think this happens for a.b when a is supposed to be closed over but isn't)
+                // dereference references, but only if inside a function and not if this is a closed over variable
+                if (enclosingFunction && data.valueType->is_reference && !closed) {
+                    preName += "(*";
+                    postName += ")";
+                }
+                // we're scope prefixing EVERYTHING, but only if needed
+                return preName + prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName())) + postName; //Cifying does nothing if not an operator overload
+            }
+        case function:
+            {
+                if (data.valueType->baseType == template_type)
+                    return "/* template function: " + data.symbol.getName() + " */";
+
+                // we push on a new vector to hold parameters that might need a destructor call
+                distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
+
+                std::string nameDecoration, parameters;
+                if (data.closedVariables.size())
+                    parameters += closureStructType(data.closedVariables) + " *closed_variables";
+                for (int j = 0; j < children.size()-1; j++) {
+                    if (j > 0 || data.closedVariables.size())
+                        parameters += ", ";
+                    parameters += ValueTypeToCType(children[j]->getData().valueType, generate(children[j], enclosingObject, justFuncName, enclosingFunction).oneString());
+                    nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
+                    // add parameters to distructDoubleStack so that their destructors will be called at return (if they exist)
+                    distructDoubleStack.back().push_back(children[j]);
+                }
+                // this is for using functions as values
+                if (justFuncName) {
+                    std::string funcName;
+                    if (data.symbol.getName() != "main")
+                        funcName += function_header + prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName() + nameDecoration));
+                    else
+                        funcName += CifyName(data.symbol.getName() + nameDecoration);
+                    if (from->getDataRef()->closedVariables.size()) {
+                        std::string tmpStruct = "closureStruct" + getID();
+                        output.preValue += closureStructType(data.closedVariables) + " " + tmpStruct + " = {";
+                        bool notFirst = false;
+                        for (auto var : data.closedVariables) {
+                            if (notFirst)
+                                output.preValue += ", ";
+                            notFirst = true;
+                            std::string varName = var->getDataRef()->symbol.getName();
+                            std::string preName;
+                            if (enclosingObject && enclosingObject->getDataRef()->scope.find(varName) != enclosingObject->getDataRef()->scope.end())
+                                preName += "this->";
+                            varName = (varName == "this") ? varName : prefixIfNeeded(scopePrefix(var), varName);
+                            // so that we can close over things that have been closed over by an enclosing closure
+                            output.preValue += "." + varName + " = &/*woo*/" + generate(var, enclosingObject, justFuncName, enclosingFunction).oneString() + "/*woo*/";
+                            //output.preValue += "." + varName + " = &" + preName + varName;
+                        }
+                        output.preValue += "};\n";
+                        output += "("+ ValueTypeToCType(data.valueType, "") +"){(void*)" + funcName + ", &" + tmpStruct + "}";
+                    } else {
+                        output += "("+ ValueTypeToCType(data.valueType, "") +"){" + funcName + ", NULL}";
+                    }
+                } else {
+                    // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
+                    std::string funName = (data.symbol.getName() == "main") ? "main" : function_header + prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName() + nameDecoration));
+                    output = "\n" + ValueTypeToCType(data.valueType->returnType, funName) + "(" + parameters + ") {\n" +
+                        generate(children[children.size()-1], enclosingObject, justFuncName, from).oneString();
+                    output += emitDestructors(reverse(distructDoubleStack.back()), enclosingObject);
+                    output += "}\n";
+                }
+
+                distructDoubleStack.pop_back();
+                return output;
+            }
+        case code_block:
+            {
+                output += "{\n";
+                tabLevel++;
+
+                // we push on a new vector to hold parameters that might need a destructor call
+                distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
+                // we push on a new vector to hold deferred statements
+                deferDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
+                for (int i = 0; i < children.size(); i++)
+                    output += generate(children[i], enclosingObject, justFuncName, enclosingFunction).oneString();
+                // we pop off the vector and go through them in reverse emitting them
+                for (auto iter = deferDoubleStack.back().rbegin(); iter != deferDoubleStack.back().rend(); iter++)
+                    output += generate(*iter, enclosingObject, justFuncName, enclosingFunction).oneString();
+                deferDoubleStack.pop_back();
+                output += emitDestructors(reverse(distructDoubleStack.back()), enclosingObject);
+                distructDoubleStack.pop_back();
+
+                tabLevel--;
+                output += tabs() + "}";
+
+                return output;
+            }
+        case expression:
+            output += " " + data.symbol.getName() + ", ";
+        case boolean_expression:
+            output += " " + data.symbol.getName() + " ";
+        case statement:
+            {
+                CCodeTriple stat = generate(children[0], enclosingObject, justFuncName, enclosingFunction);
+                return tabs() + stat.preValue + stat.value + ";\n" + stat.postValue ;
+            }
+        case if_statement:
+            output += "if (" + generate(children[0], enclosingObject, true, enclosingFunction) + ")\n\t";
             // We have to see if the then statement is a regular single statement or a block.
             // If it's a block, because it's also a statement a semicolon will be emitted even though
             // we don't want it to be, as if (a) {b}; else {c}; is not legal C, but if (a) {b} else {c}; is.
@@ -450,107 +523,136 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 output += "{ " + generate(children[1], enclosingObject, justFuncName, enclosingFunction).oneString() + " }";
             }
             // Always emit blocks here too
-			if (children.size() > 2)
-				output += " else { " + generate(children[2], enclosingObject, justFuncName, enclosingFunction).oneString() + " }";
-			return output;
-		case while_loop:
-            {
-            // we push on a new vector to hold while stuff that might need a destructor call
-            loopDistructStackDepth.push(distructDoubleStack.size());
-            distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
-            // keep track of the current size of the deferDoubleStack so that statements that
-            // break or continue inside this loop can correctly emit all of the defers through
-            // all of the inbetween scopes
-            loopDeferStackDepth.push(deferDoubleStack.size());
-            // gotta do like this so that the preconditions can happen every loop
-			output += "while (1) {\n";
-            CCodeTriple condtition = generate(children[0], enclosingObject, true, enclosingFunction);
-            output += condtition.preValue;
-            output += "if (!( " + condtition.value + ")) break;\n";
-            output += condtition.postValue;
-            output += generate(children[1], enclosingObject, justFuncName, enclosingFunction).oneString();
-            output += emitDestructors(reverse(distructDoubleStack.back()),enclosingObject);
-            output +=  + "}";
-
-            distructDoubleStack.pop_back();
-            loopDistructStackDepth.pop();
-            // and pop it off again
-            loopDeferStackDepth.pop();
-			return output;
-            }
-		case for_loop:
-            {
-            // we push on a new vector to hold for stuff that might need a destructor call
-            loopDistructStackDepth.push(distructDoubleStack.size());
-            distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
-            // keep track of the current size of the deferDoubleStack so that statements that
-            // break or continue inside this loop can correctly emit all of the defers through
-            // all of the inbetween scopes
-            loopDeferStackDepth.push(deferDoubleStack.size());
-			//The strSlice's are there to get ride of an unwanted return and an unwanted semicolon(s)
-
-            std::string doUpdateName = "do_update" + getID();
-            // INITIALIZER
-			output += "{";
-            output += generate(children[0], enclosingObject, true, enclosingFunction).oneString();
-            output += "bool " + doUpdateName + " = false;\n";
-			output += "for (;;) {";
-            // UPDATE
-            output += "if (" + doUpdateName + ") {";
-            output += generate(children[2], enclosingObject, true, enclosingFunction).oneString();
-            output += "}\n";
-            output += doUpdateName + " = true;\n";
-            // CONDITION
-            // note that the postValue happens whether or not we break
-            CCodeTriple condition = generate(children[1], enclosingObject, true, enclosingFunction);
-            output += condition.preValue;
-            output += "if (!(" + condition.value + ")) {\n";
-            output += condition.postValue;
-            output += "break;\n}";
-            output += condition.postValue;
-            // BODY
-            output += generate(children[3], enclosingObject, justFuncName, enclosingFunction).oneString();
-            output += emitDestructors(reverse(distructDoubleStack.back()),enclosingObject);
-            output += "}";
-			output += "}";
-            distructDoubleStack.pop_back();
-            loopDistructStackDepth.pop();
-            // and pop it off again
-            loopDeferStackDepth.pop();
-			return output;
-            }
-		case return_statement:
-            {
-            // we pop off the vector and go through them in reverse emitting them, going
-            // through all of both arrays, as return will go through all scopes
-            for (auto topItr = deferDoubleStack.rbegin(); topItr != deferDoubleStack.rend(); topItr++)
-                for (auto iter = (*topItr).rbegin(); iter != (*topItr).rend(); iter++)
-                    output += generate(*iter, enclosingObject, justFuncName, enclosingFunction).oneString();
-
-            std::string destructors = emitDestructors(reverse(flatten(distructDoubleStack)),enclosingObject);
-			if (children.size()) {
-                CCodeTriple expr = generate(children[0], enclosingObject, true, enclosingFunction);
-                output.preValue += expr.preValue;
-                std::string retTemp = "ret_temp" + getID();
-                // use the function's return value so we do the right thing with references
-                output.preValue += ValueTypeToCType(enclosingFunction->getDataRef()->valueType->returnType, retTemp) + ";\n";
-                if (enclosingFunction->getDataRef()->valueType->returnType->is_reference)
-                    output.preValue += retTemp + " = &" + expr.value + ";\n";
-                else if (methodExists(children[0]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[0]->getDataRef()->valueType->withIncreasedIndirection()}))
-                    output.preValue += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&"+retTemp + ", &" + expr.value, std::vector<Type>{children[0]->getDataRef()->valueType->withIncreasedIndirection()});
-                else
-                    output.preValue += retTemp + " = " + expr.value + ";\n";
-                // move expr post to before return
-                output.value += expr.postValue;
-                output.value += destructors;
-                output.value += "return " + retTemp;
-            } else {
-                output.value += destructors;
-				output += "return";
-            }
+            if (children.size() > 2)
+                output += " else { " + generate(children[2], enclosingObject, justFuncName, enclosingFunction).oneString() + " }";
             return output;
+        case match_statement:
+            {
+                output += "/* match_statement */\n";
+                CCodeTriple thingToMatch = generate(children[0], enclosingObject, false, enclosingFunction);
+                output.preValue += thingToMatch.preValue;
+                output.postValue += thingToMatch.postValue;
+                for (auto case_stmt : slice(children, 1, -1)) {
+                    auto case_children = case_stmt->getChildren();
+                    std::string option = generate(case_children[0], enclosingObject, false, enclosingFunction).oneString();
+                    output += "/* case " + option + " if " + thingToMatch.value + " */\n";
+                    output += tabs() + "if (" + thingToMatch.value + ".flag == " + option + ") {\n";
+                    tabLevel++;
+                    if (case_children.size() > 2) {
+                        output += tabs() + ValueTypeToCType(case_children[1]->getData().valueType, generate(case_children[1], enclosingObject, false, enclosingFunction).oneString())
+                            + " = " + thingToMatch.value + "." + option + ";\n";
+                        output += generate(case_children[2], enclosingObject, false, enclosingFunction).oneString();
+                    } else {
+                        output += generate(case_children[1], enclosingObject, false, enclosingFunction).oneString();
+                    }
+                    tabLevel--;
+                    output += "}\n";
+                }
+                return output;
             }
-		case break_statement:
+            break;
+        case case_statement:
+            output += "/* case_statement */";
+            throw "case statement isn't actually used, but is generated in match";
+            break;
+        case while_loop:
+            {
+                // we push on a new vector to hold while stuff that might need a destructor call
+                loopDistructStackDepth.push(distructDoubleStack.size());
+                distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
+                // keep track of the current size of the deferDoubleStack so that statements that
+                // break or continue inside this loop can correctly emit all of the defers through
+                // all of the inbetween scopes
+                loopDeferStackDepth.push(deferDoubleStack.size());
+                // gotta do like this so that the preconditions can happen every loop
+                output += "while (1) {\n";
+                CCodeTriple condtition = generate(children[0], enclosingObject, true, enclosingFunction);
+                output += condtition.preValue;
+                output += "if (!( " + condtition.value + ")) break;\n";
+                output += condtition.postValue;
+                output += generate(children[1], enclosingObject, justFuncName, enclosingFunction).oneString();
+                output += emitDestructors(reverse(distructDoubleStack.back()),enclosingObject);
+                output +=  + "}";
+
+                distructDoubleStack.pop_back();
+                loopDistructStackDepth.pop();
+                // and pop it off again
+                loopDeferStackDepth.pop();
+                return output;
+            }
+        case for_loop:
+            {
+                // we push on a new vector to hold for stuff that might need a destructor call
+                loopDistructStackDepth.push(distructDoubleStack.size());
+                distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
+                // keep track of the current size of the deferDoubleStack so that statements that
+                // break or continue inside this loop can correctly emit all of the defers through
+                // all of the inbetween scopes
+                loopDeferStackDepth.push(deferDoubleStack.size());
+                //The strSlice's are there to get ride of an unwanted return and an unwanted semicolon(s)
+
+                std::string doUpdateName = "do_update" + getID();
+                // INITIALIZER
+                output += "{";
+                output += generate(children[0], enclosingObject, true, enclosingFunction).oneString();
+                output += "bool " + doUpdateName + " = false;\n";
+                output += "for (;;) {";
+                // UPDATE
+                output += "if (" + doUpdateName + ") {";
+                output += generate(children[2], enclosingObject, true, enclosingFunction).oneString();
+                output += "}\n";
+                output += doUpdateName + " = true;\n";
+                // CONDITION
+                // note that the postValue happens whether or not we break
+                CCodeTriple condition = generate(children[1], enclosingObject, true, enclosingFunction);
+                output += condition.preValue;
+                output += "if (!(" + condition.value + ")) {\n";
+                output += condition.postValue;
+                output += "break;\n}";
+                output += condition.postValue;
+                // BODY
+                output += generate(children[3], enclosingObject, justFuncName, enclosingFunction).oneString();
+                output += emitDestructors(reverse(distructDoubleStack.back()),enclosingObject);
+                output += "}";
+                output += "}";
+                distructDoubleStack.pop_back();
+                loopDistructStackDepth.pop();
+                // and pop it off again
+                loopDeferStackDepth.pop();
+                return output;
+            }
+        case return_statement:
+            {
+                // we pop off the vector and go through them in reverse emitting them, going
+                // through all of both arrays, as return will go through all scopes
+                for (auto topItr = deferDoubleStack.rbegin(); topItr != deferDoubleStack.rend(); topItr++)
+                    for (auto iter = (*topItr).rbegin(); iter != (*topItr).rend(); iter++)
+                        output += generate(*iter, enclosingObject, justFuncName, enclosingFunction).oneString();
+
+                std::string destructors = emitDestructors(reverse(flatten(distructDoubleStack)),enclosingObject);
+                if (children.size()) {
+                    CCodeTriple expr = generate(children[0], enclosingObject, true, enclosingFunction);
+                    output.preValue += expr.preValue;
+                    std::string retTemp = "ret_temp" + getID();
+                    // use the function's return value so we do the right thing with references
+                    output.preValue += ValueTypeToCType(enclosingFunction->getDataRef()->valueType->returnType, retTemp) + ";\n";
+                    if (enclosingFunction->getDataRef()->valueType->returnType->is_reference)
+                        output.preValue += retTemp + " = &" + expr.value + ";\n";
+                    else if (methodExists(children[0]->getDataRef()->valueType, "copy_construct", std::vector<Type>{children[0]->getDataRef()->valueType->withIncreasedIndirection()}))
+                        output.preValue += generateMethodIfExists(children[0]->getDataRef()->valueType, "copy_construct", "&"+retTemp + ", &" + expr.value, std::vector<Type>{children[0]->getDataRef()->valueType->withIncreasedIndirection()});
+                    else
+                        output.preValue += retTemp + " = " + expr.value + ";\n";
+                    // move expr post to before return
+                    output.value += expr.postValue;
+                    output.value += destructors;
+                    output.value += "return " + retTemp;
+                } else {
+                    output.value += destructors;
+                    output += "return";
+                }
+                return output;
+            }
+        case break_statement:
             // handle everything that's been deferred all the way back to the loop's scope
             for (int i = deferDoubleStack.size()-1; i >= loopDeferStackDepth.top(); i--)
                 for (auto iter = deferDoubleStack[i].rbegin(); iter != deferDoubleStack[i].rend(); iter++)
@@ -558,7 +660,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             // ok, emit destructors to where the loop ends
             output += emitDestructors(reverse(flatten(slice(distructDoubleStack,loopDistructStackDepth.top(),-1))),enclosingObject);
             return output + "break";
-		case continue_statement:
+        case continue_statement:
             // handle everything that's been deferred all the way back to the loop's scope
             for (int i = deferDoubleStack.size()-1; i >= loopDeferStackDepth.top(); i--)
                 for (auto iter = deferDoubleStack[i].rbegin(); iter != deferDoubleStack[i].rend(); iter++)
@@ -566,21 +668,21 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
             // ok, emit destructors to where the loop ends
             output += emitDestructors(reverse(flatten(slice(distructDoubleStack,loopDistructStackDepth.top(),-1))),enclosingObject);
             return output + "continue";
-		case defer_statement:
+        case defer_statement:
             deferDoubleStack.back().push_back(children[0]);
             return CCodeTriple("/*defer " + generate(children[0], enclosingObject, justFuncName, enclosingFunction).oneString() + "*/");
-		case assignment_statement:
-			return generate(children[0], enclosingObject, justFuncName, enclosingFunction).oneString() + " = " + generate(children[1], enclosingObject, true, enclosingFunction);
-		case declaration_statement:
+        case assignment_statement:
+            return generate(children[0], enclosingObject, justFuncName, enclosingFunction).oneString() + " = " + generate(children[1], enclosingObject, true, enclosingFunction);
+        case declaration_statement:
             // adding declaration to the distructDoubleStack so that we can call their destructors when leaving scope (}, return, break, continue)
             // but only if we're inside an actual doublestack
             if ((distructDoubleStack.size()))
                 distructDoubleStack.back().push_back(children[0]);
 
-			if (children.size() == 1)
-				return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName, enclosingFunction).oneString()) + ";";
-			else if (children[1]->getChildren().size() && children[1]->getChildren()[0]->getChildren().size() > 1
-                                                 && children[1]->getChildren()[0]->getChildren()[1] == children[0]) {
+            if (children.size() == 1)
+                return ValueTypeToCType(children[0]->getData().valueType, generate(children[0], enclosingObject, justFuncName, enclosingFunction).oneString()) + ";";
+            else if (children[1]->getChildren().size() && children[1]->getChildren()[0]->getChildren().size() > 1
+                    && children[1]->getChildren()[0]->getChildren()[1] == children[0]) {
                 //That is, if we're a declaration with an init position call (Object a.construct())
                 //We can tell if our function call (children[1])'s access operation([0])'s lhs ([1]) is the thing we just declared (children[0])
                 // be sure to end value by passing oneString true
@@ -607,14 +709,15 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     return output;
                 }
             }
-		case if_comp:
+    case if_comp:
             // Lol, this doesn't work because the string gets prefixed now
-			//if (generate(children[0], enclosingObject, enclosingFunction) == generatorString)
-			if (children[0]->getDataRef()->symbol.getName() == generatorString)
-				return generate(children[1], enclosingObject, justFuncName, enclosingFunction);
-			return CCodeTriple("");
-		case simple_passthrough:
+            //if (generate(children[0], enclosingObject, enclosingFunction) == generatorString)
+            if (children[0]->getDataRef()->symbol.getName() == generatorString)
+                return generate(children[1], enclosingObject, justFuncName, enclosingFunction);
+            return CCodeTriple("");
+    case simple_passthrough:
             {
+                std::string pre_end_dec, end_assign;
                 // Stuff is bit more interesting now! XXX
                 std::string pre_passthrough, post_passthrough;
                 // Handle input/output parameters
@@ -623,17 +726,27 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     for (auto in_or_out : optParamAssignLists) {
                         for (auto assign : in_or_out->getChildren()) {
                             auto assignChildren = assign->getChildren();
-                            if (in_or_out->getDataRef()->type == in_passthrough_params)
+                            if (in_or_out->getDataRef()->type == in_passthrough_params) {
+                                std::string currentName = generate(assignChildren[0], enclosingObject, enclosingFunction).oneString();
+                                std::string toName;
                                 if (assignChildren.size() == 2)
-                                    pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, assignChildren[1]->getDataRef()->symbol.getName()) + " = " + generate(assignChildren[0], enclosingObject, enclosingFunction).oneString() + ";\n";
+                                    toName = assignChildren[1]->getDataRef()->symbol.getName();
                                 else
-                                    pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, assignChildren[0]->getDataRef()->symbol.getName()) + " = " + generate(assignChildren[0], enclosingObject, enclosingFunction).oneString() + ";\n";
-                            else if (in_or_out->getDataRef()->type == out_passthrough_params)
+                                    toName = assignChildren[0]->getDataRef()->symbol.getName();
+                                if (currentName != toName)
+                                    pre_passthrough += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, toName) + " = " + currentName + ";\n";
+                            } else if (in_or_out->getDataRef()->type == out_passthrough_params) {
+                                std::string currentName = generate(assignChildren[0], enclosingObject, justFuncName, enclosingFunction).oneString();
+                                std::string toName;
                                 if (assignChildren.size() == 2)
-                                    post_passthrough += generate(assignChildren[0], enclosingObject, justFuncName, enclosingFunction).oneString() + " = " + assignChildren[1]->getDataRef()->symbol.getName() + ";\n";
+                                    toName = assignChildren[1]->getDataRef()->symbol.getName();
                                 else
-                                    post_passthrough += generate(assignChildren[0], enclosingObject, justFuncName, enclosingFunction).oneString() + " = " + assignChildren[0]->getDataRef()->symbol.getName() + ";\n";
-                            else
+                                    toName += assignChildren[0]->getDataRef()->symbol.getName();
+                                std::string trans_dec_name = currentName + "_end_assign";
+                                pre_end_dec += ValueTypeToCType(assignChildren[0]->getDataRef()->valueType, trans_dec_name) + ";\n";
+                                post_passthrough += trans_dec_name + " = " + toName + ";\n";
+                                end_assign += currentName + " = " + trans_dec_name + ";\n";
+                            } else
                                 linkerString += " " + strSlice(generate(in_or_out, enclosingObject, justFuncName, enclosingFunction).oneString(), 1, -2) + " ";
                         }
                     }
@@ -641,215 +754,218 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 // The actual passthrough string is the last child now, as we might
                 // have passthrough_params be the first child
                 // we don't generate, as that will escape the returns and we don't want that. We'll just grab the string
-                //return pre_passthrough + strSlice(generate(children.back(, enclosingFunction), enclosingObject, justFuncName).oneString(), 3, -4) + post_passthrough;
-                return pre_passthrough + strSlice(children.back()->getDataRef()->symbol.getName(), 3, -4) + post_passthrough;
+                // we don't want the scope stuff if we're at top level for an include, etc....
+                if (isUnderNodeWithType(from,function))
+                    return pre_end_dec + "{" + pre_passthrough + strSlice(children.back()->getDataRef()->symbol.getName(), 3, -4) + post_passthrough + "}\n" + end_assign;
+                else
+                    return strSlice(children.back()->getDataRef()->symbol.getName(), 3, -4);
             }
-		case function_call:
-		{
-			//NOTE: The first (0th) child of a function call node is the declaration of the function
+    case function_call:
+            {
+                //NOTE: The first (0th) child of a function call node is the declaration of the function
 
-			//Handle operators specially for now. Will later replace with
-			//Inlined functions in the standard library
-			// std::string name = data.symbol.getName();
-			// std::cout << name << " == " << children[0]->getData().symbol.getName() << std::endl;
-			std::string name = children[0]->getDataRef()->symbol.getName();
-			ASTType funcType = children[0]->getDataRef()->type;
+                //Handle operators specially for now. Will later replace with
+                //Inlined functions in the standard library
+                // std::string name = data.symbol.getName();
+                // std::cout << name << " == " << children[0]->getData().symbol.getName() << std::endl;
+                std::string name = children[0]->getDataRef()->symbol.getName();
+                ASTType funcType = children[0]->getDataRef()->type;
 
-            // UGLLLLYYYY
-            // But we have these here because some stuff has to be moved out of the giant nested blocks below and this is the way to do it
-            CCodeTriple functionCallSource;
-            bool doClosureInstead = false;
+                // UGLLLLYYYY
+                // But we have these here because some stuff has to be moved out of the giant nested blocks below and this is the way to do it
+                CCodeTriple functionCallSource;
+                bool doClosureInstead = false;
 
-			//std::cout << "Doing function: " << name << std::endl;
-			//Test for special functions only if what we're testing is, indeed, the definition, not a function call that returns a callable function pointer
-			if (funcType == function) {
-				if (name == "++" || name == "--")
-					return generate(children[1], enclosingObject, true, enclosingFunction) + name;
-				if ( (name == "*" || name == "&" || name == "!" || name == "-" || name == "+" ) && children.size() == 2) //Is dereference, not multiplication, address-of, or other unary operator
-					return name + "(" + generate(children[1], enclosingObject, true, enclosingFunction) + ")";
-				if (name == "[]")
-					return "(" + generate(children[1], enclosingObject, true, enclosingFunction) + ")[" + generate(children[2],enclosingObject, true, enclosingFunction) + "]";
-				if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
-					|| name == "<" || name == ">" || name == "%" || name == "=" || name == "+=" || name == "-=" || name == "*=" || name == "/=") {
-					return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + "(" + generate(children[2], enclosingObject, true, enclosingFunction) + "))";
-                } else if (name == "&&" || name == "||") {
-                    // b/c short circuiting, these have to be done seperately
-                    CCodeTriple lhs = generate(children[1], enclosingObject, true, enclosingFunction);
-                    CCodeTriple rhs = generate(children[2], enclosingObject, true, enclosingFunction);
-                    output.preValue = lhs.preValue;
-                    std::string shortcircuit_result = "shortcircuit_result" + getID();
-                    output.preValue += "bool " + shortcircuit_result + " = " + lhs.value + ";\n";
-                    output.preValue += lhs.postValue;
-                    output.preValue += "if (" + std::string(name == "||" ? "!":"") + shortcircuit_result + ") { \n";
-                    output.preValue += rhs.preValue;
-                    output.preValue += shortcircuit_result + " = " + rhs.value + ";\n";
-                    output.preValue += rhs.postValue;
-                    output.preValue += "}\n";
-                    output.value = shortcircuit_result;
-                    return output;
-                } else if (name == "." || name == "->") {
-					if (children.size() == 1)
-					 	return "/*dot operation with one child*/" + generate(children[0], enclosingObject, true, enclosingFunction).oneString() + "/*end one child*/";
-					 //If this is accessing an actual function, find the function in scope and take the appropriate action. Probabally an object method
-					 if (children[2]->getDataRef()->type == function) {
-					 	std::string functionName = children[2]->getDataRef()->symbol.getName();
-					 	NodeTree<ASTData>* possibleObjectType = children[1]->getDataRef()->valueType->typeDefinition;
-					 	//If is an object method, generate it like one. Needs extension/modification for inheritence
-					 	if (possibleObjectType) {
-                            NodeTree<ASTData>* unaliasedTypeDef = getMethodsObjectType(possibleObjectType, functionName);
-                            if (unaliasedTypeDef) { //Test to see if the function's a member of this type_def, or if this is an alias, of the original type. Get this original type if it exists.
-					 		    std::string nameDecoration;
-					 		    std::vector<NodeTree<ASTData>*> functionDefChildren = children[2]->getChildren(); //The function def is the rhs of the access operation
-								 //std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
-					 		    for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
-					 		    	nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
-                                // Note that we only add scoping to the object, as this specifies our member function too
-/*HERE*/				 	    return function_header + scopePrefix(unaliasedTypeDef) + CifyName(unaliasedTypeDef->getDataRef()->symbol.getName()) +"__" +
+                //std::cout << "Doing function: " << name << std::endl;
+                //Test for special functions only if what we're testing is, indeed, the definition, not a function call that returns a callable function pointer
+                if (funcType == function) {
+                    if (name == "++" || name == "--")
+                        return generate(children[1], enclosingObject, true, enclosingFunction) + name;
+                    if ( (name == "*" || name == "&" || name == "!" || name == "-" || name == "+" ) && children.size() == 2) //Is dereference, not multiplication, address-of, or other unary operator
+                        return name + "(" + generate(children[1], enclosingObject, true, enclosingFunction) + ")";
+                    if (name == "[]")
+                        return "(" + generate(children[1], enclosingObject, true, enclosingFunction) + ")[" + generate(children[2],enclosingObject, true, enclosingFunction) + "]";
+                    if (name == "+" || name == "-" || name == "*" || name == "/" || name == "==" || name == ">=" || name == "<=" || name == "!="
+                            || name == "<" || name == ">" || name == "%" || name == "=" || name == "+=" || name == "-=" || name == "*=" || name == "/=") {
+                        return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + "(" + generate(children[2], enclosingObject, true, enclosingFunction) + "))";
+                    } else if (name == "&&" || name == "||") {
+                        // b/c short circuiting, these have to be done seperately
+                        CCodeTriple lhs = generate(children[1], enclosingObject, true, enclosingFunction);
+                        CCodeTriple rhs = generate(children[2], enclosingObject, true, enclosingFunction);
+                        output.preValue = lhs.preValue;
+                        std::string shortcircuit_result = "shortcircuit_result" + getID();
+                        output.preValue += "bool " + shortcircuit_result + " = " + lhs.value + ";\n";
+                        output.preValue += lhs.postValue;
+                        output.preValue += "if (" + std::string(name == "||" ? "!":"") + shortcircuit_result + ") { \n";
+                        output.preValue += rhs.preValue;
+                        output.preValue += shortcircuit_result + " = " + rhs.value + ";\n";
+                        output.preValue += rhs.postValue;
+                        output.preValue += "}\n";
+                        output.value = shortcircuit_result;
+                        return output;
+                    } else if (name == "." || name == "->") {
+                        if (children.size() == 1)
+                            return "/*dot operation with one child*/" + generate(children[0], enclosingObject, true, enclosingFunction).oneString() + "/*end one child*/";
+                        //If this is accessing an actual function, find the function in scope and take the appropriate action. Probabally an object method
+                        if (children[2]->getDataRef()->type == function) {
+                            std::string functionName = children[2]->getDataRef()->symbol.getName();
+                            NodeTree<ASTData>* possibleObjectType = children[1]->getDataRef()->valueType->typeDefinition;
+                            //If is an object method, generate it like one. Needs extension/modification for inheritence
+                            if (possibleObjectType) {
+                                NodeTree<ASTData>* unaliasedTypeDef = getMethodsObjectType(possibleObjectType, functionName);
+                                if (unaliasedTypeDef) { //Test to see if the function's a member of this type_def, or if this is an alias, of the original type. Get this original type if it exists.
+                                    std::string nameDecoration;
+                                    std::vector<NodeTree<ASTData>*> functionDefChildren = children[2]->getChildren(); //The function def is the rhs of the access operation
+                                    //std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
+                                    for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
+                                        nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
+                                    // Note that we only add scoping to the object, as this specifies our member function too
+                                    /*HERE*/				 	    return function_header + prefixIfNeeded(scopePrefix(unaliasedTypeDef), CifyName(unaliasedTypeDef->getDataRef()->symbol.getName())) +"__" +
                                         CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject, true, enclosingFunction) + ",";
-					 		    //The comma lets the upper function call know we already started the param list
-					 		    //Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
+                                    //The comma lets the upper function call know we already started the param list
+                                    //Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
+                                } else {
+                                    //std::cout << "Is not in scope or not type" << std::endl;
+                                    return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + functionName + ")";
+                                }
                             } else {
-								 //std::cout << "Is not in scope or not type" << std::endl;
-					            return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + functionName + ")";
+                                //std::cout << "Is not in scope or not type" << std::endl;
+                                return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + functionName + ")";
                             }
                         } else {
-							 //std::cout << "Is not in scope or not type" << std::endl;
-					        return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + functionName + ")";
-					 	}
-					} else {
-						//return "((" + generate(children[1], enclosingObject, enclosingFunction) + ")" + name + generate(children[2], enclosingObject, enclosingFunction) + ")";
-						return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + generate(children[2], nullptr, true, enclosingFunction) + ")";
-					}
-				} else {
-                    // this could a closure literal. sigh, I know.
-                    if (children[0]->getDataRef()->closedVariables.size()) {
-                        functionCallSource = generate(children[0], enclosingObject, true, enclosingFunction);
-                        doClosureInstead = true;
+                            //return "((" + generate(children[1], enclosingObject, enclosingFunction) + ")" + name + generate(children[2], enclosingObject, enclosingFunction) + ")";
+                            return "((" + generate(children[1], enclosingObject, true, enclosingFunction) + ")" + name + generate(children[2], nullptr, true, enclosingFunction) + ")";
+                        }
                     } else {
-                        //It's a normal function call, not a special one or a method or anything. Name decorate.
-                        std::vector<NodeTree<ASTData>*> functionDefChildren = children[0]->getChildren();
-                        //std::cout << "Decorating (none-special)" << name << " " << functionDefChildren.size() << std::endl;
-                        std::string nameDecoration;
-                        for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
-                            nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
-                        // it is possible that this is an object method from inside a closure
-                        // in which case, recover the enclosing object from this
-                        bool addClosedOver = false;
-                        if (enclosingFunction && enclosingFunction->getDataRef()->closedVariables.size()) {
-                            for (auto closedVar : enclosingFunction->getDataRef()->closedVariables) {
-                                if (closedVar->getDataRef()->symbol.getName() == "this") {
-                                    enclosingObject = closedVar->getDataRef()->valueType->typeDefinition;
-                                    addClosedOver = true;
+                        // this could a closure literal. sigh, I know.
+                        if (children[0]->getDataRef()->closedVariables.size()) {
+                            functionCallSource = generate(children[0], enclosingObject, true, enclosingFunction);
+                            doClosureInstead = true;
+                        } else {
+                            //It's a normal function call, not a special one or a method or anything. Name decorate.
+                            std::vector<NodeTree<ASTData>*> functionDefChildren = children[0]->getChildren();
+                            //std::cout << "Decorating (none-special)" << name << " " << functionDefChildren.size() << std::endl;
+                            std::string nameDecoration;
+                            for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
+                                nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
+                            // it is possible that this is an object method from inside a closure
+                            // in which case, recover the enclosing object from this
+                            bool addClosedOver = false;
+                            if (enclosingFunction && enclosingFunction->getDataRef()->closedVariables.size()) {
+                                for (auto closedVar : enclosingFunction->getDataRef()->closedVariables) {
+                                    if (closedVar->getDataRef()->symbol.getName() == "this") {
+                                        enclosingObject = closedVar->getDataRef()->valueType->typeDefinition;
+                                        addClosedOver = true;
+                                    }
                                 }
                             }
-                        }
-                        //Check to see if we're inside of an object and this is a method call
-                        bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
-                        if (isSelfObjectMethod) {
-                            output += function_header + scopePrefix(children[0]) + CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__";
-                            output += CifyName(name + nameDecoration) + "(";
-                            output += std::string(addClosedOver ? "(*closed_variables->this)" : "this") + (children.size() > 1 ? "," : "");
-                        } else {
-                            output += function_header + scopePrefix(children[0]) + CifyName(name + nameDecoration) + "(";
+                            //Check to see if we're inside of an object and this is a method call
+                            bool isSelfObjectMethod = enclosingObject && contains(enclosingObject->getChildren(), children[0]);
+                            if (isSelfObjectMethod) {
+                                output += function_header + prefixIfNeeded(scopePrefix(children[0]), CifyName(enclosingObject->getDataRef()->symbol.getName())) +"__";
+                                output += CifyName(name + nameDecoration) + "(";
+                                output += std::string(addClosedOver ? "(*closed_variables->this)" : "this") + (children.size() > 1 ? "," : "");
+                            } else {
+                                output += function_header + prefixIfNeeded(scopePrefix(children[0]), CifyName(name + nameDecoration)) + "(";
+                            }
                         }
                     }
-				}
-			} else {
-				//This part handles cases where our definition isn't the function definition (that is, it is probabally the return from another function)
-				//It's probabally the result of an access function call (. or ->) to access an object method.
-                //OR a function value!
-                //
-                //THIS IS UUUUUGLLYYY too. We moved the closure part out to after the generation of the params becuase it needs to use them twice
-				functionCallSource = generate(children[0], enclosingObject, true, enclosingFunction);
-				if (functionCallSource.value[functionCallSource.value.size()-1] == ',') //If it's a member method, it's already started the parameter list.
-					output += children.size() > 1 ? functionCallSource : CCodeTriple(functionCallSource.preValue, functionCallSource.value.substr(0, functionCallSource.value.size()-1), functionCallSource.postValue);
-				else {
-                    doClosureInstead = true;
-                }
-			}
-            CCodeTriple parameters;
-            // see if we should copy_construct / referencize all the parameters
-			for (int i = 1; i < children.size(); i++) { //children[0] is the declaration
-                Type* func_param_type = children[0]->getDataRef()->valueType->parameterTypes[i-1];
-                // ok, if our param is a reference returned by another function, we don't actually want this type to be a reference if it is now.
-                Type *param_type = children[i]->getDataRef()->valueType->withoutReference();
-                // don't copy_construct references
-                if (func_param_type->is_reference) {
-                        parameters += "&" + generate(children[i], enclosingObject, true, enclosingFunction);
-                } else if (methodExists(children[i]->getDataRef()->valueType, "copy_construct", std::vector<Type>{param_type->withIncreasedIndirection()})) {
-                    std::string tmpParamName = "param" + getID();
-                    CCodeTriple paramValue = generate(children[i], enclosingObject, true, enclosingFunction);
-                    parameters.preValue += paramValue.preValue;
-                    parameters.preValue += ValueTypeToCType(param_type, tmpParamName) + ";\n";
-                    parameters.preValue += generateMethodIfExists(param_type, "copy_construct", "&"+tmpParamName + ", &" + paramValue.value, std::vector<Type>{children[i]->getDataRef()->valueType->withIncreasedIndirection()});
-                    parameters.value += tmpParamName;
-                    parameters.postValue += paramValue.postValue;
                 } else {
-                    parameters += generate(children[i], enclosingObject, true, enclosingFunction);
+                    //This part handles cases where our definition isn't the function definition (that is, it is probabally the return from another function)
+                    //It's probabally the result of an access function call (. or ->) to access an object method.
+                    //OR a function value!
+                    //
+                    //THIS IS UUUUUGLLYYY too. We moved the closure part out to after the generation of the params becuase it needs to use them twice
+                    functionCallSource = generate(children[0], enclosingObject, true, enclosingFunction);
+                    if (functionCallSource.value[functionCallSource.value.size()-1] == ',') //If it's a member method, it's already started the parameter list.
+                        output += children.size() > 1 ? functionCallSource : CCodeTriple(functionCallSource.preValue, functionCallSource.value.substr(0, functionCallSource.value.size()-1), functionCallSource.postValue);
+                    else {
+                        doClosureInstead = true;
+                    }
                 }
-				if (i < children.size()-1)
-					parameters += ", ";
-            }
-            if (doClosureInstead) {
-                Type* funcType = children[0]->getDataRef()->valueType;
-                Type* retType = funcType->returnType;
-                bool doRet = retType->baseType != void_type || retType->getIndirection();
-                std::string tmpName = "functionValueTmp" + getID();
-                std::string retTmpName = "closureRetTemp" + getID();
-                output += CCodeTriple(parameters.preValue + functionCallSource.preValue + ValueTypeToCType(funcType, tmpName) + " = " + functionCallSource.value + ";\n"
-                        + (doRet ? ValueTypeToCType(retType, retTmpName) + ";\n" : "")
-                        + "if (" + tmpName + ".data) { " + (doRet ? (retTmpName + " =") : "") + " (("+ ValueTypeToCTypeDecoration(funcType,ClosureFunctionPointerTypeWithClosedParam)  +") (" + tmpName + ".func))(" + tmpName + ".data" + (children.size() > 1 ? ", " : "")  + parameters.value + "); }\n"
-                        + "else { " + (doRet ? (retTmpName + " = ") : "") + " (("+ ValueTypeToCTypeDecoration(funcType,ClosureFunctionPointerTypeWithoutClosedParam)  +") (" + tmpName + ".func))(" + parameters.value + "); }\n",
-                        (doRet ? retTmpName : ""),
-                        parameters.postValue + functionCallSource.postValue);
-            } else {
-                output += parameters + ") ";
-            }
-            // see if we should add a destructer call to this postValue
-			Type* retType = children[0]->getDataRef()->valueType->returnType;
-            if (retType->baseType != void_type) {
-                // we always use return temps now :( (for psudo-pod objects that still have methods called on them, like range(1,3).for_each(...)
-                std::string retTempName = "return_temp" + getID();
-                output.preValue += ValueTypeToCType(retType, retTempName) + " = " + output.value + ";\n";
-                output.value = retTempName;
-                if (retType->is_reference)
-                    output.value = "(*" + output.value + ")";
-                else if (methodExists(retType, "destruct", std::vector<Type>())) {
-                    output.postValue = generateMethodIfExists(retType, "destruct", "&"+retTempName, std::vector<Type>()) + ";\n" + output.postValue;
+                CCodeTriple parameters;
+                // see if we should copy_construct / referencize all the parameters
+                for (int i = 1; i < children.size(); i++) { //children[0] is the declaration
+                    Type* func_param_type = children[0]->getDataRef()->valueType->parameterTypes[i-1];
+                    // ok, if our param is a reference returned by another function, we don't actually want this type to be a reference if it is now.
+                    Type *param_type = children[i]->getDataRef()->valueType->withoutReference();
+                    // don't copy_construct references
+                    if (func_param_type->is_reference) {
+                        parameters += "&" + generate(children[i], enclosingObject, true, enclosingFunction);
+                    } else if (methodExists(children[i]->getDataRef()->valueType, "copy_construct", std::vector<Type>{param_type->withIncreasedIndirection()})) {
+                        std::string tmpParamName = "param" + getID();
+                        CCodeTriple paramValue = generate(children[i], enclosingObject, true, enclosingFunction);
+                        parameters.preValue += paramValue.preValue;
+                        parameters.preValue += ValueTypeToCType(param_type, tmpParamName) + ";\n";
+                        parameters.preValue += generateMethodIfExists(param_type, "copy_construct", "&"+tmpParamName + ", &" + paramValue.value, std::vector<Type>{children[i]->getDataRef()->valueType->withIncreasedIndirection()});
+                        parameters.value += tmpParamName;
+                        parameters.postValue += paramValue.postValue;
+                    } else {
+                        parameters += generate(children[i], enclosingObject, true, enclosingFunction);
+                    }
+                    if (i < children.size()-1)
+                        parameters += ", ";
                 }
+                if (doClosureInstead) {
+                    Type* funcType = children[0]->getDataRef()->valueType;
+                    Type* retType = funcType->returnType;
+                    bool doRet = retType->baseType != void_type || retType->getIndirection();
+                    std::string tmpName = "functionValueTmp" + getID();
+                    std::string retTmpName = "closureRetTemp" + getID();
+                    output += CCodeTriple(parameters.preValue + functionCallSource.preValue + ValueTypeToCType(funcType, tmpName) + " = " + functionCallSource.value + ";\n"
+                            + (doRet ? ValueTypeToCType(retType, retTmpName) + ";\n" : "")
+                            + "if (" + tmpName + ".data) { " + (doRet ? (retTmpName + " =") : "") + " (("+ ValueTypeToCTypeDecoration(funcType,ClosureFunctionPointerTypeWithClosedParam)  +") (" + tmpName + ".func))(" + tmpName + ".data" + (children.size() > 1 ? ", " : "")  + parameters.value + "); }\n"
+                            + "else { " + (doRet ? (retTmpName + " = ") : "") + " (("+ ValueTypeToCTypeDecoration(funcType,ClosureFunctionPointerTypeWithoutClosedParam)  +") (" + tmpName + ".func))(" + parameters.value + "); }\n",
+                            (doRet ? retTmpName : ""),
+                            parameters.postValue + functionCallSource.postValue);
+                } else {
+                    output += parameters + ") ";
+                }
+                // see if we should add a destructer call to this postValue
+                Type* retType = children[0]->getDataRef()->valueType->returnType;
+                if (retType->baseType != void_type) {
+                    // we always use return temps now :( (for psudo-pod objects that still have methods called on them, like range(1,3).for_each(...)
+                    std::string retTempName = "return_temp" + getID();
+                    output.preValue += ValueTypeToCType(retType, retTempName) + " = " + output.value + ";\n";
+                    output.value = retTempName;
+                    if (retType->is_reference)
+                        output.value = "(*" + output.value + ")";
+                    else if (methodExists(retType, "destruct", std::vector<Type>())) {
+                        output.postValue = generateMethodIfExists(retType, "destruct", "&"+retTempName, std::vector<Type>()) + ";\n" + output.postValue;
+                    }
+                }
+                return output;
             }
-			return output;
-		}
-		case value:
-        {
-            // ok, we now check for it being a multiline string and escape all returns if it is (so that multiline strings work)
-            //if (data.symbol.getName()[0] == '"') {
-            if (data.symbol.getName()[0] == '"' && strSlice(data.symbol.getName(), 0, 3) == "\"\"\"") {
-                //bool multiline_str = strSlice(data.symbol.getName(), 0, 3) == "\"\"\"";
-                //std::string innerString = multiline_str
-                                            //? strSlice(data.symbol.getName(), 3, -4)
-                                            //: strSlice(data.symbol.getName(), 1, -2);
-                std::string innerString = strSlice(data.symbol.getName(), 3, -4);
-                std::string newStr;
-                for (auto character: innerString)
-                    if (character == '\n')
-                        newStr += "\\n";
-                    else if (character == '"')
-                        newStr += "\\\"";
-                    else
-                        newStr += character;
-                return "\"" + newStr + "\"";
+    case value:
+            {
+                // ok, we now check for it being a multiline string and escape all returns if it is (so that multiline strings work)
+                //if (data.symbol.getName()[0] == '"') {
+                if (data.symbol.getName()[0] == '"' && strSlice(data.symbol.getName(), 0, 3) == "\"\"\"") {
+                    //bool multiline_str = strSlice(data.symbol.getName(), 0, 3) == "\"\"\"";
+                    //std::string innerString = multiline_str
+                    //? strSlice(data.symbol.getName(), 3, -4)
+                    //: strSlice(data.symbol.getName(), 1, -2);
+                    std::string innerString = strSlice(data.symbol.getName(), 3, -4);
+                    std::string newStr;
+                    for (auto character: innerString)
+                        if (character == '\n')
+                            newStr += "\\n";
+                        else if (character == '"')
+                            newStr += "\\\"";
+                        else
+                            newStr += character;
+                    return "\"" + newStr + "\"";
+                }
+                return data.symbol.getName();
             }
-			return data.symbol.getName();
-        }
 
-		default:
-			std::cout << "Nothing!" << std::endl;
-	}
-	for (int i = 0; i < children.size(); i++)
-		output += generate(children[i], enclosingObject, justFuncName, enclosingFunction).oneString();
+                default:
+            std::cout << "Nothing!" << std::endl;
+            }
+            for (int i = 0; i < children.size(); i++)
+                output += generate(children[i], enclosingObject, justFuncName, enclosingFunction).oneString();
 
-	return output;
+            return output;
 }
 NodeTree<ASTData>* CGenerator::getMethodsObjectType(NodeTree<ASTData>* scope, std::string functionName) {
     //check the thing
@@ -862,23 +978,24 @@ NodeTree<ASTData>* CGenerator::getMethodsObjectType(NodeTree<ASTData>* scope, st
 std::string CGenerator::generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from, std::string *functionPrototype) {
     distructDoubleStack.push_back(std::vector<NodeTree<ASTData>*>());
 
-	ASTData data = from->getData();
-	Type enclosingObjectType = *(enclosingObject->getDataRef()->valueType); //Copy a new type so we can turn it into a pointer if we need to
-	enclosingObjectType.increaseIndirection();
-	std::vector<NodeTree<ASTData>*> children = from->getChildren();
-	std::string nameDecoration, parameters;
+    ASTData data = from->getData();
+    Type enclosingObjectType = *(enclosingObject->getDataRef()->valueType); //Copy a new type so we can turn it into a pointer if we need to
+    enclosingObjectType.increaseIndirection();
+    std::vector<NodeTree<ASTData>*> children = from->getChildren();
+    std::string nameDecoration, parameters;
     if (!children.size()) {
         //problem
         std::cerr << " no children " << std::endl;
     }
-	for (int i = 0; i < children.size()-1; i++) {
-		parameters += ", " + ValueTypeToCType(children[i]->getData().valueType, generate(children[i]).oneString());
-		nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
+    for (int i = 0; i < children.size()-1; i++) {
+        parameters += ", " + ValueTypeToCType(children[i]->getData().valueType, generate(children[i]).oneString());
+        nameDecoration += "_" + ValueTypeToCTypeDecoration(children[i]->getData().valueType);
 
         distructDoubleStack.back().push_back(children[i]);
-	}
-    std::string functionSignature = "\n" + ValueTypeToCType(data.valueType->returnType, function_header + scopePrefix(from) +  CifyName(enclosingObject->getDataRef()->symbol.getName()) +"__"
-		+ CifyName(data.symbol.getName()) + nameDecoration) + "(" + ValueTypeToCType(&enclosingObjectType, "this") + parameters + ")";
+    }
+    std::string functionSignature = "\n" + ValueTypeToCType(data.valueType->returnType, function_header +
+            prefixIfNeeded(scopePrefix(from),  CifyName(enclosingObject->getDataRef()->symbol.getName())) + "__" +
+            CifyName(data.symbol.getName()) + nameDecoration) + "(" + ValueTypeToCType(&enclosingObjectType, "this") + parameters + ")";
     *functionPrototype += functionSignature + ";\n";
     // Note that we always wrap out child in {}, as we now allow one statement functions without a codeblock
     //
@@ -928,7 +1045,7 @@ std::string CGenerator::generateMethodIfExists(Type* type, std::string method, s
         std::string nameDecoration;
         for (Type *paramType : methodDef->getDataRef()->valueType->parameterTypes)
             nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
-        return function_header + scopePrefix(typeDefinition) + CifyName(typeDefinition->getDataRef()->symbol.getName()) + "__" + method + nameDecoration + "(" + parameter + ");\n";
+        return function_header + prefixIfNeeded(scopePrefix(typeDefinition), CifyName(typeDefinition->getDataRef()->symbol.getName())) + "__" + method + nameDecoration + "(" + parameter + ");\n";
     }
     return "";
 }
@@ -952,7 +1069,7 @@ std::string CGenerator::closureStructType(std::set<NodeTree<ASTData>*> closedVar
         // will actually change the underlying function's type. We cheat and just add a *
         //auto tmp = var->getDataRef()->valueType->withIncreasedIndirection();
         std::string varName = var->getDataRef()->symbol.getName();
-        varName = (varName == "this") ? varName : scopePrefix(var) + varName;
+        varName = (varName == "this") ? varName : prefixIfNeeded(scopePrefix(var), varName);
         typedefString += ValueTypeToCType(var->getDataRef()->valueType->withoutReference(), "*"+varName) + ";";
     }
     std::string structName = "closureStructType" + getID();
@@ -965,16 +1082,16 @@ std::string CGenerator::closureStructType(std::set<NodeTree<ASTData>*> closedVar
 std::string CGenerator::ValueTypeToCType(Type *type, std::string declaration, ClosureTypeSpecialType closureSpecial) { return ValueTypeToCTypeThingHelper(type, " " + declaration, closureSpecial); }
 std::string CGenerator::ValueTypeToCTypeDecoration(Type *type, ClosureTypeSpecialType closureSpecial) { return CifyName(ValueTypeToCTypeThingHelper(type, "", closureSpecial)); }
 std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string declaration, ClosureTypeSpecialType closureSpecial) {
-	std::string return_type;
+    std::string return_type;
     bool do_ending = true;
-	switch (type->baseType) {
-		case none:
-			if (type->typeDefinition)
-				return_type = scopePrefix(type->typeDefinition) + CifyName(type->typeDefinition->getDataRef()->symbol.getName());
-			else
-				return_type = "none";
-			break;
-		case function_type:
+    switch (type->baseType) {
+        case none:
+            if (type->typeDefinition)
+                return_type = prefixIfNeeded(scopePrefix(type->typeDefinition), CifyName(type->typeDefinition->getDataRef()->symbol.getName()));
+            else
+                return_type = "none";
+            break;
+        case function_type:
             {
                 std::string indr_str;
                 for (int i = 0; i < type->getIndirection(); i++)
@@ -1030,90 +1147,90 @@ std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string decl
                 }
                 do_ending = false;
             }
-			break;
-		case void_type:
-			return_type = "void";
-			break;
-		case boolean:
-			return_type = "bool";
-			break;
-		case integer:
-			return_type = "int";
-			break;
-		case floating:
-			return_type = "float";
-			break;
-		case double_percision:
-			return_type = "double";
-			break;
-		case character:
-			return_type = "char";
-			break;
-		default:
-			return_type = "unknown_ValueType";
-			break;
-	}
+            break;
+        case void_type:
+            return_type = "void";
+            break;
+        case boolean:
+            return_type = "bool";
+            break;
+        case integer:
+            return_type = "int";
+            break;
+        case floating:
+            return_type = "float";
+            break;
+        case double_percision:
+            return_type = "double";
+            break;
+        case character:
+            return_type = "char";
+            break;
+        default:
+            return_type = "unknown_ValueType";
+            break;
+    }
     if (!do_ending)
         return return_type;
-	for (int i = 0; i < type->getIndirection(); i++)
-		return_type += "*";
+    for (int i = 0; i < type->getIndirection(); i++)
+        return_type += "*";
     if (type->is_reference)
-		return_type += " /*ref*/ *";
+        return_type += " /*ref*/ *";
     return return_type + declaration;
 }
 
 std::string CGenerator::CifyName(std::string name) {
-	std::string operatorsToReplace[] = { 	"+", "plus",
-											"-", "minus",
-											"*", "star",
-											"/", "div",
-											"%", "mod",
-											"^", "carat",
-											"&", "amprsd",
-											"|", "pipe",
-											"~", "tilde",
-											"!", "exlmtnpt",
-											",", "comma",
-											"=", "eq",
-											"++", "dbplus",
-											"--", "dbminus",
-											"<<", "dbleft",
-											">>", "dbright",
-											"::", "scopeop",
-											":", "colon",
-											"==", "dbq",
-											"!=", "notequals",
-											"&&", "doubleamprsnd",
-											"||", "doublepipe",
-											"+=", "plusequals",
-											"-=", "minusequals",
-											"/=", "divequals",
-											"%=", "modequals",
-											"^=", "caratequals",
-											"&=", "amprsdequals",
-											"|=", "pipeequals",
-											"*=", "starequals",
-											"<<=", "doublerightequals",
-											"<", "lt",
-											">", "gt",
-											">>=", "doubleleftequals",
-											"(", "openparen",
-											")", "closeparen",
-											"[", "obk",
-											"]", "cbk",
-											" ", "space",
-											".", "dot",
-											"->", "arrow" };
-	int length = sizeof(operatorsToReplace)/sizeof(std::string);
-	//std::cout << "Length is " << length << std::endl;
-	for (int i = 0; i < length; i+= 2) {
-		size_t foundPos = name.find(operatorsToReplace[i]);
-		while(foundPos != std::string::npos) {
-			name = strSlice(name, 0, foundPos) + "_" + operatorsToReplace[i+1] + "_" + strSlice(name, foundPos+operatorsToReplace[i].length(), -1);
-			foundPos = name.find(operatorsToReplace[i]);
-		}
-	}
-	return name;
+    std::string operatorsToReplace[] = { 	"+", "plus",
+        "-", "minus",
+        "*", "star",
+        "/", "div",
+        "%", "mod",
+        "^", "carat",
+        "&", "amprsd",
+        "|", "pipe",
+        "~", "tilde",
+        "!", "exlmtnpt",
+        ",", "comma",
+        "=", "eq",
+        "++", "dbplus",
+        "--", "dbminus",
+        "<<", "dbleft",
+        ">>", "dbright",
+        "::", "scopeop",
+        ":", "colon",
+        "==", "dbq",
+        "!=", "notequals",
+        "&&", "doubleamprsnd",
+        "||", "doublepipe",
+        "+=", "plusequals",
+        "-=", "minusequals",
+        "/=", "divequals",
+        "%=", "modequals",
+        "^=", "caratequals",
+        "&=", "amprsdequals",
+        "|=", "pipeequals",
+        "*=", "starequals",
+        "<<=", "doublerightequals",
+        "<", "lt",
+        ">", "gt",
+        ">>=", "doubleleftequals",
+        "(", "openparen",
+        ")", "closeparen",
+        "[", "obk",
+        "]", "cbk",
+        " ", "space",
+        ".", "dot",
+        "->", "arrow" };
+    int length = sizeof(operatorsToReplace)/sizeof(std::string);
+    //std::cout << "Length is " << length << std::endl;
+    for (int i = 0; i < length; i+= 2) {
+        size_t foundPos = name.find(operatorsToReplace[i]);
+        while(foundPos != std::string::npos) {
+            name = strSlice(name, 0, foundPos) + "_" + operatorsToReplace[i+1] + "_" + strSlice(name, foundPos+operatorsToReplace[i].length(), -1);
+            foundPos = name.find(operatorsToReplace[i]);
+        }
+    }
+    return name;
 }
 // Generate the scope prefix, that is "file_class_" for a method, etc
 // What do we still need to handle? Packages! But we don't have thoes yet....
@@ -1127,5 +1244,21 @@ std::string CGenerator::scopePrefix(NodeTree<ASTData>* from) {
     // different files. That's it for now. Methods are already lowered correctly with their parent object,
     // that parent object will get scoped. When we add a package system, we'll have to then add their scoping here
     return scopePrefix(from->getDataRef()->scope["~enclosing_scope"][0]);
+}
+std::string CGenerator::prefixIfNeeded(std::string prefix, std::string name) {
+    return simpleComplexName(name, prefix + name);
+}
+std::string CGenerator::simpleComplexName(std::string simpleName, std::string complexName) {
+    auto already = simpleComplexNameMap.find(complexName);
+    if (already != simpleComplexNameMap.end())
+        return already->second;
+    if (usedNameSet.find(simpleName) == usedNameSet.end()) {
+        usedNameSet.insert(simpleName);
+        simpleComplexNameMap[complexName] = simpleName;
+        return simpleName;
+    }
+    usedNameSet.insert(complexName);
+    simpleComplexNameMap[complexName] = complexName;
+    return complexName;
 }
 

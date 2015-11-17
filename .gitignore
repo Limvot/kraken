@@ -5,6 +5,7 @@ build-ninja
 stats
 *.swp
 *.swm
+*.swn
 *.swo
 *.png
 *krakout*
@@ -16,3 +17,4 @@ callgrind*
 *.comp_bac
 bintest.bin
 *.dot
+.stfolder

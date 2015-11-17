@@ -45,12 +45,14 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std:
 	removeSymbols.push_back(Symbol("adt_nonterm", false));
 	removeSymbols.push_back(Symbol("template", true));
 	removeSymbols.push_back(Symbol("\\|", true));
-	//collapseSymbols.push_back(Symbol("scoped_identifier", false));
+	//removeSymbols.push_back(Symbol("match", true));
+    collapseSymbols.push_back(Symbol("case_statement_list", false));
     collapseSymbols.push_back(Symbol("opt_param_assign_list", false));
 	collapseSymbols.push_back(Symbol("param_assign_list", false));
 	collapseSymbols.push_back(Symbol("opt_typed_parameter_list", false));
 	collapseSymbols.push_back(Symbol("opt_parameter_list", false));
 	collapseSymbols.push_back(Symbol("identifier_list", false));
+	collapseSymbols.push_back(Symbol("adt_option_list", false));
 	collapseSymbols.push_back(Symbol("statement_list", false));
 	collapseSymbols.push_back(Symbol("parameter_list", false));
 	collapseSymbols.push_back(Symbol("typed_parameter_list", false));

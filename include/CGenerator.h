@@ -28,6 +28,7 @@ class CGenerator {
 		~CGenerator();
 		void generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName);
         std::string generateTypeStruct(NodeTree<ASTData>* from);
+        bool isUnderNodeWithType(NodeTree<ASTData>* from, ASTType type);
         bool isUnderTranslationUnit(NodeTree<ASTData>* from, NodeTree<ASTData>* typeDefinition);
         NodeTree<ASTData>* highestScope(NodeTree<ASTData>* node);
         std::pair<std::string, std::string> generateTranslationUnit(std::string name, std::map<std::string, NodeTree<ASTData>*> ASTs);
@@ -40,6 +41,8 @@ class CGenerator {
         std::string ValueTypeToCTypeThingHelper(Type *type, std::string ptrStr, ClosureTypeSpecialType closureSpecial);
 		static std::string CifyName(std::string name);
 		static std::string scopePrefix(NodeTree<ASTData>* from);
+        std::string simpleComplexName(std::string simpleName, std::string complexName);
+        std::string prefixIfNeeded(std::string prefix, std::string name);
         std::string generateObjectMethod(NodeTree<ASTData>* enclosingObject, NodeTree<ASTData>* from, std::string *functionPrototype);
         NodeTree<ASTData>* getMethodsObjectType(NodeTree<ASTData>* scope, std::string functionName);
         NodeTree<ASTData>* getMethod(Type* type, std::string method, std::vector<Type> types);
@@ -56,6 +59,8 @@ class CGenerator {
         std::string linkerString;
         std::string functionTypedefString;
         std::string functionTypedefStringPre;
+        std::set<std::string> usedNameSet;
+        std::map<std::string, std::string> simpleComplexNameMap;
         std::map<Type, triple<std::string, std::string, std::string>> functionTypedefMap;
         std::map<std::set<NodeTree<ASTData>*>, std::string> closureStructMap;
         std::vector<std::vector<NodeTree<ASTData>*>> distructDoubleStack;

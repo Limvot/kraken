@@ -5,16 +5,69 @@ adt options {
     option1
 }
 
+adt maybe_int {
+    no_int,
+    an_int: int
+}
+
+fun handle_possibility(it: maybe_int) {
+    if (it == maybe_int::no_int()) {
+        println("no int")
+    }
+    /*if (it == maybe_int::an_int) {*/
+    else {
+        print("an int: ")
+        println(it.an_int)
+    }
+}
+
+fun give_maybe(give_it: bool): maybe_int {
+    if (give_it)
+        return maybe_int::an_int(7)
+    return maybe_int::no_int()
+}
+
 fun can_pass(it: options): options {
-    return options::option1
+    return it
 }
 
 fun main():int {
-    var it: options = can_pass(options::option0)
-    if (it == options::option0)
+    var it: options = can_pass(options::option0())
+    if (it == options::option0()) {
         println("nope")
-    if (it == options::option1)
+    }
+    if (it == options::option1()) {
         println("option1")
+    }
+
+    var possibility = give_maybe(false)
+    handle_possibility(possibility)
+    possibility = give_maybe(true)
+    handle_possibility(possibility)
+    if ( maybe_int::an_int(7) == maybe_int::an_int(7) )
+        println("equality true works!")
+    else
+        println("equality true fails!")
+        
+    if ( maybe_int::an_int(7) != maybe_int::an_int(8) )
+        println("equality false works!")
+    else
+        println("equality false fails!")
+
+    match (maybe_int::an_int(11)) {
+        maybe_int::an_int(the_int) {
+            print("matched an int:")
+            print(the_int)
+            println(" correctly!")
+        }
+        maybe_int::no_int() {
+            println("matched no int incorrectly!")
+        }
+    }
+    match (maybe_int::no_int()) {
+        maybe_int::an_int(the_int) println("matched an int incorrectly!")
+        maybe_int::no_int() println("matched no int correctly!")
+    }
     return 0
 }
 
