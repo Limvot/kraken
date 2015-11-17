@@ -64,29 +64,57 @@ This binary exectuable can then be run as a normal C executable.
 
 \section{Variables}
 \label{sec:var}
+  Kraken has automatic type deduction.  This is sort of like the duck typing of
+Python.  The difference is that variables cannot change types.  In this way, it
+is much more like an implicit "auto" keyword in C++.  Unlike C++, semicolons are
+optional after declarations.
 
 \subsection{Variable Declaration}
   \begin{lstlisting}[language=C++]
-    int main(){
-      std::cout << "Hello World" << std::endl;
-      return 0;
-    }
+    var A: int;         //A is unitialized int
+    var B = 1;          //B is integer
+    var C = 2.0;        //C is double
+    var D: float = 3.14 //D is double
+
   \end{lstlisting}
 \subsection{Primitive Types}
-  primitive types
+  The primitive types found in kraken are:
+    \begin{enumerate}
+      \item int
+      \item float
+      \item double
+      \item char
+      \item bool
+      \item void
+    \end{enumerate}
+
 %----------------------------------------------------------------------------------------
 %	SECTION 2: Functions
 %----------------------------------------------------------------------------------------
-
 \section{Functions}
   Section func
+
+%----------------------------------------------------------------------------------------
+%       SECTION I/O
+%----------------------------------------------------------------------------------------
+\section{Input and Output}
+
+%----------------------------------------------------------------------------------------
+%       SECTION Memory Management
+%----------------------------------------------------------------------------------------
+\section{Memory Management}
+  \subsection{Pointers}
+  \subsection{References}
+  \subsection{Dynamic Memory Allocation} 
 
 %----------------------------------------------------------------------------------------
 %	SECTION Classes
 %----------------------------------------------------------------------------------------
 
 \section{Classes}
-  Section class
+  \subsection{Constructors}
+  \subsection{Operator Overloading}
+  \subsection{Inheritance}
 %----------------------------------------------------------------------------------------
 %	SECTION Templates
 %----------------------------------------------------------------------------------------
@@ -98,8 +126,16 @@ This binary exectuable can then be run as a normal C executable.
 %----------------------------------------------------------------------------------------
 
 \section{Standard Library}
-  Section STL
-
+  \subsection{Import Statements}
+  \subsection{Vector}
+  \subsection{String}
+  \subsection{Regex}
+  \subsection{Util}
+  \subsection{Data Structures}
+    \subsubsection{Stack}
+    \subsubsection{Queue}
+    \subsubsection{Set}
+    \subsubsection{Map}
 %----------------------------------------------------------------------------------------
 %       SECTION Understanding Kraken Errors
 %----------------------------------------------------------------------------------------
@@ -108,22 +144,6 @@ This binary exectuable can then be run as a normal C executable.
 %----------------------------------------------------------------------------------------
 %	SECTION C Passthrough
 %----------------------------------------------------------------------------------------
-
-\section{Answers to Definitions}
-
-\begin{enumerate}
-\begin{item}
-  Item 1
-\end{item}
-\begin{item}
-The \emph{units of atomic weight} are two-fold, with an identical numerical value. They are g/mole of atoms (or just g/mol) or amu/atom.
-\end{item}
-\begin{item}
-\emph{Percentage discrepancy} between an accepted (literature) value and an experimental value is
-\begin{equation*}
-  a = 4
-\end{equation*}
-\end{item}
-\end{enumerate}
+\section{C Passthrough}
 
 \end{document}
