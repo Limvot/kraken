@@ -10,6 +10,41 @@ adt maybe_int {
     an_int: int
 }
 
+fun TestObj(num: int): TestObj {
+    print("gonna makke object in function ")
+    println(num)
+    var toRet.construct(num): TestObj
+    return toRet
+}
+obj TestObj (Object) {
+    var obj_num: int
+    fun construct(num:int): *TestObj {
+        obj_num = num
+        print("constructed object ")
+        println(obj_num)
+    }
+    fun copy_construct(old: *TestObj) {
+        obj_num = old->obj_num + 100
+        print("copy constructed object ")
+        print(obj_num)
+        print(" from ")
+        println(old->obj_num)
+    }
+    fun destruct() {
+        print("destructed object ")
+        println(obj_num)
+    }
+    fun operator==(other: ref TestObj): bool {
+        return obj_num == other.obj_num;
+    }
+}
+
+adt maybe_object {
+    no_obj,
+    an_obj: TestObj,
+    an_int: int
+}
+
 fun handle_possibility(it: maybe_int) {
     if (it == maybe_int::no_int()) {
         println("no int")
@@ -67,6 +102,42 @@ fun main():int {
     match (maybe_int::no_int()) {
         maybe_int::an_int(the_int) println("matched an int incorrectly!")
         maybe_int::no_int() println("matched no int correctly!")
+    }
+    var obj_item = maybe_object::no_obj()
+    match (obj_item) {
+        maybe_object::no_obj() println("matched no_obj correctly")
+        maybe_object::an_obj(obj_instance) {
+            print("matched an_obj incorrectly ")
+            println(obj_instance.obj_num)
+        }
+        maybe_object::an_int(int_thiny) {
+            print("matched an_intj incorrectly ")
+            println(int_thiny)
+        }
+    }
+    obj_item = maybe_object::an_obj(TestObj(100))
+    match (obj_item) {
+        maybe_object::no_obj() println("matched no_obj incorrectly")
+        maybe_object::an_obj(obj_instance) {
+            print("matched an_obj correctly ")
+            println(obj_instance.obj_num)
+        }
+        maybe_object::an_int(int_thiny) {
+            print("matched an_intj incorrectly ")
+            println(int_thiny)
+        }
+    }
+    obj_item = maybe_object::an_int(1337)
+    match (obj_item) {
+        maybe_object::no_obj() println("matched no_obj incorrectly")
+        maybe_object::an_obj(obj_instance) {
+            print("matched an_obj incorrectly ")
+            println(obj_instance.obj_num)
+        }
+        maybe_object::an_int(int_thiny) {
+            print("matched an_int correctly ")
+            println(int_thiny)
+        }
     }
     return 0
 }

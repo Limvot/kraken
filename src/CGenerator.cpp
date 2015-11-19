@@ -57,7 +57,8 @@ std::string CGenerator::getID() {
 std::string CGenerator::generateTypeStruct(NodeTree<ASTData>* from) {
     auto data = from->getData();
     auto children = from->getChildren();
-    std::string structString, enumString, functionString;
+    //std::string structString, enumString, functionString;
+    std::string structString, enumString;
     std::string enumName = "__enum_dummy_" + prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName())+"__");
     enumString = "enum " + enumName + " {\n";
     structString = "struct __struct_dummy_";
@@ -79,48 +80,7 @@ std::string CGenerator::generateTypeStruct(NodeTree<ASTData>* from) {
             } else {
                 structString += tabs() + generate(child, nullptr).oneString() + "\n";
             }
-            enumString += tabs() + generate(child, nullptr).oneString() + (data.type == adt_def ? ",\n" : "\n");
-        } else {
-            if (data.type == adt_def) {
-                std::string orig_fun_name = child->getDataRef()->symbol.getName();
-                std::string fun_name;
-                std::string first_param;
-                if (orig_fun_name == "operator==" || orig_fun_name == "operator!=") {
-                    fun_name = "fun_" + data.symbol.getName() + "__" + CifyName(orig_fun_name);
-                    first_param = ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0]->withIncreasedIndirectionPtr(), "this") + ", ";
-                } else {
-                    fun_name = "fun_" + orig_fun_name;
-                }
-                bool has_param = child->getDataRef()->valueType->parameterTypes.size();
-                functionString += "\n" + ValueTypeToCType(child->getDataRef()->valueType->returnType, fun_name) + "(" + first_param +
-                    (has_param ? ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0], "in") : "") + ") { /*adt func*/\n";
-                if (orig_fun_name == "operator==") {
-                    functionString += "     /* equality woop woop */\n";
-                    functionString += "     if (this->flag != in.flag) return false;\n";
-
-                    for (auto child :  children) {
-                        if (child->getName() != "function" && child->getDataRef()->valueType->typeDefinition != from) {
-                            std::string option_name = child->getDataRef()->symbol.getName();
-                            functionString += "     if (this->flag == " + option_name + ")\n";
-                            functionString += "           return this->" + option_name + " == in." + option_name + ";\n";
-                        }
-                    }
-
-                    functionString += "     return true;\n";
-                } else if (orig_fun_name == "operator!=") {
-                    functionString += "     /* inequality woop woop */\n";
-                    functionString += "     return !fun_" + data.symbol.getName() + "__" + CifyName("operator==") + "(this, in);\n";
-                } else {
-                    // ok, is a constructor function
-                    functionString += "     /* constructor woop woop */\n";
-                    functionString += "     " + data.symbol.getName() + " toRet;\n";
-                    functionString += "     toRet.flag = " + orig_fun_name + ";\n";
-                    if (has_param)
-                        functionString += "     toRet." + orig_fun_name + " = in;\n";
-                    functionString += "     return toRet;\n";
-                }
-                functionString += "}\n";
-            }
+            enumString += tabs() + data.symbol.getName() + "__" + generate(child, nullptr).oneString() + (data.type == adt_def ? ",\n" : "\n");
         }
     }
     tabLevel--;
@@ -133,7 +93,7 @@ std::string CGenerator::generateTypeStruct(NodeTree<ASTData>* from) {
     }
     enumString += "};\n";
     if (data.type == adt_def)
-        return  enumString + structString + functionString;
+        return  enumString + structString;
     return structString;
 }
 
@@ -338,16 +298,57 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                         break;
                     case adt_def:
                         {
-                            //type
-                            //don't even need to do this anymore, it's all earlier
-                            //plainTypedefs += "/* adt " + declarationData.symbol.getName() + " */\n";
-                            //plainTypedefs += "typedef struct __struct_dummy_" +
-                            //prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName())+ "__") + " " +
-                            //prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName()))  + ";\n";
-                            //// skip the name of the thing
-                            //for (int j = 1; j < decChildren.size(); j++) {
-                            //std::cout << decChildren[j]->getName() << std::endl;
-                            //}
+                            for (auto child :  decChildren) {
+                                if (child->getName() == "function") {
+                                    std::string orig_fun_name = child->getDataRef()->symbol.getName();
+                                    std::string fun_name = "fun_" + declarationData.symbol.getName() + "__" + CifyName(orig_fun_name);
+                                    std::string first_param;
+                                    if (orig_fun_name == "operator==" || orig_fun_name == "operator!=") {
+                                        //fun_name = "fun_" + declarationData.symbol.getName() + "__" + CifyName(orig_fun_name);
+                                        first_param = ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0]->withIncreasedIndirectionPtr(), "this") + ", ";
+                                    } else {
+                                        //fun_name = "fun_" + orig_fun_name;
+                                    }
+                                    bool has_param = child->getDataRef()->valueType->parameterTypes.size();
+                                    std::string first_part = "\n" + ValueTypeToCType(child->getDataRef()->valueType->returnType, fun_name) + "(" + first_param +
+                                        (has_param ? ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0], "in") : "") + ")";
+                                    functionPrototypes += first_part + "; /*adt func*/\n";
+                                    functionDefinitions += first_part + "{ /*adt func*/\n";
+                                    if (orig_fun_name == "operator==") {
+                                        functionDefinitions += "     /* equality woop woop */\n";
+                                        functionDefinitions += "     if (this->flag != in.flag) return false;\n";
+
+                                        for (auto child :  decChildren) {
+                                            if (child->getName() != "function" && child->getDataRef()->valueType->typeDefinition != declaration) {
+                                                std::string option_name = child->getDataRef()->symbol.getName();
+                                                functionDefinitions += "     if (this->flag == " + declarationData.symbol.getName() + "__" + option_name + ") {\n";
+                                                NodeTree<ASTData>* method = nullptr;
+                                                if (method = getMethod(child->getDataRef()->valueType, "operator==", std::vector<Type>{*child->getDataRef()->valueType})) {
+                                                    functionDefinitions += "        return " + generateMethodIfExists(child->getDataRef()->valueType, "operator==",
+                                                            "&this->" + option_name + ", " + (method->getDataRef()->valueType->parameterTypes[0]->is_reference ? "&" : "") + "in." + option_name,
+                                                            std::vector<Type>{*child->getDataRef()->valueType}) + ";\n}\n";
+                                                } else {
+                                                    functionDefinitions += "           return this->" + option_name + " == in." + option_name + ";\n}\n";
+                                                }
+                                            }
+                                        }
+
+                                        functionDefinitions += "     return true;\n";
+                                    } else if (orig_fun_name == "operator!=") {
+                                        functionDefinitions += "     /* inequality woop woop */\n";
+                                        functionDefinitions += "     return !fun_" + declarationData.symbol.getName() + "__" + CifyName("operator==") + "(this, in);\n";
+                                    } else {
+                                        // ok, is a constructor function
+                                        functionDefinitions += "     /* constructor woop woop */\n";
+                                        functionDefinitions += "     " + declarationData.symbol.getName() + " toRet;\n";
+                                        functionDefinitions += "     toRet.flag = " + declarationData.symbol.getName() + "__" + orig_fun_name + ";\n";
+                                        if (has_param)
+                                            functionDefinitions += "     toRet." + orig_fun_name + " = in;\n";
+                                        functionDefinitions += "     return toRet;\n";
+                                    }
+                                    functionDefinitions += "}\n";
+                                }
+                            }
                             break;
                         }
                     default:
@@ -440,10 +441,11 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 // this is for using functions as values
                 if (justFuncName) {
                     std::string funcName;
-                    if (data.symbol.getName() != "main")
+                    if (data.symbol.getName() != "main") {
                         funcName += function_header + prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName() + nameDecoration));
-                    else
+                    } else {
                         funcName += CifyName(data.symbol.getName() + nameDecoration);
+                    }
                     if (from->getDataRef()->closedVariables.size()) {
                         std::string tmpStruct = "closureStruct" + getID();
                         output.preValue += closureStructType(data.closedVariables) + " " + tmpStruct + " = {";
@@ -535,8 +537,9 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 for (auto case_stmt : slice(children, 1, -1)) {
                     auto case_children = case_stmt->getChildren();
                     std::string option = generate(case_children[0], enclosingObject, false, enclosingFunction).oneString();
+                    std::string parentName = case_children[0]->getDataRef()->scope["~enclosing_scope"][0]->getDataRef()->symbol.getName();
                     output += "/* case " + option + " if " + thingToMatch.value + " */\n";
-                    output += tabs() + "if (" + thingToMatch.value + ".flag == " + option + ") {\n";
+                    output += tabs() + "if (" + thingToMatch.value + ".flag == " + parentName + "__" + option + ") {\n";
                     tabLevel++;
                     if (case_children.size() > 2) {
                         output += tabs() + ValueTypeToCType(case_children[1]->getData().valueType, generate(case_children[1], enclosingObject, false, enclosingFunction).oneString())
@@ -866,7 +869,14 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                                 output += CifyName(name + nameDecoration) + "(";
                                 output += std::string(addClosedOver ? "(*closed_variables->this)" : "this") + (children.size() > 1 ? "," : "");
                             } else {
-                                output += function_header + prefixIfNeeded(scopePrefix(children[0]), CifyName(name + nameDecoration)) + "(";
+                                // ha, I think this is the normal function call one. Had a little trouble finding it
+                                // darned if we don't have to special case ADT psudo-constructors
+                                auto possibleParentADTVector = children[0]->getDataRef()->scope["~enclosing_scope"];
+                                NodeTree<ASTData>* possibleParentADT = possibleParentADTVector.size() ? possibleParentADTVector[0] : nullptr;
+                                std::string adtAdditional = "";
+                                if (possibleParentADT && possibleParentADT->getDataRef()->type == adt_def)
+                                    adtAdditional = possibleParentADT->getDataRef()->symbol.getName() + "__";
+                                output += function_header + prefixIfNeeded(scopePrefix(children[0]), CifyName(adtAdditional + name + nameDecoration)) + "(";
                             }
                         }
                     }
@@ -1045,7 +1055,7 @@ std::string CGenerator::generateMethodIfExists(Type* type, std::string method, s
         std::string nameDecoration;
         for (Type *paramType : methodDef->getDataRef()->valueType->parameterTypes)
             nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
-        return function_header + prefixIfNeeded(scopePrefix(typeDefinition), CifyName(typeDefinition->getDataRef()->symbol.getName())) + "__" + method + nameDecoration + "(" + parameter + ");\n";
+        return function_header + prefixIfNeeded(scopePrefix(typeDefinition), CifyName(typeDefinition->getDataRef()->symbol.getName())) + "__" + CifyName(method) + nameDecoration + "(" + parameter + ");\n";
     }
     return "";
 }

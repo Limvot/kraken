@@ -119,7 +119,8 @@ fun main():int {
 
     var parse.construct(a): parser
     /*var result = parse.parse_input(string("a"), string("fun name"))*/
-    var result = parse.parse_input(read_file(string("to_parse.krak")), string("fun name"))
+    var result = parse.parse_input(read_file(string("test_adt.krak")), string("fun name"))
+    /*var result = parse.parse_input(read_file(string("to_parse.krak")), string("fun name"))*/
     /*var result = parse.parse_input(string("inport a;"), string("fun name"))*/
     /*var result = parse.parse_input(string("fun main():int { return 0; }"), string("fun name"))*/
     /*var result = parse.parse_input(string("ad"), string("fun name"))*/
