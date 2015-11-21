@@ -301,17 +301,20 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                             for (auto child :  decChildren) {
                                 if (child->getName() == "function") {
                                     std::string orig_fun_name = child->getDataRef()->symbol.getName();
-                                    std::string fun_name = "fun_" + declarationData.symbol.getName() + "__" + CifyName(orig_fun_name);
+                                    std::string nameDecoration;
+                                    for (Type *paramType : child->getDataRef()->valueType->parameterTypes)
+                                        nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
+                                    std::string fun_name = "fun_" + declarationData.symbol.getName() + "__" + CifyName(orig_fun_name + nameDecoration);
                                     std::string first_param;
-                                    if (orig_fun_name == "operator==" || orig_fun_name == "operator!=") {
-                                        //fun_name = "fun_" + declarationData.symbol.getName() + "__" + CifyName(orig_fun_name);
-                                        first_param = ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0]->withIncreasedIndirectionPtr(), "this") + ", ";
-                                    } else {
-                                        //fun_name = "fun_" + orig_fun_name;
+                                    if (orig_fun_name == "operator==" || orig_fun_name == "operator!=" || orig_fun_name == "copy_construct" || orig_fun_name == "destruct") {
+                                        first_param = ValueTypeToCType(declarationData.valueType->withIncreasedIndirectionPtr(), "this");
+                                        //first_param = ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0]->withIncreasedIndirectionPtr(), "this");
+                                        //if (orig_fun_name == "operator==" || orig_fun_name == "operator!=" || orig_fun_name == "copy_construct")
+                                            //first_param += ", ";
                                     }
                                     bool has_param = child->getDataRef()->valueType->parameterTypes.size();
                                     std::string first_part = "\n" + ValueTypeToCType(child->getDataRef()->valueType->returnType, fun_name) + "(" + first_param +
-                                        (has_param ? ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0], "in") : "") + ")";
+                                        (has_param ? (first_param != "" ? ", " : "") + ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0], "in") : "") + ")";
                                     functionPrototypes += first_part + "; /*adt func*/\n";
                                     functionDefinitions += first_part + "{ /*adt func*/\n";
                                     if (orig_fun_name == "operator==") {
@@ -336,7 +339,12 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                         functionDefinitions += "     return true;\n";
                                     } else if (orig_fun_name == "operator!=") {
                                         functionDefinitions += "     /* inequality woop woop */\n";
-                                        functionDefinitions += "     return !fun_" + declarationData.symbol.getName() + "__" + CifyName("operator==") + "(this, in);\n";
+                                        std::string adtName = declarationData.symbol.getName();
+                                        functionDefinitions += "     return !fun_" + adtName + "__" + CifyName("operator==") + "_" + adtName+ "(this, in);\n";
+                                    } else if (orig_fun_name == "copy_construct") {
+                                        functionDefinitions += "     /* copy_construct woop woop */\n";
+                                    } else if (orig_fun_name == "destruct") {
+                                        functionDefinitions += "     /* destruct woop woop */\n";
                                     } else {
                                         // ok, is a constructor function
                                         functionDefinitions += "     /* constructor woop woop */\n";
@@ -434,10 +442,12 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     if (j > 0 || data.closedVariables.size())
                         parameters += ", ";
                     parameters += ValueTypeToCType(children[j]->getData().valueType, generate(children[j], enclosingObject, justFuncName, enclosingFunction).oneString());
-                    nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
+                    //nameDecoration += "_" + ValueTypeToCTypeDecoration(children[j]->getData().valueType);
                     // add parameters to distructDoubleStack so that their destructors will be called at return (if they exist)
                     distructDoubleStack.back().push_back(children[j]);
                 }
+                for (Type *paramType : from->getDataRef()->valueType->parameterTypes)
+                    nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
                 // this is for using functions as values
                 if (justFuncName) {
                     std::string funcName;
@@ -818,10 +828,13 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                                 NodeTree<ASTData>* unaliasedTypeDef = getMethodsObjectType(possibleObjectType, functionName);
                                 if (unaliasedTypeDef) { //Test to see if the function's a member of this type_def, or if this is an alias, of the original type. Get this original type if it exists.
                                     std::string nameDecoration;
-                                    std::vector<NodeTree<ASTData>*> functionDefChildren = children[2]->getChildren(); //The function def is the rhs of the access operation
+                                    NodeTree<ASTData>* functionDef = children[2]; //The function def is the rhs of the access operation
+                                    //std::vector<NodeTree<ASTData>*> functionDefChildren = children[2]->getChildren(); //The function def is the rhs of the access operation
                                     //std::cout << "Decorating (in access-should be object) " << name << " " << functionDefChildren.size() << std::endl;
-                                    for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
-                                        nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
+                                    for (Type *paramType : functionDef->getDataRef()->valueType->parameterTypes)
+                                        nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
+                                    //for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
+                                        //nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
                                     // Note that we only add scoping to the object, as this specifies our member function too
                                     /*HERE*/				 	    return function_header + prefixIfNeeded(scopePrefix(unaliasedTypeDef), CifyName(unaliasedTypeDef->getDataRef()->symbol.getName())) +"__" +
                                         CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject, true, enclosingFunction) + ",";
@@ -849,8 +862,10 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                             std::vector<NodeTree<ASTData>*> functionDefChildren = children[0]->getChildren();
                             //std::cout << "Decorating (none-special)" << name << " " << functionDefChildren.size() << std::endl;
                             std::string nameDecoration;
-                            for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
-                                nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
+                            for (Type *paramType : children[0]->getDataRef()->valueType->parameterTypes)
+                                nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
+                            //for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
+                                //nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
                             // it is possible that this is an object method from inside a closure
                             // in which case, recover the enclosing object from this
                             bool addClosedOver = false;

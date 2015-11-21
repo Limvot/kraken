@@ -210,6 +210,16 @@ void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
             addToScope("operator!=", inequalityFunc, adtDef);
             addToScope("~enclosing_scope", adtDef, inequalityFunc);
 
+            NodeTree<ASTData>* copy_constructFunc = new NodeTree<ASTData>("function", ASTData(function, Symbol("copy_construct", true), new Type(std::vector<Type*>{thisADTType->withIncreasedIndirectionPtr()}, new Type(void_type))));
+            adtDef->addChild(copy_constructFunc);
+            addToScope("copy_construct", copy_constructFunc, adtDef);
+            addToScope("~enclosing_scope", adtDef, copy_constructFunc);
+
+            NodeTree<ASTData>* destructFunc = new NodeTree<ASTData>("function", ASTData(function, Symbol("destruct", true), new Type(std::vector<Type*>(), new Type(void_type))));
+            adtDef->addChild(destructFunc);
+            addToScope("destruct", destructFunc, adtDef);
+            addToScope("~enclosing_scope", adtDef, destructFunc);
+
             for (NodeTree<Symbol>* j : getNodes("adt_option", i)) {
                 std::string ident_name = concatSymbolTree(getNode("identifier", j));
                 std::cout << "add ing " << ident_name << " to " << name << " for ADT" << std::endl;
