@@ -306,11 +306,9 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                         nameDecoration += "_" + ValueTypeToCTypeDecoration(paramType);
                                     std::string fun_name = "fun_" + declarationData.symbol.getName() + "__" + CifyName(orig_fun_name + nameDecoration);
                                     std::string first_param;
-                                    if (orig_fun_name == "operator==" || orig_fun_name == "operator!=" || orig_fun_name == "copy_construct" || orig_fun_name == "destruct") {
+                                    if (orig_fun_name == "operator==" || orig_fun_name == "operator!=" || orig_fun_name == "copy_construct" || orig_fun_name == "operator="
+                                            || orig_fun_name == "destruct") {
                                         first_param = ValueTypeToCType(declarationData.valueType->withIncreasedIndirectionPtr(), "this");
-                                        //first_param = ValueTypeToCType(child->getDataRef()->valueType->parameterTypes[0]->withIncreasedIndirectionPtr(), "this");
-                                        //if (orig_fun_name == "operator==" || orig_fun_name == "operator!=" || orig_fun_name == "copy_construct")
-                                            //first_param += ", ";
                                     }
                                     bool has_param = child->getDataRef()->valueType->parameterTypes.size();
                                     std::string first_part = "\n" + ValueTypeToCType(child->getDataRef()->valueType->returnType, fun_name) + "(" + first_param +
@@ -319,39 +317,107 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                     functionDefinitions += first_part + "{ /*adt func*/\n";
                                     if (orig_fun_name == "operator==") {
                                         functionDefinitions += "     /* equality woop woop */\n";
-                                        functionDefinitions += "     if (this->flag != in.flag) return false;\n";
+                                        functionDefinitions += "     bool equal = true;\n";
+                                        functionDefinitions += "     if (this->flag != in->flag) equal = false;\n";
 
                                         for (auto child :  decChildren) {
                                             if (child->getName() != "function" && child->getDataRef()->valueType->typeDefinition != declaration) {
                                                 std::string option_name = child->getDataRef()->symbol.getName();
-                                                functionDefinitions += "     if (this->flag == " + declarationData.symbol.getName() + "__" + option_name + ") {\n";
+                                                functionDefinitions += "     else if (this->flag == " + declarationData.symbol.getName() + "__" + option_name + ") {\n";
                                                 NodeTree<ASTData>* method = nullptr;
                                                 if (method = getMethod(child->getDataRef()->valueType, "operator==", std::vector<Type>{*child->getDataRef()->valueType})) {
-                                                    functionDefinitions += "        return " + generateMethodIfExists(child->getDataRef()->valueType, "operator==",
-                                                            "&this->" + option_name + ", " + (method->getDataRef()->valueType->parameterTypes[0]->is_reference ? "&" : "") + "in." + option_name,
-                                                            std::vector<Type>{*child->getDataRef()->valueType}) + ";\n}\n";
+                                                    bool is_reference = method->getDataRef()->valueType->parameterTypes[0]->is_reference;
+
+                                                    auto itemTypeVector = std::vector<Type>{child->getDataRef()->valueType->withIncreasedIndirection()};
+                                                    bool need_temporary = !is_reference && getMethod(child->getDataRef()->valueType, "copy_construct", itemTypeVector);
+                                                    if (need_temporary) {
+                                                        functionDefinitions += "        " + ValueTypeToCType(child->getDataRef()->valueType, "copy_constructTemporary") + ";\n";
+                                                        functionDefinitions += "        " + generateMethodIfExists(child->getDataRef()->valueType, "copy_construct",
+                                                                "&copy_constructTemporary, &in->" + option_name, itemTypeVector) + ";\n";
+                                                    }
+
+                                                    std::string otherValue = (is_reference ? "&" : "") + (need_temporary ? "copy_constructTemporary" : "in->" + option_name);
+                                                    functionDefinitions += "        equal = " + generateMethodIfExists(child->getDataRef()->valueType, "operator==",
+                                                            "&this->" + option_name + ", " + otherValue,
+                                                            std::vector<Type>{*child->getDataRef()->valueType}) + ";\n";
+                                                    // Remember, we don't destruct copy_constructTemporary because the function will do that
+                                                    functionDefinitions += "}\n";
                                                 } else {
-                                                    functionDefinitions += "           return this->" + option_name + " == in." + option_name + ";\n}\n";
+                                                    functionDefinitions += "           equal = this->" + option_name + " == in->" + option_name + ";\n}\n";
                                                 }
                                             }
                                         }
-
-                                        functionDefinitions += "     return true;\n";
+                                        functionDefinitions += "     return equal;\n";
                                     } else if (orig_fun_name == "operator!=") {
                                         functionDefinitions += "     /* inequality woop woop */\n";
                                         std::string adtName = declarationData.symbol.getName();
-                                        functionDefinitions += "     return !fun_" + adtName + "__" + CifyName("operator==") + "_" + adtName+ "(this, in);\n";
+
+                                        functionDefinitions += "     bool equal = !fun_" + adtName + "__" + CifyName("operator==") + "_" + adtName + "_space__div__star_ref_star__div__space__star_(this, in);\n";
+                                        functionDefinitions += "     return equal;\n";
+                                    } else if (orig_fun_name == "operator=") {
+                                        functionDefinitions += "/* wopo assignment */\n";
+                                        auto adtType = declaration->getDataRef()->valueType;
+                                        functionDefinitions += "        " + generateMethodIfExists(adtType, "destruct",
+                                                "this", std::vector<Type>()) + ";\n";
+                                        functionDefinitions += "        " + generateMethodIfExists(adtType, "copy_construct",
+                                                "this, in", std::vector<Type>{adtType->withIncreasedIndirection()}) + ";\n";
                                     } else if (orig_fun_name == "copy_construct") {
                                         functionDefinitions += "     /* copy_construct woop woop */\n";
+                                        functionDefinitions += "     this->flag = in->flag;\n";
+                                        std::string elsePrefix = "";
+                                        for (auto child :  decChildren) {
+                                            if (child->getName() != "function" && child->getDataRef()->valueType->typeDefinition != declaration) {
+                                                std::string option_name = child->getDataRef()->symbol.getName();
+                                                functionDefinitions += "     " + elsePrefix + " if (in->flag == " + declarationData.symbol.getName() + "__" + option_name + ") {\n";
+                                                elsePrefix = "else";
+                                                NodeTree<ASTData>* method = nullptr;
+                                                auto itemTypeVector = std::vector<Type>{child->getDataRef()->valueType->withIncreasedIndirection()};
+                                                if (method = getMethod(child->getDataRef()->valueType, "copy_construct", itemTypeVector)) {
+                                                    functionDefinitions += "        " + generateMethodIfExists(child->getDataRef()->valueType, "copy_construct",
+                                                            "&this->" + option_name + ", &in->" + option_name, itemTypeVector) + ";\n";
+                                                } else {
+                                                    functionDefinitions += "this->" + option_name + " = in->" + option_name + ";\n";
+                                                }
+                                                functionDefinitions += "    }\n";
+                                            }
+                                        }
                                     } else if (orig_fun_name == "destruct") {
                                         functionDefinitions += "     /* destruct woop woop */\n";
+                                        std::string elsePrefix = "";
+                                        for (auto child :  decChildren) {
+                                            if (child->getName() != "function" && child->getDataRef()->valueType->typeDefinition != declaration) {
+                                                std::string option_name = child->getDataRef()->symbol.getName();
+                                                functionDefinitions += "     " + elsePrefix + " if (this->flag == " + declarationData.symbol.getName() + "__" + option_name + ") {\n";
+                                                elsePrefix = "else";
+                                                NodeTree<ASTData>* method = nullptr;
+                                                if (method = getMethod(child->getDataRef()->valueType, "destruct", std::vector<Type>())) {
+                                                    functionDefinitions += "        " + generateMethodIfExists(child->getDataRef()->valueType, "destruct",
+                                                            "&this->" + option_name, std::vector<Type>()) + ";\n";
+                                                }
+                                                functionDefinitions += "    }\n";
+                                            }
+                                        }
                                     } else {
                                         // ok, is a constructor function
                                         functionDefinitions += "     /* constructor woop woop */\n";
                                         functionDefinitions += "     " + declarationData.symbol.getName() + " toRet;\n";
                                         functionDefinitions += "     toRet.flag = " + declarationData.symbol.getName() + "__" + orig_fun_name + ";\n";
-                                        if (has_param)
-                                            functionDefinitions += "     toRet." + orig_fun_name + " = in;\n";
+                                        if (has_param) {
+                                            NodeTree<ASTData>* method = nullptr;
+                                            auto paramType = child->getDataRef()->valueType->parameterTypes[0];
+                                            auto itemTypeVector = std::vector<Type>{paramType->withIncreasedIndirection()};
+                                            functionDefinitions += "/*" + ValueTypeToCType(paramType, "") + "*/\n";
+                                            if (method = getMethod(paramType, "copy_construct", itemTypeVector)) {
+                                                functionDefinitions += "        " + generateMethodIfExists(paramType, "copy_construct",
+                                                        "&toRet." + orig_fun_name + ", &in", itemTypeVector) + ";\n";
+                                            } else {
+                                                functionDefinitions += "     toRet." + orig_fun_name + " = in;\n";
+                                            }
+
+                                            if (method = getMethod(paramType, "destruct", std::vector<Type>())) {
+                                                functionDefinitions += "        " + generateMethodIfExists(paramType, "destruct",
+                                                        "&in", std::vector<Type>()) + ";\n";
+                                            }                                         }
                                         functionDefinitions += "     return toRet;\n";
                                     }
                                     functionDefinitions += "}\n";
@@ -836,7 +902,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                                     //for (int i = 0; i < (functionDefChildren.size() > 0 ? functionDefChildren.size()-1 : 0); i++)
                                         //nameDecoration += "_" + ValueTypeToCTypeDecoration(functionDefChildren[i]->getData().valueType);
                                     // Note that we only add scoping to the object, as this specifies our member function too
-                                    /*HERE*/				 	    return function_header + prefixIfNeeded(scopePrefix(unaliasedTypeDef), CifyName(unaliasedTypeDef->getDataRef()->symbol.getName())) +"__" +
+                                    return function_header + prefixIfNeeded(scopePrefix(unaliasedTypeDef), CifyName(unaliasedTypeDef->getDataRef()->symbol.getName())) +"__" +
                                         CifyName(functionName + nameDecoration) + "(" + (name == "." ? "&" : "") + generate(children[1], enclosingObject, true, enclosingFunction) + ",";
                                     //The comma lets the upper function call know we already started the param list
                                     //Note that we got here from a function call. We just pass up this special case and let them finish with the perentheses
@@ -964,12 +1030,7 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
     case value:
             {
                 // ok, we now check for it being a multiline string and escape all returns if it is (so that multiline strings work)
-                //if (data.symbol.getName()[0] == '"') {
                 if (data.symbol.getName()[0] == '"' && strSlice(data.symbol.getName(), 0, 3) == "\"\"\"") {
-                    //bool multiline_str = strSlice(data.symbol.getName(), 0, 3) == "\"\"\"";
-                    //std::string innerString = multiline_str
-                    //? strSlice(data.symbol.getName(), 3, -4)
-                    //: strSlice(data.symbol.getName(), 1, -2);
                     std::string innerString = strSlice(data.symbol.getName(), 3, -4);
                     std::string newStr;
                     for (auto character: innerString)
@@ -1199,8 +1260,9 @@ std::string CGenerator::ValueTypeToCTypeThingHelper(Type *type, std::string decl
         return return_type;
     for (int i = 0; i < type->getIndirection(); i++)
         return_type += "*";
-    if (type->is_reference)
+    if (type->is_reference) {
         return_type += " /*ref*/ *";
+    }
     return return_type + declaration;
 }
 

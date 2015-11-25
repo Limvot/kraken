@@ -1,1 +1,48 @@
 option1
+no int
+an int: 7
+equality true works!
+equality false works!
+matched an int:11 correctly!
+matched no int correctly!
+matched no_obj correctly
+assignment to old variable
+gonna make object in function 100
+constructed object 100 : 100
+copy constructed object 100 : 200 from 100 : 100
+destructed object 100 : 100
+copy constructed object 100 : 300 from 100 : 200
+copy constructed object 100 : 400 from 100 : 300
+destructed object 100 : 300
+copy constructed object 100 : 500 from 100 : 400
+destructed object 100 : 400
+destructed object 100 : 200
+done assignment to old variable
+matched an_obj correctly 100 : 500
+int assignment to old var
+destructed object 100 : 500
+done int assignment to old var
+matched an_int correctly 1337
+test copy_construct for non ref equality
+gonna make object in function 110
+constructed object 110 : 110
+copy constructed object 110 : 210 from 110 : 110
+destructed object 110 : 110
+copy constructed object 110 : 310 from 110 : 210
+copy constructed object 110 : 410 from 110 : 310
+destructed object 110 : 310
+gonna make object in function 110
+constructed object 110 : 110
+copy constructed object 110 : 210 from 110 : 110
+destructed object 110 : 110
+copy constructed object 110 : 310 from 110 : 210
+copy constructed object 110 : 410 from 110 : 310
+destructed object 110 : 310
+copy constructed object 110 : 510 from 110 : 410
+destructed object 110 : 510
+equality an_obj correctly 
+destructed object 110 : 410
+destructed object 110 : 210
+destructed object 110 : 410
+destructed object 110 : 210
+done test copy_construct for non ref equality

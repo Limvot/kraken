@@ -240,6 +240,16 @@ Type Type::withIncreasedIndirection() {
     newOne->increaseIndirection();
     return *newOne;
 }
+Type Type::withReference() {
+   Type *newOne = clone();
+    newOne->is_reference = true;
+    return *newOne;
+}
+Type *Type::withReferencePtr() {
+   Type *newOne = clone();
+    newOne->is_reference = true;
+    return newOne;
+}
 Type *Type::withIncreasedIndirectionPtr() {
    Type *newOne = clone();
     newOne->increaseIndirection();

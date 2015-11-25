@@ -11,30 +11,34 @@ adt maybe_int {
 }
 
 fun TestObj(num: int): TestObj {
-    print("gonna makke object in function ")
+    print("gonna make object in function ")
     println(num)
     var toRet.construct(num): TestObj
     return toRet
 }
 obj TestObj (Object) {
     var obj_num: int
+    var ref_num: int
     fun construct(num:int): *TestObj {
         obj_num = num
+        ref_num = num
         print("constructed object ")
-        println(obj_num)
+        print(obj_num);print(" : ");println(ref_num)
     }
     fun copy_construct(old: *TestObj) {
-        obj_num = old->obj_num + 100
+        obj_num = old->obj_num
+        ref_num = old->ref_num + 100
         print("copy constructed object ")
-        print(obj_num)
+        print(obj_num);print(" : ");print(ref_num)
         print(" from ")
-        println(old->obj_num)
+        print(old->obj_num);print(" : ");println(old->ref_num)
     }
     fun destruct() {
         print("destructed object ")
-        println(obj_num)
+        print(obj_num);print(" : ");println(ref_num)
     }
-    fun operator==(other: ref TestObj): bool {
+    /*fun operator==(other: ref TestObj): bool {*/
+    fun operator==(other: TestObj): bool {
         return obj_num == other.obj_num;
     }
 }
@@ -48,9 +52,7 @@ adt maybe_object {
 fun handle_possibility(it: maybe_int) {
     if (it == maybe_int::no_int()) {
         println("no int")
-    }
-    /*if (it == maybe_int::an_int) {*/
-    else {
+    } else {
         print("an int: ")
         println(it.an_int)
     }
@@ -67,7 +69,7 @@ fun can_pass(it: options): options {
 }
 
 fun main():int {
-    var it: options = can_pass(options::option0())
+    var it: options = can_pass(options::option1())
     if (it == options::option0()) {
         println("nope")
     }
@@ -115,30 +117,46 @@ fun main():int {
             println(int_thiny)
         }
     }
+    println("assignment to old variable")
     obj_item = maybe_object::an_obj(TestObj(100))
+    println("done assignment to old variable")
     match (obj_item) {
         maybe_object::no_obj() println("matched no_obj incorrectly")
         maybe_object::an_obj(obj_instance) {
             print("matched an_obj correctly ")
-            println(obj_instance.obj_num)
+                print(obj_instance.obj_num);print(" : ");println(obj_instance.ref_num)
         }
         maybe_object::an_int(int_thiny) {
             print("matched an_intj incorrectly ")
             println(int_thiny)
         }
     }
+    println("int assignment to old var")
     obj_item = maybe_object::an_int(1337)
+    println("done int assignment to old var")
+    /*println("test copying thing");*/
+    /*var obj_item_new = maybe_object::an_obj(TestObj(1000))*/
+    /*println("new object assingment")*/
+    /*var obj_item_new_copy = obj_item_new;*/
+    /*println("done new object assingment")*/
+    /*println("done test copying thing");*/
     match (obj_item) {
         maybe_object::no_obj() println("matched no_obj incorrectly")
         maybe_object::an_obj(obj_instance) {
             print("matched an_obj incorrectly ")
-            println(obj_instance.obj_num)
+            print(obj_instance.obj_num);print(" : ");println(obj_instance.ref_num)
         }
         maybe_object::an_int(int_thiny) {
             print("matched an_int correctly ")
             println(int_thiny)
         }
     }
+    println("test copy_construct for non ref equality");
+    if (maybe_object::an_obj(TestObj(110)) == maybe_object::an_obj(TestObj(110)))
+        println("equality an_obj correctly ")
+    else
+        println("equality an_obj incorrectly ")
+    println("done test copy_construct for non ref equality");
     return 0
 }
 

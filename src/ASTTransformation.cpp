@@ -200,12 +200,12 @@ void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
 
             // Let's make an equality function prototype
             Type *thisADTType = adtDef->getDataRef()->valueType;
-            NodeTree<ASTData>* equalityFunc = new NodeTree<ASTData>("function", ASTData(function, Symbol("operator==", true), new Type(std::vector<Type*>{thisADTType}, new Type(boolean))));
+            NodeTree<ASTData>* equalityFunc = new NodeTree<ASTData>("function", ASTData(function, Symbol("operator==", true), new Type(std::vector<Type*>{thisADTType->withReferencePtr()}, new Type(boolean))));
             adtDef->addChild(equalityFunc);
             addToScope("operator==", equalityFunc, adtDef);
             addToScope("~enclosing_scope", adtDef, equalityFunc);
 
-            NodeTree<ASTData>* inequalityFunc = new NodeTree<ASTData>("function", ASTData(function, Symbol("operator!=", true), new Type(std::vector<Type*>{thisADTType}, new Type(boolean))));
+            NodeTree<ASTData>* inequalityFunc = new NodeTree<ASTData>("function", ASTData(function, Symbol("operator!=", true), new Type(std::vector<Type*>{thisADTType->withReferencePtr()}, new Type(boolean))));
             adtDef->addChild(inequalityFunc);
             addToScope("operator!=", inequalityFunc, adtDef);
             addToScope("~enclosing_scope", adtDef, inequalityFunc);
@@ -214,6 +214,11 @@ void ASTTransformation::secondPass(NodeTree<ASTData>* ast, NodeTree<Symbol>* par
             adtDef->addChild(copy_constructFunc);
             addToScope("copy_construct", copy_constructFunc, adtDef);
             addToScope("~enclosing_scope", adtDef, copy_constructFunc);
+
+            NodeTree<ASTData>* assignmentFunc = new NodeTree<ASTData>("function", ASTData(function, Symbol("operator=", true), new Type(std::vector<Type*>{thisADTType->withReferencePtr()}, new Type(void_type))));
+            adtDef->addChild(assignmentFunc);
+            addToScope("operator=", assignmentFunc, adtDef);
+            addToScope("~enclosing_scope", adtDef, assignmentFunc);
 
             NodeTree<ASTData>* destructFunc = new NodeTree<ASTData>("function", ASTData(function, Symbol("destruct", true), new Type(std::vector<Type*>(), new Type(void_type))));
             adtDef->addChild(destructFunc);
