@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.1415926-2.5-1.40.14 (MiKTeX 2.9) (preloaded format=pdflatex 2015.9.2)  26 NOV 2015 16:38
+This is pdfTeX, Version 3.1415926-2.5-1.40.14 (MiKTeX 2.9) (preloaded format=pdflatex 2015.9.2)  26 NOV 2015 18:56
 entering extended mode
 **Manual.tex
 (C:\Users\Chris\Documents\GitHub\kraken\doc\Manual.tex
@@ -234,24 +234,48 @@ Overfull \hbox (39.0039pt too wide) in paragraph at lines 150--152
 [][][][][][][][][][][][][][][][][][][][][][] 
  []
 
-[3] [4] (C:\Users\Chris\Documents\GitHub\kraken\doc\Manual.aux) ) 
+
+Overfull \hbox (21.00372pt too wide) in paragraph at lines 168--169
+[][][][][][][][][][][][][][][][][][][][][][][][][] 
+ []
+
+[3]
+LaTeX Font Info:    Try loading font information for OML+ptm on input line 197.
+
+ ("C:\Program Files (x86)\MiKTeX 2.9\tex\latex\psnfss\omlptm.fd"
+File: omlptm.fd 
+)
+LaTeX Font Info:    Font shape `OML/ptm/m/n' in size <10> not available
+(Font)              Font shape `OML/cmm/m/it' tried instead on input line 197.
+
+Overfull \hbox (33.00385pt too wide) in paragraph at lines 197--198
+[][][][][][][][][][][][][][][][][][][][][][][][][][] 
+ []
+
+
+Overfull \hbox (87.0044pt too wide) in paragraph at lines 198--199
+[][][][][][][][][][][][][][][][][][][][][][][][][][][] 
+ []
+
+[4] [5] (C:\Users\Chris\Documents\GitHub\kraken\doc\Manual.aux) ) 
 Here is how much of TeX's memory you used:
- 3263 strings out of 493921
- 44312 string characters out of 3144877
- 136396 words of memory out of 3000000
- 6539 multiletter control sequences out of 15000+200000
+ 3293 strings out of 493921
+ 44742 string characters out of 3144877
+ 140396 words of memory out of 3000000
+ 6566 multiletter control sequences out of 15000+200000
  20598 words of font info for 43 fonts, out of 3000000 for 9000
  841 hyphenation exceptions out of 8191
  33i,6n,60p,335b,1580s stack positions out of 5000i,500n,10000p,200000b,50000s
 {C:/Program Fi
 les (x86)/MiKTeX 2.9/fonts/enc/dvips/fontname/8r.enc}<C:/Program Files (x86)/Mi
-KTeX 2.9/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Program Files (x86)/MiKT
-eX 2.9/fonts/type1/urw/times/utmb8a.pfb><C:/Program Files (x86)/MiKTeX 2.9/font
-s/type1/urw/times/utmr8a.pfb><C:/Program Files (x86)/MiKTeX 2.9/fonts/type1/urw
-/times/utmri8a.pfb>
-Output written on Manual.pdf (4 pages, 61161 bytes).
+KTeX 2.9/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/Program Files (x86)/MiKT
+eX 2.9/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Program Files (x86)/MiKTeX
+ 2.9/fonts/type1/urw/times/utmb8a.pfb><C:/Program Files (x86)/MiKTeX 2.9/fonts/
+type1/urw/times/utmr8a.pfb><C:/Program Files (x86)/MiKTeX 2.9/fonts/type1/urw/t
+imes/utmri8a.pfb>
+Output written on Manual.pdf (5 pages, 75691 bytes).
 PDF statistics:
- 32 PDF objects out of 1000 (max. 8388607)
+ 39 PDF objects out of 1000 (max. 8388607)
  0 named destinations out of 1000 (max. 500000)
  1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

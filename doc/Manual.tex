@@ -158,8 +158,45 @@ optional after declarations.
 %----------------------------------------------------------------------------------------
 \section{Memory Management}
   \subsection{Pointers}
+    Pointers in kraken work like they do in C.  The notation is the 
+    {\bf{*}} symbol.  This is a dereference operator.  This means that it
+    operates on a pointer, and gives the variable pointed to.  For 
+    instance:
+    \begin{lstlisting}[language=C++]
+      var B: *int = 4;  //B is a pointer to an integer 4
+      *B = 3;         //B is now equal to 3
+      print(B);       //would print an address, like "0xFFA3"
+    \end{lstlisting}
   \subsection{References}
+    References are a way to create "automatic" pointers.  If a function
+  takes in a reference, the variable is passed by reference, instead of by
+  value.  This means that no copy of the variable is made, and any changes
+  made to the variable in the function will remain after the end of the
+  function.  References also allow left-handed assignment.  This means that
+  an array indexed on the left hand of an equal sign can have its value
+  changed.
+    \begin{lstlisting}[language=C++]
+      fun RefFunction(arg1: ref int): ref int{
+        return arg1 + 1;
+      }
+      
+      var a = 6;
+      var b = RefFunction(a);
+      println(a); //a is now equal to 6
+      println(b); //b is now equal to 6
+      RefFunction(b) = 15; 
+      println(b); //b is now equal to 15
+    \end{lstlisting}
+  
   \subsection{Dynamic Memory Allocation} 
+    In order to allocate memory on the heap instead of the stack, dynamic
+  memory allocation must be used.  The data must be explicitly allocated with
+  the {\bf{new}} keyword, and deleted with the {\bf{delete}} keyword.  The
+  size in both instances must be provided.
+    \begin{lstlisting}[language=C++]
+      var data = new<int>(8); //Allocate 8 integers on the heap
+      delete(data,8);         //Free the memory when its no longer used.
+    \end{lstlisting}
 
 %----------------------------------------------------------------------------------------
 %	SECTION Classes
