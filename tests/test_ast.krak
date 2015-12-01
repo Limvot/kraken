@@ -1,0 +1,73 @@
+import io:*
+import grammer:*
+import parser:*
+import lexer:*
+import ast_transformation:*
+import string:*
+import util:*
+import symbol:*
+import tree:*
+import serialize:*
+
+fun main():int {
+    
+    var gram.construct(): grammer
+
+    var file_name = string("../krakenGrammer.kgm")
+
+    var compiled_name = file_name + string(".comp_new")
+    var file_contents = read_file(file_name)
+    var loaded_and_valid = false
+
+    if (file_exists(compiled_name)) {
+        println("cached file exists")
+        var pos = 0
+        var binary = read_file_binary(compiled_name)
+        println("read file!")
+        var cached_contents = string()
+        unpack(cached_contents, pos) = unserialize<string>(binary, pos)
+        if (cached_contents == file_contents) {
+            println("loaded_and_valid, using cached version!")
+            loaded_and_valid = true
+            unpack(gram, pos) = unserialize<grammer>(binary, pos)
+            println("finished unserializeing!!")
+        } else {
+            println("file contents do not match:")
+            println("CACHED:")
+            println(cached_contents)
+            println("REAL:")
+            println(file_contents)
+            println("END")
+        }
+    } else {
+        println("cached file does not exist")
+    }
+    if (!loaded_and_valid) {
+        println("Not loaded_and_valid, re-generating and writing out")
+        gram = load_grammer(file_contents)
+        println("grammer loaded, calculate_first_set")
+        gram.calculate_first_set()
+        println("grammer loaded, calculate_state_automaton")
+        gram.calculate_state_automaton()
+        println("calculated, writing out")
+        write_file_binary(compiled_name, serialize(file_contents) + serialize(gram))
+        println("done writing")
+    }
+    println(gram.to_string())
+
+    var parse.construct(gram): parser
+    var parse_tree = parse.parse_input(read_file(string("to_parse.krak")), string("fun name"))
+    println("the tree")
+    println(syntax_tree_to_dot(parse_tree))
+    write_file(string("syntax_tree.dot"), syntax_tree_to_dot(parse_tree))
+
+    var ast_pass.construct(): ast_transformation
+    var ast = ast_pass.transform(parse_tree)
+    println("the AST")
+    println(ast_to_dot(ast))
+    write_file(string("ast.dot"), ast_to_dot(ast))
+
+    return 0
+}
+
+

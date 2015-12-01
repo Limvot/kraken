@@ -1,0 +1,71 @@
+import symbol:*
+import tree:*
+import vector:*
+import stack:*
+import map:*
+import util:*
+import string:*
+import mem:*
+import io:*
+
+adt ast_node {
+    undef
+}
+
+
+obj ast_transformation (Object) {
+    fun construct(): *ast_transformation {
+        return this
+    }
+    fun copy_construct(old: *ast_transformation) {
+    }
+    fun operator=(old: ref ast_transformation) {
+        destruct()
+        copy_construct(&old)
+    }
+    fun destruct() {
+    }
+
+    fun transform(parse_tree: *tree<symbol>): *ast_node {
+        return null<ast_node>()
+    }
+}
+
+fun get_ast_children(node: *ast_node): vector<*ast_node> {
+    return vector<*ast_node>()
+}
+fun get_ast_name(node: *ast_node): string {
+    return string("ast_node")
+}
+
+fun ast_to_dot(root: *ast_node): string {
+    var ret = string("digraph Kaken {\n")
+    var counter = 0
+    var node_name_map = map<*ast_node, string>()
+    var get_name = fun(node: *ast_node): string {
+        if (node_name_map.contains_key(node))
+            return node_name_map[node]
+        var escaped = string("")
+        get_ast_name(node).data.for_each(fun(c: char) {
+            if (c != '"')
+                escaped += c
+            else
+                escaped += "\\\""
+        })
+        escaped += to_string(counter++)
+        node_name_map.set(node, escaped)
+        return escaped
+    }
+    var helper: fun(*ast_node):void = fun(node: *ast_node) {
+        get_ast_children(node).for_each(fun(child: *ast_node) {
+            if (!child)
+                return; // where on earth does the null come from
+            ret += string("\"") + get_name(node) + "\" -> \"" + get_name(child) + "\"\n";
+            helper(child)
+        })
+    }
+    if (root)
+        helper(root)
+    return ret + "}"
+}
+

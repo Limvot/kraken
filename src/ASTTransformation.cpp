@@ -1076,9 +1076,11 @@ std::set<NodeTree<ASTData>*> ASTTransformation::findVariablesToClose(NodeTree<AS
         return closed;
     }
     // if it's an identifier and not in the scope chain, and isn't an enum name
-    if (stat->getDataRef()->type == identifier && !inScopeChain(stat, func) &&
-            (!stat->getDataRef()->valueType->typeDefinition ||
-            stat->getDataRef()->valueType->typeDefinition->getDataRef()->type != adt_def) )
+    if (stat->getDataRef()->type == identifier && !inScopeChain(stat, func))
+        // used to be this because C style enums, but now those are functions and we should definitly close over variables of type adt...
+    //if (stat->getDataRef()->type == identifier && !inScopeChain(stat, func)
+            // && (!stat->getDataRef()->valueType->typeDefinition ||
+            //stat->getDataRef()->valueType->typeDefinition->getDataRef()->type != adt_def) )
         closed.insert(stat);
     for (auto child: stat->getChildren()) {
         auto recClosed = findVariablesToClose(func, child, scope);
