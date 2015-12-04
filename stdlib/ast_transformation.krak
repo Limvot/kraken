@@ -44,68 +44,164 @@ adt ast_node {
 }
 
 obj undef (Object) {
+    fun operator==(other: ref undef): bool {
+        return true;
+    }
 }
 obj translation_unit (Object) {
+    fun operator==(other: ref translation_unit): bool {
+        return true
+    }
 }
 obj import (Object) {
+    fun operator==(other: ref import): bool {
+        return true
+    }
 }
 obj identifier (Object) {
+    fun operator==(other: ref identifier): bool {
+        return true
+    }
 }
 obj type_def (Object) {
+    fun operator==(other: ref type_def): bool {
+        return true
+    }
 }
 obj adt_def (Object) {
+    fun operator==(other: ref adt_def): bool {
+        return true
+    }
 }
 obj function (Object) {
+    fun operator==(other: ref function): bool {
+        return true
+    }
 }
 obj code_block (Object) {
+    fun operator==(other: ref code_block): bool {
+        return true
+    }
 }
 obj typed_parameter (Object) {
+    fun operator==(other: ref typed_parameter): bool {
+        return true
+    }
 }
 obj expression (Object) {
+    fun operator==(other: ref expression): bool {
+        return true
+    }
 }
 obj boolean_expression (Object) {
+    fun operator==(other: ref boolean_expression): bool {
+        return true
+    }
 }
 obj statement (Object) {
+    fun operator==(other: ref statement): bool {
+        return true
+    }
 }
 obj if_statement (Object) {
+    fun operator==(other: ref if_statement): bool {
+        return true
+    }
 }
 obj match_statement (Object) {
+    fun operator==(other: ref match_statement): bool {
+        return true
+    }
 }
 obj case_statement (Object) {
+    fun operator==(other: ref case_statement): bool {
+        return true
+    }
 }
 obj while_loop (Object) {
+    fun operator==(other: ref while_loop): bool {
+        return true
+    }
 }
 obj for_loop (Object) {
+    fun operator==(other: ref for_loop): bool {
+        return true
+    }
 }
 obj return_statement (Object) {
+    fun operator==(other: ref return_statement): bool {
+        return true
+    }
 }
 obj break_statement (Object) {
+    fun operator==(other: ref break_statement): bool {
+        return true
+    }
 }
 obj continue_statement (Object) {
+    fun operator==(other: ref continue_statement): bool {
+        return true
+    }
 }
 obj defer_statement (Object) {
+    fun operator==(other: ref defer_statement): bool {
+        return true
+    }
 }
 obj assignment_statement (Object) {
+    fun operator==(other: ref assignment_statement): bool {
+        return true
+    }
 }
 obj declaration_statement (Object) {
+    fun operator==(other: ref declaration_statement): bool {
+        return true
+    }
 }
 obj if_comp (Object) {
+    fun operator==(other: ref if_comp): bool {
+        return true
+    }
 }
 obj simple_passthrough (Object) {
+    fun operator==(other: ref simple_passthrough): bool {
+        return true
+    }
 }
 obj passthrough_params (Object) {
+    fun operator==(other: ref passthrough_params): bool {
+        return true
+    }
 }
 obj in_passthrough_params (Object) {
+    fun operator==(other: ref in_passthrough_params): bool {
+        return true
+    }
 }
 obj out_passthrough_params (Object) {
+    fun operator==(other: ref out_passthrough_params): bool {
+        return true
+    }
 }
 obj opt_string (Object) {
+    fun operator==(other: ref opt_string): bool {
+        return true
+    }
 }
 obj param_assign (Object) {
+    fun operator==(other: ref param_assign): bool {
+        return true
+    }
 }
 obj function_call (Object) {
+    fun operator==(other: ref function_call): bool {
+        return true
+    }
 }
 obj value (Object) {
+    fun operator==(other: ref value): bool {
+        return true
+    }
 }
 
 
