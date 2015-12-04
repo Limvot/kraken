@@ -64,7 +64,7 @@ std::string CGenerator::generateTypeStruct(NodeTree<ASTData>* from) {
     structString = "struct __struct_dummy_";
     structString += prefixIfNeeded(scopePrefix(from), CifyName(data.symbol.getName())+"__") + " {\n";
     if (data.type == adt_def) {
-        structString = "typedef " + structString + "    enum " + enumName + " flag;\n    union  { \n";
+        structString = structString + "    enum " + enumName + " flag;\n    union  { \n";
         tabLevel++;
     }
     tabLevel++;
@@ -87,7 +87,7 @@ std::string CGenerator::generateTypeStruct(NodeTree<ASTData>* from) {
     if (data.type == adt_def) {
         //structString += "} data; /*end union*/ \n";
         tabLevel--;
-        structString += "    }; /*end union*/\n} " + CifyName(data.symbol.getName()) + "; /* end struct */";
+        structString += "    }; /*end union*/\n};";
     } else {
         structString += "};";
     }
@@ -204,8 +204,17 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                     }
                 }
             } else if (children[i]->getDataRef()->type == adt_def) {
-                //
                 typedefPoset.addVertex(children[i]); // We add this definition by itself just in case there are no dependencies.
+                std::vector<NodeTree<ASTData>*> adtChildren = children[i]->getChildren();
+                for (auto j : adtChildren) {
+                    if (j->getDataRef()->type == identifier) {
+                        Type* decType = j->getDataRef()->valueType;           // Type of the declaration
+                        if (decType->typeDefinition == children[i])
+                            continue;
+                        if (decType->typeDefinition && decType->getIndirection() == 0)	        // If this is a custom type and not a pointer
+                            typedefPoset.addRelationship(children[i], decType->typeDefinition); // Add a dependency
+                    }
+                }
             }
         }
     }
@@ -298,6 +307,9 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                         break;
                     case adt_def:
                         {
+                            plainTypedefs += "typedef struct __struct_dummy_" +
+                                prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName()) + "__") + " " +
+                                prefixIfNeeded(scopePrefix(declaration), CifyName(declarationData.symbol.getName()))  + ";\n";
                             for (auto child :  decChildren) {
                                 if (child->getName() == "function") {
                                     std::string orig_fun_name = child->getDataRef()->symbol.getName();
@@ -451,9 +463,6 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 std::cerr << "Trying to normal generate a translation unit! That's a nono! (" << from->getDataRef()->toString() << ")" << std::endl;
                 throw "That's not gonna work";
             }
-            break;
-        case interpreter_directive:
-            //Do nothing
             break;
         case import:
             return CCodeTriple("/* never reached import? */\n");

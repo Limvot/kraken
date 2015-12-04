@@ -9,7 +9,103 @@ import mem:*
 import io:*
 
 adt ast_node {
-    undef
+    undef: undef,
+    translation_unit: translation_unit,
+    import: import,
+    identifier: identifier,
+    type_def: type_def,
+    adt_def: adt_def,
+    function: function,
+    code_block: code_block,
+    typed_parameter: typed_parameter,
+    expression: expression,
+    boolean_expression: boolean_expression,
+    statement: statement,
+    if_statement: if_statement,
+    match_statement: match_statement,
+    case_statement: case_statement,
+    while_loop: while_loop,
+    for_loop: for_loop,
+    return_statement: return_statement,
+    break_statement: break_statement,
+    continue_statement: continue_statement,
+    defer_statement: defer_statement,
+    assignment_statement: assignment_statement,
+    declaration_statement: declaration_statement,
+    if_comp: if_comp,
+    simple_passthrough: simple_passthrough,
+    passthrough_params: passthrough_params,
+    in_passthrough_params: in_passthrough_params,
+    out_passthrough_params: out_passthrough_params,
+    opt_string: opt_string,
+    param_assign: param_assign,
+    function_call: function_call,
+    value: value
+}
+
+obj undef (Object) {
+}
+obj translation_unit (Object) {
+}
+obj import (Object) {
+}
+obj identifier (Object) {
+}
+obj type_def (Object) {
+}
+obj adt_def (Object) {
+}
+obj function (Object) {
+}
+obj code_block (Object) {
+}
+obj typed_parameter (Object) {
+}
+obj expression (Object) {
+}
+obj boolean_expression (Object) {
+}
+obj statement (Object) {
+}
+obj if_statement (Object) {
+}
+obj match_statement (Object) {
+}
+obj case_statement (Object) {
+}
+obj while_loop (Object) {
+}
+obj for_loop (Object) {
+}
+obj return_statement (Object) {
+}
+obj break_statement (Object) {
+}
+obj continue_statement (Object) {
+}
+obj defer_statement (Object) {
+}
+obj assignment_statement (Object) {
+}
+obj declaration_statement (Object) {
+}
+obj if_comp (Object) {
+}
+obj simple_passthrough (Object) {
+}
+obj passthrough_params (Object) {
+}
+obj in_passthrough_params (Object) {
+}
+obj out_passthrough_params (Object) {
+}
+obj opt_string (Object) {
+}
+obj param_assign (Object) {
+}
+obj function_call (Object) {
+}
+obj value (Object) {
 }
 
 

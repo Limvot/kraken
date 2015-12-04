@@ -119,7 +119,7 @@ NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<S
 	for (NodeTree<Symbol>* i : children) {
 		if (i->getDataRef()->getName() == "import") {
             auto importChildren = i->getChildren();
-			std::string toImport = concatSymbolTree(importChildren[0]);
+			std::string toImport = concatSymbolTree(importChildren[1]);
             auto importNode = addToScope("~enclosing_scope", translationUnit, new NodeTree<ASTData>("import", ASTData(import, Symbol(toImport, true))));
 			translationUnit->addChild(importNode);
 			//Do the imported file too
@@ -130,7 +130,7 @@ NodeTree<ASTData>* ASTTransformation::firstPass(std::string fileName, NodeTree<S
             // Note that import affects scope in two ways:
             //              (1) The other file's translationUnit is added to our translationUnit's scope under it's name
             //              (2) The import node's scope contains the nodes indicated by the qualifiers after the import (i.e. the import a:b; or import a:*;)
-            for (auto importQualifer : slice(importChildren, 1, -1)) {                        // Not the first child, that's the name of the file
+            for (auto importQualifer : slice(importChildren, 2, -1)) {                        // Not the first child, import, or the second that's the name of the file
                 auto name = concatSymbolTree(importQualifer);
                 if (name == "*") {
                     std::vector<NodeTree<ASTData>*> tmp;
@@ -823,6 +823,7 @@ NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree
 	} else if (name == "simple_passthrough") {
 		newNode = new NodeTree<ASTData>(name, ASTData(simple_passthrough));
         addToScope("~enclosing_scope", scope, newNode);
+		skipChildren.insert(0); //Don't do the identifier. The identifier lookup will fail. That's why we do it here.
 	} else if (name == "passthrough_params") {
 		newNode = new NodeTree<ASTData>(name, ASTData(passthrough_params));
         addToScope("~enclosing_scope", scope, newNode);

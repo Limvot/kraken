@@ -14,7 +14,7 @@ class Type;
 #define NULL ((void*)0)
 #endif
 
-enum ASTType {undef, translation_unit, interpreter_directive, import, identifier, type_def, adt_def,
+enum ASTType {undef, translation_unit, import, identifier, type_def, adt_def,
 	function, code_block, typed_parameter, expression, boolean_expression, statement,
 	if_statement, match_statement, case_statement, while_loop, for_loop, return_statement, break_statement,
     continue_statement, defer_statement, assignment_statement, declaration_statement, if_comp, simple_passthrough,

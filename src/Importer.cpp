@@ -33,12 +33,11 @@ Importer::Importer(Parser* parserIn, std::vector<std::string> includePaths, std:
 	removeSymbols.push_back(Symbol("}", true));
 	removeSymbols.push_back(Symbol("(", true));
 	removeSymbols.push_back(Symbol(")", true));
-	removeSymbols.push_back(Symbol("import", true));
-	removeSymbols.push_back(Symbol("interpreter_directive", false));
+	//removeSymbols.push_back(Symbol("import", true));
 	removeSymbols.push_back(Symbol("if", true));
 	removeSymbols.push_back(Symbol("while", true));
 	removeSymbols.push_back(Symbol("__if_comp__", true));
-	removeSymbols.push_back(Symbol("simple_passthrough", true));
+	//removeSymbols.push_back(Symbol("simple_passthrough", true));
 	removeSymbols.push_back(Symbol("comp_simple_passthrough", true));
 	removeSymbols.push_back(Symbol("def_nonterm", false));
 	removeSymbols.push_back(Symbol("obj_nonterm", false));

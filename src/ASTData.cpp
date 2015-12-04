@@ -30,8 +30,6 @@ std::string ASTData::ASTTypeToString(ASTType type) {
 	switch (type) {
 		case translation_unit:
 			return "translation_unit";
-		case interpreter_directive:
-			return "interpreter_directive";
 		case identifier:
 			return "identifier";
 		case import:
