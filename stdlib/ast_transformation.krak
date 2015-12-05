@@ -7,204 +7,16 @@ import util:*
 import string:*
 import mem:*
 import io:*
+import importer:*
+import ast_node:*
 
-adt ast_node {
-    undef: undef,
-    translation_unit: translation_unit,
-    import: import,
-    identifier: identifier,
-    type_def: type_def,
-    adt_def: adt_def,
-    function: function,
-    code_block: code_block,
-    typed_parameter: typed_parameter,
-    expression: expression,
-    boolean_expression: boolean_expression,
-    statement: statement,
-    if_statement: if_statement,
-    match_statement: match_statement,
-    case_statement: case_statement,
-    while_loop: while_loop,
-    for_loop: for_loop,
-    return_statement: return_statement,
-    break_statement: break_statement,
-    continue_statement: continue_statement,
-    defer_statement: defer_statement,
-    assignment_statement: assignment_statement,
-    declaration_statement: declaration_statement,
-    if_comp: if_comp,
-    simple_passthrough: simple_passthrough,
-    passthrough_params: passthrough_params,
-    in_passthrough_params: in_passthrough_params,
-    out_passthrough_params: out_passthrough_params,
-    opt_string: opt_string,
-    param_assign: param_assign,
-    function_call: function_call,
-    value: value
-}
-
-obj undef (Object) {
-    fun operator==(other: ref undef): bool {
-        return true;
-    }
-}
-obj translation_unit (Object) {
-    fun operator==(other: ref translation_unit): bool {
-        return true
-    }
-}
-obj import (Object) {
-    fun operator==(other: ref import): bool {
-        return true
-    }
-}
-obj identifier (Object) {
-    fun operator==(other: ref identifier): bool {
-        return true
-    }
-}
-obj type_def (Object) {
-    fun operator==(other: ref type_def): bool {
-        return true
-    }
-}
-obj adt_def (Object) {
-    fun operator==(other: ref adt_def): bool {
-        return true
-    }
-}
-obj function (Object) {
-    fun operator==(other: ref function): bool {
-        return true
-    }
-}
-obj code_block (Object) {
-    fun operator==(other: ref code_block): bool {
-        return true
-    }
-}
-obj typed_parameter (Object) {
-    fun operator==(other: ref typed_parameter): bool {
-        return true
-    }
-}
-obj expression (Object) {
-    fun operator==(other: ref expression): bool {
-        return true
-    }
-}
-obj boolean_expression (Object) {
-    fun operator==(other: ref boolean_expression): bool {
-        return true
-    }
-}
-obj statement (Object) {
-    fun operator==(other: ref statement): bool {
-        return true
-    }
-}
-obj if_statement (Object) {
-    fun operator==(other: ref if_statement): bool {
-        return true
-    }
-}
-obj match_statement (Object) {
-    fun operator==(other: ref match_statement): bool {
-        return true
-    }
-}
-obj case_statement (Object) {
-    fun operator==(other: ref case_statement): bool {
-        return true
-    }
-}
-obj while_loop (Object) {
-    fun operator==(other: ref while_loop): bool {
-        return true
-    }
-}
-obj for_loop (Object) {
-    fun operator==(other: ref for_loop): bool {
-        return true
-    }
-}
-obj return_statement (Object) {
-    fun operator==(other: ref return_statement): bool {
-        return true
-    }
-}
-obj break_statement (Object) {
-    fun operator==(other: ref break_statement): bool {
-        return true
-    }
-}
-obj continue_statement (Object) {
-    fun operator==(other: ref continue_statement): bool {
-        return true
-    }
-}
-obj defer_statement (Object) {
-    fun operator==(other: ref defer_statement): bool {
-        return true
-    }
-}
-obj assignment_statement (Object) {
-    fun operator==(other: ref assignment_statement): bool {
-        return true
-    }
-}
-obj declaration_statement (Object) {
-    fun operator==(other: ref declaration_statement): bool {
-        return true
-    }
-}
-obj if_comp (Object) {
-    fun operator==(other: ref if_comp): bool {
-        return true
-    }
-}
-obj simple_passthrough (Object) {
-    fun operator==(other: ref simple_passthrough): bool {
-        return true
-    }
-}
-obj passthrough_params (Object) {
-    fun operator==(other: ref passthrough_params): bool {
-        return true
-    }
-}
-obj in_passthrough_params (Object) {
-    fun operator==(other: ref in_passthrough_params): bool {
-        return true
-    }
-}
-obj out_passthrough_params (Object) {
-    fun operator==(other: ref out_passthrough_params): bool {
-        return true
-    }
-}
-obj opt_string (Object) {
-    fun operator==(other: ref opt_string): bool {
-        return true
-    }
-}
-obj param_assign (Object) {
-    fun operator==(other: ref param_assign): bool {
-        return true
-    }
-}
-obj function_call (Object) {
-    fun operator==(other: ref function_call): bool {
-        return true
-    }
-}
-obj value (Object) {
-    fun operator==(other: ref value): bool {
-        return true
-    }
-}
-
-
+		/*Importer * importer;*/
+		/*NodeTree<ASTData>* builtin_trans_unit; // the top scope for language level stuff*/
+		/*std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelReservedWords;*/
+		/*std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelOperators;*/
+		/*std::map<NodeTree<ASTData>*, NodeTree<ASTData>*> this_map; // used to map implicit "this" variables to their type*/
+		/*NodeTree<ASTData>* topScope; //maintained for templates that need to add themselves to the top scope no matter where they are instantiated*/
+        /*int lambdaID = 0;*/
 obj ast_transformation (Object) {
     fun construct(): *ast_transformation {
         return this
@@ -218,46 +30,11 @@ obj ast_transformation (Object) {
     fun destruct() {
     }
 
-    fun transform(parse_tree: *tree<symbol>): *ast_node {
-        return null<ast_node>()
+    fun first_pass(file_name: string, parse_tree: *tree<symbol>, importer: *importer): *ast_node {
+        var translation_unit = ast_translation_unit_ptr()
+        importer->register(file_name, parse_tree, translation_unit)
+        return translation_unit
     }
 }
 
-fun get_ast_children(node: *ast_node): vector<*ast_node> {
-    return vector<*ast_node>()
-}
-fun get_ast_name(node: *ast_node): string {
-    return string("ast_node")
-}
-
-fun ast_to_dot(root: *ast_node): string {
-    var ret = string("digraph Kaken {\n")
-    var counter = 0
-    var node_name_map = map<*ast_node, string>()
-    var get_name = fun(node: *ast_node): string {
-        if (node_name_map.contains_key(node))
-            return node_name_map[node]
-        var escaped = string("")
-        get_ast_name(node).data.for_each(fun(c: char) {
-            if (c != '"')
-                escaped += c
-            else
-                escaped += "\\\""
-        })
-        escaped += to_string(counter++)
-        node_name_map.set(node, escaped)
-        return escaped
-    }
-    var helper: fun(*ast_node):void = fun(node: *ast_node) {
-        get_ast_children(node).for_each(fun(child: *ast_node) {
-            if (!child)
-                return; // where on earth does the null come from
-            ret += string("\"") + get_name(node) + "\" -> \"" + get_name(child) + "\"\n";
-            helper(child)
-        })
-    }
-    if (root)
-        helper(root)
-    return ret + "}"
-}
 

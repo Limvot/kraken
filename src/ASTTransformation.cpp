@@ -1117,14 +1117,14 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
 
             int numTypes = functionType->parameterTypes.size();
 			if (types.size() != numTypes) {
-				//std::cout << "Type sizes do not match between two " << lookup << "(" << types.size() << "," << numTypes << "), types are: ";
-				//for (auto j : types)
-					//std::cout << j.toString() << " ";
-				//std::cout << std::endl;
-                //std::cout << "Versus" << std::endl;
-                //for (int j = 0; j < numTypes; j++)
-                    //std::cout << functionType->parameterTypes[j]->toString() << " ";
-                //std::cout << std::endl;
+                std::cout << "Type sizes do not match between two " << lookup << "(" << types.size() << "," << numTypes << "), types are: ";
+                for (auto j : types)
+                    std::cout << j.toString() << " ";
+                std::cout << std::endl;
+                std::cout << "Versus" << std::endl;
+                for (int j = 0; j < numTypes; j++)
+                    std::cout << functionType->parameterTypes[j]->toString() << " ";
+                std::cout << std::endl;
 				continue;
 			}
 			bool typesMatch = true;
@@ -1138,8 +1138,8 @@ NodeTree<ASTData>* ASTTransformation::functionLookup(NodeTree<ASTData>* scope, s
                 // we use test_equality so that we can pass in a false to not care about references
 				if (!types[j].test_equality(*tmpType, false)) {
 					typesMatch = false;
-					//std::cout << "Types do not match between two " << lookup << " " << types[j].toString();
-					//std::cout << " vs " << tmpType->toString() << std::endl;
+                    std::cout << "Types do not match between two " << lookup << " " << types[j].toString();
+                    std::cout << " vs " << tmpType->toString() << std::endl;
 					break;
 				}
 			}
@@ -1340,7 +1340,7 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
         //std::cout << "Possibility " << index++ << std::endl;
 	    NodeTree<Symbol>* templateSyntaxTree = i->getDataRef()->valueType->templateDefinition;
         if (!templateSyntaxTree) {
-            //std::cout << "Not a template, skipping" << std::endl;
+            std::cout << "Not a template, skipping" << std::endl;
             continue;
         }
         // We have the type map here because we might want to augment it with the typeMap from
@@ -1370,11 +1370,11 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
             // error out if not subset, or if we're a pointer but should have traits
             if (!subset(j.second, templateInstantiationTypesPerFunction[i][typeIndex]->traits) || (templateInstantiationTypesPerFunction[i][typeIndex]->getIndirection() && j.second.size())) {
                 traitsEqual = false;
-                //std::cout << "Traits not a subset for " << j.first << " and " << templateInstantiationTypesPerFunction[i][typeIndex]->toString() << ": |";
-                //std::copy(j.second.begin(), j.second.end(), std::ostream_iterator<std::string>(std::cout, " "));
-                //std::cout << "| vs |";
-                //std::copy(templateInstantiationTypesPerFunction[i][typeIndex]->traits.begin(), templateInstantiationTypesPerFunction[i][typeIndex]->traits.end(), std::ostream_iterator<std::string>(std::cout, " "));
-                //std::cout << "|" << std::endl;
+                std::cout << "Traits not a subset for " << j.first << " and " << templateInstantiationTypesPerFunction[i][typeIndex]->toString() << ": |";
+                std::copy(j.second.begin(), j.second.end(), std::ostream_iterator<std::string>(std::cout, " "));
+                std::cout << "| vs |";
+                std::copy(templateInstantiationTypesPerFunction[i][typeIndex]->traits.begin(), templateInstantiationTypesPerFunction[i][typeIndex]->traits.end(), std::ostream_iterator<std::string>(std::cout, " "));
+                std::cout << "|" << std::endl;
                 break;
             } else {
                 //std::cout << "Traits ARE a subset for " << j.first << " and " << templateInstantiationTypesPerFunction[i][typeIndex]->toString() << ": ";
@@ -1404,7 +1404,7 @@ NodeTree<ASTData>* ASTTransformation::templateFunctionLookup(NodeTree<ASTData>* 
             // use test_equality so we can pass false and not care about references
             if (!paramType->test_equality(types[j], false)) {
                 parameterTypesMatch = false;
-                //std::cout << "Not equal template param: " << paramType->toString() << " : Needed Type actual param: " << types[j].toString() << std::endl;
+                std::cout << "Not equal template param: " << paramType->toString() << " : Needed Type actual param: " << types[j].toString() << std::endl;
                 break;
             }
         }

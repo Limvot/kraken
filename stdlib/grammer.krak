@@ -60,7 +60,7 @@ fun load_grammer(gram_str: string::string): grammer {
     /*})*/
     /*return gram*/
     split_into_words(gram_str).for_each(fun(word: string::string) {
-        io::print("word: "); io::println(word)
+        /*io::print("word: "); io::println(word)*/
         if (word == "=") {
             // do nothing
         } else if (word == "|") {
@@ -235,18 +235,18 @@ obj grammer (Object, Serializable) {
                 }
             })
         }
-        io::println("ALL STATES:\n")
-        states.for_each(fun(i: ref state) {
-            io::println("STATE:\n")
-            i.items.for_each(fun(r: ref rule) {
-                io::println(string::string("\t") + r.to_string())
-            })
-        })
+        /*io::println("ALL STATES:\n")*/
+        /*states.for_each(fun(i: ref state) {*/
+            /*io::println("STATE:\n")*/
+            /*i.items.for_each(fun(r: ref rule) {*/
+                /*io::println(string::string("\t") + r.to_string())*/
+            /*})*/
+        /*})*/
         io::println(" there were : states")
         io::println(states.size)
-        io::println(" there were : table")
+        /*io::println(" there were : table")*/
         /*io::println(parse_table.to_string())*/
-        parse_table.print_string()
+        /*parse_table.print_string()*/
     }
 
     fun closure(initial: ref state): state {

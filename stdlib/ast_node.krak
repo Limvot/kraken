@@ -1,0 +1,785 @@
+import tree:*
+import vector:*
+import stack:*
+import map:*
+import util:*
+import string:*
+import mem:*
+import io:*
+
+
+adt ast_node {
+    translation_unit: translation_unit,
+    import: import,
+    identifier: identifier,
+    type_def: type_def,
+    adt_def: adt_def,
+    function: function,
+    code_block: code_block,
+    typed_parameter: typed_parameter,
+    expression: expression,
+    boolean_expression: boolean_expression,
+    statement: statement,
+    if_statement: if_statement,
+    match_statement: match_statement,
+    case_statement: case_statement,
+    while_loop: while_loop,
+    for_loop: for_loop,
+    return_statement: return_statement,
+    break_statement: break_statement,
+    continue_statement: continue_statement,
+    defer_statement: defer_statement,
+    assignment_statement: assignment_statement,
+    declaration_statement: declaration_statement,
+    if_comp: if_comp,
+    simple_passthrough: simple_passthrough,
+    passthrough_params: passthrough_params,
+    in_passthrough_params: in_passthrough_params,
+    out_passthrough_params: out_passthrough_params,
+    opt_string: opt_string,
+    param_assign: param_assign,
+    function_call: function_call,
+    value: value
+}
+/*
+total:
+		ASTType type;
+		Type* valueType;
+		Symbol symbol;
+		std::map<std::string, std::vector<NodeTree<ASTData>*>> scope;
+        std::set<NodeTree<ASTData>*> closedVariables;
+*/
+fun ast_node_ptr(node: ast_node): *ast_node {
+    var to_ret = new<ast_node>()
+    to_ret->copy_construct(&node)
+    return to_ret
+}
+fun ast_translation_unit_ptr(): *ast_node {
+    var obj_var.construct(): translation_unit 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::translation_unit(obj_var))
+    return ptr
+}
+obj translation_unit (Object) {
+    var children: vector<*ast_node>
+    fun construct(): *translation_unit  {
+        children.construct()
+        return this
+    }
+    fun copy_construct(old: *translation_unit) {
+        children.copy_construct(&old->children)
+    }
+    fun destruct() {
+        children.destruct()
+    }
+    fun operator=(other: ref translation_unit) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref translation_unit): bool {
+        return children == other.children
+    }
+}
+fun ast_import_ptr(): *ast_node {
+    var to_ret.construct(): import 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::import(to_ret))
+    return ptr
+}
+obj import (Object) {
+    var children: vector<*ast_node>
+    fun construct(): *import  {
+        children.construct()
+        return this
+    }
+    fun copy_construct(old: *import) {
+        children.copy_construct(&old->children)
+    }
+    fun destruct() {
+        children.destruct()
+    }
+    fun operator=(other: ref import) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref import): bool {
+        return children == other.children
+    }
+}
+fun ast_identifier_ptr(): *ast_node {
+    var to_ret.construct(): identifier 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::identifier(to_ret))
+    return ptr
+}
+obj identifier (Object) {
+    fun construct(): *identifier {
+        return this
+    }
+    fun copy_construct(old: *identifier) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref identifier) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref identifier): bool {
+        return true
+    }
+}
+fun type_def(): *ast_node {
+    var to_ret.construct(): type_def 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::type_def(to_ret))
+    return ptr
+}
+obj type_def (Object) {
+    fun construct(): *type_def  {
+        return this
+    }
+    fun copy_construct(old: *type_def) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref type_def) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref type_def): bool {
+        return true
+    }
+}
+fun adt_def(): *ast_node {
+    var to_ret.construct(): adt_def 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::adt_def(to_ret))
+    return ptr
+}
+obj adt_def (Object) {
+    fun construct(): *adt_def  {
+        return this
+    }
+    fun copy_construct(old: *adt_def) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref adt_def) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref adt_def): bool {
+        return true
+    }
+}
+fun function(): *ast_node {
+    var to_ret.construct(): function 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::function(to_ret))
+    return ptr
+}
+obj function (Object) {
+    fun construct(): *function  {
+        return this
+    }
+    fun copy_construct(old: *function) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref function) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref function): bool {
+        return true
+    }
+}
+fun code_block(): *ast_node {
+    var to_ret.construct(): code_block 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::code_block(to_ret))
+    return ptr
+}
+obj code_block (Object) {
+    fun construct(): *code_block {
+        return this
+    }
+    fun copy_construct(old: *code_block) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref code_block) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref code_block): bool {
+        return true
+    }
+}
+fun typed_parameter(): *ast_node {
+    var to_ret.construct(): typed_parameter 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::typed_parameter(to_ret))
+    return ptr
+}
+obj typed_parameter (Object) {
+    fun construct(): *typed_parameter {
+        return this
+    }
+    fun copy_construct(old: *typed_parameter) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref typed_parameter) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref typed_parameter): bool {
+        return true
+    }
+}
+fun expression(): *ast_node {
+    var to_ret.construct(): expression 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::expression(to_ret))
+    return ptr
+}
+obj expression (Object) {
+    fun construct(): *expression  {
+        return this
+    }
+    fun copy_construct(old: *expression) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref expression) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref expression): bool {
+        return true
+    }
+}
+fun boolean_expression(): *ast_node {
+    var to_ret.construct(): boolean_expression 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::boolean_expression(to_ret))
+    return ptr
+}
+obj boolean_expression (Object) {
+    fun construct(): *boolean_expression  {
+        return this
+    }
+    fun copy_construct(old: *boolean_expression) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref boolean_expression) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref boolean_expression): bool {
+        return true
+    }
+}
+fun statement(): *ast_node {
+    var to_ret.construct(): statement 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::statement(to_ret))
+    return ptr
+}
+obj statement (Object) {
+    fun construct(): *statement  {
+        return this
+    }
+    fun copy_construct(old: *statement) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref statement) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref statement): bool {
+        return true
+    }
+}
+fun if_statement(): *ast_node {
+    var to_ret.construct(): if_statement 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::if_statement(to_ret))
+    return ptr
+}
+obj if_statement (Object) {
+    fun construct(): *if_statement  {
+        return this
+    }
+    fun copy_construct(old: *if_statement) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref if_statement) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref if_statement): bool {
+        return true
+    }
+}
+fun match_statement(): *ast_node {
+    var to_ret.construct(): match_statement 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::match_statement(to_ret))
+    return ptr
+}
+obj match_statement (Object) {
+    fun construct(): *match_statement  {
+        return this
+    }
+    fun copy_construct(old: *match_statement) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref match_statement) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref match_statement): bool {
+        return true
+    }
+}
+fun case_statement(): *ast_node {
+    var to_ret.construct(): case_statement 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::case_statement(to_ret))
+    return ptr
+}
+obj case_statement (Object) {
+    fun construct(): *case_statement  {
+        return this
+    }
+    fun copy_construct(old: *case_statement) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref case_statement) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref case_statement): bool {
+        return true
+    }
+}
+fun while_loop(): *ast_node {
+    var to_ret.construct(): while_loop 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::while_loop(to_ret))
+    return ptr
+}
+obj while_loop (Object) {
+    fun construct(): *while_loop  {
+        return this
+    }
+    fun copy_construct(old: *while_loop) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref while_loop) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref while_loop): bool {
+        return true
+    }
+}
+fun for_loop(): *ast_node {
+    var to_ret.construct(): for_loop 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::for_loop(to_ret))
+    return ptr
+}
+obj for_loop (Object) {
+    fun construct(): *for_loop  {
+        return this
+    }
+    fun copy_construct(old: *for_loop) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref for_loop) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref for_loop): bool {
+        return true
+    }
+}
+fun return_statement(): *ast_node {
+    var to_ret.construct(): return_statement 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::return_statement(to_ret))
+    return ptr
+}
+obj return_statement (Object) {
+    fun construct(): *return_statement  {
+        return this
+    }
+    fun copy_construct(old: *return_statement) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref return_statement) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref return_statement): bool {
+        return true
+    }
+}
+fun break_statement(): *ast_node {
+    var to_ret.construct(): break_statement 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::break_statement(to_ret))
+    return ptr
+}
+obj break_statement (Object) {
+    fun construct(): *break_statement  {
+        return this
+    }
+    fun copy_construct(old: *break_statement) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref break_statement) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref break_statement): bool {
+        return true
+    }
+}
+fun continue_statement(): *ast_node {
+    var to_ret.construct(): continue_statement 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::continue_statement(to_ret))
+    return ptr
+}
+obj continue_statement (Object) {
+    fun construct(): *continue_statement  {
+        return this
+    }
+    fun copy_construct(old: *continue_statement) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref continue_statement) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref continue_statement): bool {
+        return true
+    }
+}
+fun defer_statement(): *ast_node {
+    var to_ret.construct(): defer_statement 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::defer_statement(to_ret))
+    return ptr
+}
+obj defer_statement (Object) {
+    fun construct(): *defer_statement  {
+        return this
+    }
+    fun copy_construct(old: *defer_statement) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref defer_statement) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref defer_statement): bool {
+        return true
+    }
+}
+fun assignment_statement(): *ast_node {
+    var to_ret.construct(): assignment_statement 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::assignment_statement(to_ret))
+    return ptr
+}
+obj assignment_statement (Object) {
+    fun construct(): *assignment_statement  {
+        return this
+    }
+    fun copy_construct(old: *assignment_statement) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref assignment_statement) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref assignment_statement): bool {
+        return true
+    }
+}
+fun declaration_statement(): *ast_node {
+    var to_ret.construct(): declaration_statement 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::declaration_statement(to_ret))
+    return ptr
+}
+obj declaration_statement (Object) {
+    fun construct(): *declaration_statement  {
+        return this
+    }
+    fun copy_construct(old: *declaration_statement) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref declaration_statement) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref declaration_statement): bool {
+        return true
+    }
+}
+fun if_comp(): *ast_node {
+    var to_ret.construct(): if_comp 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::if_comp(to_ret))
+    return ptr
+}
+obj if_comp (Object) {
+    fun construct(): *if_comp  {
+        return this
+    }
+    fun copy_construct(old: *if_comp) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref if_comp) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref if_comp): bool {
+        return true
+    }
+}
+fun simple_passthrough(): *ast_node {
+    var to_ret.construct(): simple_passthrough 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::simple_passthrough(to_ret))
+    return ptr
+}
+obj simple_passthrough (Object) {
+    fun construct(): *simple_passthrough  {
+        return this
+    }
+    fun copy_construct(old: *simple_passthrough) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref simple_passthrough) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref simple_passthrough): bool {
+        return true
+    }
+}
+fun passthrough_params(): *ast_node {
+    var to_ret.construct(): passthrough_params 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::passthrough_params(to_ret))
+    return ptr
+}
+obj passthrough_params (Object) {
+    fun construct(): *passthrough_params  {
+        return this
+    }
+    fun copy_construct(old: *passthrough_params) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref passthrough_params) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref passthrough_params): bool {
+        return true
+    }
+}
+fun in_passthrough_params(): *ast_node {
+    var to_ret.construct(): in_passthrough_params 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::in_passthrough_params(to_ret))
+    return ptr
+}
+obj in_passthrough_params (Object) {
+    fun construct(): *in_passthrough_params  {
+        return this
+    }
+    fun copy_construct(old: *in_passthrough_params) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref in_passthrough_params) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref in_passthrough_params): bool {
+        return true
+    }
+}
+fun out_passthrough_params(): *ast_node {
+    var to_ret.construct(): out_passthrough_params 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::out_passthrough_params(to_ret))
+    return ptr
+}
+obj out_passthrough_params (Object) {
+    fun construct(): *out_passthrough_params  {
+        return this
+    }
+    fun copy_construct(old: *out_passthrough_params) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref out_passthrough_params) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref out_passthrough_params): bool {
+        return true
+    }
+}
+fun opt_string(): *ast_node {
+    var to_ret.construct(): opt_string 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::opt_string(to_ret))
+    return ptr
+}
+obj opt_string (Object) {
+    fun construct(): *opt_string  {
+        return this
+    }
+    fun copy_construct(old: *opt_string) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref opt_string) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref opt_string): bool {
+        return true
+    }
+}
+fun param_assign(): *ast_node {
+    var to_ret.construct(): param_assign 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::param_assign(to_ret))
+    return ptr
+}
+obj param_assign (Object) {
+    fun construct(): *param_assign  {
+        return this
+    }
+    fun copy_construct(old: *param_assign) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref param_assign) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref param_assign): bool {
+        return true
+    }
+}
+fun function_call(): *ast_node {
+    var to_ret.construct(): function_call 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::function_call(to_ret))
+    return ptr
+}
+obj function_call (Object) {
+    fun construct(): *function_call  {
+        return this
+    }
+    fun copy_construct(old: *function_call) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref function_call) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref function_call): bool {
+        return true
+    }
+}
+fun value(): *ast_node {
+    var to_ret.construct(): value 
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::value(to_ret))
+    return ptr
+}
+obj value (Object) {
+    fun construct(): *value  {
+        return this
+    }
+    fun copy_construct(old: *value) {
+    }
+    fun destruct() {
+    }
+    fun operator=(other: ref value) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref value): bool {
+        return true
+    }
+}
+
+fun get_ast_children(node: *ast_node): vector<*ast_node> {
+    return vector<*ast_node>()
+}
+fun get_ast_name(node: *ast_node): string {
+    return string("ast_node")
+}
+
+fun ast_to_dot(root: *ast_node): string {
+    var ret = string("digraph Kaken {\n")
+    var counter = 0
+    var node_name_map = map<*ast_node, string>()
+    var get_name = fun(node: *ast_node): string {
+        if (node_name_map.contains_key(node))
+            return node_name_map[node]
+        var escaped = string("")
+        get_ast_name(node).data.for_each(fun(c: char) {
+            if (c != '"')
+                escaped += c
+            else
+                escaped += "\\\""
+        })
+        escaped += to_string(counter++)
+        node_name_map.set(node, escaped)
+        return escaped
+    }
+    var helper: fun(*ast_node):void = fun(node: *ast_node) {
+        get_ast_children(node).for_each(fun(child: *ast_node) {
+            if (!child)
+                return; // where on earth does the null come from
+            ret += string("\"") + get_name(node) + "\" -> \"" + get_name(child) + "\"\n";
+            helper(child)
+        })
+    }
+    if (root)
+        helper(root)
+    return ret + "}"
+}
+

@@ -1,0 +1,50 @@
+import symbol:*
+import tree:*
+import vector:*
+import map:*
+import util:*
+import string:*
+import mem:*
+import io:*
+import ast_node:*
+import ast_transformation:*
+import parser:*
+
+
+obj importer (Object) {
+    var parse: parser
+    var ast_pass: ast_transformation
+    fun construct(parseIn: ref parser, ast_passIn: ref ast_transformation): *importer {
+        parse.copy_construct(&parseIn)
+        ast_pass.copy_construct(&ast_passIn)
+        return this
+    }
+    fun copy_construct(old: *importer) {
+        parse.copy_construct(&old->parse)
+        ast_pass.copy_construct(&old->ast_pass)
+    }
+    fun operator=(old: ref importer) {
+        destruct()
+        copy_construct(&old)
+    }
+    fun destruct() {
+        parse.destruct()
+        ast_pass.destruct()
+    }
+    fun import(file_name: string) {
+        print("pre-parse: "); println(file_name)
+        var parse_tree = parse.parse_input(read_file(file_name), file_name)
+        print("post-parse: "); println(file_name)
+        write_file(file_name + ".parse.dot", syntax_tree_to_dot(parse_tree))
+        print("pre-ast: "); println(file_name)
+        var ast = ast_pass.first_pass(file_name, parse_tree, this)
+        print("post-ast: "); println(file_name)
+        write_file(file_name + ".ast.dot", ast_to_dot(ast))
+    }
+
+    fun register(file_name: string, parse_tree: *tree<symbol>, translation_unit: *ast_node) {
+        print("Registered parse_tree+translation_unit for ")
+        println(file_name)
+    }
+}
+

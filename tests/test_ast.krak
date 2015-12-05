@@ -1,7 +1,6 @@
 import io:*
 import grammer:*
 import parser:*
-import lexer:*
 import ast_transformation:*
 import string:*
 import util:*
@@ -53,19 +52,24 @@ fun main():int {
         write_file_binary(compiled_name, serialize(file_contents) + serialize(gram))
         println("done writing")
     }
-    println(gram.to_string())
+    /*println(gram.to_string())*/
+
+    /*var parse.construct(gram): parser*/
+    /*var parse_tree = parse.parse_input(read_file(string("to_parse.krak")), string("fun name"))*/
+    /*println("the tree")*/
+    /*println(syntax_tree_to_dot(parse_tree))*/
+    /*write_file(string("syntax_tree.dot"), syntax_tree_to_dot(parse_tree))*/
+
+    /*var ast_pass.construct(): ast_transformation*/
+    /*var ast = ast_pass.transform(parse_tree)*/
+    /*println("the AST")*/
+    /*println(ast_to_dot(ast))*/
+    /*write_file(string("ast.dot"), ast_to_dot(ast))*/
 
     var parse.construct(gram): parser
-    var parse_tree = parse.parse_input(read_file(string("to_parse.krak")), string("fun name"))
-    println("the tree")
-    println(syntax_tree_to_dot(parse_tree))
-    write_file(string("syntax_tree.dot"), syntax_tree_to_dot(parse_tree))
-
     var ast_pass.construct(): ast_transformation
-    var ast = ast_pass.transform(parse_tree)
-    println("the AST")
-    println(ast_to_dot(ast))
-    write_file(string("ast.dot"), ast_to_dot(ast))
+    var importer.construct(parse, ast_pass): importer
+    importer.import(string("to_parse.krak"))
 
     return 0
 }
