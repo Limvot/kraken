@@ -1,6 +1,7 @@
 import symbol:*
 import tree:*
 import vector:*
+import queue:*
 import map:*
 import util:*
 import string:*
@@ -36,10 +37,54 @@ obj importer (Object) {
         var parse_tree = parse.parse_input(read_file(file_name), file_name)
         print("post-parse: "); println(file_name)
         write_file(file_name + ".parse.dot", syntax_tree_to_dot(parse_tree))
+        print("pre-trim: "); println(file_name)
+        trim(parse_tree)
+        print("post-trim: "); println(file_name)
+        write_file(file_name + ".trimmed_parse.dot", syntax_tree_to_dot(parse_tree))
         print("pre-ast: "); println(file_name)
         var ast = ast_pass.first_pass(file_name, parse_tree, this)
         print("post-ast: "); println(file_name)
         write_file(file_name + ".ast.dot", ast_to_dot(ast))
+    }
+
+    fun trim(parse_tree: *tree<symbol>) {
+        remove_node(symbol("$NULL$", false), parse_tree)
+	    remove_node(symbol("WS", false), parse_tree)
+	    remove_node(symbol("\\(", true), parse_tree)
+	    remove_node(symbol("\\)", true), parse_tree)
+	    remove_node(symbol("var", true), parse_tree)
+	    remove_node(symbol("fun", true), parse_tree)
+        remove_node(symbol(";", true), parse_tree)
+        remove_node(symbol("line_end", false), parse_tree)
+        remove_node(symbol("{", true), parse_tree)
+        remove_node(symbol("}", true), parse_tree)
+        remove_node(symbol("(", true), parse_tree)
+        remove_node(symbol(")", true), parse_tree)
+        remove_node(symbol("if", true), parse_tree)
+        remove_node(symbol("while", true), parse_tree)
+        remove_node(symbol("__if_comp__", true), parse_tree)
+        remove_node(symbol("comp_simple_passthrough", true), parse_tree)
+        remove_node(symbol("def_nonterm", false), parse_tree)
+        remove_node(symbol("obj_nonterm", false), parse_tree)
+        remove_node(symbol("adt_nonterm", false), parse_tree)
+        remove_node(symbol("template", true), parse_tree)
+        remove_node(symbol("\\|", true), parse_tree)
+    }
+
+    fun remove_node(remove: symbol, parse_tree: *tree<symbol>) {
+        var to_process = queue<*tree<symbol>>()
+        to_process.push(parse_tree)
+        while(!to_process.empty()) {
+            var node = to_process.pop()
+            for (var i = 0; i < node->children.size; i++;) {
+                if (node->children[i]->data.equal_wo_data(remove)) {
+                    node->children.remove(i)
+                    i--;
+                } else {
+                    to_process.push(node->children[i])
+                }
+            }
+        }
     }
 
     fun register(file_name: string, parse_tree: *tree<symbol>, translation_unit: *ast_node) {

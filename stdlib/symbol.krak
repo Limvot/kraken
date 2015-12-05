@@ -77,6 +77,9 @@ obj symbol (Object, Serializable) {
         util::unpack(terminal, pos) = serialize::unserialize<bool>(it, pos)
         return pos
     }
+    fun equal_wo_data(other: ref symbol): bool {
+        return name == other.name && terminal == other.terminal;
+    }
     fun operator==(other: ref symbol): bool {
         return data == other.data && name == other.name && terminal == other.terminal;
     }
