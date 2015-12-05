@@ -11,7 +11,6 @@ import ast_node:*
 import ast_transformation:*
 import parser:*
 
-
 obj importer (Object) {
     var parse: parser
     var ast_pass: ast_transformation
@@ -46,7 +45,6 @@ obj importer (Object) {
         print("post-ast: "); println(file_name)
         write_file(file_name + ".ast.dot", ast_to_dot(ast))
     }
-
     fun trim(parse_tree: *tree<symbol>) {
         remove_node(symbol("$NULL$", false), parse_tree)
 	    remove_node(symbol("WS", false), parse_tree)
@@ -69,8 +67,26 @@ obj importer (Object) {
         remove_node(symbol("adt_nonterm", false), parse_tree)
         remove_node(symbol("template", true), parse_tree)
         remove_node(symbol("\\|", true), parse_tree)
-    }
 
+        collapse_node(symbol("case_statement_list", false), parse_tree)
+        collapse_node(symbol("opt_param_assign_list", false), parse_tree)
+        collapse_node(symbol("param_assign_list", false), parse_tree)
+        collapse_node(symbol("opt_typed_parameter_list", false), parse_tree)
+        collapse_node(symbol("opt_parameter_list", false), parse_tree)
+        collapse_node(symbol("identifier_list", false), parse_tree)
+        collapse_node(symbol("adt_option_list", false), parse_tree)
+        collapse_node(symbol("statement_list", false), parse_tree)
+        collapse_node(symbol("parameter_list", false), parse_tree)
+        collapse_node(symbol("typed_parameter_list", false), parse_tree)
+        collapse_node(symbol("unorderd_list_part", false), parse_tree)
+        collapse_node(symbol("if_comp_pred", false), parse_tree)
+        collapse_node(symbol("declaration_block", false), parse_tree)
+        collapse_node(symbol("type_list", false), parse_tree)
+        collapse_node(symbol("opt_type_list", false), parse_tree)
+        collapse_node(symbol("template_param_list", false), parse_tree)
+        collapse_node(symbol("trait_list", false), parse_tree)
+        collapse_node(symbol("dec_type", false), parse_tree)
+    }
     fun remove_node(remove: symbol, parse_tree: *tree<symbol>) {
         var to_process = queue<*tree<symbol>>()
         to_process.push(parse_tree)
@@ -86,7 +102,25 @@ obj importer (Object) {
             }
         }
     }
-
+    fun collapse_node(remove: symbol, parse_tree: *tree<symbol>) {
+        var to_process = queue<*tree<symbol>>()
+        to_process.push(parse_tree)
+        while(!to_process.empty()) {
+            var node = to_process.pop()
+            for (var i = 0; i < node->children.size; i++;) {
+                if (node->children[i]->data.equal_wo_data(remove)) {
+                    var add_children = node->children[i]->children;
+                    // stick child's children between the current children divided
+                    // on i, without including i
+                    node->children = node->children.slice(0,i) +
+                                        add_children + node->children.slice(i+1,-1)
+                    i--;
+                } else {
+                    to_process.push(node->children[i])
+                }
+            }
+        }
+    }
     fun register(file_name: string, parse_tree: *tree<symbol>, translation_unit: *ast_node) {
         print("Registered parse_tree+translation_unit for ")
         println(file_name)
