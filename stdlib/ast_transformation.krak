@@ -31,13 +31,38 @@ obj ast_transformation (Object) {
     }
     // first pass defines all type_defs (objects and aliases), ADTs, and top-level if/passthroughs
     fun first_pass(file_name: string, parse_tree: *tree<symbol>, importer: *importer): *ast_node {
-        var translation_unit = ast_translation_unit_ptr()
+        var translation_unit = ast_translation_unit_ptr(file_name)
         importer->register(file_name, parse_tree, translation_unit)
         parse_tree->children.for_each(fun(child: *tree<symbol>) {
             if (child->data.name == "type_def") {
                 var name = concat_symbol_tree(get_node("identifier", child))
-                var type_def_node = ast_type_def_ptr()
+                var type_def_node = ast_type_def_ptr(name)
                 translation_unit->translation_unit.children.add(type_def_node)
+                // add to scope, the reverse
+                // set up type - self-referential, traits, template, etc
+            } else if (child->data.name == "adt_def") {
+                var name = concat_symbol_tree(get_node("identifier", child))
+                var adt_def_node = ast_adt_def_ptr(name)
+                translation_unit->translation_unit.children.add(adt_def_node)
+                // add to scope, the reverse
+            } else if (child->data.name == "if_comp") {
+                var if_comp_node = ast_if_comp_ptr()
+                translation_unit->translation_unit.children.add(if_comp_node)
+                // add parent to scope?
+                // do children...
+            }
+        })
+
+        // now do all inports (done second so that if it imports this translation_unit,
+        // this one already has all its types defined
+        parse_tree->children.for_each(fun(child: *tree<symbol>) {
+            if (child->data.name == "import") {
+                var name = concat_symbol_tree(get_node("identifier", child))
+                var import_node = ast_import_ptr(name)
+                translation_unit->translation_unit.children.add(import_node)
+                // call out to importer
+                // go through what is imported - *, or individual names
+                // for names undefined right now (i.e. not of a type), leave an empty vector?
             }
         })
         return translation_unit

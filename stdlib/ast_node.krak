@@ -54,56 +54,64 @@ fun ast_node_ptr(node: ast_node): *ast_node {
     to_ret->copy_construct(&node)
     return to_ret
 }
-fun ast_translation_unit_ptr(): *ast_node {
-    var obj_var.construct(): translation_unit 
+fun ast_translation_unit_ptr(name: string): *ast_node {
+    var obj_var.construct(name): translation_unit 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::translation_unit(obj_var))
     return ptr
 }
 obj translation_unit (Object) {
     var children: vector<*ast_node>
-    fun construct(): *translation_unit  {
+    var name: string
+    fun construct(nameIn: string): *translation_unit  {
         children.construct()
+        name.copy_construct(&nameIn)
         return this
     }
     fun copy_construct(old: *translation_unit) {
         children.copy_construct(&old->children)
+        name.copy_construct(&old->name)
     }
     fun destruct() {
         children.destruct()
+        name.destruct()
     }
     fun operator=(other: ref translation_unit) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref translation_unit): bool {
-        return children == other.children
+        return children == other.children && name == other.name
     }
 }
-fun ast_import_ptr(): *ast_node {
-    var to_ret.construct(): import 
+fun ast_import_ptr(name: string): *ast_node {
+    var to_ret.construct(name): import 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::import(to_ret))
     return ptr
 }
 obj import (Object) {
     var children: vector<*ast_node>
-    fun construct(): *import  {
+    var name: string
+    fun construct(nameIn: string): *import  {
         children.construct()
+        name.copy_construct(&nameIn)
         return this
     }
     fun copy_construct(old: *import) {
         children.copy_construct(&old->children)
+        name.copy_construct(&old->name)
     }
     fun destruct() {
         children.destruct()
+        name.destruct()
     }
     fun operator=(other: ref import) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref import): bool {
-        return children == other.children
+        return children == other.children && name == other.name
     }
 }
 fun ast_identifier_ptr(): *ast_node {
@@ -128,48 +136,56 @@ obj identifier (Object) {
         return true
     }
 }
-fun ast_type_def_ptr(): *ast_node {
-    var to_ret.construct(): type_def 
+fun ast_type_def_ptr(name: string): *ast_node {
+    var to_ret.construct(name): type_def 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::type_def(to_ret))
     return ptr
 }
 obj type_def (Object) {
-    fun construct(): *type_def  {
+    var name: string
+    fun construct(nameIn: string): *type_def  {
+        name.copy_construct(&nameIn)
         return this
     }
     fun copy_construct(old: *type_def) {
+        name.copy_construct(&old->name)
     }
     fun destruct() {
+        name.destruct()
     }
     fun operator=(other: ref type_def) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref type_def): bool {
-        return true
+        return name == other.name
     }
 }
-fun ast_adt_def_ptr(): *ast_node {
-    var to_ret.construct(): adt_def 
+fun ast_adt_def_ptr(name: string): *ast_node {
+    var to_ret.construct(name): adt_def 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::adt_def(to_ret))
     return ptr
 }
 obj adt_def (Object) {
-    fun construct(): *adt_def  {
+    var name: string
+    fun construct(nameIn: string): *adt_def  {
+        name.copy_construct(&nameIn)
         return this
     }
     fun copy_construct(old: *adt_def) {
+        name.copy_construct(&old->name)
     }
     fun destruct() {
+        name.destruct()
     }
     fun operator=(other: ref adt_def) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref adt_def): bool {
-        return true
+        return name == other.name
     }
 }
 fun ast_function_ptr(): *ast_node {
@@ -782,11 +798,11 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
 }
 fun get_ast_name(node: *ast_node): string {
     match (*node) {
-        ast_node::translation_unit(backing) return string("translation_unit")
-        ast_node::import(backing) return string("import")
+        ast_node::translation_unit(backing) return string("translation_unit: ") + backing.name
+        ast_node::import(backing) return string("import: ") + backing.name
         ast_node::identifier(backing) return string("identifier")
-        ast_node::type_def(backing) return string("type_def")
-        ast_node::adt_def(backing) return string("adt_def")
+        ast_node::type_def(backing) return string("type_def: ") + backing.name
+        ast_node::adt_def(backing) return string("adt_def: ") + backing.name
         ast_node::function(backing) return string("function")
         ast_node::code_block(backing) return string("code_block")
         ast_node::typed_parameter(backing) return string("typed_parameter")
