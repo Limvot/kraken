@@ -92,6 +92,8 @@ obj string (Object, Serializable) {
     }
     fun length():int { return data.size; }
 
+    fun operator!=(other: ref string): bool return !(*this ==other)
+    fun operator!=(other: *char): bool return !(*this==other)
     fun operator==(other: ref string): bool {
         // you were too good for this world
         //return length() == other.length() && !util::range(length()).any_true(fun(i: int):bool { return data[i] != other[i]; } )

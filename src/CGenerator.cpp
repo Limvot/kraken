@@ -624,11 +624,11 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     std::string option = generate(case_children[0], enclosingObject, false, enclosingFunction).oneString();
                     std::string parentName = case_children[0]->getDataRef()->scope["~enclosing_scope"][0]->getDataRef()->symbol.getName();
                     output += "/* case " + option + " if " + thingToMatch.value + " */\n";
-                    output += tabs() + "if (" + thingToMatch.value + ".flag == " + parentName + "__" + option + ") {\n";
+                    output += tabs() + "if ((" + thingToMatch.value + ").flag == " + parentName + "__" + option + ") {\n";
                     tabLevel++;
                     if (case_children.size() > 2) {
                         output += tabs() + ValueTypeToCType(case_children[1]->getData().valueType, generate(case_children[1], enclosingObject, false, enclosingFunction).oneString())
-                            + " = " + thingToMatch.value + "." + option + ";\n";
+                            + " = (" + thingToMatch.value + ")." + option + ";\n";
                         output += generate(case_children[2], enclosingObject, false, enclosingFunction).oneString();
                     } else {
                         output += generate(case_children[1], enclosingObject, false, enclosingFunction).oneString();

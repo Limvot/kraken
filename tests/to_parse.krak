@@ -1,4 +1,6 @@
 
+def not_int int
+
 fun main(): int {
     return 0
 }

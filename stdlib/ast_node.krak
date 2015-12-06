@@ -128,7 +128,7 @@ obj identifier (Object) {
         return true
     }
 }
-fun type_def(): *ast_node {
+fun ast_type_def_ptr(): *ast_node {
     var to_ret.construct(): type_def 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::type_def(to_ret))
@@ -150,7 +150,7 @@ obj type_def (Object) {
         return true
     }
 }
-fun adt_def(): *ast_node {
+fun ast_adt_def_ptr(): *ast_node {
     var to_ret.construct(): adt_def 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::adt_def(to_ret))
@@ -172,7 +172,7 @@ obj adt_def (Object) {
         return true
     }
 }
-fun function(): *ast_node {
+fun ast_function_ptr(): *ast_node {
     var to_ret.construct(): function 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::function(to_ret))
@@ -194,7 +194,7 @@ obj function (Object) {
         return true
     }
 }
-fun code_block(): *ast_node {
+fun ast_code_block_ptr(): *ast_node {
     var to_ret.construct(): code_block 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::code_block(to_ret))
@@ -216,7 +216,7 @@ obj code_block (Object) {
         return true
     }
 }
-fun typed_parameter(): *ast_node {
+fun ast_typed_parameter_ptr(): *ast_node {
     var to_ret.construct(): typed_parameter 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::typed_parameter(to_ret))
@@ -238,7 +238,7 @@ obj typed_parameter (Object) {
         return true
     }
 }
-fun expression(): *ast_node {
+fun ast_expression_ptr(): *ast_node {
     var to_ret.construct(): expression 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::expression(to_ret))
@@ -260,7 +260,7 @@ obj expression (Object) {
         return true
     }
 }
-fun boolean_expression(): *ast_node {
+fun ast_boolean_expression_ptr(): *ast_node {
     var to_ret.construct(): boolean_expression 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::boolean_expression(to_ret))
@@ -282,7 +282,7 @@ obj boolean_expression (Object) {
         return true
     }
 }
-fun statement(): *ast_node {
+fun ast_statement_ptr(): *ast_node {
     var to_ret.construct(): statement 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::statement(to_ret))
@@ -304,7 +304,7 @@ obj statement (Object) {
         return true
     }
 }
-fun if_statement(): *ast_node {
+fun ast_if_statement_ptr(): *ast_node {
     var to_ret.construct(): if_statement 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::if_statement(to_ret))
@@ -326,7 +326,7 @@ obj if_statement (Object) {
         return true
     }
 }
-fun match_statement(): *ast_node {
+fun ast_match_statement_ptr(): *ast_node {
     var to_ret.construct(): match_statement 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::match_statement(to_ret))
@@ -348,7 +348,7 @@ obj match_statement (Object) {
         return true
     }
 }
-fun case_statement(): *ast_node {
+fun ast_case_statement_ptr(): *ast_node {
     var to_ret.construct(): case_statement 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::case_statement(to_ret))
@@ -370,7 +370,7 @@ obj case_statement (Object) {
         return true
     }
 }
-fun while_loop(): *ast_node {
+fun ast_while_loop_ptr(): *ast_node {
     var to_ret.construct(): while_loop 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::while_loop(to_ret))
@@ -392,7 +392,7 @@ obj while_loop (Object) {
         return true
     }
 }
-fun for_loop(): *ast_node {
+fun ast_for_loop_ptr(): *ast_node {
     var to_ret.construct(): for_loop 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::for_loop(to_ret))
@@ -414,7 +414,7 @@ obj for_loop (Object) {
         return true
     }
 }
-fun return_statement(): *ast_node {
+fun ast_return_statement_ptr(): *ast_node {
     var to_ret.construct(): return_statement 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::return_statement(to_ret))
@@ -436,7 +436,7 @@ obj return_statement (Object) {
         return true
     }
 }
-fun break_statement(): *ast_node {
+fun ast_break_statement_ptr(): *ast_node {
     var to_ret.construct(): break_statement 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::break_statement(to_ret))
@@ -458,7 +458,7 @@ obj break_statement (Object) {
         return true
     }
 }
-fun continue_statement(): *ast_node {
+fun ast_continue_statement_ptr(): *ast_node {
     var to_ret.construct(): continue_statement 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::continue_statement(to_ret))
@@ -480,7 +480,7 @@ obj continue_statement (Object) {
         return true
     }
 }
-fun defer_statement(): *ast_node {
+fun ast_defer_statement_ptr(): *ast_node {
     var to_ret.construct(): defer_statement 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::defer_statement(to_ret))
@@ -502,7 +502,7 @@ obj defer_statement (Object) {
         return true
     }
 }
-fun assignment_statement(): *ast_node {
+fun ast_assignment_statement_ptr(): *ast_node {
     var to_ret.construct(): assignment_statement 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::assignment_statement(to_ret))
@@ -524,7 +524,7 @@ obj assignment_statement (Object) {
         return true
     }
 }
-fun declaration_statement(): *ast_node {
+fun ast_declaration_statement_ptr(): *ast_node {
     var to_ret.construct(): declaration_statement 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::declaration_statement(to_ret))
@@ -546,7 +546,7 @@ obj declaration_statement (Object) {
         return true
     }
 }
-fun if_comp(): *ast_node {
+fun ast_if_comp_ptr(): *ast_node {
     var to_ret.construct(): if_comp 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::if_comp(to_ret))
@@ -568,7 +568,7 @@ obj if_comp (Object) {
         return true
     }
 }
-fun simple_passthrough(): *ast_node {
+fun ast_simple_passthrough_ptr(): *ast_node {
     var to_ret.construct(): simple_passthrough 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::simple_passthrough(to_ret))
@@ -590,7 +590,7 @@ obj simple_passthrough (Object) {
         return true
     }
 }
-fun passthrough_params(): *ast_node {
+fun ast_passthrough_params_ptr(): *ast_node {
     var to_ret.construct(): passthrough_params 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::passthrough_params(to_ret))
@@ -612,7 +612,7 @@ obj passthrough_params (Object) {
         return true
     }
 }
-fun in_passthrough_params(): *ast_node {
+fun ast_in_passthrough_params_ptr(): *ast_node {
     var to_ret.construct(): in_passthrough_params 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::in_passthrough_params(to_ret))
@@ -634,7 +634,7 @@ obj in_passthrough_params (Object) {
         return true
     }
 }
-fun out_passthrough_params(): *ast_node {
+fun ast_out_passthrough_params_ptr(): *ast_node {
     var to_ret.construct(): out_passthrough_params 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::out_passthrough_params(to_ret))
@@ -656,7 +656,7 @@ obj out_passthrough_params (Object) {
         return true
     }
 }
-fun opt_string(): *ast_node {
+fun ast_opt_string_ptr(): *ast_node {
     var to_ret.construct(): opt_string 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::opt_string(to_ret))
@@ -678,7 +678,7 @@ obj opt_string (Object) {
         return true
     }
 }
-fun param_assign(): *ast_node {
+fun ast_param_assign_ptr(): *ast_node {
     var to_ret.construct(): param_assign 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::param_assign(to_ret))
@@ -700,7 +700,7 @@ obj param_assign (Object) {
         return true
     }
 }
-fun function_call(): *ast_node {
+fun ast_function_call_ptr(): *ast_node {
     var to_ret.construct(): function_call 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::function_call(to_ret))
@@ -722,7 +722,7 @@ obj function_call (Object) {
         return true
     }
 }
-fun value(): *ast_node {
+fun ast_value_ptr(): *ast_node {
     var to_ret.construct(): value 
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::value(to_ret))
@@ -746,10 +746,74 @@ obj value (Object) {
 }
 
 fun get_ast_children(node: *ast_node): vector<*ast_node> {
-    return vector<*ast_node>()
+    match (*node) {
+        ast_node::translation_unit(backing) return backing.children
+        ast_node::import(backing) return vector<*ast_node>()
+        ast_node::identifier(backing) return vector<*ast_node>()
+        ast_node::type_def(backing) return vector<*ast_node>()
+        ast_node::adt_def(backing) return vector<*ast_node>()
+        ast_node::function(backing) return vector<*ast_node>()
+        ast_node::code_block(backing) return vector<*ast_node>()
+        ast_node::typed_parameter(backing) return vector<*ast_node>()
+        ast_node::expression(backing) return vector<*ast_node>()
+        ast_node::boolean_expression(backing) return vector<*ast_node>()
+        ast_node::statement(backing) return vector<*ast_node>()
+        ast_node::if_statement(backing) return vector<*ast_node>()
+        ast_node::match_statement(backing) return vector<*ast_node>()
+        ast_node::case_statement(backing) return vector<*ast_node>()
+        ast_node::while_loop(backing) return vector<*ast_node>()
+        ast_node::for_loop(backing) return vector<*ast_node>()
+        ast_node::return_statement(backing) return vector<*ast_node>()
+        ast_node::break_statement(backing) return vector<*ast_node>()
+        ast_node::continue_statement(backing) return vector<*ast_node>()
+        ast_node::defer_statement(backing) return vector<*ast_node>()
+        ast_node::assignment_statement(backing) return vector<*ast_node>()
+        ast_node::declaration_statement(backing) return vector<*ast_node>()
+        ast_node::if_comp(backing) return vector<*ast_node>()
+        ast_node::simple_passthrough(backing) return vector<*ast_node>()
+        ast_node::passthrough_params(backing) return vector<*ast_node>()
+        ast_node::in_passthrough_params(backing) return vector<*ast_node>()
+        ast_node::out_passthrough_params(backing) return vector<*ast_node>()
+        ast_node::opt_string(backing) return vector<*ast_node>()
+        ast_node::param_assign(backing) return vector<*ast_node>()
+        ast_node::function_call(backing) return vector<*ast_node>()
+        ast_node::value(backing) return vector<*ast_node>()
+    }
 }
 fun get_ast_name(node: *ast_node): string {
-    return string("ast_node")
+    match (*node) {
+        ast_node::translation_unit(backing) return string("translation_unit")
+        ast_node::import(backing) return string("import")
+        ast_node::identifier(backing) return string("identifier")
+        ast_node::type_def(backing) return string("type_def")
+        ast_node::adt_def(backing) return string("adt_def")
+        ast_node::function(backing) return string("function")
+        ast_node::code_block(backing) return string("code_block")
+        ast_node::typed_parameter(backing) return string("typed_parameter")
+        ast_node::expression(backing) return string("expression")
+        ast_node::boolean_expression(backing) return string("boolean_expression")
+        ast_node::statement(backing) return string("statement")
+        ast_node::if_statement(backing) return string("if_statement")
+        ast_node::match_statement(backing) return string("match_statement")
+        ast_node::case_statement(backing) return string("case_statement")
+        ast_node::while_loop(backing) return string("while_loop")
+        ast_node::for_loop(backing) return string("for_loop")
+        ast_node::return_statement(backing) return string("return_statement")
+        ast_node::break_statement(backing) return string("break_statement")
+        ast_node::continue_statement(backing) return string("continue_statement")
+        ast_node::defer_statement(backing) return string("defer_statement")
+        ast_node::assignment_statement(backing) return string("assignment_statement")
+        ast_node::declaration_statement(backing) return string("declaration_statement")
+        ast_node::if_comp(backing) return string("if_comp")
+        ast_node::simple_passthrough(backing) return string("simple_passthrough")
+        ast_node::passthrough_params(backing) return string("passthrough_params")
+        ast_node::in_passthrough_params(backing) return string("in_passthrough_params")
+        ast_node::out_passthrough_params(backing) return string("out_passthrough_params")
+        ast_node::opt_string(backing) return string("opt_string")
+        ast_node::param_assign(backing) return string("param_assign")
+        ast_node::function_call(backing) return string("function_call")
+        ast_node::value(backing) return string("value")
+    }
 }
 
 fun ast_to_dot(root: *ast_node): string {
