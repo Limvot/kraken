@@ -31,7 +31,7 @@ obj importer (Object) {
         parse.destruct()
         ast_pass.destruct()
     }
-    fun import(file_name: string) {
+    fun import(file_name: string): *ast_node {
         print("pre-parse: "); println(file_name)
         var parse_tree = parse.parse_input(read_file(file_name), file_name)
         print("post-parse: "); println(file_name)
@@ -44,6 +44,7 @@ obj importer (Object) {
         var ast = ast_pass.first_pass(file_name, parse_tree, this)
         print("post-ast: "); println(file_name)
         write_file(file_name + ".ast.dot", ast_to_dot(ast))
+        return ast
     }
     fun trim(parse_tree: *tree<symbol>) {
         remove_node(symbol("$NULL$", false), parse_tree)
@@ -93,7 +94,12 @@ obj importer (Object) {
         while(!to_process.empty()) {
             var node = to_process.pop()
             for (var i = 0; i < node->children.size; i++;) {
-                if (node->children[i]->data.equal_wo_data(remove)) {
+                if (!node->children[i] || node->children[i]->data.equal_wo_data(remove)) {
+                    if (!node->children[i])
+                        println("not because null")
+                    else {
+                        print("not because "); println(remove.name)
+                    }
                     node->children.remove(i)
                     i--;
                 } else {

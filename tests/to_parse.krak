@@ -1,12 +1,1 @@
-
-def not_int int
-
-adt maybe {
-    no_int,
-    an_int: int
-}
-
-fun main(): int {
-    return 0
-}
-
+why {}

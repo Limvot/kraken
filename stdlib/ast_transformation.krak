@@ -38,16 +38,21 @@ obj ast_transformation (Object) {
                 var name = concat_symbol_tree(get_node("identifier", child))
                 var type_def_node = ast_type_def_ptr(name)
                 translation_unit->translation_unit.children.add(type_def_node)
+                add_to_scope("~enclosing_scope", translation_unit, type_def_node)
+                add_to_scope(name, type_def_node, translation_unit)
                 // add to scope, the reverse
                 // set up type - self-referential, traits, template, etc
             } else if (child->data.name == "adt_def") {
                 var name = concat_symbol_tree(get_node("identifier", child))
                 var adt_def_node = ast_adt_def_ptr(name)
                 translation_unit->translation_unit.children.add(adt_def_node)
+                add_to_scope("~enclosing_scope", translation_unit, adt_def_node)
+                add_to_scope(name, adt_def_node, translation_unit)
                 // add to scope, the reverse
             } else if (child->data.name == "if_comp") {
                 var if_comp_node = ast_if_comp_ptr()
                 translation_unit->translation_unit.children.add(if_comp_node)
+                add_to_scope("~enclosing_scope", translation_unit, if_comp_node)
                 // add parent to scope?
                 // do children...
             }
@@ -60,6 +65,9 @@ obj ast_transformation (Object) {
                 var name = concat_symbol_tree(get_node("identifier", child))
                 var import_node = ast_import_ptr(name)
                 translation_unit->translation_unit.children.add(import_node)
+                add_to_scope("~enclosing_scope", translation_unit, import_node)
+                var outside_translation_unit = importer->import(name + ".krak")
+                add_to_scope(name, outside_translation_unit, translation_unit)
                 // call out to importer
                 // go through what is imported - *, or individual names
                 // for names undefined right now (i.e. not of a type), leave an empty vector?
@@ -89,5 +97,15 @@ fun get_node(lookup: string, parent: *tree<symbol>): *tree<symbol> {
 }
 fun get_nodes(lookup: string, parent: *tree<symbol>): vector<*tree<symbol>> {
     return parent->children.filter(fun(node: *tree<symbol>):bool return node->data.name == lookup;)
+}
+fun add_to_scope(name: *char, to_add: *ast_node, add_to: *ast_node) {
+    add_to_scope(string(name), to_add, add_to)
+}
+fun add_to_scope(name: string, to_add: *ast_node, add_to: *ast_node) {
+    var add_to_map = get_ast_scope(add_to)
+    if (add_to_map->contains_key(name))
+        (*add_to_map)[name].add(to_add)
+    else
+        add_to_map->set(name, vector(to_add))
 }
 

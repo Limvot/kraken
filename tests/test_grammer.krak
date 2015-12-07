@@ -12,37 +12,14 @@ fun main():int {
     
     var a.construct(): grammer
 
-    var file_name = string("../krakenGrammer.kgm")
+    /*var file_name = string("../krakenGrammer.kgm")*/
+    var file_name = string("../simplifiedKrakenGrammer.kgm")
     /*var file_name = string("grammer.kgm")*/
-    /*var file_name = string("grammer2.kgm")*/
-    /*var file_name = string("grammer3.kgm")*/
-    /*var file_name = string("grammer4.kgm")*/
 
     var compiled_name = file_name + string(".comp_new")
     var file_contents = read_file(file_name)
     var loaded_and_valid = false
 
-/*
-    println("gonna serialize")
-    var s = serialize(file_contents)
-    println("gonna write")
-    write_file_binary(compiled_name, s)
-    println("gonna read")
-    var bin = read_file_binary(compiled_name)
-    println("gonna setup")
-    var pos = 0
-    var uns = string()
-    println("gonna unserialize")
-    unpack(uns, pos) = unserialize<string>(bin, pos)
-    println("gonna done")
-
-    return 0
-    */
-
-        /*a = load_grammer(file_contents)*/
-        /*println("grammer loaded, calculate_state_automaton")*/
-        /*a.calculate_first_set()*/
-        /*a.calculate_state_automaton()*/
     if (file_exists(compiled_name)) {
         println("cached file exists")
         var pos = 0
@@ -79,7 +56,7 @@ fun main():int {
         write_file_binary(compiled_name, serialize(file_contents) + serialize(a))
         println("done writing")
     }
-    println(a.to_string())
+    /*println(a.to_string())*/
     var doFirstSet = fun() {
         println("///////////////////START FIRST SET/////////////")
         println("//TERMINALS//")
@@ -105,16 +82,17 @@ fun main():int {
     }
     /*doFirstSet()*/
 
+    println(a.to_string())
+    a.parse_table.print_string()
     var lex = lexer(a.terminals)
 
-   /*lex.set_input(read_file(string("test_grammer.krak")))*/
+   lex.set_input(read_file(string("to_parse.krak")))
     /*lex.set_input(string("ccdahas spacedhas*/
 /*returndaaaaaaaaaaaaaa"))*/
     //lex.set_input(string("hibyed"))
     println("woo lexing:")
-    /*range(8).for_each(fun(i: int) { println(lex.next().to_string()); } )*/
+    range(8).for_each(fun(i: int) { println(lex.next().to_string()); } )
     /*range(80).for_each(fun(i: int) { println(lex.next().to_string()); } )*/
-    /*println(a.to_string())*/
 
 
     var parse.construct(a): parser
