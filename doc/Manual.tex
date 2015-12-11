@@ -20,7 +20,7 @@
 %	DOCUMENT INFORMATION
 %----------------------------------------------------------------------------------------
 
-\title{Kraken Programming Guide} % Title
+\title{Kraken Programming Guide v0.0} % Title
 
 \author{Jack \textsc{Sparrow}} % Author name
 
@@ -204,8 +204,103 @@ optional after declarations.
 
 \section{Classes}
   \subsection{Constructors}
+    As with most of kraken, classes are based on their C++ counterparts, with
+  a few key differences.  Constructors in kraken are not called by default.  
+  You must actually call the constructor function.  The constructor must return
+  a pointer to the object, which is denoted by the {\bf{this}} keyword.  
+  The destructor is automatically called when the object goes out of scope, 
+  and is just called destruct().  An example class is shown below:
+  \begin{lstlisting}[language=C++]
+    obj MyObject (Object) {
+      var variable1: int;
+      var variable2: vector::vector<double>;
+
+      fun construct(): *MyObject {
+        variable1 = 42;
+        variable2.construct();
+        return this;
+      }
+      
+      //Could also pass by reference???
+      fun copy_construct(old: *MyObject): void {
+        variable1 = &old->variable1;
+        variable2.copy_construct(&old->variable2); 
+      }
+      
+      fun destruct() {
+        variable2.destruct();
+      }
+    }
+  \end{lstlisting}
   \subsection{Operator Overloading}
+    Operator overloading allows you to use operators for syntactic sugar, and
+  make your code look nicer.  This again borrow mostly from C++, and you can
+  overload most of the operators that you can in C++.  An example is shown
+  below:
+  \begin{lstlisting}
+    //Inside a class
+    
+    //overload the assignment operator 
+    fun operator=(other: SampleObject): void{
+      destruct();
+      copy_construct(&other);
+    }
+    
+    //overload the equality operator
+    fun operator==(other: SampleObject): bool{
+      return EqualTest == other.EqualTest;
+    }
+  \end{lstlisting}
   \subsection{Inheritance}
+    Inheritance is one of the keys of Object Oriented Progamming.  It allows you
+  to have related classes be derived from a base class.  The classic example is
+  having a dog and a cat class inherit from an animal class.  The animal class
+  is the base class, while the dog and cat are derived classes.  \\ 
+    Derived classes have the same members and functions as the base class, but can 
+  also overload them with implementations specific to the derived class.  For 
+  instance, the animal class may have a run function, that returns some standard 
+  speed for an animal.  The derived classes would overload that run function, 
+  and return their specific speed. Dog and cat can be passed to functions that 
+  take in the animal class, and this is something called polymorphism.  
+  Kraken's inheritance is taken in part from the Java style of inheritance.
+  All base class objects inherit from the Object class.  The derived classes
+  only need to inherit from the base class.
+  \begin{lstlisting}[language=C++]
+    //brief class for clarity 
+    obj Animal(Object){
+      var speed: int;
+
+      //returns the standard speed
+      fun run(): int;
+    }
+
+    obj Dog(Animal){
+      //returns the speed specific to dog
+      fun run(): int;
+    }
+
+    obj Cat(Animal){
+      //returns the speed specific to cat
+      fun run(): int;
+    }
+
+    fun OutrunBear(me: Animal, you:Animal): bool{
+      var BearSpeed = 10;
+      if(me.run() > you.run())
+      {
+        //I don't have to outrun the bear
+        //I just have to outrun you
+        return true;
+      } else if(me.run() > BearSpeed){
+        //Months at the gym paid off 
+        return true;
+      }else{
+        //New Year's Resolution.
+        //Going to hit the gym.
+        return false;
+      }
+    }
+  \end{lstlisting}
 %----------------------------------------------------------------------------------------
 %	SECTION Templates
 %----------------------------------------------------------------------------------------
