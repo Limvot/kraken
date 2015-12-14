@@ -75,7 +75,7 @@ optional after declarations.
     var A: int;         //A is unitialized int
     var B = 1;          //B is integer
     var C = 2.0;        //C is double
-    var D: float = 3.14 //D is double
+    var D: double = 3.14 //D is double
 
   \end{lstlisting}
 \subsection{Primitive Types}
@@ -251,62 +251,72 @@ optional after declarations.
       return EqualTest == other.EqualTest;
     }
   \end{lstlisting}
-  \subsection{Inheritance}
-    Inheritance is one of the keys of Object Oriented Progamming.  It allows you
-  to have related classes be derived from a base class.  The classic example is
-  having a dog and a cat class inherit from an animal class.  The animal class
-  is the base class, while the dog and cat are derived classes.  \\ 
-    Derived classes have the same members and functions as the base class, but can 
-  also overload them with implementations specific to the derived class.  For 
-  instance, the animal class may have a run function, that returns some standard 
-  speed for an animal.  The derived classes would overload that run function, 
-  and return their specific speed. Dog and cat can be passed to functions that 
-  take in the animal class, and this is something called polymorphism.  
-  Kraken's inheritance is taken in part from the Java style of inheritance.
-  All base class objects inherit from the Object class.  The derived classes
-  only need to inherit from the base class.
-  \begin{lstlisting}[language=C++]
-    //brief class for clarity 
-    obj Animal(Object){
-      var speed: int;
-
-      //returns the standard speed
-      fun run(): int;
-    }
-
-    obj Dog(Animal){
-      //returns the speed specific to dog
-      fun run(): int;
-    }
-
-    obj Cat(Animal){
-      //returns the speed specific to cat
-      fun run(): int;
-    }
-
-    fun OutrunBear(me: Animal, you:Animal): bool{
-      var BearSpeed = 10;
-      if(me.run() > you.run())
-      {
-        //I don't have to outrun the bear
-        //I just have to outrun you
-        return true;
-      } else if(me.run() > BearSpeed){
-        //Months at the gym paid off 
-        return true;
-      }else{
-        //New Year's Resolution.
-        //Going to hit the gym.
-        return false;
+  \subsection{Traits}
+    Currently, Kraken has no notion of inheritance.  Instead, objects can be
+  intialized with traits.  These give special properties to the object.  For
+  instance, if the object is defined with the {\bf{Object}} trait, then its
+  destructor will be called when the object goes out of scope.  The second trait
+  that kraken has is the {\bf{Serializable}} trait.  This allows it to be used
+  with the {\bf{serialize}} class, which serializes it into a vector of bytes.
+  This stream of bytes could then be used to send messages over TCP, etc.
+  \begin{lstlisting} 
+    //Object has both Object and Serializable traits
+    obj Hermes (Object, Serializable) {
+      var RedBull: vector::vector<string>; 
+      
+      fun construct(): *Hermes {
+        RedBull = "gives you wings";
       }
-    }
+      
+      fun serialize(): vector::vector<char> {
+        //String already has a serialize member function 
+        var toReturn = RedBull.serialize(); 
+        return toReturn;
+      }
+
+      fun unserialize(it: ref vector::vector<char>, pos: int): int {
+        pos = RedBull.unserialize(it,pos);
+        return pos;
+      }
+      
+      fun destruct(): void {
+        io::println("I must return to my people");
+      }
+
   \end{lstlisting}
 %----------------------------------------------------------------------------------------
 %	SECTION Templates
 %----------------------------------------------------------------------------------------
 
 \section{Templates}
-  Section T
+  Templates are a very important part of C++, but are also one of the reasons
+people do not like the language.  They are extremely useful, but also fairly
+hard to use properly.  If you make an error while using templates, the bug is
+often extremely difficult to find.  Kraken templates aim to prevent that problem.
+\\
+Templates are a way of writing something once for any type.  At compile time,
+the compiler will see what types you are using with the template, and substitute
+those types in.  This is not duck typing, since the types cannot change once they
+are assigned.  It is more like how you can initialize variables in kraken, with
+the use of {\bf{var}}.  This is extremely useful for something like a container.
+The vector class in kraken uses templates, so you can put any type, including
+custom objects, into a vector. \\
+The convention is to use {\bf{T}} for a template, and if there are two,
+{\bf{U}}.  The following example, taken from the vector implementation,
+demonstrates templates.
+\begin{lstlisting}[language=C++]
+  //Can have a vector of any type, with <T> 
+  obj vector<T> (Object, Serializable) {
+    //data can be an array of any type
+    var data: *T;
+    //size and available are just primitive ints
+    var size: int;
+    var available: int;
+    ...
+  }
+\end{lstlisting}
+
+
 %----------------------------------------------------------------------------------------
 %	SECTION Standard Library
 %----------------------------------------------------------------------------------------
