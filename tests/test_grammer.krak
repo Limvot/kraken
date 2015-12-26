@@ -9,11 +9,11 @@ import tree:*
 import serialize:*
 
 fun main():int {
-    
+
     var a.construct(): grammer
 
-    /*var file_name = string("../krakenGrammer.kgm")*/
-    var file_name = string("../simplifiedKrakenGrammer.kgm")
+    var file_name = string("../krakenGrammer.kgm")
+    /*var file_name = string("../simplifiedKrakenGrammer.kgm")*/
     /*var file_name = string("grammer.kgm")*/
 
     var compiled_name = file_name + string(".comp_new")

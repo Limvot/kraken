@@ -65,7 +65,7 @@ obj map<T,U> (Object, Serializable) {
         var key_loc = keys.find(key)
         if (key_loc == -1) {
             io::println("trying to access nonexistant key-value!")
-            /*while (true) {}*/
+            while (true) {}
         }
         return values.get(key_loc)
     }

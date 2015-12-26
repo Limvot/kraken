@@ -1,1 +1,6 @@
-why {}
+import to_import
+
+fun main(): int {
+    return 0
+}
+
