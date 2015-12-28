@@ -1,5 +1,6 @@
 import tree:*
 import vector:*
+import set:*
 import stack:*
 import map:*
 import util:*
@@ -50,7 +51,7 @@ fun ast_node_ptr(node: ast_node): *ast_node {
     return to_ret
 }
 fun ast_translation_unit_ptr(name: string): *ast_node {
-    var obj_var.construct(name): translation_unit 
+    var obj_var.construct(name): translation_unit
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::translation_unit(obj_var))
     return ptr
@@ -84,29 +85,29 @@ obj translation_unit (Object) {
     }
 }
 fun ast_import_ptr(name: string): *ast_node {
-    var to_ret.construct(name): import 
+    var to_ret.construct(name): import
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::import(to_ret))
     return ptr
 }
 obj import (Object) {
     var scope: map<string, vector<*ast_node>>
-    var children: vector<*ast_node>
+    var imported: set<string>
     var name: string
     fun construct(nameIn: string): *import  {
         scope.construct()
-        children.construct()
+        imported.construct()
         name.copy_construct(&nameIn)
         return this
     }
     fun copy_construct(old: *import) {
         scope.copy_construct(&old->scope)
-        children.copy_construct(&old->children)
+        imported.copy_construct(&old->imported)
         name.copy_construct(&old->name)
     }
     fun destruct() {
         scope.destruct()
-        children.destruct()
+        imported.destruct()
         name.destruct()
     }
     fun operator=(other: ref import) {
@@ -114,25 +115,32 @@ obj import (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref import): bool {
-        return children == other.children && name == other.name
+        return imported == other.imported && name == other.name
     }
 }
-fun ast_identifier_ptr(): *ast_node {
-    var to_ret.construct(): identifier 
+fun ast_identifier_ptr(name: *char): *ast_node {
+    return ast_identifier_ptr(string(name))
+}
+fun ast_identifier_ptr(name: string): *ast_node {
+    var to_ret.construct(name): identifier
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::identifier(to_ret))
     return ptr
 }
 obj identifier (Object) {
+    var name: string
     var scope: map<string, vector<*ast_node>>
-    fun construct(): *identifier {
+    fun construct(nameIn: string): *identifier {
+        name.copy_construct(&nameIn)
         scope.construct()
         return this
     }
     fun copy_construct(old: *identifier) {
+        name.copy_construct(&old->name)
         scope.copy_construct(&old->scope)
     }
     fun destruct() {
+        name.destruct()
         scope.destruct()
     }
     fun operator=(other: ref identifier) {
@@ -140,11 +148,11 @@ obj identifier (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref identifier): bool {
-        return true
+        return name == other.name
     }
 }
 fun ast_type_def_ptr(name: string): *ast_node {
-    var to_ret.construct(name): type_def 
+    var to_ret.construct(name): type_def
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::type_def(to_ret))
     return ptr
@@ -174,7 +182,7 @@ obj type_def (Object) {
     }
 }
 fun ast_adt_def_ptr(name: string): *ast_node {
-    var to_ret.construct(name): adt_def 
+    var to_ret.construct(name): adt_def
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::adt_def(to_ret))
     return ptr
@@ -204,7 +212,7 @@ obj adt_def (Object) {
     }
 }
 fun ast_function_ptr(): *ast_node {
-    var to_ret.construct(): function 
+    var to_ret.construct(): function
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::function(to_ret))
     return ptr
@@ -230,33 +238,37 @@ obj function (Object) {
     }
 }
 fun ast_code_block_ptr(): *ast_node {
-    var to_ret.construct(): code_block 
+    var to_ret.construct(): code_block
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::code_block(to_ret))
     return ptr
 }
 obj code_block (Object) {
     var scope: map<string, vector<*ast_node>>
+    var children: vector<*ast_node>
     fun construct(): *code_block {
         scope.construct()
+        children.construct()
         return this
     }
     fun copy_construct(old: *code_block) {
         scope.copy_construct(&old->scope)
+        children.copy_construct(&old->children)
     }
     fun destruct() {
         scope.destruct()
+        children.destruct()
     }
     fun operator=(other: ref code_block) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref code_block): bool {
-        return true
+        return children == other.children && scope == other.scope
     }
 }
 fun ast_statement_ptr(): *ast_node {
-    var to_ret.construct(): statement 
+    var to_ret.construct(): statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::statement(to_ret))
     return ptr
@@ -282,7 +294,7 @@ obj statement (Object) {
     }
 }
 fun ast_if_statement_ptr(): *ast_node {
-    var to_ret.construct(): if_statement 
+    var to_ret.construct(): if_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::if_statement(to_ret))
     return ptr
@@ -308,7 +320,7 @@ obj if_statement (Object) {
     }
 }
 fun ast_match_statement_ptr(): *ast_node {
-    var to_ret.construct(): match_statement 
+    var to_ret.construct(): match_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::match_statement(to_ret))
     return ptr
@@ -334,7 +346,7 @@ obj match_statement (Object) {
     }
 }
 fun ast_case_statement_ptr(): *ast_node {
-    var to_ret.construct(): case_statement 
+    var to_ret.construct(): case_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::case_statement(to_ret))
     return ptr
@@ -360,7 +372,7 @@ obj case_statement (Object) {
     }
 }
 fun ast_while_loop_ptr(): *ast_node {
-    var to_ret.construct(): while_loop 
+    var to_ret.construct(): while_loop
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::while_loop(to_ret))
     return ptr
@@ -386,7 +398,7 @@ obj while_loop (Object) {
     }
 }
 fun ast_for_loop_ptr(): *ast_node {
-    var to_ret.construct(): for_loop 
+    var to_ret.construct(): for_loop
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::for_loop(to_ret))
     return ptr
@@ -412,7 +424,7 @@ obj for_loop (Object) {
     }
 }
 fun ast_return_statement_ptr(): *ast_node {
-    var to_ret.construct(): return_statement 
+    var to_ret.construct(): return_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::return_statement(to_ret))
     return ptr
@@ -438,7 +450,7 @@ obj return_statement (Object) {
     }
 }
 fun ast_break_statement_ptr(): *ast_node {
-    var to_ret.construct(): break_statement 
+    var to_ret.construct(): break_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::break_statement(to_ret))
     return ptr
@@ -464,7 +476,7 @@ obj break_statement (Object) {
     }
 }
 fun ast_continue_statement_ptr(): *ast_node {
-    var to_ret.construct(): continue_statement 
+    var to_ret.construct(): continue_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::continue_statement(to_ret))
     return ptr
@@ -490,7 +502,7 @@ obj continue_statement (Object) {
     }
 }
 fun ast_defer_statement_ptr(): *ast_node {
-    var to_ret.construct(): defer_statement 
+    var to_ret.construct(): defer_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::defer_statement(to_ret))
     return ptr
@@ -516,7 +528,7 @@ obj defer_statement (Object) {
     }
 }
 fun ast_assignment_statement_ptr(): *ast_node {
-    var to_ret.construct(): assignment_statement 
+    var to_ret.construct(): assignment_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::assignment_statement(to_ret))
     return ptr
@@ -542,7 +554,7 @@ obj assignment_statement (Object) {
     }
 }
 fun ast_declaration_statement_ptr(): *ast_node {
-    var to_ret.construct(): declaration_statement 
+    var to_ret.construct(): declaration_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::declaration_statement(to_ret))
     return ptr
@@ -568,7 +580,7 @@ obj declaration_statement (Object) {
     }
 }
 fun ast_if_comp_ptr(): *ast_node {
-    var to_ret.construct(): if_comp 
+    var to_ret.construct(): if_comp
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::if_comp(to_ret))
     return ptr
@@ -590,7 +602,7 @@ obj if_comp (Object) {
     }
 }
 fun ast_simple_passthrough_ptr(): *ast_node {
-    var to_ret.construct(): simple_passthrough 
+    var to_ret.construct(): simple_passthrough
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::simple_passthrough(to_ret))
     return ptr
@@ -616,7 +628,7 @@ obj simple_passthrough (Object) {
     }
 }
 fun ast_passthrough_params_ptr(): *ast_node {
-    var to_ret.construct(): passthrough_params 
+    var to_ret.construct(): passthrough_params
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::passthrough_params(to_ret))
     return ptr
@@ -642,7 +654,7 @@ obj passthrough_params (Object) {
     }
 }
 fun ast_in_passthrough_params_ptr(): *ast_node {
-    var to_ret.construct(): in_passthrough_params 
+    var to_ret.construct(): in_passthrough_params
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::in_passthrough_params(to_ret))
     return ptr
@@ -668,7 +680,7 @@ obj in_passthrough_params (Object) {
     }
 }
 fun ast_out_passthrough_params_ptr(): *ast_node {
-    var to_ret.construct(): out_passthrough_params 
+    var to_ret.construct(): out_passthrough_params
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::out_passthrough_params(to_ret))
     return ptr
@@ -694,7 +706,7 @@ obj out_passthrough_params (Object) {
     }
 }
 fun ast_function_call_ptr(): *ast_node {
-    var to_ret.construct(): function_call 
+    var to_ret.construct(): function_call
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::function_call(to_ret))
     return ptr
@@ -720,7 +732,7 @@ obj function_call (Object) {
     }
 }
 fun ast_value_ptr(): *ast_node {
-    var to_ret.construct(): value 
+    var to_ret.construct(): value
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::value(to_ret))
     return ptr
@@ -749,12 +761,12 @@ obj value (Object) {
 fun get_ast_children(node: *ast_node): vector<*ast_node> {
     match (*node) {
         ast_node::translation_unit(backing) return backing.children
-        ast_node::import(backing) return backing.children
+        ast_node::import(backing) return vector<*ast_node>()
         ast_node::identifier(backing) return vector<*ast_node>()
         ast_node::type_def(backing) return vector<*ast_node>()
         ast_node::adt_def(backing) return vector<*ast_node>()
         ast_node::function(backing) return vector<*ast_node>()
-        ast_node::code_block(backing) return vector<*ast_node>()
+        ast_node::code_block(backing) return backing.children
         ast_node::statement(backing) return vector<*ast_node>()
         ast_node::if_statement(backing) return vector<*ast_node>()
         ast_node::match_statement(backing) return vector<*ast_node>()
@@ -779,8 +791,8 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
 fun get_ast_name(node: *ast_node): string {
     match (*node) {
         ast_node::translation_unit(backing) return string("translation_unit: ") + backing.name
-        ast_node::import(backing) return string("import: ") + backing.name
-        ast_node::identifier(backing) return string("identifier")
+        ast_node::import(backing) return string("import: ") + backing.name + "; [" + backing.imported.reduce(fun(name: string, acc: string): string return acc + " " + name;, string()) + " ]"
+        ast_node::identifier(backing) return string("identifier: ") + backing.name
         ast_node::type_def(backing) return string("type_def: ") + backing.name
         ast_node::adt_def(backing) return string("adt_def: ") + backing.name
         ast_node::function(backing) return string("function")

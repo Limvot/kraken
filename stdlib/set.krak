@@ -91,5 +91,8 @@ obj set<T> (Object, Serializable) {
     fun any_true(func: fun(T):bool):bool {
         return data.any_true(func)
     }
+    fun reduce<U>(func: fun(T,U): U, initial: U): U {
+        return data.reduce(func, initial)
+    }
 }
 

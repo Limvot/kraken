@@ -258,5 +258,10 @@ obj vector<T> (Object, Serializable) {
                 maxIdx = i
         return data[maxIdx]
     }
+    fun reduce<U>(func: fun(T,U): U, initial: U): U {
+        for (var i = 0; i < size; i++;)
+            initial = func(data[i], initial)
+        return initial
+    }
 };
 

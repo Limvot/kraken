@@ -1,4 +1,4 @@
-import to_import
+import to_import: a,b
 
 fun main(): int {
     return 0

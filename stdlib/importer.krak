@@ -14,14 +14,17 @@ import parser:*
 obj importer (Object) {
     var parse: parser
     var ast_pass: ast_transformation
+    var name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>
     fun construct(parseIn: ref parser, ast_passIn: ref ast_transformation): *importer {
         parse.copy_construct(&parseIn)
         ast_pass.copy_construct(&ast_passIn)
+        name_ast_map.construct()
         return this
     }
     fun copy_construct(old: *importer) {
         parse.copy_construct(&old->parse)
         ast_pass.copy_construct(&old->ast_pass)
+        name_ast_map.copy_construct(&old->name_ast_map)
     }
     fun operator=(old: ref importer) {
         destruct()
@@ -30,8 +33,12 @@ obj importer (Object) {
     fun destruct() {
         parse.destruct()
         ast_pass.destruct()
+        name_ast_map.destruct()
     }
     fun import(file_name: string): *ast_node {
+        if (name_ast_map.contains_key(file_name))
+            return name_ast_map[file_name].second
+
         print("pre-parse: "); println(file_name)
         var parse_tree = parse.parse_input(read_file(file_name), file_name)
         print("post-parse: "); println(file_name)
@@ -45,6 +52,11 @@ obj importer (Object) {
         print("post-ast: "); println(file_name)
         write_file(file_name + ".ast.dot", ast_to_dot(ast))
         return ast
+    }
+    fun register(file_name: string, parse_tree: *tree<symbol>, translation_unit: *ast_node) {
+        name_ast_map.set(file_name, make_pair(parse_tree, translation_unit))
+        print("Registered parse_tree+translation_unit for ")
+        println(file_name)
     }
     fun trim(parse_tree: *tree<symbol>) {
         remove_node(symbol("$NULL$", false), parse_tree)
@@ -126,10 +138,6 @@ obj importer (Object) {
                 }
             }
         }
-    }
-    fun register(file_name: string, parse_tree: *tree<symbol>, translation_unit: *ast_node) {
-        print("Registered parse_tree+translation_unit for ")
-        println(file_name)
     }
 }
 

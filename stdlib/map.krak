@@ -45,6 +45,11 @@ obj map<T,U> (Object, Serializable) {
         pos = values.unserialize(it, pos)
         return pos
     }
+    // the old unnecessary template to prevent generation
+    // if not used trick (in this case, changing out U with V)
+    fun operator==<V>(other: ref map<T,V>): bool {
+        return keys == other.keys && values == other.values
+    }
     fun operator[]=(key: T, value: U) {
         set(key,value)
     }
