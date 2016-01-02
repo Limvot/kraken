@@ -9,8 +9,10 @@ import tree:*
 import serialize:*
 
 fun main():int {
-    
-    var gram.construct(): grammer
+
+    /*var gram.construct(): grammer*/
+    // delay construction until we either load it or copy construct it
+    var gram: grammer
 
     var file_name = string("../krakenGrammer.kgm")
 
@@ -28,7 +30,9 @@ fun main():int {
         if (cached_contents == file_contents) {
             println("loaded_and_valid, using cached version!")
             loaded_and_valid = true
-            unpack(gram, pos) = unserialize<grammer>(binary, pos)
+            /*unpack(gram, pos) = unserialize<grammer>(binary, pos)*/
+            // skip unnecessary copies this way
+            pos = gram.unserialize(binary, pos)
             println("finished unserializeing!!")
         } else {
             println("file contents do not match:")
@@ -43,7 +47,9 @@ fun main():int {
     }
     if (!loaded_and_valid) {
         println("Not loaded_and_valid, re-generating and writing out")
-        gram = load_grammer(file_contents)
+        /*gram = load_grammer(file_contents)*/
+        // since we now don't construct before hand
+        gram.copy_construct(&load_grammer(file_contents))
         println("grammer loaded, calculate_first_set")
         gram.calculate_first_set()
         println("grammer loaded, calculate_state_automaton")
