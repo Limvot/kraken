@@ -31,9 +31,6 @@ adt ast_node {
     declaration_statement: declaration_statement,
     if_comp: if_comp,
     simple_passthrough: simple_passthrough,
-    passthrough_params: passthrough_params,
-    in_passthrough_params: in_passthrough_params,
-    out_passthrough_params: out_passthrough_params,
     function_call: function_call,
     value: value
 }
@@ -627,84 +624,6 @@ obj simple_passthrough (Object) {
         return true
     }
 }
-fun ast_passthrough_params_ptr(): *ast_node {
-    var to_ret.construct(): passthrough_params
-    var ptr = new<ast_node>()
-    ptr->copy_construct(&ast_node::passthrough_params(to_ret))
-    return ptr
-}
-obj passthrough_params (Object) {
-    var scope: map<string, vector<*ast_node>>
-    fun construct(): *passthrough_params  {
-        scope.construct()
-        return this
-    }
-    fun copy_construct(old: *passthrough_params) {
-        scope.copy_construct(&old->scope)
-    }
-    fun destruct() {
-        scope.destruct()
-    }
-    fun operator=(other: ref passthrough_params) {
-        destruct()
-        copy_construct(&other)
-    }
-    fun operator==(other: ref passthrough_params): bool {
-        return true
-    }
-}
-fun ast_in_passthrough_params_ptr(): *ast_node {
-    var to_ret.construct(): in_passthrough_params
-    var ptr = new<ast_node>()
-    ptr->copy_construct(&ast_node::in_passthrough_params(to_ret))
-    return ptr
-}
-obj in_passthrough_params (Object) {
-    var scope: map<string, vector<*ast_node>>
-    fun construct(): *in_passthrough_params  {
-        scope.construct()
-        return this
-    }
-    fun copy_construct(old: *in_passthrough_params) {
-        scope.copy_construct(&old->scope)
-    }
-    fun destruct() {
-        scope.destruct()
-    }
-    fun operator=(other: ref in_passthrough_params) {
-        destruct()
-        copy_construct(&other)
-    }
-    fun operator==(other: ref in_passthrough_params): bool {
-        return true
-    }
-}
-fun ast_out_passthrough_params_ptr(): *ast_node {
-    var to_ret.construct(): out_passthrough_params
-    var ptr = new<ast_node>()
-    ptr->copy_construct(&ast_node::out_passthrough_params(to_ret))
-    return ptr
-}
-obj out_passthrough_params (Object) {
-    var scope: map<string, vector<*ast_node>>
-    fun construct(): *out_passthrough_params  {
-        scope.construct()
-        return this
-    }
-    fun copy_construct(old: *out_passthrough_params) {
-        scope.copy_construct(&old->scope)
-    }
-    fun destruct() {
-        scope.destruct()
-    }
-    fun operator=(other: ref out_passthrough_params) {
-        destruct()
-        copy_construct(&other)
-    }
-    fun operator==(other: ref out_passthrough_params): bool {
-        return true
-    }
-}
 fun ast_function_call_ptr(): *ast_node {
     var to_ret.construct(): function_call
     var ptr = new<ast_node>()
@@ -781,9 +700,6 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::declaration_statement(backing) return vector<*ast_node>()
         ast_node::if_comp(backing) return vector<*ast_node>()
         ast_node::simple_passthrough(backing) return vector<*ast_node>()
-        ast_node::passthrough_params(backing) return vector<*ast_node>()
-        ast_node::in_passthrough_params(backing) return vector<*ast_node>()
-        ast_node::out_passthrough_params(backing) return vector<*ast_node>()
         ast_node::function_call(backing) return vector<*ast_node>()
         ast_node::value(backing) return vector<*ast_node>()
     }
@@ -811,9 +727,6 @@ fun get_ast_name(node: *ast_node): string {
         ast_node::declaration_statement(backing) return string("declaration_statement")
         ast_node::if_comp(backing) return string("if_comp")
         ast_node::simple_passthrough(backing) return string("simple_passthrough")
-        ast_node::passthrough_params(backing) return string("passthrough_params")
-        ast_node::in_passthrough_params(backing) return string("in_passthrough_params")
-        ast_node::out_passthrough_params(backing) return string("out_passthrough_params")
         ast_node::function_call(backing) return string("function_call")
         ast_node::value(backing) return string("value")
     }
@@ -841,9 +754,6 @@ fun get_ast_scope(node: *ast_node): *map<string,vector<*ast_node>> {
         ast_node::declaration_statement() return &node->declaration_statement.scope
         ast_node::if_comp() return null<map<string,vector<*ast_node>>>()
         ast_node::simple_passthrough() return &node->simple_passthrough.scope
-        ast_node::passthrough_params() return &node->passthrough_params.scope
-        ast_node::in_passthrough_params() return &node->in_passthrough_params.scope
-        ast_node::out_passthrough_params() return &node->out_passthrough_params.scope
         ast_node::function_call() return &node->function_call.scope
         ast_node::value() return &node->value.scope
     }

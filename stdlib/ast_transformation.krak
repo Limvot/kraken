@@ -73,22 +73,39 @@ obj ast_transformation (Object) {
     fun transform(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var name = node->data.name
         if (name == "identifier" || name == "scoped_identifier") {
+            return transform_identifier(node, scope)
         } else if (name == "code_block") {
-            var new_block = ast_code_block_ptr()
-            add_to_scope("~enclosing_scope", scope, new_block)
-            new_block->code_block.children = transform_all(node->children, new_block)
-            return new_block
-        } else if (name == "code_block") {
-            var new_if_comp = ast_if_comp_ptr()
-            add_to_scope("~enclosing_scope", scope, new_if_comp)
-            new_if_comp->code_block.children = transform_all(node->children, new_if_comp)
-            return new_if_comp
+            return transform_code_block(node, scope)
+        } else if (name == "if_comp") {
+            return transform_if_comp(node, scope)
+        } else if (name == "simple_passthrough") {
+            return transform_simple_passthrough(node, scope)
         }
         print("FAILED TO TRANSFORM: "); println(concat_symbol_tree(node))
         return null<ast_node>()
     }
     fun transform_all(nodes: vector<*tree<symbol>>, scope: *ast_node): vector<*ast_node> {
         return nodes.map(fun(node: *tree<symbol>): *ast_node return transform(node, scope);)
+    }
+    fun transform_identifier(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        // for identifier we have to do scope lookup, etc, and maybe limit to function
+        var name = concat_symbol_tree(node)
+        return ast_identifier_ptr(name)
+    }
+    fun transform_code_block(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var new_block = ast_code_block_ptr()
+        add_to_scope("~enclosing_scope", scope, new_block)
+        new_block->code_block.children = transform_all(node->children, new_block)
+        return new_block
+    }
+    fun transform_if_comp(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var new_if_comp = ast_if_comp_ptr()
+        return new_if_comp
+    }
+    fun transform_simple_passthrough(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var new_passthrough = ast_simple_passthrough_ptr()
+        // setup passthrough params and string
+        return new_passthrough
     }
 }
 
