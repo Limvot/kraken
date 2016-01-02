@@ -2,7 +2,6 @@
 __if_comp__ __C__ simple_passthrough """
 	#include <stdio.h>
 """
-
 var a = 1
 var b = 2
 

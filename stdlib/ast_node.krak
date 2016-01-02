@@ -583,19 +583,23 @@ fun ast_if_comp_ptr(): *ast_node {
     return ptr
 }
 obj if_comp (Object) {
+    var wanted_generator: string
     fun construct(): *if_comp  {
+        wanted_generator.construct()
         return this
     }
     fun copy_construct(old: *if_comp) {
+        wanted_generator.copy_construct(&old->wanted_generator)
     }
     fun destruct() {
+        wanted_generator.destruct()
     }
     fun operator=(other: ref if_comp) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref if_comp): bool {
-        return true
+        return wanted_generator == other.wanted_generator
     }
 }
 fun ast_simple_passthrough_ptr(): *ast_node {
@@ -725,7 +729,7 @@ fun get_ast_name(node: *ast_node): string {
         ast_node::defer_statement(backing) return string("defer_statement")
         ast_node::assignment_statement(backing) return string("assignment_statement")
         ast_node::declaration_statement(backing) return string("declaration_statement")
-        ast_node::if_comp(backing) return string("if_comp")
+        ast_node::if_comp(backing) return string("if_comp: ") + backing.wanted_generator
         ast_node::simple_passthrough(backing) return string("simple_passthrough")
         ast_node::function_call(backing) return string("function_call")
         ast_node::value(backing) return string("value")

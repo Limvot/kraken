@@ -26,6 +26,10 @@ obj set<T> (Object, Serializable) {
         data.construct()
         return this
     }
+    fun construct(ammt: int): *set<T> {
+        data.construct(ammt)
+        return this
+    }
     fun copy_construct(old: *set<T>) {
         data.copy_construct(&old->data)
     }
@@ -71,6 +75,9 @@ obj set<T> (Object, Serializable) {
         if (!contains(item))
             data.add(item)
     }
+    fun add_all(items: ref set<T>) {
+        add(items)
+    }
     fun add(items: ref set<T>) {
         items.for_each( fun(item: ref T) add(item); )
     }
@@ -93,6 +100,17 @@ obj set<T> (Object, Serializable) {
     }
     fun reduce<U>(func: fun(T,U): U, initial: U): U {
         return data.reduce(func, initial)
+    }
+    fun flatten_map<U>(func: fun(T):set<U>):set<U> {
+        var newSet.construct(size()): set<U>
+        for (var i = 0; i < size(); i++;)
+            func(data[i]).for_each(fun(item: ref U) newSet.add(item);)
+        return newSet
+    }
+    fun filter(func: fun(T):bool):set<T> {
+        var newSet.construct(): set<T>
+        newSet.data = data.filter(func)
+        return newSet
     }
 }
 

@@ -17,7 +17,7 @@ fun regex(in: string::string):regex {
 
 obj regexState (Object) {
     var character: char
-    var next_states: vector::vector<*regexState>
+    var next_states: set::set<*regexState>
     fun construct(charIn:char): *regexState {
         character = charIn
         next_states.construct()
@@ -33,7 +33,7 @@ obj regexState (Object) {
     fun destruct():void {
         next_states.destruct()
     }
-    fun match_char(input: char): vector::vector<*regexState> {
+    fun match_char(input: char): set::set<*regexState> {
         return next_states.filter(fun(it:*regexState):bool { return it->character == input; })
     }
     fun is_end():bool {
@@ -82,7 +82,7 @@ obj regex (Object, Serializable) {
         regexString.destruct()
         *referenceCounter -= 1
         if (*referenceCounter == 0) {
-            mem::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return set::from_vector(it->next_states); } )
+            mem::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return it->next_states; } )
             mem::delete(referenceCounter)
         }
     }
@@ -105,25 +105,23 @@ obj regex (Object, Serializable) {
         copy_construct(&other)
     }
 
-    fun compile(regex_string: string::string): util::pair<*regexState, vector::vector<*regexState>> {
+    fun compile(regex_string: string::string): util::pair<*regexState, set::set<*regexState>> {
         var first = mem::new<regexState>()->construct()
-        var previous_begin = vector::vector<*regexState>()
-        var previous_end = vector::vector<*regexState>()
-        var current_begin = vector::vector(first)
-        var current_end = vector::vector(first)
+        var previous_begin = set::set<*regexState>()
+        var previous_end = set::set<*regexState>()
+        var current_begin = set::set(first)
+        var current_end = set::set(first)
         var alternating = false
         var escapeing = false
 
         for (var i = 0; i < regex_string.length(); i++;) {
             if (regex_string[i] == '*' && !escapeing) {
-                for (var j = 0; j < current_end.size; j++;)
-                    current_end[j]->next_states.add_all(current_begin)
+                current_end.for_each(fun(item: *regexState) item->next_states.add_all(current_begin);)
                 current_begin.add_all(previous_begin)
                 current_end.add_all(previous_end)
 
             } else if (regex_string[i] == '+' && !escapeing) {
-                for (var j = 0; j < current_end.size; j++;)
-                    current_end[j]->next_states.add_all(current_begin)
+                current_end.for_each(fun(item: *regexState) item->next_states.add_all(current_begin);)
 
             } else if (regex_string[i] == '?' && !escapeing) {
                 current_begin.add_all(previous_begin)
@@ -170,8 +168,8 @@ obj regex (Object, Serializable) {
                     current_end.for_each(fun(it: *regexState):void { it->next_states.add(next); })
                     previous_begin = current_begin
                     previous_end = current_end
-                    current_begin = vector::vector(next)
-                    current_end = vector::vector(next)
+                    current_begin = set::set(next)
+                    current_end = set::set(next)
                 }
                 escapeing = false
                 alternating = false
@@ -183,15 +181,15 @@ obj regex (Object, Serializable) {
 
     fun long_match(to_match: *char): int { return long_match(string::string(to_match)); }
     fun long_match(to_match: string::string): int {
-        var next = vector::vector(begin)
+        var next = set::set(begin)
         var longest = -1
         for (var i = 0; i < to_match.length(); i++;) {
-            if (next.size == 0)
+            if (next.size() == 0)
                 return longest
             if (next.any_true(fun(state: *regexState):bool { return state->is_end(); }))
                 longest = i
             //next = next.flatten_map<*regexState>(fun(state: *regexState): vector::vector<*regexState> { return state->match_char(to_match[i]); })
-            next = next.flatten_map(fun(state: *regexState): vector::vector<*regexState> { return state->match_char(to_match[i]); })
+            next = next.flatten_map(fun(state: *regexState): set::set<*regexState> { return state->match_char(to_match[i]); })
         }
         if (next.any_true(fun(state: *regexState):bool { return state->is_end(); }))
             return to_match.length()

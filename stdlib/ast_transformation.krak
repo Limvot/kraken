@@ -100,6 +100,7 @@ obj ast_transformation (Object) {
     }
     fun transform_if_comp(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var new_if_comp = ast_if_comp_ptr()
+        new_if_comp->if_comp.wanted_generator = concat_symbol_tree(get_node("identifier", node))
         return new_if_comp
     }
     fun transform_simple_passthrough(node: *tree<symbol>, scope: *ast_node): *ast_node {
