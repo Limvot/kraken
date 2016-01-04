@@ -1070,6 +1070,12 @@ std::set<NodeTree<ASTData>*> ASTTransformation::findVariablesToClose(NodeTree<AS
         }
         return closed;
     }
+    if (stat->getDataRef()->type == case_statement) {
+        // don't try to close over the variant specifier itself, only its statement child
+        auto recClosed = findVariablesToClose(func, stat->getChildren().back(), scope);
+        closed.insert(recClosed.begin(), recClosed.end());
+        return closed;
+    }
     if (stat->getDataRef()->type == function_call && (stat->getDataRef()->symbol.getName() == "." || stat->getDataRef()->symbol.getName() == "->")) {
         // only search on the left side of access operators like . and ->
         auto recClosed = findVariablesToClose(func, stat->getChildren()[1], scope);

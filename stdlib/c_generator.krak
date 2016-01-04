@@ -1,0 +1,54 @@
+import io:*
+import mem:*
+import map:*
+import string:*
+import util:*
+import tree:*
+import symbol:*
+import ast_nodes:*
+
+
+obj c_generator (Object) {
+    fun construct(): *c_generator {
+        return this
+    }
+    fun copy_construct(old: *c_generator) {
+    }
+    fun operator=(other: ref c_generator) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+    }
+    fun generate(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<string,string> {
+        var linker_string:string = ""
+        var prequal: string = "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n"
+        var plain_typedefs: string = ""
+        var top_level_c_passthrough: string = ""
+        var variable_extern_declarations: string = ""
+        var structs: string = ""
+        var function_typedef_string_pre: string = ""
+        var function_typedef_string: string = ""
+        var function_prototypes: string = ""
+        var variable_declarations: string = ""
+
+
+        // poset generation into structs string
+        // iterate through asts
+        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
+            // iterate through children for each ast
+            // assert translation_unit?
+            tree_pair.second->translation_unit.children.for_each(fun(child: *ast_node) {
+                match (*child) {
+                    ast_node::if_comp(backing) top_level_c_passthrough += "got an if_comp\n"
+                    ast_node::simple_passthrough(backing) top_level_c_passthrough += "got a simple_passthrough\n"
+                }
+            })
+        })
+
+        var function_definitions: string = ""
+        return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions, linker_string)
+    }
+}
+
+

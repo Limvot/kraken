@@ -8,7 +8,7 @@ import string:*
 import mem:*
 import io:*
 import importer:*
-import ast_node:*
+import ast_nodes:*
 
 		/*Importer * importer;*/
 		/*NodeTree<ASTData>* builtin_trans_unit; // the top scope for language level stuff*/
@@ -101,12 +101,19 @@ obj ast_transformation (Object) {
     fun transform_if_comp(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var new_if_comp = ast_if_comp_ptr()
         new_if_comp->if_comp.wanted_generator = concat_symbol_tree(get_node("identifier", node))
+        new_if_comp->if_comp.statement = transform_statement(get_node("statement", node), scope)
         return new_if_comp
     }
     fun transform_simple_passthrough(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var new_passthrough = ast_simple_passthrough_ptr()
         // setup passthrough params and string
+        new_passthrough->simple_passthrough.passthrough_str = concat_symbol_tree(get_node("triple_quoted_string", node))
         return new_passthrough
+    }
+    fun transform_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var new_statement = ast_statement_ptr()
+        new_statement->statement.child = transform(node->children[0], scope)
+        return new_statement
     }
 }
 

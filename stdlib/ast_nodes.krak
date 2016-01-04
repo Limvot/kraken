@@ -272,12 +272,14 @@ fun ast_statement_ptr(): *ast_node {
 }
 obj statement (Object) {
     var scope: map<string, vector<*ast_node>>
+    var child: *ast_node
     fun construct(): *statement  {
         scope.construct()
         return this
     }
     fun copy_construct(old: *statement) {
         scope.copy_construct(&old->scope)
+        child = old->child
     }
     fun destruct() {
         scope.destruct()
@@ -287,7 +289,7 @@ obj statement (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref statement): bool {
-        return true
+        return child == other.child
     }
 }
 fun ast_if_statement_ptr(): *ast_node {
@@ -584,22 +586,24 @@ fun ast_if_comp_ptr(): *ast_node {
 }
 obj if_comp (Object) {
     var wanted_generator: string
+    var statement: *ast_node
     fun construct(): *if_comp  {
         wanted_generator.construct()
         return this
     }
     fun copy_construct(old: *if_comp) {
         wanted_generator.copy_construct(&old->wanted_generator)
+        statement = old->statement
     }
     fun destruct() {
         wanted_generator.destruct()
     }
-    fun operator=(other: ref if_comp) {
+    fun operator=(other: if_comp) {
         destruct()
         copy_construct(&other)
     }
-    fun operator==(other: ref if_comp): bool {
-        return wanted_generator == other.wanted_generator
+    fun operator==(other: if_comp): bool {
+        return wanted_generator == other.wanted_generator && statement == other.statement
     }
 }
 fun ast_simple_passthrough_ptr(): *ast_node {
@@ -610,22 +614,26 @@ fun ast_simple_passthrough_ptr(): *ast_node {
 }
 obj simple_passthrough (Object) {
     var scope: map<string, vector<*ast_node>>
+    var passthrough_str: string
     fun construct(): *simple_passthrough  {
         scope.construct()
+        passthrough_str.construct()
         return this
     }
     fun copy_construct(old: *simple_passthrough) {
         scope.copy_construct(&old->scope)
+        passthrough_str.copy_construct(&old->passthrough_str)
     }
     fun destruct() {
         scope.destruct()
+        passthrough_str.destruct()
     }
     fun operator=(other: ref simple_passthrough) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref simple_passthrough): bool {
-        return true
+        return scope == other.scope && passthrough_str == other.passthrough_str
     }
 }
 fun ast_function_call_ptr(): *ast_node {
@@ -690,7 +698,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::adt_def(backing) return vector<*ast_node>()
         ast_node::function(backing) return vector<*ast_node>()
         ast_node::code_block(backing) return backing.children
-        ast_node::statement(backing) return vector<*ast_node>()
+        ast_node::statement(backing) return vector<*ast_node>(backing.child)
         ast_node::if_statement(backing) return vector<*ast_node>()
         ast_node::match_statement(backing) return vector<*ast_node>()
         ast_node::case_statement(backing) return vector<*ast_node>()
@@ -702,7 +710,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::defer_statement(backing) return vector<*ast_node>()
         ast_node::assignment_statement(backing) return vector<*ast_node>()
         ast_node::declaration_statement(backing) return vector<*ast_node>()
-        ast_node::if_comp(backing) return vector<*ast_node>()
+        ast_node::if_comp(backing) return vector<*ast_node>(backing.statement)
         ast_node::simple_passthrough(backing) return vector<*ast_node>()
         ast_node::function_call(backing) return vector<*ast_node>()
         ast_node::value(backing) return vector<*ast_node>()
@@ -730,7 +738,7 @@ fun get_ast_name(node: *ast_node): string {
         ast_node::assignment_statement(backing) return string("assignment_statement")
         ast_node::declaration_statement(backing) return string("declaration_statement")
         ast_node::if_comp(backing) return string("if_comp: ") + backing.wanted_generator
-        ast_node::simple_passthrough(backing) return string("simple_passthrough")
+        ast_node::simple_passthrough(backing) return string("simple_passthrough: , string:") + backing.passthrough_str
         ast_node::function_call(backing) return string("function_call")
         ast_node::value(backing) return string("value")
     }

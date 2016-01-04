@@ -36,11 +36,13 @@ NodeTree<T>* RemovalTransformation<T>::transform(NodeTree<T>* from) {
 	while(!toProcess.empty()) {
 		NodeTree<T>* node = toProcess.front();
 		toProcess.pop();
+        if (!node)
+            continue;
 		std::vector<NodeTree<T>*> children = node->getChildren();
 		for (int i = 0; i < children.size(); i++) {
 			if (children[i]->getData() == toRemove)
 				node->removeChild(children[i]);
-			else
+			else if (children[i])
 				toProcess.push(children[i]);
 		}
 	}
