@@ -37,8 +37,10 @@ line_end = maybe_line_white ";" | maybe_line_white line_break | maybe_line_white
 # line_end = "( |	)+" ending | ending ;
 # ending = ";" | line_break | cpp_comment ;
 
-if_comp = "__if_comp__" WS identifier WS if_comp_pred ;
-if_comp_pred = code_block | simple_passthrough ;
+if_comp = "__if_comp__" WS identifier WS statement ;
+#if_comp = "__if_comp__" WS identifier WS if_comp_pred ;
+#if_comp_pred = code_block | simple_passthrough ;
+
 simple_passthrough = "simple_passthrough" WS passthrough_params WS triple_quoted_string ;
 passthrough_params = "\(" WS in_passthrough_params WS ":" WS out_passthrough_params WS ":" WS opt_string WS "\)" | ;
 in_passthrough_params = opt_param_assign_list ;
