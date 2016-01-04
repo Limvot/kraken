@@ -8,6 +8,7 @@ import symbol:*
 import tree:*
 import serialize:*
 import c_generator:*
+import os:*
 
 fun main():int {
 
@@ -79,9 +80,11 @@ fun main():int {
     var importer.construct(parse, ast_pass): importer
     importer.import(kraken_file_name)
     var c_generator.construct(): c_generator
-    var c_output_pair = c_generator.generate(importer.name_ast_map)
-    write_file(kraken_file_name + ".c", c_output_pair.first)
+    var c_output_pair = c_generator.generate_c(importer.name_ast_map)
+    var kraken_c_output_name = kraken_file_name + ".c"
+    write_file(kraken_c_output_name, c_output_pair.first)
     println(string("linker string: ") + c_output_pair.second)
+    system(string("cc -g -O3 -std=c99 ") + kraken_c_output_name + " -o " + kraken_file_name + ".exe")
 
     return 0
 }

@@ -1,0 +1,19 @@
+import string:*
+import mem:*
+
+fun system(call_string: string):int {
+    var c_call_string = call_string.toCharArray()
+    var result  = system(c_call_string)
+    delete(c_call_string)
+    return result
+}
+fun system(call_string: *char): int {
+    __if_comp__ __C__ {
+        simple_passthrough(call_string::) """
+            return system(call_string);
+        """
+    }
+}
+
+
+

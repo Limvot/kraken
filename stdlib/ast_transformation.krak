@@ -80,6 +80,8 @@ obj ast_transformation (Object) {
             return transform_if_comp(node, scope)
         } else if (name == "simple_passthrough") {
             return transform_simple_passthrough(node, scope)
+        } else if (name == "statement") {
+            return transform_statement(node, scope)
         }
         print("FAILED TO TRANSFORM: "); println(concat_symbol_tree(node))
         return null<ast_node>()
@@ -107,7 +109,7 @@ obj ast_transformation (Object) {
     fun transform_simple_passthrough(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var new_passthrough = ast_simple_passthrough_ptr()
         // setup passthrough params and string
-        new_passthrough->simple_passthrough.passthrough_str = concat_symbol_tree(get_node("triple_quoted_string", node))
+        new_passthrough->simple_passthrough.passthrough_str = concat_symbol_tree(get_node("triple_quoted_string", node)).slice(3,-4)
         return new_passthrough
     }
     fun transform_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {

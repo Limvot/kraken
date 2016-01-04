@@ -20,7 +20,7 @@ obj c_generator (Object) {
     }
     fun destruct() {
     }
-    fun generate(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<string,string> {
+    fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<string,string> {
         var linker_string:string = ""
         var prequal: string = "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n"
         var plain_typedefs: string = ""
@@ -40,14 +40,28 @@ obj c_generator (Object) {
             // assert translation_unit?
             tree_pair.second->translation_unit.children.for_each(fun(child: *ast_node) {
                 match (*child) {
-                    ast_node::if_comp(backing) top_level_c_passthrough += "got an if_comp\n"
-                    ast_node::simple_passthrough(backing) top_level_c_passthrough += "got a simple_passthrough\n"
+                    // should really check the genrator
+                    ast_node::if_comp(backing) {
+                        if (is_simple_passthrough(backing.statement->statement.child))
+                            top_level_c_passthrough += generate_simple_passthrough(backing.statement->statement.child)
+                    }
+                    ast_node::simple_passthrough(backing) top_level_c_passthrough += generate_simple_passthrough(child)
                 }
             })
         })
 
         var function_definitions: string = ""
         return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions, linker_string)
+    }
+    fun generate_simple_passthrough(node: *ast_node): string {
+        // deal with all the passthrough params
+        return node->simple_passthrough.passthrough_str
+    }
+    // for now, anyway
+    fun generate(node: *ast_node): string {
+        match (*node) {
+            ast_node::simple_passthrough(backing) return generate_simple_passthrough(node)
+        }
     }
 }
 

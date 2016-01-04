@@ -53,6 +53,12 @@ fun ast_translation_unit_ptr(name: string): *ast_node {
     ptr->copy_construct(&ast_node::translation_unit(obj_var))
     return ptr
 }
+fun is_translation_unit(node: *ast_node): bool {
+    match(*node) {
+        ast_node::translation_unit(backing) return true
+    }
+    return false
+}
 obj translation_unit (Object) {
     var scope: map<string, vector<*ast_node>>
     var children: vector<*ast_node>
@@ -86,6 +92,12 @@ fun ast_import_ptr(name: string): *ast_node {
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::import(to_ret))
     return ptr
+}
+fun is_import(node: *ast_node): bool {
+    match(*node) {
+        ast_node::import(backing) return true
+    }
+    return false
 }
 obj import (Object) {
     var scope: map<string, vector<*ast_node>>
@@ -124,6 +136,12 @@ fun ast_identifier_ptr(name: string): *ast_node {
     ptr->copy_construct(&ast_node::identifier(to_ret))
     return ptr
 }
+fun is_identifier(node: *ast_node): bool {
+    match(*node) {
+        ast_node::identifier(backing) return true
+    }
+    return false
+}
 obj identifier (Object) {
     var name: string
     var scope: map<string, vector<*ast_node>>
@@ -153,6 +171,12 @@ fun ast_type_def_ptr(name: string): *ast_node {
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::type_def(to_ret))
     return ptr
+}
+fun is_type_def(node: *ast_node): bool {
+    match(*node) {
+        ast_node::type_def(backing) return true
+    }
+    return false
 }
 obj type_def (Object) {
     var scope: map<string, vector<*ast_node>>
@@ -184,6 +208,12 @@ fun ast_adt_def_ptr(name: string): *ast_node {
     ptr->copy_construct(&ast_node::adt_def(to_ret))
     return ptr
 }
+fun is_adt_def(node: *ast_node): bool {
+    match(*node) {
+        ast_node::adt_def(backing) return true
+    }
+    return false
+}
 obj adt_def (Object) {
     var scope: map<string, vector<*ast_node>>
     var name: string
@@ -214,6 +244,12 @@ fun ast_function_ptr(): *ast_node {
     ptr->copy_construct(&ast_node::function(to_ret))
     return ptr
 }
+fun is_function(node: *ast_node): bool {
+    match(*node) {
+        ast_node::function(backing) return true
+    }
+    return false
+}
 obj function (Object) {
     var scope: map<string, vector<*ast_node>>
     fun construct(): *function  {
@@ -239,6 +275,12 @@ fun ast_code_block_ptr(): *ast_node {
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::code_block(to_ret))
     return ptr
+}
+fun is_code_block(node: *ast_node): bool {
+    match(*node) {
+        ast_node::code_block(backing) return true
+    }
+    return false
 }
 obj code_block (Object) {
     var scope: map<string, vector<*ast_node>>
@@ -270,6 +312,12 @@ fun ast_statement_ptr(): *ast_node {
     ptr->copy_construct(&ast_node::statement(to_ret))
     return ptr
 }
+fun is_statement(node: *ast_node): bool {
+    match(*node) {
+        ast_node::statement(backing) return true
+    }
+    return false
+}
 obj statement (Object) {
     var scope: map<string, vector<*ast_node>>
     var child: *ast_node
@@ -298,6 +346,12 @@ fun ast_if_statement_ptr(): *ast_node {
     ptr->copy_construct(&ast_node::if_statement(to_ret))
     return ptr
 }
+fun is_if_statement(node: *ast_node): bool {
+    match(*node) {
+        ast_node::if_statement(backing) return true
+    }
+    return false
+}
 obj if_statement (Object) {
     var scope: map<string, vector<*ast_node>>
     fun construct(): *if_statement  {
@@ -323,6 +377,12 @@ fun ast_match_statement_ptr(): *ast_node {
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::match_statement(to_ret))
     return ptr
+}
+fun is_match_statement(node: *ast_node): bool {
+    match(*node) {
+        ast_node::match_statement(backing) return true
+    }
+    return false
 }
 obj match_statement (Object) {
     var scope: map<string, vector<*ast_node>>
@@ -350,6 +410,12 @@ fun ast_case_statement_ptr(): *ast_node {
     ptr->copy_construct(&ast_node::case_statement(to_ret))
     return ptr
 }
+fun is_case_statement(node: *ast_node): bool {
+    match(*node) {
+        ast_node::case_statement(backing) return true
+    }
+    return false
+}
 obj case_statement (Object) {
     var scope: map<string, vector<*ast_node>>
     fun construct(): *case_statement  {
@@ -375,6 +441,12 @@ fun ast_while_loop_ptr(): *ast_node {
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::while_loop(to_ret))
     return ptr
+}
+fun is_while_loop(node: *ast_node): bool {
+    match(*node) {
+        ast_node::while_loop(backing) return true
+    }
+    return false
 }
 obj while_loop (Object) {
     var scope: map<string, vector<*ast_node>>
@@ -402,6 +474,12 @@ fun ast_for_loop_ptr(): *ast_node {
     ptr->copy_construct(&ast_node::for_loop(to_ret))
     return ptr
 }
+fun is_for_loop(node: *ast_node): bool {
+    match(*node) {
+        ast_node::for_loop(backing) return true
+    }
+    return false
+}
 obj for_loop (Object) {
     var scope: map<string, vector<*ast_node>>
     fun construct(): *for_loop  {
@@ -427,6 +505,12 @@ fun ast_return_statement_ptr(): *ast_node {
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::return_statement(to_ret))
     return ptr
+}
+fun is_return_statement(node: *ast_node): bool {
+    match(*node) {
+        ast_node::return_statement(backing) return true
+    }
+    return false
 }
 obj return_statement (Object) {
     var scope: map<string, vector<*ast_node>>
@@ -454,6 +538,12 @@ fun ast_break_statement_ptr(): *ast_node {
     ptr->copy_construct(&ast_node::break_statement(to_ret))
     return ptr
 }
+fun is_break_statement(node: *ast_node): bool {
+    match(*node) {
+        ast_node::break_statement(backing) return true
+    }
+    return false
+}
 obj break_statement (Object) {
     var scope: map<string, vector<*ast_node>>
     fun construct(): *break_statement  {
@@ -479,6 +569,12 @@ fun ast_continue_statement_ptr(): *ast_node {
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::continue_statement(to_ret))
     return ptr
+}
+fun is_continue_statement(node: *ast_node): bool {
+    match(*node) {
+        ast_node::continue_statement(backing) return true
+    }
+    return false
 }
 obj continue_statement (Object) {
     var scope: map<string, vector<*ast_node>>
@@ -506,6 +602,12 @@ fun ast_defer_statement_ptr(): *ast_node {
     ptr->copy_construct(&ast_node::defer_statement(to_ret))
     return ptr
 }
+fun is_defer_statement(node: *ast_node): bool {
+    match(*node) {
+        ast_node::defer_statement(backing) return true
+    }
+    return false
+}
 obj defer_statement (Object) {
     var scope: map<string, vector<*ast_node>>
     fun construct(): *defer_statement  {
@@ -531,6 +633,12 @@ fun ast_assignment_statement_ptr(): *ast_node {
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::assignment_statement(to_ret))
     return ptr
+}
+fun is_assignment_statement(node: *ast_node): bool {
+    match(*node) {
+        ast_node::assignment_statement(backing) return true
+    }
+    return false
 }
 obj assignment_statement (Object) {
     var scope: map<string, vector<*ast_node>>
@@ -558,6 +666,12 @@ fun ast_declaration_statement_ptr(): *ast_node {
     ptr->copy_construct(&ast_node::declaration_statement(to_ret))
     return ptr
 }
+fun is_declaration_statement(node: *ast_node): bool {
+    match(*node) {
+        ast_node::declaration_statement(backing) return true
+    }
+    return false
+}
 obj declaration_statement (Object) {
     var scope: map<string, vector<*ast_node>>
     fun construct(): *declaration_statement  {
@@ -583,6 +697,12 @@ fun ast_if_comp_ptr(): *ast_node {
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::if_comp(to_ret))
     return ptr
+}
+fun is_if_comp(node: *ast_node): bool {
+    match(*node) {
+        ast_node::if_comp(backing) return true
+    }
+    return false
 }
 obj if_comp (Object) {
     var wanted_generator: string
@@ -611,6 +731,12 @@ fun ast_simple_passthrough_ptr(): *ast_node {
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::simple_passthrough(to_ret))
     return ptr
+}
+fun is_simple_passthrough(node: *ast_node): bool {
+    match(*node) {
+        ast_node::simple_passthrough(backing) return true
+    }
+    return false
 }
 obj simple_passthrough (Object) {
     var scope: map<string, vector<*ast_node>>
@@ -642,6 +768,12 @@ fun ast_function_call_ptr(): *ast_node {
     ptr->copy_construct(&ast_node::function_call(to_ret))
     return ptr
 }
+fun is_function_call(node: *ast_node): bool {
+    match(*node) {
+        ast_node::function_call(backing) return true
+    }
+    return false
+}
 obj function_call (Object) {
     var scope: map<string, vector<*ast_node>>
     fun construct(): *function_call  {
@@ -667,6 +799,12 @@ fun ast_value_ptr(): *ast_node {
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::value(to_ret))
     return ptr
+}
+fun is_value(node: *ast_node): bool {
+    match(*node) {
+        ast_node::value(backing) return true
+    }
+    return false
 }
 obj value (Object) {
     var scope: map<string, vector<*ast_node>>
