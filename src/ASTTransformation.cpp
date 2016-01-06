@@ -287,9 +287,8 @@ NodeTree<ASTData>* ASTTransformation::secondPassFunction(NodeTree<Symbol>* from,
 	//If this is a function template
 	std::vector<NodeTree<Symbol>*> children = from->getChildren();
 	NodeTree<ASTData>* functionDef = NULL;
-	std::string functionName;
+	std::string functionName = concatSymbolTree(children[0]);
 	if (children[1]->getData().getName() == "template_dec") {
-		functionName = concatSymbolTree(children[0]);
 		functionDef = new NodeTree<ASTData>("function", ASTData(function, Symbol(functionName, true), new Type(template_type, from)));
         addToScope("~enclosing_scope", scope, functionDef);
         addToScope(functionName, functionDef, scope);
@@ -304,7 +303,6 @@ NodeTree<ASTData>* ASTTransformation::secondPassFunction(NodeTree<Symbol>* from,
 		//std::cout << "Finished Non-Instantiated Template function " << functionName << std::endl;
 		return functionDef;
 	}
-	functionName = concatSymbolTree(children[0]);
     auto returnTypeNode = getNode("type", getNode("typed_return", children)); // if null, the typed_return had no children and we're supposed to automatically do a void type
     auto returnType = returnTypeNode ? typeFromTypeNode(returnTypeNode, scope, templateTypeReplacements): new Type(void_type);
     if (!returnType)
@@ -1629,7 +1627,15 @@ Type* ASTTransformation::typeFromTypeNode(NodeTree<Symbol>* typeNode, NodeTree<A
 
         auto possibleMatches = scopeLookup(scope, edited);
         if (possibleMatches.size()) {
-            typeDefinition = possibleMatches[0];
+            // so the scope lookup can find things that aren't types. We could have an entirely differnt lookup function for them,
+            // but at this point (deep in the self-hosting process) I think it's better that I just prune out the ones that aren't types
+            // here
+            for (auto definition : possibleMatches) {
+                if (definition->getDataRef()->type == type_def || definition->getDataRef()->type == adt_def) {
+                    typeDefinition = definition;
+                    break;
+                }
+            }
             traits = typeDefinition->getDataRef()->valueType->traits;
         }
 		//So either this is an uninstatiated template class type, or this is literally a template type T, and we should get it from our

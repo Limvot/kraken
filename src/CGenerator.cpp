@@ -625,7 +625,9 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                 output.postValue += thingToMatch.postValue;
                 for (auto case_stmt : slice(children, 1, -1)) {
                     auto case_children = case_stmt->getChildren();
-                    std::string option = generate(case_children[0], enclosingObject, false, enclosingFunction).oneString();
+                    // was accidntally adding in prefix when it shouldn't, though maybe it should when both option and ADT name are identical, deal with this later
+                    //std::string option = generate(case_children[0], enclosingObject, false, enclosingFunction).oneString();
+                    std::string option = case_children[0]->getDataRef()->symbol.getName();
                     std::string parentName = case_children[0]->getDataRef()->scope["~enclosing_scope"][0]->getDataRef()->symbol.getName();
                     output += "/* case " + option + " if " + thingToMatch.value + " */\n";
                     output += tabs() + "if ((" + thingToMatch.value + ").flag == " + parentName + "__" + option + ") {\n";

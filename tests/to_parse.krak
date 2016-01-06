@@ -7,7 +7,10 @@ obj Something (ObjectTrait) {
     }
 }
 
-fun main(): int {
+fun some_function(): float {
+    return 0
+}
+fun some_other_function(in: bool): int {
     return 0
 }
 

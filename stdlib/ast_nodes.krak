@@ -7,6 +7,7 @@ import util:*
 import string:*
 import mem:*
 import io:*
+import type:*
 
 
 adt ast_node {
@@ -127,11 +128,11 @@ obj import (Object) {
         return imported == other.imported && name == other.name
     }
 }
-fun ast_identifier_ptr(name: *char): *ast_node {
-    return ast_identifier_ptr(string(name))
+fun ast_identifier_ptr(name: *char, type: *type): *ast_node {
+    return ast_identifier_ptr(string(name), type)
 }
-fun ast_identifier_ptr(name: string): *ast_node {
-    var to_ret.construct(name): identifier
+fun ast_identifier_ptr(name: string, type: *type): *ast_node {
+    var to_ret.construct(name, type): identifier
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::identifier(to_ret))
     return ptr
@@ -145,14 +146,17 @@ fun is_identifier(node: *ast_node): bool {
 obj identifier (Object) {
     var name: string
     var scope: map<string, vector<*ast_node>>
-    fun construct(nameIn: string): *identifier {
-        name.copy_construct(&nameIn)
+    var type: *type
+    fun construct(name_in: string, type_in: *type): *identifier {
+        name.copy_construct(&name_in)
         scope.construct()
+        type = type_in
         return this
     }
     fun copy_construct(old: *identifier) {
         name.copy_construct(&old->name)
         scope.copy_construct(&old->scope)
+        type = old->type
     }
     fun destruct() {
         name.destruct()
@@ -163,7 +167,7 @@ obj identifier (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref identifier): bool {
-        return name == other.name
+        return name == other.name && type == other.type
     }
 }
 fun ast_type_def_ptr(name: string): *ast_node {
@@ -238,8 +242,8 @@ obj adt_def (Object) {
         return name == other.name
     }
 }
-fun ast_function_ptr(): *ast_node {
-    var to_ret.construct(): function
+fun ast_function_ptr(name: string, type: *type, parameters: vector<*ast_node>): *ast_node {
+    var to_ret.construct(name, type, parameters): function
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::function(to_ret))
     return ptr
@@ -251,15 +255,26 @@ fun is_function(node: *ast_node): bool {
     return false
 }
 obj function (Object) {
+    var name: string
+    var type: *type
+    var parameters: vector<*ast_node>
     var scope: map<string, vector<*ast_node>>
-    fun construct(): *function  {
+    fun construct(name_in: string, type_in: *type, parameters_in: vector<*ast_node>): *function  {
+        name.copy_construct(&name_in)
+        parameters.copy_construct(&parameters_in)
         scope.construct()
+        type = type_in
         return this
     }
     fun copy_construct(old: *function) {
+        name.copy_construct(&old->name)
+        type = old->type
+        parameters.copy_construct(&old->parameters)
         scope.copy_construct(&old->scope)
     }
     fun destruct() {
+        name.destruct()
+        parameters.destruct()
         scope.destruct()
     }
     fun operator=(other: ref function) {
@@ -267,7 +282,7 @@ obj function (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref function): bool {
-        return true
+        return name == name && type == other.type && parameters == other.parameters
     }
 }
 fun ast_code_block_ptr(): *ast_node {
@@ -858,10 +873,10 @@ fun get_ast_name(node: *ast_node): string {
     match (*node) {
         ast_node::translation_unit(backing) return string("translation_unit: ") + backing.name
         ast_node::import(backing) return string("import: ") + backing.name + "; [" + backing.imported.reduce(fun(name: string, acc: string): string return acc + " " + name;, string()) + " ]"
-        ast_node::identifier(backing) return string("identifier: ") + backing.name
+        ast_node::identifier(backing) return string("identifier: ") + backing.name + ": " + backing.type->to_string()
         ast_node::type_def(backing) return string("type_def: ") + backing.name
         ast_node::adt_def(backing) return string("adt_def: ") + backing.name
-        ast_node::function(backing) return string("function")
+        ast_node::function(backing) return string("function: ") + backing.name + ": " + backing.type->to_string()
         ast_node::code_block(backing) return string("code_block")
         ast_node::statement(backing) return string("statement")
         ast_node::if_statement(backing) return string("if_statement")

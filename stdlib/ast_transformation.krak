@@ -86,14 +86,60 @@ obj ast_transformation (Object) {
             }
         })
     }
-    fun second_pass_function(parse_tree: *tree<symbol>, translation_unit: *ast_node, template_replacements: map<string, *type>): *ast_node {
-        return ast_function_ptr()
+    fun second_pass_function(node: *tree<symbol>, translation_unit: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        var function_name = concat_symbol_tree(get_node("func_identifier", node))
+        // check to see if it is a template
+        // figure out return type
+        var typed_return_node = get_node("typed_return", node)
+        // darn no ternary yet
+        var return_type = null<type>()
+        if (typed_return_node) return_type = transform_type(get_node("type", typed_return_node), translation_unit, template_replacements)
+                         else return_type = type_ptr(base_type::void_return())
+        // transform parameters
+        var parameters = vector<*ast_node>()
+        get_nodes("typed_parameter", node).for_each(fun(child: *tree<symbol>) {
+            parameters.add(ast_identifier_ptr(concat_symbol_tree(get_node("identifier", child)), transform_type(get_node("type", child), translation_unit, template_replacements)))
+        })
+        // figure out function type and make function_node
+        var function_node = ast_function_ptr(function_name, type_ptr(parameters.map(fun(parameter: *ast_node): *type return parameter->identifier.type;), return_type), parameters)
+        // add to scope (translation_unit)
+        add_to_scope(function_name, function_node, translation_unit)
+        add_to_scope("~enclosing_scope", translation_unit, function_node)
+        // add parameters to scope of function
+        parameters.for_each(fun(parameter: *ast_node) add_to_scope(parameter->identifier.name, parameter, function_node);)
+        return function_node
     }
     fun third_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
         println(string("Third Pass for ") + translation_unit->translation_unit.name)
     }
     fun fourth_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
         println(string("Fourth Pass for ") + translation_unit->translation_unit.name)
+    }
+    fun transform_type(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *type {
+        // check for references and step down
+        // always get to pre-reffed level
+        var real_node = get_node("pre_reffed", node)
+        // check for indirection and step down
+        var type_syntax_str = concat_symbol_tree(real_node)
+        // should take into account indirection and references...
+        if (type_syntax_str == "void")
+            return type_ptr(base_type::void_return())
+        else if (type_syntax_str == "bool")
+            return type_ptr(base_type::boolean())
+        else if (type_syntax_str == "int")
+            return type_ptr(base_type::integer())
+        else if (type_syntax_str == "float")
+            return type_ptr(base_type::floating())
+        else if (type_syntax_str == "double")
+            return type_ptr(base_type::double_precision())
+        else if (type_syntax_str == "char")
+            return type_ptr(base_type::character())
+        else if (/* check for function type*/ true)
+            return type_ptr(base_type::function())
+        else {
+            // do lookup for objects, ADTs, templates, etc
+            return type_ptr(base_type::none())
+        }
     }
 /*NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::vector<Type> types, bool limitToFunction, std::map<std::string, Type*> templateTypeReplacements) {*/
     fun transform(node: *tree<symbol>, scope: *ast_node): *ast_node {
@@ -117,8 +163,9 @@ obj ast_transformation (Object) {
     }
     fun transform_identifier(node: *tree<symbol>, scope: *ast_node): *ast_node {
         // for identifier we have to do scope lookup, etc, and maybe limit to function
+        // NOT THIS
         var name = concat_symbol_tree(node)
-        return ast_identifier_ptr(name)
+        return ast_identifier_ptr(name, type_ptr(base_type::void_return()))
     }
     fun transform_code_block(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var new_block = ast_code_block_ptr()

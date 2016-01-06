@@ -29,8 +29,9 @@ obj c_generator (Object) {
         var structs: string = ""
         var function_typedef_string_pre: string = ""
         var function_typedef_string: string = ""
-        var function_prototypes: string = ""
-        var variable_declarations: string = ""
+        var function_prototypes: string = "\n/**Function Prototypes**/\n"
+        var function_definitions: string = "\n/**Function Definitions**/\n"
+        var variable_declarations: string = "\n/**Variable Declarations**/\n"
 
 
         // poset generation into structs string
@@ -46,12 +47,30 @@ obj c_generator (Object) {
                             top_level_c_passthrough += generate_simple_passthrough(backing.statement->statement.child)
                     }
                     ast_node::simple_passthrough(backing) top_level_c_passthrough += generate_simple_passthrough(child)
+                    ast_node::function(backing) {
+                        // make sure not a template
+                        // or a passthrough
+                        // check for and add to parameters if a closure
+                        var parameter_types = string()
+                        var parameters = string()
+                        // also add in name decoration
+                        backing.parameters.for_each(fun(parameter: *ast_node) {
+                            if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
+                            parameter_types += type_to_c(parameter->identifier.type)
+                            parameters += type_to_c(parameter->identifier.type) + " " + parameter->identifier.name
+                        })
+                        function_prototypes += type_to_c(backing.type->return_type) + " " + backing.name + "(" + parameter_types + ");\n"
+
+                        // add parameters to destructor thingy (for returns)? Or should that be a different pass?
+                        function_definitions += type_to_c(backing.type->return_type) + " " + backing.name + "(" + parameters + ") { " + " /* body here */ "
+                        // emit parameter destructors?
+                        function_definitions += "}\n"
+                    }
                 }
             })
         })
 
-        var function_definitions: string = ""
-        return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions, linker_string)
+        return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
     fun generate_simple_passthrough(node: *ast_node): string {
         // deal with all the passthrough params
@@ -62,6 +81,25 @@ obj c_generator (Object) {
         match (*node) {
             ast_node::simple_passthrough(backing) return generate_simple_passthrough(node)
         }
+    }
+    fun type_to_c(type: *type): string {
+        match (type->base) {
+            base_type::none() return string("none")
+            base_type::template() return string("template")
+            base_type::template_type() return string("template_type")
+            base_type::void_return() return string("void")
+            base_type::boolean() return string("bool")
+            base_type::character() return string("char")
+            base_type::integer() return string("int")
+            base_type::floating() return string("float")
+            base_type::double_precision() return string("double")
+            base_type::function() {
+                var temp = string("function: (")
+                type->parameter_types.for_each(fun(parameter_type: *type) temp += parameter_type->to_string() + " ";)
+                return temp + ")" + type->return_type->to_string()
+            }
+        }
+        return string("impossible type")
     }
 }
 

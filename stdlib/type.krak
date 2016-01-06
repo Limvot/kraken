@@ -1,7 +1,9 @@
+import mem:*
+import string:*
+import vector:*
 
 // hmm, like the ast_node, this is another candadate for being fully an ADT
 // one issue is that there are properties shared between most of the options (indirection, say)
-
 adt base_type {
     none,
     template,
@@ -15,27 +17,40 @@ adt base_type {
     function
 }
 
-fun type(): type {
-    var to_ret.construct(): type
-    return to_ret
+fun type_ptr(): *type {
+    return new<type>()->construct()
 }
-fun type(base: base_type): type {
-    var to_ret.construct(base): type
-    return to_ret
+fun type_ptr(base: base_type): *type {
+    return new<type>()->construct(base)
+}
+fun type_ptr(parameters: vector<*type>, return_type: *type): *type {
+    return new<type>()->construct(parameters, return_type)
 }
 
 obj type (Object) {
     var base: base_type
+    var parameter_types: vector<*type>
+    var return_type: *type
     fun construct(): *type {
         base.copy_construct(&base_type::none())
+        parameter_types.construct()
         return this
     }
     fun construct(base_in: base_type): *type {
         base.copy_construct(&base_in)
+        parameter_types.construct()
+        return this
+    }
+    fun construct(parameter_types_in: vector<*type>, return_type_in: *type): *type {
+        base.copy_construct(&base_type::function())
+        parameter_types.copy_construct(&parameter_types)
+        return_type = return_type_in
         return this
     }
     fun copy_construct(old: *type) {
-        base = old->base
+        base.copy_construct(&old->base)
+        parameter_types.copy_construct(&old->parameter_types)
+        return_type = old->return_type
     }
     fun operator=(other: ref type) {
         destruct()
@@ -43,6 +58,26 @@ obj type (Object) {
     }
     fun destruct() {
         base.destruct()
+        parameter_types.destruct()
+    }
+    fun to_string(): string {
+        match (base) {
+            base_type::none() return string("none")
+            base_type::template() return string("template")
+            base_type::template_type() return string("template_type")
+            base_type::void_return() return string("void_return")
+            base_type::boolean() return string("boolean")
+            base_type::character() return string("character")
+            base_type::integer() return string("integer")
+            base_type::floating() return string("floating")
+            base_type::double_precision() return string("double_precision")
+            base_type::function() {
+                var temp = string("function: (")
+                parameter_types.for_each(fun(parameter_type: *type) temp += parameter_type->to_string() + " ";)
+                return temp + ")" + return_type->to_string()
+            }
+        }
+        return string("impossible type")
     }
 }
 
