@@ -36,6 +36,24 @@ obj importer (Object) {
         name_ast_map.destruct()
     }
     fun import(file_name: string): *ast_node {
+        println("**First Pass**")
+        var to_ret = import_first_pass(file_name)
+        println("**Second Pass**")
+        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.second_pass(tree_pair.first, tree_pair.second);)
+        println("**Third Pass**")
+        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.third_pass(tree_pair.first, tree_pair.second);)
+        // this needs to be modified to do chaotic iteration on instantiating template classes, based on what I see in the C++ version
+        println("**Fourth Pass**")
+        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.fourth_pass(tree_pair.first, tree_pair.second);)
+
+        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) {
+            print("writing ast for: "); println(name)
+            write_file(name + ".ast.dot", ast_to_dot(tree_pair.second))
+        })
+
+        return to_ret
+    }
+    fun import_first_pass(file_name: string): *ast_node {
         if (name_ast_map.contains_key(file_name))
             return name_ast_map[file_name].second
 
@@ -47,10 +65,9 @@ obj importer (Object) {
         trim(parse_tree)
         print("post-trim: "); println(file_name)
         write_file(file_name + ".trimmed_parse.dot", syntax_tree_to_dot(parse_tree))
-        print("pre-ast: "); println(file_name)
+        print("pre-first-ast: "); println(file_name)
         var ast = ast_pass.first_pass(file_name, parse_tree, this)
-        print("post-ast: "); println(file_name)
-        write_file(file_name + ".ast.dot", ast_to_dot(ast))
+        print("post-first-ast: "); println(file_name)
         return ast
     }
     fun register(file_name: string, parse_tree: *tree<symbol>, translation_unit: *ast_node) {

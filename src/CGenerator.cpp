@@ -76,11 +76,13 @@ std::string CGenerator::generateTypeStruct(NodeTree<ASTData>* from) {
                 // if this is not a plain no-data adt member (so if it is a primitive or doesn't have a reference back to)
                 // wait a sec, this is easier
                 if ( child->getDataRef()->valueType->typeDefinition != from)
-                    structString += tabs() + ValueTypeToCType(child->getDataRef()->valueType,  child->getDataRef()->symbol.getName()) + "; /* adt data member */\n";
+                    structString += tabs() + ValueTypeToCType(child->getDataRef()->valueType,  prefixIfNeeded(scopePrefix(child), child->getDataRef()->symbol.getName())) + "; /* adt data member */\n";
             } else {
                 structString += tabs() + generate(child, nullptr).oneString() + "\n";
             }
-            enumString += tabs() + data.symbol.getName() + "__" + generate(child, nullptr).oneString() + (data.type == adt_def ? ",\n" : "\n");
+            //enumString += tabs() + data.symbol.getName() + "__" + generate(child, nullptr).oneString() + (data.type == adt_def ? ",\n" : "\n");
+            // this was prefixing when it shouldn't have, since we prefix with the name of the adt anyway. Probs the entire thing should be prefixed, but we'll cross that bridge when we come to it
+            enumString += tabs() + data.symbol.getName() + "__" + child->getDataRef()->symbol.getName() + (data.type == adt_def ? ",\n" : "\n");
         }
     }
     tabLevel--;
@@ -335,6 +337,7 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                         for (auto child :  decChildren) {
                                             if (child->getName() != "function" && child->getDataRef()->valueType->typeDefinition != declaration) {
                                                 std::string option_name = child->getDataRef()->symbol.getName();
+                                                std::string prefixed_option_name = prefixIfNeeded(scopePrefix(declaration),option_name);
                                                 functionDefinitions += "     else if (this->flag == " + declarationData.symbol.getName() + "__" + option_name + ") {\n";
                                                 NodeTree<ASTData>* method = nullptr;
                                                 if (method = getMethod(child->getDataRef()->valueType, "operator==", std::vector<Type>{*child->getDataRef()->valueType})) {
@@ -345,17 +348,17 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                                     if (need_temporary) {
                                                         functionDefinitions += "        " + ValueTypeToCType(child->getDataRef()->valueType, "copy_constructTemporary") + ";\n";
                                                         functionDefinitions += "        " + generateMethodIfExists(child->getDataRef()->valueType, "copy_construct",
-                                                                "&copy_constructTemporary, &in->" + option_name, itemTypeVector) + ";\n";
+                                                                "&copy_constructTemporary, &in->" + prefixed_option_name, itemTypeVector) + ";\n";
                                                     }
 
-                                                    std::string otherValue = (is_reference ? "&" : "") + (need_temporary ? "copy_constructTemporary" : "in->" + option_name);
+                                                    std::string otherValue = (is_reference ? "&" : "") + (need_temporary ? "copy_constructTemporary" : "in->" + prefixed_option_name);
                                                     functionDefinitions += "        equal = " + generateMethodIfExists(child->getDataRef()->valueType, "operator==",
-                                                            "&this->" + option_name + ", " + otherValue,
+                                                            "&this->" + prefixed_option_name + ", " + otherValue,
                                                             std::vector<Type>{*child->getDataRef()->valueType}) + ";\n";
                                                     // Remember, we don't destruct copy_constructTemporary because the function will do that
                                                     functionDefinitions += "}\n";
                                                 } else {
-                                                    functionDefinitions += "           equal = this->" + option_name + " == in->" + option_name + ";\n}\n";
+                                                    functionDefinitions += "           equal = this->" + prefixed_option_name + " == in->" + prefixed_option_name + ";\n}\n";
                                                 }
                                             }
                                         }
@@ -380,15 +383,16 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                         for (auto child :  decChildren) {
                                             if (child->getName() != "function" && child->getDataRef()->valueType->typeDefinition != declaration) {
                                                 std::string option_name = child->getDataRef()->symbol.getName();
+                                                std::string prefixed_option_name = prefixIfNeeded(scopePrefix(declaration),option_name);
                                                 functionDefinitions += "     " + elsePrefix + " if (in->flag == " + declarationData.symbol.getName() + "__" + option_name + ") {\n";
                                                 elsePrefix = "else";
                                                 NodeTree<ASTData>* method = nullptr;
                                                 auto itemTypeVector = std::vector<Type>{child->getDataRef()->valueType->withIncreasedIndirection()};
                                                 if (method = getMethod(child->getDataRef()->valueType, "copy_construct", itemTypeVector)) {
                                                     functionDefinitions += "        " + generateMethodIfExists(child->getDataRef()->valueType, "copy_construct",
-                                                            "&this->" + option_name + ", &in->" + option_name, itemTypeVector) + ";\n";
+                                                            "&this->" + prefixed_option_name + ", &in->" + prefixed_option_name, itemTypeVector) + ";\n";
                                                 } else {
-                                                    functionDefinitions += "this->" + option_name + " = in->" + option_name + ";\n";
+                                                    functionDefinitions += "this->" + prefixed_option_name + " = in->" + prefixed_option_name + ";\n";
                                                 }
                                                 functionDefinitions += "    }\n";
                                             }
@@ -421,9 +425,9 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                             functionDefinitions += "/*" + ValueTypeToCType(paramType, "") + "*/\n";
                                             if (method = getMethod(paramType, "copy_construct", itemTypeVector)) {
                                                 functionDefinitions += "        " + generateMethodIfExists(paramType, "copy_construct",
-                                                        "&toRet." + orig_fun_name + ", &in", itemTypeVector) + ";\n";
+                                                        "&toRet." + prefixIfNeeded(scopePrefix(declaration),orig_fun_name) + ", &in", itemTypeVector) + ";\n";
                                             } else {
-                                                functionDefinitions += "     toRet." + orig_fun_name + " = in;\n";
+                                                functionDefinitions += "     toRet." + prefixIfNeeded(scopePrefix(declaration),orig_fun_name) + " = in;\n";
                                             }
 
                                             if (method = getMethod(paramType, "destruct", std::vector<Type>())) {

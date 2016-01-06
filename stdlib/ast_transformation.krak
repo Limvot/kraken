@@ -9,6 +9,7 @@ import mem:*
 import io:*
 import importer:*
 import ast_nodes:*
+import type:*
 
 		/*Importer * importer;*/
 		/*NodeTree<ASTData>* builtin_trans_unit; // the top scope for language level stuff*/
@@ -29,7 +30,7 @@ obj ast_transformation (Object) {
     }
     fun destruct() {
     }
-    // first pass defines all type_defs (objects and aliases), ADTs, and top-level if/passthroughs
+    // first pass defines all type_defs (objects and aliases), ADTs, and top-level if-comps/passthroughs
     fun first_pass(file_name: string, parse_tree: *tree<symbol>, importer: *importer): *ast_node {
         var translation_unit = ast_translation_unit_ptr(file_name)
         importer->register(file_name, parse_tree, translation_unit)
@@ -48,12 +49,12 @@ obj ast_transformation (Object) {
                 add_to_scope("~enclosing_scope", translation_unit, adt_def_node)
                 add_to_scope(name, adt_def_node, translation_unit)
             } else if (child->data.name == "if_comp") {
-                var if_comp_node = transform(child, translation_unit)
+                var if_comp_node = transform_if_comp(child, translation_unit)
                 translation_unit->translation_unit.children.add(if_comp_node)
             }
         })
 
-        // now do all inports (done second so that if it imports this translation_unit,
+        // now do all imports (done second so that if it imports this translation_unit,
         // this one already has all its types defined
         parse_tree->children.for_each(fun(child: *tree<symbol>) {
             if (child->data.name == "import") {
@@ -62,12 +63,37 @@ obj ast_transformation (Object) {
                 var import_node = ast_import_ptr(name)
                 translation_unit->translation_unit.children.add(import_node)
                 add_to_scope("~enclosing_scope", translation_unit, import_node)
-                var outside_translation_unit = importer->import(name + ".krak")
+                var outside_translation_unit = importer->import_first_pass(name + ".krak")
                 add_to_scope(name, outside_translation_unit, translation_unit)
                 import_node->import.imported = from_vector(import_identifier_children.slice(1,-1).map(fun(ident: *tree<symbol>):string return concat_symbol_tree(ident);))
             }
         })
         return translation_unit
+    }
+    // defines inside of objects + ADTs, outside declaration statements, and function prototypes
+    fun second_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
+        println(string("Second Pass for ") + translation_unit->translation_unit.name)
+        parse_tree->children.for_each(fun(child: *tree<symbol>) {
+            if (child->data.name == "type_def") {
+                // second pass class stuff
+                // class insides calls into second_pass_declaration and second_pass_function...
+            } else if (child->data.name == "adt_def") {
+                // set up options and all the generated functions (operator==, operator!=, copy_construct, operator=, destruct)
+            } else if (child->data.name == "function") {
+                translation_unit->translation_unit.children.add(second_pass_function(child, translation_unit, map<string, *type>()))
+            } else if (child->data.name == "declaration_statement") {
+                // second pass declaration can actually just call a normal transform (but maybe should be it's own method to do so because typedef has to do it too?)...
+            }
+        })
+    }
+    fun second_pass_function(parse_tree: *tree<symbol>, translation_unit: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        return ast_function_ptr()
+    }
+    fun third_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
+        println(string("Third Pass for ") + translation_unit->translation_unit.name)
+    }
+    fun fourth_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
+        println(string("Fourth Pass for ") + translation_unit->translation_unit.name)
     }
 /*NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::vector<Type> types, bool limitToFunction, std::map<std::string, Type*> templateTypeReplacements) {*/
     fun transform(node: *tree<symbol>, scope: *ast_node): *ast_node {

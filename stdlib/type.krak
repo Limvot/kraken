@@ -1,0 +1,49 @@
+
+// hmm, like the ast_node, this is another candadate for being fully an ADT
+// one issue is that there are properties shared between most of the options (indirection, say)
+
+adt base_type {
+    none,
+    template,
+    template_type,
+    void_return,
+    boolean,
+    character,
+    integer,
+    floating,
+    double_precision,
+    function
+}
+
+fun type(): type {
+    var to_ret.construct(): type
+    return to_ret
+}
+fun type(base: base_type): type {
+    var to_ret.construct(base): type
+    return to_ret
+}
+
+obj type (Object) {
+    var base: base_type
+    fun construct(): *type {
+        base.copy_construct(&base_type::none())
+        return this
+    }
+    fun construct(base_in: base_type): *type {
+        base.copy_construct(&base_in)
+        return this
+    }
+    fun copy_construct(old: *type) {
+        base = old->base
+    }
+    fun operator=(other: ref type) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+        base.destruct()
+    }
+}
+
+

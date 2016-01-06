@@ -1,5 +1,12 @@
 import to_import: a,b
 
+obj Something (ObjectTrait) {
+    var member: int
+    fun method():int {
+        return 5
+    }
+}
+
 fun main(): int {
     return 0
 }

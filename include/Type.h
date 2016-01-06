@@ -56,7 +56,7 @@ class Type {
         std::set<std::string> traits;
         std::vector<Type*> parameterTypes;
         Type *returnType;
-		bool is_reference;;
+		bool is_reference;
     private:
 		int indirection;
 };
