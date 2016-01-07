@@ -2,6 +2,9 @@ import mem
 import vector
 import serialize
 
+// maybe my favorite function
+fun do_nothing() {}
+
 fun max<T>(a: T, b: T): T {
     if (a > b)
         return a;

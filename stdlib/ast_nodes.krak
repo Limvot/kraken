@@ -258,17 +258,20 @@ obj function (Object) {
     var name: string
     var type: *type
     var parameters: vector<*ast_node>
+    var body_statement: *ast_node
     var scope: map<string, vector<*ast_node>>
     fun construct(name_in: string, type_in: *type, parameters_in: vector<*ast_node>): *function  {
         name.copy_construct(&name_in)
         parameters.copy_construct(&parameters_in)
         scope.construct()
         type = type_in
+        body_statement = null<ast_node>()
         return this
     }
     fun copy_construct(old: *function) {
         name.copy_construct(&old->name)
         type = old->type
+        body_statement = old->body_statement
         parameters.copy_construct(&old->parameters)
         scope.copy_construct(&old->scope)
     }
@@ -282,7 +285,7 @@ obj function (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref function): bool {
-        return name == name && type == other.type && parameters == other.parameters
+        return name == name && type == other.type && parameters == other.parameters && body_statement == other.body_statement
     }
 }
 fun ast_code_block_ptr(): *ast_node {
@@ -337,6 +340,7 @@ obj statement (Object) {
     var scope: map<string, vector<*ast_node>>
     var child: *ast_node
     fun construct(): *statement  {
+        child = null<ast_node>()
         scope.construct()
         return this
     }
@@ -849,7 +853,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::identifier(backing) return vector<*ast_node>()
         ast_node::type_def(backing) return vector<*ast_node>()
         ast_node::adt_def(backing) return vector<*ast_node>()
-        ast_node::function(backing) return vector<*ast_node>()
+        ast_node::function(backing) return backing.parameters + backing.body_statement
         ast_node::code_block(backing) return backing.children
         ast_node::statement(backing) return vector<*ast_node>(backing.child)
         ast_node::if_statement(backing) return vector<*ast_node>()

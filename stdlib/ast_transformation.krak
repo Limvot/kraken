@@ -19,16 +19,20 @@ import type:*
 		/*NodeTree<ASTData>* topScope; //maintained for templates that need to add themselves to the top scope no matter where they are instantiated*/
         /*int lambdaID = 0;*/
 obj ast_transformation (Object) {
+    var ast_to_syntax: map<*ast_node, *tree<symbol>>
     fun construct(): *ast_transformation {
+        ast_to_syntax.construct()
         return this
     }
     fun copy_construct(old: *ast_transformation) {
+        ast_to_syntax.copy_construct(&old->ast_to_syntax)
     }
     fun operator=(old: ref ast_transformation) {
         destruct()
         copy_construct(&old)
     }
     fun destruct() {
+        ast_to_syntax.destruct()
     }
     // first pass defines all type_defs (objects and aliases), ADTs, and top-level if-comps/passthroughs
     fun first_pass(file_name: string, parse_tree: *tree<symbol>, importer: *importer): *ast_node {
@@ -39,6 +43,7 @@ obj ast_transformation (Object) {
                 var name = concat_symbol_tree(get_node("identifier", child))
                 var type_def_node = ast_type_def_ptr(name)
                 translation_unit->translation_unit.children.add(type_def_node)
+                ast_to_syntax.set(type_def_node, child)
                 add_to_scope("~enclosing_scope", translation_unit, type_def_node)
                 add_to_scope(name, type_def_node, translation_unit)
                 // set up type - self-referential, traits, template, etc
@@ -46,11 +51,13 @@ obj ast_transformation (Object) {
                 var name = concat_symbol_tree(get_node("identifier", child))
                 var adt_def_node = ast_adt_def_ptr(name)
                 translation_unit->translation_unit.children.add(adt_def_node)
+                ast_to_syntax.set(adt_def_node, child)
                 add_to_scope("~enclosing_scope", translation_unit, adt_def_node)
                 add_to_scope(name, adt_def_node, translation_unit)
             } else if (child->data.name == "if_comp") {
                 var if_comp_node = transform_if_comp(child, translation_unit)
                 translation_unit->translation_unit.children.add(if_comp_node)
+                ast_to_syntax.set(if_comp_node, child)
             }
         })
 
@@ -62,6 +69,7 @@ obj ast_transformation (Object) {
                 var name = concat_symbol_tree(import_identifier_children[0])
                 var import_node = ast_import_ptr(name)
                 translation_unit->translation_unit.children.add(import_node)
+                ast_to_syntax.set(import_node, child)
                 add_to_scope("~enclosing_scope", translation_unit, import_node)
                 var outside_translation_unit = importer->import_first_pass(name + ".krak")
                 add_to_scope(name, outside_translation_unit, translation_unit)
@@ -80,7 +88,9 @@ obj ast_transformation (Object) {
             } else if (child->data.name == "adt_def") {
                 // set up options and all the generated functions (operator==, operator!=, copy_construct, operator=, destruct)
             } else if (child->data.name == "function") {
-                translation_unit->translation_unit.children.add(second_pass_function(child, translation_unit, map<string, *type>()))
+                var function_node = second_pass_function(child, translation_unit, map<string, *type>())
+                translation_unit->translation_unit.children.add(function_node)
+                ast_to_syntax.set(function_node, child)
             } else if (child->data.name == "declaration_statement") {
                 // second pass declaration can actually just call a normal transform (but maybe should be it's own method to do so because typedef has to do it too?)...
             }
@@ -109,9 +119,22 @@ obj ast_transformation (Object) {
         parameters.for_each(fun(parameter: *ast_node) add_to_scope(parameter->identifier.name, parameter, function_node);)
         return function_node
     }
+    // The third pass finishes up by doing all function bodies (top level and methods in objects)
     fun third_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
         println(string("Third Pass for ") + translation_unit->translation_unit.name)
+        translation_unit->translation_unit.children.for_each(fun(node: *ast_node) {
+            match(*node) {
+                ast_node::type_def(backing) do_nothing() // actually go through and do methods inside
+                ast_node::function(backing) {
+                    // make sure not a template
+                    // huh, I guess I can't actually assign to the backing.
+                    // This is actually a little bit of a problem, maybe these should be pointers also. All the pointers!
+                    node->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[node]), translation_unit)
+                }
+            }
+        })
     }
+    // The fourth pass generates the class templates that have not yet been generated in a "chaotic iteration" loop
     fun fourth_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
         println(string("Fourth Pass for ") + translation_unit->translation_unit.name)
     }

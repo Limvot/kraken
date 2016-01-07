@@ -71,11 +71,17 @@ obj vector<T> (Object, Serializable) {
     }
 
     fun operator+(other:vector<T>):vector<T> {
-        var newVec.construct():vector<T>
-        for (var i = 0; i < size; i++;)
-            newVec.addEnd(get(i))
+        // lets be at least a little bit smarter by copy_constructing our copy.
+        // We could get a lot better than this by initially creating enough space
+        // for both and copy_constructing all of them, but this is just a quick fix
+        var newVec.copy_construct(this):vector<T>
         for (var i = 0; i < other.size; i++;)
             newVec.addEnd(other.get(i))
+        return newVec
+    }
+    fun operator+(other: T):vector<T> {
+        var newVec.copy_construct(this):vector<T>
+        newVec.addEnd(other)
         return newVec
     }
 

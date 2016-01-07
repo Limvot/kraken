@@ -62,7 +62,7 @@ obj c_generator (Object) {
                         function_prototypes += type_to_c(backing.type->return_type) + " " + backing.name + "(" + parameter_types + ");\n"
 
                         // add parameters to destructor thingy (for returns)? Or should that be a different pass?
-                        function_definitions += type_to_c(backing.type->return_type) + " " + backing.name + "(" + parameters + ") { " + " /* body here */ "
+                        function_definitions += type_to_c(backing.type->return_type) + " " + backing.name + "(" + parameters + ") {\n" + generate_statement(backing.body_statement)
                         // emit parameter destructors?
                         function_definitions += "}\n"
                     }
@@ -76,11 +76,22 @@ obj c_generator (Object) {
         // deal with all the passthrough params
         return node->simple_passthrough.passthrough_str
     }
+    fun generate_statement(node: *ast_node): string return generate(node->statement.child) + ";\n";
+    fun generate_code_block(node: *ast_node): string {
+        var to_ret = string("{\n")
+        node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child);)
+        return to_ret + "}\n"
+    }
+
     // for now, anyway
     fun generate(node: *ast_node): string {
+        if (!node) return string("/*NULL*/")
         match (*node) {
             ast_node::simple_passthrough(backing) return generate_simple_passthrough(node)
+            ast_node::statement(backing) return generate_statement(node)
+            ast_node::code_block(backing) return generate_code_block(node)
         }
+        return string("/* COULD NOT GENERATE */")
     }
     fun type_to_c(type: *type): string {
         match (type->base) {
