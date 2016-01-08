@@ -177,6 +177,20 @@ obj ast_transformation (Object) {
             return transform_simple_passthrough(node, scope)
         } else if (name == "statement") {
             return transform_statement(node, scope)
+        } else if (name == "return_statement") {
+            return transform_return_statement(node, scope)
+        } else if (name == "boolean_expression" || name == "and_boolean_expression"
+                || name == "bool_exp" || name == "expression"
+                || name == "shiftand" || name == "term"
+                || name == "factor" || name == "unarad"
+        ) {
+            // for now, assume passthrough and just transform underneath
+            return transform_expression(node, scope)
+        } else if (name == "bool" || name == "string"
+                || name == "character" || name == "number"
+        ) {
+            println(string("transforming value: ") + name)
+            return transform_value(node, scope)
         }
         print("FAILED TO TRANSFORM: "); println(concat_symbol_tree(node))
         return null<ast_node>()
@@ -189,6 +203,13 @@ obj ast_transformation (Object) {
         // NOT THIS
         var name = concat_symbol_tree(node)
         return ast_identifier_ptr(name, type_ptr(base_type::void_return()))
+    }
+    fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node return ast_value_ptr(concat_symbol_tree(node))
+    fun transform_expression(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        // figure out what the expression is, handle overloads, or you know
+        // ignore everything and do a passthrough
+        println(string("passing through: ") + node->data.name)
+        return transform(node->children[0], scope)
     }
     fun transform_code_block(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var new_block = ast_code_block_ptr()
@@ -212,6 +233,9 @@ obj ast_transformation (Object) {
         var new_statement = ast_statement_ptr()
         new_statement->statement.child = transform(node->children[0], scope)
         return new_statement
+    }
+    fun transform_return_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        return ast_return_statement_ptr(transform(node->children[0], scope))
     }
 }
 

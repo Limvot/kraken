@@ -78,25 +78,27 @@ obj importer (Object) {
     fun trim(parse_tree: *tree<symbol>) {
         remove_node(symbol("$NULL$", false), parse_tree)
 	    remove_node(symbol("WS", false), parse_tree)
-	    remove_node(symbol("\\(", true), parse_tree)
-	    remove_node(symbol("\\)", true), parse_tree)
-	    remove_node(symbol("var", true), parse_tree)
-	    remove_node(symbol("fun", true), parse_tree)
-        remove_node(symbol(";", true), parse_tree)
+        // the terminals have " around them, which we have to escape
+	    remove_node(symbol("\"\\(\"", true), parse_tree)
+	    remove_node(symbol("\"\\)\"", true), parse_tree)
+	    remove_node(symbol("\"var\"", true), parse_tree)
+	    remove_node(symbol("\"fun\"", true), parse_tree)
+        remove_node(symbol("\"template\"", true), parse_tree)
+        remove_node(symbol("\"return\"", true), parse_tree)
+        remove_node(symbol("\";\"", true), parse_tree)
         remove_node(symbol("line_end", false), parse_tree)
-        remove_node(symbol("{", true), parse_tree)
-        remove_node(symbol("}", true), parse_tree)
-        remove_node(symbol("(", true), parse_tree)
-        remove_node(symbol(")", true), parse_tree)
-        remove_node(symbol("if", true), parse_tree)
-        remove_node(symbol("while", true), parse_tree)
-        remove_node(symbol("__if_comp__", true), parse_tree)
-        remove_node(symbol("comp_simple_passthrough", true), parse_tree)
+        remove_node(symbol("\"{\"", true), parse_tree)
+        remove_node(symbol("\"}\"", true), parse_tree)
+        remove_node(symbol("\"(\"", true), parse_tree)
+        remove_node(symbol("\")\"", true), parse_tree)
+        remove_node(symbol("\"if\"", true), parse_tree)
+        remove_node(symbol("\"while\"", true), parse_tree)
+        remove_node(symbol("\"__if_comp__\"", true), parse_tree)
+        remove_node(symbol("\"comp_simple_passthrough\"", true), parse_tree)
         remove_node(symbol("def_nonterm", false), parse_tree)
         remove_node(symbol("obj_nonterm", false), parse_tree)
         remove_node(symbol("adt_nonterm", false), parse_tree)
-        remove_node(symbol("template", true), parse_tree)
-        remove_node(symbol("\\|", true), parse_tree)
+        remove_node(symbol("\"\\|\"", true), parse_tree)
 
         collapse_node(symbol("case_statement_list", false), parse_tree)
         collapse_node(symbol("opt_param_assign_list", false), parse_tree)
@@ -132,6 +134,7 @@ obj importer (Object) {
                     node->children.remove(i)
                     i--;
                 } else {
+                    /*println(remove.to_string() + " not equal " + node->children[i]->data.to_string())*/
                     to_process.push(node->children[i])
                 }
             }

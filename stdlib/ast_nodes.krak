@@ -519,8 +519,8 @@ obj for_loop (Object) {
         return true
     }
 }
-fun ast_return_statement_ptr(): *ast_node {
-    var to_ret.construct(): return_statement
+fun ast_return_statement_ptr(return_value: *ast_node): *ast_node {
+    var to_ret.construct(return_value): return_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::return_statement(to_ret))
     return ptr
@@ -532,12 +532,15 @@ fun is_return_statement(node: *ast_node): bool {
     return false
 }
 obj return_statement (Object) {
+    var return_value: *ast_node
     var scope: map<string, vector<*ast_node>>
-    fun construct(): *return_statement  {
+    fun construct(return_value_in: *ast_node): *return_statement  {
+        return_value = return_value_in
         scope.construct()
         return this
     }
     fun copy_construct(old: *return_statement) {
+        return_value = old->return_value
         scope.copy_construct(&old->scope)
     }
     fun destruct() {
@@ -548,7 +551,7 @@ obj return_statement (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref return_statement): bool {
-        return true
+        return return_value == other.return_value
     }
 }
 fun ast_break_statement_ptr(): *ast_node {
@@ -813,8 +816,8 @@ obj function_call (Object) {
         return true
     }
 }
-fun ast_value_ptr(): *ast_node {
-    var to_ret.construct(): value
+fun ast_value_ptr(string_value: string): *ast_node {
+    var to_ret.construct(string_value): value
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::value(to_ret))
     return ptr
@@ -826,23 +829,27 @@ fun is_value(node: *ast_node): bool {
     return false
 }
 obj value (Object) {
+    var string_value: string
     var scope: map<string, vector<*ast_node>>
-    fun construct(): *value  {
+    fun construct(string_value_in: string): *value  {
         scope.construct()
+        string_value.copy_construct(&string_value_in)
         return this
     }
     fun copy_construct(old: *value) {
         scope.copy_construct(&old->scope)
+        string_value.copy_construct(&old->string_value)
     }
     fun destruct() {
         scope.destruct()
+        string_value.destruct()
     }
     fun operator=(other: ref value) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref value): bool {
-        return true
+        return string_value == other.string_value
     }
 }
 

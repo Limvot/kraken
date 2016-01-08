@@ -77,10 +77,12 @@ obj c_generator (Object) {
         return node->simple_passthrough.passthrough_str
     }
     fun generate_statement(node: *ast_node): string return generate(node->statement.child) + ";\n";
+    fun generate_return_statement(node: *ast_node): string return string("return ") + generate(node->return_statement.return_value);
+    fun generate_value(node: *ast_node): string return node->value.string_value;
     fun generate_code_block(node: *ast_node): string {
         var to_ret = string("{\n")
         node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child);)
-        return to_ret + "}\n"
+        return to_ret + "}"
     }
 
     // for now, anyway
@@ -90,6 +92,8 @@ obj c_generator (Object) {
             ast_node::simple_passthrough(backing) return generate_simple_passthrough(node)
             ast_node::statement(backing) return generate_statement(node)
             ast_node::code_block(backing) return generate_code_block(node)
+            ast_node::return_statement(backing) return generate_return_statement(node)
+            ast_node::value(backing) return generate_value(node)
         }
         return string("/* COULD NOT GENERATE */")
     }
