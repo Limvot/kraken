@@ -204,7 +204,29 @@ obj ast_transformation (Object) {
         var name = concat_symbol_tree(node)
         return ast_identifier_ptr(name, type_ptr(base_type::void_return()))
     }
-    fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node return ast_value_ptr(concat_symbol_tree(node))
+    fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var value_str = concat_symbol_tree(node)
+        var value_type = null<type>()
+        if (value_str[0] == '"')
+            value_type = type_ptr(base_type::character()) // and indirection, sigh
+        else if (value_str[0] == '\'')
+            value_type = type_ptr(base_type::character())
+        else {
+            // should differentiate between float and double...
+            var contains_dot = false
+            for (var i = 0; i < value_str.length(); i++;) {
+                if (value_str[i] == '.') {
+                    contains_dot = true
+                    break
+                }
+            }
+            if (contains_dot)
+                value_type = type_ptr(base_type::floating())
+            else
+                value_type = type_ptr(base_type::integer())
+        }
+        return ast_value_ptr(value_str, value_type)
+    }
     fun transform_expression(node: *tree<symbol>, scope: *ast_node): *ast_node {
         // figure out what the expression is, handle overloads, or you know
         // ignore everything and do a passthrough
