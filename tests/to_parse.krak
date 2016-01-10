@@ -11,4 +11,8 @@ fun some_function(): int return 0;
 fun some_other_function(in: bool): float {
     return 0.0
 }
+fun main(): int {
+    simple_print("Hello World!")
+    return 0
+}
 

@@ -98,23 +98,25 @@ obj c_generator (Object) {
         return string("/* COULD NOT GENERATE */")
     }
     fun type_to_c(type: *type): string {
+        var indirection = string()
+        for (var i = 0; i < type->indirection; i++;) indirection += "*"
         match (type->base) {
-            base_type::none() return string("none")
-            base_type::template() return string("template")
-            base_type::template_type() return string("template_type")
-            base_type::void_return() return string("void")
-            base_type::boolean() return string("bool")
-            base_type::character() return string("char")
-            base_type::integer() return string("int")
-            base_type::floating() return string("float")
-            base_type::double_precision() return string("double")
+            base_type::none() return string("none") + indirection
+            base_type::template() return string("template") + indirection
+            base_type::template_type() return string("template_type") + indirection
+            base_type::void_return() return string("void") + indirection
+            base_type::boolean() return string("bool") + indirection
+            base_type::character() return string("char") + indirection
+            base_type::integer() return string("int") + indirection
+            base_type::floating() return string("float") + indirection
+            base_type::double_precision() return string("double") + indirection
             base_type::function() {
-                var temp = string("function: (")
+                var temp = indirection + string("function: (")
                 type->parameter_types.for_each(fun(parameter_type: *type) temp += parameter_type->to_string() + " ";)
                 return temp + ")" + type->return_type->to_string()
             }
         }
-        return string("impossible type")
+        return string("impossible type") + indirection
     }
 }
 

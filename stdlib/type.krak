@@ -20,37 +20,44 @@ adt base_type {
 fun type_ptr(): *type {
     return new<type>()->construct()
 }
-fun type_ptr(base: base_type): *type {
-    return new<type>()->construct(base)
+fun type_ptr(base: base_type): *type return type_ptr(base, 0);
+fun type_ptr(base: base_type, indirection: int): *type {
+    return new<type>()->construct(base, indirection)
 }
-fun type_ptr(parameters: vector<*type>, return_type: *type): *type {
-    return new<type>()->construct(parameters, return_type)
+fun type_ptr(parameters: vector<*type>, return_type: *type): *type return type_ptr(parameters, return_type, 0);
+fun type_ptr(parameters: vector<*type>, return_type: *type, indirection: int): *type {
+    return new<type>()->construct(parameters, return_type, indirection)
 }
 
 obj type (Object) {
     var base: base_type
     var parameter_types: vector<*type>
     var return_type: *type
+    var indirection: int
     fun construct(): *type {
         base.copy_construct(&base_type::none())
         parameter_types.construct()
+        indirection = 0
         return this
     }
-    fun construct(base_in: base_type): *type {
+    fun construct(base_in: base_type, indirection_in: int): *type {
         base.copy_construct(&base_in)
         parameter_types.construct()
+        indirection = indirection_in
         return this
     }
-    fun construct(parameter_types_in: vector<*type>, return_type_in: *type): *type {
+    fun construct(parameter_types_in: vector<*type>, return_type_in: *type, indirection_in: int): *type {
         base.copy_construct(&base_type::function())
         parameter_types.copy_construct(&parameter_types)
         return_type = return_type_in
+        indirection = indirection_in
         return this
     }
     fun copy_construct(old: *type) {
         base.copy_construct(&old->base)
         parameter_types.copy_construct(&old->parameter_types)
         return_type = old->return_type
+        indirection = old->indirection
     }
     fun operator=(other: ref type) {
         destruct()
@@ -62,22 +69,22 @@ obj type (Object) {
     }
     fun to_string(): string {
         match (base) {
-            base_type::none() return string("none")
-            base_type::template() return string("template")
-            base_type::template_type() return string("template_type")
-            base_type::void_return() return string("void_return")
-            base_type::boolean() return string("boolean")
-            base_type::character() return string("character")
-            base_type::integer() return string("integer")
-            base_type::floating() return string("floating")
-            base_type::double_precision() return string("double_precision")
+            base_type::none() return string("none, indirection: ") + indirection
+            base_type::template() return string("template, indirection:") + indirection
+            base_type::template_type() return string("template_type, indirection:") + indirection
+            base_type::void_return() return string("void_return, indirection:") + indirection
+            base_type::boolean() return string("boolean, indirection:") + indirection
+            base_type::character() return string("character, indirection:") + indirection
+            base_type::integer() return string("integer, indirection:") + indirection
+            base_type::floating() return string("floating, indirection:") + indirection
+            base_type::double_precision() return string("double_precision, indirection:") + indirection
             base_type::function() {
                 var temp = string("function: (")
                 parameter_types.for_each(fun(parameter_type: *type) temp += parameter_type->to_string() + " ";)
-                return temp + ")" + return_type->to_string()
+                return temp + ")" + return_type->to_string() + "indirection: " + indirection
             }
         }
-        return string("impossible type")
+        return string("impossible type, indirection:") + indirection
     }
 }
 

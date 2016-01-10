@@ -79,6 +79,7 @@ obj parser (Object) {
         }
         input.addEnd(current_symbol)
         if (current_symbol == invalid_symbol()) {
+            println("**PARSE ERROR**")
             println("lexing failed for ")
             println(name)
             return null<tree<symbol>>()
@@ -104,11 +105,14 @@ obj parser (Object) {
 
         for (var i = 0; i < input.size; i++;) {
             if (gss.frontier_is_empty(i)) {
+                println("**PARSE ERROR**")
                 print(i)
                 print("th frontier is empty in file '")
                 print(name)
                 print("' with txt ")
                 print(input[i].to_string())
+                print(" line number: ")
+                print(find_line(i))
                 println()
                 return null<tree<symbol>>()
             }
@@ -127,9 +131,13 @@ obj parser (Object) {
             return gss.get_edge(acc_state, v0)
         }
 
+        println("**PARSE ERROR**")
         println("REJECTED")
         println("parsing (not lexing) failed for ")
         println(name)
+        print(" line number: ")
+        print(find_line(input.size))
+        println("(minus 2?)")
         return null<tree<symbol>>()
     }
     fun reducer(i: int) {
@@ -362,6 +370,14 @@ obj parser (Object) {
         if (reduces_to_null(r))
             return new<tree<symbol>>()->construct(null_symbol())
         return null<tree<symbol>>()
+    }
+    fun find_line(token_no: int): int {
+        var line_no = 1
+        for (var i = 0; i < token_no; i++;)
+            for (var j = 0; j < input[i].data.length(); j++;)
+                if (input[i].data[j] == '\n')
+                    line_no++
+        return line_no
     }
 }
 

@@ -109,6 +109,8 @@ obj string (Object, Serializable) {
         return *this == str
     }
 
+    fun operator+(integer: int): string return *this + to_string(integer);
+
     fun operator+(str: *char): string {
         var newStr.construct(str):string
         var ret.construct(data + newStr.data):string
@@ -120,6 +122,8 @@ obj string (Object, Serializable) {
         var ret.construct(data + newStr.data):string
         return ret
     }
+
+    fun operator+=(integer: int) *this += to_string(integer);
 
     fun operator+=(character: char): void {
         data += character

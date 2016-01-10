@@ -1,11 +1,9 @@
 
-__if_comp__ __C__ simple_passthrough """
-	#include <stdio.h>
-    int main() {
-        printf("hello world! (of selfhosting! (silly selfhosting for now))\n");
-        return 0;
-    }
-"""
+fun simple_print(to_print: *char) {
+    __if_comp__ __C__ simple_passthrough(to_print::) """
+        printf("%s", to_print);
+    """
+}
 var a = 1
 var b = 2
 
