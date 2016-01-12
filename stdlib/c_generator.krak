@@ -72,6 +72,11 @@ obj c_generator (Object) {
 
         return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
+    fun generate_if_comp(node: *ast_node): string {
+        if (node->if_comp.wanted_generator == "__C__")
+            return generate(node->if_comp.statement)
+        return string("")
+    }
     fun generate_simple_passthrough(node: *ast_node): string {
         // deal with all the passthrough params
         return node->simple_passthrough.passthrough_str
@@ -102,6 +107,7 @@ obj c_generator (Object) {
     fun generate(node: *ast_node): string {
         if (!node) return string("/*NULL*/")
         match (*node) {
+            ast_node::if_comp(backing) return generate_if_comp(node)
             ast_node::simple_passthrough(backing) return generate_simple_passthrough(node)
             ast_node::statement(backing) return generate_statement(node)
             ast_node::function(backing) return generate_function(node)
