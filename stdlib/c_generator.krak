@@ -84,6 +84,19 @@ obj c_generator (Object) {
         node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child);)
         return to_ret + "}"
     }
+    // this generates the function as a value, not the actuall function
+    fun generate_function(node: *ast_node): string {
+        return node->function.name
+    }
+    fun generate_function_call(node: *ast_node): string {
+        var call_string = string()
+        node->function_call.parameters.for_each(fun(param: *ast_node) {
+            if (call_string != "")
+                call_string += ", "
+            call_string += generate(param)
+        })
+        return generate(node->function_call.func) + "(" + call_string + ")"
+    }
 
     // for now, anyway
     fun generate(node: *ast_node): string {
@@ -91,6 +104,8 @@ obj c_generator (Object) {
         match (*node) {
             ast_node::simple_passthrough(backing) return generate_simple_passthrough(node)
             ast_node::statement(backing) return generate_statement(node)
+            ast_node::function(backing) return generate_function(node)
+            ast_node::function_call(backing) return generate_function_call(node)
             ast_node::code_block(backing) return generate_code_block(node)
             ast_node::return_statement(backing) return generate_return_statement(node)
             ast_node::value(backing) return generate_value(node)

@@ -67,12 +67,12 @@ obj ast_transformation (Object) {
             if (child->data.name == "import") {
                 var import_identifier_children = get_nodes("identifier", child)
                 var name = concat_symbol_tree(import_identifier_children[0])
-                var import_node = ast_import_ptr(name)
+                var outside_translation_unit = importer->import_first_pass(name + ".krak")
+                add_to_scope(name, outside_translation_unit, translation_unit)
+                var import_node = ast_import_ptr(name, outside_translation_unit)
                 translation_unit->translation_unit.children.add(import_node)
                 ast_to_syntax.set(import_node, child)
                 add_to_scope("~enclosing_scope", translation_unit, import_node)
-                var outside_translation_unit = importer->import_first_pass(name + ".krak")
-                add_to_scope(name, outside_translation_unit, translation_unit)
                 import_node->import.imported = from_vector(import_identifier_children.slice(1,-1).map(fun(ident: *tree<symbol>):string return concat_symbol_tree(ident);))
             }
         })
@@ -185,6 +185,8 @@ obj ast_transformation (Object) {
             return transform_statement(node, scope)
         } else if (name == "return_statement") {
             return transform_return_statement(node, scope)
+        } else if (name == "function_call") {
+            return transform_function_call(node, scope)
         } else if (name == "boolean_expression" || name == "and_boolean_expression"
                 || name == "bool_exp" || name == "expression"
                 || name == "shiftand" || name == "term"
@@ -208,14 +210,15 @@ obj ast_transformation (Object) {
         // for identifier we have to do scope lookup, etc, and maybe limit to function
         // NOT THIS
         var name = concat_symbol_tree(node)
-        return ast_identifier_ptr(name, type_ptr(base_type::void_return()))
+        /*return ast_identifier_ptr(name, type_ptr(base_type::void_return()))*/
+        return identifier_lookup(name, scope)
     }
     fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var value_str = concat_symbol_tree(node)
         var value_type = null<type>()
         if (value_str[0] == '"')
             value_type = type_ptr(base_type::character(), 1)
-        else if (value_str[0] == '\'')
+        else if (value_str[0] == '\'') //' lol, comment hack for vim syntax highlighting (my fault, of course)
             value_type = type_ptr(base_type::character())
         else {
             // should differentiate between float and double...
@@ -236,7 +239,7 @@ obj ast_transformation (Object) {
     fun transform_expression(node: *tree<symbol>, scope: *ast_node): *ast_node {
         // figure out what the expression is, handle overloads, or you know
         // ignore everything and do a passthrough
-        println(string("passing through: ") + node->data.name)
+        /*println(string("passing through: ") + node->data.name)*/
         return transform(node->children[0], scope)
     }
     fun transform_code_block(node: *tree<symbol>, scope: *ast_node): *ast_node {
@@ -264,6 +267,56 @@ obj ast_transformation (Object) {
     }
     fun transform_return_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
         return ast_return_statement_ptr(transform(node->children[0], scope))
+    }
+    fun transform_function_call(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        // don't bother a full transform for parameter, just get the boolean expression from it
+        var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope);)
+        /*return ast_function_call_ptr(function_lookup(concat_symbol_tree(get_node("unarad", node)), scope), parameters)*/
+        var f = ast_function_call_ptr(function_lookup(concat_symbol_tree(get_node("unarad", node)), scope), parameters)
+        print("function call function ")
+        println(f->function_call.func)
+        print("function call parameters ")
+        f->function_call.parameters.for_each(fun(param: *ast_node) print(param);)
+        return f
+    }
+    fun identifier_lookup(name: string, scope: *ast_node): *ast_node {
+        var results = scope_lookup(name, scope)
+        if (!results.size) {
+            println(string("identifier lookup failed for ") + name)
+            return null<ast_node>()
+        }
+        return results[0]
+    }
+    fun function_lookup(name: string, scope: *ast_node): *ast_node {
+        var results = scope_lookup(name, scope)
+        if (!results.size) {
+            println(string("identifier lookup failed for ") + name)
+            return null<ast_node>()
+        }
+        return results[0]
+    }
+    fun scope_lookup(name: string, scope: *ast_node): vector<*ast_node> {
+        // need to do properly scopded lookups
+        // prevent re-checking the same one...
+        print("scope is: ")
+        get_ast_scope(scope)->for_each(fun(key: string, value: vector<*ast_node>) print(key + " ");)
+        println()
+        var results = vector<*ast_node>()
+        if (get_ast_scope(scope)->contains_key(name)) {
+            println(name + " is in scope, adding to results")
+            results += get_ast_scope(scope)->get(name)
+        }
+        if (get_ast_scope(scope)->contains_key(string("~enclosing_scope")))
+            results += scope_lookup(name, get_ast_scope(scope)->get(string("~enclosing_scope"))[0])
+        if (is_translation_unit(scope)) {
+            scope->translation_unit.children.for_each(fun(child: *ast_node) {
+                if (is_import(child) && child->import.imported.contains(name)) {
+                    println(name + " is indeed imported")
+                    results += scope_lookup(name, child->import.translation_unit)
+                } else println(name + " is not imported (this time)")
+            })
+        }
+        return results
     }
 }
 

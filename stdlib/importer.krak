@@ -126,11 +126,13 @@ obj importer (Object) {
             var node = to_process.pop()
             for (var i = 0; i < node->children.size; i++;) {
                 if (!node->children[i] || node->children[i]->data.equal_wo_data(remove)) {
+                    /*
                     if (!node->children[i])
                         println("not because null")
                     else {
                         print("not because "); println(remove.name)
                     }
+                    */
                     node->children.remove(i)
                     i--;
                 } else {

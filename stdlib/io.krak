@@ -15,6 +15,15 @@ fun println<T>(toPrint: T) : void {
     print("\n")
 }
 
+fun print<T>(toPrint: *T) : void{
+	__if_comp__ __C__ {
+		simple_passthrough(toPrint = toPrint::) """
+			printf("%p", (void*)toPrint);
+		"""
+	}
+	return;
+}
+
 fun print(toPrint: *char) : void {
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
@@ -175,7 +184,7 @@ fun BoldCyan(): void{
 }
 
 fun Reset(): void{
-  print("\033[0m"); 
+  print("\033[0m");
 }
 
 

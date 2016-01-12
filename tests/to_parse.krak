@@ -1,4 +1,4 @@
-import to_import: a,b
+import to_import: simple_print, a, b
 
 obj Something (ObjectTrait) {
     var member: int

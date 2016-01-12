@@ -41,8 +41,6 @@ obj set<T> (Object, Serializable) {
         return serialize::serialize(data)
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
-        /*construct()*/
-        /*util::unpack(data, pos) = serialize::unserialize<vector::vector<T>>(it, pos)*/
         return data.unserialize(it, pos)
     }
     fun operator==(rhs: set<T>): bool {
