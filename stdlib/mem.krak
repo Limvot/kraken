@@ -180,6 +180,13 @@ obj shared_ptr<T> (Object){
     }//end self-assignment check
     return *this; 
   }
+  
+  fun operator=(newPtr: ref *T): ref shared_ptr<T> {
+      data = newPtr;
+      refCount = 1;
+      delete(newPtr,1);
+    return *this; 
+  }
 
 }; //end shared_ptr class
 
