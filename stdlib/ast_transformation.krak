@@ -280,15 +280,30 @@ obj ast_transformation (Object) {
         f->function_call.parameters.for_each(fun(param: *ast_node) print(param);)
         return f
     }
-    fun identifier_lookup(name: string, scope: *ast_node): *ast_node {
-        var results = scope_lookup(name, scope)
-        if (!results.size) {
-            println(string("identifier lookup failed for ") + name)
-            return null<ast_node>()
-        }
-        return results[0]
-    }
     fun function_lookup(name: string, scope: *ast_node, param_types: vector<*type>): *ast_node {
+        var param_string = string()
+        param_types.for_each(fun(t: *type) param_string += t->to_string() + ", ";)
+        var results = scope_lookup(name, scope)
+        for (var i = 0; i < results.size; i++;)
+            if (is_function(results[i])) {
+                var func_param_types = get_ast_type(results[i])->parameter_types
+                if (func_param_types.size != param_types.size)
+                    continue
+                var param_types_match = true
+                for (var j = 0; j < param_types.size; j++;) {
+                    if (*func_param_types[j] != *param_types[j]) {
+                        param_types_match = false
+                        break
+                    }
+                }
+                if (param_types_match)
+                    return results[i]
+            } else
+                println(string("either isn't function or types don't match ") + get_ast_type(results[i])->to_string() + " with needed " + param_string)
+        println(string("function lookup failed for ") + name)
+        return null<ast_node>()
+    }
+    fun identifier_lookup(name: string, scope: *ast_node): *ast_node {
         var results = scope_lookup(name, scope)
         if (!results.size) {
             println(string("identifier lookup failed for ") + name)
