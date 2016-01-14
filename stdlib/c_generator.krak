@@ -53,16 +53,17 @@ obj c_generator (Object) {
                         // check for and add to parameters if a closure
                         var parameter_types = string()
                         var parameters = string()
+                        var decorated_name = generate_function(child)
                         // also add in name decoration
                         backing.parameters.for_each(fun(parameter: *ast_node) {
                             if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
                             parameter_types += type_to_c(parameter->identifier.type)
                             parameters += type_to_c(parameter->identifier.type) + " " + parameter->identifier.name
                         })
-                        function_prototypes += type_to_c(backing.type->return_type) + " " + backing.name + "(" + parameter_types + ");\n"
+                        function_prototypes += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n"
 
                         // add parameters to destructor thingy (for returns)? Or should that be a different pass?
-                        function_definitions += type_to_c(backing.type->return_type) + " " + backing.name + "(" + parameters + ") {\n" + generate_statement(backing.body_statement)
+                        function_definitions += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ") {\n" + generate_statement(backing.body_statement)
                         // emit parameter destructors?
                         function_definitions += "}\n"
                     }
@@ -91,7 +92,10 @@ obj c_generator (Object) {
     }
     // this generates the function as a value, not the actuall function
     fun generate_function(node: *ast_node): string {
-        return node->function.name
+        var str = node->function.name
+        node->function.parameters.for_each(fun(param: *ast_node) str += string("_") + type_decoration(param->identifier.type);)
+        return str
+
     }
     fun generate_function_call(node: *ast_node): string {
         var call_string = string()
@@ -117,6 +121,28 @@ obj c_generator (Object) {
             ast_node::value(backing) return generate_value(node)
         }
         return string("/* COULD NOT GENERATE */")
+    }
+    fun type_decoration(type: *type): string {
+        var indirection = string()
+        for (var i = 0; i < type->indirection; i++;) indirection += "p"
+        if (type->indirection) indirection += "_"
+        match (type->base) {
+            base_type::none() return indirection + string("none")
+            base_type::template() return indirection + string("template")
+            base_type::template_type() return indirection + string("template_type")
+            base_type::void_return() return indirection + string("void")
+            base_type::boolean() return indirection + string("bool")
+            base_type::character() return indirection + string("char")
+            base_type::integer() return indirection + string("int")
+            base_type::floating() return indirection + string("float")
+            base_type::double_precision() return indirection + string("double")
+            base_type::function() {
+                var temp = indirection + string("function_")
+                type->parameter_types.for_each(fun(parameter_type: *type) temp += type_decoration(parameter_type) + "_";)
+                return indirection + temp + "_" + type_decoration(type->return_type)
+            }
+        }
+        return string("impossible type") + indirection
     }
     fun type_to_c(type: *type): string {
         var indirection = string()

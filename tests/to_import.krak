@@ -4,6 +4,11 @@ fun simple_print(to_print: *char) {
         printf("%s", to_print);
     """
 }
+fun simple_print(to_print: int) {
+    __if_comp__ __C__ simple_passthrough(to_print::) """
+        printf("%d", to_print);
+    """
+}
 var a = 1
 var b = 2
 

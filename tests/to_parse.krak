@@ -12,7 +12,8 @@ fun some_other_function(in: bool): float {
     return 0.0
 }
 fun main(): int {
-    simple_print("Hello World!")
+    simple_print("Hello World!\n")
+    simple_print(1337)
     return 0
 }
 

@@ -269,10 +269,11 @@ obj ast_transformation (Object) {
         return ast_return_statement_ptr(transform(node->children[0], scope))
     }
     fun transform_function_call(node: *tree<symbol>, scope: *ast_node): *ast_node {
-        // don't bother a full transform for parameter, just get the boolean expression from it
+        // don't bother with a full transform for parameters with their own function, just get the boolean expression and transform it
         var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope);)
+        var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
         /*return ast_function_call_ptr(function_lookup(concat_symbol_tree(get_node("unarad", node)), scope), parameters)*/
-        var f = ast_function_call_ptr(function_lookup(concat_symbol_tree(get_node("unarad", node)), scope), parameters)
+        var f = ast_function_call_ptr(function_lookup(concat_symbol_tree(get_node("unarad", node)), scope, parameter_types), parameters)
         print("function call function ")
         println(f->function_call.func)
         print("function call parameters ")
@@ -287,7 +288,7 @@ obj ast_transformation (Object) {
         }
         return results[0]
     }
-    fun function_lookup(name: string, scope: *ast_node): *ast_node {
+    fun function_lookup(name: string, scope: *ast_node, param_types: vector<*type>): *ast_node {
         var results = scope_lookup(name, scope)
         if (!results.size) {
             println(string("identifier lookup failed for ") + name)
