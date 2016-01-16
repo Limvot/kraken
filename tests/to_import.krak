@@ -9,8 +9,10 @@ fun simple_print(to_print: int) {
         printf("%d", to_print);
     """
 }
-var a = 1
-var b = 2
+/*var a = 1*/
+/*var b = 2*/
+var a:int
+var b:int
 
 
 

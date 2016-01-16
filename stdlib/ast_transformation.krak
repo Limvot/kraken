@@ -93,6 +93,7 @@ obj ast_transformation (Object) {
                 ast_to_syntax.set(function_node, child)
             } else if (child->data.name == "declaration_statement") {
                 // second pass declaration can actually just call a normal transform (but maybe should be it's own method to do so because typedef has to do it too?)...
+                translation_unit->translation_unit.children.add(transform_declaration_statement(child, translation_unit))
             }
         })
     }
@@ -183,6 +184,8 @@ obj ast_transformation (Object) {
             return transform_simple_passthrough(node, scope)
         } else if (name == "statement") {
             return transform_statement(node, scope)
+        } else if (name == "declaration_statement") {
+            return transform_declaration_statement(node, scope)
         } else if (name == "return_statement") {
             return transform_return_statement(node, scope)
         } else if (name == "function_call") {
@@ -264,6 +267,10 @@ obj ast_transformation (Object) {
         var new_statement = ast_statement_ptr()
         new_statement->statement.child = transform(node->children[0], scope)
         return new_statement
+    }
+    fun transform_declaration_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var declaration = ast_declaration_statement_ptr(ast_identifier_ptr(concat_symbol_tree(get_node("identifier", node)), transform_type(get_node("type", node), scope, map<string, *type>())))
+        return declaration
     }
     fun transform_return_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
         return ast_return_statement_ptr(transform(node->children[0], scope))

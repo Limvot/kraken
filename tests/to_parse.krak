@@ -12,6 +12,8 @@ fun some_other_function(in: bool): float {
     return 0.0
 }
 fun main(): int {
+    var a_declaration:int
+    /*var another_declaration = 9*/
     simple_print("Hello World!\n")
     simple_print(1337)
     return 0
