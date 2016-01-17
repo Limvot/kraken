@@ -88,6 +88,12 @@ obj c_generator (Object) {
         var identifier = node->declaration_statement.identifier
         return type_to_c(identifier->identifier.type) + " " + identifier->identifier.name
     }
+    fun generate_assignment_statement(node: *ast_node): string {
+        return generate(node->assignment_statement.to) + " = " + generate(node->assignment_statement.from)
+    }
+    fun generate_identifier(node: *ast_node): string {
+        return node->identifier.name
+    }
     fun generate_return_statement(node: *ast_node): string return string("return ") + generate(node->return_statement.return_value);
     fun generate_value(node: *ast_node): string return node->value.string_value;
     fun generate_code_block(node: *ast_node): string {
@@ -120,11 +126,13 @@ obj c_generator (Object) {
             ast_node::simple_passthrough(backing) return generate_simple_passthrough(node)
             ast_node::statement(backing) return generate_statement(node)
             ast_node::declaration_statement(backing) return generate_declaration_statement(node)
+            ast_node::assignment_statement(backing) return generate_assignment_statement(node)
             ast_node::function(backing) return generate_function(node)
             ast_node::function_call(backing) return generate_function_call(node)
             ast_node::code_block(backing) return generate_code_block(node)
             ast_node::return_statement(backing) return generate_return_statement(node)
             ast_node::value(backing) return generate_value(node)
+            ast_node::identifier(backing) return generate_identifier(node)
         }
         return string("/* COULD NOT GENERATE */")
     }

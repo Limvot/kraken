@@ -13,6 +13,8 @@ fun some_other_function(in: bool): float {
 }
 fun main(): int {
     var a_declaration:int
+    a_declaration = 78
+    simple_print(a_declaration)
     /*var another_declaration = 9*/
     simple_print("Hello World!\n")
     simple_print(1337)

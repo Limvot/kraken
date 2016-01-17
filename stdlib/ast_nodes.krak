@@ -1,5 +1,6 @@
 import tree:*
 import vector:*
+import vector_literals:*
 import set:*
 import stack:*
 import map:*
@@ -653,8 +654,8 @@ obj defer_statement (Object) {
         return true
     }
 }
-fun ast_assignment_statement_ptr(): *ast_node {
-    var to_ret.construct(): assignment_statement
+fun ast_assignment_statement_ptr(to: *ast_node, from: *ast_node): *ast_node {
+    var to_ret.construct(to, from): assignment_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::assignment_statement(to_ret))
     return ptr
@@ -666,23 +667,25 @@ fun is_assignment_statement(node: *ast_node): bool {
     return false
 }
 obj assignment_statement (Object) {
-    var scope: map<string, vector<*ast_node>>
-    fun construct(): *assignment_statement  {
-        scope.construct()
+    var to: *ast_node
+    var from: *ast_node
+    fun construct(to_in: *ast_node, from_in: *ast_node): *assignment_statement  {
+        to = to_in
+        from = from_in
         return this
     }
     fun copy_construct(old: *assignment_statement) {
-        scope.copy_construct(&old->scope)
+        to = old->to
+        from = old->from
     }
     fun destruct() {
-        scope.destruct()
     }
     fun operator=(other: ref assignment_statement) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref assignment_statement): bool {
-        return true
+        return to == other.to && from == other.from
     }
 }
 fun ast_declaration_statement_ptr(ident: *ast_node): *ast_node {
@@ -880,7 +883,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::break_statement(backing) return vector<*ast_node>()
         ast_node::continue_statement(backing) return vector<*ast_node>()
         ast_node::defer_statement(backing) return vector<*ast_node>()
-        ast_node::assignment_statement(backing) return vector<*ast_node>()
+        ast_node::assignment_statement(backing) return vector(backing.to, backing.from)
         ast_node::declaration_statement(backing) return vector(backing.identifier)
         ast_node::if_comp(backing) return vector<*ast_node>(backing.statement)
         ast_node::simple_passthrough(backing) return vector<*ast_node>()
@@ -934,7 +937,7 @@ fun get_ast_scope(node: *ast_node): *map<string,vector<*ast_node>> {
         ast_node::break_statement() return &node->break_statement.scope
         ast_node::continue_statement() return &node->continue_statement.scope
         ast_node::defer_statement() return &node->defer_statement.scope
-        ast_node::assignment_statement() return &node->assignment_statement.scope
+        ast_node::assignment_statement() return null<map<string,vector<*ast_node>>>()
         ast_node::declaration_statement() return null<map<string,vector<*ast_node>>>()
         ast_node::if_comp() return null<map<string,vector<*ast_node>>>()
         ast_node::simple_passthrough() return &node->simple_passthrough.scope

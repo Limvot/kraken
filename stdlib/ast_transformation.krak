@@ -186,6 +186,8 @@ obj ast_transformation (Object) {
             return transform_statement(node, scope)
         } else if (name == "declaration_statement") {
             return transform_declaration_statement(node, scope)
+        } else if (name == "assignment_statement") {
+            return transform_assignment_statement(node, scope)
         } else if (name == "return_statement") {
             return transform_return_statement(node, scope)
         } else if (name == "function_call") {
@@ -269,8 +271,15 @@ obj ast_transformation (Object) {
         return new_statement
     }
     fun transform_declaration_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
-        var declaration = ast_declaration_statement_ptr(ast_identifier_ptr(concat_symbol_tree(get_node("identifier", node)), transform_type(get_node("type", node), scope, map<string, *type>())))
+        var name = concat_symbol_tree(get_node("identifier", node))
+        var identifier = ast_identifier_ptr(name, transform_type(get_node("type", node), scope, map<string, *type>()))
+        var declaration = ast_declaration_statement_ptr(identifier)
+        add_to_scope(name, identifier, scope)
         return declaration
+    }
+    fun transform_assignment_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var assignment = ast_assignment_statement_ptr(transform(get_node("factor", node), scope), transform(get_node("boolean_expression", node), scope))
+        return assignment
     }
     fun transform_return_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
         return ast_return_statement_ptr(transform(node->children[0], scope))
