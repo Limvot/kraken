@@ -272,8 +272,20 @@ obj ast_transformation (Object) {
     }
     fun transform_declaration_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var name = concat_symbol_tree(get_node("identifier", node))
-        var identifier = ast_identifier_ptr(name, transform_type(get_node("type", node), scope, map<string, *type>()))
-        var declaration = ast_declaration_statement_ptr(identifier)
+        // may have type, or an expression, or both
+        var type_syntax_node = get_node("type", node)
+        var expression_syntax_node = get_node("boolean_expression", node)
+        var ident_type = null<type>()
+        var expression = null<ast_node>()
+        if (type_syntax_node) ident_type = transform_type(type_syntax_node, scope, map<string, *type>())
+        if (expression_syntax_node) {
+            expression = transform(expression_syntax_node, scope)
+            if (!type_syntax_node)
+                ident_type = get_ast_type(expression)
+        }
+        if (!ident_type) error("declaration statement with no type or expression from which to inference type")
+        var identifier = ast_identifier_ptr(name, ident_type)
+        var declaration = ast_declaration_statement_ptr(identifier, expression)
         add_to_scope(name, identifier, scope)
         return declaration
     }
@@ -385,5 +397,11 @@ fun add_to_scope(name: string, to_add: *ast_node, add_to: *ast_node) {
         (*add_to_map)[name].add(to_add)
     else
         add_to_map->set(name, vector(to_add))
+}
+fun error(message: *char) error(string(message));
+fun error(message: string) {
+    println("****ERROR****")
+    println(message)
+    while (true){}
 }
 

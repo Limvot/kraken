@@ -688,8 +688,8 @@ obj assignment_statement (Object) {
         return to == other.to && from == other.from
     }
 }
-fun ast_declaration_statement_ptr(ident: *ast_node): *ast_node {
-    var to_ret.construct(ident): declaration_statement
+fun ast_declaration_statement_ptr(ident: *ast_node, expression: *ast_node): *ast_node {
+    var to_ret.construct(ident, expression): declaration_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::declaration_statement(to_ret))
     return ptr
@@ -702,12 +702,15 @@ fun is_declaration_statement(node: *ast_node): bool {
 }
 obj declaration_statement (Object) {
     var identifier: *ast_node
-    fun construct(identifier_in: *ast_node): *declaration_statement  {
+    var expression: *ast_node
+    fun construct(identifier_in: *ast_node, expression_in: *ast_node): *declaration_statement  {
         identifier = identifier_in
+        expression = expression_in
         return this
     }
     fun copy_construct(old: *declaration_statement) {
         identifier = old->identifier
+        expression = old->expression
     }
     fun destruct() {
     }
@@ -716,7 +719,7 @@ obj declaration_statement (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref declaration_statement): bool {
-        return identifier == other.identifier
+        return identifier == other.identifier && expression == other.expression
     }
 }
 fun ast_if_comp_ptr(): *ast_node {
@@ -884,7 +887,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::continue_statement(backing) return vector<*ast_node>()
         ast_node::defer_statement(backing) return vector<*ast_node>()
         ast_node::assignment_statement(backing) return vector(backing.to, backing.from)
-        ast_node::declaration_statement(backing) return vector(backing.identifier)
+        ast_node::declaration_statement(backing) return vector(backing.identifier, backing.expression)
         ast_node::if_comp(backing) return vector<*ast_node>(backing.statement)
         ast_node::simple_passthrough(backing) return vector<*ast_node>()
         ast_node::function_call(backing) return vector(backing.func) + backing.parameters

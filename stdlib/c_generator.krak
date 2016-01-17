@@ -86,7 +86,9 @@ obj c_generator (Object) {
     fun generate_statement(node: *ast_node): string return generate(node->statement.child) + ";\n";
     fun generate_declaration_statement(node: *ast_node): string {
         var identifier = node->declaration_statement.identifier
-        return type_to_c(identifier->identifier.type) + " " + identifier->identifier.name
+        var to_ret = type_to_c(identifier->identifier.type) + " " + identifier->identifier.name
+        if (node->declaration_statement.expression) to_ret += string(" = ") + generate(node->declaration_statement.expression)
+        return to_ret
     }
     fun generate_assignment_statement(node: *ast_node): string {
         return generate(node->assignment_statement.to) + " = " + generate(node->assignment_statement.from)

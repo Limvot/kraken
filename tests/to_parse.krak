@@ -15,7 +15,10 @@ fun main(): int {
     var a_declaration:int
     a_declaration = 78
     simple_print(a_declaration)
-    /*var another_declaration = 9*/
+    var another_declaration: int = 8.0
+    simple_print(another_declaration)
+    var yet_another_declaration = "Hello Marcus\n"
+    simple_print(yet_another_declaration)
     simple_print("Hello World!\n")
     simple_print(1337)
     return 0
