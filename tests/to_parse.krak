@@ -16,6 +16,8 @@ fun main(): int {
     simple_print(1 + 2)
     var again = 2 + 4 - 1 * 400
     simple_print(again)
+    again = 2 + (4 - 1) * 400
+    simple_print(again)
     var another_declaration: int = 8.0
     simple_print(another_declaration)
     var yet_another_declaration = "Hello Marcus\n"
