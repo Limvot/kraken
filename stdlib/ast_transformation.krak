@@ -241,12 +241,6 @@ obj ast_transformation (Object) {
         }
         return ast_value_ptr(value_str, value_type)
     }
-    fun transform_expression(node: *tree<symbol>, scope: *ast_node): *ast_node {
-        // figure out what the expression is, handle overloads, or you know
-        // ignore everything and do a passthrough
-        /*println(string("passing through: ") + node->data.name)*/
-        return transform(node->children[0], scope)
-    }
     fun transform_code_block(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var new_block = ast_code_block_ptr()
         add_to_scope("~enclosing_scope", scope, new_block)
@@ -308,15 +302,33 @@ obj ast_transformation (Object) {
         f->function_call.parameters.for_each(fun(param: *ast_node) print(param);)
         return f
     }
+    fun transform_expression(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        // figure out what the expression is, handle overloads, or you know
+        // ignore everything and do a passthrough
+        if (node->children.size == 1)
+            return transform(node->children[0], scope)
+        else if (node->children.size == 2) {
+            return transform(node->children[0], scope)
+        }
+        var parameters = vector(transform(node->children[0], scope), transform(node->children[2], scope))
+        var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
+        return ast_function_call_ptr(get_builtin_function(concat_symbol_tree(node->children[1]), parameter_types), parameters)
+    }
+    fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
+        return ast_function_ptr(name, type_ptr(param_types, param_types[0]), vector<*ast_node>())
+    }
     fun function_lookup(name: string, scope: *ast_node, param_types: vector<*type>): *ast_node {
         var param_string = string()
         param_types.for_each(fun(t: *type) param_string += t->to_string() + ", ";)
         var results = scope_lookup(name, scope)
-        for (var i = 0; i < results.size; i++;)
+        print(results.size); println(" number of results")
+        for (var i = 0; i < results.size; i++;) {
             if (is_function(results[i])) {
                 var func_param_types = get_ast_type(results[i])->parameter_types
-                if (func_param_types.size != param_types.size)
+                if (func_param_types.size != param_types.size) {
+                    println(string("type sizes don't match") + get_ast_type(results[i])->to_string() + " with needed " + param_string)
                     continue
+                }
                 var param_types_match = true
                 for (var j = 0; j < param_types.size; j++;) {
                     if (*func_param_types[j] != *param_types[j]) {
@@ -326,8 +338,9 @@ obj ast_transformation (Object) {
                 }
                 if (param_types_match)
                     return results[i]
-            } else
-                println(string("either isn't function or types don't match ") + get_ast_type(results[i])->to_string() + " with needed " + param_string)
+            }
+            println(string("either isn't function or types don't match ") + get_ast_type(results[i])->to_string() + " with needed " + param_string)
+        }
         println(string("function lookup failed for ") + name)
         return null<ast_node>()
     }

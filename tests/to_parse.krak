@@ -13,8 +13,9 @@ fun some_other_function(in: bool): float {
 }
 fun main(): int {
     var a_declaration:int
-    a_declaration = 78
-    simple_print(a_declaration)
+    simple_print(1 + 2)
+    var again = 2 + 4 - 1 * 400
+    simple_print(again)
     var another_declaration: int = 8.0
     simple_print(another_declaration)
     var yet_another_declaration = "Hello Marcus\n"

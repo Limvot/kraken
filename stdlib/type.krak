@@ -76,20 +76,22 @@ obj type (Object) {
         return base == other.base && parameter_types == other.parameter_types && indirection == other.indirection
     }
     fun to_string(): string {
+        var indirection_str = string()
+        for (var i = 0; i < indirection; i++;) indirection_str += "*"
         match (base) {
-            base_type::none() return string("none, indirection: ") + indirection
-            base_type::template() return string("template, indirection:") + indirection
-            base_type::template_type() return string("template_type, indirection:") + indirection
-            base_type::void_return() return string("void_return, indirection:") + indirection
-            base_type::boolean() return string("boolean, indirection:") + indirection
-            base_type::character() return string("character, indirection:") + indirection
-            base_type::integer() return string("integer, indirection:") + indirection
-            base_type::floating() return string("floating, indirection:") + indirection
-            base_type::double_precision() return string("double_precision, indirection:") + indirection
+            base_type::none() return indirection_str + string("none")
+            base_type::template() return indirection_str + string("template")
+            base_type::template_type() return indirection_str + string("template_type")
+            base_type::void_return() return indirection_str + string("void_return")
+            base_type::boolean() return indirection_str + string("boolean")
+            base_type::character() return indirection_str + string("character")
+            base_type::integer() return indirection_str + string("integer")
+            base_type::floating() return indirection_str + string("floating")
+            base_type::double_precision() return indirection_str + string("double_precision")
             base_type::function() {
-                var temp = string("function: (")
-                parameter_types.for_each(fun(parameter_type: *type) temp += parameter_type->to_string() + " ";)
-                return temp + ")" + return_type->to_string() + "indirection: " + indirection
+                var temp = indirection_str + string("fun(")
+                parameter_types.for_each(fun(parameter_type: *type) temp += parameter_type->to_string() + ", ";)
+                return temp + ")" + return_type->to_string()
             }
         }
         return string("impossible type, indirection:") + indirection

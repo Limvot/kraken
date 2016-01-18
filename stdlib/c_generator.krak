@@ -111,13 +111,17 @@ obj c_generator (Object) {
 
     }
     fun generate_function_call(node: *ast_node): string {
+        var func_name = generate(node->function_call.func)
+        var parameters = node->function_call.parameters 
+        if (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||" || func_name == "&&")
+            return generate(parameters[0]) + func_name + generate(parameters[1])
         var call_string = string()
-        node->function_call.parameters.for_each(fun(param: *ast_node) {
+        parameters.for_each(fun(param: *ast_node) {
             if (call_string != "")
                 call_string += ", "
             call_string += generate(param)
         })
-        return generate(node->function_call.func) + "(" + call_string + ")"
+        return func_name + "(" + call_string + ")"
     }
 
     // for now, anyway

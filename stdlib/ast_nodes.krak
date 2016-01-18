@@ -952,7 +952,7 @@ fun get_ast_type(node: *ast_node): *type {
     match (*node) {
         ast_node::identifier() return node->identifier.type
         ast_node::function() return node->function.type
-        ast_node::function_call() return get_ast_type(node->function_call.func)
+        ast_node::function_call() return get_ast_type(node->function_call.func)->return_type
         ast_node::value() return node->value.value_type
     }
 }
