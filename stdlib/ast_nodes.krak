@@ -363,8 +363,8 @@ obj statement (Object) {
         return child == other.child
     }
 }
-fun ast_if_statement_ptr(): *ast_node {
-    var to_ret.construct(): if_statement
+fun ast_if_statement_ptr(condition: *ast_node): *ast_node {
+    var to_ret.construct(condition): if_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::if_statement(to_ret))
     return ptr
@@ -376,12 +376,22 @@ fun is_if_statement(node: *ast_node): bool {
     return false
 }
 obj if_statement (Object) {
+    var condition: *ast_node
+    // these are not a part of the constructor because they have to be trnasformed with this as its scope
+    var then_part: *ast_node
+    var else_part: *ast_node
     var scope: map<string, vector<*ast_node>>
-    fun construct(): *if_statement  {
+    fun construct(condition_in: *ast_node): *if_statement  {
+        condition = condition_in
+        then_part = null<ast_node>()
+        else_part = null<ast_node>()
         scope.construct()
         return this
     }
     fun copy_construct(old: *if_statement) {
+        condition = old->condition
+        then_part = old->then_part
+        else_part = old->else_part
         scope.copy_construct(&old->scope)
     }
     fun destruct() {
@@ -392,7 +402,7 @@ obj if_statement (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref if_statement): bool {
-        return true
+        return condition == other.condition && then_part == other.then_part && else_part == other.else_part
     }
 }
 fun ast_match_statement_ptr(): *ast_node {
@@ -877,7 +887,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::function(backing) return backing.parameters + backing.body_statement
         ast_node::code_block(backing) return backing.children
         ast_node::statement(backing) return vector<*ast_node>(backing.child)
-        ast_node::if_statement(backing) return vector<*ast_node>()
+        ast_node::if_statement(backing) return vector(backing.condition, backing.then_part, backing.else_part)
         ast_node::match_statement(backing) return vector<*ast_node>()
         ast_node::case_statement(backing) return vector<*ast_node>()
         ast_node::while_loop(backing) return vector<*ast_node>()

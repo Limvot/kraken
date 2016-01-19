@@ -188,6 +188,8 @@ obj ast_transformation (Object) {
             return transform_declaration_statement(node, scope)
         } else if (name == "assignment_statement") {
             return transform_assignment_statement(node, scope)
+        } else if (name == "if_statement") {
+            return transform_if_statement(node, scope)
         } else if (name == "return_statement") {
             return transform_return_statement(node, scope)
         } else if (name == "function_call") {
@@ -286,6 +288,17 @@ obj ast_transformation (Object) {
     fun transform_assignment_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var assignment = ast_assignment_statement_ptr(transform(get_node("factor", node), scope), transform(get_node("boolean_expression", node), scope))
         return assignment
+    }
+    fun transform_if_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var if_statement = ast_if_statement_ptr(transform_expression(get_node("boolean_expression", node), scope))
+        // one variable declarations might be in a code_block-less if statement
+        add_to_scope("~enclosing_scope", scope, if_statement)
+        var statements = transform_all(get_nodes("statement", node), if_statement)
+        if_statement->if_statement.then_part = statements[0]
+        // we have an else
+        if (statements.size == 2)
+            if_statement->if_statement.else_part = statements[1]
+        return if_statement
     }
     fun transform_return_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
         return ast_return_statement_ptr(transform(node->children[0], scope))

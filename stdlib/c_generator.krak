@@ -93,6 +93,12 @@ obj c_generator (Object) {
     fun generate_assignment_statement(node: *ast_node): string {
         return generate(node->assignment_statement.to) + " = " + generate(node->assignment_statement.from)
     }
+    fun generate_if_statement(node: *ast_node): string {
+        var if_str = string("if (") + generate(node->if_statement.condition) + ") {\n" + generate(node->if_statement.then_part) + "}"
+        if (node->if_statement.else_part)
+            if_str += string(" else {\n") + generate(node->if_statement.else_part) + "}"
+        return if_str + "\n"
+    }
     fun generate_identifier(node: *ast_node): string {
         return node->identifier.name
     }
@@ -133,6 +139,7 @@ obj c_generator (Object) {
             ast_node::statement(backing) return generate_statement(node)
             ast_node::declaration_statement(backing) return generate_declaration_statement(node)
             ast_node::assignment_statement(backing) return generate_assignment_statement(node)
+            ast_node::if_statement(backing) return generate_if_statement(node)
             ast_node::function(backing) return generate_function(node)
             ast_node::function_call(backing) return generate_function_call(node)
             ast_node::code_block(backing) return generate_code_block(node)
