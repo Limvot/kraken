@@ -102,6 +102,11 @@ obj c_generator (Object) {
     fun generate_while_loop(node: *ast_node): string {
         return string("while (") + generate(node->while_loop.condition) + ") {\n" + generate(node->while_loop.statement) + "}\n"
     }
+    fun generate_for_loop(node: *ast_node): string {
+        // gotta take off last semicolon
+        return string("for (") + generate(node->for_loop.init) + " " + generate(node->for_loop.condition) + "; " +
+            generate(node->for_loop.update).slice(0,-3) + ") {\n" + generate(node->for_loop.body) + "}\n"
+    }
     fun generate_identifier(node: *ast_node): string {
         return node->identifier.name
     }
@@ -121,8 +126,11 @@ obj c_generator (Object) {
     }
     fun generate_function_call(node: *ast_node): string {
         var func_name = generate(node->function_call.func)
-        var parameters = node->function_call.parameters 
-        if (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||" || func_name == "&&")
+        var parameters = node->function_call.parameters
+        if (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||"
+            || func_name == "&&" || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
+            || func_name == "=="
+        )
             return string("(") + generate(parameters[0]) + func_name + generate(parameters[1]) + string(")")
         // the post ones need to be post-ed specifically, and take the p off
         if (func_name == "++p" || func_name == "--p")
@@ -147,6 +155,7 @@ obj c_generator (Object) {
             ast_node::assignment_statement(backing) return generate_assignment_statement(node)
             ast_node::if_statement(backing) return generate_if_statement(node)
             ast_node::while_loop(backing) return generate_while_loop(node)
+            ast_node::for_loop(backing) return generate_for_loop(node)
             ast_node::function(backing) return generate_function(node)
             ast_node::function_call(backing) return generate_function_call(node)
             ast_node::code_block(backing) return generate_code_block(node)

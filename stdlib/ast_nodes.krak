@@ -520,12 +520,24 @@ fun is_for_loop(node: *ast_node): bool {
     return false
 }
 obj for_loop (Object) {
+    var init: *ast_node
+    var condition: *ast_node
+    var update: *ast_node
+    var body: *ast_node
     var scope: map<string, vector<*ast_node>>
     fun construct(): *for_loop  {
         scope.construct()
+        init = null<ast_node>()
+        condition = null<ast_node>()
+        update = null<ast_node>()
+        body = null<ast_node>()
         return this
     }
     fun copy_construct(old: *for_loop) {
+        init = old->init
+        condition = old->condition
+        update = old->update
+        body = old->body
         scope.copy_construct(&old->scope)
     }
     fun destruct() {
@@ -536,7 +548,7 @@ obj for_loop (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref for_loop): bool {
-        return true
+        return init == other.init && condition == other.condition && update == other.update && body == other.body
     }
 }
 fun ast_return_statement_ptr(return_value: *ast_node): *ast_node {
@@ -897,7 +909,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::match_statement(backing) return vector<*ast_node>()
         ast_node::case_statement(backing) return vector<*ast_node>()
         ast_node::while_loop(backing) return vector(backing.condition, backing.statement)
-        ast_node::for_loop(backing) return vector<*ast_node>()
+        ast_node::for_loop(backing) return vector(backing.init, backing.condition, backing.update, backing.body)
         ast_node::return_statement(backing) return vector(backing.return_value)
         ast_node::break_statement(backing) return vector<*ast_node>()
         ast_node::continue_statement(backing) return vector<*ast_node>()

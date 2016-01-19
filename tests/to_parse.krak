@@ -35,6 +35,9 @@ fun main(): int {
     while (counter) {
         simple_print(--counter)
     }
+    simple_print("\n")
+    for (var j = 0; j < 10; j++;)
+        simple_print(j)
     return 0
 }
 

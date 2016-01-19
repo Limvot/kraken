@@ -192,6 +192,8 @@ obj ast_transformation (Object) {
             return transform_if_statement(node, scope)
         } else if (name == "while_loop") {
             return transform_while_loop(node, scope)
+        } else if (name == "for_loop") {
+            return transform_for_loop(node, scope)
         } else if (name == "return_statement") {
             return transform_return_statement(node, scope)
         } else if (name == "function_call") {
@@ -307,6 +309,16 @@ obj ast_transformation (Object) {
         add_to_scope("~enclosing_scope", scope, while_loop)
         while_loop->while_loop.statement = transform(get_node("statement", node), while_loop)
         return while_loop
+    }
+    fun transform_for_loop(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var for_loop = ast_for_loop_ptr()
+        add_to_scope("~enclosing_scope", scope, for_loop)
+        var statements = get_nodes("statement", node)
+        for_loop->for_loop.init = transform(statements[0], for_loop)
+        for_loop->for_loop.condition = transform(get_node("boolean_expression", node), for_loop)
+        for_loop->for_loop.update = transform(statements[1], for_loop)
+        for_loop->for_loop.body = transform(statements[2], for_loop)
+        return for_loop
     }
     fun transform_return_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
         return ast_return_statement_ptr(transform(node->children[0], scope))
