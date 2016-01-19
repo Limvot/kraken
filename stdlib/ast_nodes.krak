@@ -469,8 +469,8 @@ obj case_statement (Object) {
         return true
     }
 }
-fun ast_while_loop_ptr(): *ast_node {
-    var to_ret.construct(): while_loop
+fun ast_while_loop_ptr(condition: *ast_node): *ast_node {
+    var to_ret.construct(condition): while_loop
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::while_loop(to_ret))
     return ptr
@@ -482,12 +482,18 @@ fun is_while_loop(node: *ast_node): bool {
     return false
 }
 obj while_loop (Object) {
+    var condition: *ast_node
+    var statement: *ast_node
     var scope: map<string, vector<*ast_node>>
-    fun construct(): *while_loop  {
+    fun construct(condition_in: *ast_node): *while_loop  {
+        condition = condition_in
+        statement = null<ast_node>()
         scope.construct()
         return this
     }
     fun copy_construct(old: *while_loop) {
+        condition = old->condition
+        statement = old->statement
         scope.copy_construct(&old->scope)
     }
     fun destruct() {
@@ -498,7 +504,7 @@ obj while_loop (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref while_loop): bool {
-        return true
+        return condition == other.condition && statement == other.statement
     }
 }
 fun ast_for_loop_ptr(): *ast_node {
@@ -890,7 +896,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::if_statement(backing) return vector(backing.condition, backing.then_part, backing.else_part)
         ast_node::match_statement(backing) return vector<*ast_node>()
         ast_node::case_statement(backing) return vector<*ast_node>()
-        ast_node::while_loop(backing) return vector<*ast_node>()
+        ast_node::while_loop(backing) return vector(backing.condition, backing.statement)
         ast_node::for_loop(backing) return vector<*ast_node>()
         ast_node::return_statement(backing) return vector(backing.return_value)
         ast_node::break_statement(backing) return vector<*ast_node>()

@@ -124,7 +124,7 @@ comparator = "==" | "<=" | ">=" | "!=" | "<" | ">" ;
 expression = expression WS "<<" WS term | expression WS right_shift WS shiftand | shiftand ;
 shiftand = shiftand WS "-" WS term | shiftand WS "\+" WS term | term ;
 term = term WS "/" WS factor | term WS "\*" WS factor | term WS "%" WS factor | factor ;
-factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\(" WS type WS "\)" WS unarad | "\*" WS unarad | "&" WS unarad | unarad ;
+factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\*" WS unarad | "&" WS unarad | unarad ;
 unarad = number | scoped_identifier | scoped_identifier WS template_inst | access_operation | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | unarad WS "[" WS expression WS "]" | lambda ; 
 number = integer | floating_literal ;
 access_operation = unarad WS "." WS identifier | unarad WS "->" WS identifier | unarad WS "." WS identifier WS template_inst | unarad WS "->" WS identifier WS template_inst ;

@@ -1,31 +1,40 @@
 import to_import: simple_print, a, b
 
-obj Something (ObjectTrait) {
-    var member: int
-    fun method():int {
-        return 5
-    }
-}
+/*obj Something (ObjectTrait) {*/
+    /*var member: int*/
+    /*fun method():int {*/
+        /*return 5*/
+    /*}*/
+/*}*/
 
-fun some_function(): int return 0;
-fun some_other_function(in: bool): float {
-    return 0.0
-}
+/*fun some_function(): int return 0;*/
+/*fun some_other_function(in: bool): float {*/
+    /*return 0.0*/
+/*}*/
 fun main(): int {
-    var a_declaration:int
-    simple_print(1 + 2)
-    var again = 2 + 4 - 1 * 400
-    simple_print(again)
-    again = 2 + (4 - 1) * 400
-    simple_print(again)
-    var another_declaration: int = 8.0
-    simple_print(another_declaration)
-    var yet_another_declaration = "Hello Marcus\n"
-    simple_print(yet_another_declaration)
-    simple_print("Hello World!\n")
-    simple_print(1337)
-    if (1 + 2 && false) simple_print("its true!")
-    else simple_print("its false!")
+    /*var a_declaration:int*/
+    /*simple_print(1 + 2)*/
+    /*var again = 2 + 4 - 1 * 400*/
+    /*simple_print(again)*/
+    /*again = 2 + (4 - 1) * 400*/
+    /*simple_print(again)*/
+    /*var another_declaration: int = 8.0*/
+    /*simple_print(another_declaration)*/
+    /*var yet_another_declaration = "Hello Marcus\n"*/
+    /*simple_print(yet_another_declaration)*/
+    /*simple_print("Hello World!\n")*/
+    /*simple_print(1337)*/
+    /*if (1 + 2 && false) simple_print("its true!")*/
+    /*else simple_print("its false!")*/
+    var counter = 10
+    counter--
+    --counter
+    while (counter) simple_print(counter--)
+    simple_print("\n")
+    counter = 8
+    while (counter) {
+        simple_print(--counter)
+    }
     return 0
 }
 

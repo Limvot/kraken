@@ -190,6 +190,8 @@ obj ast_transformation (Object) {
             return transform_assignment_statement(node, scope)
         } else if (name == "if_statement") {
             return transform_if_statement(node, scope)
+        } else if (name == "while_loop") {
+            return transform_while_loop(node, scope)
         } else if (name == "return_statement") {
             return transform_return_statement(node, scope)
         } else if (name == "function_call") {
@@ -300,6 +302,12 @@ obj ast_transformation (Object) {
             if_statement->if_statement.else_part = statements[1]
         return if_statement
     }
+    fun transform_while_loop(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var while_loop = ast_while_loop_ptr(transform_expression(get_node("boolean_expression", node), scope))
+        add_to_scope("~enclosing_scope", scope, while_loop)
+        while_loop->while_loop.statement = transform(get_node("statement", node), while_loop)
+        return while_loop
+    }
     fun transform_return_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
         return ast_return_statement_ptr(transform(node->children[0], scope))
     }
@@ -318,14 +326,26 @@ obj ast_transformation (Object) {
     fun transform_expression(node: *tree<symbol>, scope: *ast_node): *ast_node {
         // figure out what the expression is, handle overloads, or you know
         // ignore everything and do a passthrough
+        var func_name = string()
+        var parameters = vector<*ast_node>()
         if (node->children.size == 1)
             return transform(node->children[0], scope)
         else if (node->children.size == 2) {
-            return transform(node->children[0], scope)
+            var check_if_post = concat_symbol_tree(node->children[1])
+            if (check_if_post == "--" || check_if_post == "++") {
+                // give the post-operators a special suffix so the c_generator knows to emit them post
+                func_name = concat_symbol_tree(node->children[1]) + "p"
+                parameters = vector(transform(node->children[0], scope))
+            } else {
+                func_name = concat_symbol_tree(node->children[0])
+                parameters = vector(transform(node->children[1], scope))
+            }
+        } else {
+            func_name = concat_symbol_tree(node->children[1])
+            parameters = vector(transform(node->children[0], scope), transform(node->children[2], scope))
         }
-        var parameters = vector(transform(node->children[0], scope), transform(node->children[2], scope))
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
-        return ast_function_call_ptr(get_builtin_function(concat_symbol_tree(node->children[1]), parameter_types), parameters)
+        return ast_function_call_ptr(get_builtin_function(func_name, parameter_types), parameters)
     }
     fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]), vector<*ast_node>())
