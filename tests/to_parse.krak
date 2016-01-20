@@ -1,11 +1,11 @@
 import to_import: simple_print, a, b
 
-/*obj Something (ObjectTrait) {*/
-    /*var member: int*/
-    /*fun method():int {*/
-        /*return 5*/
-    /*}*/
-/*}*/
+obj Something (ObjectTrait) {
+    var member: int
+    fun method():int {
+        return 5
+    }
+}
 
 /*fun some_function(): int return 0;*/
 /*fun some_other_function(in: bool): float {*/
@@ -26,18 +26,19 @@ fun main(): int {
     /*simple_print(1337)*/
     /*if (1 + 2 && false) simple_print("its true!")*/
     /*else simple_print("its false!")*/
-    var counter = 10
-    counter--
-    --counter
-    while (counter) simple_print(counter--)
-    simple_print("\n")
-    counter = 8
-    while (counter) {
-        simple_print(--counter)
-    }
-    simple_print("\n")
-    for (var j = 0; j < 10; j++;)
-        simple_print(j)
+    /*var counter = 10*/
+    /*counter--*/
+    /*--counter*/
+    /*while (counter) simple_print(counter--)*/
+    /*simple_print("\n")*/
+    /*counter = 8*/
+    /*while (counter) {*/
+        /*simple_print(--counter)*/
+    /*}*/
+    /*simple_print("\n")*/
+    /*for (var j = 0; j < 10; j++;)*/
+        /*simple_print(j)*/
+    var an_obj: Something
     return 0
 }
 

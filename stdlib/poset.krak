@@ -1,0 +1,68 @@
+import vector:*
+import queue:*
+import map:*
+import set:*
+
+fun poset<T>(): poset<T> {
+    var to_ret.construct(): poset<T>
+    return to_ret
+}
+
+obj poset<T> (Object) {
+    var adj_matrix: map<T, set<T>>
+    fun construct(): *poset<T> {
+        adj_matrix.construct()
+        return this
+    }
+    fun copy_construct(old: *poset<T>) {
+        adj_matrix.copy_construct(&old->adj_matrix)
+    }
+    fun operator=(other: ref poset<T>) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+        adj_matrix.destruct()
+    }
+    fun add_relationship(first: T, second: T) {
+        if (!adj_matrix.contains_key(first))
+            add_vertex(first)
+        if (!adj_matrix.contains_key(second))
+            add_vertex(second)
+        adj_matrix[first].add(second)
+    }
+    fun add_vertex(vertex: T) {
+        if (adj_matrix.contains_key(vertex))
+            return;
+        adj_matrix.set(vertex, set<T>())
+    }
+    fun get_depends_on(vertex: T): set<T> {
+        var depends_on = set<T>()
+        adj_matrix.for_each(fun(key: T, value: set<T>) {
+            if (value.contains(vertex))
+                depends_on.add(key)
+        })
+        return depends_on
+    }
+    fun get_sorted(): vector<T> {
+        var sorted = vector<T>()
+        var to_do = queue<T>()
+        // because we're going to destructivly update
+        var temp_adj_matrix = adj_matrix
+        temp_adj_matrix.for_each(fun(key: T, value: set<T>)
+            if (temp_adj_matrix[key].size() == 0) to_do.push(key);)
+        while (!to_do.empty()) {
+            var current = to_do.pop()
+            sorted.add(current)
+            get_depends_on(current).for_each(fun(vert: T) {
+                temp_adj_matrix[vert].remove(current)
+                /*print(vert); print(" now has "); print(temp_adj_matrix[vert].size()); println(" dependencies")*/
+                if (temp_adj_matrix[vert].size() == 0)
+                    to_do.push(vert)
+            })
+        }
+        return sorted
+    }
+}
+
+

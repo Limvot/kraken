@@ -33,7 +33,7 @@ obj set<T> (Object, Serializable) {
     fun copy_construct(old: *set<T>) {
         data.copy_construct(&old->data)
     }
-    fun operator=(rhs: set<T>) {
+    fun operator=(rhs: ref set<T>) {
         destruct()
         copy_construct(&rhs)
     }
@@ -82,7 +82,7 @@ obj set<T> (Object, Serializable) {
     fun remove(item: T) {
         var idx = data.find(item)
         if (idx == -1) {
-            io::println("CANNOT FIND ITEM TO REMOVE")
+            /*io::println("CANNOT FIND ITEM TO REMOVE")*/
             return
         }
         data.remove(idx)

@@ -1,0 +1,28 @@
+import io:*
+import poset:*
+
+
+
+fun main():int {
+    println("i depends on i+1")
+    var int_poset = poset<int>()
+    for (var i = 0; i < 10; i++;)
+        int_poset.add_relationship(i, i+1)
+    int_poset.get_sorted().for_each(fun(i: int) {
+        print(i)
+        print(" ")
+    })
+    println()
+
+    println("i depends on i-1")
+    int_poset = poset<int>()
+    for (var i = 0; i < 10; i++;)
+        int_poset.add_relationship(i, i-1)
+    int_poset.get_sorted().for_each(fun(i: int) {
+        print(i)
+        print(" ")
+    })
+    println()
+    return 0
+}
+

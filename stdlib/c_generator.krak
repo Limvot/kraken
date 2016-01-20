@@ -6,6 +6,7 @@ import util:*
 import tree:*
 import symbol:*
 import ast_nodes:*
+import poset:*
 
 
 obj c_generator (Object) {
@@ -26,15 +27,14 @@ obj c_generator (Object) {
         var plain_typedefs: string = ""
         var top_level_c_passthrough: string = ""
         var variable_extern_declarations: string = ""
-        var structs: string = ""
+        var structs: string = "\n/**Type Structs**/\n"
         var function_typedef_string_pre: string = ""
         var function_typedef_string: string = ""
         var function_prototypes: string = "\n/**Function Prototypes**/\n"
         var function_definitions: string = "\n/**Function Definitions**/\n"
         var variable_declarations: string = "\n/**Variable Declarations**/\n"
 
-
-        // poset generation into structs string
+        var type_poset = poset<*ast_node>()
         // iterate through asts
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
             // iterate through children for each ast
@@ -68,8 +68,14 @@ obj c_generator (Object) {
                         // emit parameter destructors?
                         function_definitions += "}\n"
                     }
+                    ast_node::type_def(backing) {
+                        type_poset.add_vertex(child)
+                    }
                 }
             })
+        })
+        type_poset.get_sorted().for_each(fun(vert: *ast_node) {
+            structs += "/* a type */\n"
         })
 
         return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
@@ -117,7 +123,7 @@ obj c_generator (Object) {
         node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child);)
         return to_ret + "}"
     }
-    // this generates the function as a value, not the actuall function
+    // this generates the function as a value, not the actual function
     fun generate_function(node: *ast_node): string {
         var str = node->function.name
         node->function.parameters.for_each(fun(param: *ast_node) str += string("_") + type_decoration(param->identifier.type);)
