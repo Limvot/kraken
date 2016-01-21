@@ -34,6 +34,27 @@ obj c_generator (Object) {
         var function_definitions: string = "\n/**Function Definitions**/\n"
         var variable_declarations: string = "\n/**Variable Declarations**/\n"
 
+        // moved out from below so that it can be used for methods as well as regular functions (and eventually lambdas...)
+        var generate_function_definition = fun(child: *ast_node) {
+            var backing = child->function
+
+            var parameter_types = string()
+            var parameters = string()
+            var decorated_name = generate_function(child)
+            // also add in name decoration
+            backing.parameters.for_each(fun(parameter: *ast_node) {
+                if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
+                parameter_types += type_to_c(parameter->identifier.type)
+                parameters += type_to_c(parameter->identifier.type) + " " + parameter->identifier.name
+            })
+            function_prototypes += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n"
+
+            // add parameters to destructor thingy (for returns)? Or should that be a different pass?
+            function_definitions += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ") {\n" + generate_statement(backing.body_statement)
+            // emit parameter destructors?
+            function_definitions += "}\n"
+        }
+
         var type_poset = poset<*ast_node>()
         // iterate through asts
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
@@ -52,21 +73,7 @@ obj c_generator (Object) {
                         // make sure not a template
                         // or a passthrough
                         // check for and add to parameters if a closure
-                        var parameter_types = string()
-                        var parameters = string()
-                        var decorated_name = generate_function(child)
-                        // also add in name decoration
-                        backing.parameters.for_each(fun(parameter: *ast_node) {
-                            if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
-                            parameter_types += type_to_c(parameter->identifier.type)
-                            parameters += type_to_c(parameter->identifier.type) + " " + parameter->identifier.name
-                        })
-                        function_prototypes += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n"
-
-                        // add parameters to destructor thingy (for returns)? Or should that be a different pass?
-                        function_definitions += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ") {\n" + generate_statement(backing.body_statement)
-                        // emit parameter destructors?
-                        function_definitions += "}\n"
+                        generate_function_definition(child)
                     }
                     ast_node::type_def(backing) {
                         type_poset.add_vertex(child)
@@ -76,7 +83,11 @@ obj c_generator (Object) {
         })
         type_poset.get_sorted().for_each(fun(vert: *ast_node) {
             plain_typedefs += string("typedef struct ") + vert->type_def.name + "_dummy " + vert->type_def.name + ";\n"
-            structs += string("struct ") + vert->type_def.name + "_dummy {};\n"
+            structs += string("struct ") + vert->type_def.name + "_dummy {\n"
+            vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration) + ";\n";)
+            structs += "};\n"
+            // generate the methods
+            vert->type_def.methods.for_each(fun(method: *ast_node) generate_function_definition(method);)
         })
 
         return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)

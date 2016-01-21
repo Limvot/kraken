@@ -190,27 +190,35 @@ obj type_def (Object) {
     var scope: map<string, vector<*ast_node>>
     var name: string
     var self_type: *type
+    var variables: vector<*ast_node>
+    var methods: vector<*ast_node>
     fun construct(nameIn: string): *type_def  {
         scope.construct()
         name.copy_construct(&nameIn)
         self_type = null<type>()
+        variables.construct()
+        methods.construct()
         return this
     }
     fun copy_construct(old: *type_def) {
         self_type = old->self_type
         scope.copy_construct(&old->scope)
         name.copy_construct(&old->name)
+        variables.copy_construct(&old->variables)
+        methods.copy_construct(&old->methods)
     }
     fun destruct() {
         scope.destruct()
         name.destruct()
+        variables.destruct()
+        methods.destruct()
     }
     fun operator=(other: ref type_def) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref type_def): bool {
-        return name == other.name && self_type == other.self_type
+        return name == other.name && self_type == other.self_type && variables == other.variables && methods == other.methods
     }
 }
 fun ast_adt_def_ptr(name: string): *ast_node {
@@ -903,7 +911,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::translation_unit(backing) return backing.children
         ast_node::import(backing) return vector<*ast_node>()
         ast_node::identifier(backing) return vector<*ast_node>()
-        ast_node::type_def(backing) return vector<*ast_node>()
+        ast_node::type_def(backing) return backing.variables + backing.methods
         ast_node::adt_def(backing) return vector<*ast_node>()
         ast_node::function(backing) return backing.parameters + backing.body_statement
         ast_node::code_block(backing) return backing.children

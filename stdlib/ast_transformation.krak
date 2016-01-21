@@ -82,19 +82,35 @@ obj ast_transformation (Object) {
     // defines inside of objects + ADTs, outside declaration statements, and function prototypes
     fun second_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
         println(string("Second Pass for ") + translation_unit->translation_unit.name)
+        // we go through the parse tree for getting functions, but we're going through the ast for the things we've already set up and using the ast_to_syntax map
         parse_tree->children.for_each(fun(child: *tree<symbol>) {
-            if (child->data.name == "type_def") {
-                // second pass class stuff
-                // class insides calls into second_pass_declaration and second_pass_function...
-            } else if (child->data.name == "adt_def") {
-                // set up options and all the generated functions (operator==, operator!=, copy_construct, operator=, destruct)
-            } else if (child->data.name == "function") {
+            if (child->data.name == "function") {
                 var function_node = second_pass_function(child, translation_unit, map<string, *type>())
                 translation_unit->translation_unit.children.add(function_node)
                 ast_to_syntax.set(function_node, child)
             } else if (child->data.name == "declaration_statement") {
                 // second pass declaration can actually just call a normal transform (but maybe should be it's own method to do so because typedef has to do it too?)...
                 translation_unit->translation_unit.children.add(transform_declaration_statement(child, translation_unit))
+            }
+        })
+        // work on the ones already started
+        translation_unit->translation_unit.children.for_each(fun(node: *ast_node) {
+            match(*node) {
+                ast_node::type_def(backing) {
+                    var type_def_syntax = ast_to_syntax[node]
+                    type_def_syntax->children.for_each(fun(child: *tree<symbol>) {
+                        if (child->data.name == "declaration_statement") {
+                            var declaration_node = transform_declaration_statement(child, node)
+                            node->type_def.variables.add(declaration_node)
+                            ast_to_syntax.set(declaration_node, child)
+                        } else if (child->data.name == "function") {
+                            var function_node = second_pass_function(child, node, map<string, *type>())
+                            node->type_def.methods.add(function_node)
+                            ast_to_syntax.set(function_node, child)
+                        }
+                    })
+                }
+                ast_node::adt_def(backing) do_nothing() // actually go through and do methods inside
             }
         })
     }
@@ -126,7 +142,13 @@ obj ast_transformation (Object) {
         println(string("Third Pass for ") + translation_unit->translation_unit.name)
         translation_unit->translation_unit.children.for_each(fun(node: *ast_node) {
             match(*node) {
-                ast_node::type_def(backing) do_nothing() // actually go through and do methods inside
+                ast_node::type_def(backing) {
+                    // make sure not a template? or the method not a template?
+                    // also same body problem as below
+                    node->type_def.methods.for_each(fun(method: *ast_node) {
+                        method->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[method]), node)
+                    })
+                }
                 ast_node::function(backing) {
                     // make sure not a template
                     // huh, I guess I can't actually assign to the backing.

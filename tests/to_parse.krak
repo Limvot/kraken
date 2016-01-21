@@ -39,6 +39,8 @@ fun main(): int {
     /*for (var j = 0; j < 10; j++;)*/
         /*simple_print(j)*/
     var an_obj: Something
+    /*an_obj.member = 20*/
+    /*simple_print(an_obj.member)*/
     return 0
 }
 
