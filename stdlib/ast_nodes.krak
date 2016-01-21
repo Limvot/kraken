@@ -189,12 +189,15 @@ fun is_type_def(node: *ast_node): bool {
 obj type_def (Object) {
     var scope: map<string, vector<*ast_node>>
     var name: string
+    var self_type: *type
     fun construct(nameIn: string): *type_def  {
         scope.construct()
         name.copy_construct(&nameIn)
+        self_type = null<type>()
         return this
     }
     fun copy_construct(old: *type_def) {
+        self_type = old->self_type
         scope.copy_construct(&old->scope)
         name.copy_construct(&old->name)
     }
@@ -207,7 +210,7 @@ obj type_def (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref type_def): bool {
-        return name == other.name
+        return name == other.name && self_type == other.self_type
     }
 }
 fun ast_adt_def_ptr(name: string): *ast_node {

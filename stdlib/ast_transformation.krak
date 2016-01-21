@@ -42,6 +42,7 @@ obj ast_transformation (Object) {
             if (child->data.name == "type_def") {
                 var name = concat_symbol_tree(get_node("identifier", child))
                 var type_def_node = ast_type_def_ptr(name)
+                type_def_node->type_def.self_type = type_ptr(type_def_node)
                 translation_unit->translation_unit.children.add(type_def_node)
                 ast_to_syntax.set(type_def_node, child)
                 add_to_scope("~enclosing_scope", translation_unit, type_def_node)
@@ -168,6 +169,14 @@ obj ast_transformation (Object) {
             return type_ptr(base_type::function(), indirection)
         else {
             // do lookup for objects, ADTs, templates, etc
+            var possibilities = scope_lookup(type_syntax_str, scope)
+            print("There are "); print(possibilities.size); println(" possibilites for this object type lookup")
+            for (var i = 0; i < possibilities.size; i++;) {
+                match(*possibilities[i]) {
+                    ast_node::type_def(backing) return backing.self_type
+                }
+            }
+            println("No objects in lookup, returning none")
             return type_ptr(base_type::none(), indirection)
         }
     }

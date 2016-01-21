@@ -1,11 +1,13 @@
 import mem:*
 import string:*
 import vector:*
+import ast_nodes:*
 
 // hmm, like the ast_node, this is another candadate for being fully an ADT
 // one issue is that there are properties shared between most of the options (indirection, say)
 adt base_type {
     none,
+    object,
     template,
     template_type,
     void_return,
@@ -19,6 +21,9 @@ adt base_type {
 
 fun type_ptr(): *type {
     return new<type>()->construct()
+}
+fun type_ptr(definition: *ast_node): *type {
+    return new<type>()->construct(definition)
 }
 fun type_ptr(base: base_type): *type return type_ptr(base, 0);
 fun type_ptr(base: base_type, indirection: int): *type {
@@ -34,11 +39,13 @@ obj type (Object) {
     var parameter_types: vector<*type>
     var return_type: *type
     var indirection: int
+    var type_def: *ast_node
     fun construct(): *type {
         base.copy_construct(&base_type::none())
         parameter_types.construct()
         indirection = 0
         return_type = null<type>()
+        type_def = null<ast_node>()
         return this
     }
     fun construct(base_in: base_type, indirection_in: int): *type {
@@ -46,6 +53,15 @@ obj type (Object) {
         parameter_types.construct()
         indirection = indirection_in
         return_type = null<type>()
+        type_def = null<ast_node>()
+        return this
+    }
+    fun construct(type_def_in: *ast_node): *type {
+        base.copy_construct(&base_type::object())
+        parameter_types.construct()
+        indirection = 0
+        return_type = null<type>()
+        type_def = type_def_in
         return this
     }
     fun construct(parameter_types_in: vector<*type>, return_type_in: *type, indirection_in: int): *type {
@@ -53,6 +69,7 @@ obj type (Object) {
         parameter_types.copy_construct(&parameter_types_in)
         return_type = return_type_in
         indirection = indirection_in
+        type_def = null<ast_node>()
         return this
     }
     fun copy_construct(old: *type) {
@@ -60,6 +77,7 @@ obj type (Object) {
         parameter_types.copy_construct(&old->parameter_types)
         return_type = old->return_type
         indirection = old->indirection
+        type_def = old->type_def
     }
     fun operator=(other: ref type) {
         destruct()
@@ -73,13 +91,14 @@ obj type (Object) {
     fun operator==(other: ref type):bool {
         if ( (return_type && other.return_type && *return_type != *other.return_type) || (return_type && !other.return_type) || (!return_type && other.return_type) )
             return false
-        return base == other.base && parameter_types == other.parameter_types && indirection == other.indirection
+        return base == other.base && parameter_types == other.parameter_types && indirection == other.indirection && type_def == other.type_def
     }
     fun to_string(): string {
         var indirection_str = string()
         for (var i = 0; i < indirection; i++;) indirection_str += "*"
         match (base) {
             base_type::none() return indirection_str + string("none")
+            base_type::object() return indirection_str + string("obj:") + type_def->type_def.name
             base_type::template() return indirection_str + string("template")
             base_type::template_type() return indirection_str + string("template_type")
             base_type::void_return() return indirection_str + string("void_return")

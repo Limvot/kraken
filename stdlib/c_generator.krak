@@ -24,7 +24,7 @@ obj c_generator (Object) {
     fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<string,string> {
         var linker_string:string = ""
         var prequal: string = "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n"
-        var plain_typedefs: string = ""
+        var plain_typedefs: string = "\n/**Plain Typedefs**/\n"
         var top_level_c_passthrough: string = ""
         var variable_extern_declarations: string = ""
         var structs: string = "\n/**Type Structs**/\n"
@@ -75,7 +75,8 @@ obj c_generator (Object) {
             })
         })
         type_poset.get_sorted().for_each(fun(vert: *ast_node) {
-            structs += "/* a type */\n"
+            plain_typedefs += string("typedef struct ") + vert->type_def.name + "_dummy " + vert->type_def.name + ";\n"
+            structs += string("struct ") + vert->type_def.name + "_dummy {};\n"
         })
 
         return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
@@ -185,6 +186,9 @@ obj c_generator (Object) {
             base_type::integer() return indirection + string("int")
             base_type::floating() return indirection + string("float")
             base_type::double_precision() return indirection + string("double")
+            base_type::object() {
+                return type->type_def->type_def.name
+            }
             base_type::function() {
                 var temp = indirection + string("function_")
                 type->parameter_types.for_each(fun(parameter_type: *type) temp += type_decoration(parameter_type) + "_";)
@@ -206,6 +210,9 @@ obj c_generator (Object) {
             base_type::integer() return string("int") + indirection
             base_type::floating() return string("float") + indirection
             base_type::double_precision() return string("double") + indirection
+            base_type::object() {
+                return type->type_def->type_def.name
+            }
             base_type::function() {
                 var temp = indirection + string("function: (")
                 type->parameter_types.for_each(fun(parameter_type: *type) temp += parameter_type->to_string() + " ";)

@@ -403,12 +403,14 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                         for (auto child :  decChildren) {
                                             if (child->getName() != "function" && child->getDataRef()->valueType->typeDefinition != declaration) {
                                                 std::string option_name = child->getDataRef()->symbol.getName();
+                                                std::string prefixed_option_name = prefixIfNeeded(scopePrefix(child),option_name);
                                                 functionDefinitions += "     " + elsePrefix + " if (this->flag == " + declarationData.symbol.getName() + "__" + option_name + ") {\n";
                                                 elsePrefix = "else";
                                                 NodeTree<ASTData>* method = nullptr;
                                                 if ((method = getMethod(child->getDataRef()->valueType, "destruct", std::vector<Type>()))) {
                                                     functionDefinitions += "        " + generateMethodIfExists(child->getDataRef()->valueType, "destruct",
-                                                            "&this->" + option_name, std::vector<Type>()) + ";\n";
+                                                            "&this->" + prefixed_option_name, std::vector<Type>()) + ";\n";
+                                                            //"&this->" + option_name, std::vector<Type>()) + ";\n";
                                                 }
                                                 functionDefinitions += "    }\n";
                                             }
@@ -628,13 +630,15 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     // was accidntally adding in prefix when it shouldn't, though maybe it should when both option and ADT name are identical, deal with this later
                     //std::string option = generate(case_children[0], enclosingObject, false, enclosingFunction).oneString();
                     std::string option = case_children[0]->getDataRef()->symbol.getName();
+                    std::string prefixed_option = prefixIfNeeded(scopePrefix(case_children[0]),option);
                     std::string parentName = case_children[0]->getDataRef()->scope["~enclosing_scope"][0]->getDataRef()->symbol.getName();
                     output += "/* case " + option + " if " + thingToMatch.value + " */\n";
                     output += tabs() + "if ((" + thingToMatch.value + ").flag == " + parentName + "__" + option + ") {\n";
                     tabLevel++;
                     if (case_children.size() > 2) {
                         output += tabs() + ValueTypeToCType(case_children[1]->getData().valueType, generate(case_children[1], enclosingObject, false, enclosingFunction).oneString())
-                            + " = (" + thingToMatch.value + ")." + option + ";\n";
+                            + " = (" + thingToMatch.value + ")." + prefixed_option + ";\n";
+                            //+ " = (" + thingToMatch.value + ")." + option + ";\n";
                         output += generate(case_children[2], enclosingObject, false, enclosingFunction).oneString();
                     } else {
                         output += generate(case_children[1], enclosingObject, false, enclosingFunction).oneString();
