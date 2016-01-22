@@ -147,7 +147,7 @@ obj c_generator (Object) {
         var parameters = node->function_call.parameters
         if (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||"
             || func_name == "&&" || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
-            || func_name == "=="
+            || func_name == "==" || func_name == "." || func_name == "->"
         )
             return string("(") + generate(parameters[0]) + func_name + generate(parameters[1]) + string(")")
         // the post ones need to be post-ed specifically, and take the p off

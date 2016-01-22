@@ -39,8 +39,10 @@ fun main(): int {
     /*for (var j = 0; j < 10; j++;)*/
         /*simple_print(j)*/
     var an_obj: Something
-    /*an_obj.member = 20*/
-    /*simple_print(an_obj.member)*/
+    an_obj.member = 20
+    simple_print(an_obj.member)
+    simple_print("here is thing")
+    simple_print(123)
     return 0
 }
 
