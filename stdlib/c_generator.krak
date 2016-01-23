@@ -35,11 +35,15 @@ obj c_generator (Object) {
         var variable_declarations: string = "\n/**Variable Declarations**/\n"
 
         // moved out from below so that it can be used for methods as well as regular functions (and eventually lambdas...)
-        var generate_function_definition = fun(child: *ast_node) {
+        var generate_function_definition = fun(child: *ast_node, enclosing_object: *ast_node) {
             var backing = child->function
 
             var parameter_types = string()
             var parameters = string()
+            if (enclosing_object) {
+                parameter_types = type_to_c(enclosing_object->type_def.self_type) + "*"
+                parameters = type_to_c(enclosing_object->type_def.self_type) + "* this"
+            }
             var decorated_name = generate_function(child)
             // also add in name decoration
             backing.parameters.for_each(fun(parameter: *ast_node) {
@@ -73,7 +77,7 @@ obj c_generator (Object) {
                         // make sure not a template
                         // or a passthrough
                         // check for and add to parameters if a closure
-                        generate_function_definition(child)
+                        generate_function_definition(child, null<ast_node>())
                     }
                     ast_node::type_def(backing) {
                         type_poset.add_vertex(child)
@@ -87,7 +91,7 @@ obj c_generator (Object) {
             vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration) + ";\n";)
             structs += "};\n"
             // generate the methods
-            vert->type_def.methods.for_each(fun(method: *ast_node) generate_function_definition(method);)
+            vert->type_def.methods.for_each(fun(method: *ast_node) generate_function_definition(method, vert);)
         })
 
         return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
@@ -143,14 +147,20 @@ obj c_generator (Object) {
 
     }
     fun generate_function_call(node: *ast_node): string {
+        var func_name = string()
+        var call_string = string()
         if (is_function_call(node->function_call.func) &&
             is_function(node->function_call.func->function_call.func) &&
-            (node->function_call.func->function_call.func->function.name == "." || node->function_call.func->function_call.func->function.name == ".") &&
-            true
+            (node->function_call.func->function_call.func->function.name == "->" || node->function_call.func->function_call.func->function.name == ".") &&
+            is_function(node->function_call.func->function_call.parameters[1]) &&
+            is_type_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0])
         ) {
+            func_name = generate(node->function_call.func->function_call.parameters[1])
+            call_string = string("&") + generate(node->function_call.func->function_call.parameters[0])
+        } else {
+            func_name = generate(node->function_call.func)
         }
 
-        var func_name = generate(node->function_call.func)
         var parameters = node->function_call.parameters
         if (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||"
             || func_name == "&&" || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
@@ -160,7 +170,6 @@ obj c_generator (Object) {
         // the post ones need to be post-ed specifically, and take the p off
         if (func_name == "++p" || func_name == "--p")
             return string("(") + generate(parameters[0]) + ")" + func_name.slice(0,-2)
-        var call_string = string()
         parameters.for_each(fun(param: *ast_node) {
             if (call_string != "")
                 call_string += ", "
