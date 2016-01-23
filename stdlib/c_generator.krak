@@ -143,6 +143,12 @@ obj c_generator (Object) {
 
     }
     fun generate_function_call(node: *ast_node): string {
+        if (is_function_call(node->function_call.func) &&
+            is_function(node->function_call.func->function_call.func) &&
+            (node->function_call.func->function_call.func->name == "." || node->function_call.func->function_call.func->name == ".") &&
+        ) {
+        }
+
         var func_name = generate(node->function_call.func)
         var parameters = node->function_call.parameters
         if (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||"

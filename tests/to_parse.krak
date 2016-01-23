@@ -2,8 +2,8 @@ import to_import: simple_print, a, b
 
 obj Something (ObjectTrait) {
     var member: int
-    fun method():int {
-        return 5
+    fun method(a: int):int {
+        return 5+a
     }
 }
 
@@ -43,6 +43,7 @@ fun main(): int {
     simple_print(an_obj.member)
     simple_print("here is thing")
     simple_print(123)
+    simple_print(an_obj.method(1))
     return 0
 }
 

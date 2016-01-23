@@ -358,7 +358,12 @@ std::pair<std::string, std::string> CGenerator::generateTranslationUnit(std::str
                                                     // Remember, we don't destruct copy_constructTemporary because the function will do that
                                                     functionDefinitions += "}\n";
                                                 } else {
-                                                    functionDefinitions += "           equal = this->" + prefixed_option_name + " == in->" + prefixed_option_name + ";\n}\n";
+                                                    // if we're an object type but don't define an equality function (or, as is a current bug, that function is a template)
+                                                    // we just say always false/unequal
+                                                    if (child->getDataRef()->valueType->typeDefinition)
+                                                        functionDefinitions += "           equal = false;\n}\n";
+                                                    else
+                                                        functionDefinitions += "           equal = this->" + prefixed_option_name + " == in->" + prefixed_option_name + ";\n}\n";
                                                 }
                                             }
                                         }

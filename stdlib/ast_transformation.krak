@@ -11,13 +11,11 @@ import importer:*
 import ast_nodes:*
 import type:*
 
-		/*Importer * importer;*/
-		/*NodeTree<ASTData>* builtin_trans_unit; // the top scope for language level stuff*/
-		/*std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelReservedWords;*/
-		/*std::map<std::string, std::vector<NodeTree<ASTData>*>> languageLevelOperators;*/
-		/*std::map<NodeTree<ASTData>*, NodeTree<ASTData>*> this_map; // used to map implicit "this" variables to their type*/
-		/*NodeTree<ASTData>* topScope; //maintained for templates that need to add themselves to the top scope no matter where they are instantiated*/
-        /*int lambdaID = 0;*/
+adt search_type {
+    none,
+    function: vector<*type>
+}
+
 obj ast_transformation (Object) {
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
     fun construct(): *ast_transformation {
@@ -146,7 +144,7 @@ obj ast_transformation (Object) {
                     // make sure not a template? or the method not a template?
                     // also same body problem as below
                     node->type_def.methods.for_each(fun(method: *ast_node) {
-                        method->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[method]), node)
+                        method->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[method]), method)
                     })
                 }
                 ast_node::function(backing) {
@@ -203,10 +201,12 @@ obj ast_transformation (Object) {
         }
     }
 /*NodeTree<ASTData>* ASTTransformation::transform(NodeTree<Symbol>* from, NodeTree<ASTData>* scope, std::vector<Type> types, bool limitToFunction, std::map<std::string, Type*> templateTypeReplacements) {*/
-    fun transform(node: *tree<symbol>, scope: *ast_node): *ast_node {
+    fun transform(node: *tree<symbol>, scope: *ast_node): *ast_node return transform(node, scope, search_type::none())
+
+    fun transform(node: *tree<symbol>, scope: *ast_node, searching_for: search_type): *ast_node {
         var name = node->data.name
         if (name == "identifier" || name == "scoped_identifier") {
-            return transform_identifier(node, scope)
+            return transform_identifier(node, scope, searching_for)
         } else if (name == "code_block") {
             return transform_code_block(node, scope)
         } else if (name == "if_comp") {
@@ -236,7 +236,7 @@ obj ast_transformation (Object) {
                 || name == "access_operation"
         ) {
             // for now, assume passthrough and just transform underneath
-            return transform_expression(node, scope)
+            return transform_expression(node, scope, searching_for)
         } else if (name == "bool" || name == "string"
                 || name == "character" || name == "number"
         ) {
@@ -249,12 +249,17 @@ obj ast_transformation (Object) {
     fun transform_all(nodes: vector<*tree<symbol>>, scope: *ast_node): vector<*ast_node> {
         return nodes.map(fun(node: *tree<symbol>): *ast_node return transform(node, scope);)
     }
-    fun transform_identifier(node: *tree<symbol>, scope: *ast_node): *ast_node {
+    fun transform_identifier(node: *tree<symbol>, scope: *ast_node, searching_for: search_type): *ast_node {
         // for identifier we have to do scope lookup, etc, and maybe limit to function
         // NOT THIS
         var name = concat_symbol_tree(node)
         /*return ast_identifier_ptr(name, type_ptr(base_type::void_return()))*/
-        return identifier_lookup(name, scope)
+        match (searching_for) {
+            search_type::none() return identifier_lookup(name, scope)
+            search_type::function(type_vec) return function_lookup(name, scope, type_vec)
+        }
+        println("FAILED SEARCH FOR")
+        return null<ast_node>()
     }
     fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var value_str = concat_symbol_tree(node)
@@ -360,20 +365,22 @@ obj ast_transformation (Object) {
         var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope);)
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
         /*return ast_function_call_ptr(function_lookup(concat_symbol_tree(get_node("unarad", node)), scope), parameters)*/
-        var f = ast_function_call_ptr(function_lookup(concat_symbol_tree(get_node("unarad", node)), scope, parameter_types), parameters)
+        /*var f = ast_function_call_ptr(function_lookup(concat_symbol_tree(get_node("unarad", node)), scope, parameter_types), parameters)*/
+        var f = ast_function_call_ptr(transform(get_node("unarad", node), scope, search_type::function(parameter_types)), parameters)
         print("function call function ")
         println(f->function_call.func)
         print("function call parameters ")
         f->function_call.parameters.for_each(fun(param: *ast_node) print(param);)
         return f
     }
-    fun transform_expression(node: *tree<symbol>, scope: *ast_node): *ast_node {
+    fun transform_expression(node: *tree<symbol>, scope: *ast_node): *ast_node return transform_expression(node, scope, search_type::none())
+    fun transform_expression(node: *tree<symbol>, scope: *ast_node, searching_for: search_type): *ast_node {
         // figure out what the expression is, handle overloads, or you know
         // ignore everything and do a passthrough
         var func_name = string()
         var parameters = vector<*ast_node>()
         if (node->children.size == 1)
-            return transform(node->children[0], scope)
+            return transform(node->children[0], scope, searching_for)
         else if (node->children.size == 2) {
             var check_if_post = concat_symbol_tree(node->children[1])
             if (check_if_post == "--" || check_if_post == "++") {
@@ -390,10 +397,9 @@ obj ast_transformation (Object) {
             var second_param = null<ast_node>()
             if (func_name == "." || func_name == "->") {
                 println("Gonna do the internal scope thing")
-                second_param = transform(node->children[2], get_ast_type(first_param)->type_def)
+                second_param = transform(node->children[2], get_ast_type(first_param)->type_def, searching_for)
             } else {
                 println("Gonna do regular scope thing")
-                second_param = transform(node->children[2], get_ast_type(first_param)->type_def)
                 second_param = transform(node->children[2], scope)
             }
             parameters = vector(first_param, second_param)
@@ -407,6 +413,7 @@ obj ast_transformation (Object) {
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]), vector<*ast_node>())
     }
     fun function_lookup(name: string, scope: *ast_node, param_types: vector<*type>): *ast_node {
+        println(string("doing function lookup for: ") + name)
         var param_string = string()
         param_types.for_each(fun(t: *type) param_string += t->to_string() + ", ";)
         var results = scope_lookup(name, scope)
@@ -434,6 +441,7 @@ obj ast_transformation (Object) {
         return null<ast_node>()
     }
     fun identifier_lookup(name: string, scope: *ast_node): *ast_node {
+        println(string("doing identifier lookup for: ") + name)
         var results = scope_lookup(name, scope)
         if (!results.size) {
             println(string("identifier lookup failed for ") + name)
