@@ -17,10 +17,6 @@ Tester::~Tester() {
 	//Nothing
 }
 
-int Tester::ssystem(std::string command) {
-	return system(command.c_str());
-}
-
 void Tester::cleanExtras(std::string fileName) {
 	ssystem(removeCmd + " " + fileName);
 }
@@ -31,9 +27,10 @@ bool Tester::run(std::string path) {
 
 	cleanExtras(path);
 	ssystem(krakenInvocation + " " + path + krakenExtention + " " + path);
-	ssystem(changePermissions + " " + path + sep + fileName + ".sh");
-	ssystem(cd + " " + path + "; " + "./" + fileName + ".sh");
-	ssystem(changePermissions + " " + path + sep + fileName);
+    // done automatically now
+	//ssystem(changePermissions + " " + path + sep + fileName + ".sh");
+	//ssystem(cd + " " + path + "; " + "./" + fileName + ".sh");
+	//ssystem(changePermissions + " " + path + sep + fileName);
 	ssystem(path + sep + fileName + " " + redirect + " " + path + sep + fileName + resultsExtention);
 
 	bool result = compareFiles(fileName + expectedExtention, path + sep + fileName + resultsExtention);

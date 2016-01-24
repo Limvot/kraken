@@ -13,6 +13,7 @@
 #include <fstream>
 #include <cstring>
 
+int ssystem(std::string command);
 std::string intToString(int theInt);
 std::string replaceExEscape(std::string first, std::string search, std::string replace);
 std::string strSlice(std::string str, int begin, int end);

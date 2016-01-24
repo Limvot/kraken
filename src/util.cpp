@@ -1,5 +1,8 @@
 #include "util.h"
 
+int ssystem(std::string command) {
+	return system(command.c_str());
+}
 std::string intToString(int theInt) {
 	std::stringstream converter;
 	converter << theInt;

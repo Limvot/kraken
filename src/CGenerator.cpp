@@ -37,9 +37,12 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
     buildString += linkerString;
     buildString += "-o " + outputName;
     std::ofstream outputBuild;
-    outputBuild.open(outputName + "/" + split(outputName, '/').back() + ".sh");
+    std::string scriptName = split(outputName, '/').back() + ".sh";
+    outputBuild.open(outputName + "/" + scriptName);
     outputBuild << buildString;
     outputBuild.close();
+    std::cout << "KRAKEN COMPILING DONE, CALLING C COMPILER" << std::endl;
+    ssystem("cd " + outputName + "/; sh " + scriptName);
     std::cout << "DEFER DOUBLE STACK " << deferDoubleStack.size() << std::endl;
 }
 

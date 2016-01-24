@@ -12,7 +12,6 @@ class Tester {
 	public:
 		Tester(std::string krakenInvocation, std::string krakenGrammerLocation);
 		~Tester();
-		int ssystem(std::string command);
 		bool run(std::string fileName);
 		bool compareFiles(std::string file1Path, std::string file2Path);
 		void cleanExtras(std::string path);
