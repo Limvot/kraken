@@ -3,7 +3,7 @@ import to_import: simple_print, a, b
 obj Something (ObjectTrait) {
     var member: int
     fun method(a: int):int {
-        return 5+a
+        return 5+a+member
     }
 }
 
@@ -43,7 +43,9 @@ fun main(): int {
     simple_print(an_obj.member)
     simple_print("here is thing")
     simple_print(123)
+    simple_print("\n")
     simple_print(an_obj.method(1))
+    simple_print("\n")
     return 0
 }
 
