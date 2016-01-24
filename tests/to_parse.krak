@@ -30,18 +30,21 @@ fun main(): int {
     /*simple_print(1337)*/
     /*if (1 + 2 && false) simple_print("its true!")*/
     /*else simple_print("its false!")*/
-    /*var counter = 10*/
-    /*counter--*/
-    /*--counter*/
-    /*while (counter) simple_print(counter--)*/
-    /*simple_print("\n")*/
-    /*counter = 8*/
-    /*while (counter) {*/
-        /*simple_print(--counter)*/
-    /*}*/
-    /*simple_print("\n")*/
-    /*for (var j = 0; j < 10; j++;)*/
-        /*simple_print(j)*/
+    var counter = 10
+    counter--
+    --counter
+    while (counter) simple_print(counter--)
+    simple_print("\n")
+    counter = 8
+    while (counter) {
+        simple_print(--counter)
+        if (counter == 2)
+            break
+    }
+    simple_print("\n")
+    for (var j = 0; j < 10; j++;)
+        if (j%2) continue
+        else simple_print(j)
     var an_obj: Something
     an_obj.member = 20
     simple_print(an_obj.member)

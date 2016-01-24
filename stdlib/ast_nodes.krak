@@ -26,8 +26,7 @@ adt ast_node {
     while_loop: while_loop,
     for_loop: for_loop,
     return_statement: return_statement,
-    break_statement: break_statement,
-    continue_statement: continue_statement,
+    branching_statement: branching_statement,
     defer_statement: defer_statement,
     assignment_statement: assignment_statement,
     declaration_statement: declaration_statement,
@@ -597,67 +596,39 @@ obj return_statement (Object) {
         return return_value == other.return_value
     }
 }
-fun ast_break_statement_ptr(): *ast_node {
-    var to_ret.construct(): break_statement
+adt branching_type {
+    break_stmt,
+    continue_stmt
+}
+fun ast_branching_statement_ptr(b_type: branching_type): *ast_node {
+    var to_ret.construct(b_type): branching_statement
     var ptr = new<ast_node>()
-    ptr->copy_construct(&ast_node::break_statement(to_ret))
+    ptr->copy_construct(&ast_node::branching_statement(to_ret))
     return ptr
 }
-fun is_break_statement(node: *ast_node): bool {
+fun is_branching_statement(node: *ast_node): bool {
     match(*node) {
-        ast_node::break_statement(backing) return true
+        ast_node::branching_statement(backing) return true
     }
     return false
 }
-obj break_statement (Object) {
-    var scope: map<string, vector<*ast_node>>
-    fun construct(): *break_statement  {
-        scope.construct()
+obj branching_statement (Object) {
+    var b_type: branching_type
+    fun construct(b_type_in: branching_type): *branching_statement  {
+        b_type.copy_construct(&b_type_in)
         return this
     }
-    fun copy_construct(old: *break_statement) {
-        scope.copy_construct(&old->scope)
+    fun copy_construct(old: *branching_statement) {
+        b_type.copy_construct(&old->b_type)
     }
     fun destruct() {
-        scope.destruct()
+        b_type.destruct()
     }
-    fun operator=(other: ref break_statement) {
+    fun operator=(other: ref branching_statement) {
         destruct()
         copy_construct(&other)
     }
-    fun operator==(other: ref break_statement): bool {
-        return true
-    }
-}
-fun ast_continue_statement_ptr(): *ast_node {
-    var to_ret.construct(): continue_statement
-    var ptr = new<ast_node>()
-    ptr->copy_construct(&ast_node::continue_statement(to_ret))
-    return ptr
-}
-fun is_continue_statement(node: *ast_node): bool {
-    match(*node) {
-        ast_node::continue_statement(backing) return true
-    }
-    return false
-}
-obj continue_statement (Object) {
-    var scope: map<string, vector<*ast_node>>
-    fun construct(): *continue_statement  {
-        scope.construct()
-        return this
-    }
-    fun copy_construct(old: *continue_statement) {
-        scope.copy_construct(&old->scope)
-    }
-    fun destruct() {
-        scope.destruct()
-    }
-    fun operator=(other: ref continue_statement) {
-        destruct()
-        copy_construct(&other)
-    }
-    fun operator==(other: ref continue_statement): bool {
+    fun operator==(other: ref branching_statement): bool {
         return true
     }
 }
@@ -922,8 +893,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::while_loop(backing) return vector(backing.condition, backing.statement)
         ast_node::for_loop(backing) return vector(backing.init, backing.condition, backing.update, backing.body)
         ast_node::return_statement(backing) return vector(backing.return_value)
-        ast_node::break_statement(backing) return vector<*ast_node>()
-        ast_node::continue_statement(backing) return vector<*ast_node>()
+        ast_node::branching_statement(backing) return vector<*ast_node>()
         ast_node::defer_statement(backing) return vector<*ast_node>()
         ast_node::assignment_statement(backing) return vector(backing.to, backing.from)
         ast_node::declaration_statement(backing) return vector(backing.identifier, backing.expression)
@@ -949,8 +919,7 @@ fun get_ast_name(node: *ast_node): string {
         ast_node::while_loop(backing) return string("while_loop")
         ast_node::for_loop(backing) return string("for_loop")
         ast_node::return_statement(backing) return string("return_statement")
-        ast_node::break_statement(backing) return string("break_statement")
-        ast_node::continue_statement(backing) return string("continue_statement")
+        ast_node::branching_statement(backing) return string("branching_statement")
         ast_node::defer_statement(backing) return string("defer_statement")
         ast_node::assignment_statement(backing) return string("assignment_statement")
         ast_node::declaration_statement(backing) return string("declaration_statement")
@@ -976,8 +945,7 @@ fun get_ast_scope(node: *ast_node): *map<string,vector<*ast_node>> {
         ast_node::while_loop() return &node->while_loop.scope
         ast_node::for_loop() return &node->for_loop.scope
         ast_node::return_statement() return &node->return_statement.scope
-        ast_node::break_statement() return &node->break_statement.scope
-        ast_node::continue_statement() return &node->continue_statement.scope
+        ast_node::branching_statement() return null<map<string,vector<*ast_node>>>()
         ast_node::defer_statement() return &node->defer_statement.scope
         ast_node::assignment_statement() return null<map<string,vector<*ast_node>>>()
         ast_node::declaration_statement() return null<map<string,vector<*ast_node>>>()

@@ -135,6 +135,12 @@ obj c_generator (Object) {
         return node->identifier.name
     }
     fun generate_return_statement(node: *ast_node, enclosing_object: *ast_node): string return string("return ") + generate(node->return_statement.return_value, enclosing_object);
+    fun generate_branching_statement(node: *ast_node, enclosing_object: *ast_node): string {
+        match(node->branching_statement.b_type) {
+            branching_type::break_stmt() return string("break")
+            branching_type::continue_stmt() return string("continue")
+        }
+    }
     fun generate_value(node: *ast_node): string return node->value.string_value;
     fun generate_code_block(node: *ast_node, enclosing_object: *ast_node): string {
         var to_ret = string("{\n")
@@ -176,7 +182,7 @@ obj c_generator (Object) {
         var parameters = node->function_call.parameters
         if (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||"
             || func_name == "&&" || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
-            || func_name == "=="
+            || func_name == "==" || func_name == "%"
         )
             return string("(") + generate(parameters[0], enclosing_object) + func_name + generate(parameters[1], enclosing_object) + string(")")
         // don't propegate enclosing function down right of access
@@ -211,6 +217,7 @@ obj c_generator (Object) {
             ast_node::function_call(backing) return generate_function_call(node, enclosing_object)
             ast_node::code_block(backing) return generate_code_block(node, enclosing_object)
             ast_node::return_statement(backing) return generate_return_statement(node, enclosing_object)
+            ast_node::branching_statement(backing) return generate_branching_statement(node, enclosing_object)
             ast_node::value(backing) return generate_value(node)
             ast_node::identifier(backing) return generate_identifier(node, enclosing_object)
         }
