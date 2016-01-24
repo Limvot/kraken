@@ -1,9 +1,12 @@
-import to_import: simple_print, a, b
+import to_import: simple_print, a, b, string_id
 
 obj Something (ObjectTrait) {
     var member: int
     fun method(a: int):int {
         return 5+a+member
+    }
+    fun return_this(): *Something {
+        return this;
     }
 }
 
@@ -45,6 +48,10 @@ fun main(): int {
     simple_print(123)
     simple_print("\n")
     simple_print(an_obj.method(1))
+    simple_print("\n")
+    simple_print(string_id("WoooopsEee\n"))
+    var with_ptr = an_obj.return_this()
+    simple_print(with_ptr->method(2))
     simple_print("\n")
     return 0
 }

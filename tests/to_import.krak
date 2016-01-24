@@ -9,6 +9,9 @@ fun simple_print(to_print: int) {
         printf("%d", to_print);
     """
 }
+fun string_id(it: *char): *char {
+    return it;
+}
 var a = 1
 var b:int
 

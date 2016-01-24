@@ -98,7 +98,7 @@ obj type (Object) {
         for (var i = 0; i < indirection; i++;) indirection_str += "*"
         match (base) {
             base_type::none() return indirection_str + string("none")
-            base_type::object() return indirection_str + string("obj:") + type_def->type_def.name
+            base_type::object() return indirection_str + type_def->type_def.name
             base_type::template() return indirection_str + string("template")
             base_type::template_type() return indirection_str + string("template_type")
             base_type::void_return() return indirection_str + string("void_return")
@@ -115,6 +115,11 @@ obj type (Object) {
         }
         return string("impossible type, indirection:") + indirection
     }
+    fun clone_with_indirection(ind: int): *type {
+        var to_ret = new<type>()
+        to_ret->copy_construct(this)
+        to_ret->indirection = ind
+        return to_ret
+    }
 }
-
 

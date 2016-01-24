@@ -151,7 +151,7 @@ obj ast_transformation (Object) {
                     // make sure not a template
                     // huh, I guess I can't actually assign to the backing.
                     // This is actually a little bit of a problem, maybe these should be pointers also. All the pointers!
-                    node->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[node]), translation_unit)
+                    node->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[node]), node)
                 }
             }
         })
@@ -193,7 +193,7 @@ obj ast_transformation (Object) {
             print("There are "); print(possibilities.size); println(" possibilites for this object type lookup")
             for (var i = 0; i < possibilities.size; i++;) {
                 match(*possibilities[i]) {
-                    ast_node::type_def(backing) return backing.self_type
+                    ast_node::type_def(backing) return backing.self_type->clone_with_indirection(indirection)
                 }
             }
             println("No objects in lookup, returning none")
@@ -250,9 +250,12 @@ obj ast_transformation (Object) {
         return nodes.map(fun(node: *tree<symbol>): *ast_node return transform(node, scope);)
     }
     fun transform_identifier(node: *tree<symbol>, scope: *ast_node, searching_for: search_type): *ast_node {
-        // for identifier we have to do scope lookup, etc, and maybe limit to function
-        // NOT THIS
+        // first, we check for and generate this
         var name = concat_symbol_tree(node)
+        if (name == "this") {
+            while (!is_type_def(scope)) scope = get_ast_scope(scope)->get(string("~enclosing_scope"))[0]
+            return ast_identifier_ptr("this", scope->type_def.self_type->clone_with_indirection(1))
+        }
         /*return ast_identifier_ptr(name, type_ptr(base_type::void_return()))*/
         match (searching_for) {
             search_type::none() return identifier_lookup(name, scope)

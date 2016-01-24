@@ -158,7 +158,10 @@ obj c_generator (Object) {
             is_type_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0])
         ) {
             func_name = generate(node->function_call.func->function_call.parameters[1], enclosing_object)
-            call_string = string("&") + generate(node->function_call.func->function_call.parameters[0], enclosing_object)
+            // don't add & if it was ->
+            if (node->function_call.func->function_call.func->function.name == ".")
+                call_string += string("&")
+            call_string += generate(node->function_call.func->function_call.parameters[0], enclosing_object)
         } else {
             func_name = generate(node->function_call.func, enclosing_object)
         }
@@ -243,7 +246,7 @@ obj c_generator (Object) {
             base_type::floating() return string("float") + indirection
             base_type::double_precision() return string("double") + indirection
             base_type::object() {
-                return type->type_def->type_def.name
+                return type->type_def->type_def.name + indirection
             }
             base_type::function() {
                 var temp = indirection + string("function: (")
