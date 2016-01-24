@@ -269,7 +269,7 @@ obj ast_transformation (Object) {
         var value_type = null<type>()
         if (value_str[0] == '"')
             value_type = type_ptr(base_type::character(), 1)
-        else if (value_str[0] == '\'') //' lol, comment hack for vim syntax highlighting (my fault, of course)
+        else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
             value_type = type_ptr(base_type::character())
         else {
             // should differentiate between float and double...

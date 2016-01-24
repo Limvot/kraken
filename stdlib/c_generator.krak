@@ -151,20 +151,27 @@ obj c_generator (Object) {
     fun generate_function_call(node: *ast_node, enclosing_object: *ast_node): string {
         var func_name = string()
         var call_string = string()
-        if (is_function_call(node->function_call.func) &&
+
+        // handle the obj.method() style of method call
+        var dot_style_method_call = is_function_call(node->function_call.func) &&
             is_function(node->function_call.func->function_call.func) &&
             (node->function_call.func->function_call.func->function.name == "->" || node->function_call.func->function_call.func->function.name == ".") &&
             is_function(node->function_call.func->function_call.parameters[1]) &&
             is_type_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0])
-        ) {
+
+        if (dot_style_method_call) {
             func_name = generate(node->function_call.func->function_call.parameters[1], enclosing_object)
             // don't add & if it was ->
             if (node->function_call.func->function_call.func->function.name == ".")
                 call_string += string("&")
             call_string += generate(node->function_call.func->function_call.parameters[0], enclosing_object)
-        } else {
+        } else { // regular style function name
             func_name = generate(node->function_call.func, enclosing_object)
         }
+        // handle method call from inside method of same object
+        if (!dot_style_method_call && enclosing_object && get_ast_scope(enclosing_object)->contains_key(func_name))
+            call_string += string("this")
+
 
         var parameters = node->function_call.parameters
         if (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||"
@@ -178,6 +185,8 @@ obj c_generator (Object) {
         // the post ones need to be post-ed specifically, and take the p off
         if (func_name == "++p" || func_name == "--p")
             return string("(") + generate(parameters[0], enclosing_object) + ")" + func_name.slice(0,-2)
+
+        // regular parameter generation
         parameters.for_each(fun(param: *ast_node) {
             if (call_string != "")
                 call_string += ", "

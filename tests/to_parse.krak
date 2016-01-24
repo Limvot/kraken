@@ -3,8 +3,9 @@ import to_import: simple_print, a, b, string_id
 obj Something (ObjectTrait) {
     var member: int
     fun method(a: int):int {
-        return 5+a+member
+        return 5+a+member + other_method()
     }
+    fun other_method(): int return 7;
     fun return_this(): *Something {
         return this;
     }
