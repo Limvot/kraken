@@ -47,13 +47,22 @@ obj stack<T> (Object, Serializable) {
     fun clear() {
         data.clear()
     }
-    fun top(): T {
+    fun top(): ref T {
         return data[data.size-1]
+    }
+    fun from_top(num: int): ref T {
+        return data[(data.size-1)-num]
     }
     fun size(): int {
         return data.size
     }
     fun empty():bool {
         return data.size == 0
+    }
+    fun for_each(func: fun(ref T):void) {
+        data.for_each(func)
+    }
+    fun for_each(func: fun(T):void) {
+        data.for_each(func)
     }
 }
