@@ -632,8 +632,8 @@ obj branching_statement (Object) {
         return true
     }
 }
-fun ast_defer_statement_ptr(): *ast_node {
-    var to_ret.construct(): defer_statement
+fun ast_defer_statement_ptr(statement_in: *ast_node): *ast_node {
+    var to_ret.construct(statement_in): defer_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::defer_statement(to_ret))
     return ptr
@@ -645,16 +645,15 @@ fun is_defer_statement(node: *ast_node): bool {
     return false
 }
 obj defer_statement (Object) {
-    var scope: map<string, vector<*ast_node>>
-    fun construct(): *defer_statement  {
-        scope.construct()
+    var statement: *ast_node
+    fun construct(statement_in: *ast_node): *defer_statement  {
+        statement = statement_in
         return this
     }
     fun copy_construct(old: *defer_statement) {
-        scope.copy_construct(&old->scope)
+        statement = old->statement
     }
     fun destruct() {
-        scope.destruct()
     }
     fun operator=(other: ref defer_statement) {
         destruct()
@@ -894,7 +893,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::for_loop(backing) return vector(backing.init, backing.condition, backing.update, backing.body)
         ast_node::return_statement(backing) return vector(backing.return_value)
         ast_node::branching_statement(backing) return vector<*ast_node>()
-        ast_node::defer_statement(backing) return vector<*ast_node>()
+        ast_node::defer_statement(backing) return vector(backing.statement)
         ast_node::assignment_statement(backing) return vector(backing.to, backing.from)
         ast_node::declaration_statement(backing) return vector(backing.identifier, backing.expression)
         ast_node::if_comp(backing) return vector<*ast_node>(backing.statement)
@@ -945,15 +944,10 @@ fun get_ast_scope(node: *ast_node): *map<string,vector<*ast_node>> {
         ast_node::while_loop() return &node->while_loop.scope
         ast_node::for_loop() return &node->for_loop.scope
         ast_node::return_statement() return &node->return_statement.scope
-        ast_node::branching_statement() return null<map<string,vector<*ast_node>>>()
-        ast_node::defer_statement() return &node->defer_statement.scope
-        ast_node::assignment_statement() return null<map<string,vector<*ast_node>>>()
-        ast_node::declaration_statement() return null<map<string,vector<*ast_node>>>()
-        ast_node::if_comp() return null<map<string,vector<*ast_node>>>()
         ast_node::simple_passthrough() return &node->simple_passthrough.scope
-        ast_node::function_call() return null<map<string,vector<*ast_node>>>()
         ast_node::value() return &node->value.scope
     }
+    return null<map<string,vector<*ast_node>>>()
 }
 fun get_ast_type(node: *ast_node): *type {
     match (*node) {

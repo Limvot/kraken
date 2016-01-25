@@ -85,6 +85,7 @@ obj importer (Object) {
 	    remove_node(symbol("\"fun\"", true), parse_tree)
         remove_node(symbol("\"template\"", true), parse_tree)
         remove_node(symbol("\"return\"", true), parse_tree)
+        remove_node(symbol("\"defer\"", true), parse_tree)
         remove_node(symbol("\";\"", true), parse_tree)
         remove_node(symbol("line_end", false), parse_tree)
         remove_node(symbol("\"{\"", true), parse_tree)

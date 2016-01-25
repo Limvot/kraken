@@ -141,6 +141,7 @@ obj c_generator (Object) {
             branching_type::continue_stmt() return string("continue")
         }
     }
+    fun generate_defer_statement(node: *ast_node, enclosing_object: *ast_node): string return string("/*defer ") + generate(node->defer_statement.statement, enclosing_object) + "*/";
     fun generate_value(node: *ast_node): string return node->value.string_value;
     fun generate_code_block(node: *ast_node, enclosing_object: *ast_node): string {
         var to_ret = string("{\n")
@@ -218,6 +219,7 @@ obj c_generator (Object) {
             ast_node::code_block(backing) return generate_code_block(node, enclosing_object)
             ast_node::return_statement(backing) return generate_return_statement(node, enclosing_object)
             ast_node::branching_statement(backing) return generate_branching_statement(node, enclosing_object)
+            ast_node::defer_statement(backing) return generate_defer_statement(node, enclosing_object)
             ast_node::value(backing) return generate_value(node)
             ast_node::identifier(backing) return generate_identifier(node, enclosing_object)
         }

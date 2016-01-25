@@ -229,6 +229,8 @@ obj ast_transformation (Object) {
             return transform_return_statement(node, scope)
         } else if (name == "continue_statement" || name == "break_statement") {
             return transform_branching_statement(node, scope)
+        } else if (name == "defer_statement") {
+            return transform_defer_statement(node, scope)
         } else if (name == "function_call") {
             return transform_function_call(node, scope)
         } else if (name == "boolean_expression" || name == "and_boolean_expression"
@@ -369,6 +371,9 @@ obj ast_transformation (Object) {
         if (node->data.name == "break_statement")
             return ast_branching_statement_ptr(branching_type::break_stmt())
         return ast_branching_statement_ptr(branching_type::continue_stmt())
+    }
+    fun transform_defer_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        return ast_defer_statement_ptr(transform(node->children[0], scope))
     }
     fun transform_function_call(node: *tree<symbol>, scope: *ast_node): *ast_node {
         // don't bother with a full transform for parameters with their own function, just get the boolean expression and transform it
