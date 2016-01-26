@@ -57,7 +57,7 @@ obj c_generator (Object) {
             // add parameters to destructor thingy (for returns)? Or should that be a different pass?
             // stack-stack thing // this could be a stack of strings too, maybe
             // start out with one stack on the stack
-            var defer_stack = stack<stack<*ast_node>>(stack<*ast_node>())
+            var defer_stack = stack<pair<bool,stack<*ast_node>>>(make_pair(false, stack<*ast_node>()))
             function_definitions += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ") {\n" + generate_statement(backing.body_statement, enclosing_object, &defer_stack)
             // emit parameter destructors?
             function_definitions += "}\n"
@@ -76,7 +76,7 @@ obj c_generator (Object) {
                             top_level_c_passthrough += generate_simple_passthrough(backing.statement->statement.child)
                     }
                     ast_node::simple_passthrough(backing) top_level_c_passthrough += generate_simple_passthrough(child)
-                    ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<stack<stack<*ast_node>>>()) + ";\n"
+                    ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>()) + ";\n"
                     ast_node::function(backing) {
                         // make sure not a template
                         // or a passthrough
@@ -92,7 +92,7 @@ obj c_generator (Object) {
         type_poset.get_sorted().for_each(fun(vert: *ast_node) {
             plain_typedefs += string("typedef struct ") + vert->type_def.name + "_dummy " + vert->type_def.name + ";\n"
             structs += string("struct ") + vert->type_def.name + "_dummy {\n"
-            vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<stack<stack<*ast_node>>>()) + ";\n";)
+            vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>()) + ";\n";)
             structs += "};\n"
             // generate the methods
             vert->type_def.methods.for_each(fun(method: *ast_node) generate_function_definition(method, vert);)
@@ -102,45 +102,45 @@ obj c_generator (Object) {
     }
     fun generate_if_comp(node: *ast_node): string {
         if (node->if_comp.wanted_generator == "__C__")
-            return generate(node->if_comp.statement, null<ast_node>(), null<stack<stack<*ast_node>>>())
+            return generate(node->if_comp.statement, null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>())
         return string("")
     }
     fun generate_simple_passthrough(node: *ast_node): string {
         // deal with all the passthrough params
         return node->simple_passthrough.passthrough_str
     }
-    fun generate_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<stack<*ast_node>>): string return generate(node->statement.child, enclosing_object, defer_stack) + ";\n";
-    fun generate_declaration_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<stack<*ast_node>>): string {
+    fun generate_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): string return generate(node->statement.child, enclosing_object, defer_stack) + ";\n";
+    fun generate_declaration_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): string {
         // add destruct to defer_stac
         var identifier = node->declaration_statement.identifier
         var to_ret = type_to_c(identifier->identifier.type) + " " + identifier->identifier.name
-        if (node->declaration_statement.expression) to_ret += string(" = ") + generate(node->declaration_statement.expression, enclosing_object, null<stack<stack<*ast_node>>>())
+        if (node->declaration_statement.expression) to_ret += string(" = ") + generate(node->declaration_statement.expression, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
         return to_ret
     }
     fun generate_assignment_statement(node: *ast_node, enclosing_object: *ast_node): string {
-        return generate(node->assignment_statement.to, null<ast_node>(), null<stack<stack<*ast_node>>>()) + " = " + generate(node->assignment_statement.from, enclosing_object, null<stack<stack<*ast_node>>>())
+        return generate(node->assignment_statement.to, null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>()) + " = " + generate(node->assignment_statement.from, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
     }
-    fun generate_if_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<stack<*ast_node>>): string {
-        var if_str = string("if (") + generate(node->if_statement.condition, enclosing_object, null<stack<stack<*ast_node>>>()) + ") {\n" + generate(node->if_statement.then_part, enclosing_object, defer_stack) + "}"
+    fun generate_if_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): string {
+        var if_str = string("if (") + generate(node->if_statement.condition, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + ") {\n" + generate(node->if_statement.then_part, enclosing_object, defer_stack) + "}"
         if (node->if_statement.else_part)
             if_str += string(" else {\n") + generate(node->if_statement.else_part, enclosing_object, defer_stack) + "}"
         return if_str + "\n"
     }
-    fun generate_while_loop(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<stack<*ast_node>>): string {
+    fun generate_while_loop(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): string {
         // stick another stack on
-        defer_stack->push(stack<*ast_node>())
-        var to_ret = string("while (") + generate(node->while_loop.condition, enclosing_object, null<stack<stack<*ast_node>>>()) + ") {\n" + generate(node->while_loop.statement, enclosing_object, defer_stack)
+        defer_stack->push(make_pair(true, stack<*ast_node>()))
+        var to_ret = string("while (") + generate(node->while_loop.condition, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + ") {\n" + generate(node->while_loop.statement, enclosing_object, defer_stack)
         to_ret += generate_from_defer_stack(defer_stack, 1, enclosing_object)
         defer_stack->pop()
         to_ret += "}\n"
         return to_ret
     }
-    fun generate_for_loop(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<stack<*ast_node>>): string {
+    fun generate_for_loop(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): string {
         // stick another stack on
-        defer_stack->push(stack<*ast_node>())
+        defer_stack->push(make_pair(true, stack<*ast_node>()))
         // gotta take off last semicolon
-        var to_ret = string("for (") + generate(node->for_loop.init, enclosing_object, null<stack<stack<*ast_node>>>()) + " " + generate(node->for_loop.condition, enclosing_object, null<stack<stack<*ast_node>>>()) + "; " +
-            generate(node->for_loop.update, enclosing_object, null<stack<stack<*ast_node>>>()).slice(0,-3) + ") {\n" + generate(node->for_loop.body, enclosing_object, defer_stack)
+        var to_ret = string("for (") + generate(node->for_loop.init, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + " " + generate(node->for_loop.condition, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + "; " +
+            generate(node->for_loop.update, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()).slice(0,-3) + ") {\n" + generate(node->for_loop.body, enclosing_object, defer_stack)
         to_ret += generate_from_defer_stack(defer_stack, 1, enclosing_object)
         defer_stack->pop()
         to_ret += "}\n"
@@ -151,37 +151,47 @@ obj c_generator (Object) {
             return string("(this->") + node->identifier.name + ")"
         return node->identifier.name
     }
-    fun generate_return_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<stack<*ast_node>>): string {
+    fun generate_return_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): string {
         // generate all in stac
         var to_ret = generate_from_defer_stack(defer_stack, -1, enclosing_object)
-        to_ret += string("return ") + generate(node->return_statement.return_value, enclosing_object, null<stack<stack<*ast_node>>>())
+        to_ret += string("return ") + generate(node->return_statement.return_value, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
         return to_ret
     }
-    fun generate_branching_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<stack<*ast_node>>): string {
+    fun generate_branching_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): string {
         // should be up to loop
-        var to_ret = generate_from_defer_stack(defer_stack, 1, enclosing_object)
+        var to_ret = generate_from_defer_stack(defer_stack, -2, enclosing_object)
         match(node->branching_statement.b_type) {
             branching_type::break_stmt() return to_ret + string("break")
             branching_type::continue_stmt() return to_ret + string("continue")
         }
     }
-    fun generate_from_defer_stack(defer_stack: *stack<stack<*ast_node>>, num: int, enclosing_object: *ast_node): string {
+    fun generate_from_defer_stack(defer_stack: *stack<pair<bool,stack<*ast_node>>>, num: int, enclosing_object: *ast_node): string {
         var to_ret = string()
         if (num == -1)
             num = defer_stack->size()
+        if (num == -2) {
+            num = 1
+            for (var i = 0; i < defer_stack->size(); i++;)
+                if (defer_stack->from_top(i).first)
+                    break
+                else
+                    num++
+            print("HERE IS THE THING: "); println(num)
+        }
         for (var i = 0; i < num; i++;)
-            defer_stack->from_top(i).for_each(fun(node: *ast_node) to_ret += generate(node, enclosing_object, null<stack<stack<*ast_node>>>());)
+            defer_stack->from_top(i).second.for_each(fun(node: *ast_node) to_ret += generate(node, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>());)
+            /*defer_stack->from_top(i).for_each(fun(node: *ast_node) to_ret += generate(node, enclosing_object, null<stack<stack<*ast_node>>>());)*/
         return to_ret
     }
-    fun generate_defer_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<stack<*ast_node>>): string {
-        defer_stack->top().push(node->defer_statement.statement)
+    fun generate_defer_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): string {
+        defer_stack->top().second.push(node->defer_statement.statement)
         return string("/*defer*/")
     }
     fun generate_value(node: *ast_node): string return node->value.string_value;
-    fun generate_code_block(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<stack<*ast_node>>): string {
+    fun generate_code_block(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): string {
         var to_ret = string("{\n")
         // stick another stack on
-        defer_stack->push(stack<*ast_node>())
+        defer_stack->push(make_pair(false, stack<*ast_node>()))
         node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child, enclosing_object, defer_stack);)
         to_ret += generate_from_defer_stack(defer_stack, 1, enclosing_object)
         defer_stack->pop()
@@ -206,13 +216,13 @@ obj c_generator (Object) {
             is_type_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0])
 
         if (dot_style_method_call) {
-            func_name = generate(node->function_call.func->function_call.parameters[1], enclosing_object, null<stack<stack<*ast_node>>>())
+            func_name = generate(node->function_call.func->function_call.parameters[1], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
             // don't add & if it was ->
             if (node->function_call.func->function_call.func->function.name == ".")
                 call_string += string("&")
-            call_string += generate(node->function_call.func->function_call.parameters[0], enclosing_object, null<stack<stack<*ast_node>>>())
+            call_string += generate(node->function_call.func->function_call.parameters[0], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
         } else { // regular style function name
-            func_name = generate(node->function_call.func, enclosing_object, null<stack<stack<*ast_node>>>())
+            func_name = generate(node->function_call.func, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
         }
         // handle method call from inside method of same object
         if (!dot_style_method_call && enclosing_object && get_ast_scope(enclosing_object)->contains_key(func_name))
@@ -224,25 +234,25 @@ obj c_generator (Object) {
             || func_name == "&&" || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
             || func_name == "==" || func_name == "%"
         )
-            return string("(") + generate(parameters[0], enclosing_object, null<stack<stack<*ast_node>>>()) + func_name + generate(parameters[1], enclosing_object, null<stack<stack<*ast_node>>>()) + string(")")
+            return string("(") + generate(parameters[0], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + func_name + generate(parameters[1], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + string(")")
         // don't propegate enclosing function down right of access
         if (func_name == "." || func_name == "->")
-            return string("(") + generate(parameters[0], enclosing_object, null<stack<stack<*ast_node>>>()) + func_name + generate(parameters[1], null<ast_node>(), null<stack<stack<*ast_node>>>()) + string(")")
+            return string("(") + generate(parameters[0], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + func_name + generate(parameters[1], null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>()) + string(")")
         // the post ones need to be post-ed specifically, and take the p off
         if (func_name == "++p" || func_name == "--p")
-            return string("(") + generate(parameters[0], enclosing_object, null<stack<stack<*ast_node>>>()) + ")" + func_name.slice(0,-2)
+            return string("(") + generate(parameters[0], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + ")" + func_name.slice(0,-2)
 
         // regular parameter generation
         parameters.for_each(fun(param: *ast_node) {
             if (call_string != "")
                 call_string += ", "
-            call_string += generate(param, enclosing_object, null<stack<stack<*ast_node>>>())
+            call_string += generate(param, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
         })
         return func_name + "(" + call_string + ")"
     }
 
     // for now, anyway
-    fun generate(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<stack<*ast_node>>): string {
+    fun generate(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): string {
         if (!node) return string("/*NULL*/")
         match (*node) {
             ast_node::if_comp(backing) return generate_if_comp(node)

@@ -1,4 +1,4 @@
-import to_import: simple_print, a, b, string_id
+import to_import: simple_print, simple_println, a, b, string_id
 
 obj Something (ObjectTrait) {
     var member: int
@@ -58,8 +58,25 @@ fun main(): int {
     simple_print(with_ptr->method(2))
     simple_print("\n")
     {
+        defer simple_print("should_be_third\n")
         defer simple_print("should_be_second\n")
         simple_print("should be first\n")
+    }
+    for (var i = 1; i < 10; i++;) {
+        defer simple_println("OUTER:happens every time, even when breaking or continueing")
+        {
+            defer simple_println("INNER:happens every time, even when breaking or continueing")
+            if (i % 2 == 0)
+                continue
+            if (i == 9)
+                break
+            simple_println(i)
+        }
+    }
+    defer simple_println("Here is a return defer outer")
+    {
+        defer simple_println("Here is a return defer inner")
+        return 0
     }
     return 0
 }
