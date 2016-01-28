@@ -66,6 +66,7 @@ fun main():int {
     var ast_pass.construct(): ast_transformation
     var importer.construct(parse, ast_pass): importer
     importer.import(kraken_file_name)
+    println("NOW DOING C_GENERATOR")
     var c_generator.construct(): c_generator
     var c_output_pair = c_generator.generate_c(importer.name_ast_map)
     var kraken_c_output_name = kraken_file_name + ".c"

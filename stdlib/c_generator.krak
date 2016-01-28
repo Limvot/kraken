@@ -179,7 +179,7 @@ obj c_generator (Object) {
         return to_ret
     }
     fun generate_assignment_statement(node: *ast_node, enclosing_object: *ast_node): code_triple {
-        return generate(node->assignment_statement.to, null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>()) + " = " + generate(node->assignment_statement.from, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
+        return generate(node->assignment_statement.to, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + " = " + generate(node->assignment_statement.from, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
     }
     fun generate_if_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         var if_str = code_triple("if (") + generate(node->if_statement.condition, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + ") {\n" + generate(node->if_statement.then_part, enclosing_object, defer_stack) + "}"
@@ -289,10 +289,10 @@ obj c_generator (Object) {
 
 
         var parameters = node->function_call.parameters
-        if (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||"
+        if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||"
             || func_name == "&&" || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
             || func_name == "==" || func_name == "%"
-        )
+        ))
             return code_triple("(") + generate(parameters[0], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + func_name + generate(parameters[1], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + string(")")
         // don't propegate enclosing function down right of access
         if (func_name == "." || func_name == "->")

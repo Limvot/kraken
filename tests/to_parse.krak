@@ -2,6 +2,19 @@ import to_import: simple_print, simple_println, a, b, string_id
 
 obj Something (ObjectTrait) {
     var member: int
+    fun construct(): *Something {
+        simple_println("Constructing a Something")
+        member = 1337
+        return this
+    }
+    fun copy_construct(old: *Something) {
+        simple_println("Copy Constructing a Something")
+        member = old->member
+    }
+    fun destruct() {
+        simple_println("Destructing a Something")
+        member = -800
+    }
     fun method(a: int):int {
         return 5+a+member + other_method()
     }
@@ -10,26 +23,28 @@ obj Something (ObjectTrait) {
         return this;
     }
 }
-
-/*fun some_function(): int return 0;*/
-/*fun some_other_function(in: bool): float {*/
-    /*return 0.0*/
-/*}*/
+/*
+fun some_function(): int return 0;
+fun some_other_function(in: bool): float {
+    return 0.0
+}
+*/
 fun main(): int {
-    /*var a_declaration:int*/
-    /*simple_print(1 + 2)*/
-    /*var again = 2 + 4 - 1 * 400*/
-    /*simple_print(again)*/
-    /*again = 2 + (4 - 1) * 400*/
-    /*simple_print(again)*/
-    /*var another_declaration: int = 8.0*/
-    /*simple_print(another_declaration)*/
-    /*var yet_another_declaration = "Hello Marcus\n"*/
-    /*simple_print(yet_another_declaration)*/
-    /*simple_print("Hello World!\n")*/
-    /*simple_print(1337)*/
-    /*if (1 + 2 && false) simple_print("its true!")*/
-    /*else simple_print("its false!")*/
+    /*
+    var a_declaration:int
+    simple_print(1 + 2)
+    var again = 2 + 4 - 1 * 400
+    simple_print(again)
+    again = 2 + (4 - 1) * 400
+    simple_print(again)
+    var another_declaration: int = 8.0
+    simple_print(another_declaration)
+    var yet_another_declaration = "Hello Marcus\n"
+    simple_print(yet_another_declaration)
+    simple_print("Hello World!\n")
+    simple_print(1337)
+    if (1 + 2 && false) simple_print("its true!")
+    else simple_print("its false!")
     var counter = 10
     counter--
     --counter
@@ -78,6 +93,14 @@ fun main(): int {
         defer simple_println("Here is a return defer inner")
         return 0
     }
+    */
+    /*var test_methods.construct(): Something*/
+    var test_methods: Something
+    test_methods.member = 10
+    simple_println("Constructing an object and printint its member, copy-constructing it, and printing that out, then letting both be destructed")
+    simple_println(test_methods.member)
+    var second_obj = test_methods
+    simple_println(second_obj.member)
     return 0
 }
 
