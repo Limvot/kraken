@@ -18,9 +18,6 @@
 #include "util.h"
 #include "Tester.h"
 
-#define CLEAR_SCREEN "\033[2J\033[1;1H"
-#define BOLD_GREEN "\033[1m\033[32m"
-#define RESET_TXT "\033[0m"
 
 int main(int argc, char* argv[]) {
 	std::vector<std::string> includePaths;
@@ -188,11 +185,6 @@ int main(int argc, char* argv[]) {
 	//For right now, just C
 
 	CGenerator().generateCompSet(ASTs, outputName);
-  
-        std::cout << CLEAR_SCREEN; 
-        
-        std::cout << BOLD_GREEN << "SUCCESSFUL COMPILATION" << RESET_TXT << std::endl;
-
 	return(0);
 }
 

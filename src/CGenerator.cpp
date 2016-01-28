@@ -1,5 +1,9 @@
 #include "CGenerator.h"
 
+#define CLEAR_SCREEN "\033[2J\033[1;1H"
+#define BOLD_GREEN "\033[1m\033[32m"
+#define RESET_TXT "\033[0m"
+
 CGenerator::CGenerator() : generatorString("__C__") {
     tabLevel = 0;
     id = 0;
@@ -41,9 +45,9 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
     outputBuild.open(outputName + "/" + scriptName);
     outputBuild << buildString;
     outputBuild.close();
-    std::cout << "KRAKEN COMPILER DONE, CALLING C COMPILER" << std::endl;
+    std::cout << CLEAR_SCREEN;
+    std::cout << BOLD_GREEN << "KRAKEN COMPILER DONE, CALLING C COMPILER" << RESET_TXT << std::endl;
     ssystem("cd " + outputName + "/; sh " + scriptName);
-    std::cout << "DEFER DOUBLE STACK " << deferDoubleStack.size() << std::endl;
 }
 
 std::string CGenerator::tabs() {
