@@ -32,6 +32,7 @@ class GraphStructuredStack {
 	private:
 		std::vector<std::vector<NodeTree<int>*>*> gss;
 		std::map< std::pair< NodeTree<int>*, NodeTree<int>* >, NodeTree<Symbol>* > edges;
+        std::map< NodeTree<int>*, int > containing_frontier_map;
 };
 
 #endif

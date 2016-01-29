@@ -15,11 +15,10 @@ NodeTree<int>* GraphStructuredStack::newNode(int stateNum) {
 void GraphStructuredStack::addToFrontier(int frontier, NodeTree<int>* node) {
 	//First, make sure our vector has this and lesser frontiers. If not, add it and up to it
 	while (gss.size() <= frontier) {
-		//std::cout << "Adding a new frontier: " << gss.size() << std::endl;
 		gss.push_back(new std::vector<NodeTree<int>*>());
 	}
-	//std::cout << "Adding " << node << " (" << node->getData() << ") to frontier " << frontier << std::endl;
 	gss[frontier]->push_back(node);
+    containing_frontier_map[node] = frontier;
 }
 
 NodeTree<int>* GraphStructuredStack::inFrontier(int frontier, int state) {
@@ -33,15 +32,19 @@ NodeTree<int>* GraphStructuredStack::inFrontier(int frontier, int state) {
 }
 
 int GraphStructuredStack::getContainingFrontier(NodeTree<int>* node) {
-	for (std::vector<std::vector<NodeTree<int>*>*>::size_type i = 0; i < gss.size(); i++) {
-		if (frontierIsEmpty(i))
-			continue;
-		for (std::vector<NodeTree<int>*>::size_type j = 0; j < gss[i]->size(); j++) {
-			if ((*(gss[i]))[j] == node)
-				return i;
-		}
-	}
-	return -1;
+    auto iter = containing_frontier_map.find(node);
+    if (iter != containing_frontier_map.end())
+        return iter->second;
+    return -1;
+    //for (std::vector<std::vector<NodeTree<int>*>*>::size_type i = 0; i < gss.size(); i++) {
+        //if (frontierIsEmpty(i))
+            //continue;
+        //for (std::vector<NodeTree<int>*>::size_type j = 0; j < gss[i]->size(); j++) {
+            //if ((*(gss[i]))[j] == node)
+                //return i;
+        //}
+    //}
+    //return -1;
 }
 
 bool GraphStructuredStack::frontierIsEmpty(int frontier) {
