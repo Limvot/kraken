@@ -260,7 +260,6 @@ obj ast_transformation (Object) {
             while (!is_type_def(scope)) scope = get_ast_scope(scope)->get(string("~enclosing_scope"))[0]
             return ast_identifier_ptr("this", scope->type_def.self_type->clone_with_indirection(1))
         }
-        /*return ast_identifier_ptr(name, type_ptr(base_type::void_return()))*/
         match (searching_for) {
             search_type::none() return identifier_lookup(name, scope)
             search_type::function(type_vec) return function_lookup(name, scope, type_vec)
@@ -315,7 +314,9 @@ obj ast_transformation (Object) {
         return new_statement
     }
     fun transform_declaration_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
-        var name = concat_symbol_tree(get_node("identifier", node))
+        // this might have an init position method call
+        var identifiers = get_nodes("identifier", node)
+        var name = concat_symbol_tree(identifiers[0])
         // may have type, or an expression, or both
         var type_syntax_node = get_node("type", node)
         var expression_syntax_node = get_node("boolean_expression", node)
@@ -330,6 +331,13 @@ obj ast_transformation (Object) {
         if (!ident_type) error("declaration statement with no type or expression from which to inference type")
         var identifier = ast_identifier_ptr(name, ident_type)
         var declaration = ast_declaration_statement_ptr(identifier, expression)
+        // ok, deal with the possible init position method call
+        if (identifiers.size == 2) {
+            var method = transform(identifiers[1], ident_type->type_def)
+            var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope);)
+            var method_access = ast_function_call_ptr(get_builtin_function(string("."), vector(ident_type, get_ast_type(method))), vector(identifier, method))
+            declaration->declaration_statement.init_method_call = ast_function_call_ptr(method_access, parameters)
+        }
         add_to_scope(name, identifier, scope)
         return declaration
     }
@@ -379,13 +387,11 @@ obj ast_transformation (Object) {
         // don't bother with a full transform for parameters with their own function, just get the boolean expression and transform it
         var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope);)
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
-        /*return ast_function_call_ptr(function_lookup(concat_symbol_tree(get_node("unarad", node)), scope), parameters)*/
-        /*var f = ast_function_call_ptr(function_lookup(concat_symbol_tree(get_node("unarad", node)), scope, parameter_types), parameters)*/
         var f = ast_function_call_ptr(transform(get_node("unarad", node), scope, search_type::function(parameter_types)), parameters)
-        print("function call function ")
-        println(f->function_call.func)
-        print("function call parameters ")
-        f->function_call.parameters.for_each(fun(param: *ast_node) print(param);)
+        /*print("function call function ")*/
+        /*println(f->function_call.func)*/
+        /*print("function call parameters ")*/
+        /*f->function_call.parameters.for_each(fun(param: *ast_node) print(param);)*/
         return f
     }
     fun transform_expression(node: *tree<symbol>, scope: *ast_node): *ast_node return transform_expression(node, scope, search_type::none())

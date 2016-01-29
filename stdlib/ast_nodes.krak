@@ -712,14 +712,17 @@ fun is_declaration_statement(node: *ast_node): bool {
 obj declaration_statement (Object) {
     var identifier: *ast_node
     var expression: *ast_node
+    var init_method_call: *ast_node
     fun construct(identifier_in: *ast_node, expression_in: *ast_node): *declaration_statement  {
         identifier = identifier_in
         expression = expression_in
+        init_method_call = null<ast_node>()
         return this
     }
     fun copy_construct(old: *declaration_statement) {
         identifier = old->identifier
         expression = old->expression
+        init_method_call = old->init_method_call
     }
     fun destruct() {
     }
@@ -728,7 +731,7 @@ obj declaration_statement (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref declaration_statement): bool {
-        return identifier == other.identifier && expression == other.expression
+        return identifier == other.identifier && expression == other.expression && init_method_call == other.init_method_call
     }
 }
 fun ast_if_comp_ptr(): *ast_node {
@@ -895,7 +898,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::branching_statement(backing) return vector<*ast_node>()
         ast_node::defer_statement(backing) return vector(backing.statement)
         ast_node::assignment_statement(backing) return vector(backing.to, backing.from)
-        ast_node::declaration_statement(backing) return vector(backing.identifier, backing.expression)
+        ast_node::declaration_statement(backing) return vector(backing.identifier, backing.expression, backing.init_method_call)
         ast_node::if_comp(backing) return vector<*ast_node>(backing.statement)
         ast_node::simple_passthrough(backing) return vector<*ast_node>()
         ast_node::function_call(backing) return vector(backing.func) + backing.parameters

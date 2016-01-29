@@ -176,6 +176,7 @@ obj c_generator (Object) {
         var identifier = node->declaration_statement.identifier
         var to_ret = code_triple() + type_to_c(identifier->identifier.type) + " " + identifier->identifier.name
         if (node->declaration_statement.expression) to_ret += code_triple(" = ") + generate(node->declaration_statement.expression, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
+        if (node->declaration_statement.init_method_call) to_ret += code_triple(";\n") + generate(node->declaration_statement.init_method_call, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
         return to_ret
     }
     fun generate_assignment_statement(node: *ast_node, enclosing_object: *ast_node): code_triple {

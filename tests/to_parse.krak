@@ -7,6 +7,11 @@ obj Something (ObjectTrait) {
         member = 1337
         return this
     }
+    fun construct_with_param(param: int): *Something {
+        simple_println("Constructing a Something with a param")
+        member = param
+        return this
+    }
     fun copy_construct(old: *Something) {
         simple_println("Copy Constructing a Something")
         member = old->member
@@ -94,11 +99,13 @@ fun main(): int {
         return 0
     }
     */
-    /*var test_methods.construct(): Something*/
-    var test_methods: Something
+    var test_methods.construct(): Something
+    var test_methods_param.construct_with_param(10090): Something
+    /*var test_methods: Something*/
     test_methods.member = 10
     simple_println("Constructing an object and printint its member, copy-constructing it, and printing that out, then letting both be destructed")
     simple_println(test_methods.member)
+    simple_println(test_methods_param.member)
     var second_obj = test_methods
     simple_println(second_obj.member)
     return 0
