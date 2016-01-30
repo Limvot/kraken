@@ -338,8 +338,8 @@ obj code_block (Object) {
         return children == other.children && scope == other.scope
     }
 }
-fun ast_statement_ptr(): *ast_node {
-    var to_ret.construct(): statement
+fun ast_statement_ptr(child: *ast_node): *ast_node {
+    var to_ret.construct(child): statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::statement(to_ret))
     return ptr
@@ -353,9 +353,10 @@ fun is_statement(node: *ast_node): bool {
 obj statement (Object) {
     var scope: map<string, vector<*ast_node>>
     var child: *ast_node
-    fun construct(): *statement  {
+    fun construct(child_in: *ast_node): *statement  {
         child = null<ast_node>()
         scope.construct()
+        child = child_in
         return this
     }
     fun copy_construct(old: *statement) {

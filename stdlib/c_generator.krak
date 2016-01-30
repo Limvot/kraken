@@ -8,6 +8,8 @@ import tree:*
 import symbol:*
 import ast_nodes:*
 import poset:*
+// we import ast_transformation for its make_method_call function
+import ast_transformation:*
 
 fun code_triple(): code_triple return code_triple(string(), string(), string());
 fun code_triple(only: *char): code_triple return code_triple(string(), string(only), string());
@@ -172,11 +174,14 @@ obj c_generator (Object) {
     }
     fun generate_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple return generate(node->statement.child, enclosing_object, defer_stack) + ";\n";
     fun generate_declaration_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
-        // add destruct to defer_stac
+        // add destruct to defer_stack
         var identifier = node->declaration_statement.identifier
+        var ident_type = identifier->identifier.type
         var to_ret = code_triple() + type_to_c(identifier->identifier.type) + " " + identifier->identifier.name
         if (node->declaration_statement.expression) to_ret += code_triple(" = ") + generate(node->declaration_statement.expression, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
         if (node->declaration_statement.init_method_call) to_ret += code_triple(";\n") + generate(node->declaration_statement.init_method_call, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
+        if (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>()))
+            defer_stack->top().second.push(ast_statement_ptr(make_method_call(identifier, "destruct", vector<*ast_node>())))
         return to_ret
     }
     fun generate_assignment_statement(node: *ast_node, enclosing_object: *ast_node): code_triple {

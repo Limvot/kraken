@@ -121,5 +121,11 @@ obj type (Object) {
         to_ret->indirection = ind
         return to_ret
     }
+    fun is_object(): bool {
+        match (base) {
+            base_type::object() return true
+        }
+        return false
+    }
 }
 
