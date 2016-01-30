@@ -351,8 +351,18 @@ fun make_method_call(object_ident: *ast_node, method: *ast_node, parameters: vec
     var method_access = ast_function_call_ptr(get_builtin_function(string("."), vector(get_ast_type(object_ident), get_ast_type(method))), vector(object_ident, method))
     return ast_function_call_ptr(method_access, parameters)
 }
+fun make_operator_call(left: *ast_node, func: *char, right: *ast_node): *ast_node return make_operator_call(left, string(func), right);
+fun make_operator_call(left: *ast_node, func: string, right: *ast_node): *ast_node {
+    return ast_function_call_ptr(get_builtin_function(func, vector(get_ast_type(left), get_ast_type(right))), vector(left, right))
+}
 fun transform_assignment_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
-    var assignment = ast_assignment_statement_ptr(transform(get_node("factor", node), scope), transform(get_node("boolean_expression", node), scope))
+    var assign_to = transform(get_node("factor", node), scope)
+    var to_assign = transform(get_node("boolean_expression", node), scope)
+    if      (get_node("\"\\+=\"", node)) to_assign = make_operator_call(assign_to, "+", to_assign)
+    else if (get_node("\"-=\"", node)) to_assign = make_operator_call(assign_to, "-", to_assign)
+    else if (get_node("\"\\*=\"", node)) to_assign = make_operator_call(assign_to, "*", to_assign)
+    else if (get_node("\"/=\"", node)) to_assign = make_operator_call(assign_to, "/", to_assign)
+    var assignment = ast_assignment_statement_ptr(assign_to, to_assign)
     return assignment
 }
 fun transform_if_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
