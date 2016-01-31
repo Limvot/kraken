@@ -336,6 +336,9 @@ obj c_generator (Object) {
                 call_string.pre = generate_declaration_statement(declaration, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
                 call_string.pre += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(param))))), enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
                 call_string += generate(temp_ident, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
+                if (has_method(param_type->type_def, "destruct", vector<*type>())) {
+                    call_string.post += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "destruct", vector<*ast_node>())), enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
+                }
             } else {
                 call_string += generate(param, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
             }
