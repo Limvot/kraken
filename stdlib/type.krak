@@ -115,6 +115,8 @@ obj type (Object) {
         }
         return string("impossible type, indirection:") + indirection
     }
+    fun clone_with_increased_indirection(): *type return clone_with_indirection(indirection+1);
+    fun clone_with_decreased_indirection(): *type return clone_with_indirection(indirection-1);
     fun clone_with_indirection(ind: int): *type {
         var to_ret = new<type>()
         to_ret->copy_construct(this)
