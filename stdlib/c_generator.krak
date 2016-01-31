@@ -225,7 +225,7 @@ obj c_generator (Object) {
         var to_ret = code_triple()
         // if we're returning an object, copy_construct a new one to return
         if (return_value_type->is_object() && return_value_type->indirection == 0 && has_method(return_value_type->type_def, "copy_construct", vector(return_value_type->clone_with_indirection(1)))) {
-            var temp_ident = ast_identifier_ptr(string("temporary"), return_value_type)
+            var temp_ident = ast_identifier_ptr(string("temporary_return"), return_value_type)
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
             // have to pass false to the declaration generator, so can't do it through generate_statement
             to_ret.pre = generate_declaration_statement(declaration, enclosing_object, defer_stack, false).one_string() + ";\n"
@@ -306,7 +306,6 @@ obj c_generator (Object) {
         if (!dot_style_method_call && enclosing_object && get_ast_scope(enclosing_object)->contains_key(func_name))
             call_string += "this"
 
-
         var parameters = node->function_call.parameters
         if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||"
             || func_name == "&&" || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
@@ -320,11 +319,26 @@ obj c_generator (Object) {
         if (func_name == "++p" || func_name == "--p")
             return code_triple("(") + generate(parameters[0], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + ")" + func_name.slice(0,-2)
 
+        // So we don't end up copy_constructing etc, we just handle the unary operators right here
+        if (func_name == "*" || func_name == "&")
+            return code_triple("(") + func_name + generate(parameters[0], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + ")"
+
         // regular parameter generation
         parameters.for_each(fun(param: *ast_node) {
             if (call_string != "")
                 call_string += ", "
-            call_string += generate(param, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
+
+            var param_type = get_ast_type(param)
+            if (param_type->is_object() && param_type->indirection == 0 && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1)))) {
+                var temp_ident = ast_identifier_ptr(string("temporary_param"), param_type)
+                var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
+                // have to pass false to the declaration generator, so can't do it through generate_statement
+                call_string.pre = generate_declaration_statement(declaration, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
+                call_string.pre += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(param))))), enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
+                call_string += generate(temp_ident, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
+            } else {
+                call_string += generate(param, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
+            }
         })
         return code_triple() + func_name + "(" + call_string + ")"
     }

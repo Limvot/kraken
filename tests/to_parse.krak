@@ -32,6 +32,10 @@ obj Something (ObjectTrait) {
         return this;
     }
 }
+fun return_something_p_1(it: Something): Something {
+    it.member += 11
+    return it
+}
 /*
 fun some_function(): int return 0;
 fun some_other_function(in: bool): float {
@@ -47,6 +51,8 @@ fun main(): int {
     var second_obj = test_methods
     second_obj.member += 5
     simple_println(second_obj.member)
+    /*var some = return_something_p_1(second_obj)*/
+    simple_println(return_something_p_1(second_obj).member)
     return 0
     /*
     var a_declaration:int
