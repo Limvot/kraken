@@ -193,7 +193,7 @@ fun transform_type(node: *tree<symbol>, scope: *ast_node, template_replacements:
     println(type_syntax_str + " *************************")
     if (template_replacements.contains_key(type_syntax_str)) {
         print("Is in template_replacements, returning: ")
-        var to_ret = template_replacements[type_syntax_str]->clone_with_indirection(indirection)
+        var to_ret = template_replacements[type_syntax_str]->clone_with_increased_indirection(indirection)
         println(to_ret->to_string())
         return to_ret
     }
