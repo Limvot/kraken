@@ -184,7 +184,7 @@ int main(int argc, char* argv[]) {
 	//Code generation
 	//For right now, just C
 
-	CGenerator().generateCompSet(ASTs, outputName);
-	return(0);
+    // return code from calling C compiler
+	return CGenerator().generateCompSet(ASTs, outputName);
 }
 

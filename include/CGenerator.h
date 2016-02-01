@@ -26,7 +26,7 @@ class CGenerator {
 	public:
 		CGenerator();
 		~CGenerator();
-		void generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName);
+		int generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName);
         std::string generateTypeStruct(NodeTree<ASTData>* from);
         bool isUnderNodeWithType(NodeTree<ASTData>* from, ASTType type);
         bool isUnderTranslationUnit(NodeTree<ASTData>* from, NodeTree<ASTData>* typeDefinition);

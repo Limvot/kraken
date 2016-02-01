@@ -358,10 +358,10 @@ fun make_operator_call(func: string, params: vector<*ast_node>): *ast_node {
 fun transform_assignment_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
     var assign_to = transform(get_node("factor", node), scope)
     var to_assign = transform(get_node("boolean_expression", node), scope)
-    if      (get_node("\"\\+=\"", node)) to_assign = make_operator_call("+", vector(to_assign, to_assign))
-    else if (get_node("\"-=\"", node)) to_assign = make_operator_call("-", vector(to_assign, to_assign))
-    else if (get_node("\"\\*=\"", node)) to_assign = make_operator_call("*", vector(to_assign, to_assign))
-    else if (get_node("\"/=\"", node)) to_assign = make_operator_call("/", vector(to_assign, to_assign))
+    if      (get_node("\"\\+=\"", node)) to_assign = make_operator_call("+", vector(assign_to, to_assign))
+    else if (get_node("\"-=\"", node)) to_assign = make_operator_call("-", vector(assign_to, to_assign))
+    else if (get_node("\"\\*=\"", node)) to_assign = make_operator_call("*", vector(assign_to, to_assign))
+    else if (get_node("\"/=\"", node)) to_assign = make_operator_call("/", vector(assign_to, to_assign))
     var assignment = ast_assignment_statement_ptr(assign_to, to_assign)
     return assignment
 }

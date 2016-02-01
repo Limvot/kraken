@@ -15,7 +15,7 @@ CGenerator::~CGenerator() {
 }
 
 // Note the use of std::pair to hold two strings - the running string for the header file and the running string for  the c file.
-void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName) {
+int CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs, std::string outputName) {
     //Generate an entire set of files
     std::string buildString = "#!/bin/sh\ncc -g -O3 -std=c99 ";
     std::cout << "\n\n =====GENERATE PASS===== \n\n" << std::endl;
@@ -47,7 +47,7 @@ void CGenerator::generateCompSet(std::map<std::string, NodeTree<ASTData>*> ASTs,
     outputBuild.close();
     std::cout << CLEAR_SCREEN;
     std::cout << BOLD_GREEN << "KRAKEN COMPILER DONE, CALLING C COMPILER" << RESET_TXT << std::endl;
-    ssystem("cd " + outputName + "/; sh " + scriptName);
+    return ssystem("cd " + outputName + "/; sh " + scriptName);
 }
 
 std::string CGenerator::tabs() {

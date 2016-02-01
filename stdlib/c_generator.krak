@@ -74,10 +74,13 @@ obj code_triple (Object) {
 }
 
 obj c_generator (Object) {
+    var id_counter: int
     fun construct(): *c_generator {
+        id_counter = 0
         return this
     }
     fun copy_construct(old: *c_generator) {
+        id_counter = old->id_counter
     }
     fun operator=(other: ref c_generator) {
         destruct()
@@ -85,6 +88,7 @@ obj c_generator (Object) {
     }
     fun destruct() {
     }
+    fun get_id(): string return to_string(id_counter++); 
     fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<string,string> {
         var linker_string:string = ""
         var prequal: string = "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n"
@@ -108,21 +112,27 @@ obj c_generator (Object) {
                 parameter_types = type_to_c(enclosing_object->type_def.self_type) + "*"
                 parameters = type_to_c(enclosing_object->type_def.self_type) + "* this"
             }
+
+            // stack-stack thing // this could be a stack of strings too, maybe
+            // start out with one stack on the stack
+            var defer_stack = stack<pair<bool,stack<*ast_node>>>(make_pair(false, stack<*ast_node>()))
+
             var decorated_name = generate_function(child).one_string()
             // also add in name decoration
             backing.parameters.for_each(fun(parameter: *ast_node) {
                 if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
                 parameter_types += type_to_c(parameter->identifier.type)
                 parameters += type_to_c(parameter->identifier.type) + " " + parameter->identifier.name
+
+                // add parameters to destructor thingy (for returns)? Or should that be a different pass?
+                var parameter_type = parameter->identifier.type
+                if (parameter_type->indirection == 0 && parameter_type->is_object() && has_method(parameter_type->type_def, "destruct", vector<*type>()))
+                    defer_stack.top().second.push(ast_statement_ptr(make_method_call(parameter, "destruct", vector<*ast_node>())))
             })
             function_prototypes += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n"
-
-            // add parameters to destructor thingy (for returns)? Or should that be a different pass?
-            // stack-stack thing // this could be a stack of strings too, maybe
-            // start out with one stack on the stack
-            var defer_stack = stack<pair<bool,stack<*ast_node>>>(make_pair(false, stack<*ast_node>()))
             function_definitions += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ") {\n" + generate_statement(backing.body_statement, enclosing_object, &defer_stack).one_string()
             // emit parameter destructors?
+            function_definitions += generate_from_defer_stack(&defer_stack, -1, enclosing_object).one_string()
             function_definitions += "}\n"
         }
 
@@ -178,7 +188,14 @@ obj c_generator (Object) {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
         var to_ret = code_triple() + type_to_c(identifier->identifier.type) + " " + identifier->identifier.name
-        if (node->declaration_statement.expression) to_ret += code_triple(" = ") + generate(node->declaration_statement.expression, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
+        if (node->declaration_statement.expression) {
+            if (ident_type->is_object() && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(node->declaration_statement.expression)->clone_with_increased_indirection()))) {
+                to_ret += ";\n";
+                to_ret += generate(ast_statement_ptr(make_method_call(identifier, "copy_construct", vector(make_operator_call("&", vector(node->declaration_statement.expression))))), enclosing_object, defer_stack)
+            } else {
+                to_ret += code_triple(" = ") + generate(node->declaration_statement.expression, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
+            }
+        }
         if (node->declaration_statement.init_method_call) to_ret += code_triple(";\n") + generate(node->declaration_statement.init_method_call, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
         if (add_to_defer && ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>()))
             defer_stack->top().second.push(ast_statement_ptr(make_method_call(identifier, "destruct", vector<*ast_node>())))
@@ -225,7 +242,7 @@ obj c_generator (Object) {
         var to_ret = code_triple()
         // if we're returning an object, copy_construct a new one to return
         if (return_value_type->is_object() && return_value_type->indirection == 0 && has_method(return_value_type->type_def, "copy_construct", vector(return_value_type->clone_with_indirection(1)))) {
-            var temp_ident = ast_identifier_ptr(string("temporary_return"), return_value_type)
+            var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), return_value_type)
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
             // have to pass false to the declaration generator, so can't do it through generate_statement
             to_ret.pre = generate_declaration_statement(declaration, enclosing_object, defer_stack, false).one_string() + ";\n"
@@ -285,6 +302,7 @@ obj c_generator (Object) {
     fun generate_function_call(node: *ast_node, enclosing_object: *ast_node): code_triple {
         var func_name = string()
         var call_string = code_triple()
+        var func_return_type = get_ast_type(node)
 
         // handle the obj.method() style of method call
         var dot_style_method_call = is_function_call(node->function_call.func) &&
@@ -330,10 +348,10 @@ obj c_generator (Object) {
 
             var param_type = get_ast_type(param)
             if (param_type->is_object() && param_type->indirection == 0 && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1)))) {
-                var temp_ident = ast_identifier_ptr(string("temporary_param"), param_type)
+                var temp_ident = ast_identifier_ptr(string("temporary_param")+get_id(), param_type)
                 var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
                 // have to pass false to the declaration generator, so can't do it through generate_statement
-                call_string.pre = generate_declaration_statement(declaration, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
+                call_string.pre += generate_declaration_statement(declaration, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
                 call_string.pre += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(param))))), enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
                 call_string += generate(temp_ident, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
                 if (has_method(param_type->type_def, "destruct", vector<*type>())) {
@@ -343,6 +361,17 @@ obj c_generator (Object) {
                 call_string += generate(param, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>())
             }
         })
+        if (func_return_type->is_object() && func_return_type->indirection == 0 && has_method(func_return_type->type_def, "destruct", vector<*type>())) {
+            // kind of ugly combo here of 
+            var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), func_return_type)
+            var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
+            // have to pass false to the declaration generator, so can't do it through generate_statement
+            call_string.pre += generate_declaration_statement(declaration, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
+            call_string.pre += generate_identifier(temp_ident, enclosing_object).one_string() + " = " + func_name + "(" + call_string.value + ");\n"
+            call_string.value = generate_identifier(temp_ident, enclosing_object).one_string()
+            call_string.post += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "destruct", vector<*ast_node>())), enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
+            return call_string
+        }
         return code_triple() + func_name + "(" + call_string + ")"
     }
 
