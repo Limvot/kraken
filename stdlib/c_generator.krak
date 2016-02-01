@@ -151,10 +151,16 @@ obj c_generator (Object) {
                     ast_node::simple_passthrough(backing) top_level_c_passthrough += generate_simple_passthrough(child)
                     ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), true).one_string() + ";\n"
                     ast_node::function(backing) {
-                        // make sure not a template
-                        // or a passthrough
                         // check for and add to parameters if a closure
                         generate_function_definition(child, null<ast_node>())
+                    }
+                    ast_node::function_template(backing) {
+                        backing.scope.for_each(fun(key: string, value: vector<*ast_node>) {
+                            value.for_each(fun(node: *ast_node) {
+                                if (is_function(node))
+                                    generate_function_definition(node, null<ast_node>())
+                            })
+                        })
                     }
                     ast_node::type_def(backing) {
                         type_poset.add_vertex(child)

@@ -1,5 +1,5 @@
 import to_import: simple_print, simple_println, a, b, string_id
-
+/*
 fun something(param: int): Something {
     var to_ret.construct_with_param(param): Something
     return to_ret
@@ -36,6 +36,8 @@ fun return_something_p_1(it: Something): Something {
     it.member += 11
     return it
 }
+*/
+fun id<T>(in: T): T return in;
 /*
 fun some_function(): int return 0;
 fun some_other_function(in: bool): float {
@@ -43,16 +45,21 @@ fun some_other_function(in: bool): float {
 }
 */
 fun main(): int {
-    var test_methods = something(77)
-    var test_methods_param.construct_with_param(10090): Something
-    simple_println("Constructing an object and printint its member, copy-constructing it, and printing that out, then letting both be destructed")
-    simple_println(test_methods.member)
-    simple_println(test_methods_param.member)
-    var second_obj = test_methods
-    second_obj.member += 5
-    simple_println(second_obj.member)
-    /*var some = return_something_p_1(second_obj)*/
-    simple_println(return_something_p_1(second_obj).member)
+    var a = id<int>(7)
+    simple_println(a)
+
+
+
+    /*var test_methods = something(77)*/
+    /*var test_methods_param.construct_with_param(10090): Something*/
+    /*simple_println("Constructing an object and printint its member, copy-constructing it, and printing that out, then letting both be destructed")*/
+    /*simple_println(test_methods.member)*/
+    /*simple_println(test_methods_param.member)*/
+    /*var second_obj = test_methods*/
+    /*second_obj.member += 5*/
+    /*simple_println(second_obj.member)*/
+    /*[>var some = return_something_p_1(second_obj)<]*/
+    /*simple_println(return_something_p_1(second_obj).member)*/
     return 0
     /*
     var a_declaration:int

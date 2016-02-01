@@ -18,6 +18,7 @@ adt ast_node {
     type_def: type_def,
     adt_def: adt_def,
     function: function,
+    function_template: function_template,
     code_block: code_block,
     statement: statement,
     if_statement: if_statement,
@@ -300,6 +301,58 @@ obj function (Object) {
     }
     fun operator==(other: ref function): bool {
         return name == name && type == other.type && parameters == other.parameters && body_statement == other.body_statement
+    }
+}
+fun ast_function_template_ptr(name: string, syntax_node: *tree<symbol>, template_types: vector<string>, template_type_replacements: map<string, *type>): *ast_node {
+    var to_ret.construct(name, syntax_node, template_types, template_type_replacements): function_template
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::function_template(to_ret))
+    return ptr
+}
+fun is_function_template(node: *ast_node): bool {
+    match(*node) {
+        ast_node::function_template(backing) return true
+    }
+    return false
+}
+obj function_template (Object) {
+    var name: string
+    var syntax_node: *tree<symbol>
+    var instantiated: vector<*ast_node>
+    var template_types: vector<string>
+    var template_type_replacements: map<string, *type>
+    var scope: map<string, vector<*ast_node>>
+    fun construct(name_in: string, syntax_node_in: *tree<symbol>, template_types_in: vector<string>, template_type_replacements_in: map<string, *type>): *function_template  {
+        name.copy_construct(&name_in)
+        syntax_node = syntax_node_in
+        instantiated.construct()
+        template_types.copy_construct(&template_types_in)
+        template_type_replacements.copy_construct(&template_type_replacements_in)
+        scope.construct()
+        return this
+    }
+    fun copy_construct(old: *function_template) {
+        name.copy_construct(&old->name)
+        syntax_node = old->syntax_node
+        instantiated.copy_construct(&old->instantiated)
+        template_types.copy_construct(&old->template_types)
+        template_type_replacements.copy_construct(&old->template_type_replacements)
+        scope.copy_construct(&old->scope)
+    }
+    fun destruct() {
+        name.destruct()
+        instantiated.destruct()
+        template_types.destruct()
+        template_type_replacements.destruct()
+        scope.destruct()
+    }
+    fun operator=(other: ref function_template) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref function_template): bool {
+        return  name == name && syntax_node == other.syntax_node && instantiated == other.instantiated &&
+                scope == other.scope && template_types == other.template_types && template_type_replacements == other.template_type_replacements
     }
 }
 fun ast_code_block_ptr(): *ast_node {
@@ -888,6 +941,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::type_def(backing) return backing.variables + backing.methods
         ast_node::adt_def(backing) return vector<*ast_node>()
         ast_node::function(backing) return backing.parameters + backing.body_statement
+        ast_node::function_template(backing) return backing.instantiated
         ast_node::code_block(backing) return backing.children
         ast_node::statement(backing) return vector<*ast_node>(backing.child)
         ast_node::if_statement(backing) return vector(backing.condition, backing.then_part, backing.else_part)
@@ -914,6 +968,7 @@ fun get_ast_name(node: *ast_node): string {
         ast_node::type_def(backing) return string("type_def: ") + backing.name
         ast_node::adt_def(backing) return string("adt_def: ") + backing.name
         ast_node::function(backing) return string("function: ") + backing.name + ": " + backing.type->to_string()
+        ast_node::function_template(backing) return string("function_template: ") + backing.name
         ast_node::code_block(backing) return string("code_block")
         ast_node::statement(backing) return string("statement")
         ast_node::if_statement(backing) return string("if_statement")
@@ -940,6 +995,7 @@ fun get_ast_scope(node: *ast_node): *map<string,vector<*ast_node>> {
         ast_node::type_def() return &node->type_def.scope
         ast_node::adt_def() return &node->adt_def.scope
         ast_node::function() return &node->function.scope
+        ast_node::function_template() return &node->function_template.scope
         ast_node::code_block() return &node->code_block.scope
         ast_node::statement() return &node->statement.scope
         ast_node::if_statement() return &node->if_statement.scope
