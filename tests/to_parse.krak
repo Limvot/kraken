@@ -37,6 +37,7 @@ fun return_something_p_1(it: Something): Something {
     return it
 }
 */
+fun id<T>(in: *T): *T return in;
 fun id<T>(in: T): T return in;
 /*
 fun some_function(): int return 0;
@@ -45,11 +46,11 @@ fun some_other_function(in: bool): float {
 }
 */
 fun main(): int {
-    /*var a = id<int>(7)*/
-    /*simple_println(a)*/
+    var a = id<int>(7)
+    simple_println(a)
     /*var b = id<*char>("Double down time")*/
     /*simple_println(b)*/
-    simple_println(id<*char>("Double down time"))
+    simple_println(id<char>("Double down time"))
 
 
 

@@ -449,7 +449,15 @@ fun transform_expression(node: *tree<symbol>, scope: *ast_node, searching_for: s
         var template_inst = get_node("template_inst", node)
         if (template_inst) {
             var identifier = get_node("scoped_identifier", node)
-            return find_or_instantiate_function_template(identifier, template_inst, scope, searching_for)
+            match (searching_for) {
+                // I guess this should never happen?
+                search_type::none() {
+                    println("TE<PLATE LOOKUO MAKES NO SENSE")
+                    return null<ast_node>()
+                }
+                search_type::function(type_vec) return find_or_instantiate_function_template(identifier, template_inst, scope, type_vec)
+            }
+            println("NEVER EVER HAPPEN")
         }
         var check_if_post = concat_symbol_tree(node->children[1])
         if (check_if_post == "--" || check_if_post == "++") {
@@ -483,7 +491,7 @@ fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>())
     return ast_function_ptr(name, type_ptr(param_types, param_types[0]), vector<*ast_node>())
 }
-fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, searching_for: search_type): *ast_node {
+fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>): *ast_node {
     var name = concat_symbol_tree(identifier)
     var results = scope_lookup(name, scope)
     var real_types = get_nodes("type", template_inst).map(fun(t: *tree<symbol>): *type return transform_type(t, scope, map<string, *type>());)
@@ -511,36 +519,36 @@ fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_in
             var part_instantiated = second_pass_function(results[i]->function_template.syntax_node, results[i], template_type_replacements, false) 
             // and fully instantiate it
             part_instantiated->function.body_statement = transform_statement(get_node("statement", results[i]->function_template.syntax_node), part_instantiated)
-            return part_instantiated
+            if (function_satisfies_params(part_instantiated, param_types))
+                return part_instantiated
         }
     }
     println("FREAK OUT MACHINE")
     return null<ast_node>()
 }
-fun function_lookup(name: string, scope: *ast_node, param_types: vector<*type>): *ast_node {
-    println(string("doing function lookup for: ") + name)
+fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool {
+    var func_param_types = get_ast_type(node)->parameter_types
     var param_string = string()
     param_types.for_each(fun(t: *type) param_string += t->to_string() + ", ";)
+    if (func_param_types.size != param_types.size) {
+        println(string("type sizes don't match") + param_types.size + " with needed " + param_string)
+        return false
+    }
+    for (var j = 0; j < param_types.size; j++;) {
+        if (*func_param_types[j] != *param_types[j]) {
+            return false
+        }
+    }
+    return true
+}
+fun function_lookup(name: string, scope: *ast_node, param_types: vector<*type>): *ast_node {
+    println(string("doing function lookup for: ") + name)
     var results = scope_lookup(name, scope)
     print(results.size); println(" number of results")
     for (var i = 0; i < results.size; i++;) {
-        if (is_function(results[i])) {
-            var func_param_types = get_ast_type(results[i])->parameter_types
-            if (func_param_types.size != param_types.size) {
-                println(string("type sizes don't match") + get_ast_type(results[i])->to_string() + " with needed " + param_string)
-                continue
-            }
-            var param_types_match = true
-            for (var j = 0; j < param_types.size; j++;) {
-                if (*func_param_types[j] != *param_types[j]) {
-                    param_types_match = false
-                    break
-                }
-            }
-            if (param_types_match)
-                return results[i]
+        if (is_function(results[i]) && function_satisfies_params(results[i], param_types)) {
+            return results[i]
         }
-        println(string("either isn't function or types don't match ") + get_ast_type(results[i])->to_string() + " with needed " + param_string)
     }
     println(string("function lookup failed for ") + name)
     return null<ast_node>()
