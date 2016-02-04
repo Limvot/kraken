@@ -109,9 +109,13 @@ obj type (Object) {
     }
     fun operator!=(other: ref type):bool return !(*this == other);
     fun operator==(other: ref type):bool {
-        if ( (return_type && other.return_type && *return_type != *other.return_type) || (return_type && !other.return_type) || (!return_type && other.return_type) )
+        if (parameter_types.size != other.parameter_types.size)
             return false
-        return base == other.base && parameter_types == other.parameter_types && indirection == other.indirection && type_def == other.type_def && traits == other.traits
+        for (var i = 0; i < parameter_types.size; i++;)
+            if (!deref_equality(parameter_types[i], other.parameter_types[i]))
+                return false
+        return base == other.base && deref_equality(return_type, other.return_type) &&
+            indirection == other.indirection && deref_equality(type_def, other.type_def) && traits == other.traits
     }
     fun to_string(): string {
         var all_string = string("traits:[")

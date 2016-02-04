@@ -5,6 +5,12 @@ import serialize
 // maybe my favorite function
 fun do_nothing() {}
 
+fun deref_equality<T>(a: *T, b: *T): bool {
+    if ( (a && b && !(*a == *b)) || (a && !b) || (!a && b) )
+        return false
+    return true
+}
+
 fun max<T>(a: T, b: T): T {
     if (a > b)
         return a;

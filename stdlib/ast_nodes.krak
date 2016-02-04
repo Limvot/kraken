@@ -321,6 +321,7 @@ obj function_template (Object) {
     var instantiated: vector<*ast_node>
     var template_types: vector<string>
     var template_type_replacements: map<string, *type>
+    var instantiated_map: map<vector<type>, *ast_node>
     var scope: map<string, vector<*ast_node>>
     fun construct(name_in: string, syntax_node_in: *tree<symbol>, template_types_in: vector<string>, template_type_replacements_in: map<string, *type>): *function_template  {
         name.copy_construct(&name_in)
@@ -328,6 +329,7 @@ obj function_template (Object) {
         instantiated.construct()
         template_types.copy_construct(&template_types_in)
         template_type_replacements.copy_construct(&template_type_replacements_in)
+        instantiated_map.construct()
         scope.construct()
         return this
     }
@@ -337,6 +339,7 @@ obj function_template (Object) {
         instantiated.copy_construct(&old->instantiated)
         template_types.copy_construct(&old->template_types)
         template_type_replacements.copy_construct(&old->template_type_replacements)
+        instantiated_map.copy_construct(&old->instantiated_map)
         scope.copy_construct(&old->scope)
     }
     fun destruct() {
@@ -344,6 +347,7 @@ obj function_template (Object) {
         instantiated.destruct()
         template_types.destruct()
         template_type_replacements.destruct()
+        instantiated_map.destruct()
         scope.destruct()
     }
     fun operator=(other: ref function_template) {
@@ -352,7 +356,8 @@ obj function_template (Object) {
     }
     fun operator==(other: ref function_template): bool {
         return  name == name && syntax_node == other.syntax_node && instantiated == other.instantiated &&
-                scope == other.scope && template_types == other.template_types && template_type_replacements == other.template_type_replacements
+                scope == other.scope && template_types == other.template_types && template_type_replacements == other.template_type_replacements &&
+                instantiated_map == other.instantiated_map
     }
 }
 fun ast_code_block_ptr(): *ast_node {

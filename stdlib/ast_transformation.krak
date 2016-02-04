@@ -495,32 +495,43 @@ fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_in
     var name = concat_symbol_tree(identifier)
     var results = scope_lookup(name, scope)
     var real_types = get_nodes("type", template_inst).map(fun(t: *tree<symbol>): *type return transform_type(t, scope, map<string, *type>());)
+    var real_types_deref = real_types.map(fun(t:*type):type return *t;)
     for (var i = 0; i < results.size; i++;) {
         if (is_function_template(results[i])) {
             var template_types = results[i]->function_template.template_types
             var template_type_replacements = results[i]->function_template.template_type_replacements
             if (template_types.size != real_types.size)
                 continue
-            println("FOR FIND OR INSTATINTATE PREEEE")
-            template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
-            println("MAP DONE")
-            for (var j = 0; j < template_types.size; j++;) {
-                template_type_replacements[template_types[j]] = real_types[j]
-                println("Just made")
-                println(template_types[j])
-                println("equal to")
-                println(real_types[j]->to_string())
+            // check if already instantiated
+            var inst_func = null<ast_node>()
+            if (results[i]->function_template.instantiated_map.contains_key(real_types_deref)) {
+                println("USING CACHED TEMPLATE FUNCITON")
+                inst_func =  results[i]->function_template.instantiated_map[real_types_deref]
+            } else {
+                println("FOR FIND OR INSTATINTATE PREEEE")
+                template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
+                println("MAP DONE")
+                for (var j = 0; j < template_types.size; j++;) {
+                    template_type_replacements[template_types[j]] = real_types[j]
+                    println("Just made")
+                    println(template_types[j])
+                    println("equal to")
+                    println(real_types[j]->to_string())
+                }
+
+                println("FOR FIND OR INSTATINTATE")
+                template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
+                println("MAP DONE")
+
+                inst_func = second_pass_function(results[i]->function_template.syntax_node, results[i], template_type_replacements, false) 
+                // and fully instantiate it
+                inst_func->function.body_statement = transform_statement(get_node("statement", results[i]->function_template.syntax_node), inst_func)
+                // add to instantiated_map so we only instantiate with a paticular set of types once
+                results[i]->function_template.instantiated_map.set(real_types_deref, inst_func)
             }
-
-            println("FOR FIND OR INSTATINTATE")
-            template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
-            println("MAP DONE")
-
-            var part_instantiated = second_pass_function(results[i]->function_template.syntax_node, results[i], template_type_replacements, false) 
-            // and fully instantiate it
-            part_instantiated->function.body_statement = transform_statement(get_node("statement", results[i]->function_template.syntax_node), part_instantiated)
-            if (function_satisfies_params(part_instantiated, param_types))
-                return part_instantiated
+            
+            if (function_satisfies_params(inst_func, param_types))
+                return inst_func
         }
     }
     println("FREAK OUT MACHINE")
