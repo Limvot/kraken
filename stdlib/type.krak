@@ -141,6 +141,15 @@ obj type (Object) {
         }
         return string("impossible type, indirection:") + indirection
     }
+    fun rank(): int {
+        match (base) {
+            base_type::character() return 1
+            base_type::integer() return 2
+            base_type::floating() return 3
+            base_type::double_precision() return 4
+        }
+        return 0
+    }
     fun clone_with_increased_indirection(): *type return clone_with_indirection(indirection+1);
     fun clone_with_increased_indirection(more: int): *type return clone_with_indirection(indirection+more);
     fun clone_with_decreased_indirection(): *type return clone_with_indirection(indirection-1);

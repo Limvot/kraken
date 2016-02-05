@@ -309,7 +309,7 @@ fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node {
             }
         }
         if (contains_dot)
-            value_type = type_ptr(base_type::floating())
+            value_type = type_ptr(base_type::double_precision()) //value_type = type_ptr(base_type::floating())
         else
             value_type = type_ptr(base_type::integer())
     }
@@ -491,10 +491,13 @@ fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection()), vector<*ast_node>())
     if (name == "\\*")
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>())
+    if (param_types.size > 1 && param_types[1]->rank() > param_types[0]->rank())
+        return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>())
     return ast_function_ptr(name, type_ptr(param_types, param_types[0]), vector<*ast_node>())
 }
 fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>): *ast_node {
     var name = concat_symbol_tree(identifier)
+    println(string("trying to instantiate a template function: ") + name)
     var results = scope_lookup(name, scope)
     var real_types = get_nodes("type", template_inst).map(fun(t: *tree<symbol>): *type return transform_type(t, scope, template_replacements);)
     var real_types_deref = real_types.map(fun(t:*type):type return *t;)
@@ -535,6 +538,8 @@ fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_in
 
             if (function_satisfies_params(inst_func, param_types))
                 return inst_func
+            else
+                println(string("this paticular ") + name + " did not satisfy params")
         }
     }
     println("FREAK OUT MACHINE")
@@ -550,6 +555,7 @@ fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool
     }
     for (var j = 0; j < param_types.size; j++;) {
         if (*func_param_types[j] != *param_types[j]) {
+            println(string("types don't match") + func_param_types[j]->to_string() + " with needed " + param_types[j]->to_string())
             return false
         }
     }

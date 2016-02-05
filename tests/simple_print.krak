@@ -1,9 +1,20 @@
 
+fun println() {
+    print("\n")
+}
 fun println(to_print: *char) {
     print(to_print)
     print("\n")
 }
 fun println(to_print: int) {
+    print(to_print)
+    print("\n")
+}
+fun println(to_print: float) {
+    print(to_print)
+    print("\n")
+}
+fun println(to_print: double) {
     print(to_print)
     print("\n")
 }
@@ -15,6 +26,17 @@ fun print(to_print: *char) {
 fun print(to_print: int) {
     __if_comp__ __C__ simple_passthrough(to_print::) """
         printf("%d", to_print);
+    """
+}
+
+fun print(to_print: float) {
+    __if_comp__ __C__ simple_passthrough(to_print::) """
+        printf("%f", to_print);
+    """
+}
+fun print(to_print: double) {
+    __if_comp__ __C__ simple_passthrough(to_print::) """
+        printf("%f", to_print);
     """
 }
 
