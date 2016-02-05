@@ -1,6 +1,6 @@
 #!/bin/bash
 
-runner_path="./test_runner/test_runner"
+runner_path="./tester/tester"
 #testDir=${1:-"../tests"}
 testDir="."
 ext=${2:-"krak"}
@@ -12,4 +12,4 @@ for dir in `find ${testDir} -type f -name "test_*.${ext}"`; do
 	fileList+=\ $testDir\/$filename
 done
 
-${runner_path} "--test" ${fileList}
+${runner_path} ${fileList}

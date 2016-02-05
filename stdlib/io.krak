@@ -101,6 +101,8 @@ fun file_exists(path: string::string): bool {
     return result
 }
 fun read_file(path: string::string): string::string {
+    if (!file_exists(path))
+        return string::string()
     var toRet.construct(read_file_binary(path)): string::string
     return toRet
 }
