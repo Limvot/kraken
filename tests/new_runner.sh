@@ -1,6 +1,6 @@
 #!/bin/bash
 
-krakenPath="../build-ninja/kraken"
+runner_path="./test_runner/test_runner"
 #testDir=${1:-"../tests"}
 testDir="."
 ext=${2:-"krak"}
@@ -12,4 +12,4 @@ for dir in `find ${testDir} -type f -name "test_*.${ext}"`; do
 	fileList+=\ $testDir\/$filename
 done
 
-${krakenPath} "--test" ${fileList}
+${runner_path} "--test" ${fileList}

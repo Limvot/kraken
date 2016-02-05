@@ -10,7 +10,7 @@ import serialize:*
 import c_generator:*
 import os:*
 
-fun main():int {
+fun main(argc: int, argv: **char):int {
 
     /*var gram.construct(): grammer*/
     // delay construction until we either load it or copy construct it
@@ -62,6 +62,8 @@ fun main():int {
     }
 
     var kraken_file_name = string("to_parse.krak")
+    if (argc > 1)
+        kraken_file_name = string(argv[1])
     var parse.construct(gram): parser
     var ast_pass.construct(): ast_transformation
     var importer.construct(parse, ast_pass): importer

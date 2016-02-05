@@ -1,4 +1,4 @@
-import to_import: simple_print, simple_println, a, b, string_id
+import simple_print: *
 /*
 fun something(param: int): Something {
     var to_ret.construct_with_param(param): Something
@@ -7,22 +7,22 @@ fun something(param: int): Something {
 obj Something (ObjectTrait) {
     var member: int
     fun construct(): *Something {
-        simple_println("Constructing a Something")
+        println("Constructing a Something")
         member = 1337
         return this
     }
     fun construct_with_param(param: int): *Something {
-        simple_println("Constructing a Something with a param")
+        println("Constructing a Something with a param")
         member = param
         return this
     }
     fun copy_construct(old: *Something) {
-        simple_println("Copy Constructing a Something")
+        println("Copy Constructing a Something")
         member = old->member
     }
     fun destruct() {
-        simple_print("Destructing a Something: ")
-        simple_println(member)
+        print("Destructing a Something: ")
+        println(member)
     }
     fun method(a: int):int {
         return 5+a+member + other_method()
@@ -42,7 +42,7 @@ fun id<T>(in: T): T return in;
 fun other_id<T>(in: T): T {
     var a: T
     a = in
-    simple_println(id<T>(in))
+    println(id<T>(in))
     return in;
 }
 /*
@@ -53,87 +53,87 @@ fun some_other_function(in: bool): float {
 */
 fun main(): int {
     var a = id<int>(7)
-    simple_println(a)
+    println(a)
     var b = id<int>(8)
     /*var b = id<*char>("Double down time")*/
-    /*simple_println(b)*/
-    simple_println(id<char>("Double down time"))
-    simple_println(other_id<*char>("Triple down time"))
+    /*println(b)*/
+    println(id<char>("Double down time"))
+    println(other_id<*char>("Triple down time"))
 
 
 
     /*var test_methods = something(77)*/
     /*var test_methods_param.construct_with_param(10090): Something*/
-    /*simple_println("Constructing an object and printint its member, copy-constructing it, and printing that out, then letting both be destructed")*/
-    /*simple_println(test_methods.member)*/
-    /*simple_println(test_methods_param.member)*/
+    /*println("Constructing an object and printint its member, copy-constructing it, and printing that out, then letting both be destructed")*/
+    /*println(test_methods.member)*/
+    /*println(test_methods_param.member)*/
     /*var second_obj = test_methods*/
     /*second_obj.member += 5*/
-    /*simple_println(second_obj.member)*/
+    /*println(second_obj.member)*/
     /*[>var some = return_something_p_1(second_obj)<]*/
-    /*simple_println(return_something_p_1(second_obj).member)*/
+    /*println(return_something_p_1(second_obj).member)*/
     return 0
     /*
     var a_declaration:int
-    simple_print(1 + 2)
+    print(1 + 2)
     var again = 2 + 4 - 1 * 400
-    simple_print(again)
+    print(again)
     again = 2 + (4 - 1) * 400
-    simple_print(again)
+    print(again)
     var another_declaration: int = 8.0
-    simple_print(another_declaration)
+    print(another_declaration)
     var yet_another_declaration = "Hello Marcus\n"
-    simple_print(yet_another_declaration)
-    simple_print("Hello World!\n")
-    simple_print(1337)
-    if (1 + 2 && false) simple_print("its true!")
-    else simple_print("its false!")
+    print(yet_another_declaration)
+    print("Hello World!\n")
+    print(1337)
+    if (1 + 2 && false) print("its true!")
+    else print("its false!")
     var counter = 10
     counter--
     --counter
-    while (counter) simple_print(counter--)
-    simple_print("\n")
+    while (counter) print(counter--)
+    print("\n")
     counter = 8
     while (counter) {
-        simple_print(--counter)
+        print(--counter)
         if (counter == 2)
             break
     }
-    simple_print("\n")
+    print("\n")
     for (var j = 0; j < 10; j++;)
         if (j%2) continue
-        else simple_print(j)
+        else print(j)
     var an_obj: Something
     an_obj.member = 20
-    simple_print(an_obj.member)
-    simple_print("here is thing")
-    simple_print(123)
-    simple_print("\n")
-    simple_print(an_obj.method(1))
-    simple_print("\n")
-    simple_print(string_id("WoooopsEee\n"))
+    print(an_obj.member)
+    print("here is thing")
+    print(123)
+    print("\n")
+    print(an_obj.method(1))
+    print("\n")
+    print(string_id("WoooopsEee\n"))
     var with_ptr = an_obj.return_this()
-    simple_print(with_ptr->method(2))
-    simple_print("\n")
+    print(with_ptr->method(2))
+    print("\n")
     {
-        defer simple_print("should_be_third\n")
-        defer simple_print("should_be_second\n")
-        simple_print("should be first\n")
+        defer print("should_be_third\n")
+        defer print("should_be_second\n")
+        print("should be first\n")
     }
     for (var i = 1; i < 10; i++;) {
-        defer simple_println("OUTER:happens every time, even when breaking or continueing")
+        defer println("OUTER:happens every time, even when breaking or continueing")
         {
-            defer simple_println("INNER:happens every time, even when breaking or continueing")
+            defer println("INNER:happens every time, even when breaking or continueing")
             if (i % 2 == 0)
                 continue
             if (i == 9)
                 break
-            simple_println(i)
+            println(i)
         }
     }
-    defer simple_println("Here is a return defer outer")
+    defer println("Here is a return defer outer")
     {
-        defer simple_println("Here is a return defer inner")
+        defer println("Here is a return defer inner")
         return 0
     }
     */

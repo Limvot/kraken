@@ -73,6 +73,8 @@ obj ast_transformation (Object) {
                 ast_to_syntax.set(import_node, child)
                 add_to_scope("~enclosing_scope", translation_unit, import_node)
                 import_node->import.imported = from_vector(import_identifier_children.slice(1,-1).map(fun(ident: *tree<symbol>):string return concat_symbol_tree(ident);))
+                if (get_node("\"\\*\"", child))
+                    import_node->import.starred = true
             }
         })
         return translation_unit
@@ -523,14 +525,14 @@ fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_in
                 template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
                 println("MAP DONE")
 
-                inst_func = second_pass_function(results[i]->function_template.syntax_node, results[i], template_type_replacements, false) 
+                inst_func = second_pass_function(results[i]->function_template.syntax_node, results[i], template_type_replacements, false)
                 // add to instantiated_map so we only instantiate with a paticular set of types once
                 // put in map first for recursive purposes
                 results[i]->function_template.instantiated_map.set(real_types_deref, inst_func)
                 // and fully instantiate it
                 inst_func->function.body_statement = transform_statement(get_node("statement", results[i]->function_template.syntax_node), inst_func, template_type_replacements)
             }
-            
+
             if (function_satisfies_params(inst_func, param_types))
                 return inst_func
         }
@@ -577,27 +579,39 @@ fun identifier_lookup(name: string, scope: *ast_node): *ast_node {
 fun scope_lookup(name: string, scope: *ast_node): vector<*ast_node> {
     println("*****Doing a name lookup for*****")
     println(name)
-    return scope_lookup_helper(name, scope)
+    return scope_lookup_helper(name, scope, set<*ast_node>())
 }
-fun scope_lookup_helper(name: string, scope: *ast_node): vector<*ast_node> {
+fun scope_lookup_helper(name: string, scope: *ast_node, visited: set<*ast_node>): vector<*ast_node> {
     // need to do properly scopded lookups
-    // prevent re-checking the same one...
     print("scope is: ")
     get_ast_scope(scope)->for_each(fun(key: string, value: vector<*ast_node>) print(key + " ");)
     println()
     var results = vector<*ast_node>()
+    // prevent re-checking the same one...
+    if (visited.contains(scope))
+        return results
+    visited.add(scope)
     if (get_ast_scope(scope)->contains_key(name)) {
         println(name + " is in scope, adding to results")
         results += get_ast_scope(scope)->get(name)
     }
     if (get_ast_scope(scope)->contains_key(string("~enclosing_scope")))
-        results += scope_lookup_helper(name, get_ast_scope(scope)->get(string("~enclosing_scope"))[0])
+        results += scope_lookup_helper(name, get_ast_scope(scope)->get(string("~enclosing_scope"))[0], visited)
     if (is_translation_unit(scope)) {
         scope->translation_unit.children.for_each(fun(child: *ast_node) {
-            if (is_import(child) && child->import.imported.contains(name)) {
-                println(name + " is indeed imported")
-                results += scope_lookup_helper(name, child->import.translation_unit)
-            } else println(name + " is not imported (this time)")
+            if (is_import(child)) {
+                if (child->import.imported.contains(name)) {
+                    println(name + " is indeed imported")
+                    results += scope_lookup_helper(name, child->import.translation_unit, visited)
+                } else if (child->import.starred) {
+                    println("import has an import *, checking along it")
+                    results += scope_lookup_helper(name, child->import.translation_unit, visited)
+                } else {
+                    println(name + " is not imported (this time)")
+                    print("import imports")
+                    child->import.imported.for_each(fun(it: string) print(it + " ");)
+                }
+            }
         })
     }
     return results

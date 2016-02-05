@@ -106,11 +106,13 @@ obj import (Object) {
     var imported: set<string>
     var translation_unit: *ast_node
     var name: string
+    var starred: bool
     fun construct(nameIn: string, translation_unit_in: *ast_node): *import  {
         scope.construct()
         imported.construct()
         name.copy_construct(&nameIn)
         translation_unit = translation_unit_in
+        starred = false
         return this
     }
     fun copy_construct(old: *import) {
@@ -118,6 +120,7 @@ obj import (Object) {
         imported.copy_construct(&old->imported)
         name.copy_construct(&old->name)
         translation_unit = old->translation_unit
+        starred = old->starred
     }
     fun destruct() {
         scope.destruct()
@@ -129,7 +132,7 @@ obj import (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref import): bool {
-        return imported == other.imported && name == other.name && translation_unit == other.translation_unit
+        return imported == other.imported && name == other.name && translation_unit == other.translation_unit && starred == other.starred
     }
 }
 fun ast_identifier_ptr(name: *char, type: *type): *ast_node {
