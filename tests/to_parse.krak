@@ -39,6 +39,12 @@ fun return_something_p_1(it: Something): Something {
 */
 fun id<T>(in: *T): *T return in;
 fun id<T>(in: T): T return in;
+fun other_id<T>(in: T): T {
+    var a: T
+    a = in
+    simple_println(id<T>(in))
+    return in;
+}
 /*
 fun some_function(): int return 0;
 fun some_other_function(in: bool): float {
@@ -52,6 +58,7 @@ fun main(): int {
     /*var b = id<*char>("Double down time")*/
     /*simple_println(b)*/
     simple_println(id<char>("Double down time"))
+    simple_println(other_id<*char>("Triple down time"))
 
 
 

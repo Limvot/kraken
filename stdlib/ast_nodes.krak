@@ -1041,9 +1041,11 @@ fun ast_to_dot(root: *ast_node): string {
         node_name_map.set(node, escaped)
         return escaped
     }
+    var done_set = set<*ast_node>()
     var helper: fun(*ast_node):void = fun(node: *ast_node) {
+        done_set.add(node)
         get_ast_children(node).for_each(fun(child: *ast_node) {
-            if (!child)
+            if (!child || done_set.contains(child))
                 return; // where on earth does the null come from
             ret += string("\"") + get_name(node) + "\" -> \"" + get_name(child) + "\"\n";
             helper(child)
