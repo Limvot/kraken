@@ -579,7 +579,18 @@ fun identifier_lookup(name: string, scope: *ast_node): *ast_node {
 fun scope_lookup(name: string, scope: *ast_node): vector<*ast_node> {
     println("*****Doing a name lookup for*****")
     println(name)
-    return scope_lookup_helper(name, scope, set<*ast_node>())
+    var results = vector(scope)
+    name.split("::").for_each(fun(i: string) {
+        println(string("based on split, looking up: ") + i)
+        var next_results = vector<*ast_node>()
+        results.for_each(fun(s: *ast_node) {
+            print("looking in scope: ")
+            println(s)
+            next_results += scope_lookup_helper(i, s, set<*ast_node>())
+        })
+        results = next_results
+    })
+    return results
 }
 fun scope_lookup_helper(name: string, scope: *ast_node, visited: set<*ast_node>): vector<*ast_node> {
     // need to do properly scopded lookups

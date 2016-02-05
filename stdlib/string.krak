@@ -149,11 +149,28 @@ obj string (Object, Serializable) {
         return out;
     }
 
-    fun lines(): vector::vector<string> {
+    fun split(delim: *char): vector::vector<string> return split(string(delim))
+    fun split(delim: string): vector::vector<string> {
         var out.construct(): vector::vector<string>
         var current = string("")
         for (var i = 0; i < data.size; i++;) {
-            if (data[i] == '\n') {
+            if (i < data.size-delim.length() && slice(i, i+delim.length()) == delim) {
+                out.add(current)
+                current = string("")
+                i += delim.length()-1
+            } else {
+                current += data[i]
+            }
+        }
+        out.add(current)
+        return out
+    }
+    fun lines(): vector::vector<string> return split('\n')
+    fun split(delim: char): vector::vector<string> {
+        var out.construct(): vector::vector<string>
+        var current = string("")
+        for (var i = 0; i < data.size; i++;) {
+            if (data[i] == delim) {
                 out.add(current)
                 current = string("")
             } else {

@@ -1,9 +1,9 @@
-import io;
+import simple_print;
 
 fun nothing(): void {}
 
 fun main(): int {
     nothing();
-    io::println("It was nothing");
+    simple_print::println("It was nothing");
     return 0;
 }
