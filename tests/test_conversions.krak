@@ -1,4 +1,4 @@
-import io:*
+import simple_print:*
 import conversions:*
 
 fun main():int {

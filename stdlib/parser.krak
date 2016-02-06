@@ -137,11 +137,13 @@ obj parser (Object) {
 
         println("**PARSE ERROR**")
         println("REJECTED")
-        println("parsing (not lexing) failed for ")
+        println("parsing (not lexing) failed AT THE END for ")
         println(name)
         print(" line number: ")
         print(find_line(input.size))
         println("(minus 2?)")
+        print("' with txt ")
+        println(input.last().to_string())
         return null<tree<symbol>>()
     }
     fun reducer(i: int) {
