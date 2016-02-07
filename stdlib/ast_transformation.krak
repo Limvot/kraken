@@ -309,7 +309,10 @@ fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node {
             }
         }
         if (contains_dot)
-            value_type = type_ptr(base_type::double_precision()) //value_type = type_ptr(base_type::floating())
+            if (value_str[value_str.length()-1] == 'f')
+                value_type = type_ptr(base_type::floating()) //value_type = type_ptr(base_type::floating())
+            else
+                value_type = type_ptr(base_type::double_precision()) //value_type = type_ptr(base_type::floating())
         else
             value_type = type_ptr(base_type::integer())
     }
@@ -418,7 +421,10 @@ fun transform_for_loop(node: *tree<symbol>, scope: *ast_node, template_replaceme
     return for_loop
 }
 fun transform_return_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-    return ast_return_statement_ptr(transform(node->children[0], scope, template_replacements))
+    var return_value = get_node("boolean_expression", node)
+    if (return_value)
+        return ast_return_statement_ptr(transform(return_value, scope, template_replacements))
+    return ast_return_statement_ptr(null<ast_node>())
 }
 fun transform_branching_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
     if (node->data.name == "break_statement")
@@ -485,11 +491,13 @@ fun transform_expression(node: *tree<symbol>, scope: *ast_node, searching_for: s
     return ast_function_call_ptr(get_builtin_function(func_name, parameter_types), parameters)
 }
 fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
-    if (name == "." || name == "->")
+    if (name == "==" || name == "!=" || name == ">" || name == "<" || name == "<=" || name == ">" || name == ">=" || name == "&&" || name == "||" || name == "!")
+        return ast_function_ptr(name, type_ptr(param_types, type_ptr(base_type::boolean())), vector<*ast_node>())
+    if (name == "." || name == "->" || name == "[")
         return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>())
     if (name == "&")
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection()), vector<*ast_node>())
-    if (name == "\\*")
+    if (name == "\*")
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>())
     if (param_types.size > 1 && param_types[1]->rank() > param_types[0]->rank())
         return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>())

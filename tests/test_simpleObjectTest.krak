@@ -1,10 +1,10 @@
-import io;
+import simple_print;
 
 obj FirstObject {
 	var objectNum: int;
 	fun PrintSelf(a: int): void {
-        io::print(objectNum);
-        io::print(a);
+        simple_print::print(objectNum);
+        simple_print::print(a);
 	}
 };
 
@@ -12,6 +12,6 @@ fun main(): int {
 	var wooObject: FirstObject;
 	wooObject.objectNum = 5;
 	wooObject.PrintSelf(7);
-    io::print("\n");
+    simple_print::print("\n");
 	return 0;
 }

@@ -1,5 +1,5 @@
 /* Comment first! */
-import io:*;
+import simple_print:*;
 
 fun main(): int {
     println(1337) /*how bout now*/

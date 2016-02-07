@@ -1,4 +1,4 @@
-import io:*
+import simple_print:*
 import vector:*
 
 fun onlyMatch(vec: vector<int>, matchWith: int): vector<int> {

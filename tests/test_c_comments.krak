@@ -1,5 +1,5 @@
 /*here*/
-/*here*/import /*here*/io/*here*/:/*here*/*/*here*/
+/*here*/import /*here*/simple_print/*here*/:/*here*/*/*here*/
 /*here*/
 /*here*/fun/*here*/ main/*here*/(/*here*/)/*here*/:/*here*/ int/*here*/  {/*here*/
  /*here*/   println/*here*/( /*here*/1 /*here*/ )/*here*/

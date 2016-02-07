@@ -88,7 +88,7 @@ obj c_generator (Object) {
     }
     fun destruct() {
     }
-    fun get_id(): string return to_string(id_counter++); 
+    fun get_id(): string return to_string(id_counter++);
     fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<string,string> {
         var linker_string:string = ""
         var prequal: string = "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n"
@@ -164,6 +164,11 @@ obj c_generator (Object) {
                     }
                     ast_node::type_def(backing) {
                         type_poset.add_vertex(child)
+                        backing.variables.for_each(fun(i: *ast_node) {
+                            var var_type = get_ast_type(i->declaration_statement.identifier)
+                            if (!var_type->indirection && var_type->type_def)
+                                type_poset.add_relationship(child, var_type->type_def)
+                        })
                     }
                 }
             })
@@ -244,6 +249,8 @@ obj c_generator (Object) {
     }
     fun generate_return_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         var return_value = node->return_statement.return_value
+        if (!return_value)
+            return code_triple("return")
         var return_value_type = get_ast_type(return_value)
         var to_ret = code_triple()
         // if we're returning an object, copy_construct a new one to return
@@ -333,12 +340,14 @@ obj c_generator (Object) {
         var parameters = node->function_call.parameters
         if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||"
             || func_name == "&&" || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
-            || func_name == "==" || func_name == "%"
+            || func_name == "==" || func_name == "!=" || func_name == "%"
         ))
             return code_triple("(") + generate(parameters[0], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + func_name + generate(parameters[1], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + string(")")
         // don't propegate enclosing function down right of access
         if (func_name == "." || func_name == "->")
             return code_triple("(") + generate(parameters[0], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + func_name + generate(parameters[1], null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>()) + string(")")
+        if (func_name == "[")
+            return code_triple("(") + generate(parameters[0], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + "[" + generate(parameters[1], null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>()) + string("])")
         // the post ones need to be post-ed specifically, and take the p off
         if (func_name == "++p" || func_name == "--p")
             return code_triple("(") + generate(parameters[0], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()) + ")" + func_name.slice(0,-2)
@@ -368,7 +377,7 @@ obj c_generator (Object) {
             }
         })
         if (func_return_type->is_object() && func_return_type->indirection == 0 && has_method(func_return_type->type_def, "destruct", vector<*type>())) {
-            // kind of ugly combo here of 
+            // kind of ugly combo here of
             var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), func_return_type)
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
             // have to pass false to the declaration generator, so can't do it through generate_statement

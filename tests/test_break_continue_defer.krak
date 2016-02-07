@@ -1,4 +1,4 @@
-import io:*
+import simple_print:*
 
 fun main():int {
     for (var i = 1; i < 10; i++;) {

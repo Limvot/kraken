@@ -1,10 +1,10 @@
-import io;
+import simple_print;
 
 var a: int = 42;
 var b = "hi";
 
 fun main(): int {
-    io::println(a);
-    io::println(b);
+    simple_print::println(a);
+    simple_print::println(b);
     return 0;
 }

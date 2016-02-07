@@ -1,8 +1,7 @@
-import io:*
-import string:*
+import simple_print:*
 
 fun main(): int {
-    io::println("Spam");
+    simple_print::println("Spam");
     var x: int = 4;
     x += 3;
     x++;
@@ -11,15 +10,14 @@ fun main(): int {
     var q :int = z+z;
     var q2:int = z*3;
     var q3:int = y + y;
-    io::println(q3);
-    io::println(z);
-    io::println(q);
+    simple_print::println(q3);
+    simple_print::println(z);
+    simple_print::println(q);
     for (var i:int = 0; i < 20; i++;) z++;
-    if (z > 20) io::println("We'll find out.");
-    io::println(z);
+    if (z > 20) simple_print::println("We'll find out.");
+    simple_print::println(z);
     var boolean = false
     if ( z > 20 && !boolean)
-        io::println("woo not")
-    io::println(string("ab")[0] == 'a')
-    io::println('b' == 'a')
+        simple_print::println("woo not")
+    simple_print::println('b' == 'a')
 }

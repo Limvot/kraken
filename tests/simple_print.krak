@@ -22,6 +22,10 @@ fun println(to_print: double) {
     print(to_print)
     print("\n")
 }
+fun println(to_print: bool) {
+    print(to_print)
+    print("\n")
+}
 fun print(to_print: *char) {
     __if_comp__ __C__ simple_passthrough(to_print::) """
         printf("%s", to_print);
@@ -47,5 +51,9 @@ fun print(to_print: double) {
     __if_comp__ __C__ simple_passthrough(to_print::) """
         printf("%f", to_print);
     """
+}
+fun print(to_print: bool) {
+    if (to_print) print("true")
+    else print("false")
 }
 

@@ -50,10 +50,12 @@ obj importer (Object) {
         println("**Fourth Pass**")
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.fourth_pass(tree_pair.first, tree_pair.second);)
 
+        /*
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) {
             print("writing ast for: "); println(name)
             write_file(name + ".ast.dot", ast_to_dot(tree_pair.second))
         })
+        */
 
         return to_ret
     }
@@ -74,11 +76,11 @@ obj importer (Object) {
         })
         var parse_tree = parse.parse_input(file, file_name)
         print("post-parse: "); println(file_name)
-        write_file(file_name + ".parse.dot", syntax_tree_to_dot(parse_tree))
+        /*write_file(file_name + ".parse.dot", syntax_tree_to_dot(parse_tree))*/
         print("pre-trim: "); println(file_name)
         trim(parse_tree)
         print("post-trim: "); println(file_name)
-        write_file(file_name + ".trimmed_parse.dot", syntax_tree_to_dot(parse_tree))
+        /*write_file(file_name + ".trimmed_parse.dot", syntax_tree_to_dot(parse_tree))*/
         print("pre-first-ast: "); println(file_name)
         var ast = ast_pass.first_pass(file_name, parse_tree, this)
         print("post-first-ast: "); println(file_name)
