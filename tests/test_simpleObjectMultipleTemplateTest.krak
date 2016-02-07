@@ -5,12 +5,12 @@ obj TemplateTest<T,J> {
 	var a: T;
 	var b: J;
 	fun print(): void {
-        io::print("a: ");
-        io::print(a);
-        io::print("\n");
-        io::print("b: ");
-        io::print(b);
-        io::print("\n");
+        simple_print::print("a: ");
+        simple_print::print(a);
+        simple_print::print("\n");
+        simple_print::print("b: ");
+        simple_print::print(b);
+        simple_print::print("\n");
 	}
 };
 

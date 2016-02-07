@@ -13,7 +13,7 @@ fun main(): int {
 
     var sayQualified.construct("Qualified Container!"): scopeQualified::qualified_container<*char>;
     simple_print::println(sayQualified.get());
-    simple_print::println(scopeQualified::qualified_id<*char>("Even template functsimple_printns qualified!"));
+    simple_print::println(scopeQualified::qualified_id<*char>("Even template functions qualified!"));
 
     simple_print::println();
 
@@ -26,7 +26,7 @@ fun main(): int {
 
     var sayUnqualified.construct("Unqualified Container!"): unqualified_container<*char>;
     simple_print::println(sayUnqualified.get());
-    simple_print::println(unqualified_id<*char>("Even template functsimple_printns unqualified!"));
+    simple_print::println(unqualified_id<*char>("Even template functions unqualified!"));
 
     return 0;
 }
