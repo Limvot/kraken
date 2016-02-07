@@ -63,6 +63,7 @@ obj lexer (Object) {
     fun next(): symbol::symbol {
         if (position >= input.length())
             return symbol::eof_symbol()
+        /*
         var max = regs.map(fun(reg_pair: util::pair<string::string,regex::regex>): util::pair<int, string::string> {
                 return util::make_pair(reg_pair.second.long_match(input.slice(position, -1)), reg_pair.first); })
                 .max(fun(first: util::pair<int, string::string>, second: util::pair<int, string::string>): bool
@@ -71,6 +72,20 @@ obj lexer (Object) {
             return symbol::invalid_symbol()
         position += max.first
         return symbol::symbol(max.second, true, input.slice(position-max.first, position))
+        */
+        var max = -1
+        var max_length = -1
+        for (var i = 0; i < regs.size; i++;) {
+            var new_length = regs[i].second.long_match(input.getBackingMemory(), position, input.length())
+            if (new_length > max_length) {
+                max = i
+                max_length = new_length
+            }
+        }
+        if (max < 0)
+            return symbol::invalid_symbol()
+        position += max_length
+        return symbol::symbol(regs[max].first, true, input.slice(position-max_length, position))
     }
 }
 

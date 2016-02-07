@@ -180,19 +180,20 @@ obj regex (Object, Serializable) {
     }
 
     fun long_match(to_match: *char): int { return long_match(string::string(to_match)); }
-    fun long_match(to_match: string::string): int {
+    fun long_match(to_match: string::string): int return long_match(to_match.getBackingMemory(), 0, to_match.length())
+    fun long_match(to_match: *char, position: int, end: int): int {
         var next = set::set(begin)
         var longest = -1
-        for (var i = 0; i < to_match.length(); i++;) {
+        for (var i = 0; i < end-position; i++;) {
             if (next.size() == 0)
                 return longest
             if (next.any_true(fun(state: *regexState):bool { return state->is_end(); }))
                 longest = i
             //next = next.flatten_map<*regexState>(fun(state: *regexState): vector::vector<*regexState> { return state->match_char(to_match[i]); })
-            next = next.flatten_map(fun(state: *regexState): set::set<*regexState> { return state->match_char(to_match[i]); })
+            next = next.flatten_map(fun(state: *regexState): set::set<*regexState> { return state->match_char(to_match[position+i]); })
         }
         if (next.any_true(fun(state: *regexState):bool { return state->is_end(); }))
-            return to_match.length()
+            return end-position
         return longest
     }
 }

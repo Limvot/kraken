@@ -148,6 +148,7 @@ obj string (Object, Serializable) {
         out[data.size] = 0
         return out;
     }
+    fun getBackingMemory(): *char return data.getBackingMemory();
 
     fun split(delim: *char): vector::vector<string> return split(string(delim))
     fun split(delim: string): vector::vector<string> {

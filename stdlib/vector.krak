@@ -121,11 +121,11 @@ obj vector<T> (Object, Serializable) {
     }
 
     fun slice(start: int, end: int): vector<T> {
-        var new.construct(): vector<T>
         if (start < 0)
             start += size + 1
         if (end < 0)
             end += size + 1
+        var new.construct(end-start): vector<T>
         for (var i = start; i < end; i++;)
             new.add(data[i])
         return new
@@ -229,6 +229,12 @@ obj vector<T> (Object, Serializable) {
         for (var i = 0; i < size; i++;)
             data[i] = func(data[i])
     }
+    fun map<U>(func: fun(ref T):U):vector<U> {
+        var newVec.construct(size): vector<U>
+        for (var i = 0; i < size; i++;)
+            newVec.addEnd(func(data[i]))
+        return newVec
+    }
     fun map<U>(func: fun(T):U):vector<U> {
         var newVec.construct(size): vector<U>
         for (var i = 0; i < size; i++;)
@@ -256,6 +262,13 @@ obj vector<T> (Object, Serializable) {
             if (func(data[i]))
                 return true
         return false
+    }
+    fun max(func: fun(ref T, ref T):bool): T {
+        var maxIdx = 0
+        for (var i = 1; i < size; i++;)
+            if (func(data[maxIdx], data[i]))
+                maxIdx = i
+        return data[maxIdx]
     }
     fun max(func: fun(T,T):bool): T {
         var maxIdx = 0
