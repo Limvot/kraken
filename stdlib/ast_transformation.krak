@@ -513,7 +513,8 @@ fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
 fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<string, *type>, template_replacements: map<string, *type>) {
     println(string("Unifying type: ") + concat_symbol_tree(template_type))
     // first get rid of the reference if we have it - we don't care for unification
-    template_type = get_node("pre_reffed", template_type)
+    if (get_node("pre_reffed", template_type))
+        template_type = get_node("pre_reffed", template_type)
     // There are a couple options for the template parameter type here
     // 1) template type - perfect, stick it in the map, that's what we're here for
     // 2) basic type - stick it in the map, it won't get copied out so no worries
@@ -524,8 +525,13 @@ fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<st
     //      to object templates at all ;)
     if (template_type->children.size == 1)
         new_map->set(concat_symbol_tree(template_type), param_type)
-    else
+    else if (get_node("\"\\*\"", template_type))
+        unify_type(template_type->children[1], param_type->clone_with_decreased_indirection(), new_map, template_replacements)
+    else {
+        println(template_type->children[0]->data.name)
+        println(template_type->children[0]->data.data)
         error("TYPE INFERENCE NOT GOOD ENOUGH")
+    }
 }
 fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>): *ast_node {
     var name = concat_symbol_tree(identifier)
@@ -695,6 +701,7 @@ fun concat_symbol_tree(node: *tree<symbol>): string {
     node->children.for_each(fun(child: *tree<symbol>) str += concat_symbol_tree(child);)
     return str
 }
+
 fun get_node(lookup: *char, parent: *tree<symbol>): *tree<symbol> {
     return get_node(string(lookup), parent)
 }

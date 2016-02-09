@@ -37,8 +37,8 @@ fun return_something_p_1(it: Something): Something {
     return it
 }
 */
-/*fun id<T>(in: *T): *T return in;*/
-fun id<T>(in: T): T return in;
+fun id<T>(in: *T): *T return in;
+/*fun id<T>(in: T): T return in;*/
 fun other_id<T>(in: T): T {
     var a: T
     a = in
