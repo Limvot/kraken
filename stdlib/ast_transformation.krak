@@ -7,6 +7,7 @@ import util:*
 import string:*
 import mem:*
 import io:*
+import os:*
 import importer:*
 import ast_nodes:*
 import type:*
@@ -511,6 +512,20 @@ fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
 }
 fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<string, *type>, template_replacements: map<string, *type>) {
     println(string("Unifying type: ") + concat_symbol_tree(template_type))
+    // first get rid of the reference if we have it - we don't care for unification
+    template_type = get_node("pre_reffed", template_type)
+    // There are a couple options for the template parameter type here
+    // 1) template type - perfect, stick it in the map, that's what we're here for
+    // 2) basic type - stick it in the map, it won't get copied out so no worries
+    // 3) pointer type, go down a level
+    // 4) function type - fine, unify on all parameters and return types
+    // 5) instantiated template - fun stuff, have to figure out what it was origionally
+    //      instantiated with, but we don't have to worry about it yet as I haven't gotten
+    //      to object templates at all ;)
+    if (template_type->children.size == 1)
+        new_map->set(concat_symbol_tree(template_type), param_type)
+    else
+        error("TYPE INFERENCE NOT GOOD ENOUGH")
 }
 fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>): *ast_node {
     var name = concat_symbol_tree(identifier)
@@ -518,15 +533,21 @@ fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_in
     var results = scope_lookup(name, scope)
     var real_types = vector<*type>()
     var real_types_deref = vector<type>()
+    var had_real_types = false
     if (template_inst) {
         real_types = get_nodes("type", template_inst).map(fun(t: *tree<symbol>): *type return transform_type(t, scope, template_replacements);)
         real_types_deref = real_types.map(fun(t:*type):type return *t;)
+        had_real_types = true
     }
     for (var i = 0; i < results.size; i++;) {
         if (is_function_template(results[i])) {
+            println(string() + i + " is a template!")
             var template_types = results[i]->function_template.template_types
             var template_type_replacements = results[i]->function_template.template_type_replacements
-            if (!real_types.size) {
+            if (!had_real_types) {
+                // reset the vars, cuz we might be iterating through multiple of them
+                real_types = vector<*type>()
+                real_types_deref = vector<type>()
                 // Template Function Instance Inference time
                 var typed_params = get_nodes("typed_parameter", results[i]->function_template.syntax_node).map(fun(t: *tree<symbol>): *tree<symbol> return get_node("type",t);)
                 if (param_types.size != typed_params.size)
@@ -705,6 +726,7 @@ fun error(message: *char) error(string(message));
 fun error(message: string) {
     println("****ERROR****")
     println(message)
-    while (true){}
+    exit(-1)
+    /*while (true){}*/
 }
 

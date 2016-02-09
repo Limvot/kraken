@@ -15,5 +15,14 @@ fun system(call_string: *char): int {
     }
 }
 
+fun exit() exit(0);
+fun exit(code: int) {
+    __if_comp__ __C__ {
+        simple_passthrough(code::) """
+            exit(code);
+        """
+    }
+}
+
 
 
