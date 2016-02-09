@@ -243,7 +243,7 @@ obj c_generator (Object) {
         return to_ret
     }
     fun generate_identifier(node: *ast_node, enclosing_object: *ast_node): code_triple {
-        if (enclosing_object && get_ast_scope(enclosing_object)->contains_key(node->identifier.name))
+        if (enclosing_object && get_ast_scope(enclosing_object)->contains_key(node->identifier.name) && get_ast_scope(enclosing_object)->get(node->identifier.name).contains(node))
             return code_triple("(this->") + node->identifier.name + ")"
         return code_triple(node->identifier.name)
     }

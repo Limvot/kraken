@@ -451,9 +451,15 @@ fun transform_expression(node: *tree<symbol>, scope: *ast_node, searching_for: s
     // ignore everything and do a passthrough
     var func_name = string()
     var parameters = vector<*ast_node>()
-    if (node->children.size == 1)
-        return transform(node->children[0], scope, searching_for, template_replacements)
-    else if (node->children.size == 2) {
+    if (node->children.size == 1) {
+        var possible_func = transform(node->children[0], scope, searching_for, template_replacements)
+        if (!possible_func) match (searching_for) {
+            search_type::function(type_vec) possible_func = find_or_instantiate_function_template(node->children[0], null<tree<symbol>>(), scope, type_vec, template_replacements);
+        }
+        if (!possible_func)
+            println(concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS")
+        return possible_func
+    } else if (node->children.size == 2) {
         var template_inst = get_node("template_inst", node)
         if (template_inst) {
             var identifier = get_node("scoped_identifier", node)
@@ -503,17 +509,36 @@ fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
         return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>())
     return ast_function_ptr(name, type_ptr(param_types, param_types[0]), vector<*ast_node>())
 }
+fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<string, *type>, template_replacements: map<string, *type>) {
+    println(string("Unifying type: ") + concat_symbol_tree(template_type))
+}
 fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>): *ast_node {
     var name = concat_symbol_tree(identifier)
     println(string("trying to instantiate a template function: ") + name)
     var results = scope_lookup(name, scope)
-    var real_types = get_nodes("type", template_inst).map(fun(t: *tree<symbol>): *type return transform_type(t, scope, template_replacements);)
-    var real_types_deref = real_types.map(fun(t:*type):type return *t;)
+    var real_types = vector<*type>()
+    var real_types_deref = vector<type>()
+    if (template_inst) {
+        real_types = get_nodes("type", template_inst).map(fun(t: *tree<symbol>): *type return transform_type(t, scope, template_replacements);)
+        real_types_deref = real_types.map(fun(t:*type):type return *t;)
+    }
     for (var i = 0; i < results.size; i++;) {
         if (is_function_template(results[i])) {
             var template_types = results[i]->function_template.template_types
             var template_type_replacements = results[i]->function_template.template_type_replacements
-            if (template_types.size != real_types.size)
+            if (!real_types.size) {
+                // Template Function Instance Inference time
+                var typed_params = get_nodes("typed_parameter", results[i]->function_template.syntax_node).map(fun(t: *tree<symbol>): *tree<symbol> return get_node("type",t);)
+                if (param_types.size != typed_params.size)
+                    continue
+                for (var j = 0; j < typed_params.size; j++;)
+                    unify_type(typed_params[j], param_types[j], &template_type_replacements, template_replacements)
+                for (var j = 0; j < typed_params.size; j++;) {
+                    var t = template_type_replacements[template_types[j]];
+                    real_types.add(t)
+                    real_types_deref.add(*t)
+                }
+            } else if (template_types.size != real_types.size)
                 continue
             // check if already instantiated
             var inst_func = null<ast_node>()

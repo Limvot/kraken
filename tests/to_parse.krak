@@ -52,13 +52,14 @@ fun some_other_function(in: bool): float {
 }
 */
 fun main(): int {
-    var a = id<int>(7)
-    println(a)
-    var b = id<int>(8)
+    println(id("Wooo function template inference"))
+    /*var a = id<int>(7)*/
+    /*println(a)*/
+    /*var b = id<int>(8)*/
     /*var b = id<*char>("Double down time")*/
     /*println(b)*/
-    println(id<char>("Double down time"))
-    println(other_id<*char>("Triple down time"))
+    /*println(id<char>("Double down time"))*/
+    /*println(other_id<*char>("Triple down time"))*/
 
 
 

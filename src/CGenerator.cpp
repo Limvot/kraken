@@ -510,8 +510,13 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
                     throw "Error: this used in non-object scope";
                 }
                 //If we're in an object method, and our enclosing scope is that object, we're a member of the object and should use the this reference.
-                if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
-                    preName = "(" + preName + "this)->"; // incase this is a closed over this that is referencing another thing (I think this happens for a.b when a is supposed to be closed over but isn't)
+                //if (enclosingObject && enclosingObject->getDataRef()->scope.find(data.symbol.getName()) != enclosingObject->getDataRef()->scope.end())
+                // the old one would actually activate if the object even had one of the same name
+                if (enclosingObject) {
+                    auto containing = enclosingObject->getDataRef()->scope.find(data.symbol.getName());
+                    if (containing != enclosingObject->getDataRef()->scope.end() && std::find(containing->second.begin(), containing->second.end(), from) != containing->second.end())
+                        preName = "(" + preName + "this)->"; // incase this is a closed over this that is referencing another thing (I think this happens for a.b when a is supposed to be closed over but isn't)
+                }
                 // dereference references, but only if inside a function and not if this is a closed over variable
                 if (enclosingFunction && data.valueType->is_reference && !closed) {
                     preName += "(*";
