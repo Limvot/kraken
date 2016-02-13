@@ -154,11 +154,20 @@ obj c_generator (Object) {
                         // check for and add to parameters if a closure
                         generate_function_definition(child, null<ast_node>())
                     }
-                    ast_node::function_template(backing) {
+                    ast_node::template(backing) {
                         backing.scope.for_each(fun(key: string, value: vector<*ast_node>) {
                             value.for_each(fun(node: *ast_node) {
-                                if (is_function(node))
-                                    generate_function_definition(node, null<ast_node>())
+                                match (*node) {
+                                    ast_node::function(backing) generate_function_definition(node, null<ast_node>())
+                                    ast_node::type_def(backing) {
+                                        type_poset.add_vertex(node)
+                                        backing.variables.for_each(fun(i: *ast_node) {
+                                            var var_type = get_ast_type(i->declaration_statement.identifier)
+                                            if (!var_type->indirection && var_type->type_def)
+                                                type_poset.add_relationship(node, var_type->type_def)
+                                        })
+                                    }
+                                }
                             })
                         })
                     }

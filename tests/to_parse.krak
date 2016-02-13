@@ -37,22 +37,31 @@ fun return_something_p_1(it: Something): Something {
     return it
 }
 */
-fun id<T>(in: *T): *T return in;
+/*fun id<T>(in: *T): *T return in;*/
 /*fun id<T>(in: T): T return in;*/
+/*
 fun other_id<T>(in: T): T {
     var a: T
     a = in
     println(id<T>(in))
+    println(id(in))
     return in;
 }
+*/
 /*
 fun some_function(): int return 0;
 fun some_other_function(in: bool): float {
     return 0.0
 }
 */
+obj SimpleContainer<T> {
+    var data: T
+}
 fun main(): int {
-    println(id("Wooo function template inference"))
+    var it: SimpleContainer<*char>
+    it.data = "Wooo object template"
+    println(it.data)
+    /*println(other_id("Wooo function template inference"))*/
     /*var a = id<int>(7)*/
     /*println(a)*/
     /*var b = id<int>(8)*/

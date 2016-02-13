@@ -19,12 +19,15 @@ adt search_type {
 
 obj ast_transformation (Object) {
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
+    var fourth_pass_worklist: queue<*ast_node>
     fun construct(): *ast_transformation {
         ast_to_syntax.construct()
+        fourth_pass_worklist.construct()
         return this
     }
     fun copy_construct(old: *ast_transformation) {
         ast_to_syntax.copy_construct(&old->ast_to_syntax)
+        fourth_pass_worklist.copy_construct(&old->fourth_pass_worklist)
     }
     fun operator=(old: ref ast_transformation) {
         destruct()
@@ -32,6 +35,7 @@ obj ast_transformation (Object) {
     }
     fun destruct() {
         ast_to_syntax.destruct()
+        fourth_pass_worklist.destruct()
     }
     // first pass defines all type_defs (objects and aliases), ADTs, and top-level if-comps/passthroughs
     fun first_pass(file_name: string, parse_tree: *tree<symbol>, importer: *importer): *ast_node {
@@ -39,14 +43,7 @@ obj ast_transformation (Object) {
         importer->register(file_name, parse_tree, translation_unit)
         parse_tree->children.for_each(fun(child: *tree<symbol>) {
             if (child->data.name == "type_def") {
-                var name = concat_symbol_tree(get_node("identifier", child))
-                var type_def_node = ast_type_def_ptr(name)
-                type_def_node->type_def.self_type = type_ptr(type_def_node)
-                translation_unit->translation_unit.children.add(type_def_node)
-                ast_to_syntax.set(type_def_node, child)
-                add_to_scope("~enclosing_scope", translation_unit, type_def_node)
-                add_to_scope(name, type_def_node, translation_unit)
-                // set up type - self-referential, traits, template, etc
+                translation_unit->translation_unit.children.add(first_pass_type_def(child, translation_unit, false))
             } else if (child->data.name == "adt_def") {
                 var name = concat_symbol_tree(get_node("identifier", child))
                 var adt_def_node = ast_adt_def_ptr(name)
@@ -80,6 +77,30 @@ obj ast_transformation (Object) {
         })
         return translation_unit
     }
+    fun first_pass_type_def(child: *tree<symbol>, scope: *ast_node, instantiate_template: bool): *ast_node {
+        var name = concat_symbol_tree(get_node("identifier", child))
+        var template_dec = get_node("template_dec", child)
+        if (template_dec && !instantiate_template) {
+            var template_types = vector<string>()
+            var template_type_replacements = map<string, *type>()
+            // XXX add traits
+            get_nodes("template_param", template_dec).for_each(fun(template_param: *tree<symbol>) {
+                template_types.add(concat_symbol_tree(get_node("identifier", template_param)))
+                template_type_replacements.set(template_types.last(), type_ptr(vector<string>()))
+            })
+            var template = ast_template_ptr(name, child, template_types, template_type_replacements, false)
+            add_to_scope("~enclosing_scope", scope, template)
+            add_to_scope(name, template, scope)
+            return template
+        } else {
+            var type_def_node = ast_type_def_ptr(name)
+            type_def_node->type_def.self_type = type_ptr(type_def_node)
+            ast_to_syntax.set(type_def_node, child)
+            add_to_scope("~enclosing_scope", scope, type_def_node)
+            add_to_scope(name, type_def_node, scope)
+            return type_def_node
+        }
+    }
     // defines inside of objects + ADTs, outside declaration statements, and function prototypes
     fun second_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
         println(string("Second Pass for ") + translation_unit->translation_unit.name)
@@ -98,24 +119,63 @@ obj ast_transformation (Object) {
         // work on the ones already started
         translation_unit->translation_unit.children.for_each(fun(node: *ast_node) {
             match(*node) {
-                ast_node::type_def(backing) {
-                    var type_def_syntax = ast_to_syntax[node]
-                    type_def_syntax->children.for_each(fun(child: *tree<symbol>) {
-                        if (child->data.name == "declaration_statement") {
-                            var declaration_node = transform_declaration_statement(child, node, map<string, *type>())
-                            node->type_def.variables.add(declaration_node)
-                            ast_to_syntax.set(declaration_node, child)
-                        } else if (child->data.name == "function") {
-                            // again, also handles templates
-                            var function_node = second_pass_function(child, node, map<string, *type>(), true)
-                            node->type_def.methods.add(function_node)
-                            ast_to_syntax.set(function_node, child)
-                        }
-                    })
-                }
+                ast_node::type_def(backing) second_pass_type_def(ast_to_syntax[node], node, translation_unit, map<string, *type>())
                 ast_node::adt_def(backing) do_nothing() // actually go through and do methods inside
             }
         })
+    }
+    fun second_pass_type_def(type_def_syntax: *tree<symbol>, node: *ast_node, scope: *ast_node, template_replacements: map<string, *type>) {
+        type_def_syntax->children.for_each(fun(child: *tree<symbol>) {
+            if (child->data.name == "declaration_statement") {
+                var declaration_node = transform_declaration_statement(child, node, template_replacements)
+                node->type_def.variables.add(declaration_node)
+                ast_to_syntax.set(declaration_node, child)
+            } else if (child->data.name == "function") {
+                // again, also handles templates
+                var function_node = second_pass_function(child, node, template_replacements, true)
+                node->type_def.methods.add(function_node)
+                ast_to_syntax.set(function_node, child)
+            }
+        })
+    }
+    fun second_pass_function(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>, do_raw_template: bool): *ast_node {
+        var function_name = concat_symbol_tree(get_node("func_identifier", node))
+        var template_dec = get_node("template_dec", node)
+        if (do_raw_template && template_dec) {
+            var template_types = vector<string>()
+            var template_type_replacements = map<string, *type>()
+            // XXX add traits
+            get_nodes("template_param", template_dec).for_each(fun(template_param: *tree<symbol>) {
+                template_types.add(concat_symbol_tree(get_node("identifier", template_param)))
+                template_type_replacements.set(template_types.last(), type_ptr(vector<string>()))
+            })
+            template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
+            println("MAP DONE")
+            var template = ast_template_ptr(function_name, node, template_types, template_type_replacements, true)
+            add_to_scope(function_name, template, scope)
+            add_to_scope("~enclosing_scope", scope, template)
+            return template
+        }
+        // check to see if it is a template
+        // figure out return type
+        var typed_return_node = get_node("typed_return", node)
+        // darn no ternary yet
+        var return_type = null<type>()
+        if (typed_return_node) return_type = transform_type(get_node("type", typed_return_node), scope, template_replacements)
+                         else return_type = type_ptr(base_type::void_return())
+        // transform parameters
+        var parameters = vector<*ast_node>()
+        get_nodes("typed_parameter", node).for_each(fun(child: *tree<symbol>) {
+            parameters.add(ast_identifier_ptr(concat_symbol_tree(get_node("identifier", child)), transform_type(get_node("type", child), scope, template_replacements)))
+        })
+        // figure out function type and make function_node
+        var function_node = ast_function_ptr(function_name, type_ptr(parameters.map(fun(parameter: *ast_node): *type return parameter->identifier.type;), return_type), parameters)
+        // add to scope
+        add_to_scope(function_name, function_node, scope)
+        add_to_scope("~enclosing_scope", scope, function_node)
+        // add parameters to scope of function
+        parameters.for_each(fun(parameter: *ast_node) add_to_scope(parameter->identifier.name, parameter, function_node);)
+        return function_node
     }
     // The third pass finishes up by doing all function bodies (top level and methods in objects)
     fun third_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
@@ -138,364 +198,456 @@ obj ast_transformation (Object) {
             }
         })
     }
-    // The fourth pass generates the class templates that have not yet been generated in a "chaotic iteration" loop
+    // The fourth pass generates the class templates that have not yet been generated in a worklist loop
     fun fourth_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
         println(string("Fourth Pass for ") + translation_unit->translation_unit.name)
-    }
-}
-fun second_pass_function(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>, do_raw_template: bool): *ast_node {
-    var function_name = concat_symbol_tree(get_node("func_identifier", node))
-    var template_dec = get_node("template_dec", node)
-    if (do_raw_template && template_dec) {
-        var template_types = vector<string>()
-        var template_type_replacements = map<string, *type>()
-        get_nodes("template_param", template_dec).for_each(fun(template_param: *tree<symbol>) {
-            template_types.add(concat_symbol_tree(get_node("identifier", template_param)))
-            template_type_replacements.set(template_types.last(), type_ptr(vector<string>()))
-        })
-        template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
-        println("MAP DONE")
-        var function_template = ast_function_template_ptr(function_name, node, template_types, template_type_replacements)
-        add_to_scope(function_name, function_template, scope)
-        add_to_scope("~enclosing_scope", scope, function_template)
-        return function_template
-    }
-    // check to see if it is a template
-    // figure out return type
-    var typed_return_node = get_node("typed_return", node)
-    // darn no ternary yet
-    var return_type = null<type>()
-    if (typed_return_node) return_type = transform_type(get_node("type", typed_return_node), scope, template_replacements)
-                     else return_type = type_ptr(base_type::void_return())
-    // transform parameters
-    var parameters = vector<*ast_node>()
-    get_nodes("typed_parameter", node).for_each(fun(child: *tree<symbol>) {
-        parameters.add(ast_identifier_ptr(concat_symbol_tree(get_node("identifier", child)), transform_type(get_node("type", child), scope, template_replacements)))
-    })
-    // figure out function type and make function_node
-    var function_node = ast_function_ptr(function_name, type_ptr(parameters.map(fun(parameter: *ast_node): *type return parameter->identifier.type;), return_type), parameters)
-    // add to scope
-    add_to_scope(function_name, function_node, scope)
-    add_to_scope("~enclosing_scope", scope, function_node)
-    // add parameters to scope of function
-    parameters.for_each(fun(parameter: *ast_node) add_to_scope(parameter->identifier.name, parameter, function_node);)
-    return function_node
-}
-
-fun transform_type(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *type {
-    // check for references and step down
-    // always get to pre-reffed level
-    var real_node = get_node("pre_reffed", node)
-    // check for indirection and step down
-    var indirection = 0
-    while (get_node("pre_reffed", real_node)) {
-        real_node = get_node("pre_reffed", real_node)
-        indirection++
-    }
-    var type_syntax_str = concat_symbol_tree(real_node)
-    println(type_syntax_str + " *************************")
-    if (template_replacements.contains_key(type_syntax_str)) {
-        print("Is in template_replacements, returning: ")
-        var to_ret = template_replacements[type_syntax_str]->clone_with_increased_indirection(indirection)
-        println(to_ret->to_string())
-        return to_ret
-    }
-    // should take into account indirection and references...
-    if (type_syntax_str == "void")
-        return type_ptr(base_type::void_return(), indirection)
-    else if (type_syntax_str == "bool")
-        return type_ptr(base_type::boolean(), indirection)
-    else if (type_syntax_str == "int")
-        return type_ptr(base_type::integer(), indirection)
-    else if (type_syntax_str == "float")
-        return type_ptr(base_type::floating(), indirection)
-    else if (type_syntax_str == "double")
-        return type_ptr(base_type::double_precision(), indirection)
-    else if (type_syntax_str == "char")
-        return type_ptr(base_type::character(), indirection)
-    else if (/* check for function type*/ false)
-        return type_ptr(base_type::function(), indirection)
-    else {
-        // do lookup for objects, ADTs, templates, etc
-        var possibilities = scope_lookup(type_syntax_str, scope)
-        print("There are "); print(possibilities.size); println(" possibilites for this object type lookup")
-        for (var i = 0; i < possibilities.size; i++;) {
-            match(*possibilities[i]) {
-                ast_node::type_def(backing) return backing.self_type->clone_with_indirection(indirection)
-            }
+        while (!fourth_pass_worklist.empty()) {
+            var partially_inst_type_def = fourth_pass_worklist.pop()
+            partially_inst_type_def->type_def.methods.for_each(fun(method: *ast_node) {
+                // this is the wrong map
+                method->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[method]), method, map<string, *type>())
+            })
         }
-        println("No objects in lookup, returning none")
-        return type_ptr(base_type::none(), indirection)
     }
-}
-fun transform(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return transform(node, scope, search_type::none(), template_replacements)
-fun transform(node: *tree<symbol>, scope: *ast_node, searching_for: search_type, template_replacements: map<string, *type>): *ast_node {
-    var name = node->data.name
-    if (name == "identifier" || name == "scoped_identifier") {
-        return transform_identifier(node, scope, searching_for)
-    } else if (name == "code_block") {
-        return transform_code_block(node, scope, template_replacements)
-    } else if (name == "if_comp") {
-        return transform_if_comp(node, scope)
-    } else if (name == "simple_passthrough") {
-        return transform_simple_passthrough(node, scope)
-    } else if (name == "statement") {
-        return transform_statement(node, scope, template_replacements)
-    } else if (name == "declaration_statement") {
-        return transform_declaration_statement(node, scope, template_replacements)
-    } else if (name == "assignment_statement") {
-        return transform_assignment_statement(node, scope, template_replacements)
-    } else if (name == "if_statement") {
-        return transform_if_statement(node, scope, template_replacements)
-    } else if (name == "while_loop") {
-        return transform_while_loop(node, scope, template_replacements)
-    } else if (name == "for_loop") {
-        return transform_for_loop(node, scope, template_replacements)
-    } else if (name == "return_statement") {
-        return transform_return_statement(node, scope, template_replacements)
-    } else if (name == "continue_statement" || name == "break_statement") {
-        return transform_branching_statement(node, scope)
-    } else if (name == "defer_statement") {
-        return transform_defer_statement(node, scope, template_replacements)
-    } else if (name == "function_call") {
-        return transform_function_call(node, scope, template_replacements)
-    } else if (name == "boolean_expression" || name == "and_boolean_expression"
-            || name == "bool_exp" || name == "expression"
-            || name == "shiftand" || name == "term"
-            || name == "factor" || name == "unarad"
-            || name == "access_operation"
-    ) {
-        // for now, assume passthrough and just transform underneath
-        return transform_expression(node, scope, searching_for, template_replacements)
-    } else if (name == "bool" || name == "string"
-            || name == "character" || name == "number"
-    ) {
-        println(string("transforming value: ") + name)
-        return transform_value(node, scope)
-    }
-    print("FAILED TO TRANSFORM: "); print(name + ": "); println(concat_symbol_tree(node))
-    return null<ast_node>()
-}
-fun transform_all(nodes: vector<*tree<symbol>>, scope: *ast_node, template_replacements: map<string, *type>): vector<*ast_node> {
-    return nodes.map(fun(node: *tree<symbol>): *ast_node return transform(node, scope, template_replacements);)
-}
-fun transform_identifier(node: *tree<symbol>, scope: *ast_node, searching_for: search_type): *ast_node {
-    // first, we check for and generate this
-    var name = concat_symbol_tree(node)
-    if (name == "this") {
-        while (!is_type_def(scope)) scope = get_ast_scope(scope)->get(string("~enclosing_scope"))[0]
-        return ast_identifier_ptr("this", scope->type_def.self_type->clone_with_indirection(1))
-    }
-    match (searching_for) {
-        search_type::none() return identifier_lookup(name, scope)
-        search_type::function(type_vec) return function_lookup(name, scope, type_vec)
-    }
-    println("FAILED SEARCH FOR")
-    return null<ast_node>()
-}
-fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node {
-    var value_str = concat_symbol_tree(node)
-    var value_type = null<type>()
-    if (value_str[0] == '"')
-        value_type = type_ptr(base_type::character(), 1)
-    else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
-        value_type = type_ptr(base_type::character())
-    else {
-        // should differentiate between float and double...
-        var contains_dot = false
-        for (var i = 0; i < value_str.length(); i++;) {
-            if (value_str[i] == '.') {
-                contains_dot = true
-                break
-            }
+    fun transform_type(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *type {
+        // check for references and step down
+        // always get to pre-reffed level
+        var real_node = get_node("pre_reffed", node)
+        // check for indirection and step down
+        var indirection = 0
+        while (get_node("pre_reffed", real_node)) {
+            real_node = get_node("pre_reffed", real_node)
+            indirection++
         }
-        if (contains_dot)
-            if (value_str[value_str.length()-1] == 'f')
-                value_type = type_ptr(base_type::floating()) //value_type = type_ptr(base_type::floating())
+        var template_inst = get_node("template_inst", real_node)
+        if (template_inst) {
+            var name = concat_symbol_tree(get_node("scoped_identifier", real_node))
+            println(string("trying to instantiate a template object: ") + name)
+            var real_types = get_nodes("type", template_inst).map(fun(t: *tree<symbol>): *type return transform_type(t, scope, template_replacements);)
+            var real_types_deref = real_types.map(fun(t:*type):type return *t;)
+            var results = scope_lookup(name, scope)
+            for (var i = 0; i < results.size; i++;) {
+                if (!is_template(results[i]) || results[i]->template.is_function)
+                    continue
+                println(to_string(i) + " is an object template!")
+                var template_types = results[i]->template.template_types
+                var template_type_replacements = results[i]->template.template_type_replacements
+                if (template_types.size != real_types.size)
+                    continue
+                // check if already instantiated
+                var inst_type = null<ast_node>()
+                if (results[i]->template.instantiated_map.contains_key(real_types_deref)) {
+                    println("USING CACHED TEMPLATE OBJECT")
+                    inst_type = results[i]->template.instantiated_map[real_types_deref]
+                } else {
+                    println("FOR FIND OR INSTATINTATE PREEEE")
+                    template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
+                    println("MAP DONE")
+                    for (var j = 0; j < template_types.size; j++;) {
+                        template_type_replacements[template_types[j]] = real_types[j]
+                        println("Just made")
+                        println(template_types[j])
+                        println("equal to")
+                        println(real_types[j]->to_string())
+                    }
+                    println("FOR FIND OR INSTATINTATE")
+                    template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
+                    println("MAP DONE")
+                    
+                    inst_type = first_pass_type_def(results[i]->template.syntax_node, results[i], true)
+                    // add to instantiated_map so we only instantiate with a paticular set of types once
+                    // put in map first for recursive purposes
+                    results[i]->template.instantiated_map.set(real_types_deref, inst_type)
+                    second_pass_type_def(results[i]->template.syntax_node, inst_type, results[i], template_type_replacements)
+                    fourth_pass_worklist.push(inst_type)
+                }
+                return inst_type->type_def.self_type->clone_with_indirection(indirection)
+            }
+            error("FREAK OUT AUTOMATON")
+        }
+        var type_syntax_str = concat_symbol_tree(real_node)
+        println(type_syntax_str + " *************************")
+        if (template_replacements.contains_key(type_syntax_str)) {
+            print("Is in template_replacements, returning: ")
+            var to_ret = template_replacements[type_syntax_str]->clone_with_increased_indirection(indirection)
+            println(to_ret->to_string())
+            return to_ret
+        }
+        // should take into account indirection and references...
+        if (type_syntax_str == "void")
+            return type_ptr(base_type::void_return(), indirection)
+        else if (type_syntax_str == "bool")
+            return type_ptr(base_type::boolean(), indirection)
+        else if (type_syntax_str == "int")
+            return type_ptr(base_type::integer(), indirection)
+        else if (type_syntax_str == "float")
+            return type_ptr(base_type::floating(), indirection)
+        else if (type_syntax_str == "double")
+            return type_ptr(base_type::double_precision(), indirection)
+        else if (type_syntax_str == "char")
+            return type_ptr(base_type::character(), indirection)
+        else if (/* check for function type*/ false)
+            return type_ptr(base_type::function(), indirection)
+        else {
+            // do lookup for objects, ADTs, templates, etc
+            var possibilities = scope_lookup(type_syntax_str, scope)
+            print("There are "); print(possibilities.size); println(" possibilites for this object type lookup")
+            for (var i = 0; i < possibilities.size; i++;) {
+                match(*possibilities[i]) {
+                    ast_node::type_def(backing) return backing.self_type->clone_with_indirection(indirection)
+                }
+            }
+            println("No objects in lookup, returning none")
+            return type_ptr(base_type::none(), indirection)
+        }
+    }
+    fun transform(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return transform(node, scope, search_type::none(), template_replacements)
+    fun transform(node: *tree<symbol>, scope: *ast_node, searching_for: search_type, template_replacements: map<string, *type>): *ast_node {
+        var name = node->data.name
+        if (name == "identifier" || name == "scoped_identifier") {
+            return transform_identifier(node, scope, searching_for)
+        } else if (name == "code_block") {
+            return transform_code_block(node, scope, template_replacements)
+        } else if (name == "if_comp") {
+            return transform_if_comp(node, scope)
+        } else if (name == "simple_passthrough") {
+            return transform_simple_passthrough(node, scope)
+        } else if (name == "statement") {
+            return transform_statement(node, scope, template_replacements)
+        } else if (name == "declaration_statement") {
+            return transform_declaration_statement(node, scope, template_replacements)
+        } else if (name == "assignment_statement") {
+            return transform_assignment_statement(node, scope, template_replacements)
+        } else if (name == "if_statement") {
+            return transform_if_statement(node, scope, template_replacements)
+        } else if (name == "while_loop") {
+            return transform_while_loop(node, scope, template_replacements)
+        } else if (name == "for_loop") {
+            return transform_for_loop(node, scope, template_replacements)
+        } else if (name == "return_statement") {
+            return transform_return_statement(node, scope, template_replacements)
+        } else if (name == "continue_statement" || name == "break_statement") {
+            return transform_branching_statement(node, scope)
+        } else if (name == "defer_statement") {
+            return transform_defer_statement(node, scope, template_replacements)
+        } else if (name == "function_call") {
+            return transform_function_call(node, scope, template_replacements)
+        } else if (name == "boolean_expression" || name == "and_boolean_expression"
+                || name == "bool_exp" || name == "expression"
+                || name == "shiftand" || name == "term"
+                || name == "factor" || name == "unarad"
+                || name == "access_operation"
+        ) {
+            // for now, assume passthrough and just transform underneath
+            return transform_expression(node, scope, searching_for, template_replacements)
+        } else if (name == "bool" || name == "string"
+                || name == "character" || name == "number"
+        ) {
+            println(string("transforming value: ") + name)
+            return transform_value(node, scope)
+        }
+        print("FAILED TO TRANSFORM: "); print(name + ": "); println(concat_symbol_tree(node))
+        return null<ast_node>()
+    }
+    fun transform_all(nodes: vector<*tree<symbol>>, scope: *ast_node, template_replacements: map<string, *type>): vector<*ast_node> {
+        return nodes.map(fun(node: *tree<symbol>): *ast_node return transform(node, scope, template_replacements);)
+    }
+    fun transform_identifier(node: *tree<symbol>, scope: *ast_node, searching_for: search_type): *ast_node {
+        // first, we check for and generate this
+        var name = concat_symbol_tree(node)
+        if (name == "this") {
+            while (!is_type_def(scope)) scope = get_ast_scope(scope)->get(string("~enclosing_scope"))[0]
+            return ast_identifier_ptr("this", scope->type_def.self_type->clone_with_indirection(1))
+        }
+        match (searching_for) {
+            search_type::none() return identifier_lookup(name, scope)
+            search_type::function(type_vec) return function_lookup(name, scope, type_vec)
+        }
+        println("FAILED SEARCH FOR")
+        return null<ast_node>()
+    }
+    fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var value_str = concat_symbol_tree(node)
+        var value_type = null<type>()
+        if (value_str[0] == '"')
+            value_type = type_ptr(base_type::character(), 1)
+        else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
+            value_type = type_ptr(base_type::character())
+        else {
+            // should differentiate between float and double...
+            var contains_dot = false
+            for (var i = 0; i < value_str.length(); i++;) {
+                if (value_str[i] == '.') {
+                    contains_dot = true
+                    break
+                }
+            }
+            if (contains_dot)
+                if (value_str[value_str.length()-1] == 'f')
+                    value_type = type_ptr(base_type::floating()) //value_type = type_ptr(base_type::floating())
+                else
+                    value_type = type_ptr(base_type::double_precision()) //value_type = type_ptr(base_type::floating())
             else
-                value_type = type_ptr(base_type::double_precision()) //value_type = type_ptr(base_type::floating())
-        else
-            value_type = type_ptr(base_type::integer())
+                value_type = type_ptr(base_type::integer())
+        }
+        return ast_value_ptr(value_str, value_type)
     }
-    return ast_value_ptr(value_str, value_type)
-}
-fun transform_code_block(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-    var new_block = ast_code_block_ptr()
-    add_to_scope("~enclosing_scope", scope, new_block)
-    new_block->code_block.children = transform_all(node->children, new_block, template_replacements)
-    return new_block
-}
-fun transform_if_comp(node: *tree<symbol>, scope: *ast_node): *ast_node {
-    var new_if_comp = ast_if_comp_ptr()
-    new_if_comp->if_comp.wanted_generator = concat_symbol_tree(get_node("identifier", node))
-    new_if_comp->if_comp.statement = transform_statement(get_node("statement", node), scope, map<string, *type>())
-    return new_if_comp
-}
-fun transform_simple_passthrough(node: *tree<symbol>, scope: *ast_node): *ast_node {
-    var new_passthrough = ast_simple_passthrough_ptr()
-    // setup passthrough params and string
-    new_passthrough->simple_passthrough.passthrough_str = concat_symbol_tree(get_node("triple_quoted_string", node)).slice(3,-4)
-    return new_passthrough
-}
-fun transform_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return ast_statement_ptr(transform(node->children[0], scope, template_replacements));
-fun transform_declaration_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-    // this might have an init position method call
-    var identifiers = get_nodes("identifier", node)
-    var name = concat_symbol_tree(identifiers[0])
-    // may have type, or an expression, or both
-    var type_syntax_node = get_node("type", node)
-    var expression_syntax_node = get_node("boolean_expression", node)
-    var ident_type = null<type>()
-    var expression = null<ast_node>()
-    if (type_syntax_node) ident_type = transform_type(type_syntax_node, scope, template_replacements)
-    if (expression_syntax_node) {
-        expression = transform(expression_syntax_node, scope, template_replacements)
-        if (!type_syntax_node)
-            ident_type = get_ast_type(expression)
+    fun transform_code_block(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        var new_block = ast_code_block_ptr()
+        add_to_scope("~enclosing_scope", scope, new_block)
+        new_block->code_block.children = transform_all(node->children, new_block, template_replacements)
+        return new_block
     }
-    if (!ident_type) error("declaration statement with no type or expression from which to inference type")
-    var identifier = ast_identifier_ptr(name, ident_type)
-    var declaration = ast_declaration_statement_ptr(identifier, expression)
-    // ok, deal with the possible init position method call
-    if (identifiers.size == 2) {
-        var method = transform(identifiers[1], ident_type->type_def, template_replacements)
+    fun transform_if_comp(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var new_if_comp = ast_if_comp_ptr()
+        new_if_comp->if_comp.wanted_generator = concat_symbol_tree(get_node("identifier", node))
+        new_if_comp->if_comp.statement = transform_statement(get_node("statement", node), scope, map<string, *type>())
+        return new_if_comp
+    }
+    fun transform_simple_passthrough(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        var new_passthrough = ast_simple_passthrough_ptr()
+        // setup passthrough params and string
+        new_passthrough->simple_passthrough.passthrough_str = concat_symbol_tree(get_node("triple_quoted_string", node)).slice(3,-4)
+        return new_passthrough
+    }
+    fun transform_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return ast_statement_ptr(transform(node->children[0], scope, template_replacements));
+    fun transform_declaration_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        // this might have an init position method call
+        var identifiers = get_nodes("identifier", node)
+        var name = concat_symbol_tree(identifiers[0])
+        // may have type, or an expression, or both
+        var type_syntax_node = get_node("type", node)
+        var expression_syntax_node = get_node("boolean_expression", node)
+        var ident_type = null<type>()
+        var expression = null<ast_node>()
+        if (type_syntax_node) ident_type = transform_type(type_syntax_node, scope, template_replacements)
+        if (expression_syntax_node) {
+            expression = transform(expression_syntax_node, scope, template_replacements)
+            if (!type_syntax_node)
+                ident_type = get_ast_type(expression)
+        }
+        if (!ident_type) error("declaration statement with no type or expression from which to inference type")
+        var identifier = ast_identifier_ptr(name, ident_type)
+        var declaration = ast_declaration_statement_ptr(identifier, expression)
+        // ok, deal with the possible init position method call
+        if (identifiers.size == 2) {
+            var method = transform(identifiers[1], ident_type->type_def, template_replacements)
+            var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)
+            declaration->declaration_statement.init_method_call = make_method_call(identifier, method, parameters)
+        }
+        add_to_scope(name, identifier, scope)
+        return declaration
+    }
+    fun transform_assignment_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        var assign_to = transform(get_node("factor", node), scope, template_replacements)
+        var to_assign = transform(get_node("boolean_expression", node), scope, template_replacements)
+        if      (get_node("\"\\+=\"", node)) to_assign = make_operator_call("+", vector(assign_to, to_assign))
+        else if (get_node("\"-=\"", node)) to_assign = make_operator_call("-", vector(assign_to, to_assign))
+        else if (get_node("\"\\*=\"", node)) to_assign = make_operator_call("*", vector(assign_to, to_assign))
+        else if (get_node("\"/=\"", node)) to_assign = make_operator_call("/", vector(assign_to, to_assign))
+        var assignment = ast_assignment_statement_ptr(assign_to, to_assign)
+        return assignment
+    }
+    fun transform_if_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        var if_statement = ast_if_statement_ptr(transform_expression(get_node("boolean_expression", node), scope, template_replacements))
+        // one variable declarations might be in a code_block-less if statement
+        add_to_scope("~enclosing_scope", scope, if_statement)
+        var statements = transform_all(get_nodes("statement", node), if_statement, template_replacements)
+        if_statement->if_statement.then_part = statements[0]
+        // we have an else
+        if (statements.size == 2)
+            if_statement->if_statement.else_part = statements[1]
+        return if_statement
+    }
+    fun transform_while_loop(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        var while_loop = ast_while_loop_ptr(transform_expression(get_node("boolean_expression", node), scope, template_replacements))
+        add_to_scope("~enclosing_scope", scope, while_loop)
+        while_loop->while_loop.statement = transform(get_node("statement", node), while_loop, template_replacements)
+        return while_loop
+    }
+    fun transform_for_loop(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        var for_loop = ast_for_loop_ptr()
+        add_to_scope("~enclosing_scope", scope, for_loop)
+        var statements = get_nodes("statement", node)
+        for_loop->for_loop.init = transform(statements[0], for_loop, template_replacements)
+        for_loop->for_loop.condition = transform(get_node("boolean_expression", node), for_loop, template_replacements)
+        for_loop->for_loop.update = transform(statements[1], for_loop, template_replacements)
+        for_loop->for_loop.body = transform(statements[2], for_loop, template_replacements)
+        return for_loop
+    }
+    fun transform_return_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        var return_value = get_node("boolean_expression", node)
+        if (return_value)
+            return ast_return_statement_ptr(transform(return_value, scope, template_replacements))
+        return ast_return_statement_ptr(null<ast_node>())
+    }
+    fun transform_branching_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
+        if (node->data.name == "break_statement")
+            return ast_branching_statement_ptr(branching_type::break_stmt())
+        return ast_branching_statement_ptr(branching_type::continue_stmt())
+    }
+    fun transform_defer_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        return ast_defer_statement_ptr(transform(node->children[0], scope, template_replacements))
+    }
+    fun transform_function_call(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        // don't bother with a full transform for parameters with their own function, just get the boolean expression and transform it
         var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)
-        declaration->declaration_statement.init_method_call = make_method_call(identifier, method, parameters)
+        var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
+        var f = ast_function_call_ptr(transform(get_node("unarad", node), scope, search_type::function(parameter_types), template_replacements), parameters)
+        print("function call function ")
+        println(f->function_call.func)
+        print("function call parameters ")
+        f->function_call.parameters.for_each(fun(param: *ast_node) print(param);)
+        return f
     }
-    add_to_scope(name, identifier, scope)
-    return declaration
+    fun transform_expression(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return transform_expression(node, scope, search_type::none(), template_replacements)
+    fun transform_expression(node: *tree<symbol>, scope: *ast_node, searching_for: search_type, template_replacements: map<string, *type>): *ast_node {
+        // figure out what the expression is, handle overloads, or you know
+        // ignore everything and do a passthrough
+        var func_name = string()
+        var parameters = vector<*ast_node>()
+        if (node->children.size == 1) {
+            var possible_func = transform(node->children[0], scope, searching_for, template_replacements)
+            if (!possible_func) match (searching_for) {
+                search_type::function(type_vec) possible_func = find_or_instantiate_template_function(node->children[0], null<tree<symbol>>(), scope, type_vec, template_replacements);
+            }
+            if (!possible_func)
+                println(concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS")
+            return possible_func
+        } else if (node->children.size == 2) {
+            var template_inst = get_node("template_inst", node)
+            if (template_inst) {
+                var identifier = get_node("scoped_identifier", node)
+                match (searching_for) {
+                    // I guess this should never happen?
+                    search_type::none() {
+                        println("TE<PLATE LOOKUO MAKES NO SENSE")
+                        return null<ast_node>()
+                    }
+                    search_type::function(type_vec) return find_or_instantiate_template_function(identifier, template_inst, scope, type_vec, template_replacements)
+                }
+                println("NEVER EVER HAPPEN")
+            }
+            var check_if_post = concat_symbol_tree(node->children[1])
+            if (check_if_post == "--" || check_if_post == "++") {
+                // give the post-operators a special suffix so the c_generator knows to emit them post
+                func_name = concat_symbol_tree(node->children[1]) + "p"
+                parameters = vector(transform(node->children[0], scope, template_replacements))
+            } else {
+                func_name = concat_symbol_tree(node->children[0])
+                parameters = vector(transform(node->children[1], scope, template_replacements))
+            }
+        } else {
+            func_name = concat_symbol_tree(node->children[1])
+            var first_param = transform(node->children[0], scope, template_replacements)
+            var second_param = null<ast_node>()
+            if (func_name == "." || func_name == "->") {
+                second_param = transform(node->children[2], get_ast_type(first_param)->type_def, searching_for, template_replacements)
+            } else {
+                second_param = transform(node->children[2], scope, template_replacements)
+            }
+            parameters = vector(first_param, second_param)
+        }
+        var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
+        return ast_function_call_ptr(get_builtin_function(func_name, parameter_types), parameters)
+    }
+    fun find_or_instantiate_template_function(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>): *ast_node {
+        var name = concat_symbol_tree(identifier)
+        println(string("trying to instantiate a template function: ") + name)
+        var results = scope_lookup(name, scope)
+        var real_types = vector<*type>()
+        var real_types_deref = vector<type>()
+        var had_real_types = false
+        if (template_inst) {
+            real_types = get_nodes("type", template_inst).map(fun(t: *tree<symbol>): *type return transform_type(t, scope, template_replacements);)
+            real_types_deref = real_types.map(fun(t:*type):type return *t;)
+            had_real_types = true
+        }
+        for (var i = 0; i < results.size; i++;) {
+            if (is_template(results[i]) && results[i]->template.is_function) {
+                println(string() + i + " is a template!")
+                var template_types = results[i]->template.template_types
+                var template_type_replacements = results[i]->template.template_type_replacements
+                if (!had_real_types) {
+                    // reset the vars, cuz we might be iterating through multiple of them
+                    real_types = vector<*type>()
+                    real_types_deref = vector<type>()
+                    // Template Function Instance Inference time
+                    var typed_params = get_nodes("typed_parameter", results[i]->template.syntax_node).map(fun(t: *tree<symbol>): *tree<symbol> return get_node("type",t);)
+                    if (param_types.size != typed_params.size)
+                        continue
+                    for (var j = 0; j < typed_params.size; j++;)
+                        unify_type(typed_params[j], param_types[j], &template_type_replacements, template_replacements)
+                    for (var j = 0; j < typed_params.size; j++;) {
+                        var t = template_type_replacements[template_types[j]];
+                        real_types.add(t)
+                        real_types_deref.add(*t)
+                    }
+                } else if (template_types.size != real_types.size)
+                    continue
+                // check if already instantiated
+                var inst_func = null<ast_node>()
+                if (results[i]->template.instantiated_map.contains_key(real_types_deref)) {
+                    println("USING CACHED TEMPLATE FUNCITON")
+                    inst_func = results[i]->template.instantiated_map[real_types_deref]
+                } else {
+                    println("FOR FIND OR INSTATINTATE PREEEE")
+                    template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
+                    println("MAP DONE")
+                    for (var j = 0; j < template_types.size; j++;) {
+                        template_type_replacements[template_types[j]] = real_types[j]
+                        println("Just made")
+                        println(template_types[j])
+                        println("equal to")
+                        println(real_types[j]->to_string())
+                    }
+
+                    println("FOR FIND OR INSTATINTATE")
+                    template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
+                    println("MAP DONE")
+
+                    inst_func = second_pass_function(results[i]->template.syntax_node, results[i], template_type_replacements, false)
+                    // add to instantiated_map so we only instantiate with a paticular set of types once
+                    // put in map first for recursive purposes
+                    results[i]->template.instantiated_map.set(real_types_deref, inst_func)
+                    // and fully instantiate it
+                    inst_func->function.body_statement = transform_statement(get_node("statement", results[i]->template.syntax_node), inst_func, template_type_replacements)
+                }
+
+                if (function_satisfies_params(inst_func, param_types))
+                    return inst_func
+                else
+                    println(string("this paticular ") + name + " did not satisfy params")
+            }
+        }
+        println("FREAK OUT MACHINE")
+        return null<ast_node>()
+    }
 }
 fun has_method(object: *ast_node, name: *char, parameter_types: vector<*type>): bool return has_method(object, string(name), parameter_types);
 fun has_method(object: *ast_node, name: string, parameter_types: vector<*type>): bool {
-    return function_lookup(name, object, parameter_types) || false
+    println("HAS METHOD:")
+    var to_ret = function_lookup(name, object, parameter_types) || false
+    println("HAS METHOD result:")
+    println(to_ret)
+    return to_ret
 }
 fun make_method_call(object_ident: *ast_node, name: *char, parameters: vector<*ast_node>): *ast_node return make_method_call(object_ident, string(name), parameters);
 fun make_method_call(object_ident: *ast_node, name: string, parameters: vector<*ast_node>): *ast_node {
+    println("MAKE METHOD CALL OUT:")
     var method = function_lookup(name, get_ast_type(object_ident)->type_def, parameters.map(fun(param: *ast_node): *type return get_ast_type(param);))
     print("Here is the Method: ")
     println(method)
     return make_method_call(object_ident, method, parameters)
 }
 fun make_method_call(object_ident: *ast_node, method: *ast_node, parameters: vector<*ast_node>): *ast_node {
+    println("MAKE METHOD CALL IN:")
     var method_access = ast_function_call_ptr(get_builtin_function(string("."), vector(get_ast_type(object_ident), get_ast_type(method))), vector(object_ident, method))
     return ast_function_call_ptr(method_access, parameters)
 }
 fun make_operator_call(func: *char, params: vector<*ast_node>): *ast_node return make_operator_call(string(func), params);
 fun make_operator_call(func: string, params: vector<*ast_node>): *ast_node {
     return ast_function_call_ptr(get_builtin_function(func, params.map(fun(p:*ast_node): *type return get_ast_type(p);)), params)
-}
-fun transform_assignment_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-    var assign_to = transform(get_node("factor", node), scope, template_replacements)
-    var to_assign = transform(get_node("boolean_expression", node), scope, template_replacements)
-    if      (get_node("\"\\+=\"", node)) to_assign = make_operator_call("+", vector(assign_to, to_assign))
-    else if (get_node("\"-=\"", node)) to_assign = make_operator_call("-", vector(assign_to, to_assign))
-    else if (get_node("\"\\*=\"", node)) to_assign = make_operator_call("*", vector(assign_to, to_assign))
-    else if (get_node("\"/=\"", node)) to_assign = make_operator_call("/", vector(assign_to, to_assign))
-    var assignment = ast_assignment_statement_ptr(assign_to, to_assign)
-    return assignment
-}
-fun transform_if_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-    var if_statement = ast_if_statement_ptr(transform_expression(get_node("boolean_expression", node), scope, template_replacements))
-    // one variable declarations might be in a code_block-less if statement
-    add_to_scope("~enclosing_scope", scope, if_statement)
-    var statements = transform_all(get_nodes("statement", node), if_statement, template_replacements)
-    if_statement->if_statement.then_part = statements[0]
-    // we have an else
-    if (statements.size == 2)
-        if_statement->if_statement.else_part = statements[1]
-    return if_statement
-}
-fun transform_while_loop(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-    var while_loop = ast_while_loop_ptr(transform_expression(get_node("boolean_expression", node), scope, template_replacements))
-    add_to_scope("~enclosing_scope", scope, while_loop)
-    while_loop->while_loop.statement = transform(get_node("statement", node), while_loop, template_replacements)
-    return while_loop
-}
-fun transform_for_loop(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-    var for_loop = ast_for_loop_ptr()
-    add_to_scope("~enclosing_scope", scope, for_loop)
-    var statements = get_nodes("statement", node)
-    for_loop->for_loop.init = transform(statements[0], for_loop, template_replacements)
-    for_loop->for_loop.condition = transform(get_node("boolean_expression", node), for_loop, template_replacements)
-    for_loop->for_loop.update = transform(statements[1], for_loop, template_replacements)
-    for_loop->for_loop.body = transform(statements[2], for_loop, template_replacements)
-    return for_loop
-}
-fun transform_return_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-    var return_value = get_node("boolean_expression", node)
-    if (return_value)
-        return ast_return_statement_ptr(transform(return_value, scope, template_replacements))
-    return ast_return_statement_ptr(null<ast_node>())
-}
-fun transform_branching_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
-    if (node->data.name == "break_statement")
-        return ast_branching_statement_ptr(branching_type::break_stmt())
-    return ast_branching_statement_ptr(branching_type::continue_stmt())
-}
-fun transform_defer_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-    return ast_defer_statement_ptr(transform(node->children[0], scope, template_replacements))
-}
-fun transform_function_call(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-    // don't bother with a full transform for parameters with their own function, just get the boolean expression and transform it
-    var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)
-    var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
-    var f = ast_function_call_ptr(transform(get_node("unarad", node), scope, search_type::function(parameter_types), template_replacements), parameters)
-    print("function call function ")
-    println(f->function_call.func)
-    print("function call parameters ")
-    f->function_call.parameters.for_each(fun(param: *ast_node) print(param);)
-    return f
-}
-fun transform_expression(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return transform_expression(node, scope, search_type::none(), template_replacements)
-fun transform_expression(node: *tree<symbol>, scope: *ast_node, searching_for: search_type, template_replacements: map<string, *type>): *ast_node {
-    // figure out what the expression is, handle overloads, or you know
-    // ignore everything and do a passthrough
-    var func_name = string()
-    var parameters = vector<*ast_node>()
-    if (node->children.size == 1) {
-        var possible_func = transform(node->children[0], scope, searching_for, template_replacements)
-        if (!possible_func) match (searching_for) {
-            search_type::function(type_vec) possible_func = find_or_instantiate_function_template(node->children[0], null<tree<symbol>>(), scope, type_vec, template_replacements);
-        }
-        if (!possible_func)
-            println(concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS")
-        return possible_func
-    } else if (node->children.size == 2) {
-        var template_inst = get_node("template_inst", node)
-        if (template_inst) {
-            var identifier = get_node("scoped_identifier", node)
-            match (searching_for) {
-                // I guess this should never happen?
-                search_type::none() {
-                    println("TE<PLATE LOOKUO MAKES NO SENSE")
-                    return null<ast_node>()
-                }
-                search_type::function(type_vec) return find_or_instantiate_function_template(identifier, template_inst, scope, type_vec, template_replacements)
-            }
-            println("NEVER EVER HAPPEN")
-        }
-        var check_if_post = concat_symbol_tree(node->children[1])
-        if (check_if_post == "--" || check_if_post == "++") {
-            // give the post-operators a special suffix so the c_generator knows to emit them post
-            func_name = concat_symbol_tree(node->children[1]) + "p"
-            parameters = vector(transform(node->children[0], scope, template_replacements))
-        } else {
-            func_name = concat_symbol_tree(node->children[0])
-            parameters = vector(transform(node->children[1], scope, template_replacements))
-        }
-    } else {
-        func_name = concat_symbol_tree(node->children[1])
-        var first_param = transform(node->children[0], scope, template_replacements)
-        var second_param = null<ast_node>()
-        if (func_name == "." || func_name == "->") {
-            second_param = transform(node->children[2], get_ast_type(first_param)->type_def, searching_for, template_replacements)
-        } else {
-            second_param = transform(node->children[2], scope, template_replacements)
-        }
-        parameters = vector(first_param, second_param)
-    }
-    var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
-    return ast_function_call_ptr(get_builtin_function(func_name, parameter_types), parameters)
 }
 fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
     if (name == "==" || name == "!=" || name == ">" || name == "<" || name == "<=" || name == ">" || name == ">=" || name == "&&" || name == "||" || name == "!")
@@ -532,78 +684,6 @@ fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<st
         println(template_type->children[0]->data.data)
         error("TYPE INFERENCE NOT GOOD ENOUGH")
     }
-}
-fun find_or_instantiate_function_template(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>): *ast_node {
-    var name = concat_symbol_tree(identifier)
-    println(string("trying to instantiate a template function: ") + name)
-    var results = scope_lookup(name, scope)
-    var real_types = vector<*type>()
-    var real_types_deref = vector<type>()
-    var had_real_types = false
-    if (template_inst) {
-        real_types = get_nodes("type", template_inst).map(fun(t: *tree<symbol>): *type return transform_type(t, scope, template_replacements);)
-        real_types_deref = real_types.map(fun(t:*type):type return *t;)
-        had_real_types = true
-    }
-    for (var i = 0; i < results.size; i++;) {
-        if (is_function_template(results[i])) {
-            println(string() + i + " is a template!")
-            var template_types = results[i]->function_template.template_types
-            var template_type_replacements = results[i]->function_template.template_type_replacements
-            if (!had_real_types) {
-                // reset the vars, cuz we might be iterating through multiple of them
-                real_types = vector<*type>()
-                real_types_deref = vector<type>()
-                // Template Function Instance Inference time
-                var typed_params = get_nodes("typed_parameter", results[i]->function_template.syntax_node).map(fun(t: *tree<symbol>): *tree<symbol> return get_node("type",t);)
-                if (param_types.size != typed_params.size)
-                    continue
-                for (var j = 0; j < typed_params.size; j++;)
-                    unify_type(typed_params[j], param_types[j], &template_type_replacements, template_replacements)
-                for (var j = 0; j < typed_params.size; j++;) {
-                    var t = template_type_replacements[template_types[j]];
-                    real_types.add(t)
-                    real_types_deref.add(*t)
-                }
-            } else if (template_types.size != real_types.size)
-                continue
-            // check if already instantiated
-            var inst_func = null<ast_node>()
-            if (results[i]->function_template.instantiated_map.contains_key(real_types_deref)) {
-                println("USING CACHED TEMPLATE FUNCITON")
-                inst_func =  results[i]->function_template.instantiated_map[real_types_deref]
-            } else {
-                println("FOR FIND OR INSTATINTATE PREEEE")
-                template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
-                println("MAP DONE")
-                for (var j = 0; j < template_types.size; j++;) {
-                    template_type_replacements[template_types[j]] = real_types[j]
-                    println("Just made")
-                    println(template_types[j])
-                    println("equal to")
-                    println(real_types[j]->to_string())
-                }
-
-                println("FOR FIND OR INSTATINTATE")
-                template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
-                println("MAP DONE")
-
-                inst_func = second_pass_function(results[i]->function_template.syntax_node, results[i], template_type_replacements, false)
-                // add to instantiated_map so we only instantiate with a paticular set of types once
-                // put in map first for recursive purposes
-                results[i]->function_template.instantiated_map.set(real_types_deref, inst_func)
-                // and fully instantiate it
-                inst_func->function.body_statement = transform_statement(get_node("statement", results[i]->function_template.syntax_node), inst_func, template_type_replacements)
-            }
-
-            if (function_satisfies_params(inst_func, param_types))
-                return inst_func
-            else
-                println(string("this paticular ") + name + " did not satisfy params")
-        }
-    }
-    println("FREAK OUT MACHINE")
-    return null<ast_node>()
 }
 fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool {
     var func_param_types = get_ast_type(node)->parameter_types
