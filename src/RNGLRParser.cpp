@@ -33,7 +33,7 @@ void RNGLRParser::printReconstructedFrontier(int frontier) {
     }
 }
 
-NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString, std::string filename) {
+NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString, std::string filename, bool highlight_errors) {
 	input.clear();
 	gss.clear();
 	while(!toReduce.empty()) toReduce.pop();
@@ -114,29 +114,36 @@ NodeTree<Symbol>* RNGLRParser::parseInput(std::string inputString, std::string f
 
 	for (int i = 0; i < input.size(); i++) {
 		// std::cout << "Checking if frontier " << i << " is empty" << std::endl;
-		if (gss.frontierIsEmpty(i)) {
-			//std::cout << "Frontier " << i << " is empty." << std::endl;
-			//std::cerr << "Parsing failed on " << input[i].toString() << std::endl;
-			//std::cerr << "Problem is on line: " << findLine(i) << std::endl;
-//			std::cerr << filename << ":" << findLine(i) << std::endl;
+        if (gss.frontierIsEmpty(i)) {
+            //std::cout << "Frontier " << i << " is empty." << std::endl;
+            //std::cerr << "Parsing failed on " << input[i].toString() << std::endl;
+            //std::cerr << "Problem is on line: " << findLine(i) << std::endl;
+            //			std::cerr << filename << ":" << findLine(i) << std::endl;
             errord = true;
-            std::cout << BOLDMAGENTA << "parse error" << std::endl;
-		      
-            std::cout << BOLDWHITE << "Error at: " << BOLDBLUE << filename  << ":" << findLine(i) << std::endl;
-                     
-                std::ifstream infile(filename);
-                std::string line;
-                int linecount = 0;
-                while(std::getline(infile,line))
-                {
-                  if(linecount == findLine(i) - 1)
-                    std::cout << BOLDRED << line << std::endl;
-                  linecount++; 
+            if (highlight_errors)
+                std::cout << BOLDBLUE;
+            std::cout << filename  << ":" << findLine(i) << std::endl;
+            if (highlight_errors)
+                std::cout << BOLDMAGENTA;
+            std::cout << ": parse error" << std::endl;
+
+            std::ifstream infile(filename);
+            std::string line;
+            int linecount = 0;
+            while(std::getline(infile,line))
+            {
+                if(linecount == findLine(i) - 1) {
+                    if (highlight_errors)
+                        std::cout << BOLDRED;
+                    std::cout << line << std::endl;
                 }
+                linecount++;
+            }
+            if (highlight_errors)
                 std::cout << RESET << std::endl;
 
             break;
-		}
+        }
 
 		//Clear the vector of SPPF nodes created every step
 		SPPFStepNodes.clear();

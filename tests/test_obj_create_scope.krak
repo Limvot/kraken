@@ -1,0 +1,23 @@
+import simple_print:*
+
+obj ConTest {
+    var a: int
+    fun construct(a: int): *ConTest {
+        ConTest::a = a
+        return this
+    }
+}
+
+fun main(): int {
+    var b.construct(7): ConTest
+    println(b.a)
+    return 0
+}
+
+
+
+
+
+
+
+

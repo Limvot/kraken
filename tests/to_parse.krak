@@ -56,11 +56,21 @@ fun some_other_function(in: bool): float {
 */
 obj SimpleContainer<T> {
     var data: T
+    fun print_data() {
+        var indirection: T
+        indirection = data
+        println(indirection)
+    }
+    fun construct(dataIn: T) data = dataIn
 }
 fun main(): int {
     var it: SimpleContainer<*char>
     it.data = "Wooo object template"
     println(it.data)
+    it.data = "Wooo object template methods"
+    it.print_data()
+    var it2.construct(3): SimpleContainer<int>
+    it2.print_data()
     /*println(other_id("Wooo function template inference"))*/
     /*var a = id<int>(7)*/
     /*println(a)*/

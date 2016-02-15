@@ -150,6 +150,7 @@ obj type (Object) {
         }
         return 0
     }
+    fun clone(): *type return clone_with_indirection(indirection);
     fun clone_with_increased_indirection(): *type return clone_with_indirection(indirection+1);
     fun clone_with_increased_indirection(more: int): *type return clone_with_indirection(indirection+more);
     fun clone_with_decreased_indirection(): *type return clone_with_indirection(indirection-1);

@@ -204,8 +204,13 @@ obj ast_transformation (Object) {
         while (!fourth_pass_worklist.empty()) {
             var partially_inst_type_def = fourth_pass_worklist.pop()
             partially_inst_type_def->type_def.methods.for_each(fun(method: *ast_node) {
-                // this is the wrong map
-                method->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[method]), method, map<string, *type>())
+                var template = partially_inst_type_def->type_def.scope[string("~enclosing_scope")][0]
+                var template_types = template->template.template_types
+                var real_types = template->template.instantiated_map.reverse_get(partially_inst_type_def)
+                var replacements = map<string, *type>()
+                for (var i = 0; i < template_types.size; i++;)
+                    replacements.set(template_types[i], real_types[i].clone())
+                method->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[method]), method, replacements)
             })
         }
     }

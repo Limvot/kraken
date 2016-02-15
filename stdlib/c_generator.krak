@@ -118,7 +118,6 @@ obj c_generator (Object) {
             var defer_stack = stack<pair<bool,stack<*ast_node>>>(make_pair(false, stack<*ast_node>()))
 
             var decorated_name = generate_function(child).one_string()
-            // also add in name decoration
             backing.parameters.for_each(fun(parameter: *ast_node) {
                 if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
                 parameter_types += type_to_c(parameter->identifier.type)
@@ -183,8 +182,10 @@ obj c_generator (Object) {
             })
         })
         type_poset.get_sorted().for_each(fun(vert: *ast_node) {
-            plain_typedefs += string("typedef struct ") + vert->type_def.name + "_dummy " + vert->type_def.name + ";\n"
-            structs += string("struct ") + vert->type_def.name + "_dummy {\n"
+            /*var base_name = vert->type_def.name*/
+            var base_name = get_name(vert)
+            plain_typedefs += string("typedef struct ") + base_name + "_dummy " + base_name + ";\n"
+            structs += string("struct ") + base_name + "_dummy {\n"
             vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), true).one_string() + ";\n";)
             structs += "};\n"
             // generate the methods
@@ -317,9 +318,7 @@ obj c_generator (Object) {
     }
     // this generates the function as a value, not the actual function
     fun generate_function(node: *ast_node): code_triple {
-        var str = code_triple(node->function.name)
-        node->function.parameters.for_each(fun(param: *ast_node) str += string("_") + type_decoration(param->identifier.type);)
-        return str
+        return code_triple(get_name(node))
     }
     fun generate_function_call(node: *ast_node, enclosing_object: *ast_node): code_triple {
         var func_name = string()
@@ -461,7 +460,7 @@ obj c_generator (Object) {
             base_type::floating() return string("float") + indirection
             base_type::double_precision() return string("double") + indirection
             base_type::object() {
-                return type->type_def->type_def.name + indirection
+                return get_name(type->type_def) + indirection
             }
             base_type::function() {
                 var temp = indirection + string("function: (")
@@ -470,6 +469,28 @@ obj c_generator (Object) {
             }
         }
         return string("impossible type") + indirection
+    }
+    fun get_name(node: *ast_node): string {
+        match (*node) {
+            ast_node::type_def(backing) {
+                var upper = backing.scope[string("~enclosing_scope")][0]
+                var result = backing.name
+                if (is_template(upper))
+                    upper->template.instantiated_map.reverse_get(node).for_each(fun(t: ref type) result += string("_") + type_decoration(&t);) 
+                return result
+            }
+            ast_node::function(backing) {
+                // be careful, operators like . come through this
+                var upper = backing.scope.get_with_default(string("~enclosing_scope"), vector(null<ast_node>()))[0]
+                var str = string()
+                if (upper && is_type_def(upper))
+                    str += get_name(upper)
+                str += node->function.name
+                node->function.parameters.for_each(fun(param: *ast_node) str += string("_") + type_decoration(param->identifier.type);)
+                return str
+            }
+        }
+        return string("impossible name")
     }
 }
 

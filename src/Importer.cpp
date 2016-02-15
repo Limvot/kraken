@@ -197,7 +197,7 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
 	programInFile.close();
 
 	//std::cout << programInputFileString << std::endl;
-	NodeTree<Symbol>* parseTree = parser->parseInput(programInputFileString, inputFileName);
+	NodeTree<Symbol>* parseTree = parser->parseInput(programInputFileString, inputFileName, !only_parse);
 
 	if (parseTree) {
         //std::cout << parseTree->DOTGraphString() << std::endl;
@@ -208,6 +208,8 @@ NodeTree<Symbol>* Importer::parseAndTrim(std::string fileName) {
         throw "unexceptablblllll";
         return NULL;
     }
+    if (only_parse)
+        return parseTree;
 	//outFile.close();
 
 	//Remove Transformations

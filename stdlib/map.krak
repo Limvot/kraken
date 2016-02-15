@@ -74,6 +74,20 @@ obj map<T,U> (Object, Serializable) {
         }
         return values.get(key_loc)
     }
+    fun get_with_default(key: T, default_val: ref U): ref U {
+        if (contains_key(key))
+            return get(key)
+        return default_val
+    }
+    fun reverse_get(value: U): ref T {
+        /*return values.get(keys.find(key))*/
+        var value_loc = values.find(value)
+        if (value_loc == -1) {
+            io::println("trying to access nonexistant value-key!")
+            while (true) {}
+        }
+        return keys.get(value_loc)
+    }
     fun remove(key: T) {
         var idx = keys.find(key)
         if (idx < 0) {

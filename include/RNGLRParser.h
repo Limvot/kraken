@@ -17,7 +17,7 @@ class RNGLRParser: public Parser {
 	public:
 		RNGLRParser();
 		~RNGLRParser();
-		NodeTree<Symbol>* parseInput(std::string inputString, std::string filename); // filename for error reporting
+		NodeTree<Symbol>* parseInput(std::string inputString, std::string filename, bool highlight_errors); // filename for error reporting
         void printReconstructedFrontier(int frontier);
 
 	private:
