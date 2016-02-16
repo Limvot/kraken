@@ -1066,13 +1066,16 @@ CCodeTriple CGenerator::generate(NodeTree<ASTData>* from, NodeTree<ASTData>* enc
     case value:
             {
                 // ok, we now check for it being a multiline string and escape all returns if it is (so that multiline strings work)
-                if (data.symbol.getName()[0] == '"' && strSlice(data.symbol.getName(), 0, 3) == "\"\"\"") {
-                    std::string innerString = strSlice(data.symbol.getName(), 3, -4);
+                if (data.symbol.getName()[0] == '"') {
+                    std::string innerString = strSlice(data.symbol.getName(), 1, -2);
+                    bool triple = strSlice(data.symbol.getName(), 0, 3) == "\"\"\"";
+                    if (triple)
+                        innerString = strSlice(data.symbol.getName(), 3, -4);
                     std::string newStr;
                     for (auto character: innerString)
                         if (character == '\n')
                             newStr += "\\n";
-                        else if (character == '"')
+                        else if (triple && character == '"')
                             newStr += "\\\"";
                         else
                             newStr += character;

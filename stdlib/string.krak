@@ -181,5 +181,8 @@ obj string (Object, Serializable) {
         out.add(current)
         return out
     }
+    fun for_each(func: fun(char):void) {
+        data.for_each(func)
+    }
 };
 

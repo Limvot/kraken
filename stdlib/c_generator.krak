@@ -306,7 +306,25 @@ obj c_generator (Object) {
         defer_stack->top().second.push(node->defer_statement.statement)
         return code_triple("/*defer wanna know what*/")
     }
-    fun generate_value(node: *ast_node): code_triple return code_triple(node->value.string_value);
+    fun generate_value(node: *ast_node): code_triple {
+        var value = node->value.string_value
+        if (value[0] != '"')
+            return code_triple(value);
+        var to_ret = string("\"")
+        if (value.slice(0,3) == "\"\"\"")
+            value = value.slice(3,-4)
+        else 
+            value = value.slice(1,-2)
+        value.for_each(fun(c: char) {
+            if (c == '\n')
+                to_ret += "\\n"
+            else if (c == '"')
+                to_ret += "\\\""
+            else
+                to_ret += c
+        })
+        return code_triple(to_ret + "\"")
+    }
     fun generate_code_block(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         var to_ret = code_triple("{\n")
         // stick another stack on
