@@ -17,9 +17,8 @@ obj TemplateTest<T> {
 	}
 };
 
-def MyInt int;
 
-var c: MyInt;
+var c: int;
 
 
 fun addAndPrint<T>(a: T, b: T): T {

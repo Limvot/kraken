@@ -1,4 +1,4 @@
-import io:*;
+import simple_print:*;
 import trivial_container:*;
 
 obj RegularObject {
@@ -17,8 +17,7 @@ obj RegularObject {
 	}
 };
 
-def MyIntContainer trivialContainer<int>;
-var roundabout: MyIntContainer;
+var roundabout: trivialContainer<int>;
 var outsideDec: RegularObject;
 
 fun print(toPrint: trivialContainer<*char>): void {

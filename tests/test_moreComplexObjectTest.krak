@@ -11,9 +11,7 @@ obj firstObject {
 	}
 };
 
-def Int int;
-
-var aliasNum: Int;
+var aliasNum: int;
 
 fun main(): int {
 	var wooObject: firstObject;

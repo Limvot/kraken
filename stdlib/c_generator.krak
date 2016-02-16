@@ -360,7 +360,8 @@ obj c_generator (Object) {
             func_name = generate(node->function_call.func, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
         }
         // handle method call from inside method of same object
-        if (!dot_style_method_call && enclosing_object && get_ast_scope(enclosing_object)->contains_key(func_name))
+        /*if (!dot_style_method_call && enclosing_object && get_ast_scope(enclosing_object)->contains_key(func_name))*/
+        if (!dot_style_method_call && enclosing_object && enclosing_object->type_def.methods.contains(node->function_call.func))
             call_string += "this"
 
         var parameters = node->function_call.parameters
