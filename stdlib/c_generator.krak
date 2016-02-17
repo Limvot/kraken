@@ -75,18 +75,22 @@ obj code_triple (Object) {
 
 obj c_generator (Object) {
     var id_counter: int
+    var ast_name_map: map<*ast_node, string>
     fun construct(): *c_generator {
         id_counter = 0
+        ast_name_map.construct()
         return this
     }
     fun copy_construct(old: *c_generator) {
         id_counter = old->id_counter
+        ast_name_map.copy_construct(&old->ast_name_map)
     }
     fun operator=(other: ref c_generator) {
         destruct()
         copy_construct(&other)
     }
     fun destruct() {
+        ast_name_map.destruct()
     }
     fun get_id(): string return to_string(id_counter++);
     fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<string,string> {
@@ -121,7 +125,7 @@ obj c_generator (Object) {
             backing.parameters.for_each(fun(parameter: *ast_node) {
                 if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
                 parameter_types += type_to_c(parameter->identifier.type)
-                parameters += type_to_c(parameter->identifier.type) + " " + parameter->identifier.name
+                parameters += type_to_c(parameter->identifier.type) + " " + get_name(parameter)
 
                 // add parameters to destructor thingy (for returns)? Or should that be a different pass?
                 var parameter_type = parameter->identifier.type
@@ -194,21 +198,37 @@ obj c_generator (Object) {
 
         return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
-    fun generate_if_comp(node: *ast_node): code_triple {
+    fun generate_if_comp(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         if (node->if_comp.wanted_generator == "__C__")
-            return generate(node->if_comp.statement, null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>())
+            return generate(node->if_comp.statement, enclosing_object, defer_stack)
         return code_triple()
     }
     fun generate_simple_passthrough(node: *ast_node): string {
         // deal with all the passthrough params
-        return node->simple_passthrough.passthrough_str
+        var result = string()
+        var pre = string()
+        var post = string()
+        node->simple_passthrough.in_params.for_each(fun(i: pair<*ast_node, string>) {
+            var wanted_name = i.second
+            var current_name = generate_identifier(i.first, null<ast_node>()).one_string()
+            if (wanted_name != current_name)
+                result += type_to_c(i.first->identifier.type) + " " + wanted_name + " = " + current_name + ";\n"
+        })
+        result += node->simple_passthrough.passthrough_str
+        node->simple_passthrough.out_params.for_each(fun(i: pair<*ast_node, string>) {
+            var temp_name = string("out_temp") + get_id()
+            pre += type_to_c(i.first->identifier.type) + " " + temp_name + ";\n"
+            result += temp_name + " = " + i.second + ";\n"
+            post += generate_identifier(i.first, null<ast_node>()).one_string() + " = " + temp_name + ";\n"
+        })
+        return pre + "{" + result + "}" + post
     }
     fun generate_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple return generate(node->statement.child, enclosing_object, defer_stack) + ";\n";
     fun generate_declaration_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>, add_to_defer: bool): code_triple {
         // add destruct to defer_stack
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
-        var to_ret = code_triple() + type_to_c(identifier->identifier.type) + " " + identifier->identifier.name
+        var to_ret = code_triple() + type_to_c(identifier->identifier.type) + " " + get_name(identifier)
         if (node->declaration_statement.expression) {
             if (ident_type->is_object() && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(node->declaration_statement.expression)->clone_with_increased_indirection()))) {
                 to_ret += ";\n";
@@ -254,8 +274,8 @@ obj c_generator (Object) {
     }
     fun generate_identifier(node: *ast_node, enclosing_object: *ast_node): code_triple {
         if (enclosing_object && get_ast_scope(enclosing_object)->contains_key(node->identifier.name) && get_ast_scope(enclosing_object)->get(node->identifier.name).contains(node))
-            return code_triple("(this->") + node->identifier.name + ")"
-        return code_triple(node->identifier.name)
+            return code_triple("(this->") + get_name(node) + ")"
+        return code_triple(get_name(node))
     }
     fun generate_return_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         var return_value = node->return_statement.return_value
@@ -360,7 +380,6 @@ obj c_generator (Object) {
             func_name = generate(node->function_call.func, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
         }
         // handle method call from inside method of same object
-        /*if (!dot_style_method_call && enclosing_object && get_ast_scope(enclosing_object)->contains_key(func_name))*/
         if (!dot_style_method_call && enclosing_object && enclosing_object->type_def.methods.contains(node->function_call.func))
             call_string += "this"
 
@@ -421,7 +440,7 @@ obj c_generator (Object) {
     fun generate(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         if (!node) return code_triple("/*NULL*/")
         match (*node) {
-            ast_node::if_comp(backing) return generate_if_comp(node)
+            ast_node::if_comp(backing) return generate_if_comp(node, enclosing_object, defer_stack)
             ast_node::simple_passthrough(backing) return code_triple() + generate_simple_passthrough(node)
             ast_node::statement(backing) return generate_statement(node, enclosing_object, defer_stack)
             ast_node::declaration_statement(backing) return generate_declaration_statement(node, enclosing_object, defer_stack, true)
@@ -490,26 +509,35 @@ obj c_generator (Object) {
         return string("impossible type") + indirection
     }
     fun get_name(node: *ast_node): string {
+        if (ast_name_map.contains_key(node))
+            return ast_name_map[node]
+        var result = string("impossible name")
         match (*node) {
             ast_node::type_def(backing) {
                 var upper = backing.scope[string("~enclosing_scope")][0]
-                var result = backing.name
+                result = backing.name
                 if (is_template(upper))
                     upper->template.instantiated_map.reverse_get(node).for_each(fun(t: ref type) result += string("_") + type_decoration(&t);) 
-                return result
             }
             ast_node::function(backing) {
                 // be careful, operators like . come through this
+                if (!backing.body_statement)
+                    return backing.name
+                result = ""
                 var upper = backing.scope.get_with_default(string("~enclosing_scope"), vector(null<ast_node>()))[0]
-                var str = string()
                 if (upper && is_type_def(upper))
-                    str += get_name(upper)
-                str += node->function.name
-                node->function.parameters.for_each(fun(param: *ast_node) str += string("_") + type_decoration(param->identifier.type);)
-                return str
+                    result += get_name(upper) + "_"
+                result += node->function.name
+                node->function.parameters.for_each(fun(param: *ast_node) result += string("_") + type_decoration(param->identifier.type);)
             }
+            ast_node::identifier(backing) result = backing.name
         }
-        return string("impossible name")
+        if (result == "impossible name")
+            println("HUGE PROBLEMS")
+        if (ast_name_map.contains_value(result))
+            result += get_id()
+        ast_name_map.set(node, result)
+        return result
     }
 }
 

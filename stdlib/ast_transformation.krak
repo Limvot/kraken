@@ -411,8 +411,29 @@ obj ast_transformation (Object) {
     }
     fun transform_simple_passthrough(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var new_passthrough = ast_simple_passthrough_ptr()
-        // setup passthrough params and string
         new_passthrough->simple_passthrough.passthrough_str = concat_symbol_tree(get_node("triple_quoted_string", node)).slice(3,-4)
+        // setup passthrough params and string
+        var passthrough_params = get_node("passthrough_params", node)
+        if (!passthrough_params)
+            return new_passthrough
+        var in_passthrough_params = get_node("in_passthrough_params", passthrough_params)
+        var out_passthrough_params = get_node("out_passthrough_params", passthrough_params)
+        if (in_passthrough_params)
+            get_nodes("param_assign", in_passthrough_params).for_each(fun(p: *tree<symbol>) {
+                var idents = get_nodes("identifier", p)
+                if (idents.size == 2)
+                    new_passthrough->simple_passthrough.in_params.add(make_pair(transform_identifier(idents[0], scope, search_type::none()), concat_symbol_tree(idents[1])))
+                else
+                    new_passthrough->simple_passthrough.in_params.add(make_pair(transform_identifier(idents[0], scope, search_type::none()), concat_symbol_tree(idents[0])))
+            })
+        if (out_passthrough_params)
+            get_nodes("param_assign", out_passthrough_params).for_each(fun(p: *tree<symbol>) {
+                var idents = get_nodes("identifier", p)
+                if (idents.size == 2)
+                    new_passthrough->simple_passthrough.out_params.add(make_pair(transform_identifier(idents[0], scope, search_type::none()), concat_symbol_tree(idents[1])))
+                else
+                    new_passthrough->simple_passthrough.out_params.add(make_pair(transform_identifier(idents[0], scope, search_type::none()), concat_symbol_tree(idents[0])))
+            })
         return new_passthrough
     }
     fun transform_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return ast_statement_ptr(transform(node->children[0], scope, template_replacements));

@@ -848,25 +848,38 @@ fun is_simple_passthrough(node: *ast_node): bool {
 obj simple_passthrough (Object) {
     var scope: map<string, vector<*ast_node>>
     var passthrough_str: string
+    var in_params: vector<pair<*ast_node,string>>
+    var out_params: vector<pair<*ast_node,string>>
+    var linker_str: string
     fun construct(): *simple_passthrough  {
         scope.construct()
         passthrough_str.construct()
+        in_params.construct()
+        out_params.construct()
+        linker_str.construct()
         return this
     }
     fun copy_construct(old: *simple_passthrough) {
         scope.copy_construct(&old->scope)
         passthrough_str.copy_construct(&old->passthrough_str)
+        in_params.copy_construct(&old->in_params)
+        out_params.copy_construct(&old->out_params)
+        linker_str.copy_construct(&old->linker_str)
     }
     fun destruct() {
         scope.destruct()
         passthrough_str.destruct()
+        in_params.destruct()
+        out_params.destruct()
+        linker_str.destruct()
     }
     fun operator=(other: ref simple_passthrough) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref simple_passthrough): bool {
-        return scope == other.scope && passthrough_str == other.passthrough_str
+        return scope == other.scope && passthrough_str == other.passthrough_str && in_params == other.in_params &&
+                out_params == other.out_params && linker_str == other.linker_str
     }
 }
 fun ast_function_call_ptr(func: *ast_node, parameters: vector<*ast_node>): *ast_node {

@@ -65,6 +65,9 @@ obj map<T,U> (Object, Serializable) {
     fun contains_key(key: T): bool {
         return keys.contains(key)
     }
+    fun contains_value(value: U): bool {
+        return values.contains(value)
+    }
     fun get(key: T): ref U {
         /*return values.get(keys.find(key))*/
         var key_loc = keys.find(key)
