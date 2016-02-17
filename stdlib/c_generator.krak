@@ -530,7 +530,11 @@ obj c_generator (Object) {
                 result += node->function.name
                 node->function.parameters.for_each(fun(param: *ast_node) result += string("_") + type_decoration(param->identifier.type);)
             }
-            ast_node::identifier(backing) result = backing.name
+            ast_node::identifier(backing) {
+                if (backing.name == "this")
+                    return backing.name
+                result = backing.name
+            }
         }
         if (result == "impossible name")
             println("HUGE PROBLEMS")
