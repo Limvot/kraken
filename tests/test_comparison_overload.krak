@@ -1,4 +1,4 @@
-import io:*
+import simple_print:*
 
 fun Comparable<T>(): Comparable<T> {
     var toRet : Comparable<T>

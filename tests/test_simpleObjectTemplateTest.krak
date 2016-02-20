@@ -1,16 +1,16 @@
-import io;
+import simple_print;
 
 
 obj TemplateTest<T> {
 	var a: int;
 	var b: T;
 	fun print(): void {
-        io::print("a: ");
-        io::print(a);
-        io::print("\n");
-        io::print("b: ");
-        io::print(b);
-        io::print("\n");
+        simple_print::print("a: ");
+        simple_print::print(a);
+        simple_print::print("\n");
+        simple_print::print("b: ");
+        simple_print::print(b);
+        simple_print::print("\n");
 	}
 };
 

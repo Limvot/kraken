@@ -204,6 +204,9 @@ obj ast_transformation (Object) {
         while (!fourth_pass_worklist.empty()) {
             var partially_inst_type_def = fourth_pass_worklist.pop()
             partially_inst_type_def->type_def.methods.for_each(fun(method: *ast_node) {
+                // if this is a templated method, we've either instantiatedit if we need it or not if we didn't, so we don't do anything with it here
+                if (is_template(method))
+                    return
                 var template = partially_inst_type_def->type_def.scope[string("~enclosing_scope")][0]
                 var template_types = template->template.template_types
                 var real_types = template->template.instantiated_map.reverse_get(partially_inst_type_def)
@@ -263,6 +266,7 @@ obj ast_transformation (Object) {
                     // add to instantiated_map so we only instantiate with a paticular set of types once
                     // put in map first for recursive purposes
                     results[i]->template.instantiated_map.set(real_types_deref, inst_type)
+                    results[i]->template.instantiated.add(inst_type)
                     second_pass_type_def(results[i]->template.syntax_node, inst_type, results[i], template_type_replacements)
                     fourth_pass_worklist.push(inst_type)
                 }
@@ -528,14 +532,12 @@ obj ast_transformation (Object) {
     }
     fun transform_expression(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return transform_expression(node, scope, search_type::none(), template_replacements)
     fun transform_expression(node: *tree<symbol>, scope: *ast_node, searching_for: search_type, template_replacements: map<string, *type>): *ast_node {
-        // figure out what the expression is, handle overloads, or you know
-        // ignore everything and do a passthrough
         var func_name = string()
         var parameters = vector<*ast_node>()
         if (node->children.size == 1) {
             var possible_func = transform(node->children[0], scope, searching_for, template_replacements)
             if (!possible_func) match (searching_for) {
-                search_type::function(type_vec) possible_func = find_or_instantiate_template_function(node->children[0], null<tree<symbol>>(), scope, type_vec, template_replacements);
+                search_type::function(type_vec) possible_func = find_or_instantiate_template_function(node->children[0], null<tree<symbol>>(), scope, type_vec, template_replacements, map<string, *type>());
             }
             if (!possible_func)
                 println(concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS")
@@ -550,7 +552,7 @@ obj ast_transformation (Object) {
                         println("TE<PLATE LOOKUO MAKES NO SENSE")
                         return null<ast_node>()
                     }
-                    search_type::function(type_vec) return find_or_instantiate_template_function(identifier, template_inst, scope, type_vec, template_replacements)
+                    search_type::function(type_vec) return find_or_instantiate_template_function(identifier, template_inst, scope, type_vec, template_replacements, map<string, *type>())
                 }
                 println("NEVER EVER HAPPEN")
             }
@@ -569,6 +571,23 @@ obj ast_transformation (Object) {
             var second_param = null<ast_node>()
             if (func_name == "." || func_name == "->") {
                 second_param = transform(node->children[2], get_ast_type(first_param)->type_def, searching_for, template_replacements)
+                // template member functions
+                // XXX add in template inst if it exists
+                if (!second_param) match (searching_for) {
+                    search_type::function(type_vec) {
+                        var template_inst = get_node("template_inst", node)
+                        var inherited_replacements = map<string, *type>()
+                        var parent = get_ast_scope(get_ast_type(first_param)->type_def)->get(string("~enclosing_scope"))[0]
+                        if (is_template(parent)) {
+                           for (var i = 0; i < parent->template.template_types.size; i++;)
+                               inherited_replacements[parent->template.template_types[i]] = parent->template.instantiated_map.reverse_get(get_ast_type(first_param)->type_def)[i].clone()
+                        }
+                        if (template_inst)
+                            second_param = find_or_instantiate_template_function(node->children[2], template_inst, get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
+                        else
+                            second_param = find_or_instantiate_template_function(node->children[2], null<tree<symbol>>(), get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
+                    }
+                }
             } else {
                 second_param = transform(node->children[2], scope, template_replacements)
             }
@@ -577,7 +596,8 @@ obj ast_transformation (Object) {
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
         return ast_function_call_ptr(get_builtin_function(func_name, parameter_types), parameters)
     }
-    fun find_or_instantiate_template_function(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>): *ast_node {
+    fun find_or_instantiate_template_function(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>, replacements_base: map<string, *type>): *ast_node {
+        // replacments base is for templated methods starting off with the replacements of their parent (possibly templated) object
         var name = concat_symbol_tree(identifier)
         println(string("trying to instantiate a template function: ") + name)
         var results = scope_lookup(name, scope)
@@ -627,7 +647,13 @@ obj ast_transformation (Object) {
                         println("equal to")
                         println(real_types[j]->to_string())
                     }
-
+                    replacements_base.for_each(fun(key: string, value: *type) {
+                        template_type_replacements[key] = value
+                        println("Just Inherited")
+                        println(key)
+                        println("equal to")
+                        println(value->to_string())
+                    })
                     println("FOR FIND OR INSTATINTATE")
                     template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
                     println("MAP DONE")
@@ -636,6 +662,7 @@ obj ast_transformation (Object) {
                     // add to instantiated_map so we only instantiate with a paticular set of types once
                     // put in map first for recursive purposes
                     results[i]->template.instantiated_map.set(real_types_deref, inst_func)
+                    results[i]->template.instantiated.add(inst_func)
                     // and fully instantiate it
                     inst_func->function.body_statement = transform_statement(get_node("statement", results[i]->template.syntax_node), inst_func, template_type_replacements)
                 }

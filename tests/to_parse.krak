@@ -1,59 +1,5 @@
 import simple_print: *
-/*
-fun something(param: int): Something {
-    var to_ret.construct_with_param(param): Something
-    return to_ret
-}
-obj Something (ObjectTrait) {
-    var member: int
-    fun construct(): *Something {
-        println("Constructing a Something")
-        member = 1337
-        return this
-    }
-    fun construct_with_param(param: int): *Something {
-        println("Constructing a Something with a param")
-        member = param
-        return this
-    }
-    fun copy_construct(old: *Something) {
-        println("Copy Constructing a Something")
-        member = old->member
-    }
-    fun destruct() {
-        print("Destructing a Something: ")
-        println(member)
-    }
-    fun method(a: int):int {
-        return 5+a+member + other_method()
-    }
-    fun other_method(): int return 7;
-    fun return_this(): *Something {
-        return this;
-    }
-}
-fun return_something_p_1(it: Something): Something {
-    it.member += 11
-    return it
-}
-*/
-/*fun id<T>(in: *T): *T return in;*/
-/*fun id<T>(in: T): T return in;*/
-/*
-fun other_id<T>(in: T): T {
-    var a: T
-    a = in
-    println(id<T>(in))
-    println(id(in))
-    return in;
-}
-*/
-/*
-fun some_function(): int return 0;
-fun some_other_function(in: bool): float {
-    return 0.0
-}
-*/
+
 obj SimpleContainer<T> {
     var data: T
     fun print_data() {
@@ -61,101 +7,23 @@ obj SimpleContainer<T> {
         indirection = data
         println(indirection)
     }
+    fun with_other<U>(other: U) {
+        var indirection: U
+        indirection = other
+        println(data)
+        println(other)
+    }
+    fun return_as<U>(): U {
+        var indirection: T
+        indirection = data
+        return data
+    }
     fun construct(dataIn: T) data = dataIn
 }
 fun main(): int {
-    var it: SimpleContainer<*char>
-    it.data = "Wooo object template"
-    println(it.data)
-    it.data = "Wooo object template methods"
-    it.print_data()
-    var it2.construct(3): SimpleContainer<int>
-    it2.print_data()
-    /*println(other_id("Wooo function template inference"))*/
-    /*var a = id<int>(7)*/
-    /*println(a)*/
-    /*var b = id<int>(8)*/
-    /*var b = id<*char>("Double down time")*/
-    /*println(b)*/
-    /*println(id<char>("Double down time"))*/
-    /*println(other_id<*char>("Triple down time"))*/
-
-
-
-    /*var test_methods = something(77)*/
-    /*var test_methods_param.construct_with_param(10090): Something*/
-    /*println("Constructing an object and printint its member, copy-constructing it, and printing that out, then letting both be destructed")*/
-    /*println(test_methods.member)*/
-    /*println(test_methods_param.member)*/
-    /*var second_obj = test_methods*/
-    /*second_obj.member += 5*/
-    /*println(second_obj.member)*/
-    /*[>var some = return_something_p_1(second_obj)<]*/
-    /*println(return_something_p_1(second_obj).member)*/
-    return 0
-    /*
-    var a_declaration:int
-    print(1 + 2)
-    var again = 2 + 4 - 1 * 400
-    print(again)
-    again = 2 + (4 - 1) * 400
-    print(again)
-    var another_declaration: int = 8.0
-    print(another_declaration)
-    var yet_another_declaration = "Hello Marcus\n"
-    print(yet_another_declaration)
-    print("Hello World!\n")
-    print(1337)
-    if (1 + 2 && false) print("its true!")
-    else print("its false!")
-    var counter = 10
-    counter--
-    --counter
-    while (counter) print(counter--)
-    print("\n")
-    counter = 8
-    while (counter) {
-        print(--counter)
-        if (counter == 2)
-            break
-    }
-    print("\n")
-    for (var j = 0; j < 10; j++;)
-        if (j%2) continue
-        else print(j)
-    var an_obj: Something
-    an_obj.member = 20
-    print(an_obj.member)
-    print("here is thing")
-    print(123)
-    print("\n")
-    print(an_obj.method(1))
-    print("\n")
-    print(string_id("WoooopsEee\n"))
-    var with_ptr = an_obj.return_this()
-    print(with_ptr->method(2))
-    print("\n")
-    {
-        defer print("should_be_third\n")
-        defer print("should_be_second\n")
-        print("should be first\n")
-    }
-    for (var i = 1; i < 10; i++;) {
-        defer println("OUTER:happens every time, even when breaking or continueing")
-        {
-            defer println("INNER:happens every time, even when breaking or continueing")
-            if (i % 2 == 0)
-                continue
-            if (i == 9)
-                break
-            println(i)
-        }
-    }
-    defer println("Here is a return defer outer")
-    {
-        defer println("Here is a return defer inner")
-        return 0
-    }
-    */
+    var it: SimpleContainer<int>
+    it.data = 8
+    it.with_other("Wooo object template")
+    println(it.return_as<float>())
 }
 

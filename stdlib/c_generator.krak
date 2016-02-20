@@ -149,29 +149,27 @@ obj c_generator (Object) {
                     // should really check the genrator
                     ast_node::if_comp(backing) {
                         if (is_simple_passthrough(backing.statement->statement.child))
-                            top_level_c_passthrough += generate_simple_passthrough(backing.statement->statement.child)
+                            top_level_c_passthrough += generate_simple_passthrough(backing.statement->statement.child, true)
                     }
-                    ast_node::simple_passthrough(backing) top_level_c_passthrough += generate_simple_passthrough(child)
+                    ast_node::simple_passthrough(backing) top_level_c_passthrough += generate_simple_passthrough(child, true)
                     ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), true).one_string() + ";\n"
                     ast_node::function(backing) {
                         // check for and add to parameters if a closure
                         generate_function_definition(child, null<ast_node>())
                     }
                     ast_node::template(backing) {
-                        backing.scope.for_each(fun(key: string, value: vector<*ast_node>) {
-                            value.for_each(fun(node: *ast_node) {
-                                match (*node) {
-                                    ast_node::function(backing) generate_function_definition(node, null<ast_node>())
-                                    ast_node::type_def(backing) {
-                                        type_poset.add_vertex(node)
-                                        backing.variables.for_each(fun(i: *ast_node) {
-                                            var var_type = get_ast_type(i->declaration_statement.identifier)
-                                            if (!var_type->indirection && var_type->type_def)
-                                                type_poset.add_relationship(node, var_type->type_def)
-                                        })
-                                    }
+                        backing.instantiated.for_each(fun(node: *ast_node) {
+                            match (*node) {
+                                ast_node::function(backing) generate_function_definition(node, null<ast_node>())
+                                ast_node::type_def(backing) {
+                                    type_poset.add_vertex(node)
+                                    backing.variables.for_each(fun(i: *ast_node) {
+                                        var var_type = get_ast_type(i->declaration_statement.identifier)
+                                        if (!var_type->indirection && var_type->type_def)
+                                            type_poset.add_relationship(node, var_type->type_def)
+                                    })
                                 }
-                            })
+                            }
                         })
                     }
                     ast_node::type_def(backing) {
@@ -192,8 +190,13 @@ obj c_generator (Object) {
             structs += string("struct ") + base_name + "_dummy {\n"
             vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), true).one_string() + ";\n";)
             structs += "};\n"
-            // generate the methods
-            vert->type_def.methods.for_each(fun(method: *ast_node) generate_function_definition(method, vert);)
+            // generate the methods (note some of these may be templates)
+            vert->type_def.methods.for_each(fun(method: *ast_node) {
+                if (is_template(method))
+                    method->template.instantiated.for_each(fun(m: *ast_node) generate_function_definition(m, vert);)
+                else
+                    generate_function_definition(method, vert);
+            })
         })
 
         return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
@@ -203,7 +206,7 @@ obj c_generator (Object) {
             return generate(node->if_comp.statement, enclosing_object, defer_stack)
         return code_triple()
     }
-    fun generate_simple_passthrough(node: *ast_node): string {
+    fun generate_simple_passthrough(node: *ast_node, is_top_level: bool): string {
         // deal with all the passthrough params
         var result = string()
         var pre = string()
@@ -221,6 +224,8 @@ obj c_generator (Object) {
             result += temp_name + " = " + i.second + ";\n"
             post += generate_identifier(i.first, null<ast_node>()).one_string() + " = " + temp_name + ";\n"
         })
+        if (is_top_level)
+            return pre + result + post
         return pre + "{" + result + "}" + post
     }
     fun generate_statement(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple return generate(node->statement.child, enclosing_object, defer_stack) + ";\n";
@@ -368,7 +373,9 @@ obj c_generator (Object) {
             is_function(node->function_call.func->function_call.func) &&
             (node->function_call.func->function_call.func->function.name == "->" || node->function_call.func->function_call.func->function.name == ".") &&
             is_function(node->function_call.func->function_call.parameters[1]) &&
-            is_type_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0])
+            (is_type_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0]) ||
+            // or if it's a templated method (yes, this has gotten uuuuugly)
+            is_type_def(get_ast_scope(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0])->get(string("~enclosing_scope"))[0])) 
 
         if (dot_style_method_call) {
             func_name = generate(node->function_call.func->function_call.parameters[1], enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
@@ -441,7 +448,7 @@ obj c_generator (Object) {
         if (!node) return code_triple("/*NULL*/")
         match (*node) {
             ast_node::if_comp(backing) return generate_if_comp(node, enclosing_object, defer_stack)
-            ast_node::simple_passthrough(backing) return code_triple() + generate_simple_passthrough(node)
+            ast_node::simple_passthrough(backing) return code_triple() + generate_simple_passthrough(node, false)
             ast_node::statement(backing) return generate_statement(node, enclosing_object, defer_stack)
             ast_node::declaration_statement(backing) return generate_declaration_statement(node, enclosing_object, defer_stack, true)
             ast_node::assignment_statement(backing) return generate_assignment_statement(node, enclosing_object)

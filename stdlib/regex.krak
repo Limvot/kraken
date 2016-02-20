@@ -82,7 +82,7 @@ obj regex (Object, Serializable) {
         regexString.destruct()
         *referenceCounter -= 1
         if (*referenceCounter == 0) {
-            mem::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return it->next_states; } )
+            util::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return it->next_states; } )
             mem::delete(referenceCounter)
         }
     }
