@@ -370,7 +370,9 @@ obj ast_transformation (Object) {
         }
         match (searching_for) {
             search_type::none() return identifier_lookup(name, scope)
-            search_type::function(type_vec) return function_lookup(name, scope, type_vec)
+            search_type::function(type_vec) {
+                return function_lookup(name, scope, type_vec)
+            }
         }
         println("FAILED SEARCH FOR")
         return null<ast_node>()
@@ -378,7 +380,7 @@ obj ast_transformation (Object) {
     fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var value_str = concat_symbol_tree(node)
         var value_type = null<type>()
-        if (value_str[0] == '"')
+        if (value_str[0] == '"') // " // Comment hack for emacs now
             value_type = type_ptr(base_type::character(), 1)
         else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
             value_type = type_ptr(base_type::character())
@@ -535,13 +537,13 @@ obj ast_transformation (Object) {
         var func_name = string()
         var parameters = vector<*ast_node>()
         if (node->children.size == 1) {
-            var possible_func = transform(node->children[0], scope, searching_for, template_replacements)
-            if (!possible_func) match (searching_for) {
-                search_type::function(type_vec) possible_func = find_or_instantiate_template_function(node->children[0], null<tree<symbol>>(), scope, type_vec, template_replacements, map<string, *type>());
+            var possible_value = transform(node->children[0], scope, searching_for, template_replacements)
+            if (!possible_value) match (searching_for) {
+                search_type::function(type_vec) possible_value = find_or_instantiate_template_function(node->children[0], null<tree<symbol>>(), scope, type_vec, template_replacements, map<string, *type>());
             }
-            if (!possible_func)
+            if (!possible_value)
                 println(concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS")
-            return possible_func
+            return possible_value
         } else if (node->children.size == 2) {
             var template_inst = get_node("template_inst", node)
             if (template_inst) {
@@ -759,7 +761,7 @@ fun function_lookup(name: string, scope: *ast_node, param_types: vector<*type>):
     var results = scope_lookup(name, scope)
     print(results.size); println(" number of results")
     for (var i = 0; i < results.size; i++;) {
-        if (is_function(results[i]) && function_satisfies_params(results[i], param_types)) {
+        if ((is_function(results[i]) || is_identifier(results[i])) && function_satisfies_params(results[i], param_types)) {
             return results[i]
         }
     }

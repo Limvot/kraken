@@ -76,6 +76,7 @@ obj code_triple (Object) {
 obj c_generator (Object) {
     var id_counter: int
     var ast_name_map: map<*ast_node, string>
+    var function_typedef_string: string
     fun construct(): *c_generator {
         id_counter = 0
         ast_name_map.construct()
@@ -100,8 +101,7 @@ obj c_generator (Object) {
         var top_level_c_passthrough: string = ""
         var variable_extern_declarations: string = ""
         var structs: string = "\n/**Type Structs**/\n"
-        var function_typedef_string_pre: string = ""
-        var function_typedef_string: string = ""
+        function_typedef_string.construct()
         var function_prototypes: string = "\n/**Function Prototypes**/\n"
         var function_definitions: string = "\n/**Function Definitions**/\n"
         var variable_declarations: string = "\n/**Variable Declarations**/\n"
@@ -199,7 +199,7 @@ obj c_generator (Object) {
             })
         })
 
-        return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string_pre+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
+        return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
     fun generate_if_comp(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         if (node->if_comp.wanted_generator == "__C__")
@@ -508,9 +508,18 @@ obj c_generator (Object) {
                 return get_name(type->type_def) + indirection
             }
             base_type::function() {
-                var temp = indirection + string("function: (")
-                type->parameter_types.for_each(fun(parameter_type: *type) temp += parameter_type->to_string() + " ";)
-                return temp + ")" + type->return_type->to_string()
+                var temp_name = string("temp") + get_id()
+                var temp = temp_name + ")("
+                var first = true
+                type->parameter_types.for_each(fun(parameter_type: *type) {
+                    if (!first) {
+                       temp += ", "
+                    }
+                    first = false
+                    temp += type_to_c(parameter_type) + " "
+                })
+                function_typedef_string += string("typedef ") + type_to_c(type->return_type) + " (*" + temp + ");"
+                return temp_name + indirection
             }
         }
         return string("impossible type") + indirection

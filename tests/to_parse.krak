@@ -1,29 +1,12 @@
 import simple_print: *
-
-obj SimpleContainer<T> {
-    var data: T
-    fun print_data() {
-        var indirection: T
-        indirection = data
-        println(indirection)
-    }
-    fun with_other<U>(other: U) {
-        var indirection: U
-        indirection = other
-        println(data)
-        println(other)
-    }
-    fun return_as<U>(): U {
-        var indirection: T
-        indirection = data
-        return data
-    }
-    fun construct(dataIn: T) data = dataIn
+fun print_and_return(data: int): int {
+    println(data)
+    return data
 }
 fun main(): int {
-    var it: SimpleContainer<int>
-    it.data = 8
-    it.with_other("Wooo object template")
-    println(it.return_as<float>())
+     var v = print_and_return
+      println(v(7))
+      // println(print_and_return(7))
+    return 0
 }
 

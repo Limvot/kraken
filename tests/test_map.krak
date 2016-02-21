@@ -1,7 +1,7 @@
 import io:*
 import map:*
 
-fun main():int {
+fun main(): int {
     var m = map(3,1)
     m.set(2,2)
     m.set(1,3)
