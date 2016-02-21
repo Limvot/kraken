@@ -282,7 +282,7 @@ obj ast_transformation (Object) {
             println(to_ret->to_string())
             return to_ret
         }
-        // should take into account indirection and references...
+        // should take into account references...
         if (type_syntax_str == "void")
             return type_ptr(base_type::void_return(), indirection)
         else if (type_syntax_str == "bool")
@@ -295,9 +295,10 @@ obj ast_transformation (Object) {
             return type_ptr(base_type::double_precision(), indirection)
         else if (type_syntax_str == "char")
             return type_ptr(base_type::character(), indirection)
-        else if (/* check for function type*/ false)
-            return type_ptr(base_type::function(), indirection)
-        else {
+        else if (get_node("function_type", real_node)) {
+            var types = get_nodes("type", get_node("function_type", real_node)).map(fun(node: *tree<symbol>): *type transform_type(node, scope, template_replacements);)
+            return type_ptr(types.slice(0,-2), types.last(), indirection)
+        } else {
             // do lookup for objects, ADTs, templates, etc
             var possibilities = scope_lookup(type_syntax_str, scope)
             print("There are "); print(possibilities.size); println(" possibilites for this object type lookup")

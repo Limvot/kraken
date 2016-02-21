@@ -4,8 +4,9 @@ fun print_and_return(data: int): int {
     return data
 }
 fun main(): int {
-     var v = print_and_return
-      println(v(7))
+    var v: fun(int):int
+    v = print_and_return
+    println(v(7))
       // println(print_and_return(7))
     return 0
 }
