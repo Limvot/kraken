@@ -64,21 +64,25 @@ fun is_translation_unit(node: *ast_node): bool {
 obj translation_unit (Object) {
     var scope: map<string, vector<*ast_node>>
     var children: vector<*ast_node>
+    var lambdas: vector<*ast_node>
     var name: string
     fun construct(nameIn: string): *translation_unit  {
         scope.construct()
         children.construct()
+        lambdas.construct()
         name.copy_construct(&nameIn)
         return this
     }
     fun copy_construct(old: *translation_unit) {
         scope.copy_construct(&old->scope)
         children.copy_construct(&old->children)
+        lambdas.copy_construct(&old->lambdas)
         name.copy_construct(&old->name)
     }
     fun destruct() {
         scope.destruct()
         children.destruct()
+        lambdas.destruct()
         name.destruct()
     }
     fun operator=(other: ref translation_unit) {
@@ -86,7 +90,7 @@ obj translation_unit (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref translation_unit): bool {
-        return children == other.children && name == other.name
+        return children == other.children && name == other.name && lambdas == other.lambdas
     }
 }
 fun ast_import_ptr(name: string, translation_unit: *ast_node): *ast_node {
@@ -959,7 +963,7 @@ obj value (Object) {
 
 fun get_ast_children(node: *ast_node): vector<*ast_node> {
     match (*node) {
-        ast_node::translation_unit(backing) return backing.children
+        ast_node::translation_unit(backing) return backing.children + backing.lambdas
         ast_node::import(backing) return vector<*ast_node>()
         ast_node::identifier(backing) return vector<*ast_node>()
         ast_node::type_def(backing) return backing.variables + backing.methods

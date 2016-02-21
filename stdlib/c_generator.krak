@@ -144,7 +144,7 @@ obj c_generator (Object) {
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
             // iterate through children for each ast
             // assert translation_unit?
-            tree_pair.second->translation_unit.children.for_each(fun(child: *ast_node) {
+            (tree_pair.second->translation_unit.children + tree_pair.second->translation_unit.lambdas).for_each(fun(child: *ast_node) {
                 match (*child) {
                     // should really check the genrator
                     ast_node::if_comp(backing) {

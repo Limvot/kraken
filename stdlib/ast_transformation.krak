@@ -139,7 +139,10 @@ obj ast_transformation (Object) {
         })
     }
     fun second_pass_function(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>, do_raw_template: bool): *ast_node {
-        var function_name = concat_symbol_tree(get_node("func_identifier", node))
+        var func_identifier_node = get_node("func_identifier", node)
+        var function_name = string("lambda")
+        if (func_identifier_node)
+           function_name = concat_symbol_tree(func_identifier_node)
         var template_dec = get_node("template_dec", node)
         if (do_raw_template && template_dec) {
             var template_types = vector<string>()
@@ -342,6 +345,8 @@ obj ast_transformation (Object) {
             return transform_defer_statement(node, scope, template_replacements)
         } else if (name == "function_call") {
             return transform_function_call(node, scope, template_replacements)
+        } else if (name == "lambda") {
+            return transform_lambda(node, scope, template_replacements)
         } else if (name == "boolean_expression" || name == "and_boolean_expression"
                 || name == "bool_exp" || name == "expression"
                 || name == "shiftand" || name == "term"
@@ -532,6 +537,13 @@ obj ast_transformation (Object) {
         print("function call parameters ")
         f->function_call.parameters.for_each(fun(param: *ast_node) print(param);)
         return f
+    }
+    fun transform_lambda(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        var function_node = second_pass_function(node, scope, template_replacements, false)
+        function_node->function.body_statement = transform_statement(get_node("statement", node), function_node, template_replacements)
+        while (!is_translation_unit(scope)) scope = get_ast_scope(scope)->get(string("~enclosing_scope"))[0]
+        scope->translation_unit.lambdas.add(function_node)
+        return function_node
     }
     fun transform_expression(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return transform_expression(node, scope, search_type::none(), template_replacements)
     fun transform_expression(node: *tree<symbol>, scope: *ast_node, searching_for: search_type, template_replacements: map<string, *type>): *ast_node {
