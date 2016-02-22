@@ -63,10 +63,10 @@ obj set<T> (Object, Serializable) {
     fun contains(item: T): bool {
         return data.find(item) != -1
     }
-    fun operator+=(item: T) {
+    fun operator+=(item: ref T) {
         add(item)
     }
-    fun operator+=(items: set<T>) {
+    fun operator+=(items: ref set<T>) {
         add(items)
     }
     fun add(item: ref T) {

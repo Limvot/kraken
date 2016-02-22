@@ -1,11 +1,12 @@
 import simple_print: *
 fun main(): int {
-    var v: fun(int):int
-    v = fun(data: int): int {
+    var data = 7
+    var v: fun():int
+    v = fun(): int {
         println(data)
         return data
     }
-    println(v(7))
+    println(v())
       // println(print_and_return(7))
     return 0
 }

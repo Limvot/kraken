@@ -139,11 +139,11 @@ obj import (Object) {
         return imported == other.imported && name == other.name && translation_unit == other.translation_unit && starred == other.starred
     }
 }
-fun ast_identifier_ptr(name: *char, type: *type): *ast_node {
-    return ast_identifier_ptr(string(name), type)
+fun ast_identifier_ptr(name: *char, type: *type, enclosing_scope: *ast_node): *ast_node {
+    return ast_identifier_ptr(string(name), type, enclosing_scope)
 }
-fun ast_identifier_ptr(name: string, type: *type): *ast_node {
-    var to_ret.construct(name, type): identifier
+fun ast_identifier_ptr(name: string, type: *type, enclosing_scope: *ast_node): *ast_node {
+    var to_ret.construct(name, type, enclosing_scope): identifier
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::identifier(to_ret))
     return ptr
@@ -158,16 +158,19 @@ obj identifier (Object) {
     var name: string
     var scope: map<string, vector<*ast_node>>
     var type: *type
-    fun construct(name_in: string, type_in: *type): *identifier {
+    var enclosing_scope: *ast_node
+    fun construct(name_in: string, type_in: *type, enclosing_scope: *ast_node): *identifier {
         name.copy_construct(&name_in)
         scope.construct()
         type = type_in
+        identifier::enclosing_scope = enclosing_scope
         return this
     }
     fun copy_construct(old: *identifier) {
         name.copy_construct(&old->name)
         scope.copy_construct(&old->scope)
         type = old->type
+        enclosing_scope = old->enclosing_scope
     }
     fun destruct() {
         name.destruct()
@@ -178,7 +181,7 @@ obj identifier (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref identifier): bool {
-        return name == other.name && type == other.type
+        return name == other.name && type == other.type && enclosing_scope == other.enclosing_scope
     }
 }
 fun ast_type_def_ptr(name: string): *ast_node {
@@ -280,11 +283,13 @@ obj function (Object) {
     var name: string
     var type: *type
     var parameters: vector<*ast_node>
+    var closed_variables: set<*ast_node>
     var body_statement: *ast_node
     var scope: map<string, vector<*ast_node>>
     fun construct(name_in: string, type_in: *type, parameters_in: vector<*ast_node>): *function  {
         name.copy_construct(&name_in)
         parameters.copy_construct(&parameters_in)
+        closed_variables.construct()
         scope.construct()
         type = type_in
         body_statement = null<ast_node>()
@@ -295,11 +300,13 @@ obj function (Object) {
         type = old->type
         body_statement = old->body_statement
         parameters.copy_construct(&old->parameters)
+        closed_variables.copy_construct(&old->closed_variables)
         scope.copy_construct(&old->scope)
     }
     fun destruct() {
         name.destruct()
         parameters.destruct()
+        closed_variables.destruct()
         scope.destruct()
     }
     fun operator=(other: ref function) {
@@ -307,7 +314,7 @@ obj function (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref function): bool {
-        return name == name && type == other.type && parameters == other.parameters && body_statement == other.body_statement
+        return name == name && type == other.type && parameters == other.parameters && body_statement == other.body_statement && closed_variables == other.closed_variables
     }
 }
 fun ast_template_ptr(name: string, syntax_node: *tree<symbol>, template_types: vector<string>, template_type_replacements: map<string, *type>, is_function: bool): *ast_node {

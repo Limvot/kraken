@@ -76,10 +76,15 @@ obj code_triple (Object) {
 obj c_generator (Object) {
     var id_counter: int
     var ast_name_map: map<*ast_node, string>
+    var closure_struct_map: map<set<*ast_node>, string>
     var function_typedef_string: string
+    var closure_struct_definitions: string
     fun construct(): *c_generator {
         id_counter = 0
         ast_name_map.construct()
+        closure_struct_map.construct()
+        function_typedef_string.construct()
+        closure_struct_definitions.construct()
         return this
     }
     fun copy_construct(old: *c_generator) {
@@ -101,7 +106,8 @@ obj c_generator (Object) {
         var top_level_c_passthrough: string = ""
         var variable_extern_declarations: string = ""
         var structs: string = "\n/**Type Structs**/\n"
-        function_typedef_string.construct()
+        function_typedef_string = "\n/**Typedefs**/\n"
+        closure_struct_definitions = "\n/**Closure Struct Definitions**/\n"
         var function_prototypes: string = "\n/**Function Prototypes**/\n"
         var function_definitions: string = "\n/**Function Definitions**/\n"
         var variable_declarations: string = "\n/**Variable Declarations**/\n"
@@ -115,6 +121,13 @@ obj c_generator (Object) {
             if (enclosing_object) {
                 parameter_types = type_to_c(enclosing_object->type_def.self_type) + "*"
                 parameters = type_to_c(enclosing_object->type_def.self_type) + "* this"
+            }
+            if (backing.closed_variables.size()) {
+               println("HAS CLOSED VARIABLES")
+               if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
+               var closed_type_name = get_closure_struct_type(backing.closed_variables)
+               parameter_types += closed_type_name + "*"
+               parameters += closed_type_name + "* closure_data"
             }
 
             // stack-stack thing // this could be a stack of strings too, maybe
@@ -199,7 +212,14 @@ obj c_generator (Object) {
             })
         })
 
-        return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
+        return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+closure_struct_definitions+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
+    }
+    fun get_closure_struct_type(closed_variables: set<*ast_node>): string {
+        if (!closure_struct_map.contains_key(closed_variables)) {
+            closure_struct_definitions += "typedef struct {} random_closure_type;\n"
+            closure_struct_map[closed_variables] = string("random_closure_type")
+        }
+        return closure_struct_map[closed_variables]
     }
     fun generate_if_comp(node: *ast_node, enclosing_object: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         if (node->if_comp.wanted_generator == "__C__")
@@ -290,7 +310,7 @@ obj c_generator (Object) {
         var to_ret = code_triple()
         // if we're returning an object, copy_construct a new one to return
         if (return_value_type->is_object() && return_value_type->indirection == 0 && has_method(return_value_type->type_def, "copy_construct", vector(return_value_type->clone_with_indirection(1)))) {
-            var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), return_value_type)
+            var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), return_value_type, null<ast_node>())
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
             // have to pass false to the declaration generator, so can't do it through generate_statement
             to_ret.pre = generate_declaration_statement(declaration, enclosing_object, defer_stack, false).one_string() + ";\n"
@@ -416,7 +436,7 @@ obj c_generator (Object) {
 
             var param_type = get_ast_type(param)
             if (param_type->is_object() && param_type->indirection == 0 && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1)))) {
-                var temp_ident = ast_identifier_ptr(string("temporary_param")+get_id(), param_type)
+                var temp_ident = ast_identifier_ptr(string("temporary_param")+get_id(), param_type, null<ast_node>())
                 var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
                 // have to pass false to the declaration generator, so can't do it through generate_statement
                 call_string.pre += generate_declaration_statement(declaration, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
@@ -431,7 +451,7 @@ obj c_generator (Object) {
         })
         if (func_return_type->is_object() && func_return_type->indirection == 0 && has_method(func_return_type->type_def, "destruct", vector<*type>())) {
             // kind of ugly combo here of
-            var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), func_return_type)
+            var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), func_return_type, null<ast_node>())
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
             // have to pass false to the declaration generator, so can't do it through generate_statement
             call_string.pre += generate_declaration_statement(declaration, enclosing_object, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
