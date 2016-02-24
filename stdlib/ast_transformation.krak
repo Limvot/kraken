@@ -191,9 +191,12 @@ obj ast_transformation (Object) {
                 ast_node::type_def(backing) {
                     // make sure not a template? or the method not a template?
                     // also same body problem as below
-                    node->type_def.methods.for_each(fun(method: *ast_node) {
-                        method->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[method]), method, map<string, *type>())
-                    })
+                    if (!is_template(node)) {
+                        node->type_def.methods.for_each(fun(method: *ast_node) {
+                            if (!is_template(method))
+                                method->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[method]), method, map<string, *type>())
+                        })
+                    }
                 }
                 ast_node::function(backing) {
                     // make sure not a template
