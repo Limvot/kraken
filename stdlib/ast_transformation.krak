@@ -766,8 +766,10 @@ fun make_operator_call(func: string, params: vector<*ast_node>): *ast_node {
 fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
     if (name == "==" || name == "!=" || name == ">" || name == "<" || name == "<=" || name == ">" || name == ">=" || name == "&&" || name == "||" || name == "!")
         return ast_function_ptr(name, type_ptr(param_types, type_ptr(base_type::boolean())), vector<*ast_node>())
-    if (name == "." || name == "->" || name == "[")
+    if (name == "." || name == "->")
         return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>())
+    if (name == "[")
+        return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>())
     if (name == "&")
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection()), vector<*ast_node>())
     if (name == "\*")
