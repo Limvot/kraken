@@ -655,6 +655,16 @@ obj ast_transformation (Object) {
             parameters = vector(first_param, second_param)
         }
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
+        // check for operator overloading
+        var possible_overload = null<ast_node>()
+        if (parameter_types[0]->is_object()) {
+           possible_overload = function_lookup(string("operator")+func_name, parameter_types.first()->type_def, parameter_types.slice(1,-1))
+            if (possible_overload)
+                return make_method_call(parameters.first(), possible_overload, parameters.slice(1,-1))
+        }
+        possible_overload = function_lookup(string("operator")+func_name, scope, parameter_types)
+        if (possible_overload)
+            return ast_function_call_ptr(possible_overload, parameters)
         return ast_function_call_ptr(get_builtin_function(func_name, parameter_types), parameters)
     }
     fun find_or_instantiate_template_function(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>, replacements_base: map<string, *type>): *ast_node {

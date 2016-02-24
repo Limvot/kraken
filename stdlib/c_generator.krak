@@ -80,6 +80,8 @@ obj c_generator (Object) {
     var function_type_map: map<type, string>
     var function_typedef_string: string
     var closure_struct_definitions: string
+    var replacement_map: map<string, string>
+    var longest_replacement: int
     fun construct(): *c_generator {
         id_counter = 0
         ast_name_map.construct()
@@ -87,6 +89,52 @@ obj c_generator (Object) {
         function_type_map.construct()
         function_typedef_string.construct()
         closure_struct_definitions.construct()
+        replacement_map.construct()
+        // IMPORTANT
+        longest_replacement = 3
+
+     	replacement_map[string("+")] = string("plus")
+        replacement_map[string("-")] = string("minus")
+        replacement_map[string("*")] = string("star")
+        replacement_map[string("/")] = string("div")
+        replacement_map[string("%")] = string("mod")
+        replacement_map[string("^")] = string("carat")
+        replacement_map[string("&")] = string("amprsd")
+        replacement_map[string("|")] = string("pipe")
+        replacement_map[string("~")] = string("tilde")
+        replacement_map[string("!")] = string("exlmtnpt")
+        replacement_map[string(",")] = string("comma")
+        replacement_map[string("=")] = string("eq")
+        replacement_map[string("++")] = string("dbplus")
+        replacement_map[string("--")] = string("dbminus")
+        replacement_map[string("<<")] = string("dbleft")
+        replacement_map[string(">>")] = string("dbright")
+        replacement_map[string("::")] = string("scopeop")
+        replacement_map[string(":")] = string("colon")
+        replacement_map[string("==")] = string("dbq")
+        replacement_map[string("!=")] = string("notequals")
+        replacement_map[string("&&")] = string("doubleamprsnd")
+        replacement_map[string("||")] = string("doublepipe")
+        replacement_map[string("+=")] = string("plusequals")
+        replacement_map[string("-=")] = string("minusequals")
+        replacement_map[string("/=")] = string("divequals")
+        replacement_map[string("%=")] = string("modequals")
+        replacement_map[string("^=")] = string("caratequals")
+        replacement_map[string("&=")] = string("amprsdequals")
+        replacement_map[string("|=")] = string("pipeequals")
+        replacement_map[string("*=")] = string("starequals")
+        replacement_map[string("<<=")] = string("doublerightequals")
+        replacement_map[string("<")] = string("lt")
+        replacement_map[string(">")] = string("gt")
+        replacement_map[string(">>=")] = string("doubleleftequals")
+        replacement_map[string("(")] = string("openparen")
+        replacement_map[string(")")] = string("closeparen")
+        replacement_map[string("[")] = string("obk")
+        replacement_map[string("]")] = string("cbk")
+        replacement_map[string(" ")] = string("space")
+        replacement_map[string(".")] = string("dot")
+        replacement_map[string("->")] = string("arrow")
+
         return this
     }
     fun copy_construct(old: *c_generator) {
@@ -96,6 +144,8 @@ obj c_generator (Object) {
         function_type_map.copy_construct(&old->function_type_map)
         function_typedef_string.copy_construct(&old->function_typedef_string)
         closure_struct_definitions.copy_construct(&old->closure_struct_definitions)
+        replacement_map.copy_construct(&old->replacement_map)
+        longest_replacement = old->longest_replacement
     }
     fun operator=(other: ref c_generator) {
         destruct()
@@ -107,6 +157,7 @@ obj c_generator (Object) {
         function_type_map.destruct()
         function_typedef_string.destruct()
         closure_struct_definitions.destruct()
+        replacement_map.destruct()
     }
     fun get_id(): string return to_string(id_counter++);
     fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<string,string> {
@@ -595,7 +646,7 @@ obj c_generator (Object) {
                 var upper = backing.scope.get_with_default(string("~enclosing_scope"), vector(null<ast_node>()))[0]
                 if (upper && is_type_def(upper))
                     result += get_name(upper) + "_"
-                result += node->function.name
+                result += cify_name(node->function.name)
                 node->function.parameters.for_each(fun(param: *ast_node) result += string("_") + type_decoration(param->identifier.type);)
             }
             ast_node::identifier(backing) {
@@ -610,6 +661,23 @@ obj c_generator (Object) {
             result += get_id()
         ast_name_map.set(node, result)
         return result
+    }
+    fun cify_name(name: string): string {
+        var to_ret = string()
+        for (var i = 0; i < name.length(); i++;) {
+            var replaced = false
+            for (var j = longest_replacement; j > 0; j--;) {
+                if (i + j <= name.length() && replacement_map.contains_key(name.slice(i,i+j))) {
+                   to_ret += replacement_map[name.slice(i,i+j)]
+                   replaced = true
+                   i += j-1;
+                   break
+                }
+            }
+            if (!replaced)
+               to_ret += name[i]
+        }
+        return to_ret
     }
 }
 
