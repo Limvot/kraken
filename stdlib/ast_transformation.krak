@@ -368,6 +368,7 @@ obj ast_transformation (Object) {
             return transform_value(node, scope)
         }
         print("FAILED TO TRANSFORM: "); print(name + ": "); println(concat_symbol_tree(node))
+        while(1) {}
         return null<ast_node>()
     }
     fun transform_all(nodes: vector<*tree<symbol>>, scope: *ast_node, template_replacements: map<string, *type>): vector<*ast_node> {
@@ -598,24 +599,24 @@ obj ast_transformation (Object) {
         if (node->children.size == 1) {
             var possible_value = transform(node->children[0], scope, searching_for, template_replacements)
             if (!possible_value) match (searching_for) {
-                search_type::function(type_vec) possible_value = find_or_instantiate_template_function(node->children[0], null<tree<symbol>>(), scope, type_vec, template_replacements, map<string, *type>());
+                search_type::function(type_vec) possible_value = find_or_instantiate_template_function(concat_symbol_tree(node->children[0]), null<tree<symbol>>(), scope, type_vec, template_replacements, map<string, *type>());
             }
             if (!possible_value)
-                println(concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS")
+                error(concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS")
             return possible_value
         } else if (node->children.size == 2) {
             var template_inst = get_node("template_inst", node)
             if (template_inst) {
                 var identifier = get_node("scoped_identifier", node)
+                var result = null<ast_node>()
                 match (searching_for) {
                     // I guess this should never happen?
-                    search_type::none() {
-                        println("TE<PLATE LOOKUO MAKES NO SENSE")
-                        return null<ast_node>()
-                    }
-                    search_type::function(type_vec) return find_or_instantiate_template_function(identifier, template_inst, scope, type_vec, template_replacements, map<string, *type>())
+                    search_type::none() error("TE<PLATE LOOKUO MAKES NO SENSE")
+                    search_type::function(type_vec) result = find_or_instantiate_template_function(concat_symbol_tree(identifier), template_inst, scope, type_vec, template_replacements, map<string, *type>())
                 }
-                println("NEVER EVER HAPPEN")
+                if (!result)
+                   error("Could not find templated function even though had a template_inst")
+                return result
             }
             var check_if_post = concat_symbol_tree(node->children[1])
             if (check_if_post == "--" || check_if_post == "++") {
@@ -644,9 +645,11 @@ obj ast_transformation (Object) {
                                inherited_replacements[parent->template.template_types[i]] = parent->template.instantiated_map.reverse_get(get_ast_type(first_param)->type_def)[i].clone()
                         }
                         if (template_inst)
-                            second_param = find_or_instantiate_template_function(node->children[2], template_inst, get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
+                            second_param = find_or_instantiate_template_function(concat_symbol_tree(node->children[2]), template_inst, get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
                         else
-                            second_param = find_or_instantiate_template_function(node->children[2], null<tree<symbol>>(), get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
+                            second_param = find_or_instantiate_template_function(concat_symbol_tree(node->children[2]), null<tree<symbol>>(), get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
+                        if (!second_param)
+                           error("Could not find method!")
                     }
                 }
             } else {
@@ -657,19 +660,22 @@ obj ast_transformation (Object) {
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
         // check for operator overloading
         var possible_overload = null<ast_node>()
-        if (parameter_types[0]->is_object()) {
+        if (parameter_types[0]->is_object() && parameter_types[0]->indirection == 0) {
            possible_overload = function_lookup(string("operator")+func_name, parameter_types.first()->type_def, parameter_types.slice(1,-1))
-            if (possible_overload)
+            if (!possible_overload)
+                possible_overload = find_or_instantiate_template_function(string("operator")+func_name, null<tree<symbol>>(), parameter_types.first()->type_def, parameter_types.slice(1,-1), template_replacements, map<string, *type>())
+           if (possible_overload)
                 return make_method_call(parameters.first(), possible_overload, parameters.slice(1,-1))
         }
         possible_overload = function_lookup(string("operator")+func_name, scope, parameter_types)
+        if (!possible_overload)
+            possible_overload = find_or_instantiate_template_function(string("operator")+func_name, null<tree<symbol>>(), scope, parameter_types, template_replacements, map<string, *type>())
         if (possible_overload)
             return ast_function_call_ptr(possible_overload, parameters)
         return ast_function_call_ptr(get_builtin_function(func_name, parameter_types), parameters)
     }
-    fun find_or_instantiate_template_function(identifier: *tree<symbol>, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>, replacements_base: map<string, *type>): *ast_node {
+    fun find_or_instantiate_template_function(name: string, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>, replacements_base: map<string, *type>): *ast_node {
         // replacments base is for templated methods starting off with the replacements of their parent (possibly templated) object
-        var name = concat_symbol_tree(identifier)
         println(string("trying to instantiate a template function: ") + name)
         var results = scope_lookup(name, scope)
         var real_types = vector<*type>()
@@ -744,7 +750,7 @@ obj ast_transformation (Object) {
                     println(string("this paticular ") + name + " did not satisfy params")
             }
         }
-        println("FREAK OUT MACHINE")
+        println("no working templated method found")
         return null<ast_node>()
     }
 }
