@@ -463,24 +463,24 @@ obj ast_transformation (Object) {
         // may have type, or an expression, or both
         var type_syntax_node = get_node("type", node)
         var expression_syntax_node = get_node("boolean_expression", node)
-        var ident_type = null<type>()
         var expression = null<ast_node>()
-        if (type_syntax_node) ident_type = transform_type(type_syntax_node, scope, template_replacements)
+        // we do it early so that if there is a type_syntax_node we can add to scope so that the expression can find this for things like rec closures
+        var identifier = ast_identifier_ptr(name, null<type>(), scope)
+        add_to_scope(name, identifier, scope)
+        if (type_syntax_node) identifier->identifier.type = transform_type(type_syntax_node, scope, template_replacements)
         if (expression_syntax_node) {
             expression = transform(expression_syntax_node, scope, template_replacements)
             if (!type_syntax_node)
-                ident_type = get_ast_type(expression)
+                identifier->identifier.type = get_ast_type(expression)
         }
-        if (!ident_type) error("declaration statement with no type or expression from which to inference type")
-        var identifier = ast_identifier_ptr(name, ident_type, scope)
+        if (!identifier->identifier.type) error("declaration statement with no type or expression from which to inference type")
         var declaration = ast_declaration_statement_ptr(identifier, expression)
         // ok, deal with the possible init position method call
         if (identifiers.size == 2) {
-            var method = transform(identifiers[1], ident_type->type_def, template_replacements)
+            var method = transform(identifiers[1], identifier->identifier.type->type_def, template_replacements)
             var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)
             declaration->declaration_statement.init_method_call = make_method_call(identifier, method, parameters)
         }
-        add_to_scope(name, identifier, scope)
         return declaration
     }
     fun transform_assignment_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
@@ -555,6 +555,7 @@ obj ast_transformation (Object) {
         return function_node
     }
     fun find_closed_variables(func: *ast_node, node: *ast_node): set<*ast_node> {
+        if (!node) return set<*ast_node>()
         match (*node) {
             ast_node::identifier(backing) {
                 println("found an identifier")
@@ -574,6 +575,7 @@ obj ast_transformation (Object) {
             }
             ast_node::function_call(backing) {
                 println("found an function_call")
+                // XXX should special case . and ->, I think
                 var to_ret = find_closed_variables(func, backing.func)
                 backing.parameters.for_each(fun(n: *ast_node) to_ret += find_closed_variables(func, n);)
                 return to_ret
@@ -581,6 +583,41 @@ obj ast_transformation (Object) {
             ast_node::return_statement(backing) {
                 println("found an return_statement")
                 return find_closed_variables(func, backing.return_value)
+            }
+            ast_node::if_statement(backing) {
+                println("found an if statement")
+                return find_closed_variables(func, backing.condition) + find_closed_variables(func, backing.then_part) + find_closed_variables(func, backing.else_part)
+            }
+    // match_statement: match_statement,
+    // case_statement: case_statement,
+            ast_node::while_loop(backing) {
+                println("found an while loop")
+                return find_closed_variables(func, backing.condition) + find_closed_variables(func, backing.statement)
+            }
+            ast_node::for_loop(backing) {
+                println("found an for loop")
+                return find_closed_variables(func, backing.init) + find_closed_variables(func, backing.condition) +
+                       find_closed_variables(func, backing.update) + find_closed_variables(func, backing.body)
+            }
+            ast_node::return_statement(backing) {
+                println("found a return_statement")
+                return find_closed_variables(func, backing.return_value)
+            }
+            ast_node::defer_statement(backing) {
+                println("found a defer_statement")
+                return find_closed_variables(func, backing.statement)
+            }
+            ast_node::assignment_statement(backing) {
+                println("found an assignment_statement")
+                return find_closed_variables(func, backing.to) + find_closed_variables(func, backing.from)
+            }
+            ast_node::declaration_statement(backing) {
+                println("found an declaration_statement")
+                return find_closed_variables(func, backing.expression) + find_closed_variables(func, backing.init_method_call)
+            }
+            ast_node::if_comp(backing) {
+                println("found an if_comp")
+                return find_closed_variables(func, backing.statement)
             }
         }
         return set<*ast_node>()

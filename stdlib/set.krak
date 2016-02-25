@@ -69,6 +69,11 @@ obj set<T> (Object, Serializable) {
     fun operator+=(items: ref set<T>) {
         add(items)
     }
+    fun operator+(items: ref set<T>): set<T> {
+        var to_ret.copy_construct(this): set<T>
+        to_ret.add(items)
+        return to_ret
+    }
     fun add(item: ref T) {
         if (!contains(item))
             data.add(item)

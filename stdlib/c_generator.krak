@@ -273,7 +273,7 @@ obj c_generator (Object) {
             })
         })
 
-        return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+closure_struct_definitions+function_typedef_string+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
+        return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string+closure_struct_definitions+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
     fun get_closure_struct_type(closed_variables: set<*ast_node>): string {
         if (!closure_struct_map.contains_key(closed_variables)) {
@@ -317,16 +317,29 @@ obj c_generator (Object) {
         // add destruct to defer_stack
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
-        var to_ret = code_triple() + type_to_c(identifier->identifier.type) + " " + get_name(identifier)
+        // we do the declaration in the pre now so that we can take it's address to close over it for things like recursive closures
+        // we only make it first if it's a function type though, so that global levels still work
+        var to_ret = code_triple(type_to_c(identifier->identifier.type) + " " + get_name(identifier), string(), string())
         if (node->declaration_statement.expression) {
             if (ident_type->is_object() && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(node->declaration_statement.expression)->clone_with_increased_indirection()))) {
-                to_ret += ";\n";
+                to_ret.pre += ";\n"
                 to_ret += generate(ast_statement_ptr(make_method_call(identifier, "copy_construct", vector(make_operator_call("&", vector(node->declaration_statement.expression))))), enclosing_object, enclosing_func, defer_stack)
             } else {
-                to_ret += code_triple(" = ") + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+                if (ident_type->is_function()) {
+                    to_ret.pre += string(";\n")
+                    to_ret += code_triple() + get_name(identifier) + " = " + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+                } else {
+                    // some shifting around to get it to work in all cases
+                    to_ret.value = to_ret.pre
+                    to_ret.pre = ""
+                    to_ret += code_triple() + string(" = ") + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
+                }
             }
         }
-        if (node->declaration_statement.init_method_call) to_ret += code_triple(";\n") + generate(node->declaration_statement.init_method_call, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+        if (node->declaration_statement.init_method_call) {
+           to_ret.pre += ";\n"
+           to_ret += code_triple() + generate(node->declaration_statement.init_method_call, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+        }
         if (add_to_defer && ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>()))
             defer_stack->top().second.push(ast_statement_ptr(make_method_call(identifier, "destruct", vector<*ast_node>())))
         return to_ret
@@ -363,7 +376,7 @@ obj c_generator (Object) {
     }
     fun generate_identifier(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
         if (enclosing_func && enclosing_func->function.closed_variables.contains(node))
-            return code_triple(string("*(closure_data->") + get_name(node) + ")")
+            return code_triple(string("(*(closure_data->") + get_name(node) + "))")
         if (enclosing_object && get_ast_scope(enclosing_object)->contains_key(node->identifier.name) && get_ast_scope(enclosing_object)->get(node->identifier.name).contains(node))
             return code_triple("(this->") + get_name(node) + ")"
         return code_triple(get_name(node))
@@ -481,15 +494,17 @@ obj c_generator (Object) {
             // don't add & if it was ->
             if (node->function_call.func->function_call.func->function.name == ".")
                 call_string += "&"
-            // call_string += generate_function(node->function_call.func->function_call.parameters[0], false)
             call_string += generate_identifier(node->function_call.func->function_call.parameters[0], enclosing_object, enclosing_func)
         } else {
             // regular style function name or lambda
-            func_name = generate_function(node->function_call.func, false).one_string()
+            // func_name = generate_function(node->function_call.func, false).one_string()
             if (!is_function(node->function_call.func)) {
                // not function, so we must be an identifier or function call return or something
+                func_name = generate(node->function_call.func, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
                 call_string += func_name + ".data"
                 func_name = func_name + ".func"
+            } else {
+                func_name = generate_function(node->function_call.func, false).one_string()
             }
         }
         // handle method call from inside method of same object
