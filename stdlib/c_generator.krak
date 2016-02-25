@@ -481,7 +481,8 @@ obj c_generator (Object) {
             // don't add & if it was ->
             if (node->function_call.func->function_call.func->function.name == ".")
                 call_string += "&"
-            call_string += generate_function(node->function_call.func->function_call.parameters[0], false)
+            // call_string += generate_function(node->function_call.func->function_call.parameters[0], false)
+            call_string += generate_identifier(node->function_call.func->function_call.parameters[0], enclosing_object, enclosing_func)
         } else {
             // regular style function name or lambda
             func_name = generate_function(node->function_call.func, false).one_string()
