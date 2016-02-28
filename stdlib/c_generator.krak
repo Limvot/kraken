@@ -348,9 +348,9 @@ obj c_generator (Object) {
         return generate(node->assignment_statement.to, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()) + " = " + generate(node->assignment_statement.from, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
     }
     fun generate_if_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
-        var if_str = code_triple("if (") + generate(node->if_statement.condition, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()) + ") {\n" + generate(node->if_statement.then_part, enclosing_object, enclosing_func, defer_stack) + "}"
+        var if_str = code_triple("if (") + generate(node->if_statement.condition, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()) + ") {\n" + generate(node->if_statement.then_part, enclosing_object, enclosing_func, defer_stack).one_string() + "}"
         if (node->if_statement.else_part)
-            if_str += code_triple(" else {\n") + generate(node->if_statement.else_part, enclosing_object, enclosing_func, defer_stack) + "}"
+            if_str += code_triple(" else {\n") + generate(node->if_statement.else_part, enclosing_object, enclosing_func, defer_stack).one_string() + "}"
         return if_str + "\n"
     }
     fun generate_while_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
@@ -463,7 +463,7 @@ obj c_generator (Object) {
         if (as_value) {
            var closed_vars = node->function.closed_variables
            if (closed_vars.size() == 0)
-                return code_triple(string("((") + type_to_c(node->function.type) + "){NULL," + get_name(node) + "})")
+                return code_triple(string("((") + type_to_c(node->function.type) + "){(void*)NULL,(void*)" + get_name(node) + "})")
             var temp_closure_struct = string("closure_struct_temp") + get_id()
             var to_ret = code_triple()
             var closure_type_str = get_closure_struct_type(closed_vars)
@@ -475,7 +475,7 @@ obj c_generator (Object) {
         return code_triple(get_name(node))
     }
     fun generate_function_call(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
-        var func_name = string()
+        var func_name = generate_function(node->function_call.func, false).one_string()
         var call_string = code_triple()
         var func_return_type = get_ast_type(node)
 
@@ -495,17 +495,6 @@ obj c_generator (Object) {
             if (node->function_call.func->function_call.func->function.name == ".")
                 call_string += "&"
             call_string += generate_identifier(node->function_call.func->function_call.parameters[0], enclosing_object, enclosing_func)
-        } else {
-            // regular style function name or lambda
-            // func_name = generate_function(node->function_call.func, false).one_string()
-            if (!is_function(node->function_call.func)) {
-               // not function, so we must be an identifier or function call return or something
-                func_name = generate(node->function_call.func, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
-                call_string += func_name + ".data"
-                func_name = func_name + ".func"
-            } else {
-                func_name = generate_function(node->function_call.func, false).one_string()
-            }
         }
         // handle method call from inside method of same object
         if (!dot_style_method_call && enclosing_object && enclosing_object->type_def.methods.contains(node->function_call.func))
@@ -550,18 +539,53 @@ obj c_generator (Object) {
                 call_string += generate(param, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
             }
         })
+        var pre_call = string()
         if (func_return_type->is_object() && func_return_type->indirection == 0 && has_method(func_return_type->type_def, "destruct", vector<*type>())) {
             // kind of ugly combo here of
             var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), func_return_type, null<ast_node>())
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
             // have to pass false to the declaration generator, so can't do it through generate_statement
             call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
-            call_string.pre += generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string() + " = " + func_name + "(" + call_string.value + ");\n"
-            call_string.value = generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string()
+            pre_call = generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string()
             call_string.post += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "destruct", vector<*ast_node>())), enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
-            return call_string
         }
-        return code_triple() + func_name + "(" + call_string + ")"
+        if (!is_function(node->function_call.func)) {
+            // not function, so we must be an identifier or function call return or something
+            if (!dot_style_method_call) {
+                // lambda
+                if (pre_call == "" && (!func_return_type->is_void() || func_return_type->indirection)) {
+                    var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), func_return_type, null<ast_node>())
+                    var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
+                    // have to pass false to the declaration generator, so can't do it through generate_statement
+                    call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
+                    pre_call = generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string()
+                }
+                func_name = generate(node->function_call.func, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
+                // should not have return var because is void
+                if (pre_call == "") {
+                    var func_type = get_ast_type(node->function_call.func)
+                    call_string.pre += string("if (")+func_name+".data) ((" + type_to_c(func_type) + "_with_data) "+func_name+".func)("+func_name +".data"
+                    if (call_string.value != "")
+                       call_string.pre += string(",") + call_string.value
+                    call_string.pre += ");\n"
+                    call_string.pre += string("else ((") + type_to_c(func_type) + "_without_data) " + func_name+".func)(" + call_string.value + ");\n"
+                    call_string.value = ""
+                } else {
+                    var func_type = get_ast_type(node->function_call.func)
+                    call_string.pre += string("if (")+func_name+".data) " + pre_call + " = ((" + type_to_c(func_type) + "_with_data) "+func_name+".func)("+func_name +".data," + call_string.value + ");\n"
+                    call_string.pre += string("else ") + pre_call + " = ((" + type_to_c(func_type) + "_without_data) " + func_name+".func)(" + call_string.value + ");\n"
+                    call_string.value = pre_call
+                }
+                return call_string
+            }
+        }
+        if (pre_call != "") {
+            call_string.pre = pre_call + " = " + func_name + "(" + call_string.value + ")"
+            call_string.value = pre_call
+        } else {
+            call_string.value = func_name + "(" + call_string.value + ")"
+        }
+        return call_string
     }
 
     // for now, anyway
@@ -633,9 +657,13 @@ obj c_generator (Object) {
                 if (function_type_map.contains_key(*type))
                    return function_type_map[*type]
                 var temp_name = string("function_struct") + get_id()
-                var temp = string("func)(void*")
+                var temp = string()
                 type->parameter_types.for_each(fun(parameter_type: *type) temp += string(", ") + type_to_c(parameter_type) + " ";)
-                function_typedef_string += string("typedef struct {\nvoid* data;\n") + type_to_c(type->return_type) + " (*" + temp + ");\n} " + temp_name + ";"
+                var with_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_with_data)(void*" + temp + ");\n"
+                var without_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_without_data)(" + temp.slice(1,-1) + ");\n"
+                function_typedef_string += with_data
+                function_typedef_string += without_data
+                function_typedef_string += string("typedef struct {\nvoid* data;\n") + temp_name  + "_with_data func;\n} " + temp_name + ";\n"
                 // again, the indirection
                 function_type_map[*type] = temp_name+indirection
                 return temp_name + indirection

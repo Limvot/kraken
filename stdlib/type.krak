@@ -172,5 +172,11 @@ obj type (Object) {
         }
         return false
     }
+    fun is_void(): bool {
+        match (base) {
+            base_type::void_return() return true
+        }
+        return false
+    }
 }
 

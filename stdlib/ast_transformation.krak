@@ -844,9 +844,25 @@ fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<st
     // 5) instantiated template - fun stuff, have to figure out what it was origionally
     //      instantiated with, but we don't have to worry about it yet as I haven't gotten
     //      to object templates at all ;)
-    if (template_type->children.size == 1)
-        new_map->set(concat_symbol_tree(template_type), param_type)
-    else if (get_node("\"\\*\"", template_type))
+    if (template_type->children.size == 1) {
+        if (get_node("function_type", template_type)) {
+            println("UNIFYING FUNCTION")
+            var template_function_types = get_nodes("type", get_node("function_type", template_type))
+            if (!param_type->is_function() || template_function_types.size -1 != param_type->parameter_types.size) {
+               println("not combining function because:")
+               println(param_type->is_function())
+               println(template_function_types.size-1)
+               println(param_type->parameter_types.size)
+               return;
+            }
+            for (var i = 0; i < template_function_types.size; i++;)
+                unify_type(template_function_types[i], param_type->parameter_types[i], new_map, template_replacements)
+            unify_type(template_function_types.last(), param_type->return_type, new_map, template_replacements)
+        } else {
+            println(string("setting ") + concat_symbol_tree(template_type) + " equal to " + param_type->to_string())
+            new_map->set(concat_symbol_tree(template_type), param_type)
+        }
+    } else if (get_node("\"\\*\"", template_type))
         unify_type(template_type->children[1], param_type->clone_with_decreased_indirection(), new_map, template_replacements)
     else {
         println(template_type->children[0]->data.name)
