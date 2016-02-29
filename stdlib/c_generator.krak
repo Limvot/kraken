@@ -686,7 +686,9 @@ obj c_generator (Object) {
                 // be careful, operators like . come through this
                 if (!backing.body_statement)
                     return backing.name
-                result = ""
+                if (backing.name == "main")
+                    return backing.name
+                result = "fun_"
                 var upper = backing.scope.get_with_default(string("~enclosing_scope"), vector(null<ast_node>()))[0]
                 if (upper && is_type_def(upper))
                     result += get_name(upper) + "_"
