@@ -1,7 +1,9 @@
 import mem:*
 import string:*
 import vector:*
+import set:*
 import ast_nodes:*
+import io:*
 
 // hmm, like the ast_node, this is another candadate for being fully an ADT
 // one issue is that there are properties shared between most of the options (indirection, say)
@@ -22,8 +24,9 @@ adt base_type {
 fun type_ptr(): *type {
     return new<type>()->construct()
 }
-fun type_ptr(definition: *ast_node): *type {
-    return new<type>()->construct(definition)
+fun type_ptr(definition: *ast_node): *type return type_ptr(definition, set<string>());
+fun type_ptr(definition: *ast_node, traits: set<string>): *type {
+    return new<type>()->construct(definition, traits)
 }
 fun type_ptr(base: base_type): *type return type_ptr(base, 0);
 fun type_ptr(base: base_type, indirection: int): *type {
@@ -34,7 +37,7 @@ fun type_ptr(parameters: vector<*type>, return_type: *type, indirection: int): *
     return new<type>()->construct(parameters, return_type, indirection)
 }
 
-fun type_ptr(traits: vector<string>): *type {
+fun type_ptr(traits: set<string>): *type {
     return new<type>()->construct(traits)
 }
 
@@ -44,7 +47,7 @@ obj type (Object) {
     var return_type: *type
     var indirection: int
     var type_def: *ast_node
-    var traits: vector<string>
+    var traits: set<string>
     fun construct(): *type {
         base.copy_construct(&base_type::none())
         parameter_types.construct()
@@ -54,7 +57,7 @@ obj type (Object) {
         traits.construct()
         return this
     }
-    fun construct(traits_in: vector<string>): *type {
+    fun construct(traits_in: set<string>): *type {
         base.copy_construct(&base_type::template_type())
         parameter_types.construct()
         indirection = 0
@@ -72,13 +75,13 @@ obj type (Object) {
         traits.construct()
         return this
     }
-    fun construct(type_def_in: *ast_node): *type {
+    fun construct(type_def_in: *ast_node, traits_in: set<string>): *type {
         base.copy_construct(&base_type::object())
         parameter_types.construct()
         indirection = 0
         return_type = null<type>()
         type_def = type_def_in
-        traits.construct()
+        traits.copy_construct(&traits_in)
         return this
     }
     fun construct(parameter_types_in: vector<*type>, return_type_in: *type, indirection_in: int): *type {
@@ -119,7 +122,7 @@ obj type (Object) {
     }
     fun to_string(): string {
         var all_string = string("traits:[")
-        for (var i = 0; i < traits.size; i++;) all_string += traits[i]
+        traits.for_each(fun(t: string) all_string += t;)
         all_string += "] "
         for (var i = 0; i < indirection; i++;) all_string += "*"
         match (base) {

@@ -77,6 +77,11 @@ obj ast_transformation (Object) {
         })
         return translation_unit
     }
+    fun transform_traits(traits_node: *tree<symbol>): set<string> {
+        if (!traits_node)
+           return set<string>()
+        return from_vector(get_nodes("scoped_identifier", traits_node).map(fun(s: *tree<symbol>): string return concat_symbol_tree(s);))
+    }
     fun first_pass_type_def(child: *tree<symbol>, scope: *ast_node, instantiate_template: bool): *ast_node {
         var name = concat_symbol_tree(get_node("identifier", child))
         var template_dec = get_node("template_dec", child)
@@ -86,7 +91,7 @@ obj ast_transformation (Object) {
             // XXX add traits
             get_nodes("template_param", template_dec).for_each(fun(template_param: *tree<symbol>) {
                 template_types.add(concat_symbol_tree(get_node("identifier", template_param)))
-                template_type_replacements.set(template_types.last(), type_ptr(vector<string>()))
+                template_type_replacements.set(template_types.last(), type_ptr(transform_traits(get_node("traits", template_param))))
             })
             var template = ast_template_ptr(name, child, template_types, template_type_replacements, false)
             add_to_scope("~enclosing_scope", scope, template)
@@ -94,7 +99,7 @@ obj ast_transformation (Object) {
             return template
         } else {
             var type_def_node = ast_type_def_ptr(name)
-            type_def_node->type_def.self_type = type_ptr(type_def_node)
+            type_def_node->type_def.self_type = type_ptr(type_def_node, transform_traits(get_node("traits", child)))
             ast_to_syntax.set(type_def_node, child)
             add_to_scope("~enclosing_scope", scope, type_def_node)
             add_to_scope(name, type_def_node, scope)
@@ -147,10 +152,9 @@ obj ast_transformation (Object) {
         if (do_raw_template && template_dec) {
             var template_types = vector<string>()
             var template_type_replacements = map<string, *type>()
-            // XXX add traits
             get_nodes("template_param", template_dec).for_each(fun(template_param: *tree<symbol>) {
                 template_types.add(concat_symbol_tree(get_node("identifier", template_param)))
-                template_type_replacements.set(template_types.last(), type_ptr(vector<string>()))
+                template_type_replacements.set(template_types.last(), type_ptr(transform_traits(get_node("traits", template_param))))
             })
             template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
             println("MAP DONE")
@@ -243,6 +247,8 @@ obj ast_transformation (Object) {
             var real_types = get_nodes("type", template_inst).map(fun(t: *tree<symbol>): *type return transform_type(t, scope, template_replacements);)
             var real_types_deref = real_types.map(fun(t:*type):type return *t;)
             var results = scope_lookup(name, scope)
+
+            var fitting_types = vector<pair<*ast_node, int>>()
             for (var i = 0; i < results.size; i++;) {
                 if (!is_template(results[i]) || results[i]->template.is_function)
                     continue
@@ -251,26 +257,36 @@ obj ast_transformation (Object) {
                 var template_type_replacements = results[i]->template.template_type_replacements
                 if (template_types.size != real_types.size)
                     continue
-                // check if already instantiated
+
+                var num_satisfied_traits = 0
+                var satisfied_traits = true
+                template_type_replacements.for_each(fun(key: string, value: *type) num_satisfied_traits += value->traits.size();)
+                println("FOR FIND OR INSTATINTATE PREEEE")
+                template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
+                println("MAP DONE")
+                for (var j = 0; j < template_types.size; j++;) {
+                    satisfied_traits = satisfied_traits && real_types[j]->traits.contains(template_type_replacements[template_types[j]]->traits) &&
+                                     (real_types[j]->indirection == 0 || template_type_replacements[template_types[j]]->traits.size() == 0)
+                    template_type_replacements[template_types[j]] = real_types[j]
+                    println("Just made")
+                    println(template_types[j])
+                    println("equal to")
+                    println(real_types[j]->to_string())
+                }
+                if (!satisfied_traits) {
+                   println(name + " did not satisfy traits!")
+                   continue
+                }
+                println("FOR FIND OR INSTATINTATE")
+                template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
+                println("MAP DONE")
+                    
                 var inst_type = null<ast_node>()
+                // check if already instantiated
                 if (results[i]->template.instantiated_map.contains_key(real_types_deref)) {
                     println("USING CACHED TEMPLATE OBJECT")
                     inst_type = results[i]->template.instantiated_map[real_types_deref]
                 } else {
-                    println("FOR FIND OR INSTATINTATE PREEEE")
-                    template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
-                    println("MAP DONE")
-                    for (var j = 0; j < template_types.size; j++;) {
-                        template_type_replacements[template_types[j]] = real_types[j]
-                        println("Just made")
-                        println(template_types[j])
-                        println("equal to")
-                        println(real_types[j]->to_string())
-                    }
-                    println("FOR FIND OR INSTATINTATE")
-                    template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
-                    println("MAP DONE")
-                    
                     inst_type = first_pass_type_def(results[i]->template.syntax_node, results[i], true)
                     // add to instantiated_map so we only instantiate with a paticular set of types once
                     // put in map first for recursive purposes
@@ -279,9 +295,14 @@ obj ast_transformation (Object) {
                     second_pass_type_def(results[i]->template.syntax_node, inst_type, results[i], template_type_replacements)
                     fourth_pass_worklist.push(inst_type)
                 }
-                return inst_type->type_def.self_type->clone_with_indirection(indirection)
+                fitting_types.add(make_pair(inst_type, num_satisfied_traits))
             }
-            error("FREAK OUT AUTOMATON")
+            if (fitting_types.size == 0) {
+                println("no working templated object found")
+                error("FREAK OUT AUTOMATON")
+                return null<type>()
+            }
+            return fitting_types.max(fun(a: pair<*ast_node, int>, b: pair<*ast_node, int>): bool return a.second < b.second;).first->type_def.self_type->clone_with_indirection(indirection)
         }
         var type_syntax_str = concat_symbol_tree(real_node)
         println(type_syntax_str + " *************************")
@@ -723,12 +744,14 @@ obj ast_transformation (Object) {
             real_types_deref = real_types.map(fun(t:*type):type return *t;)
             had_real_types = true
         }
+        var fitting_functions = vector<pair<*ast_node, int>>()
         for (var i = 0; i < results.size; i++;) {
             if (is_template(results[i]) && results[i]->template.is_function) {
                 println(string() + i + " is a template!")
                 var template_types = results[i]->template.template_types
                 var template_type_replacements = results[i]->template.template_type_replacements
                 if (!had_real_types) {
+                    var unify_template_type_replacements = template_type_replacements
                     // reset the vars, cuz we might be iterating through multiple of them
                     real_types = vector<*type>()
                     real_types_deref = vector<type>()
@@ -737,41 +760,58 @@ obj ast_transformation (Object) {
                     if (param_types.size != typed_params.size)
                         continue
                     for (var j = 0; j < typed_params.size; j++;)
-                        unify_type(typed_params[j], param_types[j], &template_type_replacements, template_replacements)
+                        unify_type(typed_params[j], param_types[j], &unify_template_type_replacements, template_replacements)
                     for (var j = 0; j < typed_params.size; j++;) {
-                        var t = template_type_replacements[template_types[j]];
+                        var t = unify_template_type_replacements[template_types[j]];
                         real_types.add(t)
                         real_types_deref.add(*t)
                     }
                 } else if (template_types.size != real_types.size)
                     continue
+                var num_satisfied_traits = 0
+                var satisfied_traits = true
+                template_type_replacements.for_each(fun(key: string, value: *type) num_satisfied_traits += value->traits.size();)
                 // check if already instantiated
                 var inst_func = null<ast_node>()
+                println(string("FOR TEMPLATE FUNCTION ") + name)
+                println("FOR FIND OR INSTATINTATE PREEEE")
+                template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
+                println("MAP DONE")
+                for (var j = 0; j < template_types.size; j++;) {
+                    print("NEW TRAITS IN ALREADY: ")
+                    template_type_replacements[template_types[j]]->traits.for_each(fun (t: string) print(t + " ");)
+                    println()
+                    print("NEW TRAITS PASSED IN: ")
+                    real_types[j]->traits.for_each(fun (t: string) print(t + " ");)
+                    println()
+                    satisfied_traits = satisfied_traits && real_types[j]->traits.contains(template_type_replacements[template_types[j]]->traits) &&
+                                     (real_types[j]->indirection == 0 || template_type_replacements[template_types[j]]->traits.size() == 0)
+                    template_type_replacements[template_types[j]] = real_types[j]
+                    println("Just made")
+                    println(template_types[j])
+                    println("equal to")
+                    println(real_types[j]->to_string())
+                }
+                replacements_base.for_each(fun(key: string, value: *type) {
+                    template_type_replacements[key] = value
+                    println("Just Inherited")
+                    println(key)
+                    println("equal to")
+                    println(value->to_string())
+                })
+                println("FOR FIND OR INSTATINTATE")
+                template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
+                println("MAP DONE")
+
+                if (!satisfied_traits) {
+                   println("Did not satisfy traits!")
+                   continue
+                }
+
                 if (results[i]->template.instantiated_map.contains_key(real_types_deref)) {
                     println("USING CACHED TEMPLATE FUNCITON")
                     inst_func = results[i]->template.instantiated_map[real_types_deref]
                 } else {
-                    println("FOR FIND OR INSTATINTATE PREEEE")
-                    template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
-                    println("MAP DONE")
-                    for (var j = 0; j < template_types.size; j++;) {
-                        template_type_replacements[template_types[j]] = real_types[j]
-                        println("Just made")
-                        println(template_types[j])
-                        println("equal to")
-                        println(real_types[j]->to_string())
-                    }
-                    replacements_base.for_each(fun(key: string, value: *type) {
-                        template_type_replacements[key] = value
-                        println("Just Inherited")
-                        println(key)
-                        println("equal to")
-                        println(value->to_string())
-                    })
-                    println("FOR FIND OR INSTATINTATE")
-                    template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
-                    println("MAP DONE")
-
                     inst_func = second_pass_function(results[i]->template.syntax_node, results[i], template_type_replacements, false)
                     // add to instantiated_map so we only instantiate with a paticular set of types once
                     // put in map first for recursive purposes
@@ -780,15 +820,17 @@ obj ast_transformation (Object) {
                     // and fully instantiate it
                     inst_func->function.body_statement = transform_statement(get_node("statement", results[i]->template.syntax_node), inst_func, template_type_replacements)
                 }
-
                 if (function_satisfies_params(inst_func, param_types))
-                    return inst_func
+                    fitting_functions.add(make_pair(inst_func, num_satisfied_traits))
                 else
                     println(string("this paticular ") + name + " did not satisfy params")
             }
         }
-        println("no working templated method found")
-        return null<ast_node>()
+        if (fitting_functions.size == 0) {
+            println("no working templated method found")
+            return null<ast_node>()
+        }
+        return fitting_functions.max(fun(a: pair<*ast_node, int>, b: pair<*ast_node, int>): bool return a.second < b.second;).first
     }
 }
 fun has_method(object: *ast_node, name: *char, parameter_types: vector<*type>): bool return has_method(object, string(name), parameter_types);
@@ -825,7 +867,7 @@ fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>())
     if (name == "&")
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection()), vector<*ast_node>())
-    if (name == "\*")
+    if (name == "\*" && param_types.size == 1)
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>())
     if (param_types.size > 1 && param_types[1]->rank() > param_types[0]->rank())
         return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>())
@@ -880,7 +922,7 @@ fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool
     }
     for (var j = 0; j < param_types.size; j++;) {
         if (*func_param_types[j] != *param_types[j]) {
-            println(string("types don't match") + func_param_types[j]->to_string() + " with needed " + param_types[j]->to_string())
+            println(string("types don't match ") + func_param_types[j]->to_string() + " with needed " + param_types[j]->to_string())
             return false
         }
     }

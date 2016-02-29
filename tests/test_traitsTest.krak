@@ -22,11 +22,6 @@ fun OneTwoFunc<T(SecondTrait)>(obj: T): void {
 fun OneTwoFunc<T(FirstTrait, SecondTrait)>(obj: T): void {
     println("Both Traits");
 }
-/*
-template <AlreadySpecilized> |void| OneTwoFunc(|AlreadySpecilized| obj) {
-    println("Already Specilized");
-}
-*/
 //This should work for objects too!
 //To test, we cycle the mapping of traits
 
@@ -34,13 +29,6 @@ obj OneTwoObj<T> (FirstTrait) {};
 obj OneTwoObj<T(FirstTrait)> (SecondTrait) {};
 obj OneTwoObj<T(SecondTrait)> (FirstTrait, SecondTrait) {};
 obj OneTwoObj<T(FirstTrait, SecondTrait)> {};
-/*
- *obj template<AlreadySpecilized> OneTwoObj {
- *    void proveSpecilized() {
- *        println("I'm specilized!");
- *    }
- *};
- */
 
 fun main(): int {
     var a: NoTraits;
@@ -54,7 +42,6 @@ fun main(): int {
     OneTwoFunc<Trait1>(b);
     OneTwoFunc<Trait2>(c);
     OneTwoFunc<TwoTrait>(d);
-//    OneTwoFunc<AlreadySpecilized>(e);
     OneTwoFunc<*TwoTrait>(f);
     println();
 
@@ -62,7 +49,6 @@ fun main(): int {
     OneTwoFunc(b);
     OneTwoFunc(c);
     OneTwoFunc(d);
-//    OneTwoFunc(e);
     OneTwoFunc(f);
     println();
 
@@ -70,7 +56,6 @@ fun main(): int {
     var beta: OneTwoObj<Trait1>;
     var gamma: OneTwoObj<Trait2>;
     var delta: OneTwoObj<TwoTrait>;
-//    |OneTwoObj<AlreadySpecilized>| epsilon;
     var zeta: OneTwoObj<*TwoTrait>;
 
     OneTwoFunc<OneTwoObj<NoTraits>>(alpha);
