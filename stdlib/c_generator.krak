@@ -203,7 +203,7 @@ obj c_generator (Object) {
 
                 // add parameters to destructor thingy (for returns)? Or should that be a different pass?
                 var parameter_type = parameter->identifier.type
-                if (parameter_type->indirection == 0 && parameter_type->is_object() && has_method(parameter_type->type_def, "destruct", vector<*type>()))
+                if (!parameter_type->is_ref && parameter_type->indirection == 0 && parameter_type->is_object() && has_method(parameter_type->type_def, "destruct", vector<*type>()))
                     defer_stack.top().second.push(ast_statement_ptr(make_method_call(parameter, "destruct", vector<*ast_node>())))
             })
             function_prototypes += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n"
@@ -375,19 +375,23 @@ obj c_generator (Object) {
         return to_ret
     }
     fun generate_identifier(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
+        var pre = code_triple()
+        if (get_ast_type(node)->is_ref)
+           pre += "*"
         if (enclosing_func && enclosing_func->function.closed_variables.contains(node))
-            return code_triple(string("(*(closure_data->") + get_name(node) + "))")
+            return pre + code_triple(string("(*(closure_data->") + get_name(node) + "))")
         if (enclosing_object && get_ast_scope(enclosing_object)->contains_key(node->identifier.name) && get_ast_scope(enclosing_object)->get(node->identifier.name).contains(node))
-            return code_triple("(this->") + get_name(node) + ")"
-        return code_triple(get_name(node))
+            return pre + code_triple("(this->") + get_name(node) + ")"
+        return pre + code_triple(get_name(node))
     }
     fun generate_return_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         var return_value = node->return_statement.return_value
+        var function_return_type = get_ast_type(enclosing_func)->return_type
         var to_ret = code_triple()
         if (return_value) {
             var return_value_type = get_ast_type(return_value)
             // if we're returning an object, copy_construct a new one to return
-            if (return_value_type->is_object() && return_value_type->indirection == 0 && has_method(return_value_type->type_def, "copy_construct", vector(return_value_type->clone_with_indirection(1)))) {
+            if (return_value_type->is_object() && !function_return_type->is_ref && return_value_type->indirection == 0 && has_method(return_value_type->type_def, "copy_construct", vector(return_value_type->clone_with_indirection(1)))) {
                 var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), return_value_type, null<ast_node>())
                 var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
                 // have to pass false to the declaration generator, so can't do it through generate_statement
@@ -400,6 +404,8 @@ obj c_generator (Object) {
         // generate all in stack by passing -1
         to_ret.pre += generate_from_defer_stack(defer_stack, -1, enclosing_object, enclosing_func).one_string()
         to_ret += code_triple("return")
+        if (function_return_type->is_ref)
+            to_ret += code_triple(" &")
         if (return_value)
             to_ret += code_triple(" ") + generate(return_value, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
            
@@ -497,7 +503,8 @@ obj c_generator (Object) {
             // don't add & if it was ->
             if (node->function_call.func->function_call.func->function.name == ".")
                 call_string += "&"
-            call_string += generate_identifier(node->function_call.func->function_call.parameters[0], enclosing_object, enclosing_func)
+            // having a null defer stack should be ok, as the only things we should get through here are identifiers and function calls
+            call_string += generate(node->function_call.func->function_call.parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
         } else if (is_identifier(node->function_call.func) || is_function(node->function_call.func)) {
             // we handle the case when it's not this later, i.e. it's a lambda returned from another function or something
             func_name = generate_function(node->function_call.func, false).one_string()
@@ -525,13 +532,21 @@ obj c_generator (Object) {
         if (func_name == "*" || func_name == "&")
             return code_triple("(") + func_name + generate(parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()) + ")"
 
+        // for checking if we pass in a ref
+        var func_type = get_ast_type(node->function_call.func)
         // regular parameter generation
-        parameters.for_each(fun(param: *ast_node) {
+        // parameters.for_each(fun(param: *ast_node) {
+        for (var i = 0; i < parameters.size; i++;) {
+            var param = parameters[i]
+            var in_function_param_type = func_type->parameter_types[i]
             if (call_string != "")
                 call_string += ", "
+             
+            if (in_function_param_type->is_ref)
+               call_string += "&"
 
             var param_type = get_ast_type(param)
-            if (param_type->is_object() && param_type->indirection == 0 && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1)))) {
+            if (param_type->is_object() && !in_function_param_type->is_ref && param_type->indirection == 0 && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1)))) {
                 var temp_ident = ast_identifier_ptr(string("temporary_param")+get_id(), param_type, null<ast_node>())
                 var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
                 // have to pass false to the declaration generator, so can't do it through generate_statement
@@ -541,9 +556,9 @@ obj c_generator (Object) {
             } else {
                 call_string += generate(param, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
             }
-        })
+        }
         var pre_call = string()
-        if (func_return_type->is_object() && func_return_type->indirection == 0 && has_method(func_return_type->type_def, "destruct", vector<*type>())) {
+        if (func_return_type->is_object() && !func_return_type->is_ref && func_return_type->indirection == 0 && has_method(func_return_type->type_def, "destruct", vector<*type>())) {
             // kind of ugly combo here of
             var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), func_return_type, null<ast_node>())
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
@@ -552,6 +567,9 @@ obj c_generator (Object) {
             pre_call = generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string()
             call_string.post += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "destruct", vector<*ast_node>())), enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
         }
+        var ref_pre = code_triple()
+        if (func_return_type->is_ref)
+           ref_pre += "*"
         if (!is_function(node->function_call.func)) {
             // not function, so we must be an identifier or function call return or something
             if (!dot_style_method_call) {
@@ -579,7 +597,7 @@ obj c_generator (Object) {
                     call_string.pre += string("else ") + pre_call + " = ((" + type_to_c(func_type) + "_without_data) " + func_name+".func)(" + call_string.value + ");\n"
                     call_string.value = pre_call
                 }
-                return call_string
+                return ref_pre + call_string
             }
         }
         if (pre_call != "") {
@@ -588,7 +606,7 @@ obj c_generator (Object) {
         } else {
             call_string.value = func_name + "(" + call_string.value + ")"
         }
-        return call_string
+        return ref_pre + call_string
     }
 
     // for now, anyway
@@ -616,6 +634,7 @@ obj c_generator (Object) {
     }
     fun type_decoration(type: *type): string {
         var indirection = string()
+        if (type->is_ref) indirection += "ref_"
         for (var i = 0; i < type->indirection; i++;) indirection += "p"
         if (type->indirection) indirection += "_"
         match (type->base) {
@@ -641,6 +660,7 @@ obj c_generator (Object) {
     }
     fun type_to_c(type: *type): string {
         var indirection = string()
+        if (type->is_ref) indirection += "/*ref*/ *"
         for (var i = 0; i < type->indirection; i++;) indirection += "*"
         match (type->base) {
             base_type::none() return string("none") + indirection

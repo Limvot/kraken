@@ -233,6 +233,7 @@ obj ast_transformation (Object) {
     fun transform_type(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *type {
         // check for references and step down
         // always get to pre-reffed level
+        var is_ref = get_node("\"ref\"", node) != null<tree<symbol>>()
         var real_node = get_node("pre_reffed", node)
         // check for indirection and step down
         var indirection = 0
@@ -302,43 +303,43 @@ obj ast_transformation (Object) {
                 error("FREAK OUT AUTOMATON")
                 return null<type>()
             }
-            return fitting_types.max(fun(a: pair<*ast_node, int>, b: pair<*ast_node, int>): bool return a.second < b.second;).first->type_def.self_type->clone_with_indirection(indirection)
+            return fitting_types.max(fun(a: pair<*ast_node, int>, b: pair<*ast_node, int>): bool return a.second < b.second;).first->type_def.self_type->clone_with_indirection(indirection, is_ref)
         }
         var type_syntax_str = concat_symbol_tree(real_node)
         println(type_syntax_str + " *************************")
         if (template_replacements.contains_key(type_syntax_str)) {
             print("Is in template_replacements, returning: ")
-            var to_ret = template_replacements[type_syntax_str]->clone_with_increased_indirection(indirection)
+            var to_ret = template_replacements[type_syntax_str]->clone_with_increased_indirection(indirection, is_ref)
             println(to_ret->to_string())
             return to_ret
         }
         // should take into account references...
         if (type_syntax_str == "void")
-            return type_ptr(base_type::void_return(), indirection)
+            return type_ptr(base_type::void_return(), indirection, is_ref)
         else if (type_syntax_str == "bool")
-            return type_ptr(base_type::boolean(), indirection)
+            return type_ptr(base_type::boolean(), indirection, is_ref)
         else if (type_syntax_str == "int")
-            return type_ptr(base_type::integer(), indirection)
+            return type_ptr(base_type::integer(), indirection, is_ref)
         else if (type_syntax_str == "float")
-            return type_ptr(base_type::floating(), indirection)
+            return type_ptr(base_type::floating(), indirection, is_ref)
         else if (type_syntax_str == "double")
-            return type_ptr(base_type::double_precision(), indirection)
+            return type_ptr(base_type::double_precision(), indirection, is_ref)
         else if (type_syntax_str == "char")
-            return type_ptr(base_type::character(), indirection)
+            return type_ptr(base_type::character(), indirection, is_ref)
         else if (get_node("function_type", real_node)) {
             var types = get_nodes("type", get_node("function_type", real_node)).map(fun(node: *tree<symbol>): *type transform_type(node, scope, template_replacements);)
-            return type_ptr(types.slice(0,-2), types.last(), indirection)
+            return type_ptr(types.slice(0,-2), types.last(), indirection, is_ref)
         } else {
             // do lookup for objects, ADTs, templates, etc
             var possibilities = scope_lookup(type_syntax_str, scope)
             print("There are "); print(possibilities.size); println(" possibilites for this object type lookup")
             for (var i = 0; i < possibilities.size; i++;) {
                 match(*possibilities[i]) {
-                    ast_node::type_def(backing) return backing.self_type->clone_with_indirection(indirection)
+                    ast_node::type_def(backing) return backing.self_type->clone_with_indirection(indirection, is_ref)
                 }
             }
             println("No objects in lookup, returning none")
-            return type_ptr(base_type::none(), indirection)
+            return type_ptr(base_type::none(), indirection, is_ref)
         }
     }
     fun transform(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return transform(node, scope, search_type::none(), template_replacements)
@@ -492,7 +493,7 @@ obj ast_transformation (Object) {
         if (expression_syntax_node) {
             expression = transform(expression_syntax_node, scope, template_replacements)
             if (!type_syntax_node)
-                identifier->identifier.type = get_ast_type(expression)
+                identifier->identifier.type = get_ast_type(expression)->clone_without_ref()
         }
         if (!identifier->identifier.type) error("declaration statement with no type or expression from which to inference type")
         var declaration = ast_declaration_statement_ptr(identifier, expression)
@@ -921,7 +922,8 @@ fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool
         return false
     }
     for (var j = 0; j < param_types.size; j++;) {
-        if (*func_param_types[j] != *param_types[j]) {
+        // don't care about references
+        if (!func_param_types[j]->equality(param_types[j], false)) {
             println(string("types don't match ") + func_param_types[j]->to_string() + " with needed " + param_types[j]->to_string())
             return false
         }

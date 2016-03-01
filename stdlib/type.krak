@@ -28,13 +28,15 @@ fun type_ptr(definition: *ast_node): *type return type_ptr(definition, set<strin
 fun type_ptr(definition: *ast_node, traits: set<string>): *type {
     return new<type>()->construct(definition, traits)
 }
-fun type_ptr(base: base_type): *type return type_ptr(base, 0);
-fun type_ptr(base: base_type, indirection: int): *type {
-    return new<type>()->construct(base, indirection)
+fun type_ptr(base: base_type): *type return type_ptr(base, 0, false);
+fun type_ptr(base: base_type, indirection: int): *type return type_ptr(base, indirection, false)
+fun type_ptr(base: base_type, indirection: int, is_ref: bool): *type {
+    return new<type>()->construct(base, indirection, is_ref)
 }
-fun type_ptr(parameters: vector<*type>, return_type: *type): *type return type_ptr(parameters, return_type, 0);
-fun type_ptr(parameters: vector<*type>, return_type: *type, indirection: int): *type {
-    return new<type>()->construct(parameters, return_type, indirection)
+fun type_ptr(parameters: vector<*type>, return_type: *type): *type return type_ptr(parameters, return_type, 0, false);
+fun type_ptr(parameters: vector<*type>, return_type: *type, indirection: int): *type return type_ptr(parameters, return_type, indirection, false)
+fun type_ptr(parameters: vector<*type>, return_type: *type, indirection: int, is_ref: bool): *type {
+    return new<type>()->construct(parameters, return_type, indirection, is_ref)
 }
 
 fun type_ptr(traits: set<string>): *type {
@@ -48,6 +50,7 @@ obj type (Object) {
     var indirection: int
     var type_def: *ast_node
     var traits: set<string>
+    var is_ref: bool
     fun construct(): *type {
         base.copy_construct(&base_type::none())
         parameter_types.construct()
@@ -55,6 +58,7 @@ obj type (Object) {
         return_type = null<type>()
         type_def = null<ast_node>()
         traits.construct()
+        is_ref = false
         return this
     }
     fun construct(traits_in: set<string>): *type {
@@ -64,15 +68,17 @@ obj type (Object) {
         return_type = null<type>()
         type_def = null<ast_node>()
         traits.copy_construct(&traits_in)
+        is_ref = false
         return this
     }
-    fun construct(base_in: base_type, indirection_in: int): *type {
+    fun construct(base_in: base_type, indirection_in: int, is_ref_in: bool): *type {
         base.copy_construct(&base_in)
         parameter_types.construct()
         indirection = indirection_in
         return_type = null<type>()
         type_def = null<ast_node>()
         traits.construct()
+        is_ref = is_ref_in
         return this
     }
     fun construct(type_def_in: *ast_node, traits_in: set<string>): *type {
@@ -82,15 +88,17 @@ obj type (Object) {
         return_type = null<type>()
         type_def = type_def_in
         traits.copy_construct(&traits_in)
+        is_ref = false
         return this
     }
-    fun construct(parameter_types_in: vector<*type>, return_type_in: *type, indirection_in: int): *type {
+    fun construct(parameter_types_in: vector<*type>, return_type_in: *type, indirection_in: int, is_ref_in: bool): *type {
         base.copy_construct(&base_type::function())
         parameter_types.copy_construct(&parameter_types_in)
         return_type = return_type_in
         indirection = indirection_in
         type_def = null<ast_node>()
         traits.construct()
+        is_ref = is_ref_in
         return this
     }
     fun copy_construct(old: *type) {
@@ -100,6 +108,7 @@ obj type (Object) {
         indirection = old->indirection
         type_def = old->type_def
         traits.copy_construct(&old->traits)
+        is_ref = old->is_ref
     }
     fun operator=(other: ref type) {
         destruct()
@@ -110,13 +119,17 @@ obj type (Object) {
         parameter_types.destruct()
         traits.destruct()
     }
-    fun operator!=(other: ref type):bool return !(*this == other);
-    fun operator==(other: ref type):bool {
+    fun operator!=(other: ref type):bool return !equality(other, true);
+    fun operator==(other: ref type):bool return equality(other, true);
+    fun equality(other: *type, care_about_ref: bool):bool return equality(*other, care_about_ref);
+    fun equality(other: ref type, care_about_ref: bool):bool {
         if (parameter_types.size != other.parameter_types.size)
             return false
         for (var i = 0; i < parameter_types.size; i++;)
             if (!deref_equality(parameter_types[i], other.parameter_types[i]))
                 return false
+        if (care_about_ref && (is_ref != other.is_ref))
+           return false
         return base == other.base && deref_equality(return_type, other.return_type) &&
             indirection == other.indirection && deref_equality(type_def, other.type_def) && traits == other.traits
     }
@@ -124,6 +137,8 @@ obj type (Object) {
         var all_string = string("traits:[")
         traits.for_each(fun(t: string) all_string += t;)
         all_string += "] "
+        if (is_ref)
+           all_string += " ref "
         for (var i = 0; i < indirection; i++;) all_string += "*"
         match (base) {
             base_type::none() return all_string + string("none")
@@ -153,14 +168,17 @@ obj type (Object) {
         }
         return 0
     }
-    fun clone(): *type return clone_with_indirection(indirection);
+    fun clone(): *type return clone_with_indirection(indirection, is_ref);
+    fun clone_without_ref(): *type return clone_with_indirection(indirection, false);
     fun clone_with_increased_indirection(): *type return clone_with_indirection(indirection+1);
-    fun clone_with_increased_indirection(more: int): *type return clone_with_indirection(indirection+more);
+    fun clone_with_increased_indirection(more: int, is_ref_in: bool): *type return clone_with_indirection(indirection+more, is_ref_in);
     fun clone_with_decreased_indirection(): *type return clone_with_indirection(indirection-1);
-    fun clone_with_indirection(ind: int): *type {
+    fun clone_with_indirection(ind: int): *type return clone_with_indirection(ind, false)
+    fun clone_with_indirection(ind: int, is_ref_in: bool): *type {
         var to_ret = new<type>()
         to_ret->copy_construct(this)
         to_ret->indirection = ind
+        to_ret->is_ref = is_ref_in
         return to_ret
     }
     fun is_object(): bool {
