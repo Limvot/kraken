@@ -225,6 +225,14 @@ obj vector<T> (Object, Serializable) {
         for (var i = 0; i < size; i++;)
             func(data[i])
     }
+    fun for_each_reverse(func: fun(ref T):void):void {
+        for (var i = size-1; i >= 0; i--;)
+            func(data[i])
+    }
+    fun for_each_reverse(func: fun(T):void):void {
+        for (var i = size-1; i >= 0; i--;)
+            func(data[i])
+    }
     fun in_place(func: fun(T):T):void {
         for (var i = 0; i < size; i++;)
             data[i] = func(data[i])

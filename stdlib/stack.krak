@@ -65,4 +65,10 @@ obj stack<T> (Object, Serializable) {
     fun for_each(func: fun(T):void) {
         data.for_each(func)
     }
+    fun for_each_reverse(func: fun(ref T):void) {
+        data.for_each_reverse(func)
+    }
+    fun for_each_reverse(func: fun(T):void) {
+        data.for_each_reverse(func)
+    }
 }
