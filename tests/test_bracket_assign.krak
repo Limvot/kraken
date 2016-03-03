@@ -7,10 +7,20 @@ obj BracketAssign {
         print(", rhs: ")
         println(rhs)
     }
+    fun operator[](index:int) {
+        print("just bracket: index: ")
+        println(index)
+    }
+    fun operator=(index:int) {
+        print("just =: index: ")
+        println(index)
+    }
 }
 
 fun main():int {
     var test:BracketAssign
     test[4] = 9
+    test[5]
+    test = 6
     return 0
 }

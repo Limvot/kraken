@@ -522,7 +522,7 @@ obj c_generator (Object) {
         // don't propegate enclosing function down right of access
         if (func_name == "." || func_name == "->")
             return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()) + func_name + generate(parameters[1], null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>()) + string(")")
-        if (func_name == "[")
+        if (func_name == "[]")
             return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()) + "[" + generate(parameters[1], null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>()) + string("])")
         // the post ones need to be post-ed specifically, and take the p off
         if (func_name == "++p" || func_name == "--p")
