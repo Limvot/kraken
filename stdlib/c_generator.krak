@@ -279,7 +279,9 @@ obj c_generator (Object) {
         if (!closure_struct_map.contains_key(closed_variables)) {
             var closure_name = string("closure_data_type") + get_id()
             closure_struct_definitions += "typedef struct {\n"
-            closed_variables.for_each(fun(i: *ast_node) closure_struct_definitions += type_to_c(i->identifier.type->clone_with_increased_indirection()) + " " + i->identifier.name + ";\n";)
+            // note that we keep our is_ref, which would not normally happen on a clone with increased indirection
+            closed_variables.for_each(fun(i: *ast_node) closure_struct_definitions += type_to_c(i->identifier.type->clone_with_increased_indirection(1,i->identifier.type->is_ref)) +
+                                             " " + i->identifier.name + ";\n";)
             closure_struct_definitions += string("} ") + closure_name + ";\n"
             closure_struct_map[closed_variables] = closure_name
         }
@@ -570,7 +572,7 @@ obj c_generator (Object) {
         var ref_pre = code_triple()
         if (func_return_type->is_ref)
            ref_pre += "*"
-        if (!is_function(node->function_call.func)) {
+        if (!is_function(node->function_call.func) || node->function_call.func->function.closed_variables.size()) {
             // not function, so we must be an identifier or function call return or something
             if (!dot_style_method_call) {
                 // lambda
@@ -581,7 +583,10 @@ obj c_generator (Object) {
                     call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
                     pre_call = generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string()
                 }
-                func_name = generate(node->function_call.func, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
+                var name_temp = generate(node->function_call.func, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+                call_string.pre += name_temp.pre
+                call_string.post += name_temp.post
+                func_name = name_temp.value
                 // should not have return var because is void
                 if (pre_call == "") {
                     var func_type = get_ast_type(node->function_call.func)
