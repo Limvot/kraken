@@ -406,7 +406,19 @@ obj ast_transformation (Object) {
         match (searching_for) {
             search_type::none() return identifier_lookup(name, scope)
             search_type::function(type_vec) {
-                return function_lookup(name, scope, type_vec)
+                var possible_func = function_lookup(name, scope, type_vec)
+                if (possible_func)
+                   return possible_func
+                var possible_obj = identifier_lookup(name, scope)
+                // sometimes identifier lookup doesn't return identfiers, i.e. function values, etc
+                if (possible_obj && is_identifier(possible_obj)) {
+                    var possible_obj_type = get_ast_type(possible_obj)
+                    // note operator() has had it's () stripped out...
+                    if (possible_obj_type->is_object() && has_method(possible_obj_type->type_def, "operator", type_vec)) {
+                        println("Has the operator()!")
+                        return possible_obj
+                    }
+                }
             }
         }
         println("FAILED SEARCH FOR")
@@ -585,7 +597,13 @@ obj ast_transformation (Object) {
         // don't bother with a full transform for parameters with their own function, just get the boolean expression and transform it
         var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
-        var f = ast_function_call_ptr(transform(get_node("unarad", node), scope, search_type::function(parameter_types), template_replacements), parameters)
+        var func = transform(get_node("unarad", node), scope, search_type::function(parameter_types), template_replacements)
+        // may return an identifier of type object if doing operator() - but the () have been stripped out by importer
+        if (get_ast_type(func)->is_object()) {
+           println("Making an operator() method call!")
+           return make_method_call(func, "operator", parameters)
+        }
+        var f = ast_function_call_ptr(func, parameters)
         print("function call function ")
         println(f->function_call.func)
         print("function call parameters ")
