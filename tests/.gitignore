@@ -1,2 +1,3 @@
 tester
 test_compiler
+*.results

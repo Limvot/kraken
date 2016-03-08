@@ -160,6 +160,8 @@ obj type (Object) {
         return string("impossible type, indirection:") + indirection
     }
     fun rank(): int {
+        if (indirection > 0)
+           return 5
         match (base) {
             base_type::character() return 1
             base_type::integer() return 2

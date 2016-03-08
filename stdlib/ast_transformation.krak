@@ -390,7 +390,7 @@ obj ast_transformation (Object) {
             return transform_value(node, scope)
         }
         print("FAILED TO TRANSFORM: "); print(name + ": "); println(concat_symbol_tree(node))
-        while(1) {}
+        error("FAILED TO TRANSFORM")
         return null<ast_node>()
     }
     fun transform_all(nodes: vector<*tree<symbol>>, scope: *ast_node, template_replacements: map<string, *type>): vector<*ast_node> {
@@ -511,8 +511,8 @@ obj ast_transformation (Object) {
         var declaration = ast_declaration_statement_ptr(identifier, expression)
         // ok, deal with the possible init position method call
         if (identifiers.size == 2) {
-            var method = transform(identifiers[1], identifier->identifier.type->type_def, template_replacements)
             var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)
+            var method = transform(identifiers[1], identifier->identifier.type->type_def, search_type::function(parameters.map(fun(i:*ast_node):*type return get_ast_type(i);)), template_replacements)
             declaration->declaration_statement.init_method_call = make_method_call(identifier, method, parameters)
         }
         return declaration
@@ -542,13 +542,38 @@ obj ast_transformation (Object) {
         if (get_node("\"=\"", node)) {
             var possible_assign = find_and_make_any_operator_overload_call(string("="), vector(assign_to, to_assign), scope, template_replacements)
             if (possible_assign) {
-                println("Computed and returning operator=!")
+                println("Computed and returning operator=")
                 return possible_assign
             }
-        } else if (get_node("\"\\+=\"", node)) to_assign = make_operator_call("+", vector(assign_to, to_assign))
-        else   if (get_node("\"-=\"", node)) to_assign = make_operator_call("-", vector(assign_to, to_assign))
-        else   if (get_node("\"\\*=\"", node)) to_assign = make_operator_call("*", vector(assign_to, to_assign))
-        else   if (get_node("\"/=\"", node)) to_assign = make_operator_call("/", vector(assign_to, to_assign))
+        } else if (get_node("\"\\+=\"", node)) {
+            var possible_assign = find_and_make_any_operator_overload_call(string("+="), vector(assign_to, to_assign), scope, template_replacements)
+            if (possible_assign) {
+                print("Computed and returning operator+=")
+                return possible_assign
+            }
+            to_assign = make_operator_call("+", vector(assign_to, to_assign))
+        } else   if (get_node("\"-=\"", node)) {
+            var possible_assign = find_and_make_any_operator_overload_call(string("-="), vector(assign_to, to_assign), scope, template_replacements)
+            if (possible_assign) {
+                print("Computed and returning operator-=")
+                return possible_assign
+            }
+            to_assign = make_operator_call("-", vector(assign_to, to_assign))
+        } else   if (get_node("\"\\*=\"", node)) {
+            var possible_assign = find_and_make_any_operator_overload_call(string("*="), vector(assign_to, to_assign), scope, template_replacements)
+            if (possible_assign) {
+                print("Computed and returning operator*=")
+                return possible_assign
+            }
+            to_assign = make_operator_call("*", vector(assign_to, to_assign))
+        } else   if (get_node("\"/=\"", node)){
+            var possible_assign = find_and_make_any_operator_overload_call(string("/="), vector(assign_to, to_assign), scope, template_replacements)
+            if (possible_assign) {
+                print("Computed and returning operator/=")
+                return possible_assign
+            }
+            to_assign = make_operator_call("/", vector(assign_to, to_assign))
+        }
         var assignment = ast_assignment_statement_ptr(assign_to, to_assign)
         return assignment
     }
