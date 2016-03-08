@@ -1,0 +1,19 @@
+import simple_print:*
+
+obj Object<T> {
+    var data: T
+}
+
+fun get<T>(a: Object<T>): T {
+    var temp = a.data;
+    println(temp)
+    return temp
+}
+
+fun main(): int {
+    var b: Object<bool>
+    b.data = true
+    println(get(b))
+    return 0
+}
+

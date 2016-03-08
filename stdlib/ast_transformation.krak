@@ -957,9 +957,28 @@ fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<st
             println(string("setting ") + concat_symbol_tree(template_type) + " equal to " + param_type->to_string())
             new_map->set(concat_symbol_tree(template_type), param_type)
         }
-    } else if (get_node("\"\\*\"", template_type))
+    } else if (get_node("\"\\*\"", template_type)) {
         unify_type(template_type->children[1], param_type->clone_with_decreased_indirection(), new_map, template_replacements)
-    else {
+    } else if (get_node("template_inst", template_type)) {
+        if (param_type->is_object()) {
+            var enclosing_template = param_type->type_def->type_def.scope[string("~enclosing_scope")][0]
+            if (is_template(enclosing_template)) {
+                var inst_params = enclosing_template->template.instantiated_map.reverse_get(param_type->type_def)
+                var template_params = get_nodes("type", get_node("template_inst", template_type))
+                if (inst_params.size == template_params.size) {
+                   println("TEMPLATE inference should be successful")
+                   for (var i = 0; i < inst_params.size; i++;)
+                       unify_type(template_params[i], inst_params[i].clone(), new_map, template_replacements)
+                } else {
+                    println("TEMPLATE inference hit different sizes")
+                }
+            } else {
+                error("TEMPLATE inference hit non parent template")
+            }
+        } else {
+            error("TEMPLATE inference hit non object")
+        }
+    } else {
         println(template_type->children[0]->data.name)
         println(template_type->children[0]->data.data)
         error("TYPE INFERENCE NOT GOOD ENOUGH")
