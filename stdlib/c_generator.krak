@@ -598,7 +598,10 @@ obj c_generator (Object) {
                     call_string.value = ""
                 } else {
                     var func_type = get_ast_type(node->function_call.func)
-                    call_string.pre += string("if (")+func_name+".data) " + pre_call + " = ((" + type_to_c(func_type) + "_with_data) "+func_name+".func)("+func_name +".data," + call_string.value + ");\n"
+                    call_string.pre += string("if (")+func_name+".data) " + pre_call + " = ((" + type_to_c(func_type) + "_with_data) "+func_name+".func)("+func_name +".data"
+                    if (call_string.value != "")
+                       call_string.pre += string(",") + call_string.value
+                    call_string.pre += ");\n"
                     call_string.pre += string("else ") + pre_call + " = ((" + type_to_c(func_type) + "_without_data) " + func_name+".func)(" + call_string.value + ");\n"
                     call_string.value = pre_call
                 }

@@ -950,7 +950,7 @@ fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<st
                println(param_type->parameter_types.size)
                return;
             }
-            for (var i = 0; i < template_function_types.size; i++;)
+            for (var i = 0; i < template_function_types.size-1; i++;)
                 unify_type(template_function_types[i], param_type->parameter_types[i], new_map, template_replacements)
             unify_type(template_function_types.last(), param_type->return_type, new_map, template_replacements)
         } else {
