@@ -360,7 +360,9 @@ obj c_generator (Object) {
     fun generate_while_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         // stick another stack on
         defer_stack->push(make_pair(true, stack<*ast_node>()))
-        var to_ret = code_triple("while (") + generate(node->while_loop.condition, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string() + ") {\n" + generate(node->while_loop.statement, enclosing_object, enclosing_func, defer_stack).one_string()
+        var condition = generate(node->while_loop.condition, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+        var to_ret = code_triple("while (1) {\n") + condition.pre + "if(!" + condition.value + ") {" + condition.post + "break;}" + condition.post
+        to_ret += generate(node->while_loop.statement, enclosing_object, enclosing_func, defer_stack).one_string()
         to_ret += generate_from_defer_stack(defer_stack, 1, enclosing_object, enclosing_func)
         defer_stack->pop()
         to_ret += "}\n"
@@ -370,13 +372,18 @@ obj c_generator (Object) {
         // stick another stack on
         defer_stack->push(make_pair(true, stack<*ast_node>()))
         // gotta take off last semicolon
-        var to_ret = code_triple("for (") + generate(node->for_loop.init, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string() + " " + generate(node->for_loop.condition, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string() + "; " +
-            generate(node->for_loop.update, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string().slice(0,-3) +
-            ") {\n" + generate(node->for_loop.body, enclosing_object, enclosing_func, defer_stack).one_string()
+        var init = generate(node->for_loop.init, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+        var cond = generate(node->for_loop.condition, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+        var update = generate(node->for_loop.update, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+        var do_update_name = string("do_update") + get_id()
+        var to_ret = string("{\n") + init.one_string() + "bool " + do_update_name + " = false;\nfor (;;) {\n"
+        to_ret += string("if (") + do_update_name + ") {" + update.one_string() + "}\n" + do_update_name + " = true;\n"
+        to_ret += cond.pre + "if (!" + cond.value + ") {" + cond.post + "break;}" + cond.post
+        to_ret += generate(node->for_loop.body, enclosing_object, enclosing_func, defer_stack).one_string()
         to_ret += generate_from_defer_stack(defer_stack, 1, enclosing_object, enclosing_func).one_string()
         defer_stack->pop()
-        to_ret += "}\n"
-        return to_ret
+        to_ret += "}/*end inner for*/}/*end for's enclosing block*/\n"
+        return code_triple(to_ret)
     }
     fun generate_identifier(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
         var pre = string()
@@ -518,15 +525,41 @@ obj c_generator (Object) {
             func_name = generate_function(node->function_call.func, false).one_string()
         }
         // handle method call from inside method of same object
-        if (!dot_style_method_call && enclosing_object && enclosing_object->type_def.methods.contains(node->function_call.func))
-            call_string += "this"
+        if (!dot_style_method_call && enclosing_object) {
+           var methods = enclosing_object->type_def.methods
+           for (var i = 0; i < methods.size; i++;) {
+                if (methods[i] == node->function_call.func || (is_template(methods[i]) && methods[i]->template.instantiated.contains(node->function_call.func))) {
+                    call_string += "this";
+                    break
+                }
+            }
+        }
 
         var parameters = node->function_call.parameters
-        if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/" || func_name == "||"
-            || func_name == "&&" || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
+        if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/"
+            || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
             || func_name == "==" || func_name == "!=" || func_name == "%"
         ))
             return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()) + func_name + generate(parameters[1], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()) + string(")")
+        if ( parameters.size == 2 && (func_name == "||" || func_name == "&&")) {
+            var first = generate(parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+            var second = generate(parameters[1], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+            var result = code_triple()
+            result.pre += first.pre;
+            var temp_bool = string("temp_bool") + get_id()
+            result.pre += string("bool ") + temp_bool + " = " + first.value + ";\n"
+            result.pre += first.post;
+            if (func_name == "||")
+                result.pre += string("if (!") + temp_bool + ") {"
+            else
+                result.pre += string("if (") + temp_bool + ") {"
+            result.pre += second.pre
+            result.pre += temp_bool + " = " + second.value + ";\n"
+            result.pre += second.post
+            result.pre += "}"
+            result.value = temp_bool
+            return result
+        }
         // don't propegate enclosing function down right of access
         // XXX what about enclosing object? should it be the thing on the left?
         if (func_name == "." || func_name == "->")
@@ -568,8 +601,11 @@ obj c_generator (Object) {
         }
         var pre_call = string()
         // we now have temporary return variables for all objects, even without destruct so we can do chained method calls
+        // actually all non-ref returns, for chained any calls
+        // XXX this should change to only if we know we need it by having an enum or bool passed down to this call...
         // if (func_return_type->is_object() && !func_return_type->is_ref && func_return_type->indirection == 0 && has_method(func_return_type->type_def, "destruct", vector<*type>())) {
-        if (func_return_type->is_object() && !func_return_type->is_ref && func_return_type->indirection == 0) {
+        // if (func_return_type->is_object() && !func_return_type->is_ref && func_return_type->indirection == 0) {
+        if (!func_return_type->is_ref && !func_return_type->is_void()) {
             // kind of ugly combo here of
             var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), func_return_type, null<ast_node>())
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
@@ -577,7 +613,7 @@ obj c_generator (Object) {
             call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
             pre_call = generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string()
             // move destruct condition inside
-            if (has_method(func_return_type->type_def, "destruct", vector<*type>()))
+            if (func_return_type->is_object() && func_return_type->indirection == 0 && has_method(func_return_type->type_def, "destruct", vector<*type>()))
                 call_string.post += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "destruct", vector<*ast_node>())), enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
         }
         var ref_pre = code_triple()

@@ -1,3 +1,10 @@
 tester
 test_compiler
 *.results
+test_chainedIndirectTemplates
+test_functionsValues
+test_future
+test_grammer
+test_set
+test_templateFuncInfr
+test_util
