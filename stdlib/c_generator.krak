@@ -332,9 +332,11 @@ obj c_generator (Object) {
                     to_ret += code_triple() + get_name(identifier) + " = " + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
                 } else {
                     // some shifting around to get it to work in all cases
+                    // what cases?
                     to_ret.value = to_ret.pre
                     to_ret.pre = ""
-                    to_ret += code_triple() + string(" = ") + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
+                    to_ret += code_triple() + string(" = ") + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>())
+                    // to_ret += code_triple() + string(" = ") + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
                 }
             }
         }
