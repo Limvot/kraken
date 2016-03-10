@@ -677,7 +677,7 @@ obj ast_transformation (Object) {
             ast_node::function_call(backing) {
                 println("found an function_call")
                 // XXX should special case . and ->, I think
-                if (is_function(backing.func) && (backing.func->function.name == "." || backing.func->function.name == "."))
+                if (is_function(backing.func) && (backing.func->function.name == "." || backing.func->function.name == "->"))
                    return find_closed_variables(func, backing.parameters.first())
                 var to_ret = find_closed_variables(func, backing.func)
                 backing.parameters.for_each(fun(n: *ast_node) to_ret += find_closed_variables(func, n);)
