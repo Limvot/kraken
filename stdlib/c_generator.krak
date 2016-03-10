@@ -639,9 +639,12 @@ obj c_generator (Object) {
             if (func_return_type->is_object() && func_return_type->indirection == 0 && has_method(func_return_type->type_def, "destruct", vector<*type>()))
                 call_string.post += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "destruct", vector<*ast_node>())), enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
         }
-        var ref_pre = code_triple()
-        if (func_return_type->is_ref)
-           ref_pre += "*"
+        var ref_pre = string()
+        var ref_post = string()
+        if (func_return_type->is_ref) {
+           ref_pre += "(*"
+           ref_post += ")"
+        }
         if (!is_function(node->function_call.func) || node->function_call.func->function.closed_variables.size()) {
             // not function, so we must be an identifier or function call return or something
             if (!dot_style_method_call) {
@@ -675,7 +678,8 @@ obj c_generator (Object) {
                     call_string.pre += string("else ") + pre_call + " = ((" + type_to_c(func_type) + "_without_data) " + func_name+".func)(" + call_string.value + ");\n"
                     call_string.value = pre_call
                 }
-                return ref_pre + call_string
+                call_string.value = ref_pre + call_string.value + ref_post
+                return call_string
             }
         }
         if (pre_call != "") {
@@ -684,7 +688,8 @@ obj c_generator (Object) {
         } else {
             call_string.value = func_name + "(" + call_string.value + ")"
         }
-        return ref_pre + call_string
+        call_string.value = ref_pre + call_string.value + ref_post
+        return call_string
     }
 
     // for now, anyway
