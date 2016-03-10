@@ -1,6 +1,7 @@
 tester
 test_compiler
 *.results
+*.c
 test_chainedIndirectTemplates
 test_functionsValues
 test_future
@@ -8,3 +9,5 @@ test_grammer
 test_set
 test_templateFuncInfr
 test_util
+test_close_over_members
+test_string

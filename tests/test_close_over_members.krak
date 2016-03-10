@@ -1,6 +1,6 @@
 import io:*
 import set
-import mem
+import util
 
 fun runFunc(func: fun():void) {
     func()
@@ -26,7 +26,7 @@ obj One (Object) {
     }
     fun destruct() {
         var a:One
-        mem::safe_recursive_delete(&a, fun(it: *One): set::set<*One> { return set::set(it); } )
+        util::safe_recursive_delete(&a, fun(it: *One): set::set<*One> { return set::set(it); } )
     }
 }
 

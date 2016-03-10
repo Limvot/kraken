@@ -179,7 +179,8 @@ obj c_generator (Object) {
 
             var parameter_types = string()
             var parameters = string()
-            if (enclosing_object) {
+            // lambdas can have the enclosing object too, if it's needed (lambda in a method)
+            if (enclosing_object && backing.closed_variables.size() == 0) {
                 parameter_types = type_to_c(enclosing_object->type_def.self_type) + "*"
                 parameters = type_to_c(enclosing_object->type_def.self_type) + "* this"
             }
@@ -218,7 +219,18 @@ obj c_generator (Object) {
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
             // iterate through children for each ast
             // assert translation_unit?
-            (tree_pair.second->translation_unit.children + tree_pair.second->translation_unit.lambdas).for_each(fun(child: *ast_node) {
+            // do lambdas seperatly, so we can reconstitute the enclosing object if it has one
+            tree_pair.second->translation_unit.lambdas.for_each(fun(child: *ast_node) {
+                var enclosing_object_traverse = child
+                while(enclosing_object_traverse && !is_type_def(enclosing_object_traverse) &&
+                        get_ast_scope(enclosing_object_traverse) && get_ast_scope(enclosing_object_traverse)->contains_key(string("~enclosing_scope")))
+                    enclosing_object_traverse = get_ast_scope(enclosing_object_traverse)->get(string("~enclosing_scope"))[0]
+                if (enclosing_object_traverse && is_type_def(enclosing_object_traverse)) 
+                    generate_function_definition(child, enclosing_object_traverse)
+                else
+                    generate_function_definition(child, null<ast_node>())
+            })
+            tree_pair.second->translation_unit.children.for_each(fun(child: *ast_node) {
                 match (*child) {
                     // should really check the genrator
                     ast_node::if_comp(backing) {
@@ -281,7 +293,7 @@ obj c_generator (Object) {
             closure_struct_definitions += "typedef struct {\n"
             // note that we keep our is_ref, which would not normally happen on a clone with increased indirection
             closed_variables.for_each(fun(i: *ast_node) closure_struct_definitions += type_to_c(i->identifier.type->clone_with_increased_indirection(1,i->identifier.type->is_ref)) +
-                                             " " + i->identifier.name + ";\n";)
+                                             " " + get_name(i) + ";\n";)
             closure_struct_definitions += string("} ") + closure_name + ";\n"
             closure_struct_map[closed_variables] = closure_name
         }
@@ -529,7 +541,10 @@ obj c_generator (Object) {
            var methods = enclosing_object->type_def.methods
            for (var i = 0; i < methods.size; i++;) {
                 if (methods[i] == node->function_call.func || (is_template(methods[i]) && methods[i]->template.instantiated.contains(node->function_call.func))) {
-                    call_string += "this";
+                    if (enclosing_func && enclosing_func->function.closed_variables.size())
+                        call_string += "(*(closure_data->this))";
+                    else
+                        call_string += "this";
                     break
                 }
             }
@@ -589,7 +604,7 @@ obj c_generator (Object) {
 
             var param_type = get_ast_type(param)
             if (param_type->is_object() && !in_function_param_type->is_ref && param_type->indirection == 0 && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1)))) {
-                var temp_ident = ast_identifier_ptr(string("temporary_param")+get_id(), param_type, null<ast_node>())
+                var temp_ident = ast_identifier_ptr(string("temporary_param")+get_id(), param_type->clone_without_ref(), null<ast_node>())
                 var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
                 // have to pass false to the declaration generator, so can't do it through generate_statement
                 call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"

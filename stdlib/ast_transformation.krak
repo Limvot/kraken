@@ -19,14 +19,17 @@ adt search_type {
 
 obj ast_transformation (Object) {
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
+    var type_def_to_this: map<*ast_node, *ast_node>
     var fourth_pass_worklist: queue<*ast_node>
     fun construct(): *ast_transformation {
         ast_to_syntax.construct()
+        type_def_to_this.construct()
         fourth_pass_worklist.construct()
         return this
     }
     fun copy_construct(old: *ast_transformation) {
         ast_to_syntax.copy_construct(&old->ast_to_syntax)
+        type_def_to_this.copy_construct(&old->type_def_to_this)
         fourth_pass_worklist.copy_construct(&old->fourth_pass_worklist)
     }
     fun operator=(old: ref ast_transformation) {
@@ -35,6 +38,7 @@ obj ast_transformation (Object) {
     }
     fun destruct() {
         ast_to_syntax.destruct()
+        type_def_to_this.destruct()
         fourth_pass_worklist.destruct()
     }
     // first pass defines all type_defs (objects and aliases), ADTs, and top-level if-comps/passthroughs
@@ -396,12 +400,17 @@ obj ast_transformation (Object) {
     fun transform_all(nodes: vector<*tree<symbol>>, scope: *ast_node, template_replacements: map<string, *type>): vector<*ast_node> {
         return nodes.map(fun(node: *tree<symbol>): *ast_node return transform(node, scope, template_replacements);)
     }
+    fun make_this(object: *ast_node): *ast_node {
+        if (!type_def_to_this.contains_key(object))
+           type_def_to_this[object] = ast_identifier_ptr("this", object->type_def.self_type->clone_with_indirection(1), object)
+        return type_def_to_this[object]
+    }
     fun transform_identifier(node: *tree<symbol>, scope: *ast_node, searching_for: search_type): *ast_node {
         // first, we check for and generate this
         var name = concat_symbol_tree(node)
         if (name == "this") {
             while (!is_type_def(scope)) scope = get_ast_scope(scope)->get(string("~enclosing_scope"))[0]
-            return ast_identifier_ptr("this", scope->type_def.self_type->clone_with_indirection(1), scope)
+            return make_this(scope)
         }
         match (searching_for) {
             search_type::none() return identifier_lookup(name, scope)
@@ -431,6 +440,8 @@ obj ast_transformation (Object) {
             value_type = type_ptr(base_type::character(), 1)
         else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
             value_type = type_ptr(base_type::character())
+        else if (value_str == "true" || value_str == "false")
+            value_type = type_ptr(base_type::boolean())
         else {
             // should differentiate between float and double...
             var contains_dot = false
@@ -666,9 +677,24 @@ obj ast_transformation (Object) {
             ast_node::function_call(backing) {
                 println("found an function_call")
                 // XXX should special case . and ->, I think
+                if (is_function(backing.func) && (backing.func->function.name == "." || backing.func->function.name == "."))
+                   return find_closed_variables(func, backing.parameters.first())
                 var to_ret = find_closed_variables(func, backing.func)
                 backing.parameters.for_each(fun(n: *ast_node) to_ret += find_closed_variables(func, n);)
                 return to_ret
+            }
+            ast_node::function(backing) {
+                // now if this is a method, it is called without an access operator because we are in a lambda inside another method
+                // this is because we don't look at the right side of access operators, note the above function_call case
+                if (backing.scope.contains_key(string("~enclosing_scope"))) {
+                    var enclosing = backing.scope[string("~enclosing_scope")][0]
+                    if (is_type_def(enclosing))
+                    return set(make_this(enclosing))
+                    if (is_template(enclosing) && is_type_def(enclosing->template.scope[string("~enclosing_scope")][0]))
+                    return set(make_this(enclosing->template.scope[string("~enclosing_scope")][0]))
+                }
+                // we don't close over actual functions
+                return set<*ast_node>()
             }
             ast_node::return_statement(backing) {
                 println("found an return_statement")
