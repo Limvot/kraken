@@ -693,8 +693,10 @@ obj ast_transformation (Object) {
                     if (is_template(enclosing) && is_type_def(enclosing->template.scope[string("~enclosing_scope")][0]))
                     return set(make_this(enclosing->template.scope[string("~enclosing_scope")][0]))
                 }
-                // we don't close over actual functions
-                return set<*ast_node>()
+                // if this is a lambda, we need to close over what it closes over
+                // we don't need an if - if it's empty and not a lambda, it's empty
+                // and we don't close over actual functions
+                return backing.closed_variables
             }
             ast_node::return_statement(backing) {
                 println("found an return_statement")
@@ -799,12 +801,14 @@ obj ast_transformation (Object) {
                            for (var i = 0; i < parent->template.template_types.size; i++;)
                                inherited_replacements[parent->template.template_types[i]] = parent->template.instantiated_map.reverse_get(get_ast_type(first_param)->type_def)[i].clone()
                         }
+                        var method_name = concat_symbol_tree(node->children[2])
                         if (template_inst)
-                            second_param = find_or_instantiate_template_function(concat_symbol_tree(node->children[2]), template_inst, get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
+                            second_param = find_or_instantiate_template_function(method_name, template_inst, get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
                         else
-                            second_param = find_or_instantiate_template_function(concat_symbol_tree(node->children[2]), null<tree<symbol>>(), get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
-                        if (!second_param)
-                           error("Could not find method!")
+                            second_param = find_or_instantiate_template_function(method_name, null<tree<symbol>>(), get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
+                        if (!second_param) {
+                           error(string("Could not find method ") + method_name + " on the right side of (. or ->) " + concat_symbol_tree(node->children[0]) + ", whole string: " + concat_symbol_tree(node))
+                        }
                     }
                 }
             } else {

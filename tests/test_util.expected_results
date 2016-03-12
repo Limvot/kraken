@@ -18,20 +18,16 @@ copy construct from 1 to 2
 copy construct from 101 to 102
 copy construct from 2 to 3
 copy construct from 102 to 103
-destruct with 102
 destruct with 2
+destruct with 102
+destruct with 101
+destruct with 1
 copy construct from 3 to 4
 copy construct from 103 to 104
 destruct with 3
 destruct with 103
-destruct with 101
-destruct with 1
-copy construct from 4 to 5
-copy construct from 104 to 105
+done
 destruct with 4
 destruct with 104
-done
-destruct with 5
-destruct with 105
 destruct with 100
 destruct with 0

@@ -5,10 +5,13 @@ import vector_literals:*
 
 obj AbleToBeDestroyed (Object) {
     var data:int
-    fun construct(dat:int):void {
+    // needed to put it in the vector becuase serilization uses pairs, which defines an empty constructor
+    fun construct(): *AbleToBeDestroyed return this;
+    fun construct(dat:int): *AbleToBeDestroyed {
         data = dat
         print("Constructed: ")
         println(data)
+        return this
     }
     fun copy_construct(other:*AbleToBeDestroyed):void {
         data = other->data+1
