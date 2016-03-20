@@ -10,6 +10,8 @@ import io:*
 adt base_type {
     none,
     object,
+    adt,
+    no_type_adt_option,
     template,
     template_type,
     void_return,
@@ -82,7 +84,10 @@ obj type (Object) {
         return this
     }
     fun construct(type_def_in: *ast_node, traits_in: set<string>): *type {
-        base.copy_construct(&base_type::object())
+        if (is_type_def(type_def_in))
+            base.copy_construct(&base_type::object())
+        else
+            base.copy_construct(&base_type::adt())
         parameter_types.construct()
         indirection = 0
         return_type = null<type>()
@@ -143,6 +148,8 @@ obj type (Object) {
         match (base) {
             base_type::none() return all_string + string("none")
             base_type::object() return all_string + type_def->type_def.name
+            base_type::adt() return all_string + type_def->adt_def.name
+            base_type::no_type_adt_option() return all_string + "no_type_adt_option"
             base_type::template() return all_string + string("template")
             base_type::template_type() return all_string + string("template_type")
             base_type::void_return() return all_string + string("void_return")
@@ -189,6 +196,12 @@ obj type (Object) {
         }
         return false
     }
+    fun is_adt(): bool {
+        match (base) {
+            base_type::adt() return true
+        }
+        return false
+    }
     fun is_function(): bool {
         match (base) {
             base_type::function() return true
@@ -198,6 +211,12 @@ obj type (Object) {
     fun is_void(): bool {
         match (base) {
             base_type::void_return() return true
+        }
+        return false
+    }
+    fun is_empty_adt_option(): bool {
+        match (base) {
+            base_type::no_type_adt_option() return true
         }
         return false
     }

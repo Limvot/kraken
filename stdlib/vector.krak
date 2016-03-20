@@ -258,6 +258,7 @@ obj vector<T> (Object, Serializable) {
         }
         return newVec
     }
+    fun find_first_satisfying(func: fun(T):bool): T return filter(func)[0]
     fun filter(func: fun(T):bool):vector<T> {
         var newVec.construct(): vector<T>
         for (var i = 0; i < size; i++;)

@@ -246,25 +246,40 @@ fun is_adt_def(node: *ast_node): bool {
 obj adt_def (Object) {
     var scope: map<string, vector<*ast_node>>
     var name: string
+    var self_type: *type
+    var options: vector<*ast_node>
+    var option_funcs: vector<*ast_node>
+    var regular_funcs: vector<*ast_node>
     fun construct(nameIn: string): *adt_def  {
         scope.construct()
         name.copy_construct(&nameIn)
+        self_type = null<type>()
+        options.construct()
+        option_funcs.construct()
+        regular_funcs.construct()
         return this
     }
     fun copy_construct(old: *adt_def) {
         scope.copy_construct(&old->scope)
         name.copy_construct(&old->name)
+        self_type = old->self_type
+        options.copy_construct(&old->options)
+        option_funcs.copy_construct(&old->option_funcs)
+        regular_funcs.copy_construct(&old->regular_funcs)
     }
     fun destruct() {
         scope.destruct()
         name.destruct()
+        options.destruct()
+        option_funcs.destruct()
+        regular_funcs.destruct()
     }
     fun operator=(other: ref adt_def) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref adt_def): bool {
-        return name == other.name
+        return name == other.name && self_type == other.self_type && options == other.options && option_funcs == other.option_funcs && regular_funcs == other.regular_funcs
     }
 }
 fun ast_function_ptr(name: string, type: *type, parameters: vector<*ast_node>): *ast_node {
@@ -491,8 +506,8 @@ obj if_statement (Object) {
         return condition == other.condition && then_part == other.then_part && else_part == other.else_part
     }
 }
-fun ast_match_statement_ptr(): *ast_node {
-    var to_ret.construct(): match_statement
+fun ast_match_statement_ptr(value: *ast_node): *ast_node {
+    var to_ret.construct(value): match_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::match_statement(to_ret))
     return ptr
@@ -505,22 +520,29 @@ fun is_match_statement(node: *ast_node): bool {
 }
 obj match_statement (Object) {
     var scope: map<string, vector<*ast_node>>
-    fun construct(): *match_statement  {
+    var value: *ast_node
+    var cases: vector<*ast_node>
+    fun construct(value_in: *ast_node): *match_statement  {
         scope.construct()
+        value = value_in
+        cases.construct()
         return this
     }
     fun copy_construct(old: *match_statement) {
         scope.copy_construct(&old->scope)
+        value = old->value
+        cases.copy_construct(&old->cases)
     }
     fun destruct() {
         scope.destruct()
+        cases.destruct()
     }
     fun operator=(other: ref match_statement) {
         destruct()
         copy_construct(&other)
     }
     fun operator==(other: ref match_statement): bool {
-        return true
+        return value == other.value && cases == other.cases && scope == other.scope
     }
 }
 fun ast_case_statement_ptr(): *ast_node {
@@ -537,12 +559,21 @@ fun is_case_statement(node: *ast_node): bool {
 }
 obj case_statement (Object) {
     var scope: map<string, vector<*ast_node>>
+    var option: *ast_node
+    var unpack_ident: *ast_node
+    var statement: *ast_node
     fun construct(): *case_statement  {
         scope.construct()
+        option = null<ast_node>()
+        unpack_ident = null<ast_node>()
+        statement = null<ast_node>()
         return this
     }
     fun copy_construct(old: *case_statement) {
         scope.copy_construct(&old->scope)
+        option = old->option
+        unpack_ident = old->unpack_ident
+        statement = old->statement
     }
     fun destruct() {
         scope.destruct()
@@ -552,7 +583,7 @@ obj case_statement (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref case_statement): bool {
-        return true
+        return option == other.option && unpack_ident == other.unpack_ident && statement == other.statement
     }
 }
 fun ast_while_loop_ptr(condition: *ast_node): *ast_node {
@@ -974,14 +1005,14 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::import(backing) return vector<*ast_node>()
         ast_node::identifier(backing) return vector<*ast_node>()
         ast_node::type_def(backing) return backing.variables + backing.methods
-        ast_node::adt_def(backing) return vector<*ast_node>()
+        ast_node::adt_def(backing) return backing.options + backing.option_funcs
         ast_node::function(backing) return backing.parameters + backing.body_statement
         ast_node::template(backing) return backing.instantiated
         ast_node::code_block(backing) return backing.children
         ast_node::statement(backing) return vector<*ast_node>(backing.child)
         ast_node::if_statement(backing) return vector(backing.condition, backing.then_part, backing.else_part)
-        ast_node::match_statement(backing) return vector<*ast_node>()
-        ast_node::case_statement(backing) return vector<*ast_node>()
+        ast_node::match_statement(backing) return vector(backing.value) + backing.cases
+        ast_node::case_statement(backing) return vector(backing.option, backing.unpack_ident, backing.statement)
         ast_node::while_loop(backing) return vector(backing.condition, backing.statement)
         ast_node::for_loop(backing) return vector(backing.init, backing.condition, backing.update, backing.body)
         ast_node::return_statement(backing) return vector(backing.return_value)
@@ -1018,9 +1049,10 @@ fun get_ast_name(node: *ast_node): string {
         ast_node::declaration_statement(backing) return string("declaration_statement")
         ast_node::if_comp(backing) return string("if_comp: ") + backing.wanted_generator
         ast_node::simple_passthrough(backing) return string("simple_passthrough: , string:") + backing.passthrough_str
-        ast_node::function_call(backing) return string("function_call:(") + backing.parameters.size + ")"
+        ast_node::function_call(backing) return string("function_call:") + get_ast_name(backing.func) + "(" + backing.parameters.size + ")"
         ast_node::value(backing) return string("value: ") + backing.string_value + ": " + backing.value_type->to_string()
     }
+    return string("impossible adt type")
 }
 fun get_ast_scope(node: *ast_node): *map<string,vector<*ast_node>> {
     match (*node) {

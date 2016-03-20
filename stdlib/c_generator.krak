@@ -160,6 +160,38 @@ obj c_generator (Object) {
         replacement_map.destruct()
     }
     fun get_id(): string return to_string(id_counter++);
+    fun generate_function_prototype_and_header(child: *ast_node, enclosing_object: *ast_node, is_lambda: bool, defer_stack: *stack<pair<bool,stack<*ast_node>>>):pair<string,string> {
+        var backing = child->function
+
+        var parameter_types = string()
+        var parameters = string()
+        // lambdas can have the enclosing object too, if it's needed (lambda in a method)
+        if (enclosing_object && !is_lambda) {
+            parameter_types = type_to_c(enclosing_object->type_def.self_type) + "*"
+            parameters = type_to_c(enclosing_object->type_def.self_type) + "* this"
+        }
+        if (backing.closed_variables.size()) {
+            println("HAS CLOSED VARIABLES")
+            if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
+            var closed_type_name = get_closure_struct_type(backing.closed_variables)
+            parameter_types += closed_type_name + "*"
+            parameters += closed_type_name + "* closure_data"
+        }
+
+        var decorated_name = generate_function(child, enclosing_object, null<ast_node>(), false, false).one_string()
+        backing.parameters.for_each(fun(parameter: *ast_node) {
+            if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
+            parameter_types += type_to_c(parameter->identifier.type)
+            parameters += type_to_c(parameter->identifier.type) + " " + get_name(parameter)
+
+            // add parameters to destructor thingy (for returns)? Or should that be a different pass?
+            var parameter_type = parameter->identifier.type
+            if (!parameter_type->is_ref && parameter_type->indirection == 0 && (parameter_type->is_adt() || (parameter_type->is_object() && has_method(parameter_type->type_def, "destruct", vector<*type>()))))
+                defer_stack->top().second.push(ast_statement_ptr(make_method_call(parameter, "destruct", vector<*ast_node>())))
+        })
+        return make_pair(type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n",
+                         type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ")")
+    }
     fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<string,string> {
         var linker_string:string = ""
         var prequal: string = "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n"
@@ -176,42 +208,49 @@ obj c_generator (Object) {
         // moved out from below so that it can be used for methods as well as regular functions (and eventually lambdas...)
         var generate_function_definition = fun(child: *ast_node, enclosing_object: *ast_node, is_lambda: bool) {
             var backing = child->function
-
-            var parameter_types = string()
-            var parameters = string()
-            // lambdas can have the enclosing object too, if it's needed (lambda in a method)
-            if (enclosing_object && !is_lambda) {
-                parameter_types = type_to_c(enclosing_object->type_def.self_type) + "*"
-                parameters = type_to_c(enclosing_object->type_def.self_type) + "* this"
-            }
-            if (backing.closed_variables.size()) {
-               println("HAS CLOSED VARIABLES")
-               if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
-               var closed_type_name = get_closure_struct_type(backing.closed_variables)
-               parameter_types += closed_type_name + "*"
-               parameters += closed_type_name + "* closure_data"
-            }
-
             // stack-stack thing // this could be a stack of strings too, maybe
             // start out with one stack on the stack
             var defer_stack = stack<pair<bool,stack<*ast_node>>>(make_pair(false, stack<*ast_node>()))
-
-            var decorated_name = generate_function(child, enclosing_object, null<ast_node>(), false, false).one_string()
-            backing.parameters.for_each(fun(parameter: *ast_node) {
-                if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
-                parameter_types += type_to_c(parameter->identifier.type)
-                parameters += type_to_c(parameter->identifier.type) + " " + get_name(parameter)
-
-                // add parameters to destructor thingy (for returns)? Or should that be a different pass?
-                var parameter_type = parameter->identifier.type
-                if (!parameter_type->is_ref && parameter_type->indirection == 0 && parameter_type->is_object() && has_method(parameter_type->type_def, "destruct", vector<*type>()))
-                    defer_stack.top().second.push(ast_statement_ptr(make_method_call(parameter, "destruct", vector<*ast_node>())))
-            })
-            function_prototypes += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n"
-            function_definitions += type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ") {\n" + generate_statement(backing.body_statement, enclosing_object, child, &defer_stack).one_string()
-            // emit parameter destructors?
-            function_definitions += generate_from_defer_stack(&defer_stack, -1, enclosing_object, child).one_string()
-            function_definitions += "}\n"
+            var prototype_and_header = generate_function_prototype_and_header(child, enclosing_object, is_lambda, &defer_stack)
+            function_prototypes += prototype_and_header.first
+            function_definitions += prototype_and_header.second
+            if (backing.body_statement) {
+                function_definitions += string(" {\n") + generate_statement(backing.body_statement, enclosing_object, child, &defer_stack).one_string()
+                function_definitions += generate_from_defer_stack(&defer_stack, -1, enclosing_object, child).one_string()
+                function_definitions += "}\n"
+            } else {
+                // adt constructor
+                // wow. no pass in for no this
+                enclosing_object = get_ast_scope(child)->get(string("~enclosing_scope"))[0]
+                // if this is an option constructor
+                if (enclosing_object->adt_def.options.any_true(fun(opt: *ast_node): bool return opt->identifier.name == backing.name;)) {
+                    var option_ident = enclosing_object->adt_def.options.find_first_satisfying(fun(opt: *ast_node): bool return opt->identifier.name == backing.name;)
+                    function_definitions += " { \n"
+                    function_definitions += type_to_c(enclosing_object->adt_def.self_type) + " to_ret;\n"
+                    function_definitions += string("to_ret.flag = ") + string("enum_opt_") + get_name(option_ident) + ";\n"
+                    if (option_ident->identifier.type->is_empty_adt_option())
+                        function_definitions += "/*no inner data*/\n"
+                    else
+                        function_definitions += string("to_ret.data.") + get_name(option_ident) + " = " + get_name(option_ident) + ";\n"
+                    function_definitions += "return to_ret;\n"
+                    function_definitions += "}\n"
+                } else {
+                    // this is one of the other functions instead
+                    function_definitions += "{"
+                    if (backing.name == "operator==") {
+                       function_definitions += "/*operator==*/"
+                    } else if (backing.name == "operator!=") {
+                      function_definitions += "/*operator!=*/"
+                    } else if (backing.name == "copy_construct") {
+                      function_definitions += "/*copy_construct*/"
+                    } else if (backing.name == "operator=") {
+                      function_definitions += "/*operator=*/"
+                    } else if (backing.name == "destruct") {
+                      function_definitions += "/*destruct*/"
+                    }
+                    function_definitions += "}\n"
+                }
+            }
         }
 
         var type_poset = poset<*ast_node>()
@@ -225,7 +264,7 @@ obj c_generator (Object) {
                 while(enclosing_object_traverse && !is_type_def(enclosing_object_traverse) &&
                         get_ast_scope(enclosing_object_traverse) && get_ast_scope(enclosing_object_traverse)->contains_key(string("~enclosing_scope")))
                     enclosing_object_traverse = get_ast_scope(enclosing_object_traverse)->get(string("~enclosing_scope"))[0]
-                if (enclosing_object_traverse && is_type_def(enclosing_object_traverse)) 
+                if (enclosing_object_traverse && is_type_def(enclosing_object_traverse))
                     generate_function_definition(child, enclosing_object_traverse, true)
                 else
                     generate_function_definition(child, null<ast_node>(), true)
@@ -266,6 +305,14 @@ obj c_generator (Object) {
                                 type_poset.add_relationship(child, var_type->type_def)
                         })
                     }
+                    ast_node::adt_def(backing) {
+                        type_poset.add_vertex(child)
+                        backing.options.for_each(fun(i: *ast_node) {
+                            var var_type = get_ast_type(i)
+                            if (!var_type->indirection && var_type->type_def)
+                                type_poset.add_relationship(child, var_type->type_def)
+                        })
+                    }
                 }
             })
         })
@@ -274,15 +321,37 @@ obj c_generator (Object) {
             var base_name = get_name(vert)
             plain_typedefs += string("typedef struct ") + base_name + "_dummy " + base_name + ";\n"
             structs += string("struct ") + base_name + "_dummy {\n"
-            vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n";) // also no defer stack
+            if (is_type_def(vert)) {
+                vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n";) // also no defer stack
+                // generate the methods (note some of these may be templates)
+                vert->type_def.methods.for_each(fun(method: *ast_node) {
+                    if (is_template(method))
+                        method->template.instantiated.for_each(fun(m: *ast_node) generate_function_definition(m, vert, false);)
+                    else
+                        generate_function_definition(method, vert, false);
+                })
+            } else {
+              // adt
+              var add_to_structs = string()
+              var add_to_enum = string()
+              vert->adt_def.options.for_each(fun(option: *ast_node) {
+                add_to_enum += string("enum_opt_") + get_name(option) + ","
+                if (!option->identifier.type->is_empty_adt_option())
+                    add_to_structs += generate_declaration_statement(ast_declaration_statement_ptr(option, null<ast_node>()), null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
+              })
+              structs += string("enum { ") + add_to_enum + " } flag;\n"
+              structs += string("union { ") + add_to_structs + " } data;\n"
+              // now do methods and generation functions
+              vert->adt_def.option_funcs.for_each(fun(option_func: *ast_node) {
+                // no vert so no this
+                generate_function_definition(option_func, null<ast_node>(), false);
+              })
+              vert->adt_def.regular_funcs.for_each(fun(regular_func: *ast_node) {
+                // want the this this time
+                generate_function_definition(regular_func, vert, false);
+              })
+            }
             structs += "};\n"
-            // generate the methods (note some of these may be templates)
-            vert->type_def.methods.for_each(fun(method: *ast_node) {
-                if (is_template(method))
-                    method->template.instantiated.for_each(fun(m: *ast_node) generate_function_definition(m, vert, false);)
-                else
-                    generate_function_definition(method, vert, false);
-            })
         })
 
         return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string+closure_struct_definitions+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
@@ -337,7 +406,7 @@ obj c_generator (Object) {
         // we only make it first if it's a function type though, so that global levels still work
         var to_ret = code_triple(type_to_c(identifier->identifier.type) + " " + get_name(identifier), string(), string())
         if (node->declaration_statement.expression) {
-            if (ident_type->is_object() && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(node->declaration_statement.expression)->clone_with_increased_indirection()))) {
+            if (ident_type->is_adt() || (ident_type->is_object() && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(node->declaration_statement.expression)->clone_with_increased_indirection())))) {
                 to_ret.pre += ";\n"
                 to_ret += generate(ast_statement_ptr(make_method_call(identifier, "copy_construct", vector(make_operator_call("&", vector(node->declaration_statement.expression))))), enclosing_object, enclosing_func, defer_stack, false)
             } else {
@@ -357,7 +426,7 @@ obj c_generator (Object) {
            to_ret.pre += ";\n"
            to_ret += code_triple() + generate(node->declaration_statement.init_method_call, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
         }
-        if (add_to_defer && ident_type->is_object() && ident_type->indirection == 0 && has_method(ident_type->type_def, "destruct", vector<*type>()))
+        if (add_to_defer && ident_type->indirection == 0 && (ident_type->is_adt() || (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>()))))
             defer_stack->top().second.push(ast_statement_ptr(make_method_call(identifier, "destruct", vector<*ast_node>())))
         return to_ret
     }
@@ -431,7 +500,7 @@ obj c_generator (Object) {
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
             // have to pass false to the declaration generator, so can't do it through generate_statement
             to_ret.pre = generate_declaration_statement(declaration, enclosing_object, enclosing_func, defer_stack, false).one_string() + ";\n"
-            if (return_value_type->is_object() && !function_return_type->is_ref && return_value_type->indirection == 0 && has_method(return_value_type->type_def, "copy_construct", vector(return_value_type->clone_with_indirection(1)))) {
+            if (!function_return_type->is_ref && return_value_type->indirection == 0 && (return_value_type->is_adt() || (return_value_type->is_object() && has_method(return_value_type->type_def, "copy_construct", vector(return_value_type->clone_with_indirection(1)))))) {
                 to_ret.pre += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(return_value))))), enclosing_object, enclosing_func, defer_stack).one_string()
             } else {
                 var refamp = string()
@@ -447,7 +516,7 @@ obj c_generator (Object) {
             to_ret += code_triple(" ") + generate(return_value, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
         // generate all in stack by passing -1, make sure added after we calculate the return value
         to_ret.pre += generate_from_defer_stack(defer_stack, -1, enclosing_object, enclosing_func).one_string()
-           
+
         return to_ret
     }
     fun generate_branching_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
@@ -478,6 +547,25 @@ obj c_generator (Object) {
         defer_stack->top().second.push(node->defer_statement.statement)
         return code_triple("/*defer wanna know what*/")
     }
+    fun generate_match_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
+        var to_ret = code_triple("/* begin match */")
+        var matching_value = generate(node->match_statement.value, enclosing_object, enclosing_func, defer_stack, true)
+        to_ret.pre += matching_value.pre
+        to_ret.post += matching_value.post
+        node->match_statement.cases.for_each(fun(case_node: *ast_node) {
+            var option_str = generate(case_node->case_statement.option, enclosing_object, enclosing_func, defer_stack, false).one_string()
+            var to_ret_case = code_triple("/*case ") + option_str + "*/ if(" + matching_value.value + ".flag == " + string("enum_opt_") + option_str + ") {\n"
+            if (case_node->case_statement.unpack_ident) {
+                to_ret_case += generate_declaration_statement(ast_declaration_statement_ptr(case_node->case_statement.unpack_ident, null<ast_node>()), null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string()
+                to_ret_case += string(" = ") + matching_value.value + ".data." + option_str + ";\n"
+            } else {
+                to_ret_case += "/*no unpack_ident*/\n"
+            }
+            to_ret_case += generate(case_node->case_statement.statement, enclosing_object, enclosing_func, defer_stack, false).one_string() + "\n}\n"
+            to_ret += to_ret_case.one_string()
+        })
+        return to_ret
+    }
     fun generate_value(node: *ast_node, need_variable: bool): code_triple {
         var value = node->value.string_value
         var to_ret = string()
@@ -487,7 +575,7 @@ obj c_generator (Object) {
             to_ret = string("\"")
             if (value.slice(0,3) == "\"\"\"")
                 value = value.slice(3,-4)
-            else 
+            else
                 value = value.slice(1,-2)
             value.for_each(fun(c: char) {
                 if (c == '\n')
@@ -553,7 +641,9 @@ obj c_generator (Object) {
             is_function(node->function_call.func->function_call.parameters[1]) &&
             (is_type_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0]) ||
             // or if it's a templated method (yes, this has gotten uuuuugly)
-            is_type_def(get_ast_scope(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0])->get(string("~enclosing_scope"))[0])) 
+            is_type_def(get_ast_scope(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0])->get(string("~enclosing_scope"))[0]) ||
+            // or it's in an adt
+            is_adt_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0]))
             // should get uglier when we have to figure out if it's just an inside lambda
 
         if (dot_style_method_call) {
@@ -611,8 +701,13 @@ obj c_generator (Object) {
         }
         // don't propegate enclosing function down right of access
         // XXX what about enclosing object? should it be the thing on the left?
-        if (func_name == "." || func_name == "->")
-            return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false) + func_name + generate(parameters[1], null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false) + string(")")
+        if (func_name == "." || func_name == "->") {
+            // special case right hand side is an adt to access inside of adt
+            var in_between = string()
+            if (get_ast_type(parameters[0])->is_adt())
+               in_between = "data."
+            return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false) + func_name + in_between + generate(parameters[1], null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false) + string(")")
+        }
         if (func_name == "[]")
             return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false) + "[" + generate(parameters[1], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false) + string("])")
         // the post ones need to be post-ed specifically, and take the p off
@@ -633,12 +728,12 @@ obj c_generator (Object) {
             var in_function_param_type = func_type->parameter_types[i]
             if (call_string != "")
                 call_string += ", "
-             
+
             if (in_function_param_type->is_ref)
                call_string += "&"
 
             var param_type = get_ast_type(param)
-            if (param_type->is_object() && !in_function_param_type->is_ref && param_type->indirection == 0 && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1)))) {
+            if (!in_function_param_type->is_ref && param_type->indirection == 0 && (param_type->is_adt() || (param_type->is_object() && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1)))))) {
                 var temp_ident = ast_identifier_ptr(string("temporary_param")+get_id(), param_type->clone_without_ref(), null<ast_node>())
                 var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
                 // have to pass false to the declaration generator, so can't do it through generate_statement
@@ -650,13 +745,8 @@ obj c_generator (Object) {
             }
         }
         var pre_call = string()
-        // we now have temporary return variables for all objects, even without destruct so we can do chained method calls
-        // actually all non-ref returns, for chained any calls
-        // well, now only if we also pass in true for need_variable
-        // XXX this should change to only if we know we need it by having an enum or bool passed down to this call...
-        // if (func_return_type->is_object() && !func_return_type->is_ref && func_return_type->indirection == 0 && has_method(func_return_type->type_def, "destruct", vector<*type>())) {
-        // if (func_return_type->is_object() && !func_return_type->is_ref && func_return_type->indirection == 0) {
-        var needs_temp_for_destruct = func_return_type->is_object() && func_return_type->indirection == 0 && has_method(func_return_type->type_def, "destruct", vector<*type>())
+        // temporary returns if we're asked for them or we need them for destruct
+        var needs_temp_for_destruct = func_return_type->indirection == 0 && (func_return_type->is_adt() || (func_return_type->is_object() && has_method(func_return_type->type_def, "destruct", vector<*type>())))
         if (!func_return_type->is_ref && (needs_temp_for_destruct || (!func_return_type->is_void() && need_variable)) ) {
             // kind of ugly combo here of
             var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), func_return_type, null<ast_node>())
@@ -676,6 +766,7 @@ obj c_generator (Object) {
         }
         if (!is_function(node->function_call.func) || node->function_call.func->function.closed_variables.size()) {
             // not function, so we must be an identifier or function call return or something
+            println(get_ast_name(node->function_call.func) + " is not a function! must be a lambda or something")
             if (!dot_style_method_call) {
                 // lambda
                 if (pre_call == "" && (!func_return_type->is_void() || func_return_type->indirection)) {
@@ -739,6 +830,7 @@ obj c_generator (Object) {
             ast_node::return_statement(backing) return generate_return_statement(node, enclosing_object, enclosing_func, defer_stack)
             ast_node::branching_statement(backing) return generate_branching_statement(node, enclosing_object, enclosing_func, defer_stack)
             ast_node::defer_statement(backing) return generate_defer_statement(node, enclosing_object, enclosing_func, defer_stack)
+            ast_node::match_statement(backing) return generate_match_statement(node, enclosing_object, enclosing_func, defer_stack)
             ast_node::value(backing) return generate_value(node, need_variable)
             ast_node::identifier(backing) return generate_identifier(node, enclosing_object, enclosing_func)
         }
@@ -759,9 +851,8 @@ obj c_generator (Object) {
             base_type::integer() return indirection + string("int")
             base_type::floating() return indirection + string("float")
             base_type::double_precision() return indirection + string("double")
-            base_type::object() {
-                return type->type_def->type_def.name
-            }
+            base_type::object() return type->type_def->type_def.name
+            base_type::adt() return type->type_def->adt_def.name
             base_type::function() {
                 var temp = indirection + string("function_")
                 type->parameter_types.for_each(fun(parameter_type: *type) temp += type_decoration(parameter_type) + "_";)
@@ -784,9 +875,8 @@ obj c_generator (Object) {
             base_type::integer() return string("int") + indirection
             base_type::floating() return string("float") + indirection
             base_type::double_precision() return string("double") + indirection
-            base_type::object() {
-                return get_name(type->type_def) + indirection
-            }
+            base_type::object() return get_name(type->type_def) + indirection
+            base_type::adt() return get_name(type->type_def) + indirection
             base_type::function() {
                 // maybe disregard indirection in the future?
                 if (function_type_map.contains_key(*type))
@@ -815,11 +905,14 @@ obj c_generator (Object) {
                 var upper = backing.scope[string("~enclosing_scope")][0]
                 result = backing.name
                 if (is_template(upper))
-                    upper->template.instantiated_map.reverse_get(node).for_each(fun(t: ref type) result += string("_") + type_decoration(&t);) 
+                    upper->template.instantiated_map.reverse_get(node).for_each(fun(t: ref type) result += string("_") + type_decoration(&t);)
+            }
+            ast_node::adt_def(backing) {
+                result = backing.name
             }
             ast_node::function(backing) {
-                // be careful, operators like . come through this
-                if (!backing.body_statement)
+                // be careful, operators like . come through this, but so do adt constructor funcs
+                if (!backing.body_statement && !backing.scope.contains_key(string("~enclosing_scope")))
                     return backing.name
                 if (backing.name == "main")
                     return backing.name
