@@ -225,14 +225,23 @@ obj c_generator (Object) {
                 // if this is an option constructor
                 if (enclosing_object->adt_def.options.any_true(fun(opt: *ast_node): bool return opt->identifier.name == backing.name;)) {
                     var option_ident = enclosing_object->adt_def.options.find_first_satisfying(fun(opt: *ast_node): bool return opt->identifier.name == backing.name;)
+                    var option_type = option_ident->identifier.type
                     function_definitions += " { \n"
-                    function_definitions += type_to_c(enclosing_object->adt_def.self_type) + " to_ret;\n"
-                    function_definitions += string("to_ret.flag = ") + string("enum_opt_") + get_name(option_ident) + ";\n"
-                    if (option_ident->identifier.type->is_empty_adt_option())
+                    var to_ret_ident = ast_identifier_ptr("to_ret", enclosing_object->type_def.self_type, enclosing_object)
+                    function_definitions += type_to_c(enclosing_object->adt_def.self_type) + " "+ get_name(to_ret_ident) + ";\n"
+                    function_definitions += get_name(to_ret_ident) + ".flag = " + string("enum_opt_") + get_name(option_ident) + ";\n"
+                    if (option_type->is_empty_adt_option())
                         function_definitions += "/*no inner data*/\n"
-                    else
-                        function_definitions += string("to_ret.data.") + get_name(option_ident) + " = " + get_name(option_ident) + ";\n"
-                    function_definitions += "return to_ret;\n"
+                    else {
+                        var param = backing.parameters[0]
+                        if (option_type->is_adt() || (option_type->is_object() && has_method(option_type->type_def, "copy_construct", vector(option_type->clone_with_increased_indirection())))) {
+                            function_definitions += generate(ast_statement_ptr(make_method_call(make_operator_call(".", vector(to_ret_ident, option_ident)), "copy_construct", vector(make_operator_call("&", vector(param))))), null<ast_node>(), null<ast_node>(), &defer_stack, false).one_string()
+                            function_definitions += generate_from_defer_stack(&defer_stack, -1, enclosing_object, child).one_string()
+                        } else {
+                            function_definitions += get_name(to_ret_ident) +".data." + get_name(option_ident) + " = " + get_name(param) + ";\n"
+                        }
+                    }
+                    function_definitions += "return " + get_name(to_ret_ident) + ";\n"
                     function_definitions += "}\n"
                 } else {
                     // this is one of the other functions instead
@@ -249,9 +258,11 @@ obj c_generator (Object) {
                                 function_definitions += "return true;"
                            } else {
                                 if (option_type->is_adt() || (option_type->is_object() && has_method(option_type->type_def, "operator==", vector(option_type)))) {
-                                   // don't really need the defer_stack
+                                    defer_stack.push(make_pair(false, stack<*ast_node>()))
                                     var equals_res = generate(ast_statement_ptr(make_method_call(make_operator_call("->", vector(adt_this, option)), "operator==", vector(make_operator_call(".", vector(param, option))))), null<ast_node>(), null<ast_node>(), &defer_stack, false)
                                     equals_res.value = string("bool result = ") + equals_res.value + ";\n"
+                                    equals_res.post += generate_from_defer_stack(&defer_stack, -1, enclosing_object, child).one_string()
+                                    defer_stack.pop()
                                     function_definitions += equals_res.one_string() + "return result;\n"
                                 } else {
                                     var option_name = generate_identifier(option, null<ast_node>(), null<ast_node>()).one_string()
@@ -263,8 +274,11 @@ obj c_generator (Object) {
                        })
                     } else if (backing.name == "operator!=") {
                       function_definitions += "/*operator!=*/"
+                      defer_stack.push(make_pair(false, stack<*ast_node>()))
                       var equals_res = generate(ast_statement_ptr(make_method_call(make_operator_call("*", vector(adt_this)), "operator==", vector(param))), null<ast_node>(), null<ast_node>(), &defer_stack, false)
                       equals_res.value = string("bool result = !") + equals_res.value + ";\n"
+                      equals_res.post += generate_from_defer_stack(&defer_stack, -1, enclosing_object, child).one_string()
+                      defer_stack.pop()
                       function_definitions += equals_res.one_string() + "return result;\n"
                     } else if (backing.name == "copy_construct") {
                       function_definitions += "/*copy_construct*/"
@@ -288,8 +302,11 @@ obj c_generator (Object) {
                        })
                     } else if (backing.name == "operator=") {
                       function_definitions += "/*operator=*/"
+                      defer_stack.push(make_pair(false, stack<*ast_node>()))
                       function_definitions += generate(ast_statement_ptr(make_method_call(make_operator_call("*", vector(adt_this)), "destruct", vector<*ast_node>())), null<ast_node>(), null<ast_node>(), &defer_stack, false).one_string()
                       function_definitions += generate(ast_statement_ptr(make_method_call(make_operator_call("*", vector(adt_this)), "copy_construct", vector(make_operator_call("&", vector(param))))), null<ast_node>(), null<ast_node>(), &defer_stack, false).one_string()
+                      function_definitions += generate_from_defer_stack(&defer_stack, -1, enclosing_object, child).one_string()
+                      defer_stack.pop()
                     } else if (backing.name == "destruct") {
                       function_definitions += "/*destruct*/"
                        enclosing_object->adt_def.options.for_each(fun(option: *ast_node) {

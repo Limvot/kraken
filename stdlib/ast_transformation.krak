@@ -165,10 +165,12 @@ obj ast_transformation (Object) {
             ast_to_syntax.set(identifier, adt_option)
 
             var function_node = null<ast_node>()
-            if (type_syntax)
-               function_node = ast_function_ptr(option_name, type_ptr(vector(get_ast_type(identifier)), node->adt_def.self_type), vector(identifier))
-            else
+            if (type_syntax) {
+               var identifier_param = ast_identifier_ptr(option_name, ident_type, node)
+               function_node = ast_function_ptr(option_name, type_ptr(vector(get_ast_type(identifier_param)), node->adt_def.self_type), vector(identifier_param))
+            } else {
                function_node = ast_function_ptr(option_name, type_ptr(vector<*type>(), node->adt_def.self_type), vector<*ast_node>())
+            }
             add_to_scope(option_name, function_node, node)
             add_to_scope("~enclosing_scope", node, function_node)
             node->adt_def.option_funcs.add(function_node)

@@ -15,6 +15,10 @@ fun to_string(in: int): string {
     return ret
 }
 
+fun operator+(first: *char, second: ref string): string {
+    return string(first) + second
+}
+
 fun string(in:*char):string {
     var out.construct(in):string
     return out
