@@ -10,7 +10,8 @@ import util
 import serialize
 
 fun split_into_words(gram_str: string::string): vector::vector<string::string> {
-    var out.construct(): vector::vector<string>
+    // var out.construct(): vector::vector<string>
+    var out.construct(): vector::vector<string::string>
     var begin = 0
     for (var i = 0; i < gram_str.length(); i++;) {
         if (gram_str[i] == '#') {

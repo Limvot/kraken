@@ -340,6 +340,14 @@ obj ast_transformation (Object) {
                     println("USING CACHED TEMPLATE OBJECT")
                     inst_type = results[i]->template.instantiated_map[real_types_deref]
                 } else {
+                    print("Not using cached template - was looking for:\n\t\t")
+                    real_types_deref.for_each(fun(t: type) print(t.to_string() + ", ");)
+                    println("instead, only had:")
+                    results[i]->template.instantiated_map.for_each(fun(key: vector<type>, value: *ast_node) {
+                        print("\t\t")
+                        key.for_each(fun(t: type) print(t.to_string() + ", ");)
+                        println()
+                    })
                     inst_type = first_pass_type_def(results[i]->template.syntax_node, results[i], true)
                     // add to instantiated_map so we only instantiate with a paticular set of types once
                     // put in map first for recursive purposes
@@ -883,7 +891,8 @@ obj ast_transformation (Object) {
                         else
                             second_param = find_or_instantiate_template_function(method_name, null<tree<symbol>>(), get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
                         if (!second_param) {
-                           error(string("Could not find method ") + method_name + " on the right side of (. or ->) " + concat_symbol_tree(node->children[0]) + ", whole string: " + concat_symbol_tree(node))
+                           error("Could not find method " + method_name + " on the right side of (. or ->) " + concat_symbol_tree(node->children[0]) +
+                                 ", whole string: " + concat_symbol_tree(node) + ", left type: " + get_ast_type(first_param)->to_string())
                         }
                     }
                 }
@@ -1128,6 +1137,8 @@ fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool
         // don't care about references
         if (!func_param_types[j]->equality(param_types[j], false)) {
             println(string("types don't match ") + func_param_types[j]->to_string() + " with needed " + param_types[j]->to_string())
+            if (func_param_types[j]->to_string() == param_types[j]->to_string())
+               error("types aren't equal, but their string rep is (and ref doesn't even matter)")
             return false
         }
     }
