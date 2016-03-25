@@ -1,4 +1,5 @@
 import tree:*
+import symbol:*
 import vector:*
 import vector_literals:*
 import set:*

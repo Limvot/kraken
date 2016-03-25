@@ -333,7 +333,7 @@ obj ast_transformation (Object) {
                 println("FOR FIND OR INSTATINTATE")
                 template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)
                 println("MAP DONE")
-                    
+
                 var inst_type = null<ast_node>()
                 // check if already instantiated
                 if (results[i]->template.instantiated_map.contains_key(real_types_deref)) {
@@ -341,14 +341,23 @@ obj ast_transformation (Object) {
                     inst_type = results[i]->template.instantiated_map[real_types_deref]
                 } else {
                     print("Not using cached template - was looking for:\n\t\t")
-                    real_types_deref.for_each(fun(t: type) print(t.to_string() + ", ");)
-                    println("instead, only had:")
+                    var typeStr = string()
+                    real_types_deref.for_each(fun(t: type) typeStr += t.to_string() + ", ";)
+                    print(typeStr)
+                    println("\ninstead, only had:")
                     results[i]->template.instantiated_map.for_each(fun(key: vector<type>, value: *ast_node) {
                         print("\t\t")
-                        key.for_each(fun(t: type) print(t.to_string() + ", ");)
+                        var hasTypStr = string()
+                        key.for_each(fun(t: type) hasTypStr += t.to_string() + ", ";)
+                        print(hasTypStr)
+                        if (typeStr == hasTypStr)
+                            error("they're equal but really shouldnt be")
                         println()
                     })
+                    println("donr")
                     inst_type = first_pass_type_def(results[i]->template.syntax_node, results[i], true)
+                    // no change up it's name so we can see that it's instantiated when printed out and keep track of it
+                    inst_type->type_def.name += "<" + typeStr + ">"
                     // add to instantiated_map so we only instantiate with a paticular set of types once
                     // put in map first for recursive purposes
                     results[i]->template.instantiated_map.set(real_types_deref, inst_type)
@@ -399,8 +408,7 @@ obj ast_transformation (Object) {
                     ast_node::adt_def(backing) return backing.self_type->clone_with_indirection(indirection, is_ref)
                 }
             }
-            println("No objects in lookup, returning none")
-            return type_ptr(base_type::none(), indirection, is_ref)
+            error("no types found for " + type_syntax_str)
         }
     }
     fun transform(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return transform(node, scope, search_type::none(), template_replacements)
@@ -697,7 +705,7 @@ obj ast_transformation (Object) {
         var to_ret = ast_case_statement_ptr()
         var the_adts = scope_lookup(concat_symbol_tree(get_node("scoped_identifier", get_node("scoped_identifier", node))), scope)
         if (the_adts.size != 1)
-           error(string("the adts too large for ") + concat_symbol_tree(get_node("scoped_identifier", node)))
+           error(string("the number of adts found was not 1, it was ") + the_adts.size + " for " + concat_symbol_tree(get_node("scoped_identifier", node)))
         var the_adt = the_adts[0]
         var the_option_name = concat_symbol_tree(get_node("identifier", get_node("scoped_identifier", node)))
         var the_option = the_adt->adt_def.options.find_first_satisfying(fun(option: *ast_node): bool return option->identifier.name == the_option_name;)
@@ -1175,7 +1183,10 @@ fun scope_lookup(name: string, scope: *ast_node): vector<*ast_node> {
         results.for_each(fun(s: *ast_node) {
             print("looking in scope: ")
             println(s)
-            next_results += scope_lookup_helper(i, s, set<*ast_node>())
+            scope_lookup_helper(i, s, set<*ast_node>()).for_each(fun (result: *ast_node) {
+                if (!next_results.contains(result))
+                    next_results.add(result)
+            })
         })
         results = next_results
     })

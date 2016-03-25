@@ -19,6 +19,10 @@ fun operator+(first: *char, second: ref string): string {
     return string(first) + second
 }
 
+/*fun operator+<T>(first: *char, second: T): string {*/
+    /*return string(first) + second*/
+/*}*/
+
 fun string(in:*char):string {
     var out.construct(in):string
     return out

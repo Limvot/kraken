@@ -922,7 +922,7 @@ obj c_generator (Object) {
             base_type::integer() return indirection + string("int")
             base_type::floating() return indirection + string("float")
             base_type::double_precision() return indirection + string("double")
-            base_type::object() return type->type_def->type_def.name
+            base_type::object() return cify_name(type->type_def->type_def.name)
             base_type::adt() return type->type_def->adt_def.name
             base_type::function() {
                 var temp = indirection + string("function_")
@@ -974,7 +974,7 @@ obj c_generator (Object) {
         match (*node) {
             ast_node::type_def(backing) {
                 var upper = backing.scope[string("~enclosing_scope")][0]
-                result = backing.name
+                result = cify_name(backing.name)
                 if (is_template(upper))
                     upper->template.instantiated_map.reverse_get(node).for_each(fun(t: ref type) result += string("_") + type_decoration(&t);)
             }

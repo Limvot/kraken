@@ -139,29 +139,30 @@ obj type (Object) {
             indirection == other.indirection && deref_equality(type_def, other.type_def) && traits == other.traits
     }
     fun to_string(): string {
-        var all_string = string("traits:[")
-        traits.for_each(fun(t: string) all_string += t;)
-        all_string += "] "
+        var trait_string = string(":[")
+        traits.for_each(fun(t: string) trait_string += t;)
+        trait_string += "] "
+        var indr_string = string("")
         if (is_ref)
-           all_string += " ref "
-        for (var i = 0; i < indirection; i++;) all_string += "*"
+           indr_string += " ref "
+        for (var i = 0; i < indirection; i++;) indr_string += "*"
         match (base) {
-            base_type::none() return all_string + string("none")
-            base_type::object() return all_string + type_def->type_def.name
-            base_type::adt() return all_string + type_def->adt_def.name
-            base_type::no_type_adt_option() return all_string + "no_type_adt_option"
-            base_type::template() return all_string + string("template")
-            base_type::template_type() return all_string + string("template_type")
-            base_type::void_return() return all_string + string("void_return")
-            base_type::boolean() return all_string + string("boolean")
-            base_type::character() return all_string + string("character")
-            base_type::integer() return all_string + string("integer")
-            base_type::floating() return all_string + string("floating")
-            base_type::double_precision() return all_string + string("double_precision")
+            base_type::none() return indr_string + string("none") + trait_string
+            base_type::object() return indr_string + type_def->type_def.name + trait_string
+            base_type::adt() return indr_string + type_def->adt_def.name + trait_string
+            base_type::no_type_adt_option() return indr_string + "no_type_adt_option" + trait_string
+            base_type::template() return indr_string + string("template") + trait_string
+            base_type::template_type() return indr_string + string("template_type") + trait_string
+            base_type::void_return() return indr_string + string("void_return") + trait_string
+            base_type::boolean() return indr_string + string("boolean") + trait_string
+            base_type::character() return indr_string + string("character") + trait_string
+            base_type::integer() return indr_string + string("integer") + trait_string
+            base_type::floating() return indr_string + string("floating") + trait_string
+            base_type::double_precision() return indr_string + string("double_precision") + trait_string
             base_type::function() {
-                var temp = all_string + string("fun(")
+                var temp = indr_string + string("fun(")
                 parameter_types.for_each(fun(parameter_type: *type) temp += parameter_type->to_string() + ", ";)
-                return temp + ")" + return_type->to_string()
+                return temp + ")" + return_type->to_string() + trait_string
             }
         }
         return string("impossible type, indirection:") + indirection
