@@ -1092,6 +1092,8 @@ fun make_operator_call(func: string, params: vector<*ast_node>): *ast_node {
     return ast_function_call_ptr(get_builtin_function(func, params.map(fun(p:*ast_node): *type return get_ast_type(p);)), params)
 }
 fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
+    // none of the builtin functions should take in references
+    param_types = param_types.map(fun(t: *type): *type return t->clone_without_ref();)
     if (name == "==" || name == "!=" || name == ">" || name == "<" || name == "<=" || name == ">" || name == ">=" || name == "&&" || name == "||" || name == "!")
         return ast_function_ptr(name, type_ptr(param_types, type_ptr(base_type::boolean())), vector<*ast_node>())
     if (name == "." || name == "->")

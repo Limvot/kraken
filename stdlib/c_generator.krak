@@ -568,7 +568,10 @@ obj c_generator (Object) {
 
             // if we're returning a ref, we need to account for that in the temp type
             // note the temp type is a pointer, not a ref so we don't have the deref/ref thing on return
-            var temp_ident_type = return_value_type
+
+            // now use the function_return_type instead so we don't make a ref
+            // var temp_ident_type = return_value_type
+            var temp_ident_type = function_return_type
             if (function_return_type->is_ref)
                 temp_ident_type = temp_ident_type->clone_with_increased_indirection()
             var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), temp_ident_type, null<ast_node>())
