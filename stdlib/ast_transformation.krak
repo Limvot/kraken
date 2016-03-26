@@ -408,7 +408,9 @@ obj ast_transformation (Object) {
                     ast_node::adt_def(backing) return backing.self_type->clone_with_indirection(indirection, is_ref)
                 }
             }
-            error("no types found for " + type_syntax_str)
+            // error("no types found for " + type_syntax_str)
+            println("no types found for " + type_syntax_str)
+            return type_ptr(base_type::none(), indirection, is_ref)
         }
     }
     fun transform(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return transform(node, scope, search_type::none(), template_replacements)
@@ -881,6 +883,7 @@ obj ast_transformation (Object) {
             var first_param = transform(node->children[0], scope, template_replacements)
             var second_param = null<ast_node>()
             if (func_name == "." || func_name == "->") {
+                println("PRE VANILLA TRY FOR SECOND PARAM")
                 second_param = transform(node->children[2], get_ast_type(first_param)->type_def, searching_for, template_replacements)
                 // template member functions
                 // XXX add in template inst if it exists
@@ -890,14 +893,15 @@ obj ast_transformation (Object) {
                         var inherited_replacements = map<string, *type>()
                         var parent = get_ast_scope(get_ast_type(first_param)->type_def)->get(string("~enclosing_scope"))[0]
                         if (is_template(parent)) {
+                           println("TEMPLATE type PARENT IS TEMPLATE")
                            for (var i = 0; i < parent->template.template_types.size; i++;)
                                inherited_replacements[parent->template.template_types[i]] = parent->template.instantiated_map.reverse_get(get_ast_type(first_param)->type_def)[i].clone()
+                        } else {
+                           println("TEMPLATE type PARENT IS NOT TEMPLATE")
                         }
                         var method_name = concat_symbol_tree(node->children[2])
-                        if (template_inst)
-                            second_param = find_or_instantiate_template_function(method_name, template_inst, get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
-                        else
-                            second_param = find_or_instantiate_template_function(method_name, null<tree<symbol>>(), get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
+                        println("PRE TEMPLATE TRY FOR SECOND PARAM")
+                        second_param = find_or_instantiate_template_function(method_name, template_inst, get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
                         if (!second_param) {
                            error("Could not find method " + method_name + " on the right side of (. or ->) " + concat_symbol_tree(node->children[0]) +
                                  ", whole string: " + concat_symbol_tree(node) + ", left type: " + get_ast_type(first_param)->to_string())
@@ -1122,10 +1126,12 @@ fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<st
                     println("TEMPLATE inference hit different sizes")
                 }
             } else {
-                error("TEMPLATE inference hit non parent template")
+                // error("TEMPLATE inference hit non parent template")
+                println("TEMPLATE inference hit non parent template")
             }
         } else {
-            error("TEMPLATE inference hit non object")
+            // error("TEMPLATE inference hit non object")
+            println("TEMPLATE inference hit non object")
         }
     } else {
         println(template_type->children[0]->data.name)

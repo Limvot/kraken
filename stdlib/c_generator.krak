@@ -234,7 +234,7 @@ obj c_generator (Object) {
                         function_definitions += "/*no inner data*/\n"
                     else {
                         var param = backing.parameters[0]
-                        if (option_type->is_adt() || (option_type->is_object() && has_method(option_type->type_def, "copy_construct", vector(option_type->clone_with_increased_indirection())))) {
+                        if (option_type->indirection == 0 && (option_type->is_adt() || (option_type->is_object() && has_method(option_type->type_def, "copy_construct", vector(option_type->clone_with_increased_indirection()))))) {
                             function_definitions += generate(ast_statement_ptr(make_method_call(make_operator_call(".", vector(to_ret_ident, option_ident)), "copy_construct", vector(make_operator_call("&", vector(param))))), null<ast_node>(), null<ast_node>(), &defer_stack, false).one_string()
                             function_definitions += generate_from_defer_stack(&defer_stack, -1, enclosing_object, child).one_string()
                         } else {
@@ -257,7 +257,7 @@ obj c_generator (Object) {
                            if (option_type->is_empty_adt_option()) {
                                 function_definitions += "return true;"
                            } else {
-                                if (option_type->is_adt() || (option_type->is_object() && has_method(option_type->type_def, "operator==", vector(option_type)))) {
+                                if (option_type->indirection == 0 && (option_type->is_adt() || (option_type->is_object() && has_method(option_type->type_def, "operator==", vector(option_type))))) {
                                     defer_stack.push(make_pair(false, stack<*ast_node>()))
                                     var equals_res = generate(ast_statement_ptr(make_method_call(make_operator_call("->", vector(adt_this, option)), "operator==", vector(make_operator_call(".", vector(param, option))))), null<ast_node>(), null<ast_node>(), &defer_stack, false)
                                     equals_res.value = string("bool result = ") + equals_res.value + ";\n"
@@ -289,7 +289,7 @@ obj c_generator (Object) {
                            if (option_type->is_empty_adt_option()) {
                                 function_definitions += "/*no data to copy*/;"
                            } else {
-                                if (option_type->is_adt() || (option_type->is_object() && has_method(option_type->type_def, "copy_construct", vector(option_type->clone_with_increased_indirection())))) {
+                                if (option_type->indirection == 0 && (option_type->is_adt() || (option_type->is_object() && has_method(option_type->type_def, "copy_construct", vector(option_type->clone_with_increased_indirection()))))) {
                                    // don't really need the defer_stack
                                     function_definitions += generate(ast_statement_ptr(make_method_call(make_operator_call("->", vector(adt_this, option)), "copy_construct", vector(make_operator_call("&", vector(make_operator_call("->", vector(param, option))))))), null<ast_node>(), null<ast_node>(), &defer_stack, false).one_string()
                                 } else {
@@ -312,7 +312,7 @@ obj c_generator (Object) {
                        enclosing_object->adt_def.options.for_each(fun(option: *ast_node) {
                            var option_type = option->identifier.type
                            function_definitions += string("if (this->flag == ") + string("enum_opt_") + generate_identifier(option, null<ast_node>(), null<ast_node>()).one_string() + ") {\n"
-                            if (option_type->is_adt() || (option_type->is_object() && has_method(option_type->type_def, "destruct", vector<*type>()))) {
+                            if (option_type->indirection == 0 && (option_type->is_adt() || (option_type->is_object() && has_method(option_type->type_def, "destruct", vector<*type>())))) {
                                 // don't really need the defer_stack
                                 function_definitions += generate(ast_statement_ptr(make_method_call(make_operator_call("->", vector(adt_this, option)), "destruct", vector<*ast_node>())), null<ast_node>(), null<ast_node>(), &defer_stack, false).one_string()
                             }
@@ -477,7 +477,7 @@ obj c_generator (Object) {
         // we only make it first if it's a function type though, so that global levels still work
         var to_ret = code_triple(type_to_c(identifier->identifier.type) + " " + get_name(identifier), string(), string())
         if (node->declaration_statement.expression) {
-            if (ident_type->is_adt() || (ident_type->is_object() && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(node->declaration_statement.expression)->clone_with_increased_indirection())))) {
+            if (ident_type->indirection == 0 && (ident_type->is_adt() || (ident_type->is_object() && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(node->declaration_statement.expression)->clone_with_increased_indirection()))))) {
                 to_ret.pre += ";\n"
                 to_ret += generate(ast_statement_ptr(make_method_call(identifier, "copy_construct", vector(make_operator_call("&", vector(node->declaration_statement.expression))))), enclosing_object, enclosing_func, defer_stack, false)
             } else {
