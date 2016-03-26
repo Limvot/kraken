@@ -138,10 +138,15 @@ obj type (Object) {
         return base == other.base && deref_equality(return_type, other.return_type) &&
             indirection == other.indirection && deref_equality(type_def, other.type_def) && traits == other.traits
     }
-    fun to_string(): string {
-        var trait_string = string(":[")
-        traits.for_each(fun(t: string) trait_string += t;)
-        trait_string += "] "
+    fun to_string(): string return to_string(true);
+    fun to_string(include_traits: bool): string {
+        var trait_string = string()
+        if (include_traits) {
+            trait_string = string(":[")
+            traits.for_each(fun(t: string) trait_string += t;)
+            trait_string += "] "
+        }
+        
         var indr_string = string("")
         if (is_ref)
            indr_string += " ref "
@@ -218,6 +223,18 @@ obj type (Object) {
     fun is_empty_adt_option(): bool {
         match (base) {
             base_type::no_type_adt_option() return true
+        }
+        return false
+    }
+    fun is_none(): bool {
+        match (base) {
+            base_type::none() return true
+        }
+        return false
+    }
+    fun is_template_type(): bool {
+        match (base) {
+            base_type::template_type() return true
         }
         return false
     }

@@ -342,19 +342,22 @@ obj ast_transformation (Object) {
                 } else {
                     print("Not using cached template - was looking for:\n\t\t")
                     var typeStr = string()
-                    real_types_deref.for_each(fun(t: type) typeStr += t.to_string() + ", ";)
+                    real_types_deref.for_each(fun(t: type) typeStr += t.to_string(false) + " ";)
                     print(typeStr)
                     println("\ninstead, only had:")
                     results[i]->template.instantiated_map.for_each(fun(key: vector<type>, value: *ast_node) {
                         print("\t\t")
                         var hasTypStr = string()
-                        key.for_each(fun(t: type) hasTypStr += t.to_string() + ", ";)
+                        key.for_each(fun(t: type) hasTypStr += t.to_string(false) + " ";)
                         print(hasTypStr)
                         if (typeStr == hasTypStr)
                             error("they're equal but really shouldnt be")
                         println()
                     })
                     println("donr")
+                    if (real_types.any_true(fun(t: *type): bool return t->is_none() || t ->is_template_type();)) {
+                        error("Instantiating types for templated object are not all real types!")
+                    }
                     inst_type = first_pass_type_def(results[i]->template.syntax_node, results[i], true)
                     // no change up it's name so we can see that it's instantiated when printed out and keep track of it
                     inst_type->type_def.name += "<" + typeStr + ">"
@@ -787,10 +790,12 @@ obj ast_transformation (Object) {
                     if (is_template(enclosing) && is_type_def(enclosing->template.scope[string("~enclosing_scope")][0]))
                     return set(make_this(enclosing->template.scope[string("~enclosing_scope")][0]))
                 }
-                // if this is a lambda, we need to close over what it closes over
+                // if this is a lambda, we need to check all of the things it closes over
                 // we don't need an if - if it's empty and not a lambda, it's empty
                 // and we don't close over actual functions
-                return backing.closed_variables
+                var to_ret = set<*ast_node>()
+                backing.closed_variables.for_each(fun(n: *ast_node) to_ret += find_closed_variables(func, n);)
+                return to_ret
             }
             ast_node::return_statement(backing) {
                 println("found an return_statement")
@@ -800,8 +805,16 @@ obj ast_transformation (Object) {
                 println("found an if statement")
                 return find_closed_variables(func, backing.condition) + find_closed_variables(func, backing.then_part) + find_closed_variables(func, backing.else_part)
             }
-    // match_statement: match_statement,
-    // case_statement: case_statement,
+            ast_node::match_statement(backing) {
+                println("found an match_statement")
+                var to_ret = set<*ast_node>()
+                backing.cases.for_each(fun(n: *ast_node) to_ret += find_closed_variables(func, n);)
+                return to_ret
+            }
+            ast_node::case_statement(backing) {
+                println("found a case_statement")
+                return find_closed_variables(func, backing.statement)
+            }
             ast_node::while_loop(backing) {
                 println("found an while loop")
                 return find_closed_variables(func, backing.condition) + find_closed_variables(func, backing.statement)
@@ -925,8 +938,18 @@ obj ast_transformation (Object) {
         var possible_overload = null<ast_node>()
         if ((parameter_types[0]->is_adt() || parameter_types[0]->is_object()) && parameter_types[0]->indirection == 0) {
            possible_overload = function_lookup(string("operator")+func_name, parameter_types.first()->type_def, parameter_types.slice(1,-1))
-            if (!possible_overload)
-                possible_overload = find_or_instantiate_template_function(string("operator")+func_name, null<tree<symbol>>(), parameter_types.first()->type_def, parameter_types.slice(1,-1), template_replacements, map<string, *type>())
+            if (!possible_overload) {
+                var inherited_replacements = map<string, *type>()
+                var parent = get_ast_scope(parameter_types.first()->type_def)->get(string("~enclosing_scope"))[0]
+                if (is_template(parent)) {
+                    println("TEMPLATE type PARENT IS TEMPLATE")
+                    for (var i = 0; i < parent->template.template_types.size; i++;)
+                        inherited_replacements[parent->template.template_types[i]] = parent->template.instantiated_map.reverse_get(parameter_types.first()->type_def)[i].clone()
+                } else {
+                    println("TEMPLATE type PARENT IS NOT TEMPLATE")
+                }
+                possible_overload = find_or_instantiate_template_function(string("operator")+func_name, null<tree<symbol>>(), parameter_types.first()->type_def, parameter_types.slice(1,-1), template_replacements, inherited_replacements)
+            }
            if (possible_overload)
                 return make_method_call(parameters.first(), possible_overload, parameters.slice(1,-1))
         }
@@ -1010,6 +1033,10 @@ obj ast_transformation (Object) {
 
                 if (!satisfied_traits) {
                    println("Did not satisfy traits!")
+                   continue
+                }
+                if (real_types.any_true(fun(t: *type): bool return t->is_none() || t ->is_template_type();)) {
+                   println("Instantiating types not all real types!")
                    continue
                 }
 
@@ -1144,7 +1171,7 @@ fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool
     var param_string = string()
     param_types.for_each(fun(t: *type) param_string += t->to_string() + ", ";)
     if (func_param_types.size != param_types.size) {
-        println(string("type sizes don't match") + param_types.size + " with needed " + param_string)
+        println(string("type sizes don't match ") + param_types.size + " with needed " + param_string)
         return false
     }
     for (var j = 0; j < param_types.size; j++;) {
@@ -1180,15 +1207,15 @@ fun identifier_lookup(name: string, scope: *ast_node): *ast_node {
     return results[0]
 }
 fun scope_lookup(name: string, scope: *ast_node): vector<*ast_node> {
-    println("*****Doing a name lookup for*****")
-    println(name)
+    // println("*****Doing a name lookup for*****")
+    // println(name)
     var results = vector(scope)
     name.split("::").for_each(fun(i: string) {
-        println(string("based on split, looking up: ") + i)
+        // println(string("based on split, looking up: ") + i)
         var next_results = vector<*ast_node>()
         results.for_each(fun(s: *ast_node) {
-            print("looking in scope: ")
-            println(s)
+            // print("looking in scope: ")
+            // println(s)
             scope_lookup_helper(i, s, set<*ast_node>()).for_each(fun (result: *ast_node) {
                 if (!next_results.contains(result))
                     next_results.add(result)
@@ -1200,16 +1227,16 @@ fun scope_lookup(name: string, scope: *ast_node): vector<*ast_node> {
 }
 fun scope_lookup_helper(name: string, scope: *ast_node, visited: set<*ast_node>): vector<*ast_node> {
     // need to do properly scopded lookups
-    print("scope is: ")
-    get_ast_scope(scope)->for_each(fun(key: string, value: vector<*ast_node>) print(key + " ");)
-    println()
+    // print("scope is: ")
+    // get_ast_scope(scope)->for_each(fun(key: string, value: vector<*ast_node>) print(key + " ");)
+    // println()
     var results = vector<*ast_node>()
     // prevent re-checking the same one...
     if (visited.contains(scope))
         return results
     visited.add(scope)
     if (get_ast_scope(scope)->contains_key(name)) {
-        println(name + " is in scope, adding to results")
+        // println(name + " is in scope, adding to results")
         results += get_ast_scope(scope)->get(name)
     }
     if (get_ast_scope(scope)->contains_key(string("~enclosing_scope")))
@@ -1218,15 +1245,15 @@ fun scope_lookup_helper(name: string, scope: *ast_node, visited: set<*ast_node>)
         scope->translation_unit.children.for_each(fun(child: *ast_node) {
             if (is_import(child)) {
                 if (child->import.imported.contains(name)) {
-                    println(name + " is indeed imported")
+                    // println(name + " is indeed imported")
                     results += scope_lookup_helper(name, child->import.translation_unit, visited)
                 } else if (child->import.starred) {
-                    println("import has an import *, checking along it")
+                    // println("import has an import *, checking along it")
                     results += scope_lookup_helper(name, child->import.translation_unit, visited)
                 } else {
-                    println(name + " is not imported (this time)")
-                    print("import imports")
-                    child->import.imported.for_each(fun(it: string) print(it + " ");)
+                    // println(name + " is not imported (this time)")
+                    // print("import imports")
+                    // child->import.imported.for_each(fun(it: string) print(it + " ");)
                 }
             }
         })

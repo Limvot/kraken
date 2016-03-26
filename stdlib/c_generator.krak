@@ -131,7 +131,7 @@ obj c_generator (Object) {
         replacement_map[string(")")] = string("closeparen")
         replacement_map[string("[")] = string("obk")
         replacement_map[string("]")] = string("cbk")
-        replacement_map[string(" ")] = string("space")
+        replacement_map[string(" ")] = string("_")
         replacement_map[string(".")] = string("dot")
         replacement_map[string("->")] = string("arrow")
 
@@ -264,6 +264,10 @@ obj c_generator (Object) {
                                     equals_res.post += generate_from_defer_stack(&defer_stack, -1, enclosing_object, child).one_string()
                                     defer_stack.pop()
                                     function_definitions += equals_res.one_string() + "return result;\n"
+                                } else if (option_type->is_object()) {
+                                    // if we are an object but don't define an operator== function (or it is templated)
+                                    // always return false.
+                                    function_definitions += "return false;\n"
                                 } else {
                                     var option_name = generate_identifier(option, null<ast_node>(), null<ast_node>()).one_string()
                                     var param_name = generate_identifier(param, null<ast_node>(), null<ast_node>()).one_string()
@@ -644,14 +648,15 @@ obj c_generator (Object) {
             to_ret = value;
         } else {
             to_ret = string("\"")
-            if (value.slice(0,3) == "\"\"\"")
+            var triple_quoted = value.slice(0,3) == "\"\"\""
+            if (triple_quoted)
                 value = value.slice(3,-4)
             else
                 value = value.slice(1,-2)
             value.for_each(fun(c: char) {
                 if (c == '\n')
                     to_ret += "\\n"
-                else if (c == '"')
+                else if (c == '"' && triple_quoted)
                     to_ret += "\\\""
                 else
                     to_ret += c
