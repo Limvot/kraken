@@ -1,6 +1,6 @@
 #!/bin/bash
 
-runner_path="./tester/tester"
+runner_path="./tester"
 #testDir=${1:-"../tests"}
 testDir="."
 ext=${2:-"krak"}

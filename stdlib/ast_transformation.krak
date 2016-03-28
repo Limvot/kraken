@@ -554,6 +554,7 @@ obj ast_transformation (Object) {
             return new_passthrough
         var in_passthrough_params = get_node("in_passthrough_params", passthrough_params)
         var out_passthrough_params = get_node("out_passthrough_params", passthrough_params)
+        var linker_str = get_node("opt_string", passthrough_params)
         if (in_passthrough_params)
             get_nodes("param_assign", in_passthrough_params).for_each(fun(p: *tree<symbol>) {
                 var idents = get_nodes("identifier", p)
@@ -570,6 +571,8 @@ obj ast_transformation (Object) {
                 else
                     new_passthrough->simple_passthrough.out_params.add(make_pair(transform_identifier(idents[0], scope, search_type::none()), concat_symbol_tree(idents[0])))
             })
+        if (linker_str)
+            new_passthrough->simple_passthrough.linker_str = concat_symbol_tree(linker_str).slice(1,-2)
         return new_passthrough
     }
     fun transform_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return ast_statement_ptr(transform(node->children[0], scope, template_replacements));

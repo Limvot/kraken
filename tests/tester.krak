@@ -8,7 +8,7 @@ fun error(message: *char) {
 }
 
 fun main(argc: int, argv: **char): int {
-    var kraken_path = string("./test_compiler/test_compiler")
+    var kraken_path = string("../kraken")
     var all_results = string()
     var num_passed = 0
     var name_length = 0
@@ -28,7 +28,7 @@ fun main(argc: int, argv: **char): int {
         if (system(kraken_path + " " + test_name + ".krak")) error("could not compile")
         var results_file_name = test_name + ".results"
         var expected_results_file_name = test_name + ".expected_results"
-        if (system(string("./") + test_name + ".krak.exe > " + results_file_name)) error("could not run")
+        if (system(string("./") + test_name + " > " + results_file_name)) error("could not run")
         if (file_exists(results_file_name) && file_exists(expected_results_file_name) && read_file(results_file_name) == read_file(expected_results_file_name)) {
             println(test_name + "\tPASSED!")
             all_results += pad_with_spaces(test_name) + "\tPASSED!\n"
@@ -39,6 +39,7 @@ fun main(argc: int, argv: **char): int {
             all_results += pad_with_spaces(test_name) + "\tFAILED!!!\n"
         }
         system(string("rm ./") + test_name + ".krak.*")
+        system(string("rm ./") + test_name)
     }
     println(string("\n\nTEST RESULTS: ") + num_passed + "/" + (argc-1))
     println(all_results)

@@ -18,3 +18,5 @@ callgrind*
 bintest.bin
 *.dot
 .stfolder
+kraken
+*.c

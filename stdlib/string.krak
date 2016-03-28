@@ -189,6 +189,12 @@ obj string (Object, Serializable) {
         out.add(current)
         return out
     }
+    fun join(to_join: vector::vector<string>): string {
+        var to_ret = to_join.first()
+        for (var i = 1; i < to_join.size; i++;)
+            to_ret += *this + to_join[i]
+        return to_ret
+    }
     fun for_each(func: fun(char):void) {
         data.for_each(func)
     }

@@ -15,8 +15,10 @@ fun main(argc: int, argv: **char):int {
     /*var gram.construct(): grammer*/
     // delay construction until we either load it or copy construct it
     var gram: grammer
-
-    var file_name = string("../krakenGrammer.kgm")
+    var base_dir = string("/").join(string(argv[0]).split('/').slice(0,-2))
+    println(base_dir)
+    var file_name = base_dir + "/krakenGrammer.kgm"
+    println(file_name)
 
     var compiled_name = file_name + string(".comp_new")
     var file_contents = read_file(file_name)
@@ -37,12 +39,12 @@ fun main(argc: int, argv: **char):int {
             pos = gram.unserialize(binary, pos)
             println("finished unserializeing!!")
         } else {
-            println("file contents do not match:")
-            println("CACHED:")
-            println(cached_contents)
-            println("REAL:")
-            println(file_contents)
-            println("END")
+            /*println("file contents do not match:")*/
+            /*println("CACHED:")*/
+            /*println(cached_contents)*/
+            /*println("REAL:")*/
+            /*println(file_contents)*/
+            /*println("END")*/
         }
     } else {
         println("cached file does not exist")
@@ -61,12 +63,13 @@ fun main(argc: int, argv: **char):int {
         println("done writing")
     }
 
-    var kraken_file_name = string("to_parse.krak")
-    if (argc > 1)
-        kraken_file_name = string(argv[1])
+    if (argc <= 1) {
+        error("No input file!\n Call with one argument (the input file), or two arguments (input file and output name)")
+    }
+    var kraken_file_name = string(argv[1])
     var parse.construct(gram): parser
     var ast_pass.construct(): ast_transformation
-    var importer.construct(parse, ast_pass, vector(string(), string("../stdlib/"))): importer
+    var importer.construct(parse, ast_pass, vector(string(), base_dir + "/stdlib/")): importer
     importer.import(kraken_file_name)
     println("NOW DOING C_GENERATOR")
     var c_generator.construct(): c_generator
@@ -74,7 +77,13 @@ fun main(argc: int, argv: **char):int {
     var kraken_c_output_name = kraken_file_name + ".c"
     write_file(kraken_c_output_name, c_output_pair.first)
     println(string("linker string: ") + c_output_pair.second)
-    system(string("cc -g -O3 -std=c99 ") + kraken_c_output_name + " -o " + kraken_file_name + ".exe")
+
+    var executable_name = string(".").join(kraken_file_name.split('.').slice(0,-2))
+    if (argc == 3)
+        executable_name = string(argv[2])
+    var compile_string = "cc -g -O3 -std=c99 " + c_output_pair.second + " " + kraken_c_output_name + " -o " + executable_name
+    println(compile_string)
+    system(compile_string)
 
     return 0
 }

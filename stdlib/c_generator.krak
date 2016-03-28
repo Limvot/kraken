@@ -82,6 +82,7 @@ obj c_generator (Object) {
     var closure_struct_definitions: string
     var replacement_map: map<string, string>
     var longest_replacement: int
+    var linker_string: string
     fun construct(): *c_generator {
         id_counter = 0
         ast_name_map.construct()
@@ -89,6 +90,7 @@ obj c_generator (Object) {
         function_type_map.construct()
         function_typedef_string.construct()
         closure_struct_definitions.construct()
+        linker_string.construct()
         replacement_map.construct()
         // IMPORTANT
         longest_replacement = 3
@@ -146,6 +148,7 @@ obj c_generator (Object) {
         closure_struct_definitions.copy_construct(&old->closure_struct_definitions)
         replacement_map.copy_construct(&old->replacement_map)
         longest_replacement = old->longest_replacement
+        linker_string.copy_construct(&old->linker_string)
     }
     fun operator=(other: ref c_generator) {
         destruct()
@@ -158,6 +161,7 @@ obj c_generator (Object) {
         function_typedef_string.destruct()
         closure_struct_definitions.destruct()
         replacement_map.destruct()
+        linker_string.destruct()
     }
     fun get_id(): string return to_string(id_counter++);
     fun generate_function_prototype_and_header(child: *ast_node, enclosing_object: *ast_node, is_lambda: bool, defer_stack: *stack<pair<bool,stack<*ast_node>>>):pair<string,string> {
@@ -193,7 +197,6 @@ obj c_generator (Object) {
                          type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ")")
     }
     fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<string,string> {
-        var linker_string:string = ""
         var prequal: string = "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n"
         var plain_typedefs: string = "\n/**Plain Typedefs**/\n"
         var top_level_c_passthrough: string = ""
@@ -455,6 +458,8 @@ obj c_generator (Object) {
         var result = string()
         var pre = string()
         var post = string()
+        if (node->simple_passthrough.linker_str != "")
+            linker_string += node->simple_passthrough.linker_str + " "
         node->simple_passthrough.in_params.for_each(fun(i: pair<*ast_node, string>) {
             var wanted_name = i.second
             var current_name = generate_identifier(i.first, null<ast_node>(), null<ast_node>()).one_string()
@@ -701,7 +706,7 @@ obj c_generator (Object) {
             closed_vars.for_each(fun(i: *ast_node) {
                 // note that we get/have gotten rid of refs here, or maybe more accurately, everything is a ref
                 // should be a variable anyway?
-                to_ret.pre += string(".") + get_name(i) + "=&" + generate(i, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), true).one_string() + ","
+                to_ret.pre += string(".") + get_name(i) + "=(void*)&" + generate(i, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), true).one_string() + ","
             })
             to_ret.pre += "};\n"
             return to_ret + string("((") + type_to_c(node->function.type) + "){(void*)&" + temp_closure_struct + ",(void*)" + get_name(node) + "})"
