@@ -20,3 +20,5 @@ bintest.bin
 .stfolder
 kraken
 *.c
+kraken_bac
+kraken_deprecated

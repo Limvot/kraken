@@ -1,9 +1,0 @@
-Goal = translation_unit ;
-translation_unit = function "
-" ;
-
-function = "why" typed_return WS code_block ;
-typed_return = WS "bad" | ;
-code_block = "{" WS "}" ;
-
-WS = "( |	)+" | ;
