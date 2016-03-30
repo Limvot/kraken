@@ -213,9 +213,9 @@ obj parser (Object) {
                     // do non-null reductions
                     if (curr_reduction.length) {
                         gram.parse_table.get(shift_to, input[i]).for_each(fun(act: action) {
-                            var reduce_rule = gram.rules[act.state_or_rule]
                             /*if (act.act == reduce && !fully_reduces_to_null(reduce_rule)) {*/
                             if (act.act == action_type::reduce() && act.rule_position != 0) {
+                                var reduce_rule = gram.rules[act.state_or_rule]
                                 to_reduce.push(reduction(curr_reached, reduce_rule.lhs,
                                                             act.rule_position,
                                                 get_nullable_parts(reduce_rule),

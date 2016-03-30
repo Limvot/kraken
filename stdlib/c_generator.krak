@@ -175,7 +175,7 @@ obj c_generator (Object) {
             parameters = type_to_c(enclosing_object->type_def.self_type) + "* this"
         }
         if (backing.closed_variables.size()) {
-            println("HAS CLOSED VARIABLES")
+            /*println("HAS CLOSED VARIABLES")*/
             if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
             var closed_type_name = get_closure_struct_type(backing.closed_variables)
             parameter_types += closed_type_name + "*"
@@ -248,10 +248,10 @@ obj c_generator (Object) {
                     function_definitions += "}\n"
                 } else {
                     // this is one of the other functions instead
-                    var param = backing.parameters[0]
                     var adt_this = ast_identifier_ptr("this", enclosing_object->type_def.self_type->clone_with_indirection(1), enclosing_object)
                     function_definitions += "{\n"
                     if (backing.name == "operator==") {
+                        var param = backing.parameters[0]
                        function_definitions += "/*operator==*/"
                        function_definitions += string("if (this->flag != ") + generate_identifier(param, null<ast_node>(), null<ast_node>()).one_string() + ".flag) return false;\n"
                        enclosing_object->adt_def.options.for_each(fun(option: *ast_node) {
@@ -280,6 +280,7 @@ obj c_generator (Object) {
                            function_definitions += "}\n"
                        })
                     } else if (backing.name == "operator!=") {
+                      var param = backing.parameters[0]
                       function_definitions += "/*operator!=*/"
                       defer_stack.push(make_pair(false, stack<*ast_node>()))
                       var equals_res = generate(ast_statement_ptr(make_method_call(make_operator_call("*", vector(adt_this)), "operator==", vector(param))), null<ast_node>(), null<ast_node>(), &defer_stack, false)
@@ -288,6 +289,7 @@ obj c_generator (Object) {
                       defer_stack.pop()
                       function_definitions += equals_res.one_string() + "return result;\n"
                     } else if (backing.name == "copy_construct") {
+                      var param = backing.parameters[0]
                       function_definitions += "/*copy_construct*/"
                        function_definitions += string("this->flag = ") + generate_identifier(param, null<ast_node>(), null<ast_node>()).one_string() + "->flag;\n"
                        enclosing_object->adt_def.options.for_each(fun(option: *ast_node) {
@@ -308,6 +310,7 @@ obj c_generator (Object) {
                            function_definitions += "}\n"
                        })
                     } else if (backing.name == "operator=") {
+                      var param = backing.parameters[0]
                       function_definitions += "/*operator=*/"
                       defer_stack.push(make_pair(false, stack<*ast_node>()))
                       function_definitions += generate(ast_statement_ptr(make_method_call(make_operator_call("*", vector(adt_this)), "destruct", vector<*ast_node>())), null<ast_node>(), null<ast_node>(), &defer_stack, false).one_string()
@@ -850,7 +853,7 @@ obj c_generator (Object) {
         }
         if (!is_function(node->function_call.func) || node->function_call.func->function.closed_variables.size()) {
             // not function, so we must be an identifier or function call return or something
-            println(get_ast_name(node->function_call.func) + " is not a function! must be a lambda or something")
+            /*println(get_ast_name(node->function_call.func) + " is not a function! must be a lambda or something")*/
             if (!dot_style_method_call) {
                 // lambda
                 if (pre_call == "" && (!func_return_type->is_void() || func_return_type->indirection)) {
