@@ -863,7 +863,7 @@ obj ast_transformation (Object) {
                     search_type::function(type_vec) result = find_or_instantiate_template_function(concat_symbol_tree(identifier), template_inst, scope, type_vec, template_replacements, map<string, *type>())
                 }
                 if (!result)
-                   error("Could not find templated function even though had a template_inst")
+                   error("Could not find templated function " + concat_symbol_tree(identifier) + "  even though had a template_inst")
                 return result
             }
             var check_if_post = concat_symbol_tree(node->children[1])
