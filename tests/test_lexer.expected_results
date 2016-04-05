@@ -1,22 +1,22 @@
-a+: aaaa true
-test: test true
+a+: aaaa true[:1]
+test: test true[:1]
 old contributed tests
-b: b true
-b: b true
-$EOF$: $EOF$ false
+b: b true[:1]
+b: b true[:1]
+$EOF$: $EOF$ false[:0]
 
-a*: aaa true
-b: b true
-a*: aa true
-b: b true
-b: b true
-$EOF$: $EOF$ false
+a*: aaa true[:1]
+b: b true[:1]
+a*: aa true[:1]
+b: b true[:1]
+b: b true[:1]
+$EOF$: $EOF$ false[:0]
 
-a|b: b true
-$INVALID$: $INVALID$ false
+a|b: b true[:1]
+$INVALID$: $INVALID$ false[:0]
 
-xyzzy: xyzzy true
-$EOF$: $EOF$ false
+xyzzy: xyzzy true[:1]
+$EOF$: $EOF$ false[:0]
 
-(i|n|t|e)+: intent true
-$EOF$: $EOF$ false
+(i|n|t|e)+: intent true[:1]
+$EOF$: $EOF$ false[:0]

@@ -21,6 +21,7 @@ fun main(argc: int, argv: **char):int {
     println(file_name)
 
     var compiled_name = file_name + string(".comp_new")
+    var compiled_version = 1
     var file_contents = read_file(file_name)
     var loaded_and_valid = false
 
@@ -29,23 +30,20 @@ fun main(argc: int, argv: **char):int {
         var pos = 0
         var binary = read_file_binary(compiled_name)
         println("read file!")
-        var cached_contents = string()
-        unpack(cached_contents, pos) = unserialize<string>(binary, pos)
-        if (cached_contents == file_contents) {
-            println("loaded_and_valid, using cached version!")
-            loaded_and_valid = true
-            /*unpack(gram, pos) = unserialize<grammer>(binary, pos)*/
-            // skip unnecessary copies this way
-            pos = gram.unserialize(binary, pos)
-            println("finished unserializeing!!")
-        } else {
-            /*println("file contents do not match:")*/
-            /*println("CACHED:")*/
-            /*println(cached_contents)*/
-            /*println("REAL:")*/
-            /*println(file_contents)*/
-            /*println("END")*/
-        }
+        var saved_version = 0
+        unpack(saved_version, pos) = unserialize<int>(binary, pos)
+        if (saved_version == compiled_version) {
+            var cached_contents = string()
+            unpack(cached_contents, pos) = unserialize<string>(binary, pos)
+            if (cached_contents == file_contents) {
+                println("loaded_and_valid, using cached version!")
+                loaded_and_valid = true
+                /*unpack(gram, pos) = unserialize<grammer>(binary, pos)*/
+                // skip unnecessary copies this way
+                pos = gram.unserialize(binary, pos)
+                println("finished unserializeing!!")
+            } else println("contents different")
+        } else println("version number different")
     } else {
         println("cached file does not exist")
     }
@@ -59,7 +57,7 @@ fun main(argc: int, argv: **char):int {
         println("grammer loaded, calculate_state_automaton")
         gram.calculate_state_automaton()
         println("calculated, writing out")
-        write_file_binary(compiled_name, serialize(file_contents) + serialize(gram))
+        write_file_binary(compiled_name, serialize(compiled_version) + serialize(file_contents) + serialize(gram))
         println("done writing")
     }
 

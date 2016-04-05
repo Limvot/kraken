@@ -222,11 +222,16 @@ obj ast_transformation (Object) {
         var return_type = null<type>()
         if (typed_return_node) return_type = transform_type(get_node("type", typed_return_node), scope, template_replacements)
                          else return_type = type_ptr(base_type::void_return())
+        if (return_type->is_none())
+            error(node, "return type none")
         // transform parameters
         var parameters = vector<*ast_node>()
         get_nodes("typed_parameter", node).for_each(fun(child: *tree<symbol>) {
             // note the temporary null<ast_node>() which gets replaced below, as the dependency is circular
-            parameters.add(ast_identifier_ptr(concat_symbol_tree(get_node("identifier", child)), transform_type(get_node("type", child), scope, template_replacements), null<ast_node>()))
+            var param_type = transform_type(get_node("type", child), scope, template_replacements)
+            if (param_type->is_none())
+                error(child, "parameter type none")
+            parameters.add(ast_identifier_ptr(concat_symbol_tree(get_node("identifier", child)), param_type, null<ast_node>()))
         })
         // figure out function type and make function_node
         var function_node = ast_function_ptr(function_name, type_ptr(parameters.map(fun(parameter: *ast_node): *type return parameter->identifier.type;), return_type), parameters)
@@ -351,12 +356,12 @@ obj ast_transformation (Object) {
                         key.for_each(fun(t: type) hasTypStr += t.to_string(false) + " ";)
                         /*print(hasTypStr)*/
                         if (typeStr == hasTypStr)
-                            error("they're equal but really shouldnt be")
+                            error(node, "they're equal but really shouldnt be")
                         /*println()*/
                     })
                     /*println("donr")*/
                     if (real_types.any_true(fun(t: *type): bool return t->is_none() || t ->is_template_type();)) {
-                        error("Instantiating types for templated object are not all real types!")
+                        error(node, "Instantiating types for templated object are not all real types!")
                     }
                     inst_type = first_pass_type_def(results[i]->template.syntax_node, results[i], true)
                     // no change up it's name so we can see that it's instantiated when printed out and keep track of it
@@ -372,7 +377,7 @@ obj ast_transformation (Object) {
             }
             if (fitting_types.size == 0) {
                 println("no working templated object found")
-                error("FREAK OUT AUTOMATON")
+                error(node, "FREAK OUT AUTOMATON")
                 return null<type>()
             }
             return fitting_types.max(fun(a: pair<*ast_node, int>, b: pair<*ast_node, int>): bool return a.second < b.second;).first->type_def.self_type->clone_with_indirection(indirection, is_ref)
@@ -466,7 +471,7 @@ obj ast_transformation (Object) {
             return transform_value(node, scope)
         }
         print("FAILED TO TRANSFORM: "); print(name + ": "); println(concat_symbol_tree(node))
-        error("FAILED TO TRANSFORM")
+        error(node, "FAILED TO TRANSFORM")
         return null<ast_node>()
     }
     fun transform_all(nodes: vector<*tree<symbol>>, scope: *ast_node, template_replacements: map<string, *type>): vector<*ast_node> {
@@ -593,7 +598,8 @@ obj ast_transformation (Object) {
             if (!type_syntax_node)
                 identifier->identifier.type = get_ast_type(expression)->clone_without_ref()
         }
-        if (!identifier->identifier.type) error("declaration statement with no type or expression from which to inference type")
+        if (!identifier->identifier.type) error(node, "declaration statement with no type or expression from which to inference type")
+        if (identifier->identifier.type->is_none()) error(node, "declaration statement with bad type")
         var declaration = ast_declaration_statement_ptr(identifier, expression)
         // ok, deal with the possible init position method call
         if (identifiers.size == 2) {
@@ -713,7 +719,7 @@ obj ast_transformation (Object) {
         var to_ret = ast_case_statement_ptr()
         var the_adts = scope_lookup(concat_symbol_tree(get_node("scoped_identifier", get_node("scoped_identifier", node))), scope)
         if (the_adts.size != 1)
-           error(string("the number of adts found was not 1, it was ") + the_adts.size + " for " + concat_symbol_tree(get_node("scoped_identifier", node)))
+           error(node, string("the number of adts found was not 1, it was ") + the_adts.size + " for " + concat_symbol_tree(get_node("scoped_identifier", node)))
         var the_adt = the_adts[0]
         var the_option_name = concat_symbol_tree(get_node("identifier", get_node("scoped_identifier", node)))
         var the_option = the_adt->adt_def.options.find_first_satisfying(fun(option: *ast_node): bool return option->identifier.name == the_option_name;)
@@ -850,7 +856,7 @@ obj ast_transformation (Object) {
                 search_type::function(type_vec) possible_value = find_or_instantiate_template_function(concat_symbol_tree(node->children[0]), null<tree<symbol>>(), scope, type_vec, template_replacements, map<string, *type>());
             }
             if (!possible_value)
-                error(concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS")
+                error(node, concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS")
             return possible_value
         } else if (node->children.size == 2) {
             var template_inst = get_node("template_inst", node)
@@ -859,11 +865,11 @@ obj ast_transformation (Object) {
                 var result = null<ast_node>()
                 match (searching_for) {
                     // I guess this should never happen?
-                    search_type::none() error("TE<PLATE LOOKUO MAKES NO SENSE")
+                    search_type::none() error(template_inst, "TEMPLATE LOOKUP WITHOUT PERENS ()")
                     search_type::function(type_vec) result = find_or_instantiate_template_function(concat_symbol_tree(identifier), template_inst, scope, type_vec, template_replacements, map<string, *type>())
                 }
                 if (!result)
-                   error("Could not find templated function " + concat_symbol_tree(identifier) + "  even though had a template_inst")
+                   error(node, "Could not find templated function " + concat_symbol_tree(identifier) + "  even though had a template_inst")
                 return result
             }
             var check_if_post = concat_symbol_tree(node->children[1])
@@ -902,7 +908,7 @@ obj ast_transformation (Object) {
                         /*println("PRE TEMPLATE TRY FOR SECOND PARAM")*/
                         second_param = find_or_instantiate_template_function(method_name, template_inst, get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
                         if (!second_param) {
-                           error("Could not find method " + method_name + " on the right side of (. or ->) " + concat_symbol_tree(node->children[0]) +
+                           error(node, "Could not find method " + method_name + " on the right side of (. or ->) " + concat_symbol_tree(node->children[0]) +
                                  ", whole string: " + concat_symbol_tree(node) + ", left type: " + get_ast_type(first_param)->to_string())
                         }
                     }
@@ -1151,7 +1157,7 @@ fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<st
     } else {
         println(template_type->children[0]->data.name)
         println(template_type->children[0]->data.data)
-        error("TYPE INFERENCE NOT GOOD ENOUGH")
+        error(template_type, "TYPE INFERENCE NOT GOOD ENOUGH")
     }
 }
 fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool {
@@ -1263,7 +1269,7 @@ fun get_node(lookup: *char, parent: *tree<symbol>): *tree<symbol> {
 fun get_node(lookup: string, parent: *tree<symbol>): *tree<symbol> {
     var results = get_nodes(lookup, parent)
     if (results.size > 1)
-        error("get node too many results!")
+        error(parent, "get node too many results!")
     if (results.size)
         return results[0]
     return null<tree<symbol>>()
@@ -1284,9 +1290,24 @@ fun add_to_scope(name: string, to_add: *ast_node, add_to: *ast_node) {
     else
         add_to_map->set(name, vector(to_add))
 }
+fun get_first_terminal(source: *tree<symbol>): *tree<symbol> {
+    if (!source)
+        return null<tree<symbol>>()
+    if (source->data.terminal)
+        return source
+    if (source->children.size == 0)
+        return null<tree<symbol>>()
+    return get_first_terminal(source->children.first())
+}
 fun error(message: *char) error(string(message));
-fun error(message: string) {
+fun error(source: *tree<symbol>, message: *char) error(source, string(message));
+fun error(message: string) error(null<tree<symbol>>(), message);
+fun error(source: *tree<symbol>, message: string) {
     println("****ERROR****")
+    source = get_first_terminal(source)
+    if (source) {
+        print(source->data.source + ": " + source->data.position + " ")
+    }
     println(message)
     exit(-1)
     /*while (true){}*/

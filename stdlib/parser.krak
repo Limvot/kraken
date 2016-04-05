@@ -75,6 +75,8 @@ obj parser (Object) {
         for (current_symbol = lex.next(); current_symbol != eof_symbol() && current_symbol != invalid_symbol(); current_symbol = lex.next();) {
             /*println("current_symbol is ")*/
             /*println(current_symbol.to_string())*/
+            if (current_symbol != eof_symbol() && current_symbol != invalid_symbol())
+                current_symbol.source = name
             input.addEnd(current_symbol)
         }
         input.addEnd(current_symbol)

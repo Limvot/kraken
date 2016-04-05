@@ -31,8 +31,11 @@ fun symbol(nameIn: *char, terminalIn: bool, dataIn: *char): symbol {
     return toRet
 }
 
-fun symbol(nameIn: string::string, terminalIn: bool, dataIn: string::string): symbol {
+fun symbol(nameIn: string::string, terminalIn: bool, dataIn: string::string): symbol return symbol(nameIn, terminalIn, dataIn, 0)
+
+fun symbol(nameIn: string::string, terminalIn: bool, dataIn: string::string, position: int): symbol {
     var toRet.construct(nameIn, terminalIn, dataIn): symbol
+    toRet.position = position
     return toRet
 }
 
@@ -41,32 +44,43 @@ obj symbol (Object, Serializable) {
     var name: string::string
     var terminal: bool
 
+    var source: string::string
+    var position: int
+
     fun construct(): *symbol {
         data.construct()
         name.construct()
+        terminal = false
+        source.construct()
+        position = 0
         return this
     }
     fun construct(nameIn: string::string, terminalIn: bool, dataIn: string::string): *symbol {
         name.construct(nameIn)
         terminal = terminalIn
         data.construct(dataIn)
+        source.construct()
+        position = 0
         return this
     }
     fun destruct() {
         data.destruct()
         name.destruct()
+        source.destruct()
     }
     fun copy_construct(old: *symbol) {
         data.copy_construct(&old->data)
         name.copy_construct(&old->name)
         terminal = old->terminal
+        source.copy_construct(&old->source)
+        position = old->position
     }
     fun operator=(old: ref symbol) {
         destruct()
         copy_construct(&old)
     }
     fun serialize(): vector::vector<char> {
-        return serialize::serialize(data) + serialize::serialize(name) + serialize::serialize(terminal)
+        return serialize::serialize(data) + serialize::serialize(name) + serialize::serialize(terminal) + serialize::serialize(source) + serialize::serialize(position)
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
         /*construct()*/
@@ -75,13 +89,15 @@ obj symbol (Object, Serializable) {
         pos = data.unserialize(it, pos)
         pos = name.unserialize(it, pos)
         util::unpack(terminal, pos) = serialize::unserialize<bool>(it, pos)
+        pos = source.unserialize(it, pos)
+        util::unpack(position, pos) = serialize::unserialize<int>(it, pos)
         return pos
     }
     fun equal_wo_data(other: ref symbol): bool {
         return name == other.name && terminal == other.terminal;
     }
     fun operator==(other: ref symbol): bool {
-        return data == other.data && name == other.name && terminal == other.terminal;
+        return data == other.data && name == other.name && terminal == other.terminal && source == other.source && position == other.position
     }
     fun operator!=(other: ref symbol): bool {
         return !(*this == other);
@@ -92,7 +108,7 @@ obj symbol (Object, Serializable) {
             terminalString = "true"
         else
             terminalString = "false"
-        return name + ": " + data + " " + terminalString
+        return name + ": " + data + " " + terminalString + "[" + source + ":" + position + "]"
     }
 }
 

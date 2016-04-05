@@ -85,7 +85,14 @@ obj lexer (Object) {
         if (max < 0)
             return symbol::invalid_symbol()
         position += max_length
-        return symbol::symbol(regs[max].first, true, input.slice(position-max_length, position))
+        var line_number = fun(str: ref string::string, pos: int): int {
+            var line_no = 1
+            for (var i = 0; i < pos; i++;)
+                if (str[i] == '\n')
+                    line_no++
+            return line_no
+        }
+        return symbol::symbol(regs[max].first, true, input.slice(position-max_length, position), line_number(input, position))
     }
 }
 
