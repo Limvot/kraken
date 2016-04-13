@@ -113,7 +113,7 @@ obj ast_transformation (Object) {
     }
     // defines inside of objects + ADTs, outside declaration statements, and function prototypes
     fun second_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
-        println(string("Second Pass for ") + translation_unit->translation_unit.name)
+        /*println(string("Second Pass for ") + translation_unit->translation_unit.name)*/
         // we go through the parse tree for getting functions, but we're going through the ast for the things we've already set up and using the ast_to_syntax map
         parse_tree->children.for_each(fun(child: *tree<symbol>) {
             if (child->data.name == "function") {
@@ -246,7 +246,7 @@ obj ast_transformation (Object) {
     }
     // The third pass finishes up by doing all function bodies (top level and methods in objects)
     fun third_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
-        println(string("Third Pass for ") + translation_unit->translation_unit.name)
+        /*println(string("Third Pass for ") + translation_unit->translation_unit.name)*/
         translation_unit->translation_unit.children.for_each(fun(node: *ast_node) {
             match(*node) {
                 ast_node::type_def(backing) {
@@ -270,7 +270,7 @@ obj ast_transformation (Object) {
     }
     // The fourth pass generates the class templates that have not yet been generated in a worklist loop
     fun fourth_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
-        println(string("Fourth Pass for ") + translation_unit->translation_unit.name)
+        /*println(string("Fourth Pass for ") + translation_unit->translation_unit.name)*/
         while (!fourth_pass_worklist.empty()) {
             var partially_inst_type_def = fourth_pass_worklist.pop()
             partially_inst_type_def->type_def.methods.for_each(fun(method: *ast_node) {

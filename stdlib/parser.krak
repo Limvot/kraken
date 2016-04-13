@@ -133,7 +133,7 @@ obj parser (Object) {
         }
         var acc_state = gss.frontier_get_acc_state(input.size-1)
         if (acc_state) {
-            println("ACCEPTED!")
+            /*println("ACCEPTED!")*/
             return gss.get_edge(acc_state, v0)
         }
 
