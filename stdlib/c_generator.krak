@@ -625,8 +625,14 @@ obj c_generator (Object) {
                 else
                     num++
         }
-        for (var i = 0; i < num; i++;)
-            defer_stack->from_top(i).second.for_each_reverse(fun(node: *ast_node) to_ret += generate(node, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false);)
+        for (var i = 0; i < num; i++;) {
+            defer_stack->push(make_pair(false, stack<*ast_node>()))
+            /*defer_stack->from_top(i+1).second.for_each_reverse(fun(node: *ast_node) to_ret += generate(node, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false);)*/
+            defer_stack->from_top(i+1).second.for_each_reverse(fun(node: *ast_node) to_ret += generate(node, enclosing_object, enclosing_func, defer_stack, false);)
+            if (defer_stack->top().second.size())
+                to_ret += generate_from_defer_stack(defer_stack, 1, enclosing_object, enclosing_func);
+            defer_stack->pop()
+        }
         return to_ret
     }
     fun generate_defer_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
