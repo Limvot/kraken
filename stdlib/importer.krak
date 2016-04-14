@@ -101,7 +101,7 @@ obj importer (Object) {
         // the terminals have " around them, which we have to escape
 	    remove_node(symbol("\"\\(\"", true), parse_tree)
 	    remove_node(symbol("\"\\)\"", true), parse_tree)
-	    remove_node(symbol("\"var\"", true), parse_tree)
+		/*remove_node(symbol("\"var\"", true), parse_tree)*/
 	    // remove_node(symbol("\"fun\"", true), parse_tree)
         remove_node(symbol("\"template\"", true), parse_tree)
         remove_node(symbol("\"return\"", true), parse_tree)
