@@ -35,7 +35,7 @@ else
                 echo "no ${kraken}_deprecated, bootstrapping using Cephelpod and a chain of old Kalypsos"
                 git clone . bootstrap_kalypso
                 pushd bootstrap_kalypso
-                git checkout $bootstrap_commits[0]
+                git checkout ${bootstrap_commits[0]}
                 cp -r stdlib deprecated_compiler
                 cp krakenGrammer.kgm deprecated_compiler
                 cp kraken.krak deprecated_compiler
