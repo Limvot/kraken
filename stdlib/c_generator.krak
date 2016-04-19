@@ -776,7 +776,8 @@ obj c_generator (Object) {
         var parameters = node->function_call.parameters
         if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/"
             || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
-            || func_name == "==" || func_name == "!=" || func_name == "%"
+            || func_name == "==" || func_name == "!=" || func_name == "%" || func_name == "^"
+            || func_name == "|" || func_name == "&"
         ))
             return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false) + func_name + generate(parameters[1], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false) + string(")")
         if ( parameters.size == 2 && (func_name == "||" || func_name == "&&")) {

@@ -118,7 +118,10 @@ defer_statement = "defer" WS statement ;
 function_call = unarad WS "\(" WS opt_parameter_list WS "\)" ;
 
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;
-and_boolean_expression = and_boolean_expression WS "&&" WS bool_exp | bool_exp ;
+and_boolean_expression = and_boolean_expression WS "&&" WS bitwise_or | bitwise_or ;
+bitwise_or = bitwise_or WS "\|" WS bitwise_xor | bitwise_xor ;
+bitwise_xor = bitwise_xor WS "^" WS bitwise_and | bitwise_and ;
+bitwise_and = bitwise_and WS "&" WS bool_exp | bool_exp ;
 bool_exp = expression WS comparator WS expression | expression ;
 comparator = "==" | "<=" | ">=" | "!=" | "<" | ">" ;
 

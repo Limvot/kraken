@@ -54,7 +54,10 @@ else
                 cp deprecated_compiler/build_kraken/kraken/kraken ../${kraken}_bootstrap
                 popd
                 # Now make 
+                mv ./krakenGrammer.kgm krakenGrammer.kgm_new
+                cp bootstrap_kalypso/krakenGrammer.kgm ./
                 ./${kraken}_bootstrap kraken.krak ${kraken}_deprecated
+                mv ./krakenGrammer.kgm_new krakenGrammer.kgm
             else
                 echo "${kraken}_deprecated exists, calling"
             fi

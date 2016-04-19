@@ -457,6 +457,7 @@ obj ast_transformation (Object) {
         } else if (name == "lambda") {
             return transform_lambda(node, scope, template_replacements)
         } else if (name == "boolean_expression" || name == "and_boolean_expression"
+                || name == "bitwise_or" || name == "bitwise_xor" || name == "bitwise_and"
                 || name == "bool_exp" || name == "expression"
                 || name == "shiftand" || name == "term"
                 || name == "factor" || name == "unarad"
@@ -1096,7 +1097,7 @@ fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
         return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>())
     if (name == "[]")
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>())
-    if (name == "&")
+    if (name == "&" && param_types.size == 1)
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection()), vector<*ast_node>())
     if (name == "\*" && param_types.size == 1)
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>())

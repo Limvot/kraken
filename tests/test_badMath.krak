@@ -20,4 +20,7 @@ fun main(): int {
     if ( z > 20 && !boolean)
         simple_print::println("woo not")
     simple_print::println('b' == 'a')
+    println(3|5)
+    println(3^5)
+    println(3&5)
 }
