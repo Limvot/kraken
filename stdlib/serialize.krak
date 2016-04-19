@@ -1,5 +1,4 @@
 import vector
-import conversions
 import mem
 import util
 
@@ -8,7 +7,7 @@ fun serialize<T(Serializable)>(it: T): vector::vector<char> {
 }
 
 fun serialize<T>(it: T): vector::vector<char> {
-    var char_data = conversions::cast_ptr<*T,*char>(&it)
+    var char_data = (&it) cast *char
     var toRet = vector::vector<char>()
     for (var i = 0; i < mem::sizeof<T>(); i++;)
         toRet.add(char_data[i])
@@ -20,7 +19,7 @@ fun unserialize<T>(it: ref vector::vector<char>): T {
     return unserialize<T>(it, 0).first
 }
 fun unserialize<T>(it: ref vector::vector<char>, pos: int): util::pair<T,int> {
-    return util::make_pair(*conversions::cast_ptr<*char,*T>(it.getBackingMemory()+pos), pos + mem::sizeof<T>())
+    return util::make_pair(*(it.getBackingMemory()+pos) cast *T, pos + mem::sizeof<T>())
 }
 fun unserialize<T(Serializable)>(it: ref vector::vector<char>, pos: int): util::pair<T,int> {
     var toRet: T

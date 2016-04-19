@@ -1,17 +1,14 @@
 #!/bin/bash
 
 kraken="kraken"
+bootstrap_commits=(cf46fb13afe66ba475db9725e9269c9c1cd3bbc3)
 
 if [[ $1 == "clean" ]]
 then
     rm ${kraken}
     rm ${kraken}_bac
     rm ${kraken}_deprecated
-    rm -r deprecated_compiler/stdlib
-    rm deprecated_compiler/krakenGrammer.kgm.comp
-    rm deprecated_compiler/krakenGrammer.kgm
-    rm -r deprecated_compiler/build
-    rm -r deprecated_compiler/build_kraken
+    rm -rf bootstrap_kalypso
 else
     if [[ $1 == "backup" ]]
     then
@@ -22,6 +19,7 @@ else
         rm ${kraken}
         rm ${kraken}_bac
         rm ${kraken}_deprecated
+        rm ${kraken}_bootstrap
     fi
 
     if [ -s "$kraken" ]
@@ -34,7 +32,10 @@ else
         then
             if ! [ -s "${kraken}_deprecated" ]
             then
-                echo "no ${kraken}_deprecated, using Cephelpod"
+                echo "no ${kraken}_deprecated, bootstrapping using Cephelpod and a chain of old Kalypsos"
+                git clone . bootstrap_kalypso
+                pushd bootstrap_kalypso
+                git checkout $bootstrap_commits[0]
                 cp -r stdlib deprecated_compiler
                 cp krakenGrammer.kgm deprecated_compiler
                 cp kraken.krak deprecated_compiler
@@ -50,7 +51,10 @@ else
                 ../build/kraken kraken.krak
                 popd
                 popd
-                cp deprecated_compiler/build_kraken/kraken/kraken ./${kraken}_deprecated
+                cp deprecated_compiler/build_kraken/kraken/kraken ../${kraken}_bootstrap
+                popd
+                # Now make 
+                ./${kraken}_bootstrap kraken.krak ${kraken}_deprecated
             else
                 echo "${kraken}_deprecated exists, calling"
             fi

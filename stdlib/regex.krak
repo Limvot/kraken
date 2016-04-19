@@ -4,7 +4,6 @@ import string
 import mem
 import set
 import util
-import conversions
 import serialize
 
 fun regex(in: *char):regex {
@@ -24,7 +23,7 @@ obj regexState (Object) {
         return this
     }
     fun construct(): *regexState {
-        return construct(conversions::to_char(0))
+        return construct((0) cast char)
     }
     fun copy_construct(old:*regexState): void {
         character = old->character
@@ -58,7 +57,7 @@ obj regex (Object, Serializable) {
         var beginningAndEnd = compile(regexStringIn)
         // init our begin, and the end state as the next state of each end
         begin = beginningAndEnd.first
-        var end = mem::new<regexState>()->construct(conversions::to_char(1))
+        var end = mem::new<regexState>()->construct((1) cast char)
         beginningAndEnd.second.for_each(fun(it: *regexState): void { it->next_states.add(end); })
         return this
     }

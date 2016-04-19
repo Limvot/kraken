@@ -586,11 +586,9 @@ obj c_generator (Object) {
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
             // have to pass false to the declaration generator, so can't do it through generate_statement
             to_ret.pre = generate_declaration_statement(declaration, enclosing_object, enclosing_func, defer_stack, false).one_string() + ";\n"
-            if ((function_return_type->is_object() || temp_ident_type->is_object()) &&
-                ( (!function_return_type->is_ref && !function_return_type->equality(temp_ident_type, false)) ||
-                (function_return_type->is_ref && !function_return_type->equality(temp_ident_type->clone_with_decreased_indirection(), false)) ) )
+            if ((function_return_type->is_object() || return_value_type->is_object()) && !function_return_type->equality(return_value_type, false))
                 // note the clone with decreased indirection because of the clone with increased indirection above
-                error(string("return type does not match: ") + function_return_type->to_string() + ", " + temp_ident_type->to_string());
+                error(string("return type does not match: ") + function_return_type->to_string() + ", " + return_value_type->to_string());
             if (!function_return_type->is_ref && return_value_type->indirection == 0 && (return_value_type->is_adt() || (return_value_type->is_object() && has_method(return_value_type->type_def, "copy_construct", vector(return_value_type->clone_with_indirection(1)))))) {
                 to_ret.pre += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(return_value))))), enclosing_object, enclosing_func, defer_stack).one_string()
             } else {

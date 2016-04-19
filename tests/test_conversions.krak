@@ -1,27 +1,25 @@
 import simple_print:*
-import conversions:*
 
 fun main():int {
-    println(to_char(65))
-    println(to_int('B'))
+    println((65) cast char)
+    println(('B') cast int)
 
     var a = 1337
     var b = &a;
     var c = (b) cast *char
 
-    /*var c = cast_ptr<*int, *char>(b)*/
     //var d = c + 1
     //var e = 1 + c
-    println(to_int(*(c+0)))
-    println(to_int(*(c+1)))
-    println(to_int(*(c+2)))
-    println(to_int(*(c+3)))
+    println((*(c+0)) cast int)
+    println((*(c+1)) cast int)
+    println((*(c+2)) cast int)
+    println((*(c+3)) cast int)
 
     println()
 
-    println(to_int(c[0]))
-    println(to_int(c[1]))
-    println(to_int(c[2]))
-    println(to_int(c[3]))
+    println((c[0]) cast int)
+    println((c[1]) cast int)
+    println((c[2]) cast int)
+    println((c[3]) cast int)
     return 0
 }
