@@ -35,6 +35,7 @@ adt ast_node {
     if_comp: if_comp,
     simple_passthrough: simple_passthrough,
     function_call: function_call,
+    cast: cast,
     value: value
 }
 /*
@@ -960,6 +961,40 @@ obj function_call (Object) {
         return func == func && parameters == other.parameters
     }
 }
+fun ast_cast_ptr(value: *ast_node, to_type: *type): *ast_node {
+    var to_ret.construct(value, to_type): cast
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::cast(to_ret))
+    return ptr
+}
+fun is_cast(node: *ast_node): bool {
+    match(*node) {
+        ast_node::cast(backing) return true
+    }
+    return false
+}
+obj cast (Object) {
+    var value: *ast_node
+    var to_type: *type
+    fun construct(value_in: *ast_node, to_type_in: *type): *cast  {
+        value = value_in
+        to_type = to_type_in
+        return this
+    }
+    fun copy_construct(old: *cast) {
+        value = old->value
+        to_type = old->to_type
+    }
+    fun destruct() {
+    }
+    fun operator=(other: cast) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: cast): bool {
+        return value == other.value && to_type == other.to_type
+    }
+}
 fun ast_value_ptr(string_value: string, value_type: *type): *ast_node {
     var to_ret.construct(string_value, value_type): value
     var ptr = new<ast_node>()
@@ -1024,6 +1059,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::if_comp(backing) return vector<*ast_node>(backing.statement)
         ast_node::simple_passthrough(backing) return vector<*ast_node>()
         ast_node::function_call(backing) return vector(backing.func) + backing.parameters
+        ast_node::cast(backing) return vector<*ast_node>(backing.value)
         ast_node::value(backing) return vector<*ast_node>()
     }
 }
@@ -1051,6 +1087,7 @@ fun get_ast_name(node: *ast_node): string {
         ast_node::if_comp(backing) return string("if_comp: ") + backing.wanted_generator
         ast_node::simple_passthrough(backing) return string("simple_passthrough: , string:") + backing.passthrough_str
         ast_node::function_call(backing) return string("function_call:") + get_ast_name(backing.func) + "(" + backing.parameters.size + ")"
+        ast_node::cast(backing) return string("cast: ") + get_ast_name(backing.value) + ": " + backing.to_type->to_string()
         ast_node::value(backing) return string("value: ") + backing.string_value + ": " + backing.value_type->to_string()
     }
     return string("impossible adt type")
@@ -1079,10 +1116,11 @@ fun get_ast_scope(node: *ast_node): *map<string,vector<*ast_node>> {
 }
 fun get_ast_type(node: *ast_node): *type {
     match (*node) {
-        ast_node::identifier() return node->identifier.type
-        ast_node::function() return node->function.type
-        ast_node::function_call() return get_ast_type(node->function_call.func)->return_type
-        ast_node::value() return node->value.value_type
+        ast_node::identifier(backing) return backing.type
+        ast_node::function(backing) return backing.type
+        ast_node::function_call(backing) return get_ast_type(backing.func)->return_type
+        ast_node::cast(backing) return backing.to_type
+        ast_node::value(backing) return backing.value_type
     }
 }
 

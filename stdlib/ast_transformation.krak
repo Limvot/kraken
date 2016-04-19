@@ -460,7 +460,7 @@ obj ast_transformation (Object) {
                 || name == "bool_exp" || name == "expression"
                 || name == "shiftand" || name == "term"
                 || name == "factor" || name == "unarad"
-                || name == "access_operation"
+                || name == "access_operation" || name == "cast_expression"
         ) {
             // for now, assume passthrough and just transform underneath
             return transform_expression(node, scope, searching_for, template_replacements)
@@ -605,6 +605,8 @@ obj ast_transformation (Object) {
         if (identifiers.size == 2) {
             var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)
             var method = transform(identifiers[1], identifier->identifier.type->type_def, search_type::function(parameters.map(fun(i:*ast_node):*type return get_ast_type(i);)), template_replacements)
+            if (!method)
+                error(identifiers[1], "Cannot find method for declaration site method call")
             declaration->declaration_statement.init_method_call = make_method_call(identifier, method, parameters)
         }
         return declaration
@@ -885,6 +887,8 @@ obj ast_transformation (Object) {
             func_name = concat_symbol_tree(node->children[1])
             if (func_name == "[")
                 func_name += "]"
+            if (func_name == "cast")
+                return ast_cast_ptr(transform(get_node("boolean_expression", node), scope, template_replacements), transform_type(get_node("type", node), scope, template_replacements))
             var first_param = transform(node->children[0], scope, template_replacements)
             var second_param = null<ast_node>()
             if (func_name == "." || func_name == "->") {

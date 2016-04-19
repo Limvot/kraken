@@ -19,6 +19,7 @@ fun print<T>(toPrint: *T) : void{
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
 			printf("%p", (void*)toPrint);
+            fflush(0);
 		"""
 	}
 	return;
@@ -28,6 +29,7 @@ fun print(toPrint: *char) : void {
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
 			printf("%s", toPrint);
+            fflush(0);
 		"""
 	}
 	return;
@@ -37,6 +39,7 @@ fun print(toPrint: char) : void {
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
 			printf("%c", toPrint);
+            fflush(0);
 		"""
 	}
 	return;
@@ -60,6 +63,7 @@ fun print(toPrint: int): void {
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
 			printf("%d", toPrint);
+            fflush(0);
 		"""
 	}
 	return;
@@ -69,6 +73,7 @@ fun print(toPrint: float): void {
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
 			printf("%f", toPrint);
+            fflush(0);
 		"""
 	}
 	return;
@@ -78,6 +83,7 @@ fun print(toPrint: double) : void{
 	__if_comp__ __C__ {
 		simple_passthrough(toPrint = toPrint::) """
 			printf("%f", toPrint);
+            fflush(0);
 		"""
 	}
 	return;

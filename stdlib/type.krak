@@ -185,6 +185,7 @@ obj type (Object) {
     }
     fun clone(): *type return clone_with_indirection(indirection, is_ref);
     fun clone_without_ref(): *type return clone_with_indirection(indirection, false);
+    fun clone_with_ref(): *type return clone_with_indirection(indirection, true);
     fun clone_with_increased_indirection(): *type return clone_with_indirection(indirection+1);
     fun clone_with_increased_indirection(more: int, is_ref_in: bool): *type return clone_with_indirection(indirection+more, is_ref_in);
     fun clone_with_decreased_indirection(): *type return clone_with_indirection(indirection-1);
