@@ -457,7 +457,7 @@ obj gss (Object) {
         edges.set(make_pair(start,end), edge)
     }
     fun get_containing_frontier(node: *tree<int>): int {
-        for (var i = 0; i < data.size; i++;)
+        for (var i = data.size-1; i >= 0; i--;)
             if (data[i].contains(node))
                 return i
         return -1
