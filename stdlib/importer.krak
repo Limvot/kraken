@@ -117,7 +117,6 @@ obj importer (Object) {
         remove_node(symbol("def_nonterm", false), parse_tree)
         remove_node(symbol("obj_nonterm", false), parse_tree)
         remove_node(symbol("adt_nonterm", false), parse_tree)
-        /*remove_node(symbol("\"\\|\"", true), parse_tree)*/
 
         collapse_node(symbol("case_statement_list", false), parse_tree)
         collapse_node(symbol("opt_param_assign_list", false), parse_tree)

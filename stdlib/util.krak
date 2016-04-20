@@ -1,8 +1,10 @@
 import mem
+import io
 import set
 import map
 import vector
 import serialize
+
 
 // maybe my favorite function
 fun do_nothing() {}
@@ -23,6 +25,16 @@ fun min<T>(a: T, b: T): T {
     if (a > b)
         return b;
     return a;
+}
+
+fun hash<T(Hashable)>(item: T): int return item.hash()
+fun hash<T>(item: *T): int return (item) cast int
+fun hash(item: int): int return item
+fun hash(item: char): int return item
+// default hash
+fun hash<T>(item: T): int {
+    io::println("using empty hash - please do not do!")
+    return 0
 }
 
 fun make_pair<T,U>(first: T, second: U): pair<T,U> {
@@ -46,7 +58,7 @@ obj unpack_dummy<T,U> {
     }
 }
 
-obj pair<T,U> (Object, Serializable) {
+obj pair<T,U> (Object, Serializable, Hashable) {
     var first: T
     var second: U
 
@@ -82,6 +94,9 @@ obj pair<T,U> (Object, Serializable) {
         mem::maybe_copy_construct(&second, &second_pair.first)
         return second_pair.second
     }
+
+    /*fun hash():int return hash(first) ^ hash(second)*/
+    fun hash():int return 0
 
     // the old unnecessary template to prevent generation
     // if not used trick (in this case, changing out U with V)

@@ -1137,7 +1137,10 @@ fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<st
             new_map->set(concat_symbol_tree(template_type), param_type)
         }
     } else if (get_node("\"\\*\"", template_type)) {
-        unify_type(template_type->children[1], param_type->clone_with_decreased_indirection(), new_map, template_replacements)
+        // only unify on decreased indirection if we're not already at 0
+        if (param_type->indirection)
+            unify_type(template_type->children[1], param_type->clone_with_decreased_indirection(), new_map, template_replacements)
+        else return;
     } else if (get_node("template_inst", template_type)) {
         if (param_type->is_object()) {
             var enclosing_template = param_type->type_def->type_def.scope[string("~enclosing_scope")][0]

@@ -1,8 +1,8 @@
 import io:*
 import map:*
+import hash_map:*
 
-fun main(): int {
-    var m = map(3,1)
+fun test_map<T,V>(m: ref T, mapEx: ref V) {
     m.set(2,2)
     m.set(1,3)
     println(m[1])
@@ -16,12 +16,22 @@ fun main(): int {
     println(m[2])
     println(m[6])
     println(m[3])
-    var mapEx = map(7, "Lookie, a map!")
     mapEx[20] = "What I get for not testing different types"
     mapEx[30] = "we'll look for for_each too"
     println(mapEx[7])
     println(mapEx[20])
     mapEx.remove(20)
     mapEx.for_each(fun(key:int, value:*char) { print("key: "); print(key); print(", value: "); println(value); })
+}
+fun main(): int {
+    var m1 = map(3,1)
+    var mapEx1 = map(7, "Lookie, a map!")
+    test_map(m1, mapEx1)
+    var m2 = hash_map(3,1)
+    var mapEx2 = hash_map(7, "Lookie, a map!")
+    test_map(m2, mapEx2)
+    /*println(m2.data.size)*/
+    /*println(m2.data[1].keys.size)*/
+    /*println(mapEx2.data.size)*/
     return 0
 }
