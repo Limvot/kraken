@@ -51,6 +51,9 @@ else
                 ../build/kraken kraken.krak
                 popd
                 popd
+                pushd deprecated_compiler/build_kraken/kraken
+                sh kraken.sh
+                popd
                 cp deprecated_compiler/build_kraken/kraken/kraken ../${kraken}_bootstrap
                 popd
                 # Now make 
