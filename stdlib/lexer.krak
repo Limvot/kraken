@@ -26,10 +26,12 @@ obj lexer (Object) {
     var regs: vector::vector<util::pair<string::string, regex::regex>>
     var input: string::string
     var position: int
+    var line_number: int
     fun construct(): *lexer {
         regs.construct()
         input.construct()
         position = 0
+        line_number = 1
         return this
     }
     fun destruct() {
@@ -40,6 +42,7 @@ obj lexer (Object) {
         regs.copy_construct(&old->regs)
         input.copy_construct(&old->input)
         position = old->position
+        line_number = old->line_number
     }
     fun operator=(old: lexer) {
         destruct()
@@ -63,16 +66,6 @@ obj lexer (Object) {
     fun next(): symbol::symbol {
         if (position >= input.length())
             return symbol::eof_symbol()
-        /*
-        var max = regs.map(fun(reg_pair: util::pair<string::string,regex::regex>): util::pair<int, string::string> {
-                return util::make_pair(reg_pair.second.long_match(input.slice(position, -1)), reg_pair.first); })
-                .max(fun(first: util::pair<int, string::string>, second: util::pair<int, string::string>): bool
-                        { return first.first < second.first; })
-        if (max.first < 0)
-            return symbol::invalid_symbol()
-        position += max.first
-        return symbol::symbol(max.second, true, input.slice(position-max.first, position))
-        */
         var max = -1
         var max_length = -1
         for (var i = 0; i < regs.size; i++;) {
@@ -84,15 +77,11 @@ obj lexer (Object) {
         }
         if (max < 0)
             return symbol::invalid_symbol()
+        for (var i = position; i < position+max_length; i++;)
+            if (input[i] == '\n')
+                line_number++
         position += max_length
-        var line_number = fun(str: ref string::string, pos: int): int {
-            var line_no = 1
-            for (var i = 0; i < pos; i++;)
-                if (str[i] == '\n')
-                    line_no++
-            return line_no
-        }
-        return symbol::symbol(regs[max].first, true, input.slice(position-max_length, position), line_number(input, position))
+        return symbol::symbol(regs[max].first, true, input.slice(position-max_length, position), line_number)
     }
 }
 

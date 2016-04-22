@@ -21,7 +21,7 @@ fun symbol(nameIn: *char, terminalIn: bool): symbol {
     return toRet
 }
 
-fun symbol(nameIn: string::string, terminalIn: bool): symbol {
+fun symbol(nameIn: ref string::string, terminalIn: bool): symbol {
     var toRet.construct(nameIn, terminalIn, string::string("no_value")): symbol
     return toRet
 }
@@ -31,9 +31,9 @@ fun symbol(nameIn: *char, terminalIn: bool, dataIn: *char): symbol {
     return toRet
 }
 
-fun symbol(nameIn: string::string, terminalIn: bool, dataIn: string::string): symbol return symbol(nameIn, terminalIn, dataIn, 0)
+fun symbol(nameIn: ref string::string, terminalIn: bool, dataIn: ref string::string): symbol return symbol(nameIn, terminalIn, dataIn, 0)
 
-fun symbol(nameIn: string::string, terminalIn: bool, dataIn: string::string, position: int): symbol {
+fun symbol(nameIn: ref string::string, terminalIn: bool, dataIn: ref string::string, position: int): symbol {
     var toRet.construct(nameIn, terminalIn, dataIn): symbol
     toRet.position = position
     return toRet
@@ -55,7 +55,7 @@ obj symbol (Object, Serializable) {
         position = 0
         return this
     }
-    fun construct(nameIn: string::string, terminalIn: bool, dataIn: string::string): *symbol {
+    fun construct(nameIn: ref string::string, terminalIn: bool, dataIn: ref string::string): *symbol {
         name.construct(nameIn)
         terminal = terminalIn
         data.construct(dataIn)

@@ -188,7 +188,6 @@ obj regex (Object, Serializable) {
                 return longest
             if (next.any_true(fun(state: *regexState):bool { return state->is_end(); }))
                 longest = i
-            //next = next.flatten_map<*regexState>(fun(state: *regexState): vector::vector<*regexState> { return state->match_char(to_match[i]); })
             next = next.flatten_map(fun(state: *regexState): set::set<*regexState> { return state->match_char(to_match[position+i]); })
         }
         if (next.any_true(fun(state: *regexState):bool { return state->is_end(); }))
