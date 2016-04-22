@@ -22,17 +22,29 @@ obj hash_map<T,U> (Object, Serializable) {
         data.construct()
         data.add(map::map<T,U>())
         size = 0
+        /*io::print("Constructed hash_map, this: ")*/
+        /*io::println((this) cast int)*/
+        /*io::print("size of data:")*/
+        /*io::println(data.size)*/
         return this
     }
     fun copy_construct(old: *hash_map<T,U>) {
         data.copy_construct(&old->data)
         size = old->size
+        /*io::print("Copy constructed hash_map, this: ")*/
+        /*io::println((this) cast int)*/
+        /*io::print("new size of data:")*/
+        /*io::println(data.size)*/
+        /*io::print("old size of data:")*/
+        /*io::println(old->data.size)*/
     }
     fun operator=(rhs: hash_map<T,U>) {
         destruct()
         copy_construct(&rhs)
     }
     fun destruct() {
+        /*io::print("destructed hash_map, this: ")*/
+        /*io::println((this) cast int)*/
         data.destruct()
     }
     fun serialize(): vector::vector<char> {
@@ -49,19 +61,26 @@ obj hash_map<T,U> (Object, Serializable) {
         return data == other.data
     }
     fun set(key: T, value: U) {
+        /*io::print("doing set! this:")*/
+        /*io::println((this) cast int)*/
+        /*io::print("size of data:")*/
+        /*io::println(data.size)*/
         var key_hash = util::hash(key)
-        if (!data[key_hash%data.size].contains_key(key))
+        if (!data[key_hash%data.size].contains_key(key)) {
             size++
-        data[key_hash%data.size].set(key, value)
-        if (size > data.size) {
-            var new_data = vector::vector<map::map<T,U>>()
-            for (var i = 0; i < size*2; i++;)
-                new_data.addEnd(map::map<T,U>())
-            for_each(fun(key: T, value: U) {
-                new_data[util::hash(key)%new_data.size].set(key, value)
-            })
-            data = new_data
+            if (size > data.size) {
+                /*io::print("rehashing to: ")*/
+                /*io::println(size*2)*/
+                var new_data = vector::vector<map::map<T,U>>()
+                for (var i = 0; i < size*2; i++;)
+                    new_data.addEnd(map::map<T,U>())
+                for_each(fun(key: T, value: U) {
+                    new_data[util::hash(key)%new_data.size].set(key, value)
+                })
+                data = new_data
+            }
         }
+        data[key_hash%data.size].set(key, value)
     }
     fun get(key: T): ref U {
         return data[util::hash(key)%data.size].get(key)
@@ -103,6 +122,8 @@ obj hash_map<T,U> (Object, Serializable) {
     }
     fun clear() {
         data.clear()
+        size = 0
+        data.add(map::map<T,U>())
     }
 }
 

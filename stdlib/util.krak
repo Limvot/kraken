@@ -95,8 +95,8 @@ obj pair<T,U> (Object, Serializable, Hashable) {
         return second_pair.second
     }
 
-    /*fun hash():int return hash(first) ^ hash(second)*/
-    fun hash():int return 0
+    fun hash():int return hash(first) ^ hash(second)
+    /*fun hash():int return 0*/
 
     // the old unnecessary template to prevent generation
     // if not used trick (in this case, changing out U with V)

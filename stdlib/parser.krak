@@ -405,8 +405,8 @@ obj parser (Object) {
 
 obj gss (Object) {
     var data: vector<vector<*tree<int>>>
-    var edges: map< pair<*tree<int>, *tree<int>>, *tree<symbol> >
-    /*var edges: hash_map< pair<*tree<int>, *tree<int>>, *tree<symbol> >*/
+    /*var edges: map< pair<*tree<int>, *tree<int>>, *tree<symbol> >*/
+    var edges: hash_map< pair<*tree<int>, *tree<int>>, *tree<symbol> >
 
     fun construct(): *gss {
         data.construct()
