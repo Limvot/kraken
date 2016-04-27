@@ -9,9 +9,16 @@ import tree:*
 import serialize:*
 import c_generator:*
 import os:*
+import compiler_version
+
 
 fun main(argc: int, argv: **char):int {
-
+    if (argc <= 1) {
+        error("No input file!\n Call with one argument (the input file), or two arguments (input file and output name)")
+    } else if (string(argv[1]) == "-v" || string(argv[1]) == "--version") {
+        println(compiler_version::version_string)
+        exit(0)
+    }
     /*var gram.construct(): grammer*/
     // delay construction until we either load it or copy construct it
     var gram: grammer
@@ -61,9 +68,6 @@ fun main(argc: int, argv: **char):int {
         println("done writing")
     }
 
-    if (argc <= 1) {
-        error("No input file!\n Call with one argument (the input file), or two arguments (input file and output name)")
-    }
     var kraken_file_name = string(argv[1])
     var parse.construct(gram): parser
     var ast_pass.construct(): ast_transformation

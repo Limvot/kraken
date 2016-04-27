@@ -3,6 +3,10 @@
 kraken="kraken"
 bootstrap_commits=(cf46fb13afe66ba475db9725e9269c9c1cd3bbc3 2cd43e5a217318c70097334b3598d2924f64b362)
 
+# Echo version string to a file included by kraken.krak
+# There is a default version string in the file in case kraken is not built with captain
+echo "var version_string = \"Self-hosted Kraken compiler \\\"Kalypso\\\" - revision $(git rev-list HEAD | wc -l), commit: $(git rev-parse HEAD)\";" > compiler_version.krak
+
 if [[ $1 == "clean" ]]
 then
     rm ${kraken}
@@ -73,6 +77,7 @@ else
                         echo "commit hash: ${bootstrap_commits[$i]}"
                         mv ./krakenGrammer.kgm krakenGrammer.kgm_old
                         git checkout ${bootstrap_commits[$i]}
+                        echo "var version_string = \"Self-hosted Kraken compiler \\\"Kalypso\\\" - revision $(git rev-list HEAD | wc -l), commit: $(git rev-parse HEAD)\";" > compiler_version.krak
                         mv ./krakenGrammer.kgm krakenGrammer.kgm_new
                         mv ./krakenGrammer.kgm_old krakenGrammer.kgm
                         ./${kraken}_bootstrap kraken.krak ${kraken}_bootstrap
