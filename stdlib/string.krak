@@ -4,7 +4,7 @@ import mem
 import serialize
 
 fun to_string(in: int): string {
-    var dest = mem::new<char>(mem::sizeof<int>() * 8)
+    var dest = mem::new<char>(#sizeof<int> * 8)
     defer mem::delete(dest)
 	__if_comp__ __C__ {
 		simple_passthrough(dest = dest, in = in::) """

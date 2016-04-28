@@ -30,19 +30,8 @@ fun free<T>(memPtr: *T): void {
 	}
 }
 
-fun sizeof<T>(): int {
-	var testObj: *T;
-    var result: int;
-	__if_comp__ __C__ {
-		simple_passthrough(testObj = testObj : result = result:) """
-			int result = sizeof(*testObj);
-		"""
-	}
-	return result;
-}
-
 fun new<T>(count: int): *T {
-	return malloc<T>( sizeof<T>() * count );
+	return malloc<T>( #sizeof<T> * count );
 }
 
 fun new<T>(): *T {
