@@ -117,6 +117,10 @@ continue_statement = "continue" ;
 defer_statement = "defer" WS statement ;
 function_call = unarad WS "\(" WS opt_parameter_list WS "\)" ;
 
+compiler_intrinsic = "#" identifier WS "\(" WS intrinsic_parameter_list WS "\)" | "#" identifier WS "<" WS type_list WS ">" ;
+intrinsic_parameter_list = intrinsic_parameter_list WS "," WS intrinsic_parameter | intrinsic_parameter ;
+intrinsic_parameter = identifier ;
+
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;
 and_boolean_expression = and_boolean_expression WS "&&" WS bitwise_or | bitwise_or ;
 bitwise_or = bitwise_or WS "\|" WS bitwise_xor | bitwise_xor ;
@@ -129,7 +133,7 @@ expression = expression WS "<<" WS term | expression WS right_shift WS shiftand 
 shiftand = shiftand WS "-" WS term | shiftand WS "\+" WS term | term ;
 term = term WS "/" WS factor | term WS "\*" WS factor | term WS "%" WS factor | factor ;
 factor = "\+\+" WS unarad | unarad WS "\+\+" | "--" WS unarad | unarad WS "--" | "\+" WS unarad | "-" WS unarad | "!" WS unarad | "~" WS unarad | "\*" WS unarad | "&" WS unarad | unarad ;
-unarad = number | scoped_identifier | scoped_identifier WS template_inst | access_operation | function_call | bool | string | character | "\(" WS boolean_expression WS "\)" | unarad WS "[" WS expression WS "]" | lambda | cast_expression ; 
+unarad = number | scoped_identifier | scoped_identifier WS template_inst | access_operation | function_call | compiler_intrinsic | bool | string | character | "\(" WS boolean_expression WS "\)" | unarad WS "[" WS expression WS "]" | lambda | cast_expression ; 
 cast_expression = "\(" WS boolean_expression WS "\)" WS "cast" WS type ;
 number = integer | floating_literal ;
 access_operation = unarad WS "." WS identifier | unarad WS "->" WS identifier | unarad WS "." WS identifier WS template_inst | unarad WS "->" WS identifier WS template_inst ;

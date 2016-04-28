@@ -123,6 +123,7 @@ obj importer (Object) {
         collapse_node(symbol("param_assign_list", false), parse_tree)
         collapse_node(symbol("opt_typed_parameter_list", false), parse_tree)
         collapse_node(symbol("opt_parameter_list", false), parse_tree)
+        collapse_node(symbol("intrinsic_parameter_list", false), parse_tree)
         collapse_node(symbol("identifier_list", false), parse_tree)
         collapse_node(symbol("adt_option_list", false), parse_tree)
         collapse_node(symbol("statement_list", false), parse_tree)

@@ -1,0 +1,12 @@
+import simple_print:*
+
+fun main(): int {
+    println(#sizeof<char>)
+    println(#sizeof<int>)
+    println(#sizeof<float>)
+    println(#sizeof<double>)
+    println(#sizeof<*void>)
+    return 0
+}
+
+

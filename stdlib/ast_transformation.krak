@@ -454,6 +454,8 @@ obj ast_transformation (Object) {
             return transform_match_statement(node, scope, template_replacements)
         } else if (name == "function_call") {
             return transform_function_call(node, scope, template_replacements)
+        } else if (name == "compiler_intrinsic") {
+            return transform_compiler_intrinsic(node, scope, template_replacements)
         } else if (name == "lambda") {
             return transform_lambda(node, scope, template_replacements)
         } else if (name == "boolean_expression" || name == "and_boolean_expression"
@@ -755,6 +757,16 @@ obj ast_transformation (Object) {
         /*f->function_call.parameters.for_each(fun(param: *ast_node) print(param);)*/
         return f
     }
+    fun transform_compiler_intrinsic(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        // don't bother with a full transform for parameters with their own function, just get the boolean expression and transform it
+        var parameters = vector<string>()
+        var type_parameters = vector<*type>()
+        if (get_nodes("intrinsic_parameter", node).size)
+            parameters = get_nodes("intrinsic_parameter", node).map(fun(child: *tree<symbol>): string return concat_symbol_tree(child);)
+        if (get_nodes("type", node).size)
+            type_parameters = get_nodes("type", node).map(fun(child: *tree<symbol>): *type return transform_type(child, scope, template_replacements);)
+        return ast_compiler_intrinsic_ptr(concat_symbol_tree(get_node("identifier", node)), parameters, type_parameters, type_ptr(base_type::integer()))
+    }
     fun transform_lambda(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
         var function_node = second_pass_function(node, scope, template_replacements, false)
         function_node->function.body_statement = transform_statement(get_node("statement", node), function_node, template_replacements)
@@ -917,6 +929,11 @@ obj ast_transformation (Object) {
                                  ", whole string: " + concat_symbol_tree(node) + ", left type: " + get_ast_type(first_param)->to_string())
                         }
                     }
+                }
+                // this is the case where it's null but not a method call. Should add default to case above and move there
+                if (!second_param) {
+                   error(node, "Could not find member " + concat_symbol_tree(node->children[2]) + " on the right side of (. or ->) " + concat_symbol_tree(node->children[0]) +
+                         ", whole string: " + concat_symbol_tree(node) + ", left type: " + get_ast_type(first_param)->to_string())
                 }
             } else {
                 second_param = transform(node->children[2], scope, template_replacements)

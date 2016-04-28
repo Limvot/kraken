@@ -911,6 +911,15 @@ obj c_generator (Object) {
         call_string.value = ref_pre + call_string.value + ref_post
         return call_string
     }
+    fun generate_compiler_intrinsic(node: *ast_node): code_triple {
+        if (node->compiler_intrinsic.intrinsic == "sizeof") {
+            if (node->compiler_intrinsic.parameters.size || node->compiler_intrinsic.type_parameters.size != 1)
+                error("wrong parameters to sizeof compiler intrinsic")
+            return code_triple("sizeof(") + type_to_c(node->compiler_intrinsic.type_parameters[0]) + ")"
+        }
+        error(node->compiler_intrinsic.intrinsic + ": unknown intrinsic")
+        return code_triple("ERROR")
+    }
 
     // for now, anyway
     fun generate(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>, need_variable: bool): code_triple {
@@ -926,6 +935,7 @@ obj c_generator (Object) {
             ast_node::for_loop(backing) return generate_for_loop(node, enclosing_object, enclosing_func, defer_stack)
             ast_node::function(backing) return generate_function(node, enclosing_object, enclosing_func, true, need_variable)
             ast_node::function_call(backing) return generate_function_call(node, enclosing_object, enclosing_func, need_variable)
+            ast_node::compiler_intrinsic(backing) return generate_compiler_intrinsic(node)
             ast_node::code_block(backing) return generate_code_block(node, enclosing_object, enclosing_func, defer_stack)
             ast_node::return_statement(backing) return generate_return_statement(node, enclosing_object, enclosing_func, defer_stack)
             ast_node::branching_statement(backing) return generate_branching_statement(node, enclosing_object, enclosing_func, defer_stack)

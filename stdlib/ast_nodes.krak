@@ -35,6 +35,7 @@ adt ast_node {
     if_comp: if_comp,
     simple_passthrough: simple_passthrough,
     function_call: function_call,
+    compiler_intrinsic: compiler_intrinsic,
     cast: cast,
     value: value
 }
@@ -961,6 +962,50 @@ obj function_call (Object) {
         return func == func && parameters == other.parameters
     }
 }
+fun ast_compiler_intrinsic_ptr(intrinsic: string, parameters: vector<string>, type_parameters: vector<*type>, return_type: *type): *ast_node {
+    var to_ret.construct(intrinsic, parameters, type_parameters, return_type): compiler_intrinsic
+    var ptr = new<ast_node>()
+    ptr->copy_construct(&ast_node::compiler_intrinsic(to_ret))
+    return ptr
+}
+fun is_compiler_intrinsic(node: *ast_node): bool {
+    match(*node) {
+        ast_node::compiler_intrinsic(backing) return true
+    }
+    return false
+}
+obj compiler_intrinsic (Object) {
+    var intrinsic: string
+    var parameters: vector<string>
+    var type_parameters: vector<*type>
+    var return_type: *type
+    fun construct(intrinsic_in: string, parameters_in: vector<string>, type_parameters_in: vector<*type>, return_type_in: *type): *compiler_intrinsic  {
+        intrinsic.copy_construct(&intrinsic_in)
+        parameters.copy_construct(&parameters_in)
+        type_parameters.copy_construct(&type_parameters_in)
+        return_type = return_type_in
+        return this
+    }
+    /*fun copy_construct(old: *function_call) {*/
+    fun copy_construct(old: *compiler_intrinsic) {
+        intrinsic.copy_construct(&old->intrinsic)
+        parameters.copy_construct(&old->parameters)
+        type_parameters.copy_construct(&old->type_parameters)
+        return_type = old->return_type
+    }
+    fun destruct() {
+        intrinsic.destruct()
+        parameters.destruct()
+        type_parameters.destruct()
+    }
+    fun operator=(other: ref compiler_intrinsic) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref compiler_intrinsic): bool {
+        return intrinsic == intrinsic && parameters == other.parameters && type_parameters == other.type_parameters && return_type == other.return_type
+    }
+}
 fun ast_cast_ptr(value: *ast_node, to_type: *type): *ast_node {
     var to_ret.construct(value, to_type): cast
     var ptr = new<ast_node>()
@@ -1059,6 +1104,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::if_comp(backing) return vector<*ast_node>(backing.statement)
         ast_node::simple_passthrough(backing) return vector<*ast_node>()
         ast_node::function_call(backing) return vector(backing.func) + backing.parameters
+        ast_node::compiler_intrinsic(backing) return vector<*ast_node>()
         ast_node::cast(backing) return vector<*ast_node>(backing.value)
         ast_node::value(backing) return vector<*ast_node>()
     }
@@ -1087,6 +1133,7 @@ fun get_ast_name(node: *ast_node): string {
         ast_node::if_comp(backing) return string("if_comp: ") + backing.wanted_generator
         ast_node::simple_passthrough(backing) return string("simple_passthrough: , string:") + backing.passthrough_str
         ast_node::function_call(backing) return string("function_call:") + get_ast_name(backing.func) + "(" + backing.parameters.size + ")"
+        ast_node::compiler_intrinsic(backing) return string("compiler_intrinsic:") + backing.intrinsic + "(" + backing.parameters.size + "," + backing.type_parameters.size + "):" + backing.return_type->to_string()
         ast_node::cast(backing) return string("cast: ") + get_ast_name(backing.value) + ": " + backing.to_type->to_string()
         ast_node::value(backing) return string("value: ") + backing.string_value + ": " + backing.value_type->to_string()
     }
@@ -1119,6 +1166,7 @@ fun get_ast_type(node: *ast_node): *type {
         ast_node::identifier(backing) return backing.type
         ast_node::function(backing) return backing.type
         ast_node::function_call(backing) return get_ast_type(backing.func)->return_type
+        ast_node::compiler_intrinsic(backing) return backing.return_type
         ast_node::cast(backing) return backing.to_type
         ast_node::value(backing) return backing.value_type
     }
