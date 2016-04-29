@@ -72,7 +72,7 @@ func_identifier = identifier | identifier overloadable_operator ;
 
 # HACKY - typed_return has it's own internal whitespace as to not make WS typed_return-reduces to null WS ambigious
 typed_return = WS dec_type | ;
-function = "fun" WS func_identifier WS template_dec WS "\(" WS opt_typed_parameter_list WS "\)" typed_return WS statement | "fun" WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" typed_return WS statement ;
+function = "ext" WS "fun" WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" typed_return | "fun" WS func_identifier WS template_dec WS "\(" WS opt_typed_parameter_list WS "\)" typed_return WS statement | "fun" WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" typed_return WS statement ;
 lambda = "fun" WS "\(" WS opt_typed_parameter_list WS "\)" typed_return WS statement ;
 
 opt_typed_parameter_list = typed_parameter_list | ;

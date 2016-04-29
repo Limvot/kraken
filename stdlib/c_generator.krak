@@ -80,6 +80,7 @@ obj c_generator (Object) {
     var function_type_map: map<type, string>
     var function_typedef_string: string
     var closure_struct_definitions: string
+    var c_keyword_avoid: set<string>
     var replacement_map: map<string, string>
     var longest_replacement: int
     var linker_string: string
@@ -91,6 +92,8 @@ obj c_generator (Object) {
         function_typedef_string.construct()
         closure_struct_definitions.construct()
         linker_string.construct()
+        c_keyword_avoid.construct()
+        c_keyword_avoid.add(string("extern"))
         replacement_map.construct()
         // IMPORTANT
         longest_replacement = 3
@@ -146,6 +149,7 @@ obj c_generator (Object) {
         function_type_map.copy_construct(&old->function_type_map)
         function_typedef_string.copy_construct(&old->function_typedef_string)
         closure_struct_definitions.copy_construct(&old->closure_struct_definitions)
+        c_keyword_avoid.copy_construct(&old->c_keyword_avoid)
         replacement_map.copy_construct(&old->replacement_map)
         longest_replacement = old->longest_replacement
         linker_string.copy_construct(&old->linker_string)
@@ -160,6 +164,7 @@ obj c_generator (Object) {
         function_type_map.destruct()
         function_typedef_string.destruct()
         closure_struct_definitions.destruct()
+        c_keyword_avoid.destruct()
         replacement_map.destruct()
         linker_string.destruct()
     }
@@ -182,7 +187,11 @@ obj c_generator (Object) {
             parameters += closed_type_name + "* closure_data"
         }
 
-        var decorated_name = generate_function(child, enclosing_object, null<ast_node>(), false, false).one_string()
+        var decorated_name = string()
+        if (backing.is_extern)
+            decorated_name = backing.name
+        else
+            decorated_name = generate_function(child, enclosing_object, null<ast_node>(), false, false).one_string()
         backing.parameters.for_each(fun(parameter: *ast_node) {
             if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
             parameter_types += type_to_c(parameter->identifier.type)
@@ -216,13 +225,14 @@ obj c_generator (Object) {
             var defer_stack = stack<pair<bool,stack<*ast_node>>>(make_pair(false, stack<*ast_node>()))
             var prototype_and_header = generate_function_prototype_and_header(child, enclosing_object, is_lambda, &defer_stack)
             function_prototypes += prototype_and_header.first
-            function_definitions += prototype_and_header.second
+            if (!backing.is_extern)
+                function_definitions += prototype_and_header.second
             if (backing.body_statement) {
                 function_definitions += string(" {\n") + generate_statement(backing.body_statement, enclosing_object, child, &defer_stack).one_string()
                 function_definitions += generate_from_defer_stack(&defer_stack, -1, enclosing_object, child).one_string()
                 function_definitions += "}\n"
-            } else {
-                // adt constructor
+            } else if (!backing.is_extern) {
+                // adt constructor if no body and not extern
                 // wow. no pass in for no this
                 enclosing_object = get_ast_scope(child)->get(string("~enclosing_scope"))[0]
                 // if this is an option constructor
@@ -361,7 +371,8 @@ obj c_generator (Object) {
                     ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n" // false - don't do defer
                     ast_node::function(backing) {
                         // check for and add to parameters if a closure
-                        generate_function_definition(child, null<ast_node>(), false)
+                        if (!backing.is_extern)
+                            generate_function_definition(child, null<ast_node>(), false)
                     }
                     ast_node::template(backing) {
                         backing.instantiated.for_each(fun(node: *ast_node) {
@@ -1027,6 +1038,8 @@ obj c_generator (Object) {
                     return backing.name
                 if (backing.name == "main")
                     return backing.name
+                if (backing.is_extern)
+                    return backing.name
                 result = "fun_"
                 var upper = backing.scope.get_with_default(string("~enclosing_scope"), vector(null<ast_node>()))[0]
                 if (upper && is_type_def(upper))
@@ -1042,8 +1055,10 @@ obj c_generator (Object) {
         }
         if (result == "impossible name")
             error("HUGE PROBLEMS")
-        if (ast_name_map.contains_value(result))
+        // TODO keyword avoid seems not to work
+        if (ast_name_map.contains_value(result) || c_keyword_avoid.contains(result))
             result += get_id()
+        println("HERE: " + result)
         ast_name_map.set(node, result)
         return result
     }

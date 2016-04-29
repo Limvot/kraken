@@ -285,8 +285,8 @@ obj adt_def (Object) {
         return name == other.name && self_type == other.self_type && options == other.options && option_funcs == other.option_funcs && regular_funcs == other.regular_funcs
     }
 }
-fun ast_function_ptr(name: string, type: *type, parameters: vector<*ast_node>): *ast_node {
-    var to_ret.construct(name, type, parameters): function
+fun ast_function_ptr(name: string, type: *type, parameters: vector<*ast_node>, is_extern: bool): *ast_node {
+    var to_ret.construct(name, type, parameters, is_extern): function
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::function(to_ret))
     return ptr
@@ -304,13 +304,15 @@ obj function (Object) {
     var closed_variables: set<*ast_node>
     var body_statement: *ast_node
     var scope: map<string, vector<*ast_node>>
-    fun construct(name_in: string, type_in: *type, parameters_in: vector<*ast_node>): *function  {
+    var is_extern: bool
+    fun construct(name_in: string, type_in: *type, parameters_in: vector<*ast_node>, is_extern_in: bool): *function  {
         name.copy_construct(&name_in)
         parameters.copy_construct(&parameters_in)
         closed_variables.construct()
         scope.construct()
         type = type_in
         body_statement = null<ast_node>()
+        is_extern = is_extern_in
         return this
     }
     fun copy_construct(old: *function) {
@@ -320,6 +322,7 @@ obj function (Object) {
         parameters.copy_construct(&old->parameters)
         closed_variables.copy_construct(&old->closed_variables)
         scope.copy_construct(&old->scope)
+        is_extern = old->is_extern
     }
     fun destruct() {
         name.destruct()
@@ -332,7 +335,7 @@ obj function (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref function): bool {
-        return name == name && type == other.type && parameters == other.parameters && body_statement == other.body_statement && closed_variables == other.closed_variables
+        return name == name && type == other.type && parameters == other.parameters && body_statement == other.body_statement && closed_variables == other.closed_variables && is_extern == other.is_extern
     }
 }
 fun ast_template_ptr(name: string, syntax_node: *tree<symbol>, template_types: vector<string>, template_type_replacements: map<string, *type>, is_function: bool): *ast_node {
@@ -1116,7 +1119,12 @@ fun get_ast_name(node: *ast_node): string {
         ast_node::identifier(backing) return string("identifier: ") + backing.name + ": " + backing.type->to_string()
         ast_node::type_def(backing) return string("type_def: ") + backing.name
         ast_node::adt_def(backing) return string("adt_def: ") + backing.name
-        ast_node::function(backing) return string("function: ") + backing.name + ": " + backing.type->to_string()
+        ast_node::function(backing) {
+            if (backing.is_extern)
+                return string("extern function: ") + backing.name + ": " + backing.type->to_string()
+            else
+                return string("function: ") + backing.name + ": " + backing.type->to_string()
+        }
         ast_node::template(backing) return string("template: ") + backing.name
         ast_node::code_block(backing) return string("code_block")
         ast_node::statement(backing) return string("statement")

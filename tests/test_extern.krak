@@ -1,0 +1,8 @@
+
+ext fun printf(format_str: *char, actual_str: *char): int
+
+fun main():int {
+    printf("%s", "Hello extern!\n")
+}
+
+
