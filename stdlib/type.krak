@@ -12,15 +12,21 @@ adt base_type {
     object,
     adt,
     no_type_adt_option,
+    function,
     template,
     template_type,
     void_return,
     boolean,
     character,
+    ucharacter,
+    short_int,
+    ushort_int,
     integer,
+    uinteger,
+    long_int,
+    ulong_int,
     floating,
-    double_precision,
-    function
+    double_precision
 }
 
 fun type_ptr(): *type {
@@ -161,7 +167,13 @@ obj type (Object) {
             base_type::void_return() return indr_string + string("void_return") + trait_string
             base_type::boolean() return indr_string + string("boolean") + trait_string
             base_type::character() return indr_string + string("character") + trait_string
+            base_type::short_int() return indr_string + string("short") + trait_string
             base_type::integer() return indr_string + string("integer") + trait_string
+            base_type::long_int() return indr_string + string("long") + trait_string
+            base_type::ucharacter() return indr_string + string("ucharacter") + trait_string
+            base_type::ushort_int() return indr_string + string("ushort") + trait_string
+            base_type::uinteger() return indr_string + string("uinteger") + trait_string
+            base_type::ulong_int() return indr_string + string("ulong") + trait_string
             base_type::floating() return indr_string + string("floating") + trait_string
             base_type::double_precision() return indr_string + string("double_precision") + trait_string
             base_type::function() {
@@ -177,9 +189,15 @@ obj type (Object) {
            return 5
         match (base) {
             base_type::character() return 1
-            base_type::integer() return 2
-            base_type::floating() return 3
-            base_type::double_precision() return 4
+            base_type::ucharacter() return 1
+            base_type::short_int() return 2
+            base_type::ushort_int() return 2
+            base_type::integer() return 3
+            base_type::uinteger() return 3
+            base_type::long_int() return 4
+            base_type::ulong_int() return 4
+            base_type::floating() return 5
+            base_type::double_precision() return 6
         }
         return 0
     }

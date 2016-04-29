@@ -4,7 +4,7 @@ translation_unit = WS unorderd_list_part WS ;
 unorderd_list_part = import WS unorderd_list_part | function WS unorderd_list_part | type_def line_end WS unorderd_list_part | adt_def line_end WS unorderd_list_part | if_comp WS unorderd_list_part | simple_passthrough WS unorderd_list_part | declaration_statement line_end WS unorderd_list_part | import | function | type_def line_end | adt_def line_end | if_comp | simple_passthrough | declaration_statement line_end ;
 
 type = "ref" WS pre_reffed | pre_reffed ;
-pre_reffed = "\*" WS pre_reffed | "void" | "int" | "float" | "double" | "char" | scoped_identifier | scoped_identifier WS template_inst | function_type ;
+pre_reffed = "\*" WS pre_reffed | "void" | "char" | "uchar" | "short" | "ushort" | "int" | "uint" | "long" | "ulong" | "float" | "double" | scoped_identifier | scoped_identifier WS template_inst | function_type ;
 function_type = "fun" WS "\(" WS opt_type_list WS "\)" WS ":" WS type ;
 dec_type = ":" WS type ;
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 kraken="kraken"
-bootstrap_commits=(cf46fb13afe66ba475db9725e9269c9c1cd3bbc3 2cd43e5a217318c70097334b3598d2924f64b362 2051f54b559ac5edf67277d4f1134aca2cb9215d)
+bootstrap_commits=(cf46fb13afe66ba475db9725e9269c9c1cd3bbc3 2cd43e5a217318c70097334b3598d2924f64b362 2051f54b559ac5edf67277d4f1134aca2cb9215d ecbbcb4eda56e2467efb0a04e7d668b95856aa4b)
 
 # Echo version string to a file included by kraken.krak
 # There is a default version string in the file in case kraken is not built with captain

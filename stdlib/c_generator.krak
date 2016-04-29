@@ -970,7 +970,13 @@ obj c_generator (Object) {
             base_type::void_return() return indirection + string("void")
             base_type::boolean() return indirection + string("bool")
             base_type::character() return indirection + string("char")
+            base_type::ucharacter() return indirection + string("uchar")
+            base_type::short_int() return indirection + string("short")
+            base_type::ushort_int() return indirection + string("ushort")
             base_type::integer() return indirection + string("int")
+            base_type::uinteger() return indirection + string("uint")
+            base_type::long_int() return indirection + string("long")
+            base_type::ulong_int() return indirection + string("ulong")
             base_type::floating() return indirection + string("float")
             base_type::double_precision() return indirection + string("double")
             base_type::object() return cify_name(type->type_def->type_def.name)
@@ -994,7 +1000,13 @@ obj c_generator (Object) {
             base_type::void_return() return string("void") + indirection
             base_type::boolean() return string("bool") + indirection
             base_type::character() return string("char") + indirection
+            base_type::ucharacter() return string("unsigned char") + indirection
+            base_type::short_int() return string("short") + indirection
+            base_type::ushort_int() return string("unsigned short") + indirection
             base_type::integer() return string("int") + indirection
+            base_type::uinteger() return string("unsigned int") + indirection
+            base_type::long_int() return string("long") + indirection
+            base_type::ulong_int() return string("unsigned long") + indirection
             base_type::floating() return string("float") + indirection
             base_type::double_precision() return string("double") + indirection
             base_type::object() return get_name(type->type_def) + indirection
@@ -1058,7 +1070,7 @@ obj c_generator (Object) {
         // TODO keyword avoid seems not to work
         if (ast_name_map.contains_value(result) || c_keyword_avoid.contains(result))
             result += get_id()
-        println("HERE: " + result)
+        /*println("HERE: " + result)*/
         ast_name_map.set(node, result)
         return result
     }

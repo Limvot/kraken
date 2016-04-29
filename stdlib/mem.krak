@@ -1,47 +1,20 @@
-__if_comp__ __C__ simple_passthrough """
-	#include <stdlib.h>
-"""
-
-/* we have a template versions so we don't have to cast (because we don't have that yet) */
 
 fun null<T>(): *T {
-	__if_comp__ __C__ {
-        simple_passthrough(::) """
-            return (void*)0;
-		"""
-	}
+    return (0) cast *T
 }
 
-fun malloc<T>(size: int): *T {
-    var memPtr: *T;
-	__if_comp__ __C__ {
-        simple_passthrough( size = size, memPtr = memPtr : memPtr = memPtr :) """
-			memPtr = malloc(size);
-		"""
-	}
-	return memPtr;
-}
+ext fun malloc(size: int): *void
+ext fun free(size: *void)
 
-fun free<T>(memPtr: *T): void {
-	__if_comp__ __C__ {
-		simple_passthrough(memPtr = memPtr ::) """
-			free(memPtr);
-		"""
-	}
-}
+fun new<T>(count: int): *T
+    return (malloc( #sizeof<T> * count )) cast *T
 
-fun new<T>(count: int): *T {
-	return malloc<T>( #sizeof<T> * count );
-}
-
-fun new<T>(): *T {
-	return new<T>(1);
-}
+fun new<T>(): *T
+    return new<T>(1)
 
 /* We specilize on the trait Object to decide on whether or not the destructor should be called */
-fun delete<T>(toDelete: *T, itemCount: int): void {
-    delete<T>(toDelete);
-}
+fun delete<T>(toDelete: *T, itemCount: int)
+    delete<T>(toDelete)
 
 /* Calling this with itemCount = 0 allows you to delete destructable objects without calling their destructors. */
 fun delete<T(Object)>(toDelete: *T, itemCount: int): void {
@@ -49,45 +22,38 @@ fun delete<T(Object)>(toDelete: *T, itemCount: int): void {
     // finishes the pointer
     for (var i: int = 0; i < itemCount; i++;)
         toDelete[i].destruct();
-    free<T>(toDelete);
-    //delete<T>(toDelete);
+    free((toDelete) cast *void);
 }
 
 /* We specilize on the trait Object to decide on whether or not the destructor should be called */
-fun delete<T>(toDelete: *T): void {
-    free<T>(toDelete);
-}
+fun delete<T>(toDelete: *T)
+    free((toDelete) cast *void)
 
 fun delete<T(Object)>(toDelete: *T): void {
     toDelete->destruct();
-    free<T>(toDelete);
+    free((toDelete) cast *void);
 }
 
 // a wrapper for construct if it has the Object trait
-fun maybe_construct<T>(it:*T):*T {
+fun maybe_construct<T>(it:*T):*T
     return it
-}
 
-fun maybe_construct<T(Object)>(it:*T):*T {
+fun maybe_construct<T(Object)>(it:*T):*T
     return it->construct()
-}
-
 
 // a wrapper for copy constructing if it has the Object trait
-fun maybe_copy_construct<T>(to:*T, from:*T):void {
+fun maybe_copy_construct<T>(to:*T, from:*T)
     *to = *from
-}
 
-fun maybe_copy_construct<T(Object)>(to:*T, from:*T):void {
+
+fun maybe_copy_construct<T(Object)>(to:*T, from:*T)
     to->copy_construct(from)
-}
 
 // a wrapper for destruct if it has the Object trait
-fun maybe_destruct<T>(it:*T):void {}
+fun maybe_destruct<T>(it:*T) {}
 
-fun maybe_destruct<T(Object)>(it:*T):void {
+fun maybe_destruct<T(Object)>(it:*T)
     it->destruct()
-}
 
 obj shared_ptr<T> (Object){
   var data: *T;
@@ -150,5 +116,4 @@ obj shared_ptr<T> (Object){
   }
 
 }; //end shared_ptr class
-
 
