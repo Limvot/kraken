@@ -374,6 +374,8 @@ obj c_generator (Object) {
                     }
                     ast_node::simple_passthrough(backing) top_level_c_passthrough += generate_simple_passthrough(child, true)
                     ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n" // false - don't do defer
+                    // shouldn't need to do anything with return, as the intrinsic should be something like link
+                    ast_node::compiler_intrinsic(backing) generate_compiler_intrinsic(child)
                     ast_node::function(backing) {
                         // check for and add to parameters if a closure
                         generate_function_definition(child, null<ast_node>(), false)
@@ -678,7 +680,7 @@ obj c_generator (Object) {
         return to_ret
     }
     fun generate_cast(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>, need_variable: bool): code_triple {
-        return code_triple("(") + type_to_c(node->cast.to_type) + ")(" + generate(node->cast.value, enclosing_object, enclosing_func, defer_stack, false) + ")"
+        return code_triple("((") + type_to_c(node->cast.to_type) + ")(" + generate(node->cast.value, enclosing_object, enclosing_func, defer_stack, false) + "))"
     }
     fun generate_value(node: *ast_node, need_variable: bool): code_triple {
         var value = node->value.string_value
@@ -932,6 +934,11 @@ obj c_generator (Object) {
             if (node->compiler_intrinsic.parameters.size || node->compiler_intrinsic.type_parameters.size != 1)
                 error("wrong parameters to sizeof compiler intrinsic")
             return code_triple("sizeof(") + type_to_c(node->compiler_intrinsic.type_parameters[0]) + ")"
+        } else if (node->compiler_intrinsic.intrinsic == "link") {
+            node->compiler_intrinsic.parameters.for_each(fun(str: string) {
+                linker_string += string("-l") + str + " " 
+            })
+            return code_triple()
         }
         error(node->compiler_intrinsic.intrinsic + ": unknown intrinsic")
         return code_triple("ERROR")

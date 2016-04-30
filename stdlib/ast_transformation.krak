@@ -124,6 +124,8 @@ obj ast_transformation (Object) {
             } else if (child->data.name == "declaration_statement") {
                 // second pass declaration can actually just call a normal transform (but maybe should be it's own method to do so because typedef has to do it too?)...
                 translation_unit->translation_unit.children.add(transform_declaration_statement(child, translation_unit, map<string, *type>()))
+            } else if (child->data.name == "compiler_intrinsic") {
+                translation_unit->translation_unit.children.add(transform_compiler_intrinsic(child, translation_unit, map<string, *type>()))
             }
         })
         // work on the ones already started
