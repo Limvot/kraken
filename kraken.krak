@@ -77,7 +77,7 @@ fun main(argc: int, argv: **char):int {
     println("Generating C")
     /*println("NOW DOING C_GENERATOR")*/
     var c_generator.construct(): c_generator
-    var c_output_pair = c_generator.generate_c(importer.name_ast_map)
+    var c_output_pair = c_generator.generate_c(importer.name_ast_map, importer.ast_pass.ast_to_syntax)
     var kraken_c_output_name = kraken_file_name + ".c"
     write_file(kraken_c_output_name, c_output_pair.first)
     /*println(string("linker string: ") + c_output_pair.second)*/

@@ -1,13 +1,13 @@
-import simple_print;
+import io;
 
 fun addAndPrint<T>(a: T, b: T): T {
-    simple_print::print(a+b);
+    io::print(a+b);
 	return a+b;
 }
 
 fun main(): int {
 	addAndPrint<int>(10,12);
-    simple_print::print("\n");
+    io::print("\n");
 
 	return 0;
 }

@@ -27,12 +27,18 @@ fun min<T>(a: T, b: T): T {
     return a;
 }
 
-fun hash<T(Hashable)>(item: T): int return item.hash()
-fun hash<T>(item: *T): int return (item) cast int
-fun hash(item: int): int return item
-fun hash(item: char): int return item
+fun hash<T(Hashable)>(item: T): ulong return item.hash()
+fun hash<T>(item: *T): ulong return (item) cast ulong
+fun hash(item: char): ulong return item
+fun hash(item: uchar): ulong return item
+fun hash(item: short): ulong return item
+fun hash(item: ushort): ulong return item
+fun hash(item: int): ulong return item
+fun hash(item: uint): ulong return item
+fun hash(item: long): ulong return item
+fun hash(item: ulong): ulong return item
 // default hash
-fun hash<T>(item: T): int {
+fun hash<T>(item: T): ulong {
     io::println("using empty hash - please do not do!")
     return 0
 }
@@ -95,8 +101,7 @@ obj pair<T,U> (Object, Serializable, Hashable) {
         return second_pair.second
     }
 
-    fun hash():int return hash(first) ^ hash(second)
-    /*fun hash():int return 0*/
+    fun hash():ulong return hash(first) ^ hash(second)
 
     // the old unnecessary template to prevent generation
     // if not used trick (in this case, changing out U with V)

@@ -1,4 +1,4 @@
-import simple_print:*;
+import io:*;
 
 fun fibanacci(num: int): int {
 	if (num < 2)

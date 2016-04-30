@@ -1,4 +1,4 @@
-import simple_print;
+import io;
 
 obj ClassWithConstructor {
     var data: int;
@@ -7,7 +7,7 @@ obj ClassWithConstructor {
         return this;
     }
     fun printData(): void {
-        simple_print::println(data);
+        io::println(data);
     }
 };
 
@@ -15,6 +15,6 @@ fun main(): int {
      var object.construct(4): ClassWithConstructor;
     object.printData();
     var a :int = 8;
-    simple_print::println(a);
+    io::println(a);
     return 0;
 }

@@ -1,32 +1,32 @@
-import simple_print;
+import io;
 import scopeQualified;
 import scopeUnqualified : * ;
 
 fun main(): int {
-    simple_print::println("Qualified simple_print!");
+    io::println("Qualified io!");
 
     // Defined in scopeQualified
-    simple_print::println(scopeQualified::qualified_variable);
-    simple_print::println(scopeQualified::qualified_func());
+    io::println(scopeQualified::qualified_variable);
+    io::println(scopeQualified::qualified_func());
     var qClass.construct(11): scopeQualified::qualified_class;
-    simple_print::println(qClass.get());
+    io::println(qClass.get());
 
     var sayQualified.construct("Qualified Container!"): scopeQualified::qualified_container<*char>;
-    simple_print::println(sayQualified.get());
-    simple_print::println(scopeQualified::qualified_id<*char>("Even template functions qualified!"));
+    io::println(sayQualified.get());
+    io::println(scopeQualified::qualified_id<*char>("Even template functions qualified!"));
 
-    simple_print::println();
+    io::println();
 
-    simple_print::println("Unqualified simple_print!");
+    io::println("Unqualified io!");
     // Defined in scopeUnqualified
-    simple_print::println(unqualifed_variable);
-    simple_print::println(unqualified_func());
+    io::println(unqualifed_variable);
+    io::println(unqualified_func());
     var uqClass.construct(12): unqualified_class;
-    simple_print::println(uqClass.get());
+    io::println(uqClass.get());
 
     var sayUnqualified.construct("Unqualified Container!"): unqualified_container<*char>;
-    simple_print::println(sayUnqualified.get());
-    simple_print::println(unqualified_id<*char>("Even template functions unqualified!"));
+    io::println(sayUnqualified.get());
+    io::println(unqualified_id<*char>("Even template functions unqualified!"));
 
     return 0;
 }

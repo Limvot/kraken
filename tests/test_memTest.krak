@@ -1,5 +1,5 @@
 import mem:*;
-import simple_print:*;
+import io:*;
 
 obj AnObject {
 	var a: int;

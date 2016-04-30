@@ -1,4 +1,4 @@
-import simple_print:*
+import io:*
 
 obj it {
     fun operator+<U>(other: U): it {

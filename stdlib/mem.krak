@@ -1,13 +1,12 @@
 
-fun null<T>(): *T {
-    return (0) cast *T
-}
-
-ext fun malloc(size: int): *void
+ext fun malloc(size: ulong): *void
 ext fun free(size: *void)
 
+fun null<T>(): *T
+    return (0) cast *T
+
 fun new<T>(count: int): *T
-    return (malloc( #sizeof<T> * count )) cast *T
+    return (malloc( (#sizeof<T> * count ) cast ulong )) cast *T
 
 fun new<T>(): *T
     return new<T>(1)

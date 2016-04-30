@@ -65,7 +65,7 @@ obj hash_map<T,U> (Object, Serializable) {
         /*io::println((this) cast int)*/
         /*io::print("size of data:")*/
         /*io::println(data.size)*/
-        var key_hash = util::hash(key)
+        var key_hash = (util::hash(key)) cast int
         if (!data[key_hash%data.size].contains_key(key)) {
             size++
             if (size > data.size) {
@@ -75,7 +75,7 @@ obj hash_map<T,U> (Object, Serializable) {
                 for (var i = 0; i < size*2; i++;)
                     new_data.addEnd(map::map<T,U>())
                 for_each(fun(key: T, value: U) {
-                    new_data[util::hash(key)%new_data.size].set(key, value)
+                    new_data[(util::hash(key)) cast int%new_data.size].set(key, value)
                 })
                 data = new_data
             }
@@ -83,10 +83,10 @@ obj hash_map<T,U> (Object, Serializable) {
         data[key_hash%data.size].set(key, value)
     }
     fun get(key: T): ref U {
-        return data[util::hash(key)%data.size].get(key)
+        return data[(util::hash(key)) cast int%data.size].get(key)
     }
     fun contains_key(key: T): bool {
-        return data[util::hash(key)%data.size].contains_key(key)
+        return data[(util::hash(key)) cast int%data.size].contains_key(key)
     }
     fun contains_value(value: U): bool {
         for (var i = 0; i < data.size; i++;) {
@@ -103,7 +103,7 @@ obj hash_map<T,U> (Object, Serializable) {
         io::println("trying to reverse get a value that is not in the hash_map")
     }
     fun remove(key: T) {
-        data[util::hash(key)%data.size].remove(key)
+        data[(util::hash(key)) cast int%data.size].remove(key)
     }
     fun for_each(func: fun(T, U):void) {
         for (var i = 0; i < data.size; i++;)

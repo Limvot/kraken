@@ -7,22 +7,7 @@ fun system(call_string: string):int {
     delete(c_call_string)
     return result
 }
-fun system(call_string: *char): int {
-    __if_comp__ __C__ {
-        simple_passthrough(call_string::) """
-            return system(call_string);
-        """
-    }
-}
-
+ext fun system(call_string: *char): int
+ext fun exit(code: int):void
 fun exit() exit(0);
-fun exit(code: int) {
-    __if_comp__ __C__ {
-        simple_passthrough(code::) """
-            exit(code);
-        """
-    }
-}
-
-
 

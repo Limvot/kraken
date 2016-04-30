@@ -1,4 +1,4 @@
-import simple_print:*
+import io:*
 
 fun test(): void {
     println(9)

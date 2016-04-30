@@ -2,10 +2,6 @@ import string;
 import vector;
 import mem:*
 
-__if_comp__ __C__ simple_passthrough """
-	#include <stdio.h>
-"""
-
 fun println() : void {
     print("\n");
 }
@@ -15,35 +11,18 @@ fun println<T>(toPrint: T) : void {
     print("\n")
 }
 
-fun print<T>(toPrint: *T) : void{
-	__if_comp__ __C__ {
-		simple_passthrough(toPrint = toPrint::) """
-			printf("%p", (void*)toPrint);
-            fflush(0);
-		"""
-	}
-	return;
-}
+fun print<T>(toPrint: *T)
+    print((toPrint) cast ulong)
 
+ext fun printf(fmt_str: *char, to_print: *char): int
+ext fun fflush(file: int): int
 fun print(toPrint: *char) : void {
-	__if_comp__ __C__ {
-		simple_passthrough(toPrint = toPrint::) """
-			printf("%s", toPrint);
-            fflush(0);
-		"""
-	}
-	return;
+    printf("%s", toPrint)
+    fflush(0)
 }
 
-fun print(toPrint: char) : void {
-	__if_comp__ __C__ {
-		simple_passthrough(toPrint = toPrint::) """
-			printf("%c", toPrint);
-            fflush(0);
-		"""
-	}
-	return;
-}
+fun print(toPrint: char) : void
+    print(string::string(toPrint))
 
 fun print(toPrint: string::string) : void {
     var charArr = toPrint.toCharArray()
@@ -59,52 +38,39 @@ fun print(toPrint: bool): void {
 	return;
 }
 
-fun print(toPrint: int): void {
-	__if_comp__ __C__ {
-		simple_passthrough(toPrint = toPrint::) """
-			printf("%d", toPrint);
-            fflush(0);
-		"""
-	}
-	return;
-}
+fun print(toPrint: int): void 
+    print(string::to_string(toPrint))
+fun print(toPrint: ulong): void 
+    print(string::to_string(toPrint))
 
-fun print(toPrint: float): void {
-	__if_comp__ __C__ {
-		simple_passthrough(toPrint = toPrint::) """
-			printf("%f", toPrint);
-            fflush(0);
-		"""
-	}
-	return;
-}
+ext fun sprintf(to_str: *char, format: *char, d: double)
+fun print(toPrint: float)
+    print((toPrint) cast double)
 
-fun print(toPrint: double) : void{
-	__if_comp__ __C__ {
-		simple_passthrough(toPrint = toPrint::) """
-			printf("%f", toPrint);
-            fflush(0);
-		"""
-	}
-	return;
+fun print(toPrint: double) {
+    var int_str =  new<char>((#sizeof<double>) cast int)
+    sprintf(int_str, "%f", toPrint)
+    print(int_str)
+    delete(int_str)
 }
 
 // Ok, just some DEAD simple file io for now
+ext fun fopen(path: *char, mode: *char): *void
+ext fun fclose(file: *void): int
+ext fun fprintf(file: *void, format: *char, data: *char): int
+ext fun ftell(file: *void): long
+ext fun fseek(file: *void, offset: long, whence: int): int
+ext fun fread(ptr: *void, size: ulong, nmemb: ulong, file: *void): ulong
+ext fun fwrite(ptr: *void, size: ulong, nmemb: ulong, file: *void): ulong
 fun file_exists(path: string::string): bool {
     var char_path = path.toCharArray()
     defer delete(char_path)
-    var result = false
-	__if_comp__ __C__ {
-		simple_passthrough(char_path:result:) """
-            bool result = false;
-			FILE *fp = fopen(char_path, "r");
-            if (fp) {
-                result = true;
-                fclose(fp);
-            }
-		"""
+    var fp = fopen(char_path, "r")
+    if (fp) {
+        fclose(fp)
+        return true
 	}
-    return result
+    return false
 }
 fun read_file(path: string::string): string::string {
     if (!file_exists(path))
@@ -117,40 +83,25 @@ fun write_file(path: string::string, data: string::string) {
     defer delete(char_path)
     var char_data = data.toCharArray()
     defer delete(char_data)
-	__if_comp__ __C__ {
-		simple_passthrough(char_path,char_data::) """
-			FILE *fp = fopen(char_path, "w");
-            fprintf(fp, "%s", char_data);
-            fclose(fp);
-		"""
-	}
+    var fp = fopen(char_path, "w")
+    fprintf(fp, "%s", char_data)
+    fclose(fp)
 }
 fun read_file_binary(path: string::string): vector::vector<char> {
     var char_path = path.toCharArray()
     defer delete(char_path)
-    var data: *char
-    var size: int
-	__if_comp__ __C__ {
-		simple_passthrough(char_path = char_path:data = data, size = size:) """
-			FILE *fp = fopen(char_path, "r");
-            fseek(fp, 0L, SEEK_END);
-            long size = ftell(fp);
-            fseek(fp, 0L, SEEK_SET);
-            char *data = malloc(size+1);
-            size_t readSize = fread(data, 1, size, fp);
-            data[readSize] = 0;
-            fclose(fp);
-		"""
-	}
-    var toRet.construct(size): vector::vector<char>
+    var fp = fopen(char_path, "r")
+    fseek(fp, (0) cast long, 2)// fseek(fp, 0L, SEEK_END)
+    var size = ftell(fp)
+    fseek(fp, (0) cast long, 0)//fseek(fp, 0L, SEEK_SET)
+    var data = new<char>((size+1) cast int)
+    var readSize = fread((data) cast *void, (1) cast ulong, (size) cast ulong, fp)
+    fclose(fp)
+    data[readSize] = 0
+    var toRet.construct((size) cast int): vector::vector<char>
     for (var i = 0; i < size; i++;)
         toRet.add(data[i])
-
-	__if_comp__ __C__ {
-		simple_passthrough(data = data::) """
-            free(data);
-		"""
-	}
+    delete(data)
     return toRet
 }
 fun write_file_binary(path: string::string, vdata: vector::vector<char>) {
@@ -158,13 +109,9 @@ fun write_file_binary(path: string::string, vdata: vector::vector<char>) {
     defer delete(char_path)
     var data = vdata.getBackingMemory()
     var size = vdata.size
-	__if_comp__ __C__ {
-		simple_passthrough(char_path, data, size::) """
-			FILE *fp = fopen(char_path, "w");
-            fwrite(data, 1, size, fp);
-            fclose(fp);
-		"""
-	}
+    var fp = fopen(char_path, "w")
+    fwrite((data) cast *void, (1) cast ulong, (size) cast ulong, fp)
+    fclose(fp)
 }
 
 fun BoldRed(): void{
@@ -194,8 +141,4 @@ fun BoldCyan(): void{
 fun Reset(): void{
   print("\033[0m");
 }
-
-
-
-
 

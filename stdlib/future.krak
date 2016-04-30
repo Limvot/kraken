@@ -4,9 +4,7 @@ __if_comp__ __C__ simple_passthrough(::"-pthread") """
 #include <pthread.h>
 """
 
-def pthread_t float
-
-fun pthread_create(thrd : *pthread_t, strt_routine : fun() : void) : int {
+fun pthread_create(thrd : *ulong, strt_routine : fun() : void) : int {
     __if_comp__ __C__ { 
     simple_passthrough(thrd,strt_routine::) """
     pthread_attr_t attr;
@@ -20,7 +18,7 @@ fun pthread_create(thrd : *pthread_t, strt_routine : fun() : void) : int {
     return 0
 }
 
-fun pthread_join(thrd : *pthread_t) : int {
+fun pthread_join(thrd : *ulong) : int {
     __if_comp__ __C__ { simple_passthrough(thrd::) """
     pthread_t thread = *((pthread_t*)thrd);
     return pthread_join(thread, NULL);
@@ -48,7 +46,7 @@ obj future<T> {
     var status : int
     var psy : fun() : T
     var wrapper : fun() : void
-    var thread : pthread_t
+    var thread : ulong
 
     fun construct(in : fun() : T) : *future<T> {
         status = 0

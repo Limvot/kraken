@@ -615,7 +615,7 @@ obj ast_transformation (Object) {
                 identifier->identifier.type = get_ast_type(expression)->clone_without_ref()
         }
         if (!identifier->identifier.type) error(node, "declaration statement with no type or expression from which to inference type")
-        if (identifier->identifier.type->is_none()) error(node, "declaration statement with bad type")
+        if (identifier->identifier.type->is_none() || (identifier->identifier.type->indirection == 0 && identifier->identifier.type->is_void())) error(node, "declaration statement with bad type")
         var declaration = ast_declaration_statement_ptr(identifier, expression)
         // ok, deal with the possible init position method call
         if (identifiers.size == 2) {
@@ -716,9 +716,13 @@ obj ast_transformation (Object) {
     }
     fun transform_return_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
         var return_value = get_node("boolean_expression", node)
+        var to_ret: *ast_node
         if (return_value)
-            return ast_return_statement_ptr(transform(return_value, scope, template_replacements))
-        return ast_return_statement_ptr(null<ast_node>())
+            to_ret =  ast_return_statement_ptr(transform(return_value, scope, template_replacements))
+        else
+            to_ret =  ast_return_statement_ptr(null<ast_node>())
+        ast_to_syntax.set(to_ret, node)
+        return to_ret
     }
     fun transform_branching_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
         if (node->data.name == "break_statement")
@@ -778,8 +782,8 @@ obj ast_transformation (Object) {
             parameters = get_nodes("intrinsic_parameter", node).map(fun(child: *tree<symbol>): string return concat_symbol_tree(child);)
         if (get_nodes("type", node).size)
             type_parameters = get_nodes("type", node).map(fun(child: *tree<symbol>): *type return transform_type(child, scope, template_replacements);)
-        /*return ast_compiler_intrinsic_ptr(concat_symbol_tree(get_node("identifier", node)), parameters, type_parameters, type_ptr(base_type::ulong_int()))*/
-        return ast_compiler_intrinsic_ptr(concat_symbol_tree(get_node("identifier", node)), parameters, type_parameters, type_ptr(base_type::integer()))
+        return ast_compiler_intrinsic_ptr(concat_symbol_tree(get_node("identifier", node)), parameters, type_parameters, type_ptr(base_type::ulong_int()))
+        /*return ast_compiler_intrinsic_ptr(concat_symbol_tree(get_node("identifier", node)), parameters, type_parameters, type_ptr(base_type::integer()))*/
     }
     fun transform_lambda(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
         var function_node = second_pass_function(node, scope, template_replacements, false)

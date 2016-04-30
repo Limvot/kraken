@@ -1,4 +1,4 @@
-import simple_print:*
+import io:*
 
 obj BracketAssign {
     fun operator[]=(index:int, rhs:int) {

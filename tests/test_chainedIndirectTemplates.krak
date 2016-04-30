@@ -1,5 +1,5 @@
 import vector:*;
-import simple_print:*;
+import io:*;
 
 fun test<T>(a: vector<T>): T {
     return a.at(0);

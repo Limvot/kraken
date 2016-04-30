@@ -1,4 +1,4 @@
-import simple_print:*
+import io:*
 
 obj ConTest {
     var a: int

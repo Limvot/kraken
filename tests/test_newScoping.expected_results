@@ -1,11 +1,11 @@
-Qualified simple_print!
+Qualified io!
 7
 9
 11
 Qualified Container!
 Even template functions qualified!
 
-Unqualified simple_print!
+Unqualified io!
 8
 10
 12

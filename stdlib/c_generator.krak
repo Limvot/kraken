@@ -75,6 +75,7 @@ obj code_triple (Object) {
 
 obj c_generator (Object) {
     var id_counter: int
+    var ast_to_syntax: map<*ast_node, *tree<symbol>>
     var ast_name_map: map<*ast_node, string>
     var closure_struct_map: map<set<*ast_node>, string>
     var function_type_map: map<type, string>
@@ -86,6 +87,7 @@ obj c_generator (Object) {
     var linker_string: string
     fun construct(): *c_generator {
         id_counter = 0
+        ast_to_syntax.construct()
         ast_name_map.construct()
         closure_struct_map.construct()
         function_type_map.construct()
@@ -144,6 +146,7 @@ obj c_generator (Object) {
     }
     fun copy_construct(old: *c_generator) {
         id_counter = old->id_counter
+        ast_to_syntax.copy_construct(&old->ast_to_syntax)
         ast_name_map.copy_construct(&old->ast_name_map)
         closure_struct_map.copy_construct(&old->closure_struct_map)
         function_type_map.copy_construct(&old->function_type_map)
@@ -159,6 +162,7 @@ obj c_generator (Object) {
         copy_construct(&other)
     }
     fun destruct() {
+        ast_to_syntax.destruct()
         ast_name_map.destruct()
         closure_struct_map.destruct()
         function_type_map.destruct()
@@ -205,8 +209,9 @@ obj c_generator (Object) {
         return make_pair(type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n",
                          type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ")")
     }
-    fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<string,string> {
-        var prequal: string = "#include <stdbool.h>\n#include <stdlib.h>\n#include <stdio.h>\n"
+    fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>> ): pair<string,string> {
+        ast_to_syntax = ast_to_syntax_in
+        var prequal: string = "#include <stdbool.h>\n"
         var plain_typedefs: string = "\n/**Plain Typedefs**/\n"
         var top_level_c_passthrough: string = ""
         var variable_extern_declarations: string = ""
@@ -371,8 +376,7 @@ obj c_generator (Object) {
                     ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n" // false - don't do defer
                     ast_node::function(backing) {
                         // check for and add to parameters if a closure
-                        if (!backing.is_extern)
-                            generate_function_definition(child, null<ast_node>(), false)
+                        generate_function_definition(child, null<ast_node>(), false)
                     }
                     ast_node::template(backing) {
                         backing.instantiated.for_each(fun(node: *ast_node) {
@@ -446,7 +450,8 @@ obj c_generator (Object) {
             structs += "};\n"
         })
 
-        return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string+closure_struct_definitions+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
+        /*return make_pair(prequal+plain_typedefs+top_level_c_passthrough+variable_extern_declarations+structs+function_typedef_string+closure_struct_definitions+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)*/
+        return make_pair(prequal+plain_typedefs+function_typedef_string+top_level_c_passthrough+variable_extern_declarations+structs+closure_struct_definitions+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
     fun get_closure_struct_type(closed_variables: set<*ast_node>): string {
         if (!closure_struct_map.contains_key(closed_variables)) {
@@ -599,7 +604,7 @@ obj c_generator (Object) {
             to_ret.pre = generate_declaration_statement(declaration, enclosing_object, enclosing_func, defer_stack, false).one_string() + ";\n"
             if ((function_return_type->is_object() || return_value_type->is_object()) && !function_return_type->equality(return_value_type, false))
                 // note the clone with decreased indirection because of the clone with increased indirection above
-                error(string("return type does not match: ") + function_return_type->to_string() + ", " + return_value_type->to_string());
+                error(ast_to_syntax[node], string("return type does not match: ") + function_return_type->to_string() + ", " + return_value_type->to_string());
             if (!function_return_type->is_ref && return_value_type->indirection == 0 && (return_value_type->is_adt() || (return_value_type->is_object() && has_method(return_value_type->type_def, "copy_construct", vector(return_value_type->clone_with_indirection(1)))))) {
                 to_ret.pre += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(return_value))))), enclosing_object, enclosing_func, defer_stack).one_string()
             } else {
@@ -724,7 +729,7 @@ obj c_generator (Object) {
         if (as_value) {
            var closed_vars = node->function.closed_variables
            if (closed_vars.size() == 0)
-                return code_triple(string("((") + type_to_c(node->function.type) + "){(void*)NULL,(void*)" + get_name(node) + "})")
+                return code_triple(string("((") + type_to_c(node->function.type) + "){(void*)0,(void*)" + get_name(node) + "})")
             var temp_closure_struct = string("closure_struct_temp") + get_id()
             var to_ret = code_triple()
             var closure_type_str = get_closure_struct_type(closed_vars)

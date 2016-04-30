@@ -1,5 +1,5 @@
 import util:*
-import simple_print:*
+import io:*
 
 obj test(Object) {
     var counter:int

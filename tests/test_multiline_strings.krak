@@ -1,4 +1,4 @@
-import simple_print:*
+import io:*
 
 fun main():int {
     println("multi

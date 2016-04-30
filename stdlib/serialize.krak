@@ -19,7 +19,7 @@ fun unserialize<T>(it: ref vector::vector<char>): T {
     return unserialize<T>(it, 0).first
 }
 fun unserialize<T>(it: ref vector::vector<char>, pos: int): util::pair<T,int> {
-    return util::make_pair(*(it.getBackingMemory()+pos) cast *T, pos + #sizeof<T>)
+    return util::make_pair(*(it.getBackingMemory()+pos) cast *T, pos + (#sizeof<T>) cast int)
 }
 fun unserialize<T(Serializable)>(it: ref vector::vector<char>, pos: int): util::pair<T,int> {
     var toRet: T

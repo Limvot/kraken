@@ -1,4 +1,4 @@
-import simple_print:*
+import io:*
 
 fun oneLine1():void println(7)
 fun oneLine2():int return 8

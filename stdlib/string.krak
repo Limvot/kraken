@@ -2,16 +2,41 @@ import vector
 import util
 import mem
 import serialize
+import io
 
-fun to_string(in: int): string {
-    var dest = mem::new<char>(#sizeof<int> * 8)
-    defer mem::delete(dest)
-	__if_comp__ __C__ {
-		simple_passthrough(dest = dest, in = in::) """
-			sprintf(dest, "%d", in);
-		"""
-	}
-    var ret = string(dest)
+fun to_string(in: uchar): string
+    return to_string_num(in)
+fun to_string(in: short): string
+    return to_string_num(in)
+fun to_string(in: ushort): string
+    return to_string_num(in)
+fun to_string(in: int): string
+    return to_string_num(in)
+fun to_string(in: uint): string
+    return to_string_num(in)
+fun to_string(in: long): string
+    return to_string_num(in)
+fun to_string(in: ulong): string
+    return to_string_num(in)
+
+fun to_string_num<T>(in: T): string {
+    if (in == 0)
+        return string("0")
+    var ret = string()
+    var pos = 0
+    var is_neg = false
+    if (in > 0) {
+        pos = in
+    } else {
+        pos = -in
+        is_neg = true
+    }
+    while (pos) {
+        ret = string((pos%10 + '0') cast char) + ret
+        pos = pos / 10
+    }
+    if (is_neg)
+        return string("-") + ret
     return ret
 }
 

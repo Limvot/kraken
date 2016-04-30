@@ -1,9 +1,9 @@
-import simple_print;
+import io;
 
 obj trivialContainer<T> {
 	var data: T;
 	fun print(): void {
-        simple_print::print(data);
+        io::print(data);
 	}
 };
 

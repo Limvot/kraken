@@ -1,139 +1,27 @@
-__if_comp__ __C__ simple_passthrough(::"-lm") """
-  #include <math.h>
-"""
-
 fun fibanacci(num: int): int {
-	if (num < 2)
-		return 1;
-	return fibanacci(num-1) + fibanacci(num-2);
+    var l1 = 1
+    var l2 = 1
+    for (var i = 0; i < num; i++;) {
+        var next = l1 + l2
+        l2 = l1
+        l1 = next
+    }
+    return l1
 }
 
 /*********************
  *  Trig Functions
  ********************/
 
-fun atan(arg: double): double
-{
-  var ans: double = 0;
-  __if_comp__ __C__{
-    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
-      ans = atan(arg);
-    """
-  }//end C wrapper
-
-  return ans;
-}//end atan function
-
-fun atan2(x: double, y: double): double
-{
-  var ans: double = 0;
-  __if_comp__ __C__{
-    simple_passthrough(x = x, y = y, ans = ans : ans = ans :) """
-      ans = atan2(x,y);
-    """
-  }//end C wrapper
-
-  return ans;
-}//end atan2 function
-
-fun acos(arg: double): double
-{
-  var ans: double = 0;
-  __if_comp__ __C__{
-    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
-      ans = acos(arg);
-    """
-  }//end C wrapper
-
-  return ans;
-}//end acos function
-
-fun asin(arg: double): double
-{
-  var ans: double = 0;
-  __if_comp__ __C__{
-    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
-      ans = asin(arg);
-    """
-  }//end C wrapper
-
-  return ans;
-}//end asin function
-
-fun tan(arg: double): double
-{
-  var ans: double = 0;
-  __if_comp__ __C__{
-    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
-      ans = tan(arg);
-    """
-  }//end C wrapper
-
-  return ans;
-}//end tan function
-
-fun cos(arg: double): double
-{
-  var ans: double = 0;
-  __if_comp__ __C__{
-    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
-      ans = cos(arg);
-    """
-  }//end C wrapper
-
-  return ans;
-}//end cos function
-
-fun sin(arg: double): double
-{
-  var ans: double = 0;
-  __if_comp__ __C__{
-    simple_passthrough(arg = arg, ans = ans : ans = ans :) """
-      ans = sin(arg);
-    """
-  }//end C wrapper
-
-  return ans;
-}//end sin function
-
+ext fun atan(arg: double): double
+ext fun atan2(x: double, y: double): double
+ext fun acos(arg: double): double
+ext fun asin(arg: double): double
+ext fun tan(arg: double): double
+ext fun cos(arg: double): double
+ext fun sin(arg: double): double
 fun mod(x: double, y: double): double
 {
-   var ans: double;
-   var intAns: int;
-
-   intAns = x / y;
-   ans = x - intAns*y;
-
-   return ans;
+   var intAns = x / y;
+   return x - intAns*y;
 }
-
-val M_PI = acos(-1);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

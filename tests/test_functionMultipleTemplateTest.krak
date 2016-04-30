@@ -1,4 +1,4 @@
-import simple_print:*;
+import io:*;
 
 fun addAndPrint<T,J>(a: T, b: J): void {
 	print(a+b);
