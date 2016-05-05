@@ -34,8 +34,9 @@ obj set<T> (Object, Serializable) {
         data.copy_construct(&old->data)
     }
     fun operator=(rhs: ref set<T>) {
-        destruct()
-        copy_construct(&rhs)
+        /*destruct()*/
+        /*copy_construct(&rhs)*/
+        data = rhs.data
     }
     fun serialize(): vector::vector<char> {
         return serialize::serialize(data)
@@ -43,12 +44,12 @@ obj set<T> (Object, Serializable) {
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
         return data.unserialize(it, pos)
     }
-    fun operator==(rhs: set<T>): bool {
+    fun operator==(rhs: ref set<T>): bool {
         if (size() != rhs.size())
             return false
         return !data.any_true( fun(item: T): bool return !rhs.contains(item); )
     }
-    fun operator!=(rhs: set<T>): bool {
+    fun operator!=(rhs: ref set<T>): bool {
         return ! (*this == rhs)
     }
     fun destruct() {
@@ -57,10 +58,10 @@ obj set<T> (Object, Serializable) {
     fun size():int {
         return data.size
     }
-    fun contains(items: set<T>): bool {
+    fun contains(items: ref set<T>): bool {
         return items.size() == 0 || !items.any_true( fun(item: T): bool return !contains(item); )
     }
-    fun contains(item: T): bool {
+    fun contains(item: ref T): bool {
         return data.find(item) != -1
     }
     fun operator+=(item: ref T) {
@@ -84,7 +85,7 @@ obj set<T> (Object, Serializable) {
     fun add(items: ref set<T>) {
         items.for_each( fun(item: ref T) add(item); )
     }
-    fun remove(item: T) {
+    fun remove(item: ref T) {
         var idx = data.find(item)
         if (idx == -1) {
             /*io::println("CANNOT FIND ITEM TO REMOVE")*/

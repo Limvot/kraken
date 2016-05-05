@@ -1,4 +1,6 @@
 import io
+import string
+import ast_transformation
 import vector
 import string
 import mem
@@ -15,10 +17,16 @@ fun regex(in: string::string):regex {
 }
 
 obj regexState (Object) {
-    var character: char
+    // if only one character, both are the same
+    var characterBegin: char
+    var characterEnd: char
     var next_states: set::set<*regexState>
     fun construct(charIn:char): *regexState {
-        character = charIn
+        return construct(charIn, charIn)
+    }
+    fun construct(charFirst:char, charSecond:char): *regexState {
+        characterBegin = charFirst
+        characterEnd = charSecond
         next_states.construct()
         return this
     }
@@ -26,17 +34,18 @@ obj regexState (Object) {
         return construct((0) cast char)
     }
     fun copy_construct(old:*regexState): void {
-        character = old->character
+        characterBegin = old->characterBegin
+        characterEnd = old->characterEnd
         next_states.copy_construct(&old->next_states)
     }
     fun destruct():void {
         next_states.destruct()
     }
     fun match_char(input: char): set::set<*regexState> {
-        return next_states.filter(fun(it:*regexState):bool { return it->character == input; })
+        return next_states.filter(fun(it:*regexState):bool { return it->characterBegin <= input && input <= it->characterEnd; })
     }
     fun is_end():bool {
-        return next_states.any_true(fun(state: *regexState):bool { return state->character == 1; })
+        return next_states.any_true(fun(state: *regexState):bool { return state->characterBegin == 1; })
     }
 }
 
@@ -67,14 +76,6 @@ obj regex (Object, Serializable) {
         begin = old->begin
         referenceCounter = old->referenceCounter
         *referenceCounter += 1
-        /*construct(old->regexString)*/
-        /*begin = mem::safe_recursive_clone(old->begin, fun(it: *regexState, cloner: fun(*regexState):*regexState, register: fun(*regexState):void): void {*/
-            /*var newOne = mem::new<regexState>()->construct(it->character)*/
-            /*register(newOne)*/
-            /*it->next_states.for_each(fun(next_state: *regexState) {*/
-                /*newOne->next_states.add(cloner(next_state))*/
-            /*})*/
-        /*})*/
     }
 
     fun destruct():void {
@@ -105,6 +106,7 @@ obj regex (Object, Serializable) {
     }
 
     fun compile(regex_string: string::string): util::pair<*regexState, set::set<*regexState>> {
+        /*io::println(regex_string)*/
         var first = mem::new<regexState>()->construct()
         var previous_begin = set::set<*regexState>()
         var previous_end = set::set<*regexState>()
@@ -132,11 +134,14 @@ obj regex (Object, Serializable) {
             } else if (regex_string[i] == '(' && !escapeing) {
                 // note that we don't have a ')' case, as we skip past it with our indicies
                 var perenEnd = i + 1
-                for (var depth = 1; depth > 0; perenEnd++;)
+                for (var depth = 1; depth > 0; perenEnd++;) {
+                    if (perenEnd >= regex_string.length())
+                        ast_transformation::error(string::string("can't find matching peren in: ") + regex_string)
                     if (regex_string[perenEnd] == '(')
                         depth++
                     else if (regex_string[perenEnd] == ')')
                         depth--
+                }
                 var innerBeginEnd = compile(regex_string.slice(i+1, perenEnd-1))
                 // NOTE: perenEnd is one past the close peren
                 i = perenEnd-1
@@ -158,7 +163,13 @@ obj regex (Object, Serializable) {
                 escapeing = true
 
             } else {
-                var next = mem::new<regexState>()->construct(regex_string[i])
+                var next: *regexState
+                if (regex_string[i] == '[' && !escapeing) {
+                    next = mem::new<regexState>()->construct(regex_string[i+1], regex_string[i+3])
+                    i += 4 // [a-b] is 5, i++ adds one
+                } else {
+                    next = mem::new<regexState>()->construct(regex_string[i])
+                }
                 if (alternating) {
                     previous_end.for_each(fun(it: *regexState):void { it->next_states.add(next); })
                     current_begin.add(next)

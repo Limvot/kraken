@@ -65,31 +65,36 @@ obj vector<T> (Object, Serializable) {
         data = 0
     }
 
-    fun operator=(other:vector<T>):void {
-        destruct()
-        copy_construct(&other)
+    fun operator=(other:ref vector<T>):void {
+        if (size < other.size) {
+            destruct()
+            copy_construct(&other)
+        } else {
+            clear()
+            for (var i = 0; i < other.size; i++;)
+                addEnd(other.get(i))
+        }
     }
 
-    fun operator+(other:vector<T>):vector<T> {
-        // lets be at least a little bit smarter by copy_constructing our copy.
-        // We could get a lot better than this by initially creating enough space
-        // for both and copy_constructing all of them, but this is just a quick fix
-        var newVec.copy_construct(this):vector<T>
+    fun operator+(other: ref vector<T>):vector<T> {
+        var newVec.construct(size+other.size):vector<T>
+        for (var i = 0; i < size; i++;)
+            newVec.addEnd(get(i))
         for (var i = 0; i < other.size; i++;)
             newVec.addEnd(other.get(i))
         return newVec
     }
-    fun operator+(other: T):vector<T> {
+    fun operator+(other: ref T):vector<T> {
         var newVec.copy_construct(this):vector<T>
         newVec.addEnd(other)
         return newVec
     }
 
-    fun operator+=(other: T):void {
+    fun operator+=(other: ref T):void {
         addEnd(other)
     }
 
-    fun operator+=(other:vector<T>):void {
+    fun operator+=(other: ref vector<T>):void {
         for (var i = 0; i < other.size; i++;)
             addEnd(other.get(i))
     }
@@ -180,7 +185,7 @@ obj vector<T> (Object, Serializable) {
         return true
     }
 
-    fun set(index: int, dataIn: T): void {
+    fun set(index: int, dataIn: ref T): void {
         if (index < 0 || index  >= size)
             return;
         data[index] = dataIn;
@@ -190,7 +195,7 @@ obj vector<T> (Object, Serializable) {
             addEnd(dataIn[i]);
     }
     // same darn trick
-    fun add_unique<U>(dataIn: U): void {
+    fun add_unique<U>(dataIn: ref U): void {
         if (!contains(dataIn))
             addEnd(dataIn)
     }

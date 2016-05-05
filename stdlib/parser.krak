@@ -19,6 +19,7 @@ obj parser (Object) {
     var to_shift: stack< pair<*tree<int>, int> >
     var SPPFStepNodes: vector< pair<*tree<symbol>, int> >
     var packed_map: map<*tree<symbol>, bool>
+    var reduces_to_null_map: map<vector<symbol>, bool>
 
     fun construct(grammerIn: grammer): *parser {
         input.construct()
@@ -28,6 +29,7 @@ obj parser (Object) {
         to_shift.construct()
         SPPFStepNodes.construct()
         packed_map.construct()
+        reduces_to_null_map.construct()
         return this
     }
     fun copy_construct(old: *parser) {
@@ -38,6 +40,7 @@ obj parser (Object) {
         to_shift.copy_construct(&old->to_shift)
         SPPFStepNodes.copy_construct(&old->SPPFStepNodes)
         packed_map.copy_construct(&old->packed_map)
+        reduces_to_null_map.copy_construct(&old->reduces_to_null_map)
     }
     fun operator=(old: ref parser) {
         destruct()
@@ -51,6 +54,7 @@ obj parser (Object) {
         to_shift.destruct()
         SPPFStepNodes.destruct()
         packed_map.destruct()
+        reduces_to_null_map.destruct()
     }
 
     fun parse_input(inputStr: string, name: string): *tree<symbol> {
@@ -386,7 +390,9 @@ obj parser (Object) {
         return r.position == 0 && reduces_to_null(r)
     }
     fun reduces_to_null(r: ref rule): bool {
-        return gram.first_vector(r.rhs).contains(null_symbol())
+        if (!reduces_to_null_map.contains_key(r.rhs))
+            reduces_to_null_map[r.rhs] = gram.first_vector(r.rhs).contains(null_symbol())
+        return reduces_to_null_map[r.rhs]
     }
     fun get_nullable_parts(r: ref rule): *tree<symbol> {
         if (reduces_to_null(r))

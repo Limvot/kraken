@@ -94,8 +94,9 @@ obj string (Object, Serializable) {
     }
 
     fun operator=(str: ref string): void {
-        destruct();
-        data.copy_construct(&str.data)
+        /*destruct();*/
+        /*data.copy_construct(&str.data)*/
+        data = str.data
     }
 
     fun destruct():void {
@@ -147,8 +148,9 @@ obj string (Object, Serializable) {
     }
 
     fun operator+(str: ref string): string {
-        var newStr.construct(str):string
-        var ret.construct(data + newStr.data):string
+        /*var newStr.construct(str):string*/
+        /*var ret.construct(data + newStr.data):string*/
+        var ret.construct(data + str.data):string
         return ret
     }
 
@@ -210,7 +212,7 @@ obj string (Object, Serializable) {
         out.add(current)
         return out
     }
-    fun join(to_join: vector::vector<string>): string {
+    fun join(to_join: ref vector::vector<string>): string {
         var to_ret = to_join.first()
         for (var i = 1; i < to_join.size; i++;)
             to_ret += *this + to_join[i]

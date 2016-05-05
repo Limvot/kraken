@@ -638,8 +638,7 @@ obj ast_transformation (Object) {
             if (factor_part->children.size == 1) {
                 /*println("Factor has only one child!")*/
                 var inner_unarad = get_node("unarad", factor_part)
-                if (get_node("\"[\"", inner_unarad)) {
-                    /*println("Inner Unarad has [!")*/
+                if (get_node("\"]\"", inner_unarad)) {
                     var assign_to = transform(get_node("unarad", inner_unarad), scope, template_replacements)
                     var assign_idx = transform(get_node("expression", inner_unarad), scope, template_replacements)
                     var possible_bracket_assign = find_and_make_any_operator_overload_call(string("[]="), vector(assign_to, assign_idx, to_assign), scope, template_replacements)
