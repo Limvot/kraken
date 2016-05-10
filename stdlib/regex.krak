@@ -137,9 +137,12 @@ obj regex (Object, Serializable) {
                 for (var depth = 1; depth > 0; perenEnd++;) {
                     if (perenEnd >= regex_string.length())
                         ast_transformation::error(string::string("can't find matching peren in: ") + regex_string)
-                    if (regex_string[perenEnd] == '(')
+                    // be careful, this isn't quite right yet
+                    /*var not_non_special = perenEnd == 0 || (regex_string[perenEnd-1] != '\\' && regex_string[perenEnd-1] != '[' && (perenEnd+1 >= regex_string.length() || regex_string[perenEnd+1] != ']'))*/
+                    var not_non_special = perenEnd == 0 || (regex_string[perenEnd-1] != '[' && (perenEnd+1 >= regex_string.length() || regex_string[perenEnd+1] != ']'))
+                    if (regex_string[perenEnd] == '(' && not_non_special)
                         depth++
-                    else if (regex_string[perenEnd] == ')')
+                    else if (regex_string[perenEnd] == ')' && not_non_special)
                         depth--
                 }
                 var innerBeginEnd = compile(regex_string.slice(i+1, perenEnd-1))
