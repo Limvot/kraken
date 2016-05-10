@@ -53,6 +53,7 @@ obj regex (Object, Serializable) {
     var regexString: string::string
     var begin: *regexState
     var referenceCounter: *int
+    var is_straight_string: bool
 
     fun construct(): *regex {
         regexString.construct()
@@ -60,30 +61,44 @@ obj regex (Object, Serializable) {
     }
     fun construct(regexStringIn: string::string): *regex {
         regexString.copy_construct(&regexStringIn)
-        referenceCounter = mem::new<int>()
-        *referenceCounter = 1
-
-        var beginningAndEnd = compile(regexStringIn)
-        // init our begin, and the end state as the next state of each end
-        begin = beginningAndEnd.first
-        var end = mem::new<regexState>()->construct((1) cast char)
-        beginningAndEnd.second.for_each(fun(it: *regexState): void { it->next_states.add(end); })
+        is_straight_string = true
+        for (var i = 0; i < regexString.length(); i++;) {
+            // simple implementation doesn't count escaped characters as straight string
+            if (regexString[i] == '\\' || regexString[i] == '(' || regexString[i] == ')' || regexString[i] == '[' || regexString[i] == '*' || regexString[i] == '+' || regexString[i] == '?' || regexString[i] == '|') {
+                is_straight_string = false
+                break
+            }
+        }
+        if (!is_straight_string) {
+            referenceCounter = mem::new<int>()
+            *referenceCounter = 1
+            var beginningAndEnd = compile(regexStringIn)
+            // init our begin, and the end state as the next state of each end
+            begin = beginningAndEnd.first
+            var end = mem::new<regexState>()->construct((1) cast char)
+            beginningAndEnd.second.for_each(fun(it: *regexState): void { it->next_states.add(end); })
+        }
         return this
     }
 
     fun copy_construct(old:*regex):void {
         regexString.copy_construct(&old->regexString)
-        begin = old->begin
-        referenceCounter = old->referenceCounter
-        *referenceCounter += 1
+        is_straight_string = old->is_straight_string
+        if (!is_straight_string) {
+            begin = old->begin
+            referenceCounter = old->referenceCounter
+            *referenceCounter += 1
+        }
     }
 
     fun destruct():void {
         regexString.destruct()
-        *referenceCounter -= 1
-        if (*referenceCounter == 0) {
-            util::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return it->next_states; } )
-            mem::delete(referenceCounter)
+        if (!is_straight_string) {
+            *referenceCounter -= 1
+            if (*referenceCounter == 0) {
+                util::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return it->next_states; } )
+                mem::delete(referenceCounter)
+            }
         }
     }
     fun serialize(): vector::vector<char> {
@@ -195,6 +210,14 @@ obj regex (Object, Serializable) {
     fun long_match(to_match: *char): int { return long_match(string::string(to_match)); }
     fun long_match(to_match: string::string): int return long_match(to_match.getBackingMemory(), 0, to_match.length())
     fun long_match(to_match: *char, position: int, end: int): int {
+        if (is_straight_string) {
+            if (regexString.length() > end-position)
+                return -1
+            for (var i = 0; i < regexString.length(); i++;)
+                if (regexString[i] != to_match[position+i])
+                    return -1
+            return regexString.length();
+        }
         var next = set::set(begin)
         var longest = -1
         for (var i = 0; i < end-position; i++;) {
