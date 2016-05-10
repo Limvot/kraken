@@ -597,13 +597,13 @@ obj table (Object, Serializable) {
         else
             items[from_state].set(cleaned_symbol, vector::vector(action(action_type::accept(), 0)))
     }
-    fun get(state: int, on_symbol: symbol::symbol): vector::vector<action> {
+    fun get(state: int, on_symbol: ref symbol::symbol): vector::vector<action> {
         var cleaned_symbol = clean_symbol(on_symbol)
         if (items[state].contains_key(cleaned_symbol))
             return items[state][cleaned_symbol]
         return vector::vector<action>()
     }
-    fun get_shift(state: int, on_symbol: symbol::symbol): action {
+    fun get_shift(state: int, on_symbol: ref symbol::symbol): action {
         var actions = get(state, on_symbol)
         for (var i = 0; i < actions.size; i++;)
             if (actions[i].act == action_type::push())
@@ -615,7 +615,7 @@ obj table (Object, Serializable) {
         io::println(on_symbol.to_string())
         return action(action_type::invalid(),-1)
     }
-    fun get_reduces(state: int, on_symbol: symbol::symbol): vector::vector<action> {
+    fun get_reduces(state: int, on_symbol: ref symbol::symbol): vector::vector<action> {
         return get(state, on_symbol).filter(fun(act: action):bool { return act.act == action_type::reduce(); })
     }
     fun print_string() {

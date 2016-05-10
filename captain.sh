@@ -7,6 +7,11 @@ bootstrap_commits=(cf46fb13afe66ba475db9725e9269c9c1cd3bbc3 2cd43e5a217318c70097
 # There is a default version string in the file in case kraken is not built with captain
 echo "var version_string = \"Self-hosted Kraken compiler \\\"Kalypso\\\" - revision $(git rev-list HEAD | wc -l), commit: $(git rev-parse HEAD)\";" > compiler_version.krak
 
+if ! [ -s "cached_builds" ]
+then
+    mkdir cached_builds
+fi
+
 if [[ $1 == "clean" ]]
 then
     rm ${kraken}
@@ -47,31 +52,55 @@ else
                 echo "no ${kraken}_deprecated, bootstrapping using kraken_bootstrap"
                 if ! [ -s "${kraken}_bootstrap" ]
                 then
-                    echo "no ${kraken}_bootstrap, bootstrapping using Cephelpod and a chain of old Kalypsos"
+                    # Check to see if we have a chached version
+                    cached_index=1
+                    for ((i=2; i < ${#bootstrap_commits[@]}; i++))
+                    do
+                        echo "checking for cached kalypso part $i"
+                        echo "commit hash: ${bootstrap_commits[$i]}"
+                        if [ -s "cached_builds/${bootstrap_commits[i]}" ]
+                        then
+                            cached_index=$i
+                            echo "have cached: ${bootstrap_commits[$i]}"
+                        else
+                            echo "do not have cached: ${bootstrap_commits[$i]}"
+                        fi
+                    done
+
                     git clone . bootstrap_kalypso
                     pushd bootstrap_kalypso
-                    git checkout ${bootstrap_commits[0]}
-                    cp -r stdlib deprecated_compiler
-                    cp krakenGrammer.kgm deprecated_compiler
-                    cp kraken.krak deprecated_compiler
-                    pushd deprecated_compiler
-                    mkdir build
-                    pushd build
-                    cmake ..
-                    make
-                    popd
-                    mkdir build_kraken
-                    mv kraken.krak build_kraken
-                    pushd build_kraken
-                    ../build/kraken kraken.krak
-                    popd
-                    popd
-                    pushd deprecated_compiler/build_kraken/kraken
-                    sh kraken.sh
-                    popd
-                    cp deprecated_compiler/build_kraken/kraken/kraken ./${kraken}_bootstrap
+                    if [[ $cached_index == "1" ]]
+                    then
+                        echo "no ${kraken}_bootstrap, bootstrapping using Cephelpod and a chain of old Kalypsos"
+                        git checkout ${bootstrap_commits[0]}
+                        cp -r stdlib deprecated_compiler
+                        cp krakenGrammer.kgm deprecated_compiler
+                        cp kraken.krak deprecated_compiler
+                        pushd deprecated_compiler
+                        mkdir build
+                        pushd build
+                        cmake ..
+                        make
+                        popd
+                        mkdir build_kraken
+                        mv kraken.krak build_kraken
+                        pushd build_kraken
+                        ../build/kraken kraken.krak
+                        popd
+                        popd
+                        pushd deprecated_compiler/build_kraken/kraken
+                        sh kraken.sh
+                        popd
+                        cp deprecated_compiler/build_kraken/kraken/kraken ./${kraken}_bootstrap
+                    else
+                        echo "no ${kraken}_bootstrap, bootstrapping using starting from cached version"
+                        git checkout ${bootstrap_commits[$cached_index]}
+                        cp "../cached_builds/${bootstrap_commits[$cached_index]}/kraken.krak.c" "./"
+                        cc kraken.krak.c -O3 -o kraken_bootstrap
+                    fi
+
                     # loop through the chain
-                    for ((i=1; i < ${#bootstrap_commits[@]}; i++))
+                    for ((i=$cached_index+1; i < ${#bootstrap_commits[@]}; i++))
                     do
                         echo "building kalypso bootstrap part $i"
                         echo "commit hash: ${bootstrap_commits[$i]}"
@@ -81,6 +110,8 @@ else
                         mv ./krakenGrammer.kgm krakenGrammer.kgm_new
                         mv ./krakenGrammer.kgm_old krakenGrammer.kgm
                         ./${kraken}_bootstrap kraken.krak ${kraken}_bootstrap
+                        mkdir "../cached_builds/${bootstrap_commits[$i]}"
+                        cp "./kraken.krak.c" "../cached_builds/${bootstrap_commits[$i]}/"
                         mv ./krakenGrammer.kgm_new krakenGrammer.kgm
                     done
                     popd # out of bootstrap
