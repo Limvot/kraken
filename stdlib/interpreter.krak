@@ -1,0 +1,55 @@
+import io:*
+import map:*
+import string:*
+import util:*
+import tree:*
+import symbol:*
+import ast_nodes:*
+import ast_transformation:*
+
+adt value {
+    integer: int,
+    floating: float
+}
+fun print_value(v: ref value) {
+    match (v) {
+        value::integer(data) println(data)
+        value::floating(data) println(data)
+    }
+}
+
+obj interpreter (Object) {
+    var ast_to_syntax: map<*ast_node, *tree<symbol>>
+    var name_ast_map: map<string, pair<*tree<symbol>,*ast_node>> 
+    fun construct(name_ast_map_in: map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>>): *interpreter {
+        name_ast_map.copy_construct(&name_ast_map_in)
+        ast_to_syntax.copy_construct(&ast_to_syntax_in)
+        return this
+    }
+    fun operator=(old: ref interpreter) {
+        destruct()
+        copy_construct(&old)
+    }
+    fun copy_construct(old: *interpreter) {
+        name_ast_map.copy_construct(&old->name_ast_map)
+        ast_to_syntax.copy_construct(&old->ast_to_syntax)
+    }
+    fun destruct() {
+        name_ast_map.destruct()
+        ast_to_syntax.destruct()
+    }
+    fun call_main() {
+        var results = vector<*ast_node>()
+        name_ast_map.for_each(fun(key: string, value: pair<*tree<symbol>,*ast_node>) {
+            results += scope_lookup(string("main"), value.second)
+        })
+        if (results.size != 1)
+            error(string("wrong number of mains to call: ") + results.size)
+        println("calling main!")
+        print_value(interpret_function_call(results[0], vector<value>()))
+    }
+    fun interpret_function_call(func: *ast_node, params: vector<value>): value {
+        return value::integer(0)
+    }
+}
+

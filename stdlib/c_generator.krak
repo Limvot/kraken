@@ -303,6 +303,10 @@ obj c_generator (Object) {
                       equals_res.post += generate_from_defer_stack(&defer_stack, -1, enclosing_object, child).one_string()
                       defer_stack.pop()
                       function_definitions += equals_res.one_string() + "return result;\n"
+                    } else if (backing.name == "construct") {
+                      function_definitions += "/*construct*/"
+                      function_definitions += "this->flag = -1;\n"
+                      function_definitions += "return this;\n"
                     } else if (backing.name == "copy_construct") {
                       var param = backing.parameters[0]
                       function_definitions += "/*copy_construct*/"

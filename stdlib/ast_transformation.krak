@@ -188,6 +188,7 @@ obj ast_transformation (Object) {
         vector(
             make_pair("operator==", ast_function_ptr(string("operator=="), type_ptr(vector(equals_param->identifier.type), type_ptr(base_type::boolean())), vector(equals_param), false)),
             make_pair("operator!=", ast_function_ptr(string("operator!="), type_ptr(vector(nequals_param->identifier.type), type_ptr(base_type::boolean())), vector(nequals_param), false)),
+            make_pair("construct", ast_function_ptr(string("construct"), type_ptr(vector<*type>(), node->adt_def.self_type->clone_with_increased_indirection()), vector<*ast_node>(), false)),
             make_pair("copy_construct", ast_function_ptr(string("copy_construct"), type_ptr(vector(copy_construct_param->identifier.type), type_ptr(base_type::void_return())), vector(copy_construct_param), false)),
             make_pair("operator=", ast_function_ptr(string("operator="), type_ptr(vector(assign_param->identifier.type), type_ptr(base_type::void_return())), vector(assign_param), false)),
             make_pair("destruct", ast_function_ptr(string("destruct"), type_ptr(vector<*type>(), type_ptr(base_type::void_return())), vector<*ast_node>(), false))
@@ -740,7 +741,7 @@ obj ast_transformation (Object) {
     }
     fun transform_case_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
         var to_ret = ast_case_statement_ptr()
-        var the_adts = scope_lookup(concat_symbol_tree(get_node("scoped_identifier", get_node("scoped_identifier", node))), scope)
+        var the_adts = scope_lookup(concat_symbol_tree(get_node("scoped_identifier", get_node("scoped_identifier", node))), scope).filter(fun(i: *ast_node): bool return is_adt_def(i);)
         if (the_adts.size != 1)
            error(node, string("the number of adts found was not 1, it was ") + the_adts.size + " for " + concat_symbol_tree(get_node("scoped_identifier", node)))
         var the_adt = the_adts[0]
