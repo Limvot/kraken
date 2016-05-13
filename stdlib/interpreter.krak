@@ -15,6 +15,7 @@ adt value {
     floating: float,
     double_precision: double,
     void_nothing,
+    pointer: pair<*void,*type>,
     variable: pair<*void,*type>
 }
 adt control_flow {
@@ -27,6 +28,7 @@ fun is_integer(it: value): bool { match(it) { value::integer(var) return true; }
 fun is_floating(it: value): bool { match(it) { value::floating(var) return true; } return false; }
 fun is_double_precision(it: value): bool { match(it) { value::double_precision(var) return true; } return false; }
 fun is_void_nothing(it: value): bool { match(it) { value::void_nothing() return true; } return false; }
+fun is_pointer(it: value): bool { match(it) { value::pointer(var) return true; } return false; }
 fun is_variable(it: value): bool { match(it) { value::variable(var) return true; } return false; }
 
 fun print_value(v: ref value) {
@@ -35,6 +37,8 @@ fun print_value(v: ref value) {
         value::floating(data) println(data)
         value::double_precision(data) println(data)
         value::void_nothing() println("void")
+        value::pointer(var) println("pointer")
+        value::variable(var) println("variable")
     }
 }
 fun truthy(v: ref value):bool {
@@ -42,6 +46,7 @@ fun truthy(v: ref value):bool {
         value::integer(data) return data != 0
         value::floating(data) return data != 0
         value::double_precision(data) return data != 0
+        value::pointer(data) return data.first != 0
     }
 }
 
@@ -49,6 +54,11 @@ fun store_into_variable(to: value, from: value) {
     assert(is_variable(to), "trying to store into not variable")
     var variable = to.variable
     // check for indirection
+    if (variable.second->indirection) {
+        assert(is_pointer(from), "mismatching assignemnt types - from is not pointer")
+        *(variable.first) cast **void = from.pointer.first
+        return;
+    }
     match (variable.second->base) {
         /*base_type::object() return #sizeof<>*/
         /*base_type::adt() return #sizeof<>*/
@@ -58,19 +68,20 @@ fun store_into_variable(to: value, from: value) {
         /*base_type::ucharacter() return *(variable.first) cast uchar*/
         /*base_type::short_int() return *(variable.first) cast short*/
         /*base_type::ushort_int() return *(variable.first) cast ushort*/
-        base_type::integer() { assert(is_integer(from), "mismatching assignemnt types"); *(variable.first) cast *int = from.integer; }
+        base_type::integer() { assert(is_integer(from), "mismatching assignemnt types - from is not integer"); *(variable.first) cast *int = from.integer; }
         /*base_type::uinteger() return *(variable.first) cast uint*/
         /*base_type::long_int() return *(variable.first) cast long*/
         /*base_type::ulong_int() return *(variable.first) cast ulong*/
-        base_type::floating() { assert(is_floating(from), "mismatching assignemnt types"); *(variable.first) cast *float = from.floating; }
-        base_type::double_precision() { assert(is_double_precision(from), "mismatching assignemnt types"); *(variable.first) cast *double = from.double_precision; }
+        base_type::floating() { assert(is_floating(from), "mismatching assignemnt types - from is not floating"); *(variable.first) cast *float = from.floating; }
+        base_type::double_precision() { assert(is_double_precision(from), "mismatching assignemnt types - from is not double"); *(variable.first) cast *double = from.double_precision; }
     }
 }
 fun get_real_value(v: value): value {
     if (!is_variable(v))
         return v
     var variable = v.variable
-    // check for indirection
+    if (variable.second->indirection)
+        return value::pointer(make_pair(*(variable.first) cast **void, variable.second))
     match (variable.second->base) {
         /*base_type::object() return #sizeof<>*/
         /*base_type::adt() return #sizeof<>*/
@@ -170,6 +181,18 @@ obj interpreter (Object) {
         if (func_name == "++" || func_name == "--") {
             store_into_variable(parameters[0], do_basic_op(func_name.slice(0,1), parameters[0], value::integer(1)))
             return get_real_value(parameters[0])
+        }
+        if (func_name == "&") {
+            if (!is_variable(parameters[0]))
+                error("Trying to take address of not a variable")
+            return value::pointer(make_pair(parameters[0].variable.first, parameters[0].variable.second->clone_with_increased_indirection()))
+        }
+        // to dereference, we basically take the pointer's value (maybe going through a variable to get it)
+        // and re-wrap it up into a variable value (so it can be assigned to, etc)
+        if (func_name == "*") {
+            if (!is_pointer(get_real_value(parameters[0])))
+                error("Trying to take dereference not a pointer")
+            return value::variable(make_pair(get_real_value(parameters[0]).pointer.first, parameters[0].pointer.second->clone_with_decreased_indirection()))
         }
         var_stack->push(map<string,value>())
         if (parameters.size != func->function.parameters.size)

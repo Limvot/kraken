@@ -151,7 +151,7 @@ obj vector<T> (Object, Serializable) {
             println(index);
             print("Max Index of vector: ");
             println(size-1);
-            /*while(true) {}*/
+            while(true) {}
             return data[0];
         }
         return data[index];

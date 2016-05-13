@@ -972,6 +972,7 @@ obj c_generator (Object) {
             ast_node::value(backing) return generate_value(node, need_variable)
             ast_node::identifier(backing) return generate_identifier(node, enclosing_object, enclosing_func)
         }
+        error("/* COULD NOT GENERATE */")
         return code_triple("/* COULD NOT GENERATE */")
     }
     fun type_decoration(type: *type): string {
