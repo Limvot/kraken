@@ -1178,6 +1178,7 @@ fun get_ast_type(node: *ast_node): *type {
         ast_node::cast(backing) return backing.to_type
         ast_node::value(backing) return backing.value_type
     }
+    return null<type>()
 }
 
 fun ast_to_dot(root: *ast_node): string {

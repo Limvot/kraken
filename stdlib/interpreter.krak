@@ -1,5 +1,6 @@
 import io:*
 import map:*
+import stack:*
 import string:*
 import util:*
 import tree:*
@@ -9,12 +10,21 @@ import ast_transformation:*
 
 adt value {
     integer: int,
-    floating: float
+    floating: float,
+    double_floating: double,
+    void_nothing
+}
+adt control_flow {
+    nor,
+    con,
+    bre,
+    ret
 }
 fun print_value(v: ref value) {
     match (v) {
         value::integer(data) println(data)
         value::floating(data) println(data)
+        value::void_nothing() println("void")
     }
 }
 
@@ -46,10 +56,127 @@ obj interpreter (Object) {
         if (results.size != 1)
             error(string("wrong number of mains to call: ") + results.size)
         println("calling main!")
-        print_value(interpret_function_call(results[0], vector<value>()))
+        var var_stack = stack<map<string, value>>()
+        print_value(call_function(results[0], vector<value>(), &var_stack))
     }
-    fun interpret_function_call(func: *ast_node, params: vector<value>): value {
-        return value::integer(0)
+    fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        // should handle dot style method call here
+        var parameters = func_call->function_call.parameters.map(fun(p: *ast_node): value return interpret(p, var_stack).first;)
+        return make_pair(call_function(func_call->function_call.func, parameters, var_stack), control_flow::nor())
+    }
+    fun call_function(func: *ast_node, parameters: vector<value>, var_stack: *stack<map<string, value>>): value {
+        var_stack->push(map<string,value>())
+        // will need adjustment
+        var func_name = func->function.name
+        if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/"
+            || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
+            || func_name == "==" || func_name == "!=" || func_name == "%" || func_name == "^"
+            || func_name == "|" || func_name == "&"
+        ))
+            return do_basic_op(func_name, parameters[0], parameters[1])
+        if (parameters.size != func->function.parameters.size)
+            error(string("calling function ") + func->function.name + " with wrong number of parameters")
+        for (var i = 0; i < parameters.size; i++;)
+            var_stack->top()[func->function.parameters[i]->identifier.name] = parameters[i]
+        var to_ret = interpret(func->function.body_statement, var_stack).first
+        var_stack->pop()
+        return to_ret
+    }
+    fun interpret_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        return interpret(stmt->statement.child, var_stack)
+    }
+    fun interpret_code_block(block: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        var_stack->push(map<string,value>())
+        for (var i = 0; i < block->code_block.children.size; i++;) {
+            var statement = interpret(block->code_block.children[i], var_stack)
+            match (statement.second) {
+                control_flow::con() {
+                    var_stack->pop()
+                    return make_pair(value::void_nothing(), control_flow::con())
+                }
+                control_flow::bre() {
+                    var_stack->pop()
+                    return make_pair(value::void_nothing(), control_flow::bre())
+                }
+                control_flow::ret() {
+                    var_stack->pop()
+                    return statement
+                }
+            }
+            // if nor, continue on
+        }
+        var_stack->pop()
+        return make_pair(value::void_nothing(), control_flow::nor())
+    }
+    fun interpret_return_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        return make_pair(interpret(stmt->return_statement.return_value, var_stack).first, control_flow::ret())
+    }
+    fun interpret_value(val: *ast_node): pair<value, control_flow>
+        return make_pair(wrap_value(val), control_flow::nor())
+    fun interpret(node: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        match (*node) {
+            ast_node::function_call(backing) return interpret_function_call(node, var_stack)
+            ast_node::statement(backing) return interpret_statement(node, var_stack)
+            ast_node::code_block(backing) return interpret_code_block(node, var_stack)
+            ast_node::return_statement(backing) return interpret_return_statement(node, var_stack)
+            ast_node::value(backing) return interpret_value(node)
+        }
+        error(string("Cannot interpret node: ") + get_ast_name(node))
+    }
+    fun do_basic_op(func_name: string, a: value, b: value): value {
+        match (a) {
+            value::integer(av) {
+                match (b) {
+                    value::integer(bv) return value::integer(do_op<int,int,int>(func_name, av, bv))
+                }
+            }
+        }
+        return value::integer(a.integer + b.integer)
+    }
+    fun do_op<T,U,W>(op: string, a: T, b: U): W {
+        if (op == "+") return a + b
+        if (op == "-") return a - b
+        if (op == "*") return a * b
+        if (op == "/") return a / b
+        if (op == "<") return a < b
+        if (op == ">") return a > b
+        if (op == "<=") return a <= b
+        if (op == ">=") return a >= b
+        if (op == "==") return a == b
+        if (op == "!=") return a != b
+        if (op == "%") return a % b
+        if (op == "^") return a ^ b
+        if (op == "|") return a | b
+        if (op == "&") return a & b
+
+        error(("Invalid op: ") + op)
+    }
+    fun wrap_value(val: *ast_node): value {
+        var value_str = val->value.string_value
+        if (value_str[0] == '"') // " // Comment hack for emacs now
+            return value::integer(1)
+        else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
+            return value::integer(1)
+        else if (value_str == "true" || value_str == "false")
+            return value::integer(1)
+        else {
+            // should differentiate between float and double...
+            var contains_dot = false
+            for (var i = 0; i < value_str.length(); i++;) {
+                if (value_str[i] == '.') {
+                    contains_dot = true
+                    break
+                }
+            }
+            if (contains_dot)
+                if (value_str[value_str.length()-1] == 'f')
+                    return value::floating(1.0f)
+                else
+                    return value::double_floating(1.0)
+            else
+                return value::integer(string_to_int(value_str))
+        }
+        return value::void_nothing()
     }
 }
 

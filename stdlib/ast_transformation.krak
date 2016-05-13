@@ -926,7 +926,10 @@ obj ast_transformation (Object) {
             var second_param = null<ast_node>()
             if (func_name == "." || func_name == "->") {
                 /*println("PRE VANILLA TRY FOR SECOND PARAM")*/
-                second_param = transform(node->children[2], get_ast_type(first_param)->type_def, searching_for, template_replacements)
+                var first_param_type = get_ast_type(first_param)
+                if (!first_param_type)
+                    error(node, "Cannot get type from left side of access operation")
+                second_param = transform(node->children[2], first_param_type->type_def, searching_for, template_replacements)
                 // template member functions
                 // XXX add in template inst if it exists
                 if (!second_param) match (searching_for) {

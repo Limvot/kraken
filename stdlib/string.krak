@@ -19,6 +19,24 @@ fun to_string(in: long): string
 fun to_string(in: ulong): string
     return to_string_num(in)
 
+fun string_to_int(it: string): int {
+    var is_negative = false
+    if (it[0] == '-') {
+        is_negative = true
+        it = it.slice(1,-1)
+    }
+    var result = 0
+    var power = 1
+    while (it.length()) {
+        result += power * (it.last() - '0')
+        it = it.slice(0,-2)
+        power *= 10
+    }
+    if (is_negative)
+        return -result
+    return result
+}
+
 fun to_string_num<T>(in: T): string {
     if (in == 0)
         return string("0")
@@ -197,6 +215,7 @@ obj string (Object, Serializable) {
         out.add(current)
         return out
     }
+    fun last(): char return data.last()
     fun lines(): vector::vector<string> return split('\n')
     fun split(delim: char): vector::vector<string> {
         var out.construct(): vector::vector<string>

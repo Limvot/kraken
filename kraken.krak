@@ -8,7 +8,7 @@ import symbol:*
 import tree:*
 import serialize:*
 import c_generator:*
-/*import interpreter:**/
+import interpreter:*
 import os:*
 import compiler_version
 
@@ -78,8 +78,8 @@ fun main(argc: int, argv: **char):int {
     importer.import(kraken_file_name)
     if (interpret_instead) {
         println("Interpreting!")
-        /*var interpret.construct(importer.name_ast_map, importer.ast_pass.ast_to_syntax): interpreter*/
-        /*interpret.call_main()*/
+        var interpret.construct(importer.name_ast_map, importer.ast_pass.ast_to_syntax): interpreter
+        interpret.call_main()
     } else {
         println("Generating C")
         var c_generator.construct(): c_generator
