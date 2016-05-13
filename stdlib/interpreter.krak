@@ -29,6 +29,22 @@ fun is_double_precision(it: value): bool { match(it) { value::double_precision(v
 fun is_void_nothing(it: value): bool { match(it) { value::void_nothing() return true; } return false; }
 fun is_variable(it: value): bool { match(it) { value::variable(var) return true; } return false; }
 
+fun print_value(v: ref value) {
+    match (get_real_value(v)) {
+        value::integer(data) println(data)
+        value::floating(data) println(data)
+        value::double_precision(data) println(data)
+        value::void_nothing() println("void")
+    }
+}
+fun truthy(v: ref value):bool {
+    match (get_real_value(v)) {
+        value::integer(data) return data != 0
+        value::floating(data) return data != 0
+        value::double_precision(data) return data != 0
+    }
+}
+
 fun store_into_variable(to: value, from: value) {
     assert(is_variable(to), "trying to store into not variable")
     var variable = to.variable
@@ -93,12 +109,12 @@ fun type_size(t: *type): ulong {
         base_type::double_precision() return #sizeof<double>
     }
 }
-fun print_value(v: ref value) {
-    match (get_real_value(v)) {
-        value::integer(data) println(data)
-        value::floating(data) println(data)
-        value::void_nothing() println("void")
-    }
+fun pop_and_free(var_stack: *stack<map<string, value>>) {
+    var_stack->pop().for_each(fun(k: string, v: value) {
+        match(v) {
+            value::variable(backing) free(backing.first)
+        }
+    })
 }
 
 obj interpreter (Object) {
@@ -158,14 +174,45 @@ obj interpreter (Object) {
         var_stack->push(map<string,value>())
         if (parameters.size != func->function.parameters.size)
             error(string("calling function ") + func->function.name + " with wrong number of parameters")
-        for (var i = 0; i < parameters.size; i++;)
-            var_stack->top()[func->function.parameters[i]->identifier.name] = parameters[i]
+        for (var i = 0; i < parameters.size; i++;) {
+            var param_type = get_ast_type(func)->parameter_types[i]
+            var_stack->top()[func->function.parameters[i]->identifier.name] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
+            store_into_variable(var_stack->top()[func->function.parameters[i]->identifier.name], get_real_value(parameters[i]))
+        }
         var to_ret = interpret(func->function.body_statement, var_stack).first
-        var_stack->pop()
+        pop_and_free(var_stack)
         return to_ret
     }
     fun interpret_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
         return interpret(stmt->statement.child, var_stack)
+    }
+    fun interpret_if_statement(if_stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        var_stack->push(map<string,value>())
+        if (truthy(interpret(if_stmt->if_statement.condition, var_stack).first)) {
+            interpret(if_stmt->if_statement.then_part, var_stack)
+        } else if (if_stmt->if_statement.else_part) {
+            interpret(if_stmt->if_statement.else_part, var_stack)
+        }
+        pop_and_free(var_stack)
+        return make_pair(value::void_nothing(), control_flow::nor())
+    }
+    fun interpret_while_loop(while_loop: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        var_stack->push(map<string,value>())
+        while (truthy(interpret(while_loop->while_loop.condition, var_stack).first)) {
+            interpret(while_loop->while_loop.statement, var_stack)
+        }
+        pop_and_free(var_stack)
+        return make_pair(value::void_nothing(), control_flow::nor())
+    }
+    fun interpret_for_loop(for_loop: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        var_stack->push(map<string,value>())
+        interpret(for_loop->for_loop.init, var_stack)
+        while (truthy(interpret(for_loop->for_loop.condition, var_stack).first)) {
+            interpret(for_loop->for_loop.body, var_stack)
+            interpret(for_loop->for_loop.update, var_stack)
+        }
+        pop_and_free(var_stack)
+        return make_pair(value::void_nothing(), control_flow::nor())
     }
     fun interpret_code_block(block: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
         var_stack->push(map<string,value>())
@@ -173,21 +220,21 @@ obj interpreter (Object) {
             var statement = interpret(block->code_block.children[i], var_stack)
             match (statement.second) {
                 control_flow::con() {
-                    var_stack->pop()
+                    pop_and_free(var_stack)
                     return make_pair(value::void_nothing(), control_flow::con())
                 }
                 control_flow::bre() {
-                    var_stack->pop()
+                    pop_and_free(var_stack)
                     return make_pair(value::void_nothing(), control_flow::bre())
                 }
                 control_flow::ret() {
-                    var_stack->pop()
+                    pop_and_free(var_stack)
                     return statement
                 }
             }
             // if nor, continue on
         }
-        var_stack->pop()
+        pop_and_free(var_stack)
         return make_pair(value::void_nothing(), control_flow::nor())
     }
     fun interpret_return_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
@@ -219,6 +266,9 @@ obj interpreter (Object) {
         match (*node) {
             ast_node::function_call(backing) return interpret_function_call(node, var_stack)
             ast_node::statement(backing) return interpret_statement(node, var_stack)
+            ast_node::if_statement(backing) return interpret_if_statement(node, var_stack)
+            ast_node::while_loop(backing) return interpret_while_loop(node, var_stack)
+            ast_node::for_loop(backing) return interpret_for_loop(node, var_stack)
             ast_node::code_block(backing) return interpret_code_block(node, var_stack)
             ast_node::return_statement(backing) return interpret_return_statement(node, var_stack)
             ast_node::declaration_statement(backing) return interpret_declaration_statement(node, var_stack)
