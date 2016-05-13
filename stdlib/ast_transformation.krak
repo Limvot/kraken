@@ -690,6 +690,8 @@ obj ast_transformation (Object) {
         return assignment
     }
     fun transform_if_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        if (get_node("AmbiguityInner", node))
+            error(node, "Ambigious two ifs with one else!")
         var if_statement = ast_if_statement_ptr(transform_expression(get_node("boolean_expression", node), scope, template_replacements))
         // one variable declarations might be in a code_block-less if statement
         add_to_scope("~enclosing_scope", scope, if_statement)
@@ -1133,14 +1135,26 @@ fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
     param_types = param_types.map(fun(t: *type): *type return t->clone_without_ref();)
     if (name == "==" || name == "!=" || name == ">" || name == "<" || name == "<=" || name == ">" || name == ">=" || name == "&&" || name == "||" || name == "!")
         return ast_function_ptr(name, type_ptr(param_types, type_ptr(base_type::boolean())), vector<*ast_node>(), false)
-    if (name == "." || name == "->")
-        return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>(), false)
-    if (name == "[]")
-        return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>(), false)
+    if (name == "." || name == "->") {
+        if (name == "->" && param_types[0]->indirection == 0)
+            error(string("drereferencing not a pointer: ") + name)
+        else
+            return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>(), false)
+    }
+    if (name == "[]") {
+        if (param_types[0]->indirection == 0)
+            error(string("drereferencing not a pointer: ") + name)
+        else
+            return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>(), false)
+    }
     if (name == "&" && param_types.size == 1)
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection()), vector<*ast_node>(), false)
-    if (name == "\*" && param_types.size == 1)
-        return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>(), false)
+    if (name == "\*" && param_types.size == 1) {
+        if (param_types[0]->indirection == 0)
+            error(string("drereferencing not a pointer: ") + name)
+        else
+            return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>(), false)
+    }
     if (param_types.size > 1 && param_types[1]->rank() > param_types[0]->rank())
         return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>(), false)
     return ast_function_ptr(name, type_ptr(param_types, param_types[0]), vector<*ast_node>(), false)
@@ -1221,7 +1235,7 @@ fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool
         if (!func_param_types[j]->equality(param_types[j], false)) {
             /*println(string("types don't match ") + func_param_types[j]->to_string() + " with needed " + param_types[j]->to_string())*/
             if (func_param_types[j]->to_string() == param_types[j]->to_string())
-               error("types aren't equal, but their string rep is (and ref doesn't even matter)")
+               error(string("types aren't equal, but their string rep is (and ref doesn't even matter): ") + func_param_types[j]->to_string() + " vs " + param_types[j]->to_string() )
             return false
         }
     }
@@ -1346,6 +1360,14 @@ fun get_first_terminal(source: *tree<symbol>): *tree<symbol> {
     if (source->children.size == 0)
         return null<tree<symbol>>()
     return get_first_terminal(source->children.first())
+}
+fun assert(works: bool, message: *char) {
+    if (!works)
+        error(message)
+}
+fun assert(works: bool, message: string) {
+    if (!works)
+        error(message)
 }
 fun error(message: *char) error(string(message));
 fun error(source: *tree<symbol>, message: *char) error(source, string(message));

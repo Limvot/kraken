@@ -1,4 +1,5 @@
 import io:*
+import mem:*
 import map:*
 import stack:*
 import string:*
@@ -6,13 +7,15 @@ import util:*
 import tree:*
 import symbol:*
 import ast_nodes:*
+import type:*
 import ast_transformation:*
 
 adt value {
     integer: int,
     floating: float,
-    double_floating: double,
-    void_nothing
+    double_precision: double,
+    void_nothing,
+    variable: pair<*void,*type>
 }
 adt control_flow {
     nor,
@@ -20,8 +23,78 @@ adt control_flow {
     bre,
     ret
 }
+fun is_integer(it: value): bool { match(it) { value::integer(var) return true; } return false; }
+fun is_floating(it: value): bool { match(it) { value::floating(var) return true; } return false; }
+fun is_double_precision(it: value): bool { match(it) { value::double_precision(var) return true; } return false; }
+fun is_void_nothing(it: value): bool { match(it) { value::void_nothing() return true; } return false; }
+fun is_variable(it: value): bool { match(it) { value::variable(var) return true; } return false; }
+
+fun store_into_variable(to: value, from: value) {
+    assert(is_variable(to), "trying to store into not variable")
+    var variable = to.variable
+    // check for indirection
+    match (variable.second->base) {
+        /*base_type::object() return #sizeof<>*/
+        /*base_type::adt() return #sizeof<>*/
+        /*base_type::function() return #sizeof<>*/
+        /*base_type::boolean() return *(variable.first) cast bool*/
+        /*base_type::character() return *(variable.first) cast char*/
+        /*base_type::ucharacter() return *(variable.first) cast uchar*/
+        /*base_type::short_int() return *(variable.first) cast short*/
+        /*base_type::ushort_int() return *(variable.first) cast ushort*/
+        base_type::integer() { assert(is_integer(from), "mismatching assignemnt types"); *(variable.first) cast *int = from.integer; }
+        /*base_type::uinteger() return *(variable.first) cast uint*/
+        /*base_type::long_int() return *(variable.first) cast long*/
+        /*base_type::ulong_int() return *(variable.first) cast ulong*/
+        base_type::floating() { assert(is_floating(from), "mismatching assignemnt types"); *(variable.first) cast *float = from.floating; }
+        base_type::double_precision() { assert(is_double_precision(from), "mismatching assignemnt types"); *(variable.first) cast *double = from.double_precision; }
+    }
+}
+fun get_real_value(v: value): value {
+    if (!is_variable(v))
+        return v
+    var variable = v.variable
+    // check for indirection
+    match (variable.second->base) {
+        /*base_type::object() return #sizeof<>*/
+        /*base_type::adt() return #sizeof<>*/
+        /*base_type::function() return #sizeof<>*/
+        /*base_type::boolean() return *(variable.first) cast bool*/
+        /*base_type::character() return *(variable.first) cast char*/
+        /*base_type::ucharacter() return *(variable.first) cast uchar*/
+        /*base_type::short_int() return *(variable.first) cast short*/
+        /*base_type::ushort_int() return *(variable.first) cast ushort*/
+        base_type::integer() return value::integer(*(variable.first) cast *int)
+        /*base_type::uinteger() return *(variable.first) cast uint*/
+        /*base_type::long_int() return *(variable.first) cast long*/
+        /*base_type::ulong_int() return *(variable.first) cast ulong*/
+        base_type::floating() return value::floating(*(variable.first) cast *float)
+        base_type::double_precision() return value::double_precision(*(variable.first) cast *double)
+    }
+    error("Cannot get real value from variable")
+}
+fun type_size(t: *type): ulong {
+    if (t->indirection)
+        return #sizeof<*void>
+    match (t->base) {
+        /*base_type::object() return #sizeof<>*/
+        /*base_type::adt() return #sizeof<>*/
+        /*base_type::function() return #sizeof<>*/
+        base_type::boolean() return #sizeof<bool>
+        base_type::character() return #sizeof<char>
+        base_type::ucharacter() return #sizeof<uchar>
+        base_type::short_int() return #sizeof<short>
+        base_type::ushort_int() return #sizeof<ushort>
+        base_type::integer() return #sizeof<int>
+        base_type::uinteger() return #sizeof<uint>
+        base_type::long_int() return #sizeof<long>
+        base_type::ulong_int() return #sizeof<ulong>
+        base_type::floating() return #sizeof<float>
+        base_type::double_precision() return #sizeof<double>
+    }
+}
 fun print_value(v: ref value) {
-    match (v) {
+    match (get_real_value(v)) {
         value::integer(data) println(data)
         value::floating(data) println(data)
         value::void_nothing() println("void")
@@ -65,7 +138,6 @@ obj interpreter (Object) {
         return make_pair(call_function(func_call->function_call.func, parameters, var_stack), control_flow::nor())
     }
     fun call_function(func: *ast_node, parameters: vector<value>, var_stack: *stack<map<string, value>>): value {
-        var_stack->push(map<string,value>())
         // will need adjustment
         var func_name = func->function.name
         if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/"
@@ -74,6 +146,16 @@ obj interpreter (Object) {
             || func_name == "|" || func_name == "&"
         ))
             return do_basic_op(func_name, parameters[0], parameters[1])
+        if (func_name == "++p" || func_name == "--p") {
+            var to_ret = get_real_value(parameters[0])
+            store_into_variable(parameters[0], do_basic_op(func_name.slice(0,1), parameters[0], value::integer(1)))
+            return to_ret
+        }
+        if (func_name == "++" || func_name == "--") {
+            store_into_variable(parameters[0], do_basic_op(func_name.slice(0,1), parameters[0], value::integer(1)))
+            return get_real_value(parameters[0])
+        }
+        var_stack->push(map<string,value>())
         if (parameters.size != func->function.parameters.size)
             error(string("calling function ") + func->function.name + " with wrong number of parameters")
         for (var i = 0; i < parameters.size; i++;)
@@ -109,7 +191,27 @@ obj interpreter (Object) {
         return make_pair(value::void_nothing(), control_flow::nor())
     }
     fun interpret_return_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
-        return make_pair(interpret(stmt->return_statement.return_value, var_stack).first, control_flow::ret())
+        return make_pair(get_real_value(interpret(stmt->return_statement.return_value, var_stack).first), control_flow::ret())
+    }
+    fun interpret_declaration_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        var ident_type = stmt->declaration_statement.identifier->identifier.type
+        var ident_name = stmt->declaration_statement.identifier->identifier.name
+        var_stack->top()[ident_name] = value::variable(make_pair(malloc(type_size(ident_type)),ident_type)) 
+        if (stmt->declaration_statement.expression)
+            store_into_variable(var_stack->top()[ident_name], get_real_value(interpret(stmt->declaration_statement.expression, var_stack).first))
+        return make_pair(value::void_nothing(), control_flow::nor())
+    }
+    fun interpret_assignment_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        var to = interpret(stmt->assignment_statement.to, var_stack).first
+        var from = interpret(stmt->assignment_statement.from, var_stack).first
+        store_into_variable(to, get_real_value(from))
+        return make_pair(value::void_nothing(), control_flow::nor())
+    }
+    fun interpret_identifier(ident: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        for (var i = 0; i < var_stack->size(); i++;)
+            if (var_stack->from_top(i).contains_key(ident->identifier.name))
+                return make_pair(var_stack->from_top(i)[ident->identifier.name], control_flow::nor())
+        error("Cannot find variable")
     }
     fun interpret_value(val: *ast_node): pair<value, control_flow>
         return make_pair(wrap_value(val), control_flow::nor())
@@ -119,14 +221,17 @@ obj interpreter (Object) {
             ast_node::statement(backing) return interpret_statement(node, var_stack)
             ast_node::code_block(backing) return interpret_code_block(node, var_stack)
             ast_node::return_statement(backing) return interpret_return_statement(node, var_stack)
+            ast_node::declaration_statement(backing) return interpret_declaration_statement(node, var_stack)
+            ast_node::assignment_statement(backing) return interpret_assignment_statement(node, var_stack)
+            ast_node::identifier(backing) return interpret_identifier(node, var_stack)
             ast_node::value(backing) return interpret_value(node)
         }
         error(string("Cannot interpret node: ") + get_ast_name(node))
     }
     fun do_basic_op(func_name: string, a: value, b: value): value {
-        match (a) {
+        match (get_real_value(a)) {
             value::integer(av) {
-                match (b) {
+                match (get_real_value(b)) {
                     value::integer(bv) return value::integer(do_op<int,int,int>(func_name, av, bv))
                 }
             }
@@ -172,7 +277,7 @@ obj interpreter (Object) {
                 if (value_str[value_str.length()-1] == 'f')
                     return value::floating(1.0f)
                 else
-                    return value::double_floating(1.0)
+                    return value::double_precision(1.0)
             else
                 return value::integer(string_to_int(value_str))
         }
