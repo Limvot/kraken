@@ -53,8 +53,8 @@ else
                 if ! [ -s "${kraken}_bootstrap" ]
                 then
                     # Check to see if we have a chached version
-                    cached_index=1
-                    for ((i=2; i < ${#bootstrap_commits[@]}; i++))
+                    cached_index=0
+                    for ((i=1; i < ${#bootstrap_commits[@]}; i++))
                     do
                         echo "checking for cached kalypso part $i"
                         echo "commit hash: ${bootstrap_commits[$i]}"
@@ -69,7 +69,7 @@ else
 
                     git clone . bootstrap_kalypso
                     pushd bootstrap_kalypso
-                    if [[ $cached_index == "1" ]]
+                    if [[ $cached_index == "0" ]]
                     then
                         echo "no ${kraken}_bootstrap, bootstrapping using Cephelpod and a chain of old Kalypsos"
                         git checkout ${bootstrap_commits[0]}
