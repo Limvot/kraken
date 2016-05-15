@@ -350,11 +350,15 @@ obj interpreter (Object) {
         })
         if (results.size != 1)
             error(string("wrong number of mains to call: ") + results.size)
+        println("=============")
         println("calling main!")
+        println("=============")
         var var_stack = stack<map<string, value>>()
         var result = call_function(results[0], vector<value>(), &var_stack)
-        println("\nMain returned: ")
+        println("=============")
+        println("Main returned: ")
         print_value(result)
+        println("=============")
     }
     fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
         // should handle dot style method call here
@@ -405,7 +409,7 @@ obj interpreter (Object) {
             return value::variable(make_pair(get_real_value(dereference_val).pointer.first, dereference_val.pointer.second->clone_with_decreased_indirection()))
         }
         // check for built-in-ish externs (everything the standard library needs)
-        if (func_name == "printf" || func_name == "malloc" || func_name == "free")
+        if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush")
             return call_built_in_extern(func_name, parameters)
         if (!func->function.body_statement)
             error(string("trying to call unsupported extern function: ") + func_name)
@@ -423,7 +427,9 @@ obj interpreter (Object) {
         return to_ret
     }
     fun call_built_in_extern(func_name: string, parameters: vector<value>): value {
-        println(string("calling func: ") + func_name)
+        /*println(string("calling func: ") + func_name)*/
+        for (var i = 0; i < parameters.size; i++;)
+            parameters[i] = get_real_value(parameters[i])
         if (func_name == "printf") {
             assert(parameters.size == 2 && is_pointer(parameters[0]) && is_pointer(parameters[1]), "Calling printf with wrong params")
             printf((parameters[0].pointer.first) cast *char, (parameters[1].pointer.first) cast *char)
@@ -434,6 +440,9 @@ obj interpreter (Object) {
         } else if (func_name == "free") {
             assert(parameters.size == 1 && is_pointer(parameters[0]), "Calling free with wrong params")
             free(parameters[0].pointer.first)
+        } else if (func_name == "fflush") {
+            assert(parameters.size == 1 && is_integer(parameters[0]), "Calling fflush with wrong params")
+            fflush(parameters[0].integer)
         } else if (func_name == "exit") {
             assert(parameters.size == 1 && is_integer(parameters[0]), "Calling exit with wrong params")
             exit(parameters[0].integer)
