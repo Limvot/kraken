@@ -11,7 +11,15 @@ import type:*
 import ast_transformation:*
 
 adt value {
+    boolean: bool,
+    character: char,
+    ucharacter: uchar,
+    short_int: short,
+    ushort_int: ushort,
     integer: int,
+    uinteger: uint,
+    long_int: long,
+    ulong_int: ulong,
     floating: float,
     double_precision: double,
     void_nothing,
@@ -24,7 +32,39 @@ adt control_flow {
     bre,
     ret
 }
+
+fun raw_to_value(data:bool): value
+    return value::boolean(data)
+fun raw_to_value(data:char): value
+    return value::character(data)
+fun raw_to_value(data:uchar): value
+    return value::ucharacter(data)
+fun raw_to_value(data:short): value
+    return value::short_int(data)
+fun raw_to_value(data:ushort): value
+    return value::ushort_int(data)
+fun raw_to_value(data:int): value
+    return value::integer(data)
+fun raw_to_value(data:uint): value
+    return value::uinteger(data)
+fun raw_to_value(data:long): value
+    return value::long_int(data)
+fun raw_to_value(data:ulong): value
+    return value::ulong_int(data)
+fun raw_to_value(data:float): value
+    return value::floating(data)
+fun raw_to_value(data:double): value
+    return value::double_precision(data)
+
+fun is_boolean(it: value): bool { match(it) { value::boolean(var) return true; } return false; }
+fun is_character(it: value): bool { match(it) { value::character(var) return true; } return false; }
+fun is_ucharacter(it: value): bool { match(it) { value::ucharacter(var) return true; } return false; }
+fun is_short_int(it: value): bool { match(it) { value::short_int(var) return true; } return false; }
+fun is_ushort_int(it: value): bool { match(it) { value::ushort_int(var) return true; } return false; }
 fun is_integer(it: value): bool { match(it) { value::integer(var) return true; } return false; }
+fun is_uinteger(it: value): bool { match(it) { value::uinteger(var) return true; } return false; }
+fun is_long_int(it: value): bool { match(it) { value::long_int(var) return true; } return false; }
+fun is_ulong_int(it: value): bool { match(it) { value::ulong_int(var) return true; } return false; }
 fun is_floating(it: value): bool { match(it) { value::floating(var) return true; } return false; }
 fun is_double_precision(it: value): bool { match(it) { value::double_precision(var) return true; } return false; }
 fun is_void_nothing(it: value): bool { match(it) { value::void_nothing() return true; } return false; }
@@ -33,7 +73,15 @@ fun is_variable(it: value): bool { match(it) { value::variable(var) return true;
 
 fun print_value(v: ref value) {
     match (get_real_value(v)) {
+        value::boolean(data) println(data)
+        value::character(data) println(data)
+        value::ucharacter(data) println(data)
+        value::short_int(data) println(data)
+        value::ushort_int(data) println(data)
         value::integer(data) println(data)
+        value::uinteger(data) println(data)
+        value::long_int(data) println(data)
+        value::ulong_int(data) println(data)
         value::floating(data) println(data)
         value::double_precision(data) println(data)
         value::void_nothing() println("void")
@@ -43,13 +91,81 @@ fun print_value(v: ref value) {
 }
 fun truthy(v: ref value):bool {
     match (get_real_value(v)) {
+        value::boolean(data) return data
+        value::character(data) return data != 0
+        value::ucharacter(data) return data != 0
+        value::short_int(data) return data != 0
+        value::ushort_int(data) return data != 0
         value::integer(data) return data != 0
+        value::uinteger(data) return data != 0
+        value::long_int(data) return data != 0
+        value::ulong_int(data) return data != 0
         value::floating(data) return data != 0
         value::double_precision(data) return data != 0
         value::pointer(data) return data.first != 0
     }
 }
+fun do_basic_op(func_name: string, a: value, b: value): value {
+    match (get_real_value(a)) {
+        value::boolean(av) return do_basic_op_second_half(func_name, av, b, null<type>())
+        value::character(av) return do_basic_op_second_half(func_name, av, b, null<type>())
+        value::ucharacter(av) return do_basic_op_second_half(func_name, av, b, null<type>())
+        value::short_int(av) return do_basic_op_second_half(func_name, av, b, null<type>())
+        value::ushort_int(av) return do_basic_op_second_half(func_name, av, b, null<type>())
+        value::integer(av) return do_basic_op_second_half(func_name, av, b, null<type>())
+        value::uinteger(av) return do_basic_op_second_half(func_name, av, b, null<type>())
+        value::long_int(av) return do_basic_op_second_half(func_name, av, b, null<type>())
+        value::ulong_int(av) return do_basic_op_second_half(func_name, av, b, null<type>())
+        value::pointer(av) {
+            var inc_in_bytes = cast_value(b, type_ptr(base_type::ulong_int())).ulong_int * type_size(av.second->clone_with_decreased_indirection())
+            var ptr = null<void>()
+            if (func_name == "+") {
+                ptr = ((av.first) cast *char + inc_in_bytes) cast *void
+            } else if (func_name == "-") {
+                ptr = ((av.first) cast *char - inc_in_bytes) cast *void
+            } else {
+                error("pointer arithmatic is not + or -")
+            }
+            return value::pointer(make_pair(ptr, av.second))
+        }
+    }
+    error(string("basic op called with something wrong as first param: ") + func_name)
+}
+fun do_basic_op_second_half<T>(func_name: string, av: T, b: value, ptr_type: *type): value {
+    // because of the trickery in do_basic_op, if either param is a pointer, it's b
+    match (get_real_value(b)) {
+        value::boolean(bv) return do_op(func_name, av, bv, ptr_type)
+        value::character(bv) return do_op(func_name, av, bv, ptr_type)
+        value::ucharacter(bv) return do_op(func_name, av, bv, ptr_type)
+        value::short_int(bv) return do_op(func_name, av, bv, ptr_type)
+        value::ushort_int(bv) return do_op(func_name, av, bv, ptr_type)
+        value::integer(bv) return do_op(func_name, av, bv, ptr_type)
+        value::uinteger(bv) return do_op(func_name, av, bv, ptr_type)
+        value::long_int(bv) return do_op(func_name, av, bv, ptr_type)
+        value::ulong_int(bv) return do_op(func_name, av, bv, ptr_type)
+        // if one is a pointer, we want it to be a
+        value::pointer(bv) return do_basic_op(func_name, b, raw_to_value(av))
+    }
+    error(string("basic op called with something wrong as second param: ") + func_name)
+}
+fun do_op<T,U>(op: string, a: T, b: U, ptr_type: *type): value {
+    if (op == "+") return raw_to_value(a + b)
+    if (op == "-") return raw_to_value(a - b)
+    if (op == "*") return raw_to_value(a * b)
+    if (op == "/") return raw_to_value(a / b)
+    if (op == "<") return raw_to_value(a < b)
+    if (op == ">") return raw_to_value(a > b)
+    if (op == "<=") return raw_to_value(a <= b)
+    if (op == ">=") return raw_to_value(a >= b)
+    if (op == "==") return raw_to_value(a == b)
+    if (op == "!=") return raw_to_value(a != b)
+    if (op == "%") return raw_to_value(a % b)
+    if (op == "^") return raw_to_value(a ^ b)
+    if (op == "|") return raw_to_value(a | b)
+    if (op == "&") return raw_to_value(a & b)
 
+    error(("Invalid op: ") + op)
+}
 fun store_into_variable(to: value, from: value) {
     assert(is_variable(to), "trying to store into not variable")
     var variable = to.variable
@@ -63,15 +179,15 @@ fun store_into_variable(to: value, from: value) {
         /*base_type::object() return #sizeof<>*/
         /*base_type::adt() return #sizeof<>*/
         /*base_type::function() return #sizeof<>*/
-        /*base_type::boolean() return *(variable.first) cast bool*/
-        /*base_type::character() return *(variable.first) cast char*/
-        /*base_type::ucharacter() return *(variable.first) cast uchar*/
-        /*base_type::short_int() return *(variable.first) cast short*/
-        /*base_type::ushort_int() return *(variable.first) cast ushort*/
+        base_type::boolean() { assert(is_boolean(from), "mismatching assignemnt types - from is not boolean"); *(variable.first) cast *bool = from.boolean; }
+        base_type::character() { assert(is_character(from), "mismatching assignemnt types - from is not character"); *(variable.first) cast *char = from.character; }
+        base_type::ucharacter() { assert(is_ucharacter(from), "mismatching assignemnt types - from is not ucharacter"); *(variable.first) cast *uchar = from.ucharacter; }
+        base_type::short_int() { assert(is_short_int(from), "mismatching assignemnt types - from is not short_int"); *(variable.first) cast *short = from.short_int; }
+        base_type::ushort_int() { assert(is_ushort_int(from), "mismatching assignemnt types - from is not ushort_int"); *(variable.first) cast *ushort = from.ushort_int; }
         base_type::integer() { assert(is_integer(from), "mismatching assignemnt types - from is not integer"); *(variable.first) cast *int = from.integer; }
-        /*base_type::uinteger() return *(variable.first) cast uint*/
-        /*base_type::long_int() return *(variable.first) cast long*/
-        /*base_type::ulong_int() return *(variable.first) cast ulong*/
+        base_type::uinteger() { assert(is_uinteger(from), "mismatching assignemnt types - from is not uinteger"); *(variable.first) cast *uint = from.uinteger; }
+        base_type::long_int() { assert(is_long_int(from), "mismatching assignemnt types - from is not long_int"); *(variable.first) cast *long = from.long_int; }
+        base_type::ulong_int() { assert(is_ulong_int(from), "mismatching assignemnt types - from is not ulong_int"); *(variable.first) cast *ulong = from.ulong_int; }
         base_type::floating() { assert(is_floating(from), "mismatching assignemnt types - from is not floating"); *(variable.first) cast *float = from.floating; }
         base_type::double_precision() { assert(is_double_precision(from), "mismatching assignemnt types - from is not double"); *(variable.first) cast *double = from.double_precision; }
     }
@@ -86,19 +202,98 @@ fun get_real_value(v: value): value {
         /*base_type::object() return #sizeof<>*/
         /*base_type::adt() return #sizeof<>*/
         /*base_type::function() return #sizeof<>*/
-        /*base_type::boolean() return *(variable.first) cast bool*/
-        /*base_type::character() return *(variable.first) cast char*/
-        /*base_type::ucharacter() return *(variable.first) cast uchar*/
-        /*base_type::short_int() return *(variable.first) cast short*/
-        /*base_type::ushort_int() return *(variable.first) cast ushort*/
+        base_type::boolean() return value::boolean(*(variable.first) cast *bool)
+        base_type::character() return value::character(*(variable.first) cast *char)
+        base_type::ucharacter() return value::ucharacter(*(variable.first) cast *uchar)
+        base_type::short_int() return value::short_int(*(variable.first) cast *short)
+        base_type::ushort_int() return value::ushort_int(*(variable.first) cast *ushort)
         base_type::integer() return value::integer(*(variable.first) cast *int)
-        /*base_type::uinteger() return *(variable.first) cast uint*/
-        /*base_type::long_int() return *(variable.first) cast long*/
-        /*base_type::ulong_int() return *(variable.first) cast ulong*/
+        base_type::uinteger() return value::uinteger(*(variable.first) cast *uint)
+        base_type::long_int() return value::long_int(*(variable.first) cast *long)
+        base_type::ulong_int() return value::ulong_int(*(variable.first) cast *ulong)
         base_type::floating() return value::floating(*(variable.first) cast *float)
         base_type::double_precision() return value::double_precision(*(variable.first) cast *double)
     }
     error("Cannot get real value from variable")
+}
+fun cast_value(v: value, to_type: *type): value {
+    if (to_type->indirection) {
+        match (get_real_value(v)) {
+            value::boolean(data) return value::pointer(make_pair((data) cast *void, to_type))
+            value::character(data) return value::pointer(make_pair((data) cast *void, to_type))
+            value::ucharacter(data) return value::pointer(make_pair((data) cast *void, to_type))
+            value::short_int(data) return value::pointer(make_pair((data) cast *void, to_type))
+            value::ushort_int(data) return value::pointer(make_pair((data) cast *void, to_type))
+            value::integer(data) return value::pointer(make_pair((data) cast *void, to_type))
+            value::uinteger(data) return value::pointer(make_pair((data) cast *void, to_type))
+            value::long_int(data) return value::pointer(make_pair((data) cast *void, to_type))
+            value::ulong_int(data) return value::pointer(make_pair((data) cast *void, to_type))
+            // floats are illegal to cast from
+            /*value::floating(data) return value::pointer(make_pair((data) cast *void, to_type))*/
+            /*value::double_precision(data) return value::pointer(make_pair((data) cast *void, to_type))*/
+            value::pointer(data) return value::pointer(make_pair(data.first, to_type))
+        }
+        error("Bad cast to pointer")
+    }
+    match (to_type->base) {
+        /*base_type::object() return #sizeof<>*/
+        /*base_type::adt() return #sizeof<>*/
+        /*base_type::function() return #sizeof<>*/
+        base_type::boolean() return cast_value_second_half<bool>(v)
+        base_type::character() return cast_value_second_half<char>(v)
+        base_type::ucharacter() return cast_value_second_half<uchar>(v)
+        base_type::short_int() return cast_value_second_half<short>(v)
+        base_type::ushort_int() return cast_value_second_half<ushort>(v)
+        base_type::integer() return cast_value_second_half<int>(v)
+        base_type::uinteger() return cast_value_second_half<uint>(v)
+        base_type::long_int() return cast_value_second_half<long>(v)
+        base_type::ulong_int() return cast_value_second_half<ulong>(v)
+        // float and double need their own because it can't go from
+        base_type::floating() match (get_real_value(v)) {
+            value::boolean(data) return value::floating((data) cast float)
+            value::character(data) return value::floating((data) cast float)
+            value::ucharacter(data) return value::floating((data) cast float)
+            value::short_int(data) return value::floating((data) cast float)
+            value::ushort_int(data) return value::floating((data) cast float)
+            value::integer(data) return value::floating((data) cast float)
+            value::uinteger(data) return value::floating((data) cast float)
+            value::long_int(data) return value::floating((data) cast float)
+            value::ulong_int(data) return value::floating((data) cast float)
+            value::floating(data) return get_real_value(v)
+            value::double_precision(data) return value::floating((data) cast float)
+        }
+        base_type::double_precision() match (get_real_value(v)) {
+            value::boolean(data) return value::double_precision((data) cast double)
+            value::character(data) return value::double_precision((data) cast double)
+            value::ucharacter(data) return value::double_precision((data) cast double)
+            value::short_int(data) return value::double_precision((data) cast double)
+            value::ushort_int(data) return value::double_precision((data) cast double)
+            value::integer(data) return value::double_precision((data) cast double)
+            value::uinteger(data) return value::double_precision((data) cast double)
+            value::long_int(data) return value::double_precision((data) cast double)
+            value::ulong_int(data) return value::double_precision((data) cast double)
+            value::floating(data) return value::double_precision((data) cast double)
+            value::double_precision(data) return get_real_value(v)
+        }
+    }
+    error(string("Bad cast to ") + to_type->to_string())
+}
+fun cast_value_second_half<T>(v: value): value {
+    match (get_real_value(v)) {
+        value::boolean(data) return raw_to_value((data) cast T)
+        value::character(data) return raw_to_value((data) cast T)
+        value::ucharacter(data) return raw_to_value((data) cast T)
+        value::short_int(data) return raw_to_value((data) cast T)
+        value::ushort_int(data) return raw_to_value((data) cast T)
+        value::integer(data) return raw_to_value((data) cast T)
+        value::uinteger(data) return raw_to_value((data) cast T)
+        value::long_int(data) return raw_to_value((data) cast T)
+        value::ulong_int(data) return raw_to_value((data) cast T)
+        value::floating(data) return raw_to_value((data) cast T)
+        value::double_precision(data) return raw_to_value((data) cast T)
+        value::pointer(data) return raw_to_value((data.first) cast T)
+    }
+    error("Illegal type to cast cast from")
 }
 fun type_size(t: *type): ulong {
     if (t->indirection)
@@ -157,10 +352,19 @@ obj interpreter (Object) {
             error(string("wrong number of mains to call: ") + results.size)
         println("calling main!")
         var var_stack = stack<map<string, value>>()
-        print_value(call_function(results[0], vector<value>(), &var_stack))
+        var result = call_function(results[0], vector<value>(), &var_stack)
+        println("\nMain returned: ")
+        print_value(result)
     }
     fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
         // should handle dot style method call here
+        var func_name = func_call->function_call.func->function.name
+        if (func_name == "&&" || func_name == "||") {
+            var p1true = truthy(get_real_value(interpret(func_call->function_call.parameters[0], var_stack).first))
+            if ( (func_name == "&&" && !p1true) || (func_name == "||" && p1true) )
+                return make_pair(value::boolean(p1true), control_flow::nor())
+            return make_pair(value::boolean(truthy(get_real_value(interpret(func_call->function_call.parameters[1], var_stack).first))), control_flow::nor())
+        }
         var parameters = func_call->function_call.parameters.map(fun(p: *ast_node): value return interpret(p, var_stack).first;)
         return make_pair(call_function(func_call->function_call.func, parameters, var_stack), control_flow::nor())
     }
@@ -173,6 +377,9 @@ obj interpreter (Object) {
             || func_name == "|" || func_name == "&"
         ))
             return do_basic_op(func_name, parameters[0], parameters[1])
+        // do negate by subtracting from zero
+        if (func_name == "-")
+            return do_basic_op_second_half(string("-"), 0, parameters[0], null<type>())
         if (func_name == "++p" || func_name == "--p") {
             var to_ret = get_real_value(parameters[0])
             store_into_variable(parameters[0], do_basic_op(func_name.slice(0,1), parameters[0], value::integer(1)))
@@ -189,11 +396,20 @@ obj interpreter (Object) {
         }
         // to dereference, we basically take the pointer's value (maybe going through a variable to get it)
         // and re-wrap it up into a variable value (so it can be assigned to, etc)
-        if (func_name == "*") {
+        if (func_name == "*" || func_name == "[]") {
+            var dereference_val = parameters[0]
+            if (func_name == "[]")
+                dereference_val = do_basic_op(string("+"), parameters[0], parameters[1])
             if (!is_pointer(get_real_value(parameters[0])))
                 error("Trying to take dereference not a pointer")
-            return value::variable(make_pair(get_real_value(parameters[0]).pointer.first, parameters[0].pointer.second->clone_with_decreased_indirection()))
+            return value::variable(make_pair(get_real_value(dereference_val).pointer.first, dereference_val.pointer.second->clone_with_decreased_indirection()))
         }
+        // check for built-in-ish externs (everything the standard library needs)
+        if (func_name == "printf" || func_name == "malloc" || func_name == "free")
+            return call_built_in_extern(func_name, parameters)
+        if (!func->function.body_statement)
+            error(string("trying to call unsupported extern function: ") + func_name)
+        // do regular function
         var_stack->push(map<string,value>())
         if (parameters.size != func->function.parameters.size)
             error(string("calling function ") + func->function.name + " with wrong number of parameters")
@@ -205,6 +421,26 @@ obj interpreter (Object) {
         var to_ret = interpret(func->function.body_statement, var_stack).first
         pop_and_free(var_stack)
         return to_ret
+    }
+    fun call_built_in_extern(func_name: string, parameters: vector<value>): value {
+        println(string("calling func: ") + func_name)
+        if (func_name == "printf") {
+            assert(parameters.size == 2 && is_pointer(parameters[0]) && is_pointer(parameters[1]), "Calling printf with wrong params")
+            printf((parameters[0].pointer.first) cast *char, (parameters[1].pointer.first) cast *char)
+            return value::integer(0)
+        } else if (func_name == "malloc") {
+            assert(parameters.size == 1 && is_ulong_int(parameters[0]), "Calling malloc with wrong params")
+            return value::pointer(make_pair(malloc(parameters[0].ulong_int), type_ptr(base_type::void_return())->clone_with_increased_indirection()))
+        } else if (func_name == "free") {
+            assert(parameters.size == 1 && is_pointer(parameters[0]), "Calling free with wrong params")
+            free(parameters[0].pointer.first)
+        } else if (func_name == "exit") {
+            assert(parameters.size == 1 && is_integer(parameters[0]), "Calling exit with wrong params")
+            exit(parameters[0].integer)
+        } else {
+            error(string("trying to call invalid func: ") + func_name)
+        }
+        return value::void_nothing()
     }
     fun interpret_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
         return interpret(stmt->statement.child, var_stack)
@@ -283,6 +519,15 @@ obj interpreter (Object) {
                 return make_pair(var_stack->from_top(i)[ident->identifier.name], control_flow::nor())
         error("Cannot find variable")
     }
+    fun interpret_cast(node: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        return make_pair(cast_value(interpret(node->cast.value, var_stack).first, node->cast.to_type), control_flow::nor())
+    }
+    fun interpret_compiler_intrinsic(node: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+        var intrinsic_name = node->compiler_intrinsic.intrinsic
+        if (intrinsic_name == "sizeof")
+            return make_pair(value::ulong_int(type_size(node->compiler_intrinsic.type_parameters[0])), control_flow::nor())
+        error(string("bad intrinsic: ") + intrinsic_name)
+    }
     fun interpret_value(val: *ast_node): pair<value, control_flow>
         return make_pair(wrap_value(val), control_flow::nor())
     fun interpret(node: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
@@ -297,46 +542,38 @@ obj interpreter (Object) {
             ast_node::declaration_statement(backing) return interpret_declaration_statement(node, var_stack)
             ast_node::assignment_statement(backing) return interpret_assignment_statement(node, var_stack)
             ast_node::identifier(backing) return interpret_identifier(node, var_stack)
+            ast_node::cast(backing) return interpret_cast(node, var_stack)
+            ast_node::compiler_intrinsic(backing) return interpret_compiler_intrinsic(node, var_stack)
             ast_node::value(backing) return interpret_value(node)
         }
         error(string("Cannot interpret node: ") + get_ast_name(node))
     }
-    fun do_basic_op(func_name: string, a: value, b: value): value {
-        match (get_real_value(a)) {
-            value::integer(av) {
-                match (get_real_value(b)) {
-                    value::integer(bv) return value::integer(do_op<int,int,int>(func_name, av, bv))
-                }
-            }
-        }
-        return value::integer(a.integer + b.integer)
-    }
-    fun do_op<T,U,W>(op: string, a: T, b: U): W {
-        if (op == "+") return a + b
-        if (op == "-") return a - b
-        if (op == "*") return a * b
-        if (op == "/") return a / b
-        if (op == "<") return a < b
-        if (op == ">") return a > b
-        if (op == "<=") return a <= b
-        if (op == ">=") return a >= b
-        if (op == "==") return a == b
-        if (op == "!=") return a != b
-        if (op == "%") return a % b
-        if (op == "^") return a ^ b
-        if (op == "|") return a | b
-        if (op == "&") return a & b
-
-        error(("Invalid op: ") + op)
-    }
     fun wrap_value(val: *ast_node): value {
         var value_str = val->value.string_value
-        if (value_str[0] == '"') // " // Comment hack for emacs now
-            return value::integer(1)
-        else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
-            return value::integer(1)
-        else if (value_str == "true" || value_str == "false")
-            return value::integer(1)
+        if (value_str[0] == '"') { // " // Comment hack for emacs now
+            var to_ret = string()
+            value_str = value_str.slice(1,-2)
+            for (var i = 0; i < value_str.length()-1; i++;) {
+                if (value_str[i] == '\\' && value_str[i+1] == 'n') {
+                    to_ret += '\n'
+                    i++
+                } else if (value_str[i] == '\\' && value_str[i+1] == 't') {
+                    to_ret += '\t'
+                    i++
+                } else if (i == value_str.length()-2) {
+                    to_ret += value_str[i]
+                    to_ret += value_str[i+1]
+                } else {
+                    to_ret += value_str[i]
+                }
+            }
+            return value::pointer(make_pair((to_ret.toCharArray()) cast *void, get_ast_type(val)))
+        } else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
+            return value::character(value_str[1])
+        else if (value_str == "true")
+            return value::boolean(true)
+        else if (value_str == "false")
+            return value::boolean(false)
         else {
             // should differentiate between float and double...
             var contains_dot = false
@@ -348,12 +585,13 @@ obj interpreter (Object) {
             }
             if (contains_dot)
                 if (value_str[value_str.length()-1] == 'f')
-                    return value::floating(1.0f)
+                    return value::floating((string_to_double(value_str.slice(0,-2))) cast float)
                 else
-                    return value::double_precision(1.0)
+                    return value::double_precision(string_to_double(value_str))
             else
                 return value::integer(string_to_int(value_str))
         }
+        error("Could not wrap value")
         return value::void_nothing()
     }
 }

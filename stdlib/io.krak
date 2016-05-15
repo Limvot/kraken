@@ -38,11 +38,6 @@ fun print(toPrint: bool): void {
 	return;
 }
 
-fun print(toPrint: int): void 
-    print(string::to_string(toPrint))
-fun print(toPrint: ulong): void 
-    print(string::to_string(toPrint))
-
 ext fun sprintf(to_str: *char, format: *char, d: double)
 fun print(toPrint: float)
     print((toPrint) cast double)
@@ -53,6 +48,10 @@ fun print(toPrint: double) {
     print(int_str)
     delete(int_str)
 }
+fun print<T>(toPrint: T): void 
+    print(string::to_string(toPrint))
+/*fun print(toPrint: ulong): void */
+    /*print(string::to_string(toPrint))*/
 
 // Ok, just some DEAD simple file io for now
 ext fun fopen(path: *char, mode: *char): *void

@@ -36,6 +36,12 @@ fun string_to_int(it: string): int {
         return -result
     return result
 }
+fun string_to_double(it: string): double {
+    var parts = it.split('.')
+    var divisor = 1
+    for (var i = 0; i < parts[1].length(); i++;) divisor *= 10
+    return string_to_int(parts[0]) + (string_to_int(parts[1])) cast double / divisor
+}
 
 fun to_string_num<T>(in: T): string {
     if (in == 0)
