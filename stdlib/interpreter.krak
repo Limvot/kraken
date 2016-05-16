@@ -10,6 +10,8 @@ import ast_nodes:*
 import type:*
 import ast_transformation:*
 
+// there is never an object literal/primitive
+// they remain wrapped in a variable value
 adt value {
     boolean: bool,
     character: char,
@@ -24,6 +26,7 @@ adt value {
     double_precision: double,
     void_nothing,
     pointer: pair<*void,*type>,
+    object_like: pair<*void,*type>,
     variable: pair<*void,*type>
 }
 adt control_flow {
@@ -33,6 +36,7 @@ adt control_flow {
     ret
 }
 
+// note that there is not object_like, variable, or pointer raw_to_value
 fun raw_to_value(data:bool): value
     return value::boolean(data)
 fun raw_to_value(data:char): value
@@ -69,6 +73,7 @@ fun is_floating(it: value): bool { match(it) { value::floating(var) return true;
 fun is_double_precision(it: value): bool { match(it) { value::double_precision(var) return true; } return false; }
 fun is_void_nothing(it: value): bool { match(it) { value::void_nothing() return true; } return false; }
 fun is_pointer(it: value): bool { match(it) { value::pointer(var) return true; } return false; }
+fun is_object_like(it: value): bool { match(it) { value::object_like(var) return true; } return false; }
 fun is_variable(it: value): bool { match(it) { value::variable(var) return true; } return false; }
 
 fun print_value(v: ref value) {
@@ -86,6 +91,7 @@ fun print_value(v: ref value) {
         value::double_precision(data) println(data)
         value::void_nothing() println("void")
         value::pointer(var) println("pointer")
+        value::object_like(var) println("object_like")
         value::variable(var) println("variable")
     }
 }
@@ -104,6 +110,7 @@ fun truthy(v: ref value):bool {
         value::double_precision(data) return data != 0
         value::pointer(data) return data.first != 0
     }
+    error("untruthy value")
 }
 fun do_basic_op(func_name: string, a: value, b: value): value {
     match (get_real_value(a)) {
@@ -175,10 +182,11 @@ fun store_into_variable(to: value, from: value) {
         *(variable.first) cast **void = from.pointer.first
         return;
     }
+    // TODO - check to make sure that we don't have to cast pre assign (perhaps alwyas send through the cast?)
     match (variable.second->base) {
-        /*base_type::object() return #sizeof<>*/
-        /*base_type::adt() return #sizeof<>*/
-        /*base_type::function() return #sizeof<>*/
+        base_type::object() { assert(is_object_like(from), "mismatching assignemnt types - from is not object"); memmove(variable.first, from.object_like.first, type_size(from.object_like.second)); }
+        base_type::adt() error(string("trying to store into an adt: ") + variable.second->to_string())
+        base_type::function() error(string("trying to store into a function: ") + variable.second->to_string())
         base_type::boolean() { assert(is_boolean(from), "mismatching assignemnt types - from is not boolean"); *(variable.first) cast *bool = from.boolean; }
         base_type::character() { assert(is_character(from), "mismatching assignemnt types - from is not character"); *(variable.first) cast *char = from.character; }
         base_type::ucharacter() { assert(is_ucharacter(from), "mismatching assignemnt types - from is not ucharacter"); *(variable.first) cast *uchar = from.ucharacter; }
@@ -199,7 +207,8 @@ fun get_real_value(v: value): value {
     if (variable.second->indirection)
         return value::pointer(make_pair(*(variable.first) cast **void, variable.second))
     match (variable.second->base) {
-        /*base_type::object() return #sizeof<>*/
+        // really this could just be make_pair(variable)
+        base_type::object() return value::object_like(make_pair(variable.first, variable.second))
         /*base_type::adt() return #sizeof<>*/
         /*base_type::function() return #sizeof<>*/
         base_type::boolean() return value::boolean(*(variable.first) cast *bool)
@@ -214,7 +223,7 @@ fun get_real_value(v: value): value {
         base_type::floating() return value::floating(*(variable.first) cast *float)
         base_type::double_precision() return value::double_precision(*(variable.first) cast *double)
     }
-    error("Cannot get real value from variable")
+    error(string("Cannot get real value from variable: ") + variable.second->to_string())
 }
 fun cast_value(v: value, to_type: *type): value {
     if (to_type->indirection) {
@@ -228,7 +237,7 @@ fun cast_value(v: value, to_type: *type): value {
             value::uinteger(data) return value::pointer(make_pair((data) cast *void, to_type))
             value::long_int(data) return value::pointer(make_pair((data) cast *void, to_type))
             value::ulong_int(data) return value::pointer(make_pair((data) cast *void, to_type))
-            // floats are illegal to cast from
+            // floats and anything object_like are illegal to cast from
             /*value::floating(data) return value::pointer(make_pair((data) cast *void, to_type))*/
             /*value::double_precision(data) return value::pointer(make_pair((data) cast *void, to_type))*/
             value::pointer(data) return value::pointer(make_pair(data.first, to_type))
@@ -236,6 +245,7 @@ fun cast_value(v: value, to_type: *type): value {
         error("Bad cast to pointer")
     }
     match (to_type->base) {
+        // object_like can't be casted
         /*base_type::object() return #sizeof<>*/
         /*base_type::adt() return #sizeof<>*/
         /*base_type::function() return #sizeof<>*/
@@ -280,6 +290,7 @@ fun cast_value(v: value, to_type: *type): value {
 }
 fun cast_value_second_half<T>(v: value): value {
     match (get_real_value(v)) {
+        // object_like can't be casted
         value::boolean(data) return raw_to_value((data) cast T)
         value::character(data) return raw_to_value((data) cast T)
         value::ucharacter(data) return raw_to_value((data) cast T)
@@ -299,7 +310,11 @@ fun type_size(t: *type): ulong {
     if (t->indirection)
         return #sizeof<*void>
     match (t->base) {
-        /*base_type::object() return #sizeof<>*/
+        base_type::object() {
+            var size = 0
+            t->type_def->type_def.variables.for_each(fun(i: *ast_node) size += type_size(i->declaration_statement.identifier->identifier.type);)
+            return size
+        }
         /*base_type::adt() return #sizeof<>*/
         /*base_type::function() return #sizeof<>*/
         base_type::boolean() return #sizeof<bool>
@@ -314,6 +329,16 @@ fun type_size(t: *type): ulong {
         base_type::floating() return #sizeof<float>
         base_type::double_precision() return #sizeof<double>
     }
+    error(string("Invalid type for type_size: ") + t->to_string())
+}
+fun offset_into_struct(struct_type: *type, ident: *ast_node): ulong {
+    var size: ulong = 0
+    for (var i = 0; i < struct_type->type_def->type_def.variables.size; i++;)
+        if (struct_type->type_def->type_def.variables[i]->declaration_statement.identifier == ident)
+            break
+        else
+            size += type_size(struct_type->type_def->type_def.variables[i]->declaration_statement.identifier->identifier.type)
+    return size
 }
 fun pop_and_free(var_stack: *stack<map<string, value>>) {
     var_stack->pop().for_each(fun(k: string, v: value) {
@@ -361,13 +386,21 @@ obj interpreter (Object) {
         println("=============")
     }
     fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
-        // should handle dot style method call here
+        // some of these have to be done before parameters are evaluated (&&, ||, ., ->)
         var func_name = func_call->function_call.func->function.name
         if (func_name == "&&" || func_name == "||") {
             var p1true = truthy(get_real_value(interpret(func_call->function_call.parameters[0], var_stack).first))
             if ( (func_name == "&&" && !p1true) || (func_name == "||" && p1true) )
                 return make_pair(value::boolean(p1true), control_flow::nor())
             return make_pair(value::boolean(truthy(get_real_value(interpret(func_call->function_call.parameters[1], var_stack).first))), control_flow::nor())
+        } else if (func_name == "." || func_name == "->") {
+            var left_side = get_real_value(interpret(func_call->function_call.parameters[0], var_stack).first)
+            var ret_ptr = null<void>()
+            if (func_name == "->")
+                ret_ptr = ((left_side.pointer.first) cast *char + offset_into_struct(left_side.pointer.second->clone_with_decreased_indirection(), func_call->function_call.parameters[1])) cast *void
+            else
+                ret_ptr = ((left_side.object_like.first) cast *char + offset_into_struct(left_side.object_like.second, func_call->function_call.parameters[1])) cast *void
+            return make_pair(value::variable(make_pair(ret_ptr, func_call->function_call.parameters[1]->identifier.type)), control_flow::nor())
         }
         var parameters = func_call->function_call.parameters.map(fun(p: *ast_node): value return interpret(p, var_stack).first;)
         return make_pair(call_function(func_call->function_call.func, parameters, var_stack), control_flow::nor())
@@ -409,7 +442,7 @@ obj interpreter (Object) {
             return value::variable(make_pair(get_real_value(dereference_val).pointer.first, dereference_val.pointer.second->clone_with_decreased_indirection()))
         }
         // check for built-in-ish externs (everything the standard library needs)
-        if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush")
+        if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush" || func_name == "sprintf")
             return call_built_in_extern(func_name, parameters)
         if (!func->function.body_statement)
             error(string("trying to call unsupported extern function: ") + func_name)
@@ -443,6 +476,9 @@ obj interpreter (Object) {
         } else if (func_name == "fflush") {
             assert(parameters.size == 1 && is_integer(parameters[0]), "Calling fflush with wrong params")
             fflush(parameters[0].integer)
+        } else if (func_name == "sprintf") {
+            assert(parameters.size == 3 && is_pointer(parameters[0]) && is_pointer(parameters[1]) && is_double_precision(parameters[2]), "Calling fflush with wrong params")
+            sprintf((parameters[0].pointer.first) cast *char, (parameters[1].pointer.first) cast *char, parameters[2].double_precision)
         } else if (func_name == "exit") {
             assert(parameters.size == 1 && is_integer(parameters[0]), "Calling exit with wrong params")
             exit(parameters[0].integer)
@@ -519,14 +555,17 @@ obj interpreter (Object) {
     fun interpret_assignment_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
         var to = interpret(stmt->assignment_statement.to, var_stack).first
         var from = interpret(stmt->assignment_statement.from, var_stack).first
-        store_into_variable(to, get_real_value(from))
+        assert(is_variable(to), "assigning into not a variable")
+        // first, we have to see if this is an object
+        // always do cast now to make our best effort at assignment (assign into a double from a float, etc)
+        store_into_variable(to, cast_value(get_real_value(from), to.variable.second))
         return make_pair(value::void_nothing(), control_flow::nor())
     }
     fun interpret_identifier(ident: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
         for (var i = 0; i < var_stack->size(); i++;)
             if (var_stack->from_top(i).contains_key(ident->identifier.name))
                 return make_pair(var_stack->from_top(i)[ident->identifier.name], control_flow::nor())
-        error("Cannot find variable")
+        error(string("Cannot find variable: ") + ident->identifier.name)
     }
     fun interpret_cast(node: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
         return make_pair(cast_value(interpret(node->cast.value, var_stack).first, node->cast.to_type), control_flow::nor())

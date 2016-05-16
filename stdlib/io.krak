@@ -50,8 +50,6 @@ fun print(toPrint: double) {
 }
 fun print<T>(toPrint: T): void 
     print(string::to_string(toPrint))
-/*fun print(toPrint: ulong): void */
-    /*print(string::to_string(toPrint))*/
 
 // Ok, just some DEAD simple file io for now
 ext fun fopen(path: *char, mode: *char): *void

@@ -1,6 +1,7 @@
 
 ext fun malloc(size: ulong): *void
 ext fun free(size: *void)
+ext fun memmove(dest: *void, src: *void, size: ulong): *void
 
 fun null<T>(): *T
     return (0) cast *T
