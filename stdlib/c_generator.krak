@@ -72,7 +72,18 @@ obj code_triple (Object) {
         return pre+value+post
     }
 }
-
+fun is_dot_style_method_call(node: *ast_node): bool {
+    return is_function_call(node->function_call.func) &&
+            is_function(node->function_call.func->function_call.func) &&
+            (node->function_call.func->function_call.func->function.name == "->" || node->function_call.func->function_call.func->function.name == ".") &&
+            is_function(node->function_call.func->function_call.parameters[1]) &&
+            (is_type_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0]) ||
+            // or if it's a templated method (yes, this has gotten uuuuugly)
+            is_type_def(get_ast_scope(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0])->get(string("~enclosing_scope"))[0]) ||
+            // or it's in an adt
+            is_adt_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0]))
+            // should get uglier when we have to figure out if it's just an inside lambda
+}
 obj c_generator (Object) {
     var id_counter: int
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
@@ -756,16 +767,11 @@ obj c_generator (Object) {
         var func_return_type = get_ast_type(node)
 
         // handle the obj.method() style of method call
-        var dot_style_method_call = is_function_call(node->function_call.func) &&
-            is_function(node->function_call.func->function_call.func) &&
-            (node->function_call.func->function_call.func->function.name == "->" || node->function_call.func->function_call.func->function.name == ".") &&
-            is_function(node->function_call.func->function_call.parameters[1]) &&
-            (is_type_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0]) ||
-            // or if it's a templated method (yes, this has gotten uuuuugly)
-            is_type_def(get_ast_scope(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0])->get(string("~enclosing_scope"))[0]) ||
-            // or it's in an adt
-            is_adt_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0]))
-            // should get uglier when we have to figure out if it's just an inside lambda
+        // Note that this function may not be 100% reliable
+        // There may be a problem around detecting properly
+        // inside of lambdas. Gotta move it out so the interpreter
+        // can use it too, though.
+        var dot_style_method_call = is_dot_style_method_call(node)
 
         if (dot_style_method_call) {
             func_name = generate_function(node->function_call.func->function_call.parameters[1], enclosing_object, enclosing_func, false, false).one_string()

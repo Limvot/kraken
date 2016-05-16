@@ -9,6 +9,8 @@ import symbol:*
 import ast_nodes:*
 import type:*
 import ast_transformation:*
+// for is_dot_style_method_call
+import c_generator:*
 
 // there is never an object literal/primitive
 // they remain wrapped in a variable value
@@ -59,6 +61,53 @@ fun raw_to_value(data:float): value
     return value::floating(data)
 fun raw_to_value(data:double): value
     return value::double_precision(data)
+
+fun wrap_value(val: *ast_node): value {
+    var value_str = val->value.string_value
+    if (value_str[0] == '"') { // " // Comment hack for emacs now
+        var to_ret = string()
+        value_str = value_str.slice(1,-2)
+        for (var i = 0; i < value_str.length()-1; i++;) {
+            if (value_str[i] == '\\' && value_str[i+1] == 'n') {
+                to_ret += '\n'
+                i++
+            } else if (value_str[i] == '\\' && value_str[i+1] == 't') {
+                to_ret += '\t'
+                i++
+            } else if (i == value_str.length()-2) {
+                to_ret += value_str[i]
+                to_ret += value_str[i+1]
+            } else {
+                to_ret += value_str[i]
+            }
+        }
+        return value::pointer(make_pair((to_ret.toCharArray()) cast *void, get_ast_type(val)))
+    } else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
+        return value::character(value_str[1])
+    else if (value_str == "true")
+        return value::boolean(true)
+    else if (value_str == "false")
+        return value::boolean(false)
+    else {
+        // should differentiate between float and double...
+        var contains_dot = false
+        for (var i = 0; i < value_str.length(); i++;) {
+            if (value_str[i] == '.') {
+                contains_dot = true
+                break
+            }
+        }
+        if (contains_dot)
+            if (value_str[value_str.length()-1] == 'f')
+                return value::floating((string_to_double(value_str.slice(0,-2))) cast float)
+            else
+                return value::double_precision(string_to_double(value_str))
+        else
+            return value::integer(string_to_int(value_str))
+    }
+    error("Could not wrap value")
+    return value::void_nothing()
+}
 
 fun is_boolean(it: value): bool { match(it) { value::boolean(var) return true; } return false; }
 fun is_character(it: value): bool { match(it) { value::character(var) return true; } return false; }
@@ -123,6 +172,8 @@ fun do_basic_op(func_name: string, a: value, b: value): value {
         value::uinteger(av) return do_basic_op_second_half(func_name, av, b, null<type>())
         value::long_int(av) return do_basic_op_second_half(func_name, av, b, null<type>())
         value::ulong_int(av) return do_basic_op_second_half(func_name, av, b, null<type>())
+        value::floating(av) return do_basic_floating_op_second_half(func_name, av, b, null<type>())
+        value::double_precision(av) return do_basic_floating_op_second_half(func_name, av, b, null<type>())
         value::pointer(av) {
             var inc_in_bytes = cast_value(b, type_ptr(base_type::ulong_int())).ulong_int * type_size(av.second->clone_with_decreased_indirection())
             var ptr = null<void>()
@@ -135,6 +186,8 @@ fun do_basic_op(func_name: string, a: value, b: value): value {
             }
             return value::pointer(make_pair(ptr, av.second))
         }
+        value::void_nothing() error(string("basic op called with void_nothing as first param: ") + func_name)
+        value::object_like() error(string("basic op called with object_like as first param: ") + func_name)
     }
     error(string("basic op called with something wrong as first param: ") + func_name)
 }
@@ -150,9 +203,14 @@ fun do_basic_op_second_half<T>(func_name: string, av: T, b: value, ptr_type: *ty
         value::uinteger(bv) return do_op(func_name, av, bv, ptr_type)
         value::long_int(bv) return do_op(func_name, av, bv, ptr_type)
         value::ulong_int(bv) return do_op(func_name, av, bv, ptr_type)
+        value::floating(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::double_precision(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::void_nothing() error(string("basic op called with void_nothing as second param: ") + func_name)
+        value::object_like() error(string("basic op called with object_like as second param: ") + func_name)
         // if one is a pointer, we want it to be a
         value::pointer(bv) return do_basic_op(func_name, b, raw_to_value(av))
     }
+    print_value(b)
     error(string("basic op called with something wrong as second param: ") + func_name)
 }
 fun do_op<T,U>(op: string, a: T, b: U, ptr_type: *type): value {
@@ -170,7 +228,41 @@ fun do_op<T,U>(op: string, a: T, b: U, ptr_type: *type): value {
     if (op == "^") return raw_to_value(a ^ b)
     if (op == "|") return raw_to_value(a | b)
     if (op == "&") return raw_to_value(a & b)
-
+    error(("Invalid op: ") + op)
+}
+fun do_basic_floating_op_second_half<T>(func_name: string, av: T, b: value, ptr_type: *type): value {
+    // because of the trickery in do_basic_op, if either param is a pointer, it's b
+    match (get_real_value(b)) {
+        value::boolean(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::character(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::ucharacter(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::short_int(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::ushort_int(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::integer(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::uinteger(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::long_int(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::ulong_int(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::floating(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::double_precision(bv) return do_floating_op(func_name, av, bv, ptr_type)
+        value::void_nothing() error(string("basic op called with void_nothing as second param: ") + func_name)
+        value::object_like() error(string("basic op called with object_like as second param: ") + func_name)
+        // if one is a pointer, we want it to be a
+        value::pointer(bv) return do_basic_op(func_name, b, raw_to_value(av))
+    }
+    print_value(b)
+    error(string("basic op called with something wrong as second param: ") + func_name)
+}
+fun do_floating_op<T,U>(op: string, a: T, b: U, ptr_type: *type): value {
+    if (op == "+") return raw_to_value(a + b)
+    if (op == "-") return raw_to_value(a - b)
+    if (op == "*") return raw_to_value(a * b)
+    if (op == "/") return raw_to_value(a / b)
+    if (op == "<") return raw_to_value(a < b)
+    if (op == ">") return raw_to_value(a > b)
+    if (op == "<=") return raw_to_value(a <= b)
+    if (op == ">=") return raw_to_value(a >= b)
+    if (op == "==") return raw_to_value(a == b)
+    if (op == "!=") return raw_to_value(a != b)
     error(("Invalid op: ") + op)
 }
 fun store_into_variable(to: value, from: value) {
@@ -379,33 +471,47 @@ obj interpreter (Object) {
         println("calling main!")
         println("=============")
         var var_stack = stack<map<string, value>>()
-        var result = call_function(results[0], vector<value>(), &var_stack)
+        var result = call_function(results[0], vector<value>(), &var_stack, value::void_nothing())
         println("=============")
         println("Main returned: ")
         print_value(result)
         println("=============")
     }
-    fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+    fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
+        var func_call_parameters = func_call->function_call.parameters
+        var func_call_func = func_call->function_call.func
+        var new_enclosing_object = value::void_nothing()
+        // note here also that this is likely not a foolproof method
+        if (is_dot_style_method_call(func_call)) {
+            println("DOT STYLE METHOD CALL")
+            new_enclosing_object = get_real_value(interpret(func_call_func->function_call.parameters[0], var_stack, enclosing_object).first)
+            // do a dereference
+            if (is_pointer(new_enclosing_object))
+                new_enclosing_object = get_real_value(value::variable(make_pair(new_enclosing_object.pointer.first, new_enclosing_object.pointer.second->clone_with_decreased_indirection())))
+            func_call_func = func_call_func->function_call.parameters[1]
+        }
+        // check if it's a same method method call and do the right new_enclosing_object
+        // new_enclosing_object = enclosing_object
+        var func_name = func_call_func->function.name
         // some of these have to be done before parameters are evaluated (&&, ||, ., ->)
-        var func_name = func_call->function_call.func->function.name
         if (func_name == "&&" || func_name == "||") {
-            var p1true = truthy(get_real_value(interpret(func_call->function_call.parameters[0], var_stack).first))
+            var p1true = truthy(get_real_value(interpret(func_call_parameters[0], var_stack, enclosing_object).first))
             if ( (func_name == "&&" && !p1true) || (func_name == "||" && p1true) )
                 return make_pair(value::boolean(p1true), control_flow::nor())
-            return make_pair(value::boolean(truthy(get_real_value(interpret(func_call->function_call.parameters[1], var_stack).first))), control_flow::nor())
+            return make_pair(value::boolean(truthy(get_real_value(interpret(func_call_parameters[1], var_stack, enclosing_object).first))), control_flow::nor())
         } else if (func_name == "." || func_name == "->") {
-            var left_side = get_real_value(interpret(func_call->function_call.parameters[0], var_stack).first)
+            var left_side = get_real_value(interpret(func_call_parameters[0], var_stack, enclosing_object).first)
             var ret_ptr = null<void>()
             if (func_name == "->")
-                ret_ptr = ((left_side.pointer.first) cast *char + offset_into_struct(left_side.pointer.second->clone_with_decreased_indirection(), func_call->function_call.parameters[1])) cast *void
+                ret_ptr = ((left_side.pointer.first) cast *char + offset_into_struct(left_side.pointer.second->clone_with_decreased_indirection(), func_call_parameters[1])) cast *void
             else
-                ret_ptr = ((left_side.object_like.first) cast *char + offset_into_struct(left_side.object_like.second, func_call->function_call.parameters[1])) cast *void
-            return make_pair(value::variable(make_pair(ret_ptr, func_call->function_call.parameters[1]->identifier.type)), control_flow::nor())
+                ret_ptr = ((left_side.object_like.first) cast *char + offset_into_struct(left_side.object_like.second, func_call_parameters[1])) cast *void
+            return make_pair(value::variable(make_pair(ret_ptr, func_call_parameters[1]->identifier.type)), control_flow::nor())
         }
-        var parameters = func_call->function_call.parameters.map(fun(p: *ast_node): value return interpret(p, var_stack).first;)
-        return make_pair(call_function(func_call->function_call.func, parameters, var_stack), control_flow::nor())
+        var parameters = func_call_parameters.map(fun(p: *ast_node): value return interpret(p, var_stack, enclosing_object).first;)
+        return make_pair(call_function(func_call_func, parameters, var_stack, new_enclosing_object), control_flow::nor())
     }
-    fun call_function(func: *ast_node, parameters: vector<value>, var_stack: *stack<map<string, value>>): value {
+    fun call_function(func: *ast_node, parameters: vector<value>, var_stack: *stack<map<string, value>>, enclosing_object: value): value {
         // will need adjustment
         var func_name = func->function.name
         if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/"
@@ -447,16 +553,18 @@ obj interpreter (Object) {
         if (!func->function.body_statement)
             error(string("trying to call unsupported extern function: ") + func_name)
         // do regular function
-        var_stack->push(map<string,value>())
+        var new_var_stack = stack<map<string, value>>()
+        new_var_stack.push(map<string,value>())
         if (parameters.size != func->function.parameters.size)
             error(string("calling function ") + func->function.name + " with wrong number of parameters")
         for (var i = 0; i < parameters.size; i++;) {
             var param_type = get_ast_type(func)->parameter_types[i]
-            var_stack->top()[func->function.parameters[i]->identifier.name] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
-            store_into_variable(var_stack->top()[func->function.parameters[i]->identifier.name], get_real_value(parameters[i]))
+            new_var_stack.top()[func->function.parameters[i]->identifier.name] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
+            store_into_variable(new_var_stack.top()[func->function.parameters[i]->identifier.name], get_real_value(parameters[i]))
         }
-        var to_ret = interpret(func->function.body_statement, var_stack).first
-        pop_and_free(var_stack)
+        var to_ret = interpret(func->function.body_statement, &new_var_stack, enclosing_object).first
+        // need to handle copying out object before pop_and_free deletes them
+        pop_and_free(&new_var_stack)
         return to_ret
     }
     fun call_built_in_extern(func_name: string, parameters: vector<value>): value {
@@ -487,41 +595,41 @@ obj interpreter (Object) {
         }
         return value::void_nothing()
     }
-    fun interpret_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
-        return interpret(stmt->statement.child, var_stack)
+    fun interpret_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
+        return interpret(stmt->statement.child, var_stack, enclosing_object)
     }
-    fun interpret_if_statement(if_stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+    fun interpret_if_statement(if_stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
         var_stack->push(map<string,value>())
-        if (truthy(interpret(if_stmt->if_statement.condition, var_stack).first)) {
-            interpret(if_stmt->if_statement.then_part, var_stack)
+        if (truthy(interpret(if_stmt->if_statement.condition, var_stack, enclosing_object).first)) {
+            interpret(if_stmt->if_statement.then_part, var_stack, enclosing_object)
         } else if (if_stmt->if_statement.else_part) {
-            interpret(if_stmt->if_statement.else_part, var_stack)
+            interpret(if_stmt->if_statement.else_part, var_stack, enclosing_object)
         }
         pop_and_free(var_stack)
         return make_pair(value::void_nothing(), control_flow::nor())
     }
-    fun interpret_while_loop(while_loop: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+    fun interpret_while_loop(while_loop: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
         var_stack->push(map<string,value>())
-        while (truthy(interpret(while_loop->while_loop.condition, var_stack).first)) {
-            interpret(while_loop->while_loop.statement, var_stack)
+        while (truthy(interpret(while_loop->while_loop.condition, var_stack, enclosing_object).first)) {
+            interpret(while_loop->while_loop.statement, var_stack, enclosing_object)
         }
         pop_and_free(var_stack)
         return make_pair(value::void_nothing(), control_flow::nor())
     }
-    fun interpret_for_loop(for_loop: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+    fun interpret_for_loop(for_loop: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
         var_stack->push(map<string,value>())
-        interpret(for_loop->for_loop.init, var_stack)
-        while (truthy(interpret(for_loop->for_loop.condition, var_stack).first)) {
-            interpret(for_loop->for_loop.body, var_stack)
-            interpret(for_loop->for_loop.update, var_stack)
+        interpret(for_loop->for_loop.init, var_stack, enclosing_object)
+        while (truthy(interpret(for_loop->for_loop.condition, var_stack, enclosing_object).first)) {
+            interpret(for_loop->for_loop.body, var_stack, enclosing_object)
+            interpret(for_loop->for_loop.update, var_stack, enclosing_object)
         }
         pop_and_free(var_stack)
         return make_pair(value::void_nothing(), control_flow::nor())
     }
-    fun interpret_code_block(block: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+    fun interpret_code_block(block: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
         var_stack->push(map<string,value>())
         for (var i = 0; i < block->code_block.children.size; i++;) {
-            var statement = interpret(block->code_block.children[i], var_stack)
+            var statement = interpret(block->code_block.children[i], var_stack, enclosing_object)
             match (statement.second) {
                 control_flow::con() {
                     pop_and_free(var_stack)
@@ -541,34 +649,44 @@ obj interpreter (Object) {
         pop_and_free(var_stack)
         return make_pair(value::void_nothing(), control_flow::nor())
     }
-    fun interpret_return_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
-        return make_pair(get_real_value(interpret(stmt->return_statement.return_value, var_stack).first), control_flow::ret())
+    fun interpret_return_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
+        return make_pair(get_real_value(interpret(stmt->return_statement.return_value, var_stack, enclosing_object).first), control_flow::ret())
     }
-    fun interpret_declaration_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+    fun interpret_declaration_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
         var ident_type = stmt->declaration_statement.identifier->identifier.type
         var ident_name = stmt->declaration_statement.identifier->identifier.name
         var_stack->top()[ident_name] = value::variable(make_pair(malloc(type_size(ident_type)),ident_type)) 
         if (stmt->declaration_statement.expression)
-            store_into_variable(var_stack->top()[ident_name], get_real_value(interpret(stmt->declaration_statement.expression, var_stack).first))
+            store_into_variable(var_stack->top()[ident_name], get_real_value(interpret(stmt->declaration_statement.expression, var_stack, enclosing_object).first))
         return make_pair(value::void_nothing(), control_flow::nor())
     }
-    fun interpret_assignment_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
-        var to = interpret(stmt->assignment_statement.to, var_stack).first
-        var from = interpret(stmt->assignment_statement.from, var_stack).first
+    fun interpret_assignment_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
+        var to = interpret(stmt->assignment_statement.to, var_stack, enclosing_object).first
+        var from = interpret(stmt->assignment_statement.from, var_stack, enclosing_object).first
         assert(is_variable(to), "assigning into not a variable")
         // first, we have to see if this is an object
         // always do cast now to make our best effort at assignment (assign into a double from a float, etc)
         store_into_variable(to, cast_value(get_real_value(from), to.variable.second))
         return make_pair(value::void_nothing(), control_flow::nor())
     }
-    fun interpret_identifier(ident: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+    fun interpret_identifier(ident: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
         for (var i = 0; i < var_stack->size(); i++;)
             if (var_stack->from_top(i).contains_key(ident->identifier.name))
                 return make_pair(var_stack->from_top(i)[ident->identifier.name], control_flow::nor())
+        // check for object member
+        if (is_object_like(enclosing_object)) {
+            var object_def = enclosing_object.object_like.second->type_def
+            for (var i = 0; i < object_def->type_def.variables.size; i++;) {
+                if (object_def->type_def.variables[i]->declaration_statement.identifier == ident) {
+                    var ret_ptr = ((enclosing_object.object_like.first) cast *char + offset_into_struct(enclosing_object.object_like.second, ident)) cast *void
+                    return make_pair(value::variable(make_pair(ret_ptr, ident->identifier.type)), control_flow::nor())
+                }
+            }
+        }
         error(string("Cannot find variable: ") + ident->identifier.name)
     }
-    fun interpret_cast(node: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
-        return make_pair(cast_value(interpret(node->cast.value, var_stack).first, node->cast.to_type), control_flow::nor())
+    fun interpret_cast(node: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
+        return make_pair(cast_value(interpret(node->cast.value, var_stack, enclosing_object).first, node->cast.to_type), control_flow::nor())
     }
     fun interpret_compiler_intrinsic(node: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
         var intrinsic_name = node->compiler_intrinsic.intrinsic
@@ -578,69 +696,23 @@ obj interpreter (Object) {
     }
     fun interpret_value(val: *ast_node): pair<value, control_flow>
         return make_pair(wrap_value(val), control_flow::nor())
-    fun interpret(node: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
+    fun interpret(node: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
         match (*node) {
-            ast_node::function_call(backing) return interpret_function_call(node, var_stack)
-            ast_node::statement(backing) return interpret_statement(node, var_stack)
-            ast_node::if_statement(backing) return interpret_if_statement(node, var_stack)
-            ast_node::while_loop(backing) return interpret_while_loop(node, var_stack)
-            ast_node::for_loop(backing) return interpret_for_loop(node, var_stack)
-            ast_node::code_block(backing) return interpret_code_block(node, var_stack)
-            ast_node::return_statement(backing) return interpret_return_statement(node, var_stack)
-            ast_node::declaration_statement(backing) return interpret_declaration_statement(node, var_stack)
-            ast_node::assignment_statement(backing) return interpret_assignment_statement(node, var_stack)
-            ast_node::identifier(backing) return interpret_identifier(node, var_stack)
-            ast_node::cast(backing) return interpret_cast(node, var_stack)
+            ast_node::function_call(backing) return interpret_function_call(node, var_stack, enclosing_object)
+            ast_node::statement(backing) return interpret_statement(node, var_stack, enclosing_object)
+            ast_node::if_statement(backing) return interpret_if_statement(node, var_stack, enclosing_object)
+            ast_node::while_loop(backing) return interpret_while_loop(node, var_stack, enclosing_object)
+            ast_node::for_loop(backing) return interpret_for_loop(node, var_stack, enclosing_object)
+            ast_node::code_block(backing) return interpret_code_block(node, var_stack, enclosing_object)
+            ast_node::return_statement(backing) return interpret_return_statement(node, var_stack, enclosing_object)
+            ast_node::declaration_statement(backing) return interpret_declaration_statement(node, var_stack, enclosing_object)
+            ast_node::assignment_statement(backing) return interpret_assignment_statement(node, var_stack, enclosing_object)
+            ast_node::identifier(backing) return interpret_identifier(node, var_stack, enclosing_object)
+            ast_node::cast(backing) return interpret_cast(node, var_stack, enclosing_object)
             ast_node::compiler_intrinsic(backing) return interpret_compiler_intrinsic(node, var_stack)
             ast_node::value(backing) return interpret_value(node)
         }
         error(string("Cannot interpret node: ") + get_ast_name(node))
-    }
-    fun wrap_value(val: *ast_node): value {
-        var value_str = val->value.string_value
-        if (value_str[0] == '"') { // " // Comment hack for emacs now
-            var to_ret = string()
-            value_str = value_str.slice(1,-2)
-            for (var i = 0; i < value_str.length()-1; i++;) {
-                if (value_str[i] == '\\' && value_str[i+1] == 'n') {
-                    to_ret += '\n'
-                    i++
-                } else if (value_str[i] == '\\' && value_str[i+1] == 't') {
-                    to_ret += '\t'
-                    i++
-                } else if (i == value_str.length()-2) {
-                    to_ret += value_str[i]
-                    to_ret += value_str[i+1]
-                } else {
-                    to_ret += value_str[i]
-                }
-            }
-            return value::pointer(make_pair((to_ret.toCharArray()) cast *void, get_ast_type(val)))
-        } else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
-            return value::character(value_str[1])
-        else if (value_str == "true")
-            return value::boolean(true)
-        else if (value_str == "false")
-            return value::boolean(false)
-        else {
-            // should differentiate between float and double...
-            var contains_dot = false
-            for (var i = 0; i < value_str.length(); i++;) {
-                if (value_str[i] == '.') {
-                    contains_dot = true
-                    break
-                }
-            }
-            if (contains_dot)
-                if (value_str[value_str.length()-1] == 'f')
-                    return value::floating((string_to_double(value_str.slice(0,-2))) cast float)
-                else
-                    return value::double_precision(string_to_double(value_str))
-            else
-                return value::integer(string_to_int(value_str))
-        }
-        error("Could not wrap value")
-        return value::void_nothing()
     }
 }
 
