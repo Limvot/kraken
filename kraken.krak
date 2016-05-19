@@ -87,7 +87,7 @@ fun main(argc: int, argv: **char):int {
         var kraken_c_output_name = kraken_file_name + ".c"
         write_file(kraken_c_output_name, c_output_pair.first)
         /*println(string("linker string: ") + c_output_pair.second)*/
-        var compile_string = "cc -g -O3 -std=c99 " + c_output_pair.second + " " + kraken_c_output_name + " -o " + executable_name
+        var compile_string = "cc -g -O3 -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -std=c99 " + c_output_pair.second + " " + kraken_c_output_name + " -o " + executable_name
         println(compile_string)
         system(compile_string)
     }

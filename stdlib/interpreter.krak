@@ -81,6 +81,9 @@ fun wrap_value(val: *ast_node): value {
                 to_ret += value_str[i]
             }
         }
+        // if there was only one character
+        if (value_str.length() == 1)
+            to_ret = value_str
         return value::pointer(make_pair((to_ret.toCharArray()) cast *void, get_ast_type(val)))
     } else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
         return value::character(value_str[1])
@@ -435,7 +438,9 @@ fun offset_into_struct(struct_type: *type, ident: *ast_node): ulong {
 fun pop_and_free(var_stack: *stack<map<string, value>>) {
     var_stack->pop().for_each(fun(k: string, v: value) {
         match(v) {
-            value::variable(backing) free(backing.first)
+            value::variable(backing) {
+                free(backing.first)
+            }
         }
     })
 }
@@ -477,30 +482,35 @@ obj interpreter (Object) {
         print_value(result)
         println("=============")
     }
-    fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
+    fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var func_call_parameters = func_call->function_call.parameters
         var func_call_func = func_call->function_call.func
         var new_enclosing_object = value::void_nothing()
         // note here also that this is likely not a foolproof method
         if (is_dot_style_method_call(func_call)) {
-            println("DOT STYLE METHOD CALL")
-            new_enclosing_object = get_real_value(interpret(func_call_func->function_call.parameters[0], var_stack, enclosing_object).first)
+            new_enclosing_object = get_real_value(interpret(func_call_func->function_call.parameters[0], var_stack, enclosing_object, defer_stack).first)
             // do a dereference
             if (is_pointer(new_enclosing_object))
                 new_enclosing_object = get_real_value(value::variable(make_pair(new_enclosing_object.pointer.first, new_enclosing_object.pointer.second->clone_with_decreased_indirection())))
             func_call_func = func_call_func->function_call.parameters[1]
+        } else if (!is_void_nothing(enclosing_object)) {
+            if (method_in_object(func_call_func, enclosing_object.object_like.second->type_def)) {
+                // should maybe do something special for closure here
+                // copy over old enclosing object
+                new_enclosing_object = enclosing_object
+            }
         }
         // check if it's a same method method call and do the right new_enclosing_object
         // new_enclosing_object = enclosing_object
         var func_name = func_call_func->function.name
         // some of these have to be done before parameters are evaluated (&&, ||, ., ->)
         if (func_name == "&&" || func_name == "||") {
-            var p1true = truthy(get_real_value(interpret(func_call_parameters[0], var_stack, enclosing_object).first))
+            var p1true = truthy(get_real_value(interpret(func_call_parameters[0], var_stack, enclosing_object, defer_stack).first))
             if ( (func_name == "&&" && !p1true) || (func_name == "||" && p1true) )
                 return make_pair(value::boolean(p1true), control_flow::nor())
-            return make_pair(value::boolean(truthy(get_real_value(interpret(func_call_parameters[1], var_stack, enclosing_object).first))), control_flow::nor())
+            return make_pair(value::boolean(truthy(get_real_value(interpret(func_call_parameters[1], var_stack, enclosing_object, defer_stack).first))), control_flow::nor())
         } else if (func_name == "." || func_name == "->") {
-            var left_side = get_real_value(interpret(func_call_parameters[0], var_stack, enclosing_object).first)
+            var left_side = get_real_value(interpret(func_call_parameters[0], var_stack, enclosing_object, defer_stack).first)
             var ret_ptr = null<void>()
             if (func_name == "->")
                 ret_ptr = ((left_side.pointer.first) cast *char + offset_into_struct(left_side.pointer.second->clone_with_decreased_indirection(), func_call_parameters[1])) cast *void
@@ -508,7 +518,7 @@ obj interpreter (Object) {
                 ret_ptr = ((left_side.object_like.first) cast *char + offset_into_struct(left_side.object_like.second, func_call_parameters[1])) cast *void
             return make_pair(value::variable(make_pair(ret_ptr, func_call_parameters[1]->identifier.type)), control_flow::nor())
         }
-        var parameters = func_call_parameters.map(fun(p: *ast_node): value return interpret(p, var_stack, enclosing_object).first;)
+        var parameters = func_call_parameters.map(fun(p: *ast_node): value return interpret(p, var_stack, enclosing_object, defer_stack).first;)
         return make_pair(call_function(func_call_func, parameters, var_stack, new_enclosing_object), control_flow::nor())
     }
     fun call_function(func: *ast_node, parameters: vector<value>, var_stack: *stack<map<string, value>>, enclosing_object: value): value {
@@ -548,7 +558,7 @@ obj interpreter (Object) {
             return value::variable(make_pair(get_real_value(dereference_val).pointer.first, dereference_val.pointer.second->clone_with_decreased_indirection()))
         }
         // check for built-in-ish externs (everything the standard library needs)
-        if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush" || func_name == "sprintf")
+        if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush" || func_name == "snprintf")
             return call_built_in_extern(func_name, parameters)
         if (!func->function.body_statement)
             error(string("trying to call unsupported extern function: ") + func_name)
@@ -562,7 +572,9 @@ obj interpreter (Object) {
             new_var_stack.top()[func->function.parameters[i]->identifier.name] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
             store_into_variable(new_var_stack.top()[func->function.parameters[i]->identifier.name], get_real_value(parameters[i]))
         }
-        var to_ret = interpret(func->function.body_statement, &new_var_stack, enclosing_object).first
+        // our defer stack to keep track of what needs to be evaluated later at runtime
+        var defer_stack = stack<*ast_node>()
+        var to_ret = interpret(func->function.body_statement, &new_var_stack, enclosing_object, &defer_stack).first
         // need to handle copying out object before pop_and_free deletes them
         pop_and_free(&new_var_stack)
         return to_ret
@@ -584,9 +596,9 @@ obj interpreter (Object) {
         } else if (func_name == "fflush") {
             assert(parameters.size == 1 && is_integer(parameters[0]), "Calling fflush with wrong params")
             fflush(parameters[0].integer)
-        } else if (func_name == "sprintf") {
-            assert(parameters.size == 3 && is_pointer(parameters[0]) && is_pointer(parameters[1]) && is_double_precision(parameters[2]), "Calling fflush with wrong params")
-            sprintf((parameters[0].pointer.first) cast *char, (parameters[1].pointer.first) cast *char, parameters[2].double_precision)
+        } else if (func_name == "snprintf") {
+            assert(parameters.size == 4 && is_pointer(parameters[0]) && is_ulong_int(parameters[1]) && is_pointer(parameters[2]) && is_double_precision(parameters[3]), "Calling snprintf with wrong params")
+            return value::integer(snprintf((parameters[0].pointer.first) cast *char, parameters[1].ulong_int, (parameters[2].pointer.first) cast *char, parameters[3].double_precision))
         } else if (func_name == "exit") {
             assert(parameters.size == 1 && is_integer(parameters[0]), "Calling exit with wrong params")
             exit(parameters[0].integer)
@@ -595,86 +607,118 @@ obj interpreter (Object) {
         }
         return value::void_nothing()
     }
-    fun interpret_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
-        return interpret(stmt->statement.child, var_stack, enclosing_object)
+    fun interpret_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
+        return interpret(stmt->statement.child, var_stack, enclosing_object, defer_stack)
     }
-    fun interpret_if_statement(if_stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
+    fun interpret_if_statement(if_stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var_stack->push(map<string,value>())
-        if (truthy(interpret(if_stmt->if_statement.condition, var_stack, enclosing_object).first)) {
-            interpret(if_stmt->if_statement.then_part, var_stack, enclosing_object)
+        if (truthy(interpret(if_stmt->if_statement.condition, var_stack, enclosing_object, defer_stack).first)) {
+            interpret(if_stmt->if_statement.then_part, var_stack, enclosing_object, defer_stack)
         } else if (if_stmt->if_statement.else_part) {
-            interpret(if_stmt->if_statement.else_part, var_stack, enclosing_object)
+            interpret(if_stmt->if_statement.else_part, var_stack, enclosing_object, defer_stack)
         }
         pop_and_free(var_stack)
         return make_pair(value::void_nothing(), control_flow::nor())
     }
-    fun interpret_while_loop(while_loop: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
+    fun interpret_while_loop(while_loop: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var_stack->push(map<string,value>())
-        while (truthy(interpret(while_loop->while_loop.condition, var_stack, enclosing_object).first)) {
-            interpret(while_loop->while_loop.statement, var_stack, enclosing_object)
+        while (truthy(interpret(while_loop->while_loop.condition, var_stack, enclosing_object, defer_stack).first)) {
+            interpret(while_loop->while_loop.statement, var_stack, enclosing_object, defer_stack)
         }
         pop_and_free(var_stack)
         return make_pair(value::void_nothing(), control_flow::nor())
     }
     fun interpret_for_loop(for_loop: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
+        var defer_stack = stack<*ast_node>()
         var_stack->push(map<string,value>())
-        interpret(for_loop->for_loop.init, var_stack, enclosing_object)
-        while (truthy(interpret(for_loop->for_loop.condition, var_stack, enclosing_object).first)) {
-            interpret(for_loop->for_loop.body, var_stack, enclosing_object)
-            interpret(for_loop->for_loop.update, var_stack, enclosing_object)
+        interpret(for_loop->for_loop.init, var_stack, enclosing_object, &defer_stack)
+        while (truthy(interpret(for_loop->for_loop.condition, var_stack, enclosing_object, &defer_stack).first)) {
+            var inner_defer_stack = stack<*ast_node>()
+            interpret(for_loop->for_loop.body, var_stack, enclosing_object, &inner_defer_stack)
+            interpret(for_loop->for_loop.update, var_stack, enclosing_object, &inner_defer_stack)
+            interpret_from_defer_stack(&defer_stack, var_stack, enclosing_object)
         }
         pop_and_free(var_stack)
         return make_pair(value::void_nothing(), control_flow::nor())
     }
-    fun interpret_code_block(block: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
+    fun interpret_code_block(block: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var_stack->push(map<string,value>())
+        var defer_stack = stack<*ast_node>()
         for (var i = 0; i < block->code_block.children.size; i++;) {
-            var statement = interpret(block->code_block.children[i], var_stack, enclosing_object)
+            var statement = interpret(block->code_block.children[i], var_stack, enclosing_object, &defer_stack)
             match (statement.second) {
                 control_flow::con() {
+                    interpret_from_defer_stack(&defer_stack, var_stack, enclosing_object)
                     pop_and_free(var_stack)
                     return make_pair(value::void_nothing(), control_flow::con())
                 }
                 control_flow::bre() {
+                    interpret_from_defer_stack(&defer_stack, var_stack, enclosing_object)
                     pop_and_free(var_stack)
                     return make_pair(value::void_nothing(), control_flow::bre())
                 }
                 control_flow::ret() {
+                    interpret_from_defer_stack(&defer_stack, var_stack, enclosing_object)
                     pop_and_free(var_stack)
                     return statement
                 }
             }
             // if nor, continue on
         }
+        interpret_from_defer_stack(&defer_stack, var_stack, enclosing_object)
         pop_and_free(var_stack)
         return make_pair(value::void_nothing(), control_flow::nor())
     }
-    fun interpret_return_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
-        return make_pair(get_real_value(interpret(stmt->return_statement.return_value, var_stack, enclosing_object).first), control_flow::ret())
+    fun interpret_from_defer_stack(defer_stack: *stack<*ast_node>, var_stack: *stack<map<string, value>>, enclosing_object: value) {
+        var new_defer_stack = stack<*ast_node>()
+        defer_stack->for_each_reverse(fun(i: *ast_node) {
+            interpret(i, var_stack, enclosing_object, &new_defer_stack)
+        })
+        if (new_defer_stack.size())
+            interpret_from_defer_stack(&new_defer_stack, var_stack, enclosing_object)
     }
-    fun interpret_declaration_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
-        var ident_type = stmt->declaration_statement.identifier->identifier.type
-        var ident_name = stmt->declaration_statement.identifier->identifier.name
+    fun interpret_return_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
+        return make_pair(get_real_value(interpret(stmt->return_statement.return_value, var_stack, enclosing_object, defer_stack).first), control_flow::ret())
+    }
+    fun interpret_declaration_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
+        var ident = stmt->declaration_statement.identifier
+        var ident_type = ident->identifier.type
+        var ident_name = ident->identifier.name
         var_stack->top()[ident_name] = value::variable(make_pair(malloc(type_size(ident_type)),ident_type)) 
-        if (stmt->declaration_statement.expression)
-            store_into_variable(var_stack->top()[ident_name], get_real_value(interpret(stmt->declaration_statement.expression, var_stack, enclosing_object).first))
+        if (stmt->declaration_statement.expression) {
+            if (ident_type->indirection == 0 && (ident_type->is_adt() || (ident_type->is_object() && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(stmt->declaration_statement.expression)->clone_with_increased_indirection())))))
+                interpret(ast_statement_ptr(make_method_call(ident, "copy_construct", vector(make_operator_call("&", vector(stmt->declaration_statement.expression))))), var_stack, enclosing_object, defer_stack)
+            else
+                store_into_variable(var_stack->top()[ident_name], get_real_value(interpret(stmt->declaration_statement.expression, var_stack, enclosing_object, defer_stack).first))
+        } else if (stmt->declaration_statement.init_method_call) {
+            interpret(stmt->declaration_statement.init_method_call, var_stack, enclosing_object, defer_stack)
+        }
+        // defering destructs
+        if (ident_type->indirection == 0 && (ident_type->is_adt() || (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>()))))
+            defer_stack->push(ast_statement_ptr(make_method_call(ident, "destruct", vector<*ast_node>())))
         return make_pair(value::void_nothing(), control_flow::nor())
     }
-    fun interpret_assignment_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
-        var to = interpret(stmt->assignment_statement.to, var_stack, enclosing_object).first
-        var from = interpret(stmt->assignment_statement.from, var_stack, enclosing_object).first
+    fun interpret_assignment_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
+        var to = interpret(stmt->assignment_statement.to, var_stack, enclosing_object, defer_stack).first
+        var from = interpret(stmt->assignment_statement.from, var_stack, enclosing_object, defer_stack).first
         assert(is_variable(to), "assigning into not a variable")
         // first, we have to see if this is an object
         // always do cast now to make our best effort at assignment (assign into a double from a float, etc)
         store_into_variable(to, cast_value(get_real_value(from), to.variable.second))
         return make_pair(value::void_nothing(), control_flow::nor())
     }
+    fun interpret_defer_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
+        defer_stack->push(stmt->defer_statement.statement)
+        return make_pair(value::void_nothing(), control_flow::nor())
+    }
     fun interpret_identifier(ident: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
         for (var i = 0; i < var_stack->size(); i++;)
             if (var_stack->from_top(i).contains_key(ident->identifier.name))
                 return make_pair(var_stack->from_top(i)[ident->identifier.name], control_flow::nor())
-        // check for object member
+        // check for object member / this
         if (is_object_like(enclosing_object)) {
+            if (ident->identifier.name == "this")
+                return make_pair(value::pointer(make_pair(enclosing_object.object_like.first, enclosing_object.object_like.second->clone_with_increased_indirection())), control_flow::nor())
             var object_def = enclosing_object.object_like.second->type_def
             for (var i = 0; i < object_def->type_def.variables.size; i++;) {
                 if (object_def->type_def.variables[i]->declaration_statement.identifier == ident) {
@@ -685,8 +729,8 @@ obj interpreter (Object) {
         }
         error(string("Cannot find variable: ") + ident->identifier.name)
     }
-    fun interpret_cast(node: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
-        return make_pair(cast_value(interpret(node->cast.value, var_stack, enclosing_object).first, node->cast.to_type), control_flow::nor())
+    fun interpret_cast(node: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
+        return make_pair(cast_value(interpret(node->cast.value, var_stack, enclosing_object, defer_stack).first, node->cast.to_type), control_flow::nor())
     }
     fun interpret_compiler_intrinsic(node: *ast_node, var_stack: *stack<map<string, value>>): pair<value, control_flow> {
         var intrinsic_name = node->compiler_intrinsic.intrinsic
@@ -696,19 +740,20 @@ obj interpreter (Object) {
     }
     fun interpret_value(val: *ast_node): pair<value, control_flow>
         return make_pair(wrap_value(val), control_flow::nor())
-    fun interpret(node: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value): pair<value, control_flow> {
+    fun interpret(node: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         match (*node) {
-            ast_node::function_call(backing) return interpret_function_call(node, var_stack, enclosing_object)
-            ast_node::statement(backing) return interpret_statement(node, var_stack, enclosing_object)
-            ast_node::if_statement(backing) return interpret_if_statement(node, var_stack, enclosing_object)
-            ast_node::while_loop(backing) return interpret_while_loop(node, var_stack, enclosing_object)
+            ast_node::function_call(backing) return interpret_function_call(node, var_stack, enclosing_object, defer_stack)
+            ast_node::statement(backing) return interpret_statement(node, var_stack, enclosing_object, defer_stack)
+            ast_node::if_statement(backing) return interpret_if_statement(node, var_stack, enclosing_object, defer_stack)
+            ast_node::while_loop(backing) return interpret_while_loop(node, var_stack, enclosing_object, defer_stack)
             ast_node::for_loop(backing) return interpret_for_loop(node, var_stack, enclosing_object)
-            ast_node::code_block(backing) return interpret_code_block(node, var_stack, enclosing_object)
-            ast_node::return_statement(backing) return interpret_return_statement(node, var_stack, enclosing_object)
-            ast_node::declaration_statement(backing) return interpret_declaration_statement(node, var_stack, enclosing_object)
-            ast_node::assignment_statement(backing) return interpret_assignment_statement(node, var_stack, enclosing_object)
+            ast_node::code_block(backing) return interpret_code_block(node, var_stack, enclosing_object, defer_stack)
+            ast_node::return_statement(backing) return interpret_return_statement(node, var_stack, enclosing_object, defer_stack)
+            ast_node::declaration_statement(backing) return interpret_declaration_statement(node, var_stack, enclosing_object, defer_stack)
+            ast_node::assignment_statement(backing) return interpret_assignment_statement(node, var_stack, enclosing_object, defer_stack)
+            ast_node::defer_statement(backing) return interpret_defer_statement(node, var_stack, enclosing_object, defer_stack)
             ast_node::identifier(backing) return interpret_identifier(node, var_stack, enclosing_object)
-            ast_node::cast(backing) return interpret_cast(node, var_stack, enclosing_object)
+            ast_node::cast(backing) return interpret_cast(node, var_stack, enclosing_object, defer_stack)
             ast_node::compiler_intrinsic(backing) return interpret_compiler_intrinsic(node, var_stack)
             ast_node::value(backing) return interpret_value(node)
         }

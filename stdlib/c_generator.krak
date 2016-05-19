@@ -84,6 +84,15 @@ fun is_dot_style_method_call(node: *ast_node): bool {
             is_adt_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0]))
             // should get uglier when we have to figure out if it's just an inside lambda
 }
+fun method_in_object(method: *ast_node, enclosing_object: *ast_node): bool {
+   var methods = enclosing_object->type_def.methods
+   for (var i = 0; i < methods.size; i++;) {
+        if (methods[i] == method || (is_template(methods[i]) && methods[i]->template.instantiated.contains(method))) {
+            return true
+        }
+    }
+    return false
+}
 obj c_generator (Object) {
     var id_counter: int
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
@@ -789,15 +798,11 @@ obj c_generator (Object) {
         }
         // handle method call from inside method of same object
         if (!dot_style_method_call && enclosing_object) {
-           var methods = enclosing_object->type_def.methods
-           for (var i = 0; i < methods.size; i++;) {
-                if (methods[i] == node->function_call.func || (is_template(methods[i]) && methods[i]->template.instantiated.contains(node->function_call.func))) {
-                    if (enclosing_func && enclosing_func->function.closed_variables.size())
-                        call_string += "(*(closure_data->this))";
-                    else
-                        call_string += "this";
-                    break
-                }
+            if (method_in_object(node->function_call.func, enclosing_object)) {
+                if (enclosing_func && enclosing_func->function.closed_variables.size())
+                    call_string += "(*(closure_data->this))";
+                else
+                    call_string += "this";
             }
         }
 

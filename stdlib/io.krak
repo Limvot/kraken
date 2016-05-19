@@ -38,13 +38,14 @@ fun print(toPrint: bool): void {
 	return;
 }
 
-ext fun sprintf(to_str: *char, format: *char, d: double)
+ext fun snprintf(to_str: *char, num: ulong, format: *char, d: double): int
 fun print(toPrint: float)
     print((toPrint) cast double)
 
 fun print(toPrint: double) {
-    var int_str =  new<char>((#sizeof<double>) cast int)
-    sprintf(int_str, "%f", toPrint)
+    var how_much = snprintf(null<char>(), (0) cast ulong, "%f", toPrint)
+    var int_str =  new<char>(how_much+2)
+    snprintf(int_str, (how_much+1) cast ulong, "%f", toPrint)
     print(int_str)
     delete(int_str)
 }
