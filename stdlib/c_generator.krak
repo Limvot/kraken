@@ -226,6 +226,10 @@ obj c_generator (Object) {
             if (!parameter_type->is_ref && parameter_type->indirection == 0 && (parameter_type->is_adt() || (parameter_type->is_object() && has_method(parameter_type->type_def, "destruct", vector<*type>()))))
                 defer_stack->top().second.push(ast_statement_ptr(make_method_call(parameter, "destruct", vector<*ast_node>())))
         })
+        if (backing.is_variadic) {
+            parameter_types += ", ..."
+            parameters += ", ..."
+        }
         return make_pair(type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n",
                          type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ")")
     }
@@ -858,7 +862,12 @@ obj c_generator (Object) {
         // parameters.for_each(fun(param: *ast_node) {
         for (var i = 0; i < parameters.size; i++;) {
             var param = parameters[i]
-            var in_function_param_type = func_type->parameter_types[i]
+            var in_function_param_type = null<type>()
+            // grab type from param itself if we're out of param types (because variadic function)
+            if (i < func_type->parameter_types.size)
+                in_function_param_type = func_type->parameter_types[i]
+            else
+                in_function_param_type = get_ast_type(param)->clone_without_ref()
             if (call_string != "")
                 call_string += ", "
 

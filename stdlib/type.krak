@@ -41,11 +41,12 @@ fun type_ptr(base: base_type, indirection: int): *type return type_ptr(base, ind
 fun type_ptr(base: base_type, indirection: int, is_ref: bool): *type {
     return new<type>()->construct(base, indirection, is_ref)
 }
-fun type_ptr(parameters: vector<*type>, return_type: *type): *type return type_ptr(parameters, return_type, 0, false);
-fun type_ptr(parameters: vector<*type>, return_type: *type, indirection: int): *type return type_ptr(parameters, return_type, indirection, false)
-fun type_ptr(parameters: vector<*type>, return_type: *type, indirection: int, is_ref: bool): *type {
-    return new<type>()->construct(parameters, return_type, indirection, is_ref)
-}
+fun type_ptr(parameters: vector<*type>, return_type: *type): *type return type_ptr(parameters, return_type, 0, false, false);
+fun type_ptr(parameters: vector<*type>, return_type: *type, indirection: int): *type return type_ptr(parameters, return_type, indirection, false, false)
+fun type_ptr(parameters: vector<*type>, return_type: *type, indirection: int, is_ref: bool): *type
+    return new<type>()->construct(parameters, return_type, indirection, is_ref, false)
+fun type_ptr(parameters: vector<*type>, return_type: *type, indirection: int, is_ref: bool, is_variadic: bool): *type
+    return new<type>()->construct(parameters, return_type, indirection, is_ref, is_variadic)
 
 fun type_ptr(traits: set<string>): *type {
     return new<type>()->construct(traits)
@@ -54,6 +55,7 @@ fun type_ptr(traits: set<string>): *type {
 obj type (Object) {
     var base: base_type
     var parameter_types: vector<*type>
+    var is_variadic: bool
     var return_type: *type
     var indirection: int
     var type_def: *ast_node
@@ -67,6 +69,7 @@ obj type (Object) {
         type_def = null<ast_node>()
         traits.construct()
         is_ref = false
+        is_variadic = false
         return this
     }
     fun construct(traits_in: set<string>): *type {
@@ -77,6 +80,7 @@ obj type (Object) {
         type_def = null<ast_node>()
         traits.copy_construct(&traits_in)
         is_ref = false
+        is_variadic = false
         return this
     }
     fun construct(base_in: base_type, indirection_in: int, is_ref_in: bool): *type {
@@ -87,6 +91,7 @@ obj type (Object) {
         type_def = null<ast_node>()
         traits.construct()
         is_ref = is_ref_in
+        is_variadic = false
         return this
     }
     fun construct(type_def_in: *ast_node, traits_in: set<string>): *type {
@@ -100,9 +105,10 @@ obj type (Object) {
         type_def = type_def_in
         traits.copy_construct(&traits_in)
         is_ref = false
+        is_variadic = false
         return this
     }
-    fun construct(parameter_types_in: vector<*type>, return_type_in: *type, indirection_in: int, is_ref_in: bool): *type {
+    fun construct(parameter_types_in: vector<*type>, return_type_in: *type, indirection_in: int, is_ref_in: bool, is_variadic_in: bool): *type {
         base.copy_construct(&base_type::function())
         parameter_types.copy_construct(&parameter_types_in)
         return_type = return_type_in
@@ -110,6 +116,7 @@ obj type (Object) {
         type_def = null<ast_node>()
         traits.construct()
         is_ref = is_ref_in
+        is_variadic = is_variadic_in
         return this
     }
     fun copy_construct(old: *type) {
@@ -120,6 +127,7 @@ obj type (Object) {
         type_def = old->type_def
         traits.copy_construct(&old->traits)
         is_ref = old->is_ref
+        is_variadic = old->is_variadic
     }
     fun operator=(other: ref type) {
         destruct()
@@ -134,7 +142,7 @@ obj type (Object) {
     fun operator==(other: ref type):bool return equality(other, true);
     fun equality(other: *type, care_about_ref: bool):bool return equality(*other, care_about_ref);
     fun equality(other: ref type, care_about_ref: bool):bool {
-        if (parameter_types.size != other.parameter_types.size)
+        if (parameter_types.size != other.parameter_types.size || is_variadic != other.is_variadic)
             return false
         for (var i = 0; i < parameter_types.size; i++;)
             if (!deref_equality(parameter_types[i], other.parameter_types[i]))
@@ -156,6 +164,8 @@ obj type (Object) {
         var indr_string = string("")
         if (is_ref)
            indr_string += " ref "
+        if (is_variadic)
+           indr_string += " variadic "
         for (var i = 0; i < indirection; i++;) indr_string += "*"
         match (base) {
             base_type::none() return indr_string + string("none") + trait_string

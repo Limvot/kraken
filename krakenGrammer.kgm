@@ -75,7 +75,7 @@ typed_return = WS dec_type | ;
 function = "ext" WS "fun" WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" typed_return | "fun" WS func_identifier WS template_dec WS "\(" WS opt_typed_parameter_list WS "\)" typed_return WS statement | "fun" WS func_identifier WS "\(" WS opt_typed_parameter_list WS "\)" typed_return WS statement ;
 lambda = "fun" WS "\(" WS opt_typed_parameter_list WS "\)" typed_return WS statement ;
 
-opt_typed_parameter_list = typed_parameter_list | ;
+opt_typed_parameter_list = typed_parameter_list | typed_parameter_list WS "," WS "..." | ;
 typed_parameter_list = typed_parameter_list WS "," WS typed_parameter | typed_parameter ;
 typed_parameter = identifier WS dec_type ;
 

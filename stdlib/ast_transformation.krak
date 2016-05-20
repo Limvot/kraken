@@ -236,8 +236,11 @@ obj ast_transformation (Object) {
                 error(child, "parameter type none")
             parameters.add(ast_identifier_ptr(concat_symbol_tree(get_node("identifier", child)), param_type, null<ast_node>()))
         })
+        var is_variadic = get_node("\"...\"", node) != null<tree<symbol>>()
+        if (is_variadic)
+            println(function_name + " IS VARIDIC")
         // figure out function type and make function_node
-        var function_node = ast_function_ptr(function_name, type_ptr(parameters.map(fun(parameter: *ast_node): *type return parameter->identifier.type;), return_type), parameters, get_node("\"ext\"", node) && true)
+        var function_node = ast_function_ptr(function_name, type_ptr(parameters.map(fun(parameter: *ast_node): *type return parameter->identifier.type;), return_type, 0, false, is_variadic), parameters, get_node("\"ext\"", node) != null<tree<symbol>>(), is_variadic)
         // fix up the enclosing_scope's
         parameters.for_each(fun(n: *ast_node) n->identifier.enclosing_scope = function_node;)
         // add to scope
@@ -1223,14 +1226,19 @@ fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<st
     }
 }
 fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool {
-    var func_param_types = get_ast_type(node)->parameter_types
+    var func_type = get_ast_type(node)
+    var func_param_types = func_type->parameter_types
     var param_string = string()
     param_types.for_each(fun(t: *type) param_string += t->to_string() + ", ";)
-    if (func_param_types.size != param_types.size) {
+    if (!func_type->is_variadic && func_param_types.size != param_types.size) {
         /*println(string("type sizes don't match ") + param_types.size + " with needed " + param_string)*/
         return false
+    } else if (param_types.size < func_param_types.size) {
+        return false
     }
-    for (var j = 0; j < param_types.size; j++;) {
+    // note we iterate over the func_param_types which will stop short if function is variadic
+    // just like we want
+    for (var j = 0; j < func_param_types.size; j++;) {
         // don't care about references
         if (!func_param_types[j]->equality(param_types[j], false)) {
             /*println(string("types don't match ") + func_param_types[j]->to_string() + " with needed " + param_types[j]->to_string())*/
