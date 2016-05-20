@@ -14,7 +14,7 @@ fun println<T>(toPrint: T) : void {
 fun print<T>(toPrint: *T)
     print((toPrint) cast ulong)
 
-ext fun printf(fmt_str: *char, to_print: *char): int
+ext fun printf(fmt_str: *char, ...): int
 ext fun fflush(file: int): int
 fun print(toPrint: *char) : void {
     printf("%s", toPrint)
@@ -38,7 +38,7 @@ fun print(toPrint: bool): void {
 	return;
 }
 
-ext fun snprintf(to_str: *char, num: ulong, format: *char, d: double): int
+ext fun snprintf(to_str: *char, num: ulong, format: *char, ...): int
 fun print(toPrint: float)
     print((toPrint) cast double)
 
@@ -55,7 +55,7 @@ fun print<T>(toPrint: T): void
 // Ok, just some DEAD simple file io for now
 ext fun fopen(path: *char, mode: *char): *void
 ext fun fclose(file: *void): int
-ext fun fprintf(file: *void, format: *char, data: *char): int
+ext fun fprintf(file: *void, format: *char, ...): int
 ext fun ftell(file: *void): long
 ext fun fseek(file: *void, offset: long, whence: int): int
 ext fun fread(ptr: *void, size: ulong, nmemb: ulong, file: *void): ulong
