@@ -545,9 +545,12 @@ obj interpreter (Object) {
                 return make_pair(get_real_value(parameters[0]), control_flow::nor())
             }
             if (func_name == "&") {
-                if (!is_variable(parameters[0]))
-                    error("Trying to take address of not a variable")
-                return make_pair(value::pointer(make_pair(parameters[0].variable.first, parameters[0].variable.second->clone_with_increased_indirection())), control_flow::nor())
+                if (is_variable(parameters[0]))
+                    return make_pair(value::pointer(make_pair(parameters[0].variable.first, parameters[0].variable.second->clone_with_increased_indirection())), control_flow::nor())
+                else if (is_object_like(parameters[0]))
+                    return make_pair(value::pointer(make_pair(parameters[0].object_like.first, parameters[0].object_like.second->clone_with_increased_indirection())), control_flow::nor())
+                else
+                    error("Trying to take address of not a variable or object_like")
             }
             // to dereference, we basically take the pointer's value (maybe going through a variable to get it)
             // and re-wrap it up into a variable value (so it can be assigned to, etc)
@@ -578,11 +581,11 @@ obj interpreter (Object) {
         var func_name = func->function.name
         // do regular function
         var new_var_stack = stack<map<string, value>>()
+        new_var_stack.push(map<string,value>())
         // the new defer stack takes care of destructing parameters that were copy_constructed
         var new_defer_stack = stack<*ast_node>()
         // if this is a value based call, pull from parameters
         if (parameter_sources.size == 0) {
-            new_var_stack.push(map<string,value>())
             /*println(func_name + " being called with parameter values")*/
             if (parameters.size != func->function.parameters.size)
                 error(string("calling function ") + func->function.name + " with wrong number of parameters (values)")
@@ -593,7 +596,7 @@ obj interpreter (Object) {
                 store_into_variable(new_var_stack.top()[param_ident->identifier.name], get_real_value(parameters[i]))
             }
         } else {
-            // on this side we construct in the old var stack, then move it over to the new one so that references resolve correctly
+            // on this side we construct temps in the old var stack, then move it over to the new one so that references resolve correctly
             var_stack->push(map<string,value>())
             /*println(func_name + " being called with parameter sources")*/
             // need to pull from parameter_sources instead
@@ -602,22 +605,29 @@ obj interpreter (Object) {
             for (var i = 0; i < parameter_sources.size; i++;) {
                 var param_type = get_ast_type(func)->parameter_types[i]
                 var param_ident = func->function.parameters[i]
-                /*println(param_ident->identifier.name + " is the name of the identifier being added")*/
-                var_stack->top()[param_ident->identifier.name] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
                 if (param_type->indirection == 0 && (param_type->is_adt() || (param_type->is_object() && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_increased_indirection()))))) {
-                    interpret(ast_statement_ptr(make_method_call(param_ident, "copy_construct", vector(make_operator_call("&", vector(parameter_sources[i]))))), var_stack, enclosing_object, defer_stack)
+                    var temp_ident = ast_identifier_ptr(string("temporary_param"), param_type, null<ast_node>())
+                    var_stack->top()[temp_ident->identifier.name] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
+                    interpret(ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(parameter_sources[i]))))), var_stack, enclosing_object, defer_stack)
+                    new_var_stack.top()[param_ident->identifier.name] = var_stack->top()[temp_ident->identifier.name] 
                     new_defer_stack.push(ast_statement_ptr(make_method_call(param_ident, "destruct", vector<*ast_node>())))
                 } else {
-                    store_into_variable(var_stack->top()[param_ident->identifier.name], get_real_value(interpret(parameter_sources[i], var_stack, enclosing_object, defer_stack).first))
+                    new_var_stack.top()[param_ident->identifier.name] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
+                    store_into_variable(new_var_stack.top()[param_ident->identifier.name], get_real_value(interpret(parameter_sources[i], var_stack, enclosing_object, defer_stack).first))
                 }
             }
-            // swap the params over
-            new_var_stack.push(var_stack->pop())
+            // pop off the temporaries
+            var_stack->pop()
         }
         var to_ret = interpret(func->function.body_statement, &new_var_stack, enclosing_object, &new_defer_stack).first
         // handle destructing params
         interpret_from_defer_stack(&new_defer_stack, &new_var_stack, enclosing_object)
-        // need to handle copying out object before pop_and_free deletes them
+        var return_type = func->function.type->return_type
+        if (return_type->indirection == 0 && (return_type->is_adt() || (return_type->is_object() && has_method(return_type->type_def, "destruct", vector<*type>())))) {
+            var temp_ident = ast_identifier_ptr(string("temporary_return_to_be_destructed"), return_type, null<ast_node>())
+            var_stack->top()[temp_ident->identifier.name] = value::variable(make_pair(to_ret.object_like.first, to_ret.object_like.second))
+            defer_stack->push(ast_statement_ptr(make_method_call(temp_ident, "destruct", vector<*ast_node>())))
+        }
         pop_and_free(&new_var_stack)
         return to_ret
     }
@@ -720,7 +730,23 @@ obj interpreter (Object) {
             interpret_from_defer_stack(&new_defer_stack, var_stack, enclosing_object)
     }
     fun interpret_return_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
-        return make_pair(get_real_value(interpret(stmt->return_statement.return_value, var_stack, enclosing_object, defer_stack).first), control_flow::ret())
+        if (stmt->return_statement.return_value == null<ast_node>())
+            return make_pair(value::void_nothing(), control_flow::ret())
+        var return_expression = stmt->return_statement.return_value
+        var return_type = get_ast_type(return_expression)
+        var to_ret: value
+        if (return_type->indirection == 0 && (return_type->is_adt() || (return_type->is_object() && has_method(return_type->type_def, "copy_construct", vector(return_type->clone_with_increased_indirection()))))) {
+            var_stack->push(map<string,value>())
+            var temp_ident = ast_identifier_ptr(string("temporary_return"), return_type, null<ast_node>())
+            var_stack->top()[temp_ident->identifier.name] = value::variable(make_pair(malloc(type_size(return_type)), return_type)) 
+            interpret(ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(return_expression))))), var_stack, enclosing_object, defer_stack)
+            to_ret = var_stack->pop()[temp_ident->identifier.name]
+        } else {
+            to_ret = value::variable(make_pair(malloc(type_size(return_type)), return_type)) 
+            var ret_val = interpret(return_expression, var_stack, enclosing_object, defer_stack).first
+            store_into_variable(to_ret, get_real_value(ret_val))
+        }
+        return make_pair(get_real_value(to_ret), control_flow::ret())
     }
     fun interpret_declaration_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var ident = stmt->declaration_statement.identifier
