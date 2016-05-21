@@ -476,7 +476,8 @@ obj interpreter (Object) {
         println("calling main!")
         println("=============")
         var var_stack = stack<map<string, value>>()
-        var result = call_function(results[0], vector<value>(), &var_stack, value::void_nothing())
+        var defer_stack = stack<*ast_node>()
+        var result = call_function(results[0], vector<value>(), vector<*ast_node>(), &var_stack, &defer_stack, value::void_nothing())
         println("=============")
         println("Main returned: ")
         print_value(result)
@@ -518,63 +519,104 @@ obj interpreter (Object) {
                 ret_ptr = ((left_side.object_like.first) cast *char + offset_into_struct(left_side.object_like.second, func_call_parameters[1])) cast *void
             return make_pair(value::variable(make_pair(ret_ptr, func_call_parameters[1]->identifier.type)), control_flow::nor())
         }
-        var parameters = func_call_parameters.map(fun(p: *ast_node): value return interpret(p, var_stack, enclosing_object, defer_stack).first;)
-        return make_pair(call_function(func_call_func, parameters, var_stack, new_enclosing_object), control_flow::nor())
+        // so here we either do an operator, call call_func with value parameters, or call call_func with ast_expressions
+        // (so we can properly copy_construct if necessary)
+        var parameters = vector<value>()
+        var parameter_sources = vector<*ast_node>()
+        // if we don't have to copy_construct params (is an operator, or has no object params)
+        if (func_name == "&" || !func_call_parameters.any_true(fun(p: *ast_node): bool return get_ast_type(p)->is_object_like() && get_ast_type(p)->indirection == 0;)) {
+            parameters = func_call_parameters.map(fun(p: *ast_node): value return interpret(p, var_stack, enclosing_object, defer_stack).first;)
+            if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/"
+                || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
+                || func_name == "==" || func_name == "!=" || func_name == "%" || func_name == "^"
+                || func_name == "|" || func_name == "&"
+            ))
+                return make_pair(do_basic_op(func_name, parameters[0], parameters[1]), control_flow::nor())
+            // do negate by subtracting from zero
+            if (func_name == "-")
+                return make_pair(do_basic_op_second_half(string("-"), 0, parameters[0], null<type>()), control_flow::nor())
+            if (func_name == "++p" || func_name == "--p") {
+                var to_ret = get_real_value(parameters[0])
+                store_into_variable(parameters[0], do_basic_op(func_name.slice(0,1), parameters[0], value::integer(1)))
+                return make_pair(to_ret, control_flow::nor())
+            }
+            if (func_name == "++" || func_name == "--") {
+                store_into_variable(parameters[0], do_basic_op(func_name.slice(0,1), parameters[0], value::integer(1)))
+                return make_pair(get_real_value(parameters[0]), control_flow::nor())
+            }
+            if (func_name == "&") {
+                if (!is_variable(parameters[0]))
+                    error("Trying to take address of not a variable")
+                return make_pair(value::pointer(make_pair(parameters[0].variable.first, parameters[0].variable.second->clone_with_increased_indirection())), control_flow::nor())
+            }
+            // to dereference, we basically take the pointer's value (maybe going through a variable to get it)
+            // and re-wrap it up into a variable value (so it can be assigned to, etc)
+            if (func_name == "*" || func_name == "[]") {
+                var dereference_val = parameters[0]
+                if (func_name == "[]")
+                    dereference_val = do_basic_op(string("+"), parameters[0], parameters[1])
+                if (!is_pointer(get_real_value(parameters[0])))
+                    error("Trying to take dereference not a pointer")
+                return make_pair(value::variable(make_pair(get_real_value(dereference_val).pointer.first, dereference_val.pointer.second->clone_with_decreased_indirection())), control_flow::nor())
+            }
+            // check for built-in-ish externs (everything the standard library needs)
+            if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush" || func_name == "snprintf")
+                return make_pair(call_built_in_extern(func_name, parameters), control_flow::nor())
+            if (!func_call_func->function.body_statement)
+                error(string("trying to call unsupported extern function: ") + func_name)
+        } else {
+            // not the operator & and at least one object like parameter
+            parameter_sources = func_call_parameters
+        }
+        return make_pair(call_function(func_call_func, parameters, parameter_sources, var_stack, defer_stack, new_enclosing_object), control_flow::nor())
     }
-    fun call_function(func: *ast_node, parameters: vector<value>, var_stack: *stack<map<string, value>>, enclosing_object: value): value {
+    // call_function can be called with either parameter values in parameters or ast expressions in parameter_sources
+    // this is to allow easy function calling if we already have the values (for main, say, or to make our job if it's not
+    // an operator easier), but we need to be able to be called with ast_expressions too so we can properly copy_construct once
+    fun call_function(func: *ast_node, parameters: vector<value>, parameter_sources: vector<*ast_node>, var_stack: *stack<map<string, value>>, defer_stack: *stack<*ast_node>, enclosing_object: value): value {
         // will need adjustment
         var func_name = func->function.name
-        if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/"
-            || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
-            || func_name == "==" || func_name == "!=" || func_name == "%" || func_name == "^"
-            || func_name == "|" || func_name == "&"
-        ))
-            return do_basic_op(func_name, parameters[0], parameters[1])
-        // do negate by subtracting from zero
-        if (func_name == "-")
-            return do_basic_op_second_half(string("-"), 0, parameters[0], null<type>())
-        if (func_name == "++p" || func_name == "--p") {
-            var to_ret = get_real_value(parameters[0])
-            store_into_variable(parameters[0], do_basic_op(func_name.slice(0,1), parameters[0], value::integer(1)))
-            return to_ret
-        }
-        if (func_name == "++" || func_name == "--") {
-            store_into_variable(parameters[0], do_basic_op(func_name.slice(0,1), parameters[0], value::integer(1)))
-            return get_real_value(parameters[0])
-        }
-        if (func_name == "&") {
-            if (!is_variable(parameters[0]))
-                error("Trying to take address of not a variable")
-            return value::pointer(make_pair(parameters[0].variable.first, parameters[0].variable.second->clone_with_increased_indirection()))
-        }
-        // to dereference, we basically take the pointer's value (maybe going through a variable to get it)
-        // and re-wrap it up into a variable value (so it can be assigned to, etc)
-        if (func_name == "*" || func_name == "[]") {
-            var dereference_val = parameters[0]
-            if (func_name == "[]")
-                dereference_val = do_basic_op(string("+"), parameters[0], parameters[1])
-            if (!is_pointer(get_real_value(parameters[0])))
-                error("Trying to take dereference not a pointer")
-            return value::variable(make_pair(get_real_value(dereference_val).pointer.first, dereference_val.pointer.second->clone_with_decreased_indirection()))
-        }
-        // check for built-in-ish externs (everything the standard library needs)
-        if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush" || func_name == "snprintf")
-            return call_built_in_extern(func_name, parameters)
-        if (!func->function.body_statement)
-            error(string("trying to call unsupported extern function: ") + func_name)
         // do regular function
         var new_var_stack = stack<map<string, value>>()
-        new_var_stack.push(map<string,value>())
-        if (parameters.size != func->function.parameters.size)
-            error(string("calling function ") + func->function.name + " with wrong number of parameters")
-        for (var i = 0; i < parameters.size; i++;) {
-            var param_type = get_ast_type(func)->parameter_types[i]
-            new_var_stack.top()[func->function.parameters[i]->identifier.name] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
-            store_into_variable(new_var_stack.top()[func->function.parameters[i]->identifier.name], get_real_value(parameters[i]))
+        // the new defer stack takes care of destructing parameters that were copy_constructed
+        var new_defer_stack = stack<*ast_node>()
+        // if this is a value based call, pull from parameters
+        if (parameter_sources.size == 0) {
+            new_var_stack.push(map<string,value>())
+            /*println(func_name + " being called with parameter values")*/
+            if (parameters.size != func->function.parameters.size)
+                error(string("calling function ") + func->function.name + " with wrong number of parameters (values)")
+            for (var i = 0; i < parameters.size; i++;) {
+                var param_type = get_ast_type(func)->parameter_types[i]
+                var param_ident = func->function.parameters[i]
+                new_var_stack.top()[param_ident->identifier.name] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
+                store_into_variable(new_var_stack.top()[param_ident->identifier.name], get_real_value(parameters[i]))
+            }
+        } else {
+            // on this side we construct in the old var stack, then move it over to the new one so that references resolve correctly
+            var_stack->push(map<string,value>())
+            /*println(func_name + " being called with parameter sources")*/
+            // need to pull from parameter_sources instead
+            if (parameter_sources.size != func->function.parameters.size)
+                error(string("calling function ") + func->function.name + " with wrong number of parameters (sources)")
+            for (var i = 0; i < parameter_sources.size; i++;) {
+                var param_type = get_ast_type(func)->parameter_types[i]
+                var param_ident = func->function.parameters[i]
+                /*println(param_ident->identifier.name + " is the name of the identifier being added")*/
+                var_stack->top()[param_ident->identifier.name] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
+                if (param_type->indirection == 0 && (param_type->is_adt() || (param_type->is_object() && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_increased_indirection()))))) {
+                    interpret(ast_statement_ptr(make_method_call(param_ident, "copy_construct", vector(make_operator_call("&", vector(parameter_sources[i]))))), var_stack, enclosing_object, defer_stack)
+                    new_defer_stack.push(ast_statement_ptr(make_method_call(param_ident, "destruct", vector<*ast_node>())))
+                } else {
+                    store_into_variable(var_stack->top()[param_ident->identifier.name], get_real_value(interpret(parameter_sources[i], var_stack, enclosing_object, defer_stack).first))
+                }
+            }
+            // swap the params over
+            new_var_stack.push(var_stack->pop())
         }
-        // our defer stack to keep track of what needs to be evaluated later at runtime
-        var defer_stack = stack<*ast_node>()
-        var to_ret = interpret(func->function.body_statement, &new_var_stack, enclosing_object, &defer_stack).first
+        var to_ret = interpret(func->function.body_statement, &new_var_stack, enclosing_object, &new_defer_stack).first
+        // handle destructing params
+        interpret_from_defer_stack(&new_defer_stack, &new_var_stack, enclosing_object)
         // need to handle copying out object before pop_and_free deletes them
         pop_and_free(&new_var_stack)
         return to_ret

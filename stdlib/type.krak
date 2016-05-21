@@ -225,6 +225,8 @@ obj type (Object) {
         to_ret->is_ref = is_ref_in
         return to_ret
     }
+    fun is_object_like(): bool
+        return is_object() || is_adt()
     fun is_object(): bool {
         match (base) {
             base_type::object() return true

@@ -1139,6 +1139,8 @@ fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
     if (name == "." || name == "->") {
         if (name == "->" && param_types[0]->indirection == 0)
             error(string("drereferencing not a pointer: ") + name)
+        else if (name == "." && param_types[0]->indirection != 0)
+            error(string("dot operator on a pointer: ") + name)
         else
             return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>(), false)
     }
