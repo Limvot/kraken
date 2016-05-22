@@ -110,6 +110,12 @@ else
                         echo "var version_string = \"Self-hosted Kraken compiler \\\"Kalypso\\\" - revision $(git rev-list HEAD | wc -l), commit: $(git rev-parse HEAD)\";" > compiler_version.krak
                         mv ./krakenGrammer.kgm krakenGrammer.kgm_new
                         mv ./krakenGrammer.kgm_old krakenGrammer.kgm
+                        # Quick fix - I made a commit that actually depends on it's own grammer to be built
+                        if [[ ${bootstrap_commits[$i]} == "12dfa837e31bf09adb1335219473b9a7e6db9eac" ]]
+                        then
+                            echo "Hot fixing mistake - using new grammer instead of old"
+                            mv ./krakenGrammer.kgm_new krakenGrammer.kgm
+                        fi
                         ./${kraken}_bootstrap kraken.krak ${kraken}_bootstrap
                         mkdir "../cached_builds/${bootstrap_commits[$i]}"
                         cp "./kraken.krak.c" "../cached_builds/${bootstrap_commits[$i]}/"
