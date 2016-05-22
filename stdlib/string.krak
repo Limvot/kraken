@@ -172,8 +172,6 @@ obj string (Object, Serializable) {
     }
 
     fun operator+(str: ref string): string {
-        /*var newStr.construct(str):string*/
-        /*var ret.construct(data + newStr.data):string*/
         var ret.construct(data + str.data):string
         return ret
     }

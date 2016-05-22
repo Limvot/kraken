@@ -511,7 +511,7 @@ obj interpreter (Object) {
         var var_stack = stack<map<string, value>>()
         var_stack.push(map<string,value>())
         var defer_stack = stack<*ast_node>()
-        var result = call_function(results[0], vector<value>(), vector<*ast_node>(), &var_stack, &defer_stack, value::void_nothing(), null<ast_node>())
+        var result = call_function(results[0], vector<value>(), vector<*ast_node>(), &var_stack, &defer_stack, value::void_nothing(), value::void_nothing(), null<ast_node>())
         println("=============")
         println("Main returned: ")
         print_value(result)
@@ -538,8 +538,6 @@ obj interpreter (Object) {
                 new_enclosing_object = enclosing_object
             }
         }
-        // check if it's a same method method call and do the right new_enclosing_object
-        // new_enclosing_object = enclosing_object
         var func_name = func_call_func->function.name
         // some of these have to be done before parameters are evaluated (&&, ||, ., ->)
         if (func_name == "&&" || func_name == "||") {
@@ -610,12 +608,12 @@ obj interpreter (Object) {
             // not the operator & and at least one object like parameter
             parameter_sources = func_call_parameters
         }
-        return make_pair(call_function(func_call_func, parameters, parameter_sources, var_stack, defer_stack, new_enclosing_object, enclosing_func), control_flow::nor())
+        return make_pair(call_function(func_call_func, parameters, parameter_sources, var_stack, defer_stack, enclosing_object, new_enclosing_object, enclosing_func), control_flow::nor())
     }
     // call_function can be called with either parameter values in parameters or ast expressions in parameter_sources
     // this is to allow easy function calling if we already have the values (for main, say, or to make our job if it's not
     // an operator easier), but we need to be able to be called with ast_expressions too so we can properly copy_construct once
-    fun call_function(func: *ast_node, parameters: vector<value>, parameter_sources: vector<*ast_node>, var_stack: *stack<map<string, value>>, defer_stack: *stack<*ast_node>, enclosing_object: value, enclosing_func: *ast_node): value {
+    fun call_function(func: *ast_node, parameters: vector<value>, parameter_sources: vector<*ast_node>, var_stack: *stack<map<string, value>>, defer_stack: *stack<*ast_node>, enclosing_object: value, new_enclosing_object: value, enclosing_func: *ast_node): value {
         // will need adjustment
         if (!is_function(func))
             error("Can't handle not function function calls (can do regular method, is this chained or something?)")
@@ -673,7 +671,7 @@ obj interpreter (Object) {
                 }
             }
         }
-        var to_ret = interpret(func->function.body_statement, &new_var_stack, enclosing_object, func, &new_defer_stack).first
+        var to_ret = interpret(func->function.body_statement, &new_var_stack, new_enclosing_object, func, &new_defer_stack).first
         // handle destructing params
         interpret_from_defer_stack(&new_defer_stack, &new_var_stack, enclosing_object, enclosing_func)
         // to_ret is on the new_var_stack, likely
