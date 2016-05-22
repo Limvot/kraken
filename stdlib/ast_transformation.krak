@@ -1377,17 +1377,11 @@ fun assert(works: bool, message: string) {
     if (!works)
         error(message)
 }
-fun error(message: *char) error(string(message));
 fun error(source: *tree<symbol>, message: *char) error(source, string(message));
-fun error(message: string) error(null<tree<symbol>>(), message);
 fun error(source: *tree<symbol>, message: string) {
-    println("****ERROR****")
     source = get_first_terminal(source)
-    if (source) {
-        print(source->data.source + ": " + source->data.position + " ")
-    }
-    println(message)
-    exit(-1)
-    /*while (true){}*/
+    if (source)
+        error(source->data.source + ": " + source->data.position + " " + message)
+    error(message)
 }
 

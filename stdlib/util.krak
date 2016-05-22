@@ -1,5 +1,7 @@
 import mem
 import io
+import os
+import string
 import set
 import map
 import vector
@@ -8,6 +10,13 @@ import serialize
 
 // maybe my favorite function
 fun do_nothing() {}
+
+fun error(message: *char) error(string::string(message));
+fun error(message: string::string) {
+    io::printlnerr("****ERROR****")
+    io::printlnerr(message)
+    os::exit(-1)
+}
 
 fun deref_equality<T>(a: *T, b: *T): bool {
     if ( (a && b && !(*a == *b)) || (a && !b) || (!a && b) )

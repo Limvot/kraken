@@ -12,6 +12,8 @@ fun printlnerr<T>(toPrint: T) : void {
     printerr(toPrint)
     printerr("\n")
 }
+fun printlnerr()
+    printerr("\n")
 fun printerr(toPrint: string::string) : void {
     var charArr = toPrint.toCharArray()
     printerr(charArr)
@@ -19,7 +21,7 @@ fun printerr(toPrint: string::string) : void {
 }
 fun printerr(toPrint: *char) : void {
     fprintf(stderr, "%s", toPrint)
-    fflush(0)
+    // stderr is already flushed
 }
 
 fun println<T>(toPrint: T) : void {

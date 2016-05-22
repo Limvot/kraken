@@ -40,17 +40,17 @@ fun main(argc: int, argv: **char): int {
             println(test_name + "\tFAILED!")
             all_results += pad_with_spaces(test_name) + "\tFAILED!!!\n"
         }
-        /*results_file_name += ".interp"*/
-        /*if (system(kraken_path + " -i " + test_name + ".krak > " + results_file_name)) error("could not interpret")*/
-        /*if (file_exists(results_file_name) && file_exists(expected_results_file_name) && read_file(results_file_name) == read_file(expected_results_file_name)) {*/
-            /*println(test_name + "interp\tPASSED!")*/
-            /*all_results_interp += pad_with_spaces(test_name+"_interp") + "\tPASSED!\n"*/
-            /*num_passed_interp++*/
-            /*system(string("rm ./") + results_file_name)*/
-        /*} else {*/
-            /*println(test_name + "_interp\tFAILED!")*/
-            /*all_results_interp += pad_with_spaces(test_name + "_interp") + "\tFAILED!!!\n"*/
-        /*}*/
+        results_file_name += ".interp"
+        if (system(kraken_path + " -i " + test_name + ".krak > " + results_file_name)) error("could not interpret")
+        if (file_exists(results_file_name) && file_exists(expected_results_file_name) && read_file(results_file_name) == read_file(expected_results_file_name)) {
+            println(test_name + "interp\tPASSED!")
+            all_results_interp += pad_with_spaces(test_name+"_interp") + "\tPASSED!\n"
+            num_passed_interp++
+            system(string("rm ./") + results_file_name)
+        } else {
+            println(test_name + "_interp\tFAILED!")
+            all_results_interp += pad_with_spaces(test_name + "_interp") + "\tFAILED!!!\n"
+        }
         system(string("rm ./") + test_name + ".krak.*")
         system(string("rm ./") + test_name)
     }
