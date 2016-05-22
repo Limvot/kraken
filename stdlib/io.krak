@@ -2,43 +2,56 @@ import string;
 import vector;
 import mem:*
 
-fun println() : void {
-    print("\n");
+ext fun printf(fmt_str: *char, ...): int
+ext fun fprintf(file: *void, format: *char, ...): int
+ext fun snprintf(to_str: *char, num: ulong, format: *char, ...): int
+ext fun fflush(file: int): int
+ext var stderr: *void
+
+fun printlnerr<T>(toPrint: T) : void {
+    printerr(toPrint)
+    printerr("\n")
+}
+fun printerr(toPrint: string::string) : void {
+    var charArr = toPrint.toCharArray()
+    printerr(charArr)
+    delete(charArr)
+}
+fun printerr(toPrint: *char) : void {
+    fprintf(stderr, "%s", toPrint)
+    fflush(0)
 }
 
 fun println<T>(toPrint: T) : void {
     print(toPrint)
     print("\n")
 }
-
-fun print<T>(toPrint: *T)
-    print((toPrint) cast ulong)
-
-ext fun printf(fmt_str: *char, ...): int
-ext fun fflush(file: int): int
 fun print(toPrint: *char) : void {
     printf("%s", toPrint)
     fflush(0)
 }
+fun println()
+    print("\n")
 
+fun print<T>(toPrint: *T) {
+    print("ptr:<")
+    print((toPrint) cast ulong)
+    print(">")
+}
 fun print(toPrint: char) : void
     print(string::string(toPrint))
 
 fun print(toPrint: string::string) : void {
     var charArr = toPrint.toCharArray()
-    defer delete(charArr)
-    print(charArr);
+    print(charArr)
+    delete(charArr)
 }
-
-fun print(toPrint: bool): void {
+fun print(toPrint: bool) {
     if (toPrint)
         print("true")
     else
         print("false")
-	return;
 }
-
-ext fun snprintf(to_str: *char, num: ulong, format: *char, ...): int
 fun print(toPrint: float)
     print((toPrint) cast double)
 
@@ -55,7 +68,7 @@ fun print<T>(toPrint: T): void
 // Ok, just some DEAD simple file io for now
 ext fun fopen(path: *char, mode: *char): *void
 ext fun fclose(file: *void): int
-ext fun fprintf(file: *void, format: *char, ...): int
+// fprintf is already used for stderr above
 ext fun ftell(file: *void): long
 ext fun fseek(file: *void, offset: long, whence: int): int
 ext fun fread(ptr: *void, size: ulong, nmemb: ulong, file: *void): ulong

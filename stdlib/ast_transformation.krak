@@ -620,7 +620,7 @@ obj ast_transformation (Object) {
         }
         if (!identifier->identifier.type) error(node, "declaration statement with no type or expression from which to inference type")
         if (identifier->identifier.type->is_none() || (identifier->identifier.type->indirection == 0 && identifier->identifier.type->is_void())) error(node, "declaration statement with bad type")
-        var declaration = ast_declaration_statement_ptr(identifier, expression)
+        var declaration = ast_declaration_statement_ptr(identifier, expression, get_node("\"ext\"", node) != null<tree<symbol>>())
         // ok, deal with the possible init position method call
         if (identifiers.size == 2) {
             var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)

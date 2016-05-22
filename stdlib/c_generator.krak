@@ -463,7 +463,7 @@ obj c_generator (Object) {
               vert->adt_def.options.for_each(fun(option: *ast_node) {
                 add_to_enum += string("enum_opt_") + get_name(option) + ","
                 if (!option->identifier.type->is_empty_adt_option())
-                    add_to_structs += generate_declaration_statement(ast_declaration_statement_ptr(option, null<ast_node>()), null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
+                    add_to_structs += generate_declaration_statement(ast_declaration_statement_ptr(option, null<ast_node>(), false), null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
               })
               structs += string("enum { ") + add_to_enum + " } flag;\n"
               structs += string("union { ") + add_to_structs + " } data;\n"
@@ -533,7 +533,10 @@ obj c_generator (Object) {
         var ident_type = identifier->identifier.type
         // we do the declaration in the pre now so that we can take it's address to close over it for things like recursive closures
         // we only make it first if it's a function type though, so that global levels still work
-        var to_ret = code_triple(type_to_c(identifier->identifier.type) + " " + get_name(identifier), string(), string())
+        var pre_stuff = type_to_c(identifier->identifier.type) + " " + get_name(identifier)
+        if (node->declaration_statement.is_extern)
+            pre_stuff = string("extern ") + pre_stuff
+        var to_ret = code_triple(pre_stuff, string(), string())
         if (node->declaration_statement.expression) {
             if (ident_type->indirection == 0 && (ident_type->is_adt() || (ident_type->is_object() && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(node->declaration_statement.expression)->clone_with_increased_indirection()))))) {
                 to_ret.pre += ";\n"
@@ -629,7 +632,7 @@ obj c_generator (Object) {
             if (function_return_type->is_ref)
                 temp_ident_type = temp_ident_type->clone_with_increased_indirection()
             var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), temp_ident_type, null<ast_node>())
-            var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
+            var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>(), false)
             // have to pass false to the declaration generator, so can't do it through generate_statement
             to_ret.pre = generate_declaration_statement(declaration, enclosing_object, enclosing_func, defer_stack, false).one_string() + ";\n"
             if ((function_return_type->is_object() || return_value_type->is_object()) && !function_return_type->equality(return_value_type, false))
@@ -697,7 +700,7 @@ obj c_generator (Object) {
             var option_str = generate(case_node->case_statement.option, enclosing_object, enclosing_func, defer_stack, false).one_string()
             var to_ret_case = code_triple("/*case ") + option_str + "*/ if(" + matching_value.value + ".flag == " + string("enum_opt_") + option_str + ") {\n"
             if (case_node->case_statement.unpack_ident) {
-                to_ret_case += generate_declaration_statement(ast_declaration_statement_ptr(case_node->case_statement.unpack_ident, null<ast_node>()), null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string()
+                to_ret_case += generate_declaration_statement(ast_declaration_statement_ptr(case_node->case_statement.unpack_ident, null<ast_node>(), false), null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string()
                 to_ret_case += string(" = ") + matching_value.value + ".data." + option_str + ";\n"
             } else {
                 to_ret_case += "/*no unpack_ident*/\n"
@@ -734,7 +737,7 @@ obj c_generator (Object) {
         }
         if (need_variable) {
             var temp_ident = ast_identifier_ptr(string("temporary_value")+get_id(), get_ast_type(node), null<ast_node>())
-            var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
+            var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>(), false)
             // have to pass false to the declaration generator, so can't do it through generate_statement
             var trip_ret = code_triple()
             // trip_ret.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + " = " + to_ret + ";\n"
@@ -877,7 +880,7 @@ obj c_generator (Object) {
             var param_type = get_ast_type(param)
             if (!in_function_param_type->is_ref && param_type->indirection == 0 && (param_type->is_adt() || (param_type->is_object() && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1)))))) {
                 var temp_ident = ast_identifier_ptr(string("temporary_param")+get_id(), param_type->clone_without_ref(), null<ast_node>())
-                var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
+                var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>(), false)
                 // have to pass false to the declaration generator, so can't do it through generate_statement
                 call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
                 call_string.pre += generate_statement(ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(param))))), enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>()).one_string()
@@ -892,7 +895,7 @@ obj c_generator (Object) {
         if (!func_return_type->is_ref && (needs_temp_for_destruct || (!func_return_type->is_void() && need_variable)) ) {
             // kind of ugly combo here of
             var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), func_return_type, null<ast_node>())
-            var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
+            var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>(), false)
             // have to pass false to the declaration generator, so can't do it through generate_statement
             call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
             pre_call = generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string()
@@ -913,7 +916,7 @@ obj c_generator (Object) {
                 // lambda
                 if (pre_call == "" && (!func_return_type->is_void() || func_return_type->indirection)) {
                     var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id(), func_return_type, null<ast_node>())
-                    var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
+                    var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>(), false)
                     // have to pass false to the declaration generator, so can't do it through generate_statement
                     call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n"
                     pre_call = generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string()
