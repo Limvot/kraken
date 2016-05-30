@@ -1,5 +1,6 @@
 import io:*
 import mem:*
+import math:*
 import map:*
 import stack:*
 import string:*
@@ -66,7 +67,11 @@ fun wrap_value(val: *ast_node): value {
     var value_str = val->value.string_value
     if (value_str[0] == '"') { // " // Comment hack for emacs now
         var to_ret = string()
-        value_str = value_str.slice(1,-2)
+        // triple quoted strings
+        if (value_str[1] == '"' && value_str[2] == '"')
+            value_str = value_str.slice(3,-4)
+        else
+            value_str = value_str.slice(1,-2)
         for (var i = 0; i < value_str.length()-1; i++;) {
             if (value_str[i] == '\\' && value_str[i+1] == 'n') {
                 to_ret += '\n'
@@ -344,6 +349,7 @@ fun get_type_from_primitive_value(v: value): *type {
         value::floating(data) return type_ptr(base_type::floating())
         value::double_precision(data) return type_ptr(base_type::double_precision())
         value::pointer(data) return data.second
+        value::void_nothing() return type_ptr(base_type::void_return())
     }
     println("Bad get_type_from_primitive_value!")
     print_value(v)
@@ -599,7 +605,7 @@ obj interpreter (Object) {
                 return make_pair(value::variable(make_pair(get_real_value(dereference_val).pointer.first, dereference_val.pointer.second->clone_with_decreased_indirection())), control_flow::nor())
             }
             // check for built-in-ish externs (everything the standard library needs)
-            if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush" || func_name == "snprintf")
+            if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush" || func_name == "snprintf" || func_name == "atan" || func_name == "atan2" || func_name == "acos" || func_name == "asin" || func_name == "tan" || func_name == "cos" || func_name == "sin")
                 return make_pair(call_built_in_extern(func_name, parameters), control_flow::nor())
             if (!func_call_func->function.body_statement)
                 error(string("trying to call unsupported extern function: ") + func_name)
@@ -711,6 +717,27 @@ obj interpreter (Object) {
         } else if (func_name == "exit") {
             assert(parameters.size == 1 && is_integer(parameters[0]), "Calling exit with wrong params")
             exit(parameters[0].integer)
+        } else if (func_name == "atan") {
+            assert(parameters.size == 1 && is_double_precision(parameters[0]), "Calling atan with wrong params")
+            return value::double_precision(atan(parameters[0].double_precision))
+        } else if (func_name == "atan2") {
+            assert(parameters.size == 2 && is_double_precision(parameters[0]) && is_double_precision(parameters[1]), "Calling atan2 with wrong params")
+            return value::double_precision(atan2(parameters[0].double_precision, parameters[1].double_precision))
+        } else if (func_name == "acos") {
+            assert(parameters.size == 1 && is_double_precision(parameters[0]), "Calling acos with wrong params")
+            return value::double_precision(acos(parameters[0].double_precision))
+        } else if (func_name == "asin") {
+            assert(parameters.size == 1 && is_double_precision(parameters[0]), "Calling asin with wrong params")
+            return value::double_precision(asin(parameters[0].double_precision))
+        } else if (func_name == "tan") {
+            assert(parameters.size == 1 && is_double_precision(parameters[0]), "Calling tan with wrong params")
+            return value::double_precision(tan(parameters[0].double_precision))
+        } else if (func_name == "cos") {
+            assert(parameters.size == 1 && is_double_precision(parameters[0]), "Calling cos with wrong params")
+            return value::double_precision(cos(parameters[0].double_precision))
+        } else if (func_name == "sin") {
+            assert(parameters.size == 1 && is_double_precision(parameters[0]), "Calling sin with wrong params")
+            return value::double_precision(sin(parameters[0].double_precision))
         } else {
             error(string("trying to call invalid func: ") + func_name)
         }
@@ -722,40 +749,56 @@ obj interpreter (Object) {
     fun interpret_if_statement(if_stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, enclosing_func: *ast_node, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var_stack->push(map<string,value>())
         var inner_defer_stack = stack<*ast_node>()
+        var value_from_inside = make_pair(value::void_nothing(), control_flow::nor()) 
         if (truthy(interpret(if_stmt->if_statement.condition, var_stack, enclosing_object, enclosing_func, &inner_defer_stack).first)) {
-            interpret(if_stmt->if_statement.then_part, var_stack, enclosing_object, enclosing_func, &inner_defer_stack)
+            value_from_inside = interpret(if_stmt->if_statement.then_part, var_stack, enclosing_object, enclosing_func, &inner_defer_stack)
         } else if (if_stmt->if_statement.else_part) {
-            interpret(if_stmt->if_statement.else_part, var_stack, enclosing_object, enclosing_func, &inner_defer_stack)
+            value_from_inside = interpret(if_stmt->if_statement.else_part, var_stack, enclosing_object, enclosing_func, &inner_defer_stack)
         }
         interpret_from_defer_stack(&inner_defer_stack, var_stack, value::void_nothing(), enclosing_func)
         pop_and_free(var_stack)
-        return make_pair(value::void_nothing(), control_flow::nor())
+        return value_from_inside
     }
     fun interpret_while_loop(while_loop: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, enclosing_func: *ast_node, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var_stack->push(map<string,value>())
         var inner_defer_stack = stack<*ast_node>()
-        while (truthy(interpret(while_loop->while_loop.condition, var_stack, enclosing_object, enclosing_func, &inner_defer_stack).first)) {
-            interpret(while_loop->while_loop.statement, var_stack, enclosing_object, enclosing_func, &inner_defer_stack)
+        var value_from_inside = make_pair(value::void_nothing(), control_flow::nor()) 
+        var going = true
+        while (going && truthy(interpret(while_loop->while_loop.condition, var_stack, enclosing_object, enclosing_func, &inner_defer_stack).first)) {
+            value_from_inside = interpret(while_loop->while_loop.statement, var_stack, enclosing_object, enclosing_func, &inner_defer_stack)
             interpret_from_defer_stack(&inner_defer_stack, var_stack, value::void_nothing(), enclosing_func)
             inner_defer_stack.clear()
+            if (value_from_inside.second == control_flow::ret() || value_from_inside.second == control_flow::bre())
+                going = false
+            if (value_from_inside.second == control_flow::bre() || value_from_inside.second == control_flow::con())
+                value_from_inside = make_pair(value::void_nothing(), control_flow::nor()) 
         }
         interpret_from_defer_stack(&inner_defer_stack, var_stack, value::void_nothing(), enclosing_func)
         pop_and_free(var_stack)
-        return make_pair(value::void_nothing(), control_flow::nor())
+        return value_from_inside
     }
     fun interpret_for_loop(for_loop: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, enclosing_func: *ast_node): pair<value, control_flow> {
         var defer_stack = stack<*ast_node>()
         var_stack->push(map<string,value>())
+        var value_from_inside = make_pair(value::void_nothing(), control_flow::nor()) 
+        var going = true
         interpret(for_loop->for_loop.init, var_stack, enclosing_object, enclosing_func, &defer_stack)
         while (truthy(interpret(for_loop->for_loop.condition, var_stack, enclosing_object, enclosing_func, &defer_stack).first)) {
-            interpret(for_loop->for_loop.body, var_stack, enclosing_object, enclosing_func, &defer_stack)
-            interpret(for_loop->for_loop.update, var_stack, enclosing_object, enclosing_func, &defer_stack)
+            value_from_inside = interpret(for_loop->for_loop.body, var_stack, enclosing_object, enclosing_func, &defer_stack)
+            if (value_from_inside.second == control_flow::ret() || value_from_inside.second == control_flow::bre())
+                going = false
+            if (value_from_inside.second == control_flow::bre() || value_from_inside.second == control_flow::con())
+                value_from_inside = make_pair(value::void_nothing(), control_flow::nor()) 
+
+            // only run update if we're not breaking or continuing
+            if (going)
+                interpret(for_loop->for_loop.update, var_stack, enclosing_object, enclosing_func, &defer_stack)
             interpret_from_defer_stack(&defer_stack, var_stack, enclosing_object, enclosing_func)
             defer_stack.clear()
         }
         interpret_from_defer_stack(&defer_stack, var_stack, enclosing_object, enclosing_func)
         pop_and_free(var_stack)
-        return make_pair(value::void_nothing(), control_flow::nor())
+        return value_from_inside
     }
     fun interpret_code_block(block: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, enclosing_func: *ast_node, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var_stack->push(map<string,value>())
@@ -841,9 +884,13 @@ obj interpreter (Object) {
         var to = interpret(stmt->assignment_statement.to, var_stack, enclosing_object, enclosing_func, defer_stack).first
         var from = interpret(stmt->assignment_statement.from, var_stack, enclosing_object, enclosing_func, defer_stack).first
         assert(is_variable(to), "assigning into not a variable")
-        // first, we have to see if this is an object
         // always do cast now to make our best effort at assignment (assign into a double from a float, etc)
-        store_into_variable(to, cast_value(get_real_value(from), to.variable.second))
+        // unless it's an object
+        var from_real = get_real_value(from)
+        if (is_object_like(from_real))
+            store_into_variable(to, from_real)
+        else
+            store_into_variable(to, cast_value(from_real, to.variable.second))
         return make_pair(value::void_nothing(), control_flow::nor())
     }
     fun interpret_defer_statement(stmt: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, enclosing_func: *ast_node, defer_stack: *stack<*ast_node>): pair<value, control_flow> {

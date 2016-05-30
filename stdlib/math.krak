@@ -1,3 +1,5 @@
+#link(m)
+
 fun fibanacci(num: int): int {
     var l1 = 1
     var l2 = 1
