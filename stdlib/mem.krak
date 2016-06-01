@@ -3,6 +3,13 @@ ext fun malloc(size: ulong): *void
 ext fun free(size: *void)
 ext fun memmove(dest: *void, src: *void, size: ulong): *void
 
+fun calloc(size: ulong): *void {
+    var to_ret = malloc(size)
+    for (var i = 0; i < size; i++;)
+        *((to_ret) cast *char + i) = 0
+    return to_ret
+}
+
 fun null<T>(): *T
     return (0) cast *T
 

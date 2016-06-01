@@ -68,7 +68,7 @@ fun wrap_value(val: *ast_node): value {
     if (value_str[0] == '"') { // " // Comment hack for emacs now
         var to_ret = string()
         // triple quoted strings
-        if (value_str[1] == '"' && value_str[2] == '"')
+        if (value_str[1] == '"' && value_str.length() > 2 && value_str[2] == '"')
             value_str = value_str.slice(3,-4)
         else
             value_str = value_str.slice(1,-2)
@@ -483,11 +483,13 @@ fun pop_and_free(var_stack: *stack<map<string, value>>) {
 obj interpreter (Object) {
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
     var name_ast_map: map<string, pair<*tree<symbol>,*ast_node>> 
+    var globals: map<*ast_node, value>
     var id_counter: int
     fun get_id(): string return to_string(id_counter++);
     fun construct(name_ast_map_in: map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>>): *interpreter {
         name_ast_map.copy_construct(&name_ast_map_in)
         ast_to_syntax.copy_construct(&ast_to_syntax_in)
+        globals.construct()
         id_counter = 0
         return this
     }
@@ -498,11 +500,13 @@ obj interpreter (Object) {
     fun copy_construct(old: *interpreter) {
         name_ast_map.copy_construct(&old->name_ast_map)
         ast_to_syntax.copy_construct(&old->ast_to_syntax)
+        globals.copy_construct(&old->globals)
         id_counter == old->id_counter
     }
     fun destruct() {
         name_ast_map.destruct()
         ast_to_syntax.destruct()
+        globals.destruct()
     }
     fun call_main() {
         var results = vector<*ast_node>()
@@ -511,6 +515,10 @@ obj interpreter (Object) {
         })
         if (results.size != 1)
             error(string("wrong number of mains to call: ") + results.size)
+        printlnerr("=============")
+        printlnerr("setting up globals!")
+        printlnerr("=============")
+        setup_globals();
         printlnerr("=============")
         printlnerr("calling main!")
         printlnerr("=============")
@@ -524,6 +532,30 @@ obj interpreter (Object) {
 
         interpret_from_defer_stack(&defer_stack, &var_stack, value::void_nothing(), null<ast_node>())
         pop_and_free(&var_stack)
+    }
+    fun setup_globals() {
+        name_ast_map.for_each(fun(key: string, value: pair<*tree<symbol>,*ast_node>) {
+            value.second->translation_unit.children.for_each(fun(child: *ast_node) {
+                if (is_declaration_statement(child)) {
+                    var declaration = child->declaration_statement
+                    var identifier = declaration.identifier->identifier
+                    if (declaration.is_extern) {
+                        if (identifier.name == "stderr") {
+                            var stderr_type = type_ptr(base_type::void_return(), 1)
+                            var stderr_pointer = malloc(type_size(stderr_type))
+                            *(stderr_pointer) cast **void = stderr;
+                            globals[declaration.identifier] = value::variable(make_pair(stderr_pointer, stderr_type))
+                        } else {
+                            error(string("unknown extern: ") + identifier.name)
+                        }
+                    } else {
+                        globals[declaration.identifier] = value::variable(make_pair(calloc(type_size(identifier.type)), identifier.type))
+                        if (declaration.expression)
+                            store_into_variable(globals[declaration.identifier], get_real_value(interpret(declaration.expression, null<stack<map<string,value>>>(), value::void_nothing(), null<ast_node>(), null<stack<*ast_node>>()).first))
+                    }
+                }
+            })
+        })
     }
     fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, enclosing_func: *ast_node, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var func_call_parameters = func_call->function_call.parameters
@@ -605,7 +637,7 @@ obj interpreter (Object) {
                 return make_pair(value::variable(make_pair(get_real_value(dereference_val).pointer.first, dereference_val.pointer.second->clone_with_decreased_indirection())), control_flow::nor())
             }
             // check for built-in-ish externs (everything the standard library needs)
-            if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush" || func_name == "snprintf" || func_name == "atan" || func_name == "atan2" || func_name == "acos" || func_name == "asin" || func_name == "tan" || func_name == "cos" || func_name == "sin")
+            if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush" || func_name == "snprintf" || func_name == "fopen" || func_name == "fclose" || func_name == "ftell" || func_name == "fseek" || func_name == "fread" || func_name == "fwrite" || func_name == "atan" || func_name == "atan2" || func_name == "acos" || func_name == "asin" || func_name == "tan" || func_name == "cos" || func_name == "sin")
                 return make_pair(call_built_in_extern(func_name, parameters), control_flow::nor())
             if (!func_call_func->function.body_statement)
                 error(string("trying to call unsupported extern function: ") + func_name)
@@ -714,6 +746,24 @@ obj interpreter (Object) {
         } else if (func_name == "snprintf") {
             assert(parameters.size == 4 && is_pointer(parameters[0]) && is_ulong_int(parameters[1]) && is_pointer(parameters[2]) && is_double_precision(parameters[3]), "Calling snprintf with wrong params")
             return value::integer(snprintf((parameters[0].pointer.first) cast *char, parameters[1].ulong_int, (parameters[2].pointer.first) cast *char, parameters[3].double_precision))
+        } else if (func_name == "fopen") {
+            assert(parameters.size == 2 && is_pointer(parameters[0]) && is_pointer(parameters[1]), "Calling fopen with wrong params")
+            return value::pointer(make_pair(fopen((parameters[0].pointer.first) cast *char, (parameters[1].pointer.first) cast *char), type_ptr(base_type::void_return(), 1)))
+        } else if (func_name == "fclose") {
+            assert(parameters.size == 1 && is_pointer(parameters[0]), "Calling fclose with wrong params")
+            return value::integer(fclose((parameters[0].pointer.first) cast *void))
+        } else if (func_name == "ftell") {
+            assert(parameters.size == 1 && is_pointer(parameters[0]), "Calling ftell with wrong params")
+            return value::long_int(ftell((parameters[0].pointer.first) cast *void))
+        } else if (func_name == "fseek") {
+            assert(parameters.size == 3 && is_pointer(parameters[0]) && is_long_int(parameters[1]) && is_integer(parameters[2]), "Calling fseek with wrong params")
+            return value::integer(fseek((parameters[0].pointer.first) cast *void, parameters[1].long_int, parameters[2].integer))
+        } else if (func_name == "fread") {
+            assert(parameters.size == 4 && is_pointer(parameters[0]) && is_ulong_int(parameters[1]) && is_ulong_int(parameters[2]) && is_pointer(parameters[3]), "Calling fread with wrong params")
+            return value::ulong_int(fread((parameters[0].pointer.first) cast *void, parameters[1].ulong_int, parameters[2].ulong_int, parameters[3].pointer.first))
+        } else if (func_name == "fwrite") {
+            assert(parameters.size == 4 && is_pointer(parameters[0]) && is_ulong_int(parameters[1]) && is_ulong_int(parameters[2]) && is_pointer(parameters[3]), "Calling fwrite with wrong params")
+            return value::ulong_int(fwrite((parameters[0].pointer.first) cast *void, parameters[1].ulong_int, parameters[2].ulong_int, parameters[3].pointer.first))
         } else if (func_name == "exit") {
             assert(parameters.size == 1 && is_integer(parameters[0]), "Calling exit with wrong params")
             exit(parameters[0].integer)
@@ -783,7 +833,7 @@ obj interpreter (Object) {
         var value_from_inside = make_pair(value::void_nothing(), control_flow::nor()) 
         var going = true
         interpret(for_loop->for_loop.init, var_stack, enclosing_object, enclosing_func, &defer_stack)
-        while (truthy(interpret(for_loop->for_loop.condition, var_stack, enclosing_object, enclosing_func, &defer_stack).first)) {
+        while (going && truthy(interpret(for_loop->for_loop.condition, var_stack, enclosing_object, enclosing_func, &defer_stack).first)) {
             value_from_inside = interpret(for_loop->for_loop.body, var_stack, enclosing_object, enclosing_func, &defer_stack)
             if (value_from_inside.second == control_flow::ret() || value_from_inside.second == control_flow::bre())
                 going = false
@@ -799,6 +849,13 @@ obj interpreter (Object) {
         interpret_from_defer_stack(&defer_stack, var_stack, enclosing_object, enclosing_func)
         pop_and_free(var_stack)
         return value_from_inside
+    }
+    fun interpret_branching_statement(bstatement: *ast_node): pair<value, control_flow> {
+        match (bstatement->branching_statement.b_type) {
+            branching_type::break_stmt() return make_pair(value::void_nothing(), control_flow::bre())
+            branching_type::continue_stmt() return make_pair(value::void_nothing(), control_flow::con())
+        }
+        error("bad branch type")
     }
     fun interpret_code_block(block: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, enclosing_func: *ast_node, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var_stack->push(map<string,value>())
@@ -913,6 +970,9 @@ obj interpreter (Object) {
                 }
             }
         }
+        // check for global
+        if (globals.contains_key(ident))
+            return make_pair(globals[ident], control_flow::nor())
         error(string("Cannot find variable: ") + ident->identifier.name)
     }
     fun interpret_cast(node: *ast_node, var_stack: *stack<map<string, value>>, enclosing_object: value, enclosing_func: *ast_node, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
@@ -933,6 +993,7 @@ obj interpreter (Object) {
             ast_node::if_statement(backing) return interpret_if_statement(node, var_stack, enclosing_object, enclosing_func, defer_stack)
             ast_node::while_loop(backing) return interpret_while_loop(node, var_stack, enclosing_object, enclosing_func, defer_stack)
             ast_node::for_loop(backing) return interpret_for_loop(node, var_stack, enclosing_object, enclosing_func)
+            ast_node::branching_statement(backing) return interpret_branching_statement(node)
             ast_node::code_block(backing) return interpret_code_block(node, var_stack, enclosing_object, enclosing_func, defer_stack)
             ast_node::return_statement(backing) return interpret_return_statement(node, var_stack, enclosing_object, enclosing_func, defer_stack)
             ast_node::declaration_statement(backing) return interpret_declaration_statement(node, var_stack, enclosing_object, enclosing_func, defer_stack)
