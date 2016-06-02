@@ -971,7 +971,7 @@ obj ast_transformation (Object) {
         var possible_overload_call = find_and_make_any_operator_overload_call(func_name, parameters, scope, template_replacements)
         if (possible_overload_call)
            return possible_overload_call
-        return ast_function_call_ptr(get_builtin_function(func_name, parameter_types), parameters)
+        return ast_function_call_ptr(get_builtin_function(func_name, parameter_types, node), parameters)
     }
     fun find_and_make_any_operator_overload_call(func_name: string, parameters: vector<*ast_node>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
@@ -1131,22 +1131,24 @@ fun make_operator_call(func: *char, params: vector<*ast_node>): *ast_node return
 fun make_operator_call(func: string, params: vector<*ast_node>): *ast_node {
     return ast_function_call_ptr(get_builtin_function(func, params.map(fun(p:*ast_node): *type return get_ast_type(p);)), params)
 }
-fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
+fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node
+    return get_builtin_function(name, param_types, null<tree<symbol>>())
+fun get_builtin_function(name: string, param_types: vector<*type>, syntax: *tree<symbol>): *ast_node {
     // none of the builtin functions should take in references
     param_types = param_types.map(fun(t: *type): *type return t->clone_without_ref();)
     if (name == "==" || name == "!=" || name == ">" || name == "<" || name == "<=" || name == ">" || name == ">=" || name == "&&" || name == "||" || name == "!")
         return ast_function_ptr(name, type_ptr(param_types, type_ptr(base_type::boolean())), vector<*ast_node>(), false)
     if (name == "." || name == "->") {
         if (name == "->" && param_types[0]->indirection == 0)
-            error(string("drereferencing not a pointer: ") + name)
+            error(syntax, string("drereferencing not a pointer: ") + name)
         else if (name == "." && param_types[0]->indirection != 0)
-            error(string("dot operator on a pointer: ") + name)
+            error(syntax, string("dot operator on a pointer: ") + name)
         else
             return ast_function_ptr(name, type_ptr(param_types, param_types[1]), vector<*ast_node>(), false)
     }
     if (name == "[]") {
         if (param_types[0]->indirection == 0)
-            error(string("drereferencing not a pointer: ") + name)
+            error(syntax, string("drereferencing not a pointer: ") + name)
         else
             return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>(), false)
     }
@@ -1154,7 +1156,7 @@ fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node {
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection()), vector<*ast_node>(), false)
     if (name == "\*" && param_types.size == 1) {
         if (param_types[0]->indirection == 0)
-            error(string("drereferencing not a pointer: ") + name)
+            error(syntax, string("drereferencing not a pointer: ") + name)
         else
             return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection()), vector<*ast_node>(), false)
     }
