@@ -423,10 +423,12 @@ obj gss (Object) {
         edges.copy_construct(&old->edges)
     }
     fun destruct() {
+        clear()
         data.destruct()
         edges.destruct()
     }
     fun clear() {
+        data.for_each(fun(second: ref vector<*tree<int>>) second.for_each(fun(node: *tree<int>) delete(node););)
         data.clear()
         edges.clear()
     }
