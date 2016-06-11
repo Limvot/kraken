@@ -1263,7 +1263,7 @@ fun function_lookup(name: string, scope: *ast_node, param_types: vector<*type>):
     /*println(string("function lookup failed for ") + name)*/
     return null<ast_node>()
 }
-fun identifier_lookup(name: string, scope: *ast_node): *ast_node {
+fun identifier_lookup(name: ref string, scope: *ast_node): *ast_node {
     /*println(string("doing identifier lookup for: ") + name)*/
     var results = scope_lookup(name, scope)
     if (!results.size) {
@@ -1272,7 +1272,7 @@ fun identifier_lookup(name: string, scope: *ast_node): *ast_node {
     }
     return results[0]
 }
-fun scope_lookup(name: string, scope: *ast_node): vector<*ast_node> {
+fun scope_lookup(name: ref string, scope: *ast_node): vector<*ast_node> {
     // println("*****Doing a name lookup for*****")
     // println(name)
     var results = vector(scope)
@@ -1291,7 +1291,7 @@ fun scope_lookup(name: string, scope: *ast_node): vector<*ast_node> {
     })
     return results
 }
-fun scope_lookup_helper(name: string, scope: *ast_node, visited: set<*ast_node>): vector<*ast_node> {
+fun scope_lookup_helper(name: ref string, scope: *ast_node, visited: set<*ast_node>): vector<*ast_node> {
     // need to do properly scopded lookups
     // print("scope is: ")
     // get_ast_scope(scope)->for_each(fun(key: string, value: vector<*ast_node>) print(key + " ");)

@@ -11,6 +11,9 @@ import serialize
 // maybe my favorite function
 fun do_nothing() {}
 
+fun is_object<T>(): bool return false
+fun is_object<T(Object)>(): bool return true
+
 fun error(message: *char) error(string::string(message));
 fun error(message: string::string) {
     io::printlnerr("****ERROR****")

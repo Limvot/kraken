@@ -218,7 +218,9 @@ obj regex (Object, Serializable) {
                     return -1
             return regexString.length();
         }
-        var next = set::set(begin)
+        /*var next = set::set(begin)*/
+        var next.construct(): set::set<*regexState>
+        next.add(begin)
         var longest = -1
         for (var i = 0; i < end-position; i++;) {
             if (next.size() == 0)

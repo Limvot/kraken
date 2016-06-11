@@ -8,7 +8,7 @@ fun hash_map<T,U>(): hash_map<T,U> {
     var toRet.construct(): hash_map<T,U>
     return toRet
 }
-fun hash_map<T,U>(key:T, value:U): hash_map<T,U> {
+fun hash_map<T,U>(key: ref T, value: ref U): hash_map<T,U> {
     var toRet.construct(): hash_map<T,U>
     toRet.set(key, value)
     return toRet
@@ -38,9 +38,9 @@ obj hash_map<T,U> (Object, Serializable) {
         /*io::print("old size of data:")*/
         /*io::println(old->data.size)*/
     }
-    fun operator=(rhs: hash_map<T,U>) {
-        destruct()
-        copy_construct(&rhs)
+    fun operator=(rhs: ref hash_map<T,U>) {
+        data = rhs.data
+        size = rhs.size
     }
     fun destruct() {
         /*io::print("destructed hash_map, this: ")*/
@@ -60,7 +60,7 @@ obj hash_map<T,U> (Object, Serializable) {
     fun operator==<V>(other: ref hash_map<T,V>): bool {
         return data == other.data
     }
-    fun set(key: T, value: U) {
+    fun set(key: ref T, value: ref U) {
         /*io::print("doing set! this:")*/
         /*io::println((this) cast int)*/
         /*io::print("size of data:")*/
@@ -82,40 +82,40 @@ obj hash_map<T,U> (Object, Serializable) {
         }
         data[key_hash%data.size].set(key, value)
     }
-    fun get(key: T): ref U {
+    fun get(key: ref T): ref U {
         return data[(util::hash(key)) cast int%data.size].get(key)
     }
-    fun contains_key(key: T): bool {
+    fun contains_key(key: ref T): bool {
         return data[(util::hash(key)) cast int%data.size].contains_key(key)
     }
-    fun contains_value(value: U): bool {
+    fun contains_value(value: ref U): bool {
         for (var i = 0; i < data.size; i++;) {
             if (data[i].contains_value(value))
                 return true
         }
         return false
     }
-    fun reverse_get(value: U): ref T {
+    fun reverse_get(value: ref U): ref T {
         for (var i = 0; i < data.size; i++;) {
             if (data[i].contains_value(value))
                 return data[i].reverse_get(value)
         }
         io::println("trying to reverse get a value that is not in the hash_map")
     }
-    fun remove(key: T) {
+    fun remove(key: ref T) {
         data[(util::hash(key)) cast int%data.size].remove(key)
     }
     fun for_each(func: fun(T, U):void) {
         for (var i = 0; i < data.size; i++;)
             data[i].for_each(func)
     }
-    fun operator[](key: T): ref U {
+    fun operator[](key: ref T): ref U {
         return get(key)
     }
-    fun operator[]=(key: T, value: U) {
+    fun operator[]=(key: ref T, value: ref U) {
         set(key,value)
     }
-    fun get_with_default(key: T, default_val: ref U): ref U {
+    fun get_with_default(key: ref T, default_val: ref U): ref U {
         if (contains_key(key))
             return get(key)
         return default_val

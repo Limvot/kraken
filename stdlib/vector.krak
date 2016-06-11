@@ -36,9 +36,12 @@ obj vector<T> (Object, Serializable) {
     fun copy_construct(old: *vector<T>): void {
         construct(old->size)
         size = old->size
-        for (var i = 0; i < old->size; i++;)
-            maybe_copy_construct(&data[i], &old->data[i]);
-            //addEnd(old->get(i))
+        if (is_object<T>()) {
+            for (var i = 0; i < old->size; i++;)
+                maybe_copy_construct(&data[i], &old->data[i]);
+        } else {
+            memmove((data) cast *void, (old->data) cast *void, size * #sizeof<T>)
+        }
     }
     fun serialize(): vector<char> {
         var toRet = serialize(size)
@@ -65,14 +68,23 @@ obj vector<T> (Object, Serializable) {
         data = 0
     }
 
+    fun set_size(s: int) {
+        size = s
+    }
+
     fun operator=(other:ref vector<T>):void {
         if (size < other.size) {
             destruct()
             copy_construct(&other)
         } else {
             clear()
-            for (var i = 0; i < other.size; i++;)
-                addEnd(other.get(i))
+            if (is_object<T>()) {
+                for (var i = 0; i < other.size; i++;)
+                    addEnd(other.get(i))
+            } else {
+                size = other.size
+                memmove((data) cast *void, (other.data) cast *void, size * #sizeof<T>)
+            }
         }
     }
 

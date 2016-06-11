@@ -1071,9 +1071,11 @@ obj c_generator (Object) {
         return string("impossible type") + indirection
     }
     fun get_name(node: *ast_node): string {
-        if (ast_name_map.contains_key(node))
-            return ast_name_map[node]
+        var maybe_it = ast_name_map.get_ptr_or_null(node);
+        if (maybe_it)
+            return *maybe_it
         var result = string("impossible name")
+        var make_unique = true
         match (*node) {
             ast_node::type_def(backing) {
                 var upper = backing.scope[string("~enclosing_scope")][0]
@@ -1086,29 +1088,28 @@ obj c_generator (Object) {
             }
             ast_node::function(backing) {
                 // be careful, operators like . come through this, but so do adt constructor funcs
-                if (!backing.body_statement && !backing.scope.contains_key(string("~enclosing_scope")))
-                    return backing.name
-                if (backing.name == "main")
-                    return backing.name
-                if (backing.is_extern)
-                    return backing.name
-                result = "fun_"
-                var upper = backing.scope.get_with_default(string("~enclosing_scope"), vector(null<ast_node>()))[0]
-                if (upper && is_type_def(upper))
-                    result += get_name(upper) + "_"
-                result += cify_name(node->function.name)
-                node->function.parameters.for_each(fun(param: *ast_node) result += string("_") + type_decoration(param->identifier.type);)
+                if ((backing.name == "main") || backing.is_extern || (!backing.body_statement && !backing.scope.contains_key(string("~enclosing_scope")))) {
+                    result = backing.name
+                    make_unique = false
+                } else {
+                    result = "fun_"
+                    var upper = backing.scope.get_with_default(string("~enclosing_scope"), vector(null<ast_node>()))[0]
+                    if (upper && is_type_def(upper))
+                        result += get_name(upper) + "_"
+                    result += cify_name(node->function.name)
+                    node->function.parameters.for_each(fun(param: *ast_node) result += string("_") + type_decoration(param->identifier.type);)
+                }
             }
             ast_node::identifier(backing) {
                 if (backing.name == "this")
-                    return backing.name
+                    make_unique = false
                 result = backing.name
             }
         }
         if (result == "impossible name")
             error("HUGE PROBLEMS")
         // TODO keyword avoid seems not to work
-        if (ast_name_map.contains_value(result) || c_keyword_avoid.contains(result))
+        if (make_unique && (ast_name_map.contains_value(result) || c_keyword_avoid.contains(result)))
             result += get_id()
         /*println("HERE: " + result)*/
         ast_name_map.set(node, result)

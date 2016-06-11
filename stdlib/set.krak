@@ -1,7 +1,6 @@
 import vector
 import io
 import serialize
-import util
 
 fun set<T>(): set<T> {
     var toRet.construct() : set<T>
@@ -34,8 +33,6 @@ obj set<T> (Object, Serializable) {
         data.copy_construct(&old->data)
     }
     fun operator=(rhs: ref set<T>) {
-        /*destruct()*/
-        /*copy_construct(&rhs)*/
         data = rhs.data
     }
     fun serialize(): vector::vector<char> {
