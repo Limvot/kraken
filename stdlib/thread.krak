@@ -1,0 +1,51 @@
+import io:*
+import os:*
+import mem:*
+import util:*
+
+#link(pthread)
+ext fun pthread_attr_init(attr_ptr: *void): int
+ext fun pthread_create(thread: *ulong, attr_ptr: *void, func: *void, param: *void): int
+ext fun pthread_attr_destroy(attr_ptr: *void): int
+ext fun pthread_join(thread: ulong, ret: **void): int
+
+obj dual_ptrs { var data: *void; var func: *void; }
+fun extract_func_ptr<T>(func: T): *void {
+    return (&func) cast *dual_ptrs -> func
+}
+fun run<T>(func :fun(T): void, data: T) : *ulong {
+    var thread = new<ulong>()
+    var data_copy = new<T>()
+    // TODO: figure out why the func type structs aren't the same
+    // to avoid extra copy etc
+    var func_copy = new<fun(T):void>()
+    var func_and_data = new<pair<*void, *T>>()->construct()
+    *data_copy = data
+    memmove((func_copy) cast *void, (&func) cast *void, #sizeof<fun(T):void>)
+    *func_and_data = make_pair((func_copy) cast *void, data_copy)
+    var wrapper = fun(func_and_data: *void): *void {
+        var fnd_pair = (func_and_data) cast *pair<*fun(T):void, *T>
+        (*fnd_pair->first)(*fnd_pair->second)
+        delete(fnd_pair->first)
+        delete(fnd_pair->second)
+        delete(fnd_pair)
+        return null<void>()
+    }
+    // I counted 18 or so word-sized or smaller members (recursively) in the attr struct
+    var attr = malloc(20*#sizeof<*void>)
+    pthread_attr_init(attr)
+    // joinable is default
+    var ret = pthread_create(thread, attr, extract_func_ptr(wrapper), (func_and_data) cast *void)
+    // error check ret?
+    pthread_attr_destroy(attr)
+    free(attr)
+    return thread
+}
+
+fun join(thrd : *ulong) : void {
+    // yep **void null
+    pthread_join(*thrd, null<*void>())
+    // error check join
+    delete(thrd)
+}
+
