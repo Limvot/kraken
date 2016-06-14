@@ -1,4 +1,3 @@
-import io:*
 
 __if_comp__ __C__ simple_passthrough(::"-pthread") """
 #include <pthread.h>
@@ -53,7 +52,6 @@ obj future<T> {
         psy = in
         wrapper = fun() : void{
             result = psy()
-            println(status)
             pthread_exit()
         }
         return this
@@ -69,9 +67,6 @@ obj future<T> {
 
     fun finish() : T {
         pthread_join(&thread)
-        print("FINISHED THREAD ")
-        print(result)
-        print("\n")
         return result
     }
 }
