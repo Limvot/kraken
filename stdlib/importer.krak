@@ -10,21 +10,22 @@ import io:*
 import ast_nodes:*
 import ast_transformation:*
 import parser:*
+import thread:*
 
 obj importer (Object) {
-    var parse: parser
+    var parsers: vector<parser>
     var ast_pass: ast_transformation
     var name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>
     var import_paths: vector<string>
-    fun construct(parseIn: ref parser, ast_passIn: ref ast_transformation, import_paths_in: vector<string>): *importer {
-        parse.copy_construct(&parseIn)
+    fun construct(parsersIn: ref vector<parser>, ast_passIn: ref ast_transformation, import_paths_in: vector<string>): *importer {
+        parsers.copy_construct(&parsersIn)
         ast_pass.copy_construct(&ast_passIn)
         name_ast_map.construct()
         import_paths.copy_construct(&import_paths_in)
         return this
     }
     fun copy_construct(old: *importer) {
-        parse.copy_construct(&old->parse)
+        parsers.copy_construct(&old->parsers)
         ast_pass.copy_construct(&old->ast_pass)
         name_ast_map.copy_construct(&old->name_ast_map)
         import_paths.copy_construct(&old->import_paths)
@@ -34,15 +35,66 @@ obj importer (Object) {
         copy_construct(&old)
     }
     fun destruct() {
-        parse.destruct()
+        parsers.destruct()
         ast_pass.destruct()
         name_ast_map.destruct()
         import_paths.destruct()
     }
-    fun import(file_name: string): *ast_node {
+    fun import(file_name: string) {
+        // lambda closes over our fix-up list
+        var imports_to_fix = vector<*ast_node>()
+        var import_first_pass = fun(file_name_idx: pair<string,int>) {
+            var file_name = file_name_idx.first
+            var file = string()
+            import_paths.for_each(fun(path: string) {
+                if (file_exists(path + file_name)) {
+                    file = read_file(path + file_name)
+                } else {
+                }
+            })
+            printerr(file_name + ", ")
+            var parse_tree = parsers[file_name_idx.second].parse_input(file, file_name)
+            trim(parse_tree)
+            var ast_and_imports = ast_pass.first_pass(file_name, parse_tree, this)
+            imports_to_fix += ast_and_imports.second
+            name_ast_map[file_name] = make_pair(parse_tree, ast_and_imports.first)
+        }
         printlnerr("**First Pass**")
         printerr("parsing: ")
-        var to_ret = import_first_pass(file_name)
+        import_first_pass(make_pair(file_name,0))
+        for (var i = 0; i < imports_to_fix.size; i++;) {
+            /*println(string("iteration of imports to fix: ") + i)*/
+            var threads = vector<*ulong>()
+            var num_threads = min(imports_to_fix.size - i, parsers.size)
+            for (var j = i; j < i+num_threads; j++;) {
+                var import_name = imports_to_fix[j]->import.name
+                var file_name = import_name + ".krak"
+                if (!name_ast_map.contains_key(file_name)) {
+                    /*import_first_pass(file_name)*/
+                    /*join(run(import_first_pass, file_name))*/
+                    if (num_threads > 1)
+                        threads.add(run(import_first_pass, make_pair(file_name, j-i)))
+                    else
+                        import_first_pass(make_pair(file_name,0))
+                } else {
+                    threads.add(null<ulong>())
+                }
+            }
+            /*println(string("iteration of imports to fix: ") + i + " made")*/
+            for (var j = i; j < i+num_threads; j++;) {
+                if (num_threads > 1) {
+                    if (threads[j-i])
+                        join(threads[j-i])
+                }
+                var im = imports_to_fix[j]
+                var import_name = im->import.name
+                var file_name = import_name + ".krak"
+                im->import.translation_unit = name_ast_map[file_name].second
+                add_to_scope(import_name, im->import.translation_unit, im->import.containing_translation_unit)
+            }
+            /*println(string("iteration of imports to fix: ") + i + " done")*/
+            i += num_threads-1
+        }
         printlnerr()
         printlnerr("**Second Pass**")
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.second_pass(tree_pair.first, tree_pair.second);)
@@ -51,49 +103,6 @@ obj importer (Object) {
         // this needs to be modified to do chaotic iteration on instantiating template classes, based on what I see in the C++ version
         printlnerr("**Fourth Pass**")
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.fourth_pass(tree_pair.first, tree_pair.second);)
-
-        /*
-        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) {
-            print("writing ast for: "); println(name)
-            write_file(name + ".ast.dot", ast_to_dot(tree_pair.second))
-        })
-        */
-
-        return to_ret
-    }
-    fun import_first_pass(file_name: string): *ast_node {
-        if (name_ast_map.contains_key(file_name))
-            return name_ast_map[file_name].second
-
-        /*print("pre-parse: "); println(file_name)*/
-        var file = string()
-        import_paths.for_each(fun(path: string) {
-            /*println(string("Checking ") + path + " for " + file_name)*/
-            if (file_exists(path + file_name)) {
-                /*println("Found it!")*/
-                file = read_file(path + file_name)
-                return
-            } else {
-                /*println("did not find it")*/
-            }
-        })
-        printerr(file_name + ", ")
-        var parse_tree = parse.parse_input(file, file_name)
-        /*print("post-parse: "); println(file_name)*/
-        /*write_file(file_name + ".parse.dot", syntax_tree_to_dot(parse_tree))*/
-        /*print("pre-trim: "); println(file_name)*/
-        trim(parse_tree)
-        /*print("post-trim: "); println(file_name)*/
-        /*write_file(file_name + ".trimmed_parse.dot", syntax_tree_to_dot(parse_tree))*/
-        /*print("pre-first-ast: "); println(file_name)*/
-        var ast = ast_pass.first_pass(file_name, parse_tree, this)
-        /*print("post-first-ast: "); println(file_name)*/
-        return ast
-    }
-    fun register(file_name: string, parse_tree: *tree<symbol>, translation_unit: *ast_node) {
-        name_ast_map.set(file_name, make_pair(parse_tree, translation_unit))
-        /*print("Registered parse_tree+translation_unit for ")*/
-        /*println(file_name)*/
     }
     fun trim(parse_tree: *tree<symbol>) {
         remove_node(symbol("$NULL$", false), parse_tree)

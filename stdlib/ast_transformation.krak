@@ -42,9 +42,8 @@ obj ast_transformation (Object) {
         fourth_pass_worklist.destruct()
     }
     // first pass defines all type_defs (objects and aliases), ADTs, and top-level if-comps/passthroughs
-    fun first_pass(file_name: string, parse_tree: *tree<symbol>, importer: *importer): *ast_node {
+    fun first_pass(file_name: string, parse_tree: *tree<symbol>, importer: *importer): pair<*ast_node, vector<*ast_node>> {
         var translation_unit = ast_translation_unit_ptr(file_name)
-        importer->register(file_name, parse_tree, translation_unit)
         parse_tree->children.for_each(fun(child: *tree<symbol>) {
             if (child->data.name == "type_def") {
                 translation_unit->translation_unit.children.add(first_pass_type_def(child, translation_unit, false))
@@ -63,15 +62,16 @@ obj ast_transformation (Object) {
             }
         })
 
-        // now do all imports (done second so that if it imports this translation_unit,
-        // this one already has all its types defined
+        // now do all imports
+        // re return a vector of them so importer can fix them (and our translation unit scope)
+        // up with actual pointers to the other ASTs
+        var imports = vector<*ast_node>()
         parse_tree->children.for_each(fun(child: *tree<symbol>) {
             if (child->data.name == "import") {
                 var import_identifier_children = get_nodes("identifier", child)
                 var name = concat_symbol_tree(import_identifier_children[0])
-                var outside_translation_unit = importer->import_first_pass(name + ".krak")
-                add_to_scope(name, outside_translation_unit, translation_unit)
-                var import_node = ast_import_ptr(name, outside_translation_unit)
+                var import_node = ast_import_ptr(name, translation_unit)
+                imports.add(import_node)
                 translation_unit->translation_unit.children.add(import_node)
                 ast_to_syntax.set(import_node, child)
                 add_to_scope("~enclosing_scope", translation_unit, import_node)
@@ -80,7 +80,7 @@ obj ast_transformation (Object) {
                     import_node->import.starred = true
             }
         })
-        return translation_unit
+        return make_pair(translation_unit, imports)
     }
     fun transform_traits(traits_node: *tree<symbol>): set<string> {
         if (!traits_node)
@@ -600,7 +600,11 @@ obj ast_transformation (Object) {
             new_passthrough->simple_passthrough.linker_str = concat_symbol_tree(linker_str).slice(1,-2)
         return new_passthrough
     }
-    fun transform_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return ast_statement_ptr(transform(node->children[0], scope, template_replacements));
+    fun transform_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
+        var to_ret = ast_statement_ptr(transform(node->children[0], scope, template_replacements));
+        ast_to_syntax.set(to_ret, node)
+        return to_ret
+    }
     fun transform_declaration_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
         // this might have an init position method call
         var identifiers = get_nodes("identifier", node)

@@ -13,7 +13,7 @@ import io:*
 
 obj parser (Object) {
     var input: vector<symbol>
-    var gram: grammer
+    var gram: *grammer
     var gss: gss
     var to_reduce: stack<reduction>
     var to_shift: stack< pair<*tree<int>, int> >
@@ -21,9 +21,9 @@ obj parser (Object) {
     var packed_map: map<*tree<symbol>, bool>
     var reduces_to_null_map: map<vector<symbol>, bool>
 
-    fun construct(grammerIn: grammer): *parser {
+    fun construct(grammerIn: *grammer): *parser {
         input.construct()
-        gram.copy_construct(&grammerIn)
+        gram = grammerIn
         gss.construct()
         to_reduce.construct()
         to_shift.construct()
@@ -32,9 +32,12 @@ obj parser (Object) {
         reduces_to_null_map.construct()
         return this
     }
+    fun construct(): *parser {
+        return construct(null<grammer>())
+    }
     fun copy_construct(old: *parser) {
         input.copy_construct(&old->input)
-        gram.copy_construct(&old->gram)
+        gram = old->gram
         gss.copy_construct(&old->gss)
         to_reduce.copy_construct(&old->to_reduce)
         to_shift.copy_construct(&old->to_shift)
@@ -48,7 +51,6 @@ obj parser (Object) {
     }
     fun destruct() {
         input.destruct()
-        gram.destruct()
         gss.destruct()
         to_reduce.destruct()
         to_shift.destruct()
@@ -68,13 +70,13 @@ obj parser (Object) {
         // if the zero state contains any reductions for state 0 and eof, then
         // it must be reducing to the goal state
         /*println("checking the bidness")*/
-        if (inputStr == "" && gram.parse_table.get(0, eof_symbol()).contains(action(action_type::reduce(), 0))) {
+        if (inputStr == "" && gram->parse_table.get(0, eof_symbol()).contains(action(action_type::reduce(), 0))) {
             println("Accept on no input for ")
             println(name)
             return new<tree<symbol>>()->construct(null_symbol())
         }
 
-        var lex = lexer(gram.terminals)
+        var lex = lexer(gram->terminals)
         lex.set_input(inputStr)
         var current_symbol.construct(): symbol
         for (current_symbol = lex.next(); current_symbol != eof_symbol() && current_symbol != invalid_symbol(); current_symbol = lex.next();) {
@@ -97,7 +99,7 @@ obj parser (Object) {
 
         var null_symbol_tree = null<tree<symbol>>()
 
-        gram.parse_table.get(0, input[0]).for_each(fun(act: action) {
+        gram->parse_table.get(0, input[0]).for_each(fun(act: action) {
             /*println("for each action")
             act.print()
             */
@@ -108,7 +110,7 @@ obj parser (Object) {
                 /*print("act == reduce() && == 0 Adding reduction from state: ")
                 println(v0->data)
                 */
-                to_reduce.push(reduction(v0, gram.rules[act.state_or_rule].lhs, 0, null_symbol_tree, null_symbol_tree))
+                to_reduce.push(reduction(v0, gram->rules[act.state_or_rule].lhs, 0, null_symbol_tree, null_symbol_tree))
             }
         })
 
@@ -190,11 +192,11 @@ obj parser (Object) {
             // the shift lookup will fail, and likely other things, and this is our accept
             // criteria anyway
             /*if (curr_reached->data == 0 && curr_reduction.sym == gram.rules[0].lhs)*/
-            if (curr_reduction.sym == gram.rules[0].lhs) {
+            if (curr_reduction.sym == gram->rules[0].lhs) {
                 /*println("would accept here")*/
                 return;
             }
-            var shift_to = gram.parse_table.get_shift(curr_reached->data, curr_reduction.sym).state_or_rule
+            var shift_to = gram->parse_table.get_shift(curr_reached->data, curr_reduction.sym).state_or_rule
             /*println("got shift to")*/
             var new_label =  null<tree<symbol>>()
             if (curr_reduction.length == 0) {
@@ -219,10 +221,10 @@ obj parser (Object) {
                     gss.add_edge(shift_to_node, curr_reached, new_label)
                     // do non-null reductions
                     if (curr_reduction.length) {
-                        gram.parse_table.get(shift_to, input[i]).for_each(fun(act: action) {
+                        gram->parse_table.get(shift_to, input[i]).for_each(fun(act: action) {
                             /*if (act.act == reduce && !fully_reduces_to_null(reduce_rule)) {*/
                             if (act.act == action_type::reduce() && act.rule_position != 0) {
-                                var reduce_rule = gram.rules[act.state_or_rule]
+                                var reduce_rule = gram->rules[act.state_or_rule]
                                 to_reduce.push(reduction(curr_reached, reduce_rule.lhs,
                                                             act.rule_position,
                                                 get_nullable_parts(reduce_rule),
@@ -238,11 +240,11 @@ obj parser (Object) {
                 shift_to_node = gss.new_node(shift_to)
                 gss.add_to_frontier(i, shift_to_node)
                 gss.add_edge(shift_to_node, curr_reached, new_label)
-                gram.parse_table.get(shift_to, input[i]).for_each(fun(act: action) {
+                gram->parse_table.get(shift_to, input[i]).for_each(fun(act: action) {
                     if (act.act == action_type::push()) {
                         to_shift.push(make_pair(shift_to_node, act.state_or_rule))
                     } else {
-                        var action_rule = gram.rules[act.state_or_rule]
+                        var action_rule = gram->rules[act.state_or_rule]
                         // tricky tricky tricky. Fully reduces to null is not the same as act.rule_position being 0
                         /*if (fully_reduces_to_null(action_rule)) {*/
                         if (act.rule_position == 0) {
@@ -287,8 +289,8 @@ obj parser (Object) {
                 println(i+1)
                 */
                 gss.add_edge(shift_to_node, shift.first, new_label)
-                gram.parse_table.get_reduces(shift.second, input[i+1]).for_each(fun(action: action) {
-                    var reduce_rule = gram.rules[action.state_or_rule]
+                gram->parse_table.get_reduces(shift.second, input[i+1]).for_each(fun(action: action) {
+                    var reduce_rule = gram->rules[action.state_or_rule]
                     /*if (!fully_reduces_to_null(reduce_rule)) {*/
                     if (action.rule_position != 0) {
                         to_reduce.push(reduction(shift.first, reduce_rule.lhs, action.rule_position,
@@ -308,14 +310,14 @@ obj parser (Object) {
                 /*println("post add to frontier")*/
                 gss.add_edge(shift_to_node, shift.first, new_label)
                 /*println("post add edger")*/
-                gram.parse_table.get(shift.second, input[i+1]).for_each(fun(action: action) {
+                gram->parse_table.get(shift.second, input[i+1]).for_each(fun(action: action) {
                     /*println("looking at an action")*/
                     if (action.act == action_type::push()) {
                         /*println("is push")*/
                         next_shifts.push(make_pair(shift_to_node, action.state_or_rule))
                     } else {
                         /*println("is reduce")*/
-                        var action_rule = gram.rules[action.state_or_rule]
+                        var action_rule = gram->rules[action.state_or_rule]
                         /*if (!fully_reduces_to_null(action_rule)) {*/
                         if (action.rule_position != 0) {
                             /*println("does not reduce to null")*/
@@ -391,7 +393,7 @@ obj parser (Object) {
     }
     fun reduces_to_null(r: ref rule): bool {
         if (!reduces_to_null_map.contains_key(r.rhs))
-            reduces_to_null_map[r.rhs] = gram.first_vector(r.rhs).contains(null_symbol())
+            reduces_to_null_map[r.rhs] = gram->first_vector(r.rhs).contains(null_symbol())
         return reduces_to_null_map[r.rhs]
     }
     fun get_nullable_parts(r: ref rule): *tree<symbol> {

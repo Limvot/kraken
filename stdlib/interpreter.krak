@@ -656,7 +656,7 @@ obj interpreter (Object) {
                 return make_pair(value::variable(make_pair(get_real_value(dereference_val).pointer.first, dereference_val.pointer.second->clone_with_decreased_indirection())), control_flow::nor())
             }
             // check for built-in-ish externs (everything the standard library needs)
-            if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "fflush" || func_name == "snprintf" || func_name == "fopen" || func_name == "fclose" || func_name == "ftell" || func_name == "fseek" || func_name == "fread" || func_name == "fwrite" || func_name == "atan" || func_name == "atan2" || func_name == "acos" || func_name == "asin" || func_name == "tan" || func_name == "cos" || func_name == "sin")
+            if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "memmove" || func_name == "fflush" || func_name == "snprintf" || func_name == "fopen" || func_name == "fclose" || func_name == "ftell" || func_name == "fseek" || func_name == "fread" || func_name == "fwrite" || func_name == "atan" || func_name == "atan2" || func_name == "acos" || func_name == "asin" || func_name == "tan" || func_name == "cos" || func_name == "sin")
                 return make_pair(call_built_in_extern(func_name, parameters), control_flow::nor())
             if (!func_call_func->function.body_statement)
                 error(string("trying to call unsupported extern function: ") + func_name)
@@ -764,6 +764,9 @@ obj interpreter (Object) {
         } else if (func_name == "free") {
             assert(parameters.size == 1 && is_pointer(parameters[0]), "Calling free with wrong params")
             free(parameters[0].pointer.first)
+        } else if (func_name == "memmove") {
+            assert(parameters.size == 3 && is_pointer(parameters[0]) && is_pointer(parameters[1]) && is_ulong_int(parameters[2]), "Calling memmove with wrong params")
+            return value::pointer(make_pair(memmove((parameters[0].pointer.first) cast *void, (parameters[1].pointer.first) cast *void, parameters[2].ulong_int), type_ptr(base_type::void_return(), 1)))
         } else if (func_name == "fflush") {
             assert(parameters.size == 1 && is_integer(parameters[0]), "Calling fflush with wrong params")
             fflush(parameters[0].integer)
@@ -884,7 +887,7 @@ obj interpreter (Object) {
         }
         error("bad branch type")
     }
-    fun interpret_code_block(block: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
+    fun interpret_code_block(block: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node): pair<value, control_flow> {
         var_stack->push(map<*ast_node,value>())
         var defer_stack = stack<*ast_node>()
         for (var i = 0; i < block->code_block.children.size; i++;) {
@@ -1025,7 +1028,7 @@ obj interpreter (Object) {
             ast_node::while_loop(backing) return interpret_while_loop(node, var_stack, enclosing_object, enclosing_func, defer_stack)
             ast_node::for_loop(backing) return interpret_for_loop(node, var_stack, enclosing_object, enclosing_func)
             ast_node::branching_statement(backing) return interpret_branching_statement(node)
-            ast_node::code_block(backing) return interpret_code_block(node, var_stack, enclosing_object, enclosing_func, defer_stack)
+            ast_node::code_block(backing) return interpret_code_block(node, var_stack, enclosing_object, enclosing_func)
             ast_node::return_statement(backing) return interpret_return_statement(node, var_stack, enclosing_object, enclosing_func, defer_stack)
             ast_node::declaration_statement(backing) return interpret_declaration_statement(node, var_stack, enclosing_object, enclosing_func, defer_stack)
             ast_node::assignment_statement(backing) return interpret_assignment_statement(node, var_stack, enclosing_object, enclosing_func, defer_stack)

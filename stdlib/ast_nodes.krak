@@ -96,8 +96,8 @@ obj translation_unit (Object) {
         return children == other.children && name == other.name && lambdas == other.lambdas
     }
 }
-fun ast_import_ptr(name: string, translation_unit: *ast_node): *ast_node {
-    var to_ret.construct(name, translation_unit): import
+fun ast_import_ptr(name: string, containing_tu: *ast_node): *ast_node {
+    var to_ret.construct(name, containing_tu): import
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::import(to_ret))
     return ptr
@@ -111,14 +111,16 @@ fun is_import(node: *ast_node): bool {
 obj import (Object) {
     var scope: map<string, vector<*ast_node>>
     var imported: set<string>
+    var containing_translation_unit: *ast_node
     var translation_unit: *ast_node
     var name: string
     var starred: bool
-    fun construct(nameIn: string, translation_unit_in: *ast_node): *import  {
+    fun construct(nameIn: string, containing_tu: *ast_node): *import  {
         scope.construct()
         imported.construct()
         name.copy_construct(&nameIn)
-        translation_unit = translation_unit_in
+        containing_translation_unit = containing_tu
+        translation_unit = null<ast_node>()
         starred = false
         return this
     }
@@ -126,6 +128,7 @@ obj import (Object) {
         scope.copy_construct(&old->scope)
         imported.copy_construct(&old->imported)
         name.copy_construct(&old->name)
+        containing_translation_unit = old->containing_translation_unit
         translation_unit = old->translation_unit
         starred = old->starred
     }
@@ -139,7 +142,7 @@ obj import (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref import): bool {
-        return imported == other.imported && name == other.name && translation_unit == other.translation_unit && starred == other.starred
+        return imported == other.imported && name == other.name && containing_translation_unit == other.containing_translation_unit && translation_unit == other.translation_unit && starred == other.starred
     }
 }
 fun ast_identifier_ptr(name: *char, type: *type, enclosing_scope: *ast_node): *ast_node {

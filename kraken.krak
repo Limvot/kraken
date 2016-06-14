@@ -8,6 +8,7 @@ import symbol:*
 import tree:*
 import serialize:*
 import c_generator:*
+import c_line_control:*
 import interpreter:*
 import os:*
 import compiler_version
@@ -24,11 +25,15 @@ fun main(argc: int, argv: **char):int {
     var interpret_instead = false
     var argv1_str = string(argv[1])
     var opt_str = string("-O3")
+    var line_ctrl = false
     if (argv1_str == "-i") {
         interpret_instead = true
         input_file_offset++
     } else if (argv1_str.length() > 2 && argv1_str.slice(0,2) == "-O") {
         opt_str = argv1_str
+        input_file_offset++
+    } else if (argv1_str == "-g") {
+        line_ctrl = true
         input_file_offset++
     }
     var kraken_file_name = string(argv[input_file_offset])
@@ -77,15 +82,31 @@ fun main(argc: int, argv: **char):int {
         println("done writing")
     }
 
-    var parse.construct(gram): parser
+    var parse1.construct(&gram): parser
+    /*var parse2.construct(&gram): parser*/
+    /*var parse3.construct(&gram): parser*/
+    /*var parse4.construct(&gram): parser*/
+    /*var parse5.construct(&gram): parser*/
+    /*var parse6.construct(&gram): parser*/
+    /*var parse7.construct(&gram): parser*/
+    /*var parse8.construct(&gram): parser*/
     var ast_pass.construct(): ast_transformation
-    var importer.construct(parse, ast_pass, vector(string(), base_dir + "/stdlib/")): importer
+    var parsers = vector(parse1)
+    /*var parsers = vector(parse1,parse2,parse3,parse4)*/
+    /*var parsers = vector(parse1,parse2,parse3,parse4,parse5,parse6)*/
+    /*var parsers = vector(parse1,parse2,parse3,parse4,parse5,parse6,parse7,parse8)*/
+    var importer.construct(parsers, ast_pass, vector(string(), base_dir + "/stdlib/")): importer
     importer.import(kraken_file_name)
     if (interpret_instead) {
         printlnerr("Interpreting!")
         var interpret.construct(importer.name_ast_map, importer.ast_pass.ast_to_syntax): interpreter
         interpret.call_main()
     } else {
+        if (line_ctrl) {
+            printlnerr("running C-specific passes")
+            printlnerr("running #line")
+            c_line_control(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
+        }
         printlnerr("Generating C")
         var c_generator.construct(): c_generator
         var c_output_pair = c_generator.generate_c(importer.name_ast_map, importer.ast_pass.ast_to_syntax)
