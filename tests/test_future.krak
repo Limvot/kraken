@@ -22,7 +22,6 @@ fun main() : int {
 
     println("Threads have finished")
 
-    pthread_exit()
     println("All Done!")
 
     return 0

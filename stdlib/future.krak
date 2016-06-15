@@ -1,15 +1,18 @@
+import mem:*
 
-__if_comp__ __C__ simple_passthrough(::"-pthread") """
+__if_comp__ __C__ simple_passthrough(::"-pthread") 
+"""
 #include <pthread.h>
 """
 
-fun pthread_create(thrd : *ulong, strt_routine : fun() : void) : int {
+fun pthread_create(thrd : *ulong, strt_routine : fun(*void) : *void, input : *void) : int {
     __if_comp__ __C__ { 
-    simple_passthrough(thrd,strt_routine::) """
+    simple_passthrough(thrd,strt_routine,input::) """
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-    int ret = pthread_create((pthread_t*)thrd, &attr, strt_routine.func, strt_routine.data);
+    //int ret = pthread_create((pthread_t*)thrd, &attr, strt_routine.func, strt_routine.data);
+    int ret = pthread_create((pthread_t*)thrd, &attr, strt_routine.func, input);
     pthread_attr_destroy(&attr);
     return ret;
     """
@@ -27,7 +30,8 @@ fun pthread_join(thrd : *ulong) : int {
 }
 
 fun pthread_exit() : *void {
-    __if_comp__ __C__ { simple_passthrough """
+    __if_comp__ __C__ { simple_passthrough 
+    """
     pthread_exit(NULL);
     """
     }
@@ -40,25 +44,35 @@ fun future<T>(in : fun() : T ) : future<T> {
     return out
 }
 
+obj func_res { var func : *void; var result : *void; }
+
 obj future<T> {
     var result : T
     var status : int
     var psy : fun() : T
-    var wrapper : fun() : void
+    var wrapper : fun(*void) : * void;
     var thread : ulong
 
     fun construct(in : fun() : T) : *future<T> {
         status = 0
         psy = in
-        wrapper = fun() : void{
-            result = psy()
-            pthread_exit()
+        wrapper = fun(in : *void) : *void {
+            var triple = (in) cast *func_res;
+            var func = (triple->func) cast *fun() : T;
+            var res : *T = (triple->result) cast *T;
+            (*res) = (*func)();
+            pthread_exit();
+            delete(in);
+            return null<void>();
         }
         return this
     }
 
     fun run() {
-        status = pthread_create(&thread,wrapper)
+        var in = new<func_res>();
+        in->result = (&result) cast *void;
+        in->func = (&psy) cast *void;
+        status = pthread_create(&thread,wrapper,(in) cast *void)
     }
 
     fun get_status():int {
