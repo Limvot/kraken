@@ -18,6 +18,8 @@ fun to_string(in: long): string
     return to_string_num(in)
 fun to_string(in: ulong): string
     return to_string_num(in)
+fun to_string<T>(in: *T): string
+    return string("ptr:<") + to_string_num((in) cast ulong) + ">"
 
 fun string_to_int(it: string): int {
     var is_negative = false

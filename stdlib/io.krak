@@ -35,11 +35,6 @@ fun print(toPrint: *char) : void {
 fun println()
     print("\n")
 
-fun print<T>(toPrint: *T) {
-    print("ptr:<")
-    print((toPrint) cast ulong)
-    print(">")
-}
 fun print(toPrint: char) : void
     print(string::string(toPrint))
 

@@ -995,7 +995,7 @@ obj c_generator (Object) {
             ast_node::value(backing) return generate_value(node, need_variable)
             ast_node::identifier(backing) return generate_identifier(node, enclosing_object, enclosing_func)
         }
-        error("/* COULD NOT GENERATE */")
+        error(string("COULD NOT GENERATE ") + get_ast_name(node))
         return code_triple("/* COULD NOT GENERATE */")
     }
     fun type_decoration(type: *type): string {
@@ -1053,19 +1053,21 @@ obj c_generator (Object) {
             base_type::adt() return get_name(type->type_def) + indirection
             base_type::function() {
                 // maybe disregard indirection in the future?
-                if (function_type_map.contains_key(*type))
-                   return function_type_map[*type]
-                var temp_name = string("function_struct") + get_id()
-                var temp = string()
-                type->parameter_types.for_each(fun(parameter_type: *type) temp += string(", ") + type_to_c(parameter_type) + " ";)
-                var with_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_with_data)(void*" + temp + ");\n"
-                var without_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_without_data)(" + temp.slice(1,-1) + ");\n"
-                function_typedef_string += with_data
-                function_typedef_string += without_data
-                function_typedef_string += string("typedef struct {\nvoid* data;\n") + temp_name  + "_with_data func;\n} " + temp_name + ";\n"
-                // again, the indirection
-                function_type_map[*type] = temp_name+indirection
-                return temp_name + indirection
+                type = type->clone_with_indirection(0,false)
+                if (!function_type_map.contains_key(*type)) {
+                    var temp_name = string("function_struct") + get_id()
+                    var temp = string()
+                    type->parameter_types.for_each(fun(parameter_type: *type) temp += string(", ") + type_to_c(parameter_type) + " ";)
+                    var with_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_with_data)(void*" + temp + ");\n"
+                    var without_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_without_data)(" + temp.slice(1,-1) + ");\n"
+                    function_typedef_string += with_data
+                    function_typedef_string += without_data
+                    function_typedef_string += string("typedef struct {\nvoid* data;\n") + temp_name  + "_with_data func;\n} " + temp_name + ";\n"
+                    function_typedef_string += string("/* ") + type->to_string() + " */\n"
+                    // again, the indirection
+                    function_type_map[*type] = temp_name
+                }
+                return function_type_map[*type] + indirection
             }
         }
         return string("impossible type") + indirection

@@ -1,0 +1,76 @@
+import symbol:*
+import tree:*
+import vector:*
+import map:*
+import util:*
+import string:*
+import mem:*
+import io:*
+import ast_nodes:*
+import ast_transformation:*
+
+fun get_line(node: *tree<symbol>, name: string): *ast_node {
+    var to_ret = ast_simple_passthrough_ptr()
+    to_ret->simple_passthrough.passthrough_str = string("\n#line ") + get_first_terminal(node)->data.position + " \"" + name + "\"\n"
+    return to_ret
+}
+
+fun add_before_in(to_add: *ast_node, before: *ast_node, in: *ast_node) {
+    var bc = null<vector<*ast_node>>()
+    match(*in) {
+        ast_node::translation_unit(backing) bc = &in->translation_unit.children
+        ast_node::code_block(backing) bc = &in->code_block.children
+    }
+    if (bc) {
+        for (var i = 0; i < bc->size; i++;) {
+            if ((*bc)[i] == before) {
+                /*println("\nbefore\n")*/
+                /*(*bc).for_each(fun(n:*ast_node) println(get_ast_name(n));)*/
+                /*(*bc).for_each(fun(n:*ast_node) println(n);)*/
+                (*bc).add(to_add, i)
+                /*println("\nafter\n")*/
+                /*(*bc).for_each(fun(n:*ast_node) println(get_ast_name(n));)*/
+                /*(*bc).for_each(fun(n:*ast_node) println(n);)*/
+                /*println("\n")*/
+                return
+            }
+        }
+    }
+    error(string("cannot add_before_in to ") + get_ast_name(in))
+}
+
+fun c_line_control(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+    var first = true
+    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+        var helper: fun(*ast_node, *ast_node):void = fun(node: *ast_node, parent: *ast_node) {
+            if (!node) return
+            match(*node) {
+                ast_node::translation_unit(backing) get_ast_children(node).for_each(fun(n: *ast_node) helper(n, node);)
+                ast_node::type_def(backing) {
+                    /*println(string("adding ") + get_ast_name(node) + " to " + get_ast_name(parent))*/
+                    /*add_before_in(get_line(), node, parent)*/
+                    /*get_ast_children(node).for_each(fun(n: *ast_node) helper(n, node);)*/
+                }
+                ast_node::function(backing) get_ast_children(node).for_each(fun(n: *ast_node) helper(n, node);)
+                ast_node::code_block(backing) get_ast_children(node).for_each(fun(n: *ast_node) helper(n, node);)
+                ast_node::statement(backing) {
+                    if (is_code_block(parent) && ast_to_syntax->contains_key(node)) {
+                        /*println(string("adding ") + get_ast_name(node) + " to " + get_ast_name(parent))*/
+                        add_before_in(get_line(ast_to_syntax->get(node), name), node, parent)
+                    }
+                    get_ast_children(node).for_each(fun(n: *ast_node) helper(n, node);)
+                }
+                ast_node::if_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) helper(n, node);)
+                ast_node::match_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) helper(n, node);)
+                ast_node::case_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) helper(n, node);)
+                ast_node::while_loop(backing) get_ast_children(node).for_each(fun(n: *ast_node) helper(n, node);)
+                ast_node::for_loop(backing) get_ast_children(node).for_each(fun(n: *ast_node) helper(n, node);)
+            }
+        }
+        if (first)
+            helper(syntax_ast_pair.second, null<ast_node>())
+        first = false
+    })
+}
+
+

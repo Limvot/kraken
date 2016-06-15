@@ -20,7 +20,7 @@ fun run<T>(func :fun(T): void, data: T) : *ulong {
     // to avoid extra copy etc
     var func_copy = new<fun(T):void>()
     var func_and_data = new<pair<*void, *T>>()->construct()
-    *data_copy = data
+    maybe_copy_construct(data_copy, &data)
     memmove((func_copy) cast *void, (&func) cast *void, #sizeof<fun(T):void>)
     *func_and_data = make_pair((func_copy) cast *void, data_copy)
     var wrapper = fun(func_and_data: *void): *void {

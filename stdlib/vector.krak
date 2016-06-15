@@ -34,7 +34,7 @@ obj vector<T> (Object, Serializable) {
     }
 
     fun copy_construct(old: *vector<T>): void {
-        construct(old->size)
+        construct(old->available)
         size = old->size
         if (is_object<T>()) {
             for (var i = 0; i < old->size; i++;)
@@ -213,10 +213,24 @@ obj vector<T> (Object, Serializable) {
     }
     fun add(dataIn: ref T): void { addEnd(dataIn); }
     fun addEnd(dataIn: ref T): void {
-        if (size+1 >= available)
+        // if we resize, we need to be careful as the dataIn reference
+        // may come from this itself
+        if (size+1 > available) {
+            var temp = dataIn
             resize((size+1)*2);
-        maybe_copy_construct(&data[size], &dataIn);
+            maybe_copy_construct(&data[size], &temp);
+        } else {
+            maybe_copy_construct(&data[size], &dataIn);
+        }
         size++;
+    }
+
+    fun add(dataIn: ref T, index: int) {
+        add(last())
+        for (var i = size-2; i > index; i--;) {
+            data[i] = data[i-1]
+        }
+        data[index] = dataIn
     }
 
     fun remove(index: int) {
