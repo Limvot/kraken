@@ -71,4 +71,6 @@ obj stack<T> (Object, Serializable) {
     fun for_each_reverse(func: fun(T):void) {
         data.for_each_reverse(func)
     }
+    fun reverse_vector(): vector::vector<T>
+        return data.reverse()
 }

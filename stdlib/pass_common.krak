@@ -1,0 +1,94 @@
+import ast_nodes:*
+import mem:*
+import util:*
+import vector:*
+import stack:*
+import string:*
+
+fun get_children_pointer(node: *ast_node): *vector<*ast_node> {
+    var bc = null<vector<*ast_node>>()
+    match(*node) {
+        ast_node::translation_unit(backing) bc = &node->translation_unit.children
+        ast_node::code_block(backing) bc = &node->code_block.children
+    }
+    return bc
+}
+
+fun remove_full_statement(node: *ast_node, parent_chain: *stack<*ast_node>): *ast_node {
+    if (is_statement(node))
+        return remove(node, parent_chain)
+    if (is_statement(parent_chain->top()))
+        return remove(parent_chain->top(), parent_chain->from_top(1))
+    error(string("cannot remove full statement in ") + get_ast_name(parent_chain->top()))
+}
+
+fun remove(orig: *ast_node, in: *stack<*ast_node>): *ast_node
+    return remove(orig, in->top())
+fun remove(orig: *ast_node, in: *ast_node): *ast_node {
+    var bc = get_children_pointer(in)
+    if (bc) {
+        var i = bc->find(orig)
+        if (i >= 0) {
+            var temp = bc->at(i)
+            bc->remove(i)
+            return temp
+        }
+    }
+    error(string("cannot remove inside ") + get_ast_name(in))
+}
+fun replace_with_in(orig: *ast_node, new: *ast_node, in: *stack<*ast_node>)
+    replace_with_in(orig, new, in->top())
+fun replace_with_in(orig: *ast_node, new: *ast_node, in: *ast_node) {
+    if (is_statement(in)) {
+        in->statement.child = new
+    } else {
+        var bc = get_children_pointer(in)
+        if (bc) {
+            var i = bc->find(orig)
+            if (i >= 0) {
+                bc->set(i, new)
+                return
+            }
+        }
+        error(string("cannot replace_with_in inside ") + get_ast_name(in))
+    }
+}
+
+fun add_before_in(to_add: *ast_node, before: *ast_node, in: *stack<*ast_node>)
+    add_before_in(to_add, before, in->top())
+fun add_before_in(to_add: *ast_node, before: *ast_node, in: *ast_node) {
+    var bc = get_children_pointer(in)
+    if (bc) {
+        var i = bc->find(before)
+        if (i >= 0) {
+            bc->add(to_add, i)
+            return
+        }
+    }
+    error(string("cannot add_before_in to ") + get_ast_name(in))
+}
+
+fun run_on_tree(func_before: fun(*ast_node,*stack<*ast_node>):void, func_after: fun(*ast_node,*stack<*ast_node>):void, tree: *ast_node) {
+    var parent_stack = stack<*ast_node>()
+    run_on_tree_helper(func_before, func_after, tree, &parent_stack)
+}
+fun run_on_tree_helper(func_before: fun(*ast_node,*stack<*ast_node>):void, func_after: fun(*ast_node,*stack<*ast_node>):void, node: *ast_node, parent_chain: *stack<*ast_node>) {
+    if (!node) return
+    func_before(node, parent_chain)
+    parent_chain->push(node)
+    match(*node) {
+        ast_node::translation_unit(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+        ast_node::type_def(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+        ast_node::function(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+        ast_node::code_block(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+        ast_node::statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+        ast_node::if_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+        ast_node::match_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+        ast_node::case_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+        ast_node::while_loop(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+        ast_node::for_loop(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+    }
+    parent_chain->pop()
+    func_after(node, parent_chain)
+}
+

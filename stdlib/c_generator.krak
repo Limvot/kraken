@@ -688,6 +688,7 @@ obj c_generator (Object) {
         return to_ret
     }
     fun generate_defer_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
+        error("Unremoved defer!")
         defer_stack->top().second.push(node->defer_statement.statement)
         return code_triple("/*defer wanna know what*/")
     }

@@ -1,16 +1,17 @@
 import io:*
 import grammer:*
 import parser:*
-import ast_transformation:*
 import string:*
 import util:*
 import symbol:*
 import tree:*
 import serialize:*
-import c_generator:*
-import c_line_control:*
 import interpreter:*
 import os:*
+import ast_transformation:*
+import defer_lower:*
+import c_line_control:*
+import c_generator:*
 import compiler_version
 
 
@@ -97,6 +98,9 @@ fun main(argc: int, argv: **char):int {
     /*var parsers = vector(parse1,parse2,parse3,parse4,parse5,parse6,parse7,parse8)*/
     var importer.construct(parsers, ast_pass, vector(string(), base_dir + "/stdlib/")): importer
     importer.import(kraken_file_name)
+    // Passes
+    printlnerr("Lowering Defer")
+    defer_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
     if (interpret_instead) {
         printlnerr("Interpreting!")
         var interpret.construct(importer.name_ast_map, importer.ast_pass.ast_to_syntax): interpreter
