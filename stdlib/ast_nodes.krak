@@ -190,10 +190,12 @@ obj identifier (Object) {
         return name == other.name && type == other.type && enclosing_scope == other.enclosing_scope
     }
 }
-fun ast_type_def_ptr(name: ref string): *ast_node
+fun ast_type_def_ptr(name: ref string): *ast_node {
     return ast_type_def_ptr(name, false)
+}
 fun ast_type_def_ptr(name: ref string, is_union: bool): *ast_node {
-    var to_ret.construct(name, is_union): type_def
+    /*var to_ret.construct(name, is_union): type_def*/
+    var to_ret.construct(name): type_def
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::type_def(to_ret))
     return ptr
@@ -211,10 +213,11 @@ obj type_def (Object) {
     var self_type: *type
     var variables: vector<*ast_node>
     var methods: vector<*ast_node>
-    fun construct(nameIn: ref string, is_unionIn: bool): *type_def  {
+    /*fun construct(nameIn: ref string, is_unionIn: bool): *type_def  {*/
+    fun construct(nameIn: ref string): *type_def  {
         scope.construct()
         name.copy_construct(&nameIn)
-        is_union = is_unionIn
+        /*is_union = is_unionIn*/
         self_type = null<type>()
         variables.construct()
         methods.construct()
@@ -224,7 +227,7 @@ obj type_def (Object) {
         self_type = old->self_type
         scope.copy_construct(&old->scope)
         name.copy_construct(&old->name)
-        is_union = old->is_union
+        /*is_union = old->is_union*/
         variables.copy_construct(&old->variables)
         methods.copy_construct(&old->methods)
     }
@@ -239,7 +242,8 @@ obj type_def (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref type_def): bool {
-        return name == other.name && is_union == other.is_union && self_type == other.self_type && variables == other.variables && methods == other.methods
+        /*return name == other.name && is_union == other.is_union && self_type == other.self_type && variables == other.variables && methods == other.methods*/
+        return name == other.name && self_type == other.self_type && variables == other.variables && methods == other.methods
     }
 }
 fun ast_adt_def_ptr(name: string): *ast_node {
@@ -1133,7 +1137,12 @@ fun get_ast_name(node: *ast_node): string {
         ast_node::translation_unit(backing) return string("translation_unit: ") + backing.name
         ast_node::import(backing) return string("import: ") + backing.name + "; [" + backing.imported.reduce(fun(name: string, acc: string): string return acc + " " + name;, string()) + " ]"
         ast_node::identifier(backing) return string("identifier: ") + backing.name + ": " + backing.type->to_string()
-        ast_node::type_def(backing) return string("type_def: ") + backing.name + " union?:" + backing.is_union
+        ast_node::type_def(backing) {
+            /*if (backing.is_union)*/
+                /*return string("type_def union: ") + backing.name*/
+            /*else*/
+                return string("type_def: ") + backing.name
+        }
         ast_node::adt_def(backing) return string("adt_def: ") + backing.name
         ast_node::function(backing) {
             if (backing.is_extern)

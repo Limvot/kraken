@@ -9,6 +9,7 @@ import serialize:*
 import interpreter:*
 import os:*
 import ast_transformation:*
+/*import adt_lower:**/
 import defer_lower:*
 import c_line_control:*
 import c_generator:*
@@ -99,6 +100,8 @@ fun main(argc: int, argv: **char):int {
     var importer.construct(parsers, ast_pass, vector(string(), base_dir + "/stdlib/")): importer
     importer.import(kraken_file_name)
     // Passes
+    /*printlnerr("Lowering ADTs")*/
+    /*adt_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
     printlnerr("Lowering Defer")
     defer_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
     if (interpret_instead) {
