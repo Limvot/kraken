@@ -103,7 +103,8 @@ obj ast_transformation (Object) {
             add_to_scope(name, template, scope)
             return template
         } else {
-            var type_def_node = ast_type_def_ptr(name)
+            // pass in whether or not this is a union
+            var type_def_node = ast_type_def_ptr(name, concat_symbol_tree(get_node("obj_nonterm", child)) == "uni")
             type_def_node->type_def.self_type = type_ptr(type_def_node, transform_traits(get_node("traits", child)))
             ast_to_syntax.set(type_def_node, child)
             add_to_scope("~enclosing_scope", scope, type_def_node)

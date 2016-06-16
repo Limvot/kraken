@@ -445,8 +445,16 @@ obj c_generator (Object) {
         type_poset.get_sorted().for_each(fun(vert: *ast_node) {
             /*var base_name = vert->type_def.name*/
             var base_name = get_name(vert)
-            plain_typedefs += string("typedef struct ") + base_name + "_dummy " + base_name + ";\n"
-            structs += string("struct ") + base_name + "_dummy {\n"
+            plain_typedefs += string("typedef ")
+            if (vert->type_def.is_union) {
+                plain_typedefs += "union "
+                structs += "union "
+            } else {
+                plain_typedefs += "struct "
+                structs += "struct "
+            }
+            plain_typedefs += base_name + "_dummy " + base_name + ";\n"
+            structs += base_name + "_dummy {\n"
             if (is_type_def(vert)) {
                 vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<ast_node>(), null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ";\n";) // also no defer stack
                 // generate the methods (note some of these may be templates)

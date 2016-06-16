@@ -1,0 +1,22 @@
+import io:*
+
+uni packed {
+    var a: int
+    var b: double
+}
+
+obj loose {
+    var a: int
+    var b: double
+}
+
+fun main():int {
+    var a: packed
+    var b: loose
+    println(#sizeof<packed> < #sizeof<loose>)
+    a.a = 4
+    println(a.a)
+    a.b = 4.4
+    println(a.b)
+    return 0
+}
