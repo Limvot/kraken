@@ -83,9 +83,8 @@ opt_parameter_list = parameter_list | ;
 parameter_list = parameter_list WS "," WS parameter | parameter ;
 parameter = boolean_expression ;
 
-def_nonterm = "def" ;
-obj_nonterm = "obj" ;
-type_def = def_nonterm WS identifier WS type | obj_nonterm WS identifier WS template_dec WS "{" WS declaration_block WS "}" | obj_nonterm WS identifier WS "{" WS declaration_block WS "}" | obj_nonterm WS identifier WS template_dec WS traits WS "{" WS declaration_block WS "}" | obj_nonterm WS identifier WS traits WS "{" WS declaration_block WS "}" ;
+obj_nonterm = "obj" | "uni" ;
+type_def = obj_nonterm WS identifier WS template_dec WS "{" WS declaration_block WS "}" | obj_nonterm WS identifier WS "{" WS declaration_block WS "}" | obj_nonterm WS identifier WS template_dec WS traits WS "{" WS declaration_block WS "}" | obj_nonterm WS identifier WS traits WS "{" WS declaration_block WS "}" ;
 
 declaration_block = declaration_statement line_end WS declaration_block | function WS declaration_block | declaration_statement line_end | function | ;
 traits = "\(" WS trait_list WS "\)" ;
