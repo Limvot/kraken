@@ -97,7 +97,7 @@ else
                         echo "no ${kraken}_bootstrap, bootstrapping using starting from cached version"
                         git checkout ${bootstrap_commits[$cached_index]}
                         cp "../cached_builds/${bootstrap_commits[$cached_index]}/kraken.krak.c" "./"
-                        cc kraken.krak.c -O3 -o kraken_bootstrap
+                        cc kraken.krak.c -lm -lpthread -O3 -o kraken_bootstrap
                     fi
 
                     # loop through the chain

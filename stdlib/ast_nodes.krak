@@ -190,10 +190,11 @@ obj identifier (Object) {
         return name == other.name && type == other.type && enclosing_scope == other.enclosing_scope
     }
 }
-fun ast_type_def_ptr(name: ref string): *ast_node {
-    return ast_type_def_ptr(name, false)
-}
-fun ast_type_def_ptr(name: ref string, is_union: bool): *ast_node {
+fun ast_type_def_ptr(name: string): *ast_node {
+/*fun ast_type_def_ptr(name: ref string): *ast_node {*/
+    /*return ast_type_def_ptr(name, false)*/
+/*}*/
+/*fun ast_type_def_ptr(name: ref string, is_union: bool): *ast_node {*/
     /*var to_ret.construct(name, is_union): type_def*/
     var to_ret.construct(name): type_def
     var ptr = new<ast_node>()
@@ -209,12 +210,13 @@ fun is_type_def(node: *ast_node): bool {
 obj type_def (Object) {
     var scope: map<string, vector<*ast_node>>
     var name: string
-    var is_union: bool
+    /*var is_union: bool*/
     var self_type: *type
     var variables: vector<*ast_node>
     var methods: vector<*ast_node>
     /*fun construct(nameIn: ref string, is_unionIn: bool): *type_def  {*/
     fun construct(nameIn: ref string): *type_def  {
+    /*fun construct(nameIn: string): *type_def  {*/
         scope.construct()
         name.copy_construct(&nameIn)
         /*is_union = is_unionIn*/
