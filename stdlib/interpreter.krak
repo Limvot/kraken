@@ -288,7 +288,6 @@ fun store_into_variable(to: value, from: value) {
     // TODO - check to make sure that we don't have to cast pre assign (perhaps alwyas send through the cast?)
     match (variable.second->base) {
         base_type::object() { assert(is_object_like(from), "mismatching assignemnt types - from is not object"); memmove(variable.first, from.object_like.first, type_size(from.object_like.second)); }
-        base_type::adt() error(string("trying to store into an adt: ") + variable.second->to_string())
         base_type::function() { assert(is_function(from), "mismatching assignemnt types - from is not function"); *(variable.first) cast *pair<*ast_node, map<*ast_node,value>> = from.function; }
         base_type::boolean() { assert(is_boolean(from), "mismatching assignemnt types - from is not boolean"); *(variable.first) cast *bool = from.boolean; }
         base_type::character() { assert(is_character(from), "mismatching assignemnt types - from is not character"); *(variable.first) cast *char = from.character; }
@@ -493,7 +492,7 @@ fun pop_and_free(var_stack: *stack<map<*ast_node, value>>) {
 
 obj interpreter (Object) {
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
-    var name_ast_map: map<string, pair<*tree<symbol>,*ast_node>> 
+    var name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>
     var globals: map<*ast_node, value>
     var id_counter: int
     fun get_id(): string return to_string(id_counter++);
@@ -615,7 +614,7 @@ obj interpreter (Object) {
         var parameters = vector<value>()
         var parameter_sources = vector<*ast_node>()
         // if we don't have to copy_construct params (is an operator, or has no object params)
-        if (func_name == "&" || !func_call_parameters.any_true(fun(p: *ast_node): bool return get_ast_type(p)->is_object_like() && get_ast_type(p)->indirection == 0;)) {
+        if (func_name == "&" || !func_call_parameters.any_true(fun(p: *ast_node): bool return get_ast_type(p)->is_object() && get_ast_type(p)->indirection == 0;)) {
             parameters = func_call_parameters.map(fun(p: *ast_node): value return interpret(p, var_stack, enclosing_object, enclosing_func, defer_stack).first;)
             if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/"
                 || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
@@ -694,7 +693,7 @@ obj interpreter (Object) {
                     else
                         new_var_stack.top()[param_ident] = wrap_into_variable(parameters[i])
                 } else {
-                    new_var_stack.top()[param_ident] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
+                    new_var_stack.top()[param_ident] = value::variable(make_pair(malloc(type_size(param_type)), param_type))
                     //HERE
                     (new_var_stack.top()[param_ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()
                     store_into_variable(new_var_stack.top()[param_ident], get_real_value(parameters[i]))
@@ -716,17 +715,17 @@ obj interpreter (Object) {
                         new_var_stack.top()[param_ident] = param
                     else
                         new_var_stack.top()[param_ident] = wrap_into_variable(param)
-                } else if (param_type->indirection == 0 && (param_type->is_adt() || (param_type->is_object() && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_increased_indirection()))))) {
+                } else if (param_type->indirection == 0 && (param_type->is_object() && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_increased_indirection())))) {
                     var temp_ident = ast_identifier_ptr(string("temporary_param") + get_id(), param_type, null<ast_node>())
-                    var_stack->top()[temp_ident] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
+                    var_stack->top()[temp_ident] = value::variable(make_pair(malloc(type_size(param_type)), param_type))
                     //HERE
                     (var_stack->top()[temp_ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()
                     interpret(ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(parameter_sources[i]))))), var_stack, enclosing_object, enclosing_func, &param_defer_stack)
-                    new_var_stack.top()[param_ident] = var_stack->top()[temp_ident] 
+                    new_var_stack.top()[param_ident] = var_stack->top()[temp_ident]
                     // note that we destruct the temp version because that's the one in the var_stack
                     param_defer_stack.push(ast_statement_ptr(make_method_call(temp_ident, "destruct", vector<*ast_node>())))
                 } else {
-                    new_var_stack.top()[param_ident] = value::variable(make_pair(malloc(type_size(param_type)), param_type)) 
+                    new_var_stack.top()[param_ident] = value::variable(make_pair(malloc(type_size(param_type)), param_type))
                     //HERE
                     (new_var_stack.top()[param_ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()
                     store_into_variable(new_var_stack.top()[param_ident], get_real_value(interpret(parameter_sources[i], var_stack, enclosing_object, enclosing_func, &param_defer_stack).first))
@@ -744,7 +743,7 @@ obj interpreter (Object) {
             pop_and_free(var_stack)
         }
         var return_type = func->function.type->return_type
-        if (!return_type->is_ref && return_type->indirection == 0 && (return_type->is_adt() || (return_type->is_object() && has_method(return_type->type_def, "destruct", vector<*type>())))) {
+        if (!return_type->is_ref && return_type->indirection == 0 && (return_type->is_object() && has_method(return_type->type_def, "destruct", vector<*type>()))) {
             var temp_ident = ast_identifier_ptr(string("temporary_return_to_be_destructed") + get_id(), return_type, null<ast_node>())
             var_stack->top()[temp_ident] = value::variable(make_pair(to_ret.object_like.first, to_ret.object_like.second))
             defer_stack->push(ast_statement_ptr(make_method_call(temp_ident, "destruct", vector<*ast_node>())))
@@ -829,7 +828,7 @@ obj interpreter (Object) {
     fun interpret_if_statement(if_stmt: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var_stack->push(map<*ast_node,value>())
         var inner_defer_stack = stack<*ast_node>()
-        var value_from_inside = make_pair(value::void_nothing(), control_flow::nor()) 
+        var value_from_inside = make_pair(value::void_nothing(), control_flow::nor())
         if (truthy(interpret(if_stmt->if_statement.condition, var_stack, enclosing_object, enclosing_func, &inner_defer_stack).first)) {
             value_from_inside = interpret(if_stmt->if_statement.then_part, var_stack, enclosing_object, enclosing_func, &inner_defer_stack)
         } else if (if_stmt->if_statement.else_part) {
@@ -842,7 +841,7 @@ obj interpreter (Object) {
     fun interpret_while_loop(while_loop: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var_stack->push(map<*ast_node,value>())
         var inner_defer_stack = stack<*ast_node>()
-        var value_from_inside = make_pair(value::void_nothing(), control_flow::nor()) 
+        var value_from_inside = make_pair(value::void_nothing(), control_flow::nor())
         var going = true
         while (going && truthy(interpret(while_loop->while_loop.condition, var_stack, enclosing_object, enclosing_func, &inner_defer_stack).first)) {
             value_from_inside = interpret(while_loop->while_loop.statement, var_stack, enclosing_object, enclosing_func, &inner_defer_stack)
@@ -851,7 +850,7 @@ obj interpreter (Object) {
             if (value_from_inside.second == control_flow::ret() || value_from_inside.second == control_flow::bre())
                 going = false
             if (value_from_inside.second == control_flow::bre() || value_from_inside.second == control_flow::con())
-                value_from_inside = make_pair(value::void_nothing(), control_flow::nor()) 
+                value_from_inside = make_pair(value::void_nothing(), control_flow::nor())
         }
         interpret_from_defer_stack(&inner_defer_stack, var_stack, value::void_nothing(), enclosing_func)
         pop_and_free(var_stack)
@@ -860,7 +859,7 @@ obj interpreter (Object) {
     fun interpret_for_loop(for_loop: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node): pair<value, control_flow> {
         var defer_stack = stack<*ast_node>()
         var_stack->push(map<*ast_node,value>())
-        var value_from_inside = make_pair(value::void_nothing(), control_flow::nor()) 
+        var value_from_inside = make_pair(value::void_nothing(), control_flow::nor())
         var going = true
         interpret(for_loop->for_loop.init, var_stack, enclosing_object, enclosing_func, &defer_stack)
         while (going && truthy(interpret(for_loop->for_loop.condition, var_stack, enclosing_object, enclosing_func, &defer_stack).first)) {
@@ -868,7 +867,7 @@ obj interpreter (Object) {
             if (value_from_inside.second == control_flow::ret() || value_from_inside.second == control_flow::bre())
                 going = false
             if (value_from_inside.second == control_flow::bre() || value_from_inside.second == control_flow::con())
-                value_from_inside = make_pair(value::void_nothing(), control_flow::nor()) 
+                value_from_inside = make_pair(value::void_nothing(), control_flow::nor())
 
             // only run update if we're not breaking or continuing
             if (going)
@@ -931,11 +930,11 @@ obj interpreter (Object) {
         var to_ret.construct(): value
         if (get_ast_type(enclosing_func)->return_type->is_ref) {
             to_ret = interpret(return_expression, var_stack, enclosing_object, enclosing_func, defer_stack).first
-        } else if (return_type->indirection == 0 && (return_type->is_adt() || (return_type->is_object() && has_method(return_type->type_def, "copy_construct", vector(return_type->clone_with_increased_indirection()))))) {
+        } else if (return_type->indirection == 0 && (return_type->is_object() && has_method(return_type->type_def, "copy_construct", vector(return_type->clone_with_increased_indirection())))) {
             var_stack->push(map<*ast_node,value>())
             var inner_defer_stack = stack<*ast_node>()
             var temp_ident = ast_identifier_ptr(string("temporary_return"), return_type, null<ast_node>())
-            var_stack->top()[temp_ident] = value::variable(make_pair(malloc(type_size(return_type)), return_type)) 
+            var_stack->top()[temp_ident] = value::variable(make_pair(malloc(type_size(return_type)), return_type))
             interpret(ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(return_expression))))), var_stack, enclosing_object, enclosing_func, &inner_defer_stack)
             to_ret = var_stack->top()[temp_ident]
             interpret_from_defer_stack(&inner_defer_stack, var_stack, enclosing_object, enclosing_func)
@@ -943,7 +942,7 @@ obj interpreter (Object) {
             var_stack->pop()
             /*pop_and_free(var_stack)*/
         } else {
-            to_ret = value::variable(make_pair(malloc(type_size(return_type)), return_type)) 
+            to_ret = value::variable(make_pair(malloc(type_size(return_type)), return_type))
             //HERE
             (to_ret.variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()
             var ret_val = interpret(return_expression, var_stack, enclosing_object, enclosing_func, defer_stack).first
@@ -954,11 +953,11 @@ obj interpreter (Object) {
     fun interpret_declaration_statement(stmt: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node, defer_stack: *stack<*ast_node>): pair<value, control_flow> {
         var ident = stmt->declaration_statement.identifier
         var ident_type = ident->identifier.type
-        var_stack->top()[ident] = value::variable(make_pair(malloc(type_size(ident_type)),ident_type)) 
+        var_stack->top()[ident] = value::variable(make_pair(malloc(type_size(ident_type)),ident_type))
         //HERE
         (var_stack->top()[ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()
         if (stmt->declaration_statement.expression) {
-            if (ident_type->indirection == 0 && (ident_type->is_adt() || (ident_type->is_object() && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(stmt->declaration_statement.expression)->clone_with_increased_indirection())))))
+            if (ident_type->indirection == 0 && (ident_type->is_object() && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(stmt->declaration_statement.expression)->clone_with_increased_indirection()))))
                 interpret(ast_statement_ptr(make_method_call(ident, "copy_construct", vector(make_operator_call("&", vector(stmt->declaration_statement.expression))))), var_stack, enclosing_object, enclosing_func, defer_stack)
             else
                 store_into_variable(var_stack->top()[ident], get_real_value(interpret(stmt->declaration_statement.expression, var_stack, enclosing_object, enclosing_func, defer_stack).first))
@@ -966,7 +965,7 @@ obj interpreter (Object) {
             interpret(stmt->declaration_statement.init_method_call, var_stack, enclosing_object, enclosing_func, defer_stack)
         }
         // defering destructs
-        if (ident_type->indirection == 0 && (ident_type->is_adt() || (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>()))))
+        if (ident_type->indirection == 0 && (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>())))
             defer_stack->push(ast_statement_ptr(make_method_call(ident, "destruct", vector<*ast_node>())))
         return make_pair(value::void_nothing(), control_flow::nor())
     }

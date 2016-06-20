@@ -20,7 +20,6 @@ fun get_line(node: *tree<symbol>, name: string): *ast_node {
 fun c_line_control(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var first = true
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
-        var helper_after = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {}
         var helper = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::statement(backing) {
@@ -32,7 +31,7 @@ fun c_line_control(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, as
             }
         }
         if (first)
-            run_on_tree(helper, helper_after, syntax_ast_pair.second)
+            run_on_tree(helper, empty_pass_half, syntax_ast_pair.second)
         first = false
     })
 }

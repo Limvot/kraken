@@ -14,13 +14,15 @@ destructed object 100 : 100
 copy constructed object 100 : 300 from 100 : 200
 destructed object 100 : 200
 copy constructed object 100 : 400 from 100 : 300
-destructed object 100 : 300
 copy constructed object 100 : 500 from 100 : 400
 destructed object 100 : 400
-done assignment to old variable
-matched an_obj correctly 100 : 500
-int assignment to old var
+destructed object 100 : 300
+copy constructed object 100 : 600 from 100 : 500
 destructed object 100 : 500
+done assignment to old variable
+matched an_obj correctly 100 : 600
+int assignment to old var
+destructed object 100 : 600
 done int assignment to old var
 matched an_int correctly 1337
 test copy_construct for non ref equality
@@ -31,6 +33,8 @@ destructed object 110 : 110
 copy constructed object 110 : 310 from 110 : 210
 destructed object 110 : 210
 copy constructed object 110 : 410 from 110 : 310
+copy constructed object 110 : 510 from 110 : 410
+destructed object 110 : 410
 destructed object 110 : 310
 gonna make object in function 110
 constructed object 110 : 110
@@ -39,10 +43,13 @@ destructed object 110 : 110
 copy constructed object 110 : 310 from 110 : 210
 destructed object 110 : 210
 copy constructed object 110 : 410 from 110 : 310
-destructed object 110 : 310
 copy constructed object 110 : 510 from 110 : 410
-destructed object 110 : 510
+destructed object 110 : 410
+destructed object 110 : 310
+copy constructed object 110 : 610 from 110 : 510
+destructed object 110 : 610
 equality an_obj correctly 
-destructed object 110 : 410
-destructed object 110 : 410
+destructed object 110 : 510
+destructed object 110 : 510
 done test copy_construct for non ref equality
+10

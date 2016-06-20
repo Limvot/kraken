@@ -157,6 +157,7 @@ fun main():int {
     else
         println("equality an_obj incorrectly ")
     println("done test copy_construct for non ref equality");
+    println(maybe_object::an_int(10).an_int)
     return 0
 }
 

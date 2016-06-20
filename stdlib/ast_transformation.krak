@@ -983,7 +983,7 @@ obj ast_transformation (Object) {
     fun find_and_make_any_operator_overload_call(func_name: string, parameters: vector<*ast_node>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
         var possible_overload = null<ast_node>()
-        if ((parameter_types[0]->is_adt() || parameter_types[0]->is_object()) && parameter_types[0]->indirection == 0) {
+        if (parameter_types[0]->is_object() && parameter_types[0]->indirection == 0) {
            possible_overload = function_lookup(string("operator")+func_name, parameter_types.first()->type_def, parameter_types.slice(1,-1))
             if (!possible_overload) {
                 var inherited_replacements = map<string, *type>()
@@ -1112,6 +1112,10 @@ obj ast_transformation (Object) {
         return fitting_functions.max(fun(a: pair<*ast_node, int>, b: pair<*ast_node, int>): bool return a.second < b.second;).first
     }
 }
+fun get_from_scope(node: *ast_node, member: *char): *ast_node
+    return get_from_scope(node, string(member))
+fun get_from_scope(node: *ast_node, member: string): *ast_node
+    return get_ast_scope(node)->get(member).first()
 fun has_method(object: *ast_node, name: *char, parameter_types: vector<*type>): bool return has_method(object, string(name), parameter_types);
 fun has_method(object: *ast_node, name: string, parameter_types: vector<*type>): bool {
     /*println("HAS METHOD:")*/
@@ -1131,13 +1135,18 @@ fun make_method_call(object_ident: *ast_node, name: string, parameters: vector<*
 }
 fun make_method_call(object_ident: *ast_node, method: *ast_node, parameters: vector<*ast_node>): *ast_node {
     /*println("MAKE METHOD CALL IN:")*/
-    var method_access = ast_function_call_ptr(get_builtin_function(string("."), vector(get_ast_type(object_ident), get_ast_type(method))), vector(object_ident, method))
+    var access_op = "."
+    if (get_ast_type(object_ident)->indirection)
+        access_op = "->"
+    var method_access = ast_function_call_ptr(get_builtin_function(string(access_op), vector(get_ast_type(object_ident), get_ast_type(method))), vector(object_ident, method))
     return ast_function_call_ptr(method_access, parameters)
 }
 fun make_operator_call(func: *char, params: vector<*ast_node>): *ast_node return make_operator_call(string(func), params);
 fun make_operator_call(func: string, params: vector<*ast_node>): *ast_node {
     return ast_function_call_ptr(get_builtin_function(func, params.map(fun(p:*ast_node): *type return get_ast_type(p);)), params)
 }
+fun get_builtin_function(name: *char, param_types: vector<*type>): *ast_node
+    return get_builtin_function(string(name), param_types, null<tree<symbol>>())
 fun get_builtin_function(name: string, param_types: vector<*type>): *ast_node
     return get_builtin_function(name, param_types, null<tree<symbol>>())
 fun get_builtin_function(name: string, param_types: vector<*type>, syntax: *tree<symbol>): *ast_node {
