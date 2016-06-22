@@ -431,8 +431,8 @@ obj c_generator (Object) {
            to_ret += code_triple() + generate(node->declaration_statement.init_method_call, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
         }
         // reference can happen because some passes generate them (adt_lower right now)
-        if (add_to_defer && !ident_type->is_ref && ident_type->indirection == 0 && (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>())))
-            defer_stack->top().second.push(ast_statement_ptr(make_method_call(identifier, "destruct", vector<*ast_node>())))
+        /*if (add_to_defer && !ident_type->is_ref && ident_type->indirection == 0 && (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>())))*/
+            /*defer_stack->top().second.push(ast_statement_ptr(make_method_call(identifier, "destruct", vector<*ast_node>())))*/
         return to_ret
     }
     fun generate_assignment_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
@@ -492,6 +492,18 @@ obj c_generator (Object) {
         var return_value = node->return_statement.return_value
         var function_return_type = get_ast_type(enclosing_func)->return_type
         var to_ret = code_triple()
+
+        // new one
+        to_ret += code_triple("return")
+        var refamp = string()
+        if (function_return_type->is_ref)
+           refamp = "&"
+        if (return_value)
+            to_ret += code_triple(" ") + refamp + generate(return_value, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
+        to_ret.pre += generate_from_defer_stack(defer_stack, -1, enclosing_object, enclosing_func).one_string()
+        return to_ret
+
+
         if (return_value) {
             var return_value_type = get_ast_type(return_value)
             // always need a return temp so we don't destruct things the return depends on before they're calculated

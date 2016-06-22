@@ -417,6 +417,11 @@ obj template (Object) {
                 instantiated_map == other.instantiated_map && is_function == other.is_function
     }
 }
+fun ast_code_block_ptr(stmt: *ast_node): *ast_node {
+    var to_ret = ast_code_block_ptr()
+    to_ret->code_block.children.add(stmt)
+    return to_ret
+}
 fun ast_code_block_ptr(): *ast_node {
     var to_ret.construct(): code_block
     var ptr = new<ast_node>()

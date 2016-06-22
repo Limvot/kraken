@@ -1,0 +1,44 @@
+import symbol:*
+import tree:*
+import vector:*
+import map:*
+import util:*
+import string:*
+import mem:*
+import io:*
+import ast_nodes:*
+import ast_transformation:*
+
+import pass_common:*
+
+fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+        var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
+            match(*node) {
+                ast_node::type_def(backing) {
+                    /*println(backing.name + ": enter")*/
+                }
+            }
+        }
+        var helper_after = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
+            match(*node) {
+                ast_node::type_def(backing) {
+                    /*println(backing.name + ": exit")*/
+                }
+                ast_node::declaration_statement(backing) {
+                    var ident_type = get_ast_type(backing.identifier)
+                    if (is_translation_unit(parent_chain->top()) || is_type_def(parent_chain->top()))
+                        return;
+                    if (!ident_type->is_ref && ident_type->indirection == 0 && (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>()))) {
+                        ensure_enclosing_statement_scope_is_block(parent_chain)
+                        // have to go up one because our parent is a statement
+                        add_after_in(ast_statement_ptr(ast_defer_statement_ptr(ast_statement_ptr(make_method_call(backing.identifier, "destruct", vector<*ast_node>())))), parent_chain->top(), parent_chain->from_top(1))
+                    }
+                    /*println(backing.name + ": exit")*/
+                }
+            }
+        }
+        run_on_tree(helper_before, helper_after, syntax_ast_pair.second)
+    })
+}
+

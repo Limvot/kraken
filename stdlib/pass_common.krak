@@ -95,42 +95,98 @@ fun add_before_in(to_add: *ast_node, before: *ast_node, in: *ast_node) {
     }
     error(string("cannot add_before_in to ") + get_ast_name(in))
 }
+fun add_after_in(to_add: *ast_node, before: *ast_node, in: *stack<*ast_node>)
+    add_after_in(to_add, before, in->top())
+fun add_after_in(to_add: *ast_node, before: *ast_node, in: *ast_node) {
+    var bc = get_children_pointer(in)
+    if (bc) {
+        var i = bc->find(before)
+        if (i >= 0) {
+            bc->add(to_add, i+1)
+            return
+        }
+    }
+    error(string("cannot add_after_in to ") + get_ast_name(in))
+}
+
+// only works for statements (not for loop init, etc)
+fun ensure_enclosing_statement_scope_is_block(parent_chain: *stack<*ast_node>) {
+    var node = parent_chain->top()
+    match (*node) {
+        ast_node::for_loop(backing) {
+            var old = backing.body
+            if (!is_statement(old))
+                error("for loop body is not statement")
+            if (!is_code_block(old->statement.child)) {
+                var block = ast_code_block_ptr(old)
+                var stmt = ast_statement_ptr(block);
+                parent_chain->push(stmt)
+                parent_chain->push(block)
+                node->for_loop.body = stmt
+            }
+            return
+        }
+        ast_node::while_loop(backing) {
+            var old = backing.statement
+            if (!is_statement(old))
+                error("while loop body is not statement")
+            if (!is_code_block(old->statement.child)) {
+                var block = ast_code_block_ptr(old)
+                var stmt = ast_statement_ptr(block);
+                parent_chain->push(stmt)
+                parent_chain->push(block)
+                node->while_loop.statement = stmt
+            }
+            return
+        }
+        ast_node::code_block(backing) return
+        ast_node::if_statement(backing) error("ensure enclosing statment can't do if_statement yet")
+        ast_node::function(backing) error("ensure enclosing statment can't do function yet")
+    }
+    var old = parent_chain->pop()
+    if (parent_chain->empty())
+        error("hit top of parent chain in ensure_enclosing_statement_scope_is_block")
+    ensure_enclosing_statement_scope_is_block(parent_chain)
+    parent_chain->push(old)
+}
 
 fun empty_pass_half(node: *ast_node, parent_chain: *stack<*ast_node>) {}
 fun run_on_tree(func_before: fun(*ast_node,*stack<*ast_node>):void, func_after: fun(*ast_node,*stack<*ast_node>):void, tree: *ast_node) {
     var parent_stack = stack<*ast_node>()
-    run_on_tree_helper(func_before, func_after, tree, &parent_stack)
+    run_on_tree_helper(func_before, func_after, tree, &parent_stack, false)
 }
-fun run_on_tree_helper(func_before: fun(*ast_node,*stack<*ast_node>):void, func_after: fun(*ast_node,*stack<*ast_node>):void, node: *ast_node, parent_chain: *stack<*ast_node>) {
-    if (!node) return
+fun run_on_tree_helper(func_before: fun(*ast_node,*stack<*ast_node>):void, func_after: fun(*ast_node,*stack<*ast_node>):void, node: *ast_node, parent_chain: *stack<*ast_node>, do_func: bool) {
+    if (!node || (!do_func && is_function(node))) return
     func_before(node, parent_chain)
     parent_chain->push(node)
     match(*node) {
-        ast_node::translation_unit(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::type_def(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::adt_def(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::function(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::template(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::code_block(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::if_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::match_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::case_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::while_loop(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::for_loop(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::return_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::defer_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::assignment_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::declaration_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
-        ast_node::if_comp(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+        ast_node::translation_unit(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, true);)
+        ast_node::type_def(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, true);)
+        ast_node::adt_def(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, true);)
+        ast_node::function(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::template(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, true);)
+        ast_node::code_block(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::if_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::match_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::case_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::while_loop(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::for_loop(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::return_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::defer_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::assignment_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::declaration_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
+        ast_node::if_comp(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, true);)
         ast_node::function_call(backing) {
             if (!is_function(backing.func))
-                run_on_tree_helper(func_before, func_after, backing.func, parent_chain)
-            node->function_call.parameters.for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+                run_on_tree_helper(func_before, func_after, backing.func, parent_chain, false)
+            node->function_call.parameters.for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
         }
-        ast_node::cast(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain);)
+        ast_node::cast(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
     }
-    parent_chain->pop()
+    // function may have messed with the parent chain
+    if (parent_chain->data.contains(node))
+        while(parent_chain->pop() != node){}
     func_after(node, parent_chain)
 }
 

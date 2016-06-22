@@ -10,6 +10,7 @@ import interpreter:*
 import os:*
 import ast_transformation:*
 import adt_lower:*
+import obj_lower:*
 import defer_lower:*
 import c_line_control:*
 import c_generator:*
@@ -102,6 +103,8 @@ fun main(argc: int, argv: **char):int {
     // Passes
     printlnerr("Lowering ADTs")
     adt_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
+    printlnerr("Lowering Objects")
+    obj_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
     printlnerr("Lowering Defer")
     defer_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
     if (interpret_instead) {
