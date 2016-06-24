@@ -20,11 +20,9 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
             match(*node) {
                 ast_node::defer_statement(backing) {
                     if (is_code_block(parent_chain->top()) || (is_statement(parent_chain->top()) && is_code_block(parent_chain->from_top(1)))) {
-                        /*println("defer in codeblock, gonna add at the end")*/
                         remove_full_statement(node, parent_chain)
                         defer_double_stack.top().push(backing.statement)
                     } else {
-                        /*println("defer not in codeblock, so just removing defer part")*/
                         replace_with_in(node, backing.statement, parent_chain)
                     }
                 }

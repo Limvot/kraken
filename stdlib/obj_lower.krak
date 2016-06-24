@@ -15,26 +15,37 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
-                ast_node::type_def(backing) {
-                    /*println(backing.name + ": enter")*/
+                ast_node::function(backing) if (backing.body_statement && !is_code_block(backing.body_statement)) backing.body_statement = ast_statement_ptr(ast_code_block_ptr(backing.body_statement))
+                ast_node::if_statement(backing) {
+                    if (!is_code_block(backing.then_part)) backing.then_part = ast_statement_ptr(ast_code_block_ptr(backing.then_part))
+                    if (backing.else_part && !is_code_block(backing.else_part)) backing.else_part = ast_statement_ptr(ast_code_block_ptr(backing.else_part))
                 }
+                // no need for case because it's already been lowered
+                ast_node::while_loop(backing) if (!is_code_block(backing.statement)) backing.statement = ast_statement_ptr(ast_code_block_ptr(backing.statement))
+                ast_node::for_loop(backing) if (!is_code_block(backing.body)) backing.body = ast_statement_ptr(ast_code_block_ptr(backing.body))
             }
         }
         var helper_after = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
-                ast_node::type_def(backing) {
-                    /*println(backing.name + ": exit")*/
+                ast_node::function(backing) {
+                    var order = 0;
+                    backing.parameters.for_each(fun(param: *ast_node) {
+                        var param_type = get_ast_type(param)
+                        if (!param_type->is_ref && param_type->indirection == 0 && (param_type->is_object() && has_method(param_type->type_def, "destruct", vector<*type>()))) {
+                            // the first pass ensures a code_block child
+                            backing.body_statement->statement.child->code_block.children.add(
+                                ast_statement_ptr(ast_defer_statement_ptr(ast_statement_ptr(make_method_call(param, "destruct", vector<*ast_node>())))), order++)
+                        }
+                    })
                 }
                 ast_node::declaration_statement(backing) {
                     var ident_type = get_ast_type(backing.identifier)
                     if (is_translation_unit(parent_chain->top()) || is_type_def(parent_chain->top()))
                         return;
                     if (!ident_type->is_ref && ident_type->indirection == 0 && (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>()))) {
-                        ensure_enclosing_statement_scope_is_block(parent_chain)
                         // have to go up one because our parent is a statement
                         add_after_in(ast_statement_ptr(ast_defer_statement_ptr(ast_statement_ptr(make_method_call(backing.identifier, "destruct", vector<*ast_node>())))), parent_chain->top(), parent_chain->from_top(1))
                     }
-                    /*println(backing.name + ": exit")*/
                 }
             }
         }
