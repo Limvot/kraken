@@ -147,10 +147,8 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
         var second_helper = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::match_statement(backing) {
-                    /*println("Match statement!")*/
                     var block = ast_code_block_ptr()
                     var value = backing.value
-                    /*var holder = ast_identifier_ptr(string("holder"), get_ast_type(value), block)*/
                     var holder = ast_identifier_ptr(string("holder"), get_ast_type(value)->clone_with_increased_indirection(), block)
                     block->code_block.children.add(ast_statement_ptr(ast_declaration_statement_ptr(holder, null<ast_node>(), false)))
                     // dirty hack
@@ -158,10 +156,8 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     block->code_block.children.add(if_hack)
                     var if_block = ast_code_block_ptr()
                     if_hack->if_statement.then_part = if_block
-                    /*block->code_block.children.add(ast_statement_ptr(ast_declaration_statement_ptr(holder, make_operator_call("&", vector(value)), false)))*/
                     backing.cases.for_each(fun(case_stmt: *ast_node) {
                         var option = case_stmt->case_statement.option
-                        /*println(string("case: ") + get_ast_name(option))*/
                         var flag = get_from_scope(get_ast_type(value)->type_def, "flag")
                         var data = get_from_scope(get_ast_type(value)->type_def, "data")
                         var option_num = -7
@@ -170,13 +166,11 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         for (var i = 0; i < type_def_option_map[get_ast_type(value)->type_def].size; i++;)
                             if (type_def_option_map[get_ast_type(value)->type_def][i] == option)
                                 option_num = i;
-                        /*var condition = make_operator_call("==", vector(make_operator_call(".", vector(holder, flag)), ast_value_ptr(to_string(option_num), type_ptr(base_type::integer()))))*/
                         var condition = make_operator_call("==", vector(make_operator_call("->", vector(holder, flag)), ast_value_ptr(to_string(option_num), type_ptr(base_type::integer()))))
                         var if_stmt = ast_if_statement_ptr(condition)
                         var inner_block = ast_code_block_ptr()
                         var unpack_ident = case_stmt->case_statement.unpack_ident
                         if (unpack_ident) {
-                            /*var get_option = make_operator_call(".", vector(make_operator_call(".", vector(holder, data)), option))*/
                             var get_option = make_operator_call(".", vector(make_operator_call("->", vector(holder, data)), option))
                             get_option = make_operator_call("&", vector(get_option))
                             unpack_ident->identifier.type = unpack_ident->identifier.type->clone_with_ref()

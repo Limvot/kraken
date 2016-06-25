@@ -89,7 +89,7 @@ fun add_before_in(to_add: *ast_node, before: *ast_node, in: *ast_node) {
     if (bc) {
         var i = bc->find(before)
         if (i >= 0) {
-            bc->add(to_add, i)
+            bc->add(i, to_add)
             return
         }
     }
@@ -102,7 +102,7 @@ fun add_after_in(to_add: *ast_node, before: *ast_node, in: *ast_node) {
     if (bc) {
         var i = bc->find(before)
         if (i >= 0) {
-            bc->add(to_add, i+1)
+            bc->add(i+1, to_add)
             return
         }
     }

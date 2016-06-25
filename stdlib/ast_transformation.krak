@@ -241,7 +241,9 @@ obj ast_transformation (Object) {
         })
         var is_variadic = get_node("\"...\"", node) != null<tree<symbol>>()
         // figure out function type and make function_node
-        var function_node = ast_function_ptr(function_name, type_ptr(parameters.map(fun(parameter: *ast_node): *type return parameter->identifier.type;), return_type, 0, false, is_variadic), parameters, get_node("\"ext\"", node) != null<tree<symbol>>(), is_variadic)
+        var function_node = ast_function_ptr(function_name,
+            type_ptr(parameters.map(fun(parameter: *ast_node): *type return parameter->identifier.type;),
+            return_type, 0, false, is_variadic), parameters, get_node("\"ext\"", node) != null<tree<symbol>>(), is_variadic)
         // fix up the enclosing_scope's
         parameters.for_each(fun(n: *ast_node) n->identifier.enclosing_scope = function_node;)
         // add to scope

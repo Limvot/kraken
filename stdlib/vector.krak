@@ -225,7 +225,7 @@ obj vector<T> (Object, Serializable) {
         size++;
     }
 
-    fun add(dataIn: ref T, index: int) {
+    fun add(index: int, dataIn: ref T) {
         add(last())
         for (var i = size-2; i > index; i--;) {
             data[i] = data[i-1]

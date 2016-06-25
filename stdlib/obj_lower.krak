@@ -8,9 +8,16 @@ import mem:*
 import io:*
 import ast_nodes:*
 import ast_transformation:*
-
 import pass_common:*
 
+// Here's how we lower objects
+// - first, we make sure that all functions, if statments, while loops and for loops have code blocks
+//      as children, not just statements.
+// - then, we "uglify" for loops and while loops so that functions that need pre and post statements always
+//      have a code block to insert them into that makes sure that they get run.
+// - then on the pass up the chain, at function calls we add in they copy_construct in and defer destruct out
+//      temporaries.
+// - this is also when we add in defer destructs for function parameters (inside the function) and declaration statements
 fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
@@ -21,8 +28,40 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     if (backing.else_part && !is_code_block(backing.else_part)) backing.else_part = ast_statement_ptr(ast_code_block_ptr(backing.else_part))
                 }
                 // no need for case because it's already been lowered
-                ast_node::while_loop(backing) if (!is_code_block(backing.statement)) backing.statement = ast_statement_ptr(ast_code_block_ptr(backing.statement))
-                ast_node::for_loop(backing) if (!is_code_block(backing.body)) backing.body = ast_statement_ptr(ast_code_block_ptr(backing.body))
+                ast_node::while_loop(backing) {
+                    if (!is_code_block(backing.statement)) backing.statement = ast_code_block_ptr(backing.statement)
+                    var condition = backing.condition
+                    backing.condition = ast_value_ptr(string("true"), type_ptr(base_type::boolean()))
+                    // objects do not coerce to booleans, so it should be ok for this not to be a ref
+                    var condition_ident = ast_identifier_ptr("condition_temp", get_ast_type(condition), backing.statement)
+                    backing.statement->code_block.children.add(0, ast_statement_ptr(ast_declaration_statement_ptr(condition_ident, condition, false)))
+                    var condition_if = ast_if_statement_ptr(make_operator_call("!", vector(condition_ident)))
+                    condition_if->if_statement.then_part = ast_statement_ptr(ast_branching_statement_ptr(branching_type::break_stmt()))
+                    backing.statement->code_block.children.add(1, ast_statement_ptr(condition_if))
+                }
+                ast_node::for_loop(backing) {
+                    if (!is_code_block(backing.body)) backing.body = ast_code_block_ptr(backing.body)
+                    add_before_in(backing.init, parent_chain->top(), parent_chain->from_top(1)) 
+                    backing.init = null<ast_node>()
+                    // the do_update goes in the block above the for
+                    var update_ident = ast_identifier_ptr("do_update", type_ptr(base_type::boolean()), parent_chain->from_top(1))
+                    add_before_in(ast_statement_ptr(ast_declaration_statement_ptr(update_ident, ast_value_ptr(string("false"), type_ptr(base_type::boolean())), false)),
+                            parent_chain->top(), parent_chain->from_top(1))
+                    var update_if = ast_if_statement_ptr(update_ident)
+                    update_if->if_statement.then_part = ast_statement_ptr(ast_code_block_ptr(backing.update))
+                    backing.update = null<ast_node>()
+                    backing.body->code_block.children.add(0, ast_statement_ptr(update_if))
+                    backing.body->code_block.children.add(1, ast_statement_ptr(ast_assignment_statement_ptr(update_ident, ast_value_ptr(string("true"), type_ptr(base_type::boolean())))))
+
+                    var condition = backing.condition
+                    backing.condition = ast_value_ptr(string("true"), type_ptr(base_type::boolean()))
+                    // objects do not coerce to booleans, so it should be ok for this not to be a ref
+                    var condition_ident = ast_identifier_ptr("condition_temp", get_ast_type(condition), backing.body)
+                    backing.body->code_block.children.add(2, ast_statement_ptr(ast_declaration_statement_ptr(condition_ident, condition, false)))
+                    var condition_if = ast_if_statement_ptr(make_operator_call("!", vector(condition_ident)))
+                    condition_if->if_statement.then_part = ast_statement_ptr(ast_branching_statement_ptr(branching_type::break_stmt()))
+                    backing.body->code_block.children.add(3, ast_statement_ptr(condition_if))
+                }
             }
         }
         var helper_after = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
@@ -33,8 +72,8 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         var param_type = get_ast_type(param)
                         if (!param_type->is_ref && param_type->indirection == 0 && (param_type->is_object() && has_method(param_type->type_def, "destruct", vector<*type>()))) {
                             // the first pass ensures a code_block child
-                            backing.body_statement->statement.child->code_block.children.add(
-                                ast_statement_ptr(ast_defer_statement_ptr(ast_statement_ptr(make_method_call(param, "destruct", vector<*ast_node>())))), order++)
+                            backing.body_statement->statement.child->code_block.children.add(order++,
+                                ast_statement_ptr(ast_defer_statement_ptr(ast_statement_ptr(make_method_call(param, "destruct", vector<*ast_node>())))))
                         }
                     })
                 }
@@ -44,7 +83,8 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         return;
                     if (!ident_type->is_ref && ident_type->indirection == 0 && (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>()))) {
                         // have to go up one because our parent is a statement
-                        add_after_in(ast_statement_ptr(ast_defer_statement_ptr(ast_statement_ptr(make_method_call(backing.identifier, "destruct", vector<*ast_node>())))), parent_chain->top(), parent_chain->from_top(1))
+                        add_after_in(ast_statement_ptr(ast_defer_statement_ptr(ast_statement_ptr(make_method_call(backing.identifier, "destruct", vector<*ast_node>())))),
+                                    parent_chain->top(), parent_chain->from_top(1))
                     }
                 }
             }

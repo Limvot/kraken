@@ -423,9 +423,6 @@ obj c_generator (Object) {
            to_ret.pre += ";\n"
            to_ret += code_triple() + generate(node->declaration_statement.init_method_call, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
         }
-        // reference can happen because some passes generate them (adt_lower right now)
-        /*if (add_to_defer && !ident_type->is_ref && ident_type->indirection == 0 && (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>())))*/
-            /*defer_stack->top().second.push(ast_statement_ptr(make_method_call(identifier, "destruct", vector<*ast_node>())))*/
         return to_ret
     }
     fun generate_assignment_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
@@ -440,12 +437,9 @@ obj c_generator (Object) {
     fun generate_while_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         // stick another stack on
         defer_stack->push(make_pair(true, stack<*ast_node>()))
-        var condition = generate(node->while_loop.condition, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
-        var to_ret = code_triple("while (1) {\n") + condition.pre + "if(!" + condition.value + ") {" + condition.post + "break;}" + condition.post
-        to_ret += generate(node->while_loop.statement, enclosing_object, enclosing_func, defer_stack, false).one_string()
-        to_ret += generate_from_defer_stack(defer_stack, 1, enclosing_object, enclosing_func)
+        var to_ret = code_triple("while (" + generate(node->while_loop.condition, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false).one_string() + ")\n"
+                + generate(node->while_loop.statement, enclosing_object, enclosing_func, defer_stack, false).one_string())
         defer_stack->pop()
-        to_ret += "}\n"
         return to_ret
     }
     fun generate_for_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
@@ -453,17 +447,25 @@ obj c_generator (Object) {
         defer_stack->push(make_pair(true, stack<*ast_node>()))
         // gotta take off last semicolon
         /*var init = generate(node->for_loop.init, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)*/
-        var init = generate(node->for_loop.init, enclosing_object, enclosing_func, defer_stack, false)
-        var cond = generate(node->for_loop.condition, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
-        var update = generate(node->for_loop.update, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
-        var do_update_name = string("do_update") + get_id()
-        var to_ret = string("{\n") + init.one_string() + "bool " + do_update_name + " = false;\nfor (;;) {\n"
-        to_ret += string("if (") + do_update_name + ") {" + update.one_string() + "}\n" + do_update_name + " = true;\n"
-        to_ret += cond.pre + "if (!" + cond.value + ") {" + cond.post + "break;}" + cond.post
-        to_ret += generate(node->for_loop.body, enclosing_object, enclosing_func, defer_stack, false).one_string()
-        to_ret += generate_from_defer_stack(defer_stack, 1, enclosing_object, enclosing_func).one_string()
+        var init = code_triple(";")
+        if (node->for_loop.init)
+            init = generate(node->for_loop.init, enclosing_object, enclosing_func, defer_stack, false)
+        var cond = code_triple(";")
+        if (node->for_loop.condition)
+            cond = generate(node->for_loop.condition, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
+        var update = code_triple()
+        if (node->for_loop.update)
+            update = generate(node->for_loop.update, enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
+        /*var do_update_name = string("do_update") + get_id()*/
+        /*var to_ret = string("{\n") + init.one_string() + "bool " + do_update_name + " = false;\nfor (;;) {\n"*/
+        /*to_ret += string("if (") + do_update_name + ") {" + update.one_string() + "}\n" + do_update_name + " = true;\n"*/
+        /*to_ret += cond.pre + "if (!" + cond.value + ") {" + cond.post + "break;}" + cond.post*/
+        var to_ret = string("for (") + init.one_string() + cond.one_string() + "; " + update.one_string().slice(0,-2) + ")\n" +
+            generate(node->for_loop.body, enclosing_object, enclosing_func, defer_stack, false).one_string()
+        /*to_ret += generate(node->for_loop.body, enclosing_object, enclosing_func, defer_stack, false).one_string()*/
+        /*to_ret += generate_from_defer_stack(defer_stack, 1, enclosing_object, enclosing_func).one_string()*/
         defer_stack->pop()
-        to_ret += "}/*end inner for*/}/*end for's enclosing block*/\n"
+        //to_ret += "}/*end inner for*/}/*end for's enclosing block*/\n"
         return code_triple(to_ret)
     }
     fun generate_identifier(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
@@ -526,8 +528,6 @@ obj c_generator (Object) {
     }
     fun generate_defer_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         error("Unremoved defer!")
-        defer_stack->top().second.push(node->defer_statement.statement)
-        return code_triple("/*defer wanna know what*/")
     }
     fun generate_match_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, defer_stack: *stack<pair<bool,stack<*ast_node>>>): code_triple {
         var to_ret = code_triple("/* begin match */")
