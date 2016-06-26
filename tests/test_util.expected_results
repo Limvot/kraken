@@ -24,10 +24,10 @@ destruct with 101
 destruct with 1
 copy construct from 3 to 4
 copy construct from 103 to 104
-destruct with 3
-destruct with 103
 done
 destruct with 4
 destruct with 104
+destruct with 3
+destruct with 103
 destruct with 100
 destruct with 0

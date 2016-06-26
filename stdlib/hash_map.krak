@@ -22,29 +22,17 @@ obj hash_map<T,U> (Object, Serializable) {
         data.construct()
         data.add(map::map<T,U>())
         size = 0
-        /*io::print("Constructed hash_map, this: ")*/
-        /*io::println((this) cast int)*/
-        /*io::print("size of data:")*/
-        /*io::println(data.size)*/
         return this
     }
     fun copy_construct(old: *hash_map<T,U>) {
         data.copy_construct(&old->data)
         size = old->size
-        /*io::print("Copy constructed hash_map, this: ")*/
-        /*io::println((this) cast int)*/
-        /*io::print("new size of data:")*/
-        /*io::println(data.size)*/
-        /*io::print("old size of data:")*/
-        /*io::println(old->data.size)*/
     }
     fun operator=(rhs: ref hash_map<T,U>) {
         data = rhs.data
         size = rhs.size
     }
     fun destruct() {
-        /*io::print("destructed hash_map, this: ")*/
-        /*io::println((this) cast int)*/
         data.destruct()
     }
     fun serialize(): vector::vector<char> {
@@ -61,32 +49,26 @@ obj hash_map<T,U> (Object, Serializable) {
         return data == other.data
     }
     fun set(key: ref T, value: ref U) {
-        /*io::print("doing set! this:")*/
-        /*io::println((this) cast int)*/
-        /*io::print("size of data:")*/
-        /*io::println(data.size)*/
-        var key_hash = (util::hash(key)) cast int
-        if (!data[key_hash%data.size].contains_key(key)) {
+        var key_hash = util::hash(key)
+        if (!data[(key_hash%data.size) cast int].contains_key(key)) {
             size++
             if (size > data.size) {
-                /*io::print("rehashing to: ")*/
-                /*io::println(size*2)*/
                 var new_data = vector::vector<map::map<T,U>>()
                 for (var i = 0; i < size*2; i++;)
                     new_data.addEnd(map::map<T,U>())
                 for_each(fun(key: T, value: U) {
-                    new_data[(util::hash(key)) cast int%new_data.size].set(key, value)
+                    new_data[(util::hash(key)%new_data.size) cast int].set(key, value)
                 })
                 data = new_data
             }
         }
-        data[key_hash%data.size].set(key, value)
+        data[(key_hash%data.size) cast int].set(key, value)
     }
     fun get(key: ref T): ref U {
-        return data[(util::hash(key)) cast int%data.size].get(key)
+        return data[(util::hash(key)%data.size) cast int].get(key)
     }
     fun contains_key(key: ref T): bool {
-        return data[(util::hash(key)) cast int%data.size].contains_key(key)
+        return data[(util::hash(key)%data.size) cast int].contains_key(key)
     }
     fun contains_value(value: ref U): bool {
         for (var i = 0; i < data.size; i++;) {
@@ -103,7 +85,7 @@ obj hash_map<T,U> (Object, Serializable) {
         io::println("trying to reverse get a value that is not in the hash_map")
     }
     fun remove(key: ref T) {
-        data[(util::hash(key)) cast int%data.size].remove(key)
+        data[(util::hash(key)%data.size) cast int].remove(key)
     }
     fun for_each(func: fun(T, U):void) {
         for (var i = 0; i < data.size; i++;)

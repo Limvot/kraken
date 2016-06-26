@@ -110,6 +110,49 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
         // Pass 3
         var construct_in_destruct_out = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
+                ast_node::function_call(backing) {
+                    if (is_function(backing.func)) {
+                        var func_name = backing.func->function.name
+                        if (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/"
+                            || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
+                            || func_name == "==" || func_name == "!=" || func_name == "%" || func_name == "^"
+                            || func_name == "|" || func_name == "&" || func_name == "." || func_name == "->"
+                            || func_name == "." || func_name == "->" || func_name == "[]" || func_name == "++p" || func_name == "--p" 
+                            || func_name == "*" || func_name == "&" || func_name == "||" || func_name == "&&"
+                            || func_name == "!"
+                        )
+                            return
+                    }
+                    var enclosing_block_idx = parent_chain->index_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i);)
+                    var func_type = get_ast_type(backing.func)
+                    for (var i = 0; i < backing.parameters.size; i++;) {
+                        var param = backing.parameters[i]
+                        var in_function_param_type = null<type>()
+                        // grab type from param itself if we're out of param types (because variadic function)
+                        if (i < func_type->parameter_types.size)
+                            in_function_param_type = func_type->parameter_types[i]
+                        else
+                            in_function_param_type = get_ast_type(param)->clone_without_ref()
+                        var param_type = get_ast_type(param)
+                        if (!in_function_param_type->is_ref && param_type->indirection == 0 && (param_type->is_object() && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1))))) {
+                            var temp_ident = ast_identifier_ptr("temporary_param_boom", param_type->clone_without_ref(), null<ast_node>())
+                            var declaration = ast_statement_ptr(ast_declaration_statement_ptr(temp_ident, null<ast_node>(), false))
+                            var copy_in = ast_statement_ptr(make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(param)))))
+                            add_before_in(declaration, parent_chain->from_top(enclosing_block_idx-1), parent_chain->from_top(enclosing_block_idx))
+                            add_before_in(copy_in, parent_chain->from_top(enclosing_block_idx-1), parent_chain->from_top(enclosing_block_idx))
+                            backing.parameters[i] = temp_ident
+                        }
+                    }
+                    var func_return_type = func_type->return_type
+                    if (!func_return_type->is_ref && func_return_type->indirection == 0 && (func_return_type->is_object() && has_method(func_return_type->type_def, "destruct", vector<*type>()))) {
+                        var temp_return = ast_identifier_ptr("temporary_return_boomchaka", func_return_type, null<ast_node>())
+                        var declaration = ast_statement_ptr(ast_declaration_statement_ptr(temp_return, node, false))
+                        add_before_in(declaration, parent_chain->from_top(enclosing_block_idx-1), parent_chain->from_top(enclosing_block_idx))
+                        add_before_in(ast_statement_ptr(ast_defer_statement_ptr(ast_statement_ptr(make_method_call(temp_return, "destruct", vector<*ast_node>())))),
+                                parent_chain->from_top(enclosing_block_idx-1), parent_chain->from_top(enclosing_block_idx)) 
+                        replace_with_in(node, temp_return, parent_chain)
+                    }
+                }
                 ast_node::function(backing) {
                     var order = 0;
                     backing.parameters.for_each(fun(param: *ast_node) {
@@ -125,10 +168,17 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     var ident_type = get_ast_type(backing.identifier)
                     if (is_translation_unit(parent_chain->top()) || is_type_def(parent_chain->top()))
                         return;
-                    if (!ident_type->is_ref && ident_type->indirection == 0 && (ident_type->is_object() && has_method(ident_type->type_def, "destruct", vector<*type>()))) {
-                        // have to go up one because our parent is a statement
-                        add_after_in(ast_statement_ptr(ast_defer_statement_ptr(ast_statement_ptr(make_method_call(backing.identifier, "destruct", vector<*ast_node>())))),
+                    if (!ident_type->is_ref && ident_type->indirection == 0 && ident_type->is_object()) {
+                        if (backing.expression && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(backing.expression)->clone_with_increased_indirection()))) {
+                            add_after_in(ast_statement_ptr(make_method_call(backing.identifier, "copy_construct", vector(make_operator_call("&", vector(backing.expression))))),
                                     parent_chain->top(), parent_chain->from_top(1))
+                            backing.expression = null<ast_node>()
+                        }
+                        if (has_method(ident_type->type_def, "destruct", vector<*type>())) {
+                            // have to go up one because our parent is a statement
+                            add_after_in(ast_statement_ptr(ast_defer_statement_ptr(ast_statement_ptr(make_method_call(backing.identifier, "destruct", vector<*ast_node>())))),
+                                        parent_chain->top(), parent_chain->from_top(1))
+                        }
                     }
                 }
             }
