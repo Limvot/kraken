@@ -657,23 +657,7 @@ obj c_generator (Object) {
         ))
             return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false) + func_name + generate(parameters[1], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false) + string(")")
         if ( parameters.size == 2 && (func_name == "||" || func_name == "&&")) {
-            var first = generate(parameters[0], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
-            var second = generate(parameters[1], enclosing_object, enclosing_func, null<stack<pair<bool,stack<*ast_node>>>>(), false)
-            var result = code_triple()
-            result.pre += first.pre;
-            var temp_bool = string("temp_bool") + get_id()
-            result.pre += string("bool ") + temp_bool + " = " + first.value + ";\n"
-            result.pre += first.post;
-            if (func_name == "||")
-                result.pre += string("if (!") + temp_bool + ") {"
-            else
-                result.pre += string("if (") + temp_bool + ") {"
-            result.pre += second.pre
-            result.pre += temp_bool + " = " + second.value + ";\n"
-            result.pre += second.post
-            result.pre += "}"
-            result.value = temp_bool
-            return result
+            error("Remaining || or &&")
         }
         // don't propegate enclosing function down right of access
         // XXX what about enclosing object? should it be the thing on the left?

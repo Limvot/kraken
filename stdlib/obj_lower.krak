@@ -11,16 +11,19 @@ import ast_transformation:*
 import pass_common:*
 
 // Here's how we lower objects
-// - first, we make sure that all functions, if statments, while loops and for loops have code blocks
+// 1 first, we make sure that all functions, if statments, while loops and for loops have code blocks
 //      as children, not just statements.
-// - then, we "uglify" for loops and while loops so that functions that need pre and post statements always
+// 1 during the same pass, we "uglify" for loops and while loops so that functions that need pre and post statements always
 //      have a code block to insert them into that makes sure that they get run.
-// - then on the pass up the chain, at function calls we add in they copy_construct in and defer destruct out
+// 2 in another pass (more complicated because different children have different parent scopes)
+//      we transform the short circuit operators
+// 3 then on the pass up the chain, at function calls we add in they copy_construct in and defer destruct out
 //      temporaries.
-// - this is also when we add in defer destructs for function parameters (inside the function) and declaration statements
+// 3 this is also when we add in defer destructs for function parameters (inside the function) and declaration statements
 fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
-        var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
+        // Pass 1
+        var ensure_block_and_munge = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::function(backing) if (backing.body_statement && !is_code_block(backing.body_statement)) backing.body_statement = ast_statement_ptr(ast_code_block_ptr(backing.body_statement))
                 ast_node::if_statement(backing) {
@@ -64,7 +67,48 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                 }
             }
         }
-        var helper_after = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
+        run_on_tree(ensure_block_and_munge, empty_pass_second_half, syntax_ast_pair.second)
+        // Pass 2
+        var short_circut_op: fun(*ast_node,*stack<*ast_node>): bool = fun(node: *ast_node, parent_chain: *stack<*ast_node>): bool {
+            match(*node) {
+                ast_node::function_call(backing) {
+                    var func_name = string()
+                    if (is_function(backing.func)) {
+                        func_name = backing.func->function.name
+                        if (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/"
+                            || func_name == "<" || func_name == ">" || func_name == "<=" || func_name == ">="
+                            || func_name == "==" || func_name == "!=" || func_name == "%" || func_name == "^"
+                            || func_name == "|" || func_name == "&" || func_name == "." || func_name == "->"
+                            || func_name == "." || func_name == "->" || func_name == "[]" || func_name == "++p" || func_name == "--p" 
+                            || func_name == "*" || func_name == "&"
+                        )
+                            return true
+                    }
+                    if (func_name == "||" || func_name == "&&") {
+                        var enclosing_block_idx = parent_chain->index_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i);)
+                        var short_circuit_result = ast_identifier_ptr("short_circut_result", type_ptr(base_type::boolean()), parent_chain->from_top(enclosing_block_idx))
+                        var short_circuit_declaration = ast_statement_ptr(ast_declaration_statement_ptr(short_circuit_result, backing.parameters[0], false))
+                        var condition = short_circuit_result
+                        if (func_name == "||")
+                            condition = make_operator_call("!", vector(condition))
+                        var short_circuit_if = ast_if_statement_ptr(condition)
+                        // how to get proper parent scoping working for this part
+                        short_circuit_if->if_statement.then_part = ast_code_block_ptr(ast_statement_ptr(ast_assignment_statement_ptr(short_circuit_result, backing.parameters[1])))
+                        add_before_in(short_circuit_declaration, parent_chain->from_top(enclosing_block_idx-1), parent_chain->from_top(enclosing_block_idx))
+                        add_before_in(ast_statement_ptr(short_circuit_if), parent_chain->from_top(enclosing_block_idx-1), parent_chain->from_top(enclosing_block_idx))
+                        replace_with_in(node, short_circuit_result, parent_chain)
+                        var shorter_tree =stack_from_vector( parent_chain->data.slice(0, parent_chain->size()-enclosing_block_idx))
+                        run_on_tree_helper(short_circut_op, empty_pass_second_half, short_circuit_declaration, &shorter_tree, false)
+                        run_on_tree_helper(short_circut_op, empty_pass_second_half, short_circuit_if, &shorter_tree, false)
+                        return false
+                    }
+                }
+            }
+            return true
+        }
+        run_on_tree(short_circut_op, empty_pass_second_half, syntax_ast_pair.second)
+        // Pass 3
+        var construct_in_destruct_out = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::function(backing) {
                     var order = 0;
@@ -89,7 +133,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                 }
             }
         }
-        run_on_tree(helper_before, helper_after, syntax_ast_pair.second)
+        run_on_tree(empty_pass_first_half, construct_in_destruct_out, syntax_ast_pair.second)
     })
 }
 

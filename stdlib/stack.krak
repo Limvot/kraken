@@ -2,6 +2,11 @@ import vector
 import serialize
 import util
 
+fun stack_from_vector<T>(i: vector::vector<T>): stack<T> {
+    var to_ret.construct(): stack<T>
+    to_ret.data = i
+    return to_ret
+}
 
 fun stack<T>():stack<T> {
     var out.construct():stack<T>
@@ -32,8 +37,6 @@ obj stack<T> (Object, Serializable) {
         return serialize::serialize(data)
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
-        /*construct()*/
-        /*util::unpack(data, pos) = serialize::unserialize<vector::vector<T>>(it, pos)*/
         return data.unserialize(it, pos)
     }
     fun push(it: ref T) {
@@ -73,4 +76,10 @@ obj stack<T> (Object, Serializable) {
     }
     fun reverse_vector(): vector::vector<T>
         return data.reverse()
+    fun index_from_top_satisfying(func: fun(T):bool): int {
+        for (var i = 0; i < data.size; i++;)
+            if (func(from_top(i)))
+                return i
+        return -1
+    }
 }
