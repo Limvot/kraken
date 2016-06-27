@@ -151,11 +151,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     var value = backing.value
                     var holder = ast_identifier_ptr(string("holder"), get_ast_type(value)->clone_with_increased_indirection(), block)
                     block->code_block.children.add(ast_statement_ptr(ast_declaration_statement_ptr(holder, null<ast_node>(), false)))
-                    // dirty hack
-                    var if_hack = ast_if_statement_ptr(ast_assignment_statement_ptr(holder, make_operator_call("&", vector(value))))
-                    block->code_block.children.add(if_hack)
-                    var if_block = ast_code_block_ptr()
-                    if_hack->if_statement.then_part = if_block
+                    block->code_block.children.add(ast_statement_ptr(ast_assignment_statement_ptr(holder, make_operator_call("&", vector(value)))))
                     backing.cases.for_each(fun(case_stmt: *ast_node) {
                         var option = case_stmt->case_statement.option
                         var flag = get_from_scope(get_ast_type(value)->type_def, "flag")
@@ -178,7 +174,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         }
                         inner_block->code_block.children.add(case_stmt->case_statement.statement)
                         if_stmt->if_statement.then_part = inner_block
-                        if_block->code_block.children.add(if_stmt)
+                        block->code_block.children.add(if_stmt)
                     })
                     *node = *block
                 }

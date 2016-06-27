@@ -8,8 +8,6 @@ import tree:*
 import symbol:*
 import ast_nodes:*
 import poset:*
-// we import ast_transformation for its make_method_call function
-import ast_transformation:*
 
 fun code_triple(): code_triple return code_triple(string(), string(), string());
 fun code_triple(only: *char): code_triple return code_triple(string(), string(only), string());
