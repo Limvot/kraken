@@ -941,6 +941,8 @@ obj ast_transformation (Object) {
                 var first_param_type = get_ast_type(first_param)
                 if (!first_param_type)
                     error(node, "Cannot get type from left side of access operation")
+                if (!first_param_type->is_object())
+                    error(node, "Type from left side of access operation isn't object")
                 second_param = transform(node->children[2], first_param_type->type_def, searching_for, template_replacements)
                 // template member functions
                 // XXX add in template inst if it exists

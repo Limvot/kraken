@@ -276,17 +276,21 @@ fun do_floating_op<T,U>(op: string, a: T, b: U, ptr_type: *type): value {
     if (op == "!=") return raw_to_value(a != b)
     error(("Invalid op: ") + op)
 }
-fun store_into_variable(to: value, from: value) {
+// the ref special case is interesting because it also means we have to take in the value by ref
+fun store_into_variable(to: ref value, from: value) {
     assert(is_variable(to), "trying to store into not variable")
     var variable = to.variable
-    // check for indirection
+    // NOTE
     // we have a special case here - we allow assigning to a ref from a pointer, as this is used in adt_lower
-    if (variable.second->indirection || (variable.second->is_ref && is_pointer(from))) {
+    if (variable.second->is_ref && is_pointer(from) && variable.second->clone_with_increased_indirection()->equality(from.pointer.second, false)) {
+        to.variable.first = from.pointer.first
+        return;
+    }
+    // check for indirection
+    if (variable.second->indirection) {
         assert(is_pointer(from), "mismatching assignemnt types - from is not pointer")
         *(variable.first) cast **void = from.pointer.first
         return;
-    }
-    if (variable.second->is_ref && is_pointer(from)) {
     }
     // TODO - check to make sure that we don't have to cast pre assign (perhaps alwyas send through the cast?)
     match (variable.second->base) {
@@ -310,25 +314,28 @@ fun get_real_value(v: value): value {
     if (!is_variable(v))
         return v
     var variable = v.variable
-    if (variable.second->indirection)
-        return value::pointer(make_pair(*(variable.first) cast **void, variable.second))
-    match (variable.second->base) {
+    var var_ptr = variable.first
+    var var_type = variable.second
+    // step through indirection first
+    if (var_type->indirection)
+        return value::pointer(make_pair(*(var_ptr) cast **void, var_type))
+    match (var_type->base) {
         // really this could just be make_pair(variable)
-        base_type::object() return value::object_like(make_pair(variable.first, variable.second))
+        base_type::object() return value::object_like(make_pair(var_ptr, var_type))
         /*base_type::adt() return #sizeof<>*/
         /*base_type::function() return #sizeof<>*/
-        base_type::boolean() return value::boolean(*(variable.first) cast *bool)
-        base_type::character() return value::character(*(variable.first) cast *char)
-        base_type::ucharacter() return value::ucharacter(*(variable.first) cast *uchar)
-        base_type::short_int() return value::short_int(*(variable.first) cast *short)
-        base_type::ushort_int() return value::ushort_int(*(variable.first) cast *ushort)
-        base_type::integer() return value::integer(*(variable.first) cast *int)
-        base_type::uinteger() return value::uinteger(*(variable.first) cast *uint)
-        base_type::long_int() return value::long_int(*(variable.first) cast *long)
-        base_type::ulong_int() return value::ulong_int(*(variable.first) cast *ulong)
-        base_type::floating() return value::floating(*(variable.first) cast *float)
-        base_type::double_precision() return value::double_precision(*(variable.first) cast *double)
-        base_type::function() return value::function(*(variable.first) cast *pair<*ast_node,map<*ast_node,value>>)
+        base_type::boolean() return value::boolean(*(var_ptr) cast *bool)
+        base_type::character() return value::character(*(var_ptr) cast *char)
+        base_type::ucharacter() return value::ucharacter(*(var_ptr) cast *uchar)
+        base_type::short_int() return value::short_int(*(var_ptr) cast *short)
+        base_type::ushort_int() return value::ushort_int(*(var_ptr) cast *ushort)
+        base_type::integer() return value::integer(*(var_ptr) cast *int)
+        base_type::uinteger() return value::uinteger(*(var_ptr) cast *uint)
+        base_type::long_int() return value::long_int(*(var_ptr) cast *long)
+        base_type::ulong_int() return value::ulong_int(*(var_ptr) cast *ulong)
+        base_type::floating() return value::floating(*(var_ptr) cast *float)
+        base_type::double_precision() return value::double_precision(*(var_ptr) cast *double)
+        base_type::function() return value::function(*(var_ptr) cast *pair<*ast_node,map<*ast_node,value>>)
     }
     error(string("Cannot get real value from variable: ") + variable.second->to_string())
 }
@@ -452,8 +459,15 @@ fun type_size(t: *type): ulong {
         return #sizeof<*void>
     match (t->base) {
         base_type::object() {
-            var size = 0
-            t->type_def->type_def.variables.for_each(fun(i: *ast_node) size += type_size(i->declaration_statement.identifier->identifier.type);)
+            var size: ulong = 0
+            t->type_def->type_def.variables.for_each(fun(i: *ast_node) {
+                var individual_size = type_size(i->declaration_statement.identifier->identifier.type)
+                if (t->type_def->type_def.is_union) {
+                    size = max(size, individual_size)
+                } else {
+                    size += individual_size
+                }
+            })
             return size
         }
         /*base_type::adt() return #sizeof<>*/
@@ -473,6 +487,8 @@ fun type_size(t: *type): ulong {
     error(string("Invalid type for type_size: ") + t->to_string())
 }
 fun offset_into_struct(struct_type: *type, ident: *ast_node): ulong {
+    if (struct_type->type_def->type_def.is_union)
+        return 0
     var size: ulong = 0
     for (var i = 0; i < struct_type->type_def->type_def.variables.size; i++;)
         if (struct_type->type_def->type_def.variables[i]->declaration_statement.identifier == ident)
@@ -903,6 +919,7 @@ obj interpreter (Object) {
         //HERE
         if (ident_type->indirection == 0 && ident_type->is_function())
             (var_stack->top()[ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()
+        // NOTE: store_into_variable takes to in as a ref because it might change it in the special case ref = ptr
         if (stmt->declaration_statement.expression) {
             store_into_variable(var_stack->top()[ident], get_real_value(interpret(stmt->declaration_statement.expression, var_stack, enclosing_object, enclosing_func).first))
         } else if (stmt->declaration_statement.init_method_call) {
@@ -917,6 +934,7 @@ obj interpreter (Object) {
         // always do cast now to make our best effort at assignment (assign into a double from a float, etc)
         // unless it's an object
         var from_real = get_real_value(from)
+        // NOTE: store_into_variable takes to in as a ref because it might change it in the special case ref = ptr
         if (is_object_like(from_real))
             store_into_variable(to, from_real)
         else
