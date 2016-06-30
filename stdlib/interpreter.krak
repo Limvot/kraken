@@ -307,7 +307,6 @@ fun store_into_variable(to: ref value, from: value) {
         base_type::ulong_int() { assert(is_ulong_int(from), "mismatching assignemnt types - from is not ulong_int"); *(variable.first) cast *ulong = from.ulong_int; }
         base_type::floating() { assert(is_floating(from), "mismatching assignemnt types - from is not floating"); *(variable.first) cast *float = from.floating; }
         base_type::double_precision() { assert(is_double_precision(from), "mismatching assignemnt types - from is not double"); *(variable.first) cast *double = from.double_precision; }
-        base_type::function() { assert(is_function(from), "mismatching assignemnt types - from is not function"); *(variable.first) cast *pair<*ast_node,map<*ast_node,value>> = from.function; }
     }
 }
 fun get_real_value(v: value): value {
@@ -322,8 +321,6 @@ fun get_real_value(v: value): value {
     match (var_type->base) {
         // really this could just be make_pair(variable)
         base_type::object() return value::object_like(make_pair(var_ptr, var_type))
-        /*base_type::adt() return #sizeof<>*/
-        /*base_type::function() return #sizeof<>*/
         base_type::boolean() return value::boolean(*(var_ptr) cast *bool)
         base_type::character() return value::character(*(var_ptr) cast *char)
         base_type::ucharacter() return value::ucharacter(*(var_ptr) cast *uchar)
@@ -470,7 +467,6 @@ fun type_size(t: *type): ulong {
             })
             return size
         }
-        /*base_type::adt() return #sizeof<>*/
         base_type::function() return #sizeof<pair<*ast_node,map<*ast_node,value>>>
         base_type::boolean() return #sizeof<bool>
         base_type::character() return #sizeof<char>
@@ -553,7 +549,7 @@ obj interpreter (Object) {
         printlnerr("=============")
         var var_stack = stack<map<*ast_node, value>>()
         var_stack.push(map<*ast_node,value>())
-        var result = call_function(results[0], vector<value>(), vector<*ast_node>(), &var_stack, value::void_nothing(), value::void_nothing(), null<ast_node>())
+        var result = call_function(results[0], vector<value>(), vector<*ast_node>(), &var_stack, map<*ast_node,value>(), value::void_nothing(), value::void_nothing(), null<ast_node>())
         printlnerr("=============")
         printlnerr("Done!")
         printlnerr("=============")
@@ -588,11 +584,18 @@ obj interpreter (Object) {
         var func_call_func = func_call->function_call.func
         var new_enclosing_object = value::void_nothing()
         var dot_style_method_call = is_dot_style_method_call(func_call)
+        var possible_closure_map = map<*ast_node,value>()
         // test for function value
         if (!dot_style_method_call && !is_function(func_call_func)) {
             /*error("func_call_func is not a function")*/
             /*println(string("func_call_func is not a function: ") + get_ast_name(func_call_func))*/
-            func_call_func = get_real_value(interpret(func_call_func, var_stack, enclosing_object, enclosing_func).first).function.first
+            var func_value = get_real_value(interpret(func_call_func, var_stack, enclosing_object, enclosing_func).first)
+            func_call_func = func_value.function.first
+            possible_closure_map = func_value.function.second
+            println("possible_closure_map is")
+            possible_closure_map.for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)
+            println()
+            println("end pcm")
             /*println(string("calling func we got from interpreting: ") + get_ast_name(func_call_func))*/
         }
         // note here also that this is likely not a foolproof method
@@ -676,19 +679,27 @@ obj interpreter (Object) {
             // not the operator & and at least one object like parameter
             parameter_sources = func_call_parameters
         }
-        return make_pair(call_function(func_call_func, parameters, parameter_sources, var_stack, enclosing_object, new_enclosing_object, enclosing_func), control_flow::nor())
+        return make_pair(call_function(func_call_func, parameters, parameter_sources, var_stack, possible_closure_map, enclosing_object, new_enclosing_object, enclosing_func), control_flow::nor())
     }
     // call_function can be called with either parameter values in parameters or ast expressions in parameter_sources
     // this is to allow easy function calling if we already have the values (for main, say, or to make our job if it's not
     // an operator easier), but we need to be able to be called with ast_expressions too so we can properly copy_construct once
-    fun call_function(func: *ast_node, parameters: vector<value>, parameter_sources: vector<*ast_node>, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, new_enclosing_object: value, enclosing_func: *ast_node): value {
+    fun call_function(func: *ast_node, parameters: vector<value>, parameter_sources: vector<*ast_node>, var_stack: *stack<map<*ast_node, value>>, possible_closure_map: ref map<*ast_node, value>, enclosing_object: value, new_enclosing_object: value, enclosing_func: *ast_node): value {
         // will need adjustment
         if (!is_function(func))
             error("Can't handle not function function calls (can do regular method, is this chained or something?)")
         var func_name = func->function.name
         // do regular function
-        var new_var_stack = stack<map<*ast_node, value>>()
+        // start out with the possible closure map as the highest scope (gloabals checked seperately)
+        var new_var_stack = stack(possible_closure_map)
         new_var_stack.push(map<*ast_node,value>())
+        println("stack after pcm and new m is")
+        for (var i = 0; i < new_var_stack.size(); i++;) {
+            println(string("level: ") + i)
+            new_var_stack.from_top(i).for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)
+            println()
+        }
+        println("end stack after")
         // if this is a value based call, pull from parameters
         if (parameter_sources.size == 0) {
             /*println(func_name + " being called with parameter values")*/
@@ -814,7 +825,16 @@ obj interpreter (Object) {
         return value::void_nothing()
     }
     fun interpret_function(function: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node): pair<value, control_flow> {
-        return make_pair(value::function(make_pair(function, map<*ast_node,value>())), control_flow::nor())
+        var possible_closure_map = map<*ast_node,value>()
+        function->function.closed_variables.for_each(fun(v: *ast_node) {
+            possible_closure_map[v] = interpret_identifier(v, var_stack, enclosing_object, enclosing_func).first
+            println(string("closing over ") + get_ast_name(v))
+        })
+        println("in interpret function possible_closure_map is")
+        possible_closure_map.for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)
+        println()
+        println("end in inteprret function pcm")
+        return make_pair(value::function(make_pair(function, possible_closure_map)), control_flow::nor())
     }
     fun interpret_statement(stmt: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node): pair<value, control_flow> {
         return interpret(stmt->statement.child, var_stack, enclosing_object, enclosing_func)
@@ -960,6 +980,12 @@ obj interpreter (Object) {
         // check for global
         if (globals.contains_key(ident))
             return make_pair(globals[ident], control_flow::nor())
+        println("couldn't find it in interpret identifier")
+        for (var i = 0; i < var_stack->size(); i++;) {
+            println(string("level: ") + i)
+            var_stack->from_top(i).for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)
+            println()
+        }
         error(string("Cannot find variable: ") + ident->identifier.name)
     }
     fun interpret_cast(node: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node): pair<value, control_flow> {

@@ -25,9 +25,6 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     var replacement_this = make_this_noncached(replacement)
                     var option_union = ast_type_def_ptr(backing.name + "_union", true);
                     node->adt_def.options.for_each(fun(opt: *ast_node) {
-                        // want to keep them around
-                        /*if (opt->identifier.type->is_empty_adt_option())*/
-                            /*opt->identifier.type = type_ptr(base_type::character())*/
                         if (!opt->identifier.type->is_empty_adt_option())
                             option_union->type_def.variables.add(ast_declaration_statement_ptr(opt, null<ast_node>(), false))
                         type_def_option_map[node].add(opt)
@@ -52,17 +49,12 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
 
                         var value = ast_value_ptr(to_string(idx), type_ptr(base_type::integer()))
                         block->code_block.children.add(ast_statement_ptr(ast_assignment_statement_ptr(make_operator_call(".", vector(to_ret, flag)), value)))
-                        /*var opt = option_union->type_def.variables[idx]->declaration_statement.identifier*/
                         var opt = type_def_option_map[node][idx]
                         var lvalue = make_operator_call(".", vector(make_operator_call(".", vector(to_ret, option_union_ident)), opt))
                         if (func->function.parameters.size) { 
                             // do copy_construct if it should
                             block->code_block.children.add(ast_statement_ptr(assign_or_copy_construct_statement(lvalue, func->function.parameters[0])))
                         }
-                        /*} else {*/
-                            /*// init our placeholders with 0 for equality, etc*/
-                            /*block->code_block.children.add(ast_statement_ptr(ast_assignment_statement_ptr(lvalue, ast_value_ptr(string("0"), type_ptr(base_type::character())))))*/
-                        /*}*/
                         block->code_block.children.add(ast_statement_ptr(ast_return_statement_ptr(to_ret)))
                         add_before_in(func, node, parent_chain)
                         add_to_scope(func->function.name, func, enclosing_scope)
@@ -78,12 +70,10 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                             if_stmt->if_statement.then_part = ast_statement_ptr(ast_return_statement_ptr(ast_value_ptr(string("false"), type_ptr(base_type::boolean()))))
                             block->code_block.children.add(if_stmt)
 
-                            /*for (var i = 0; i < option_union->type_def.variables.size; i++;) {*/
                             for (var i = 0; i < type_def_option_map[node].size; i++;) {
                                 if (get_ast_type(type_def_option_map[node][i])->is_empty_adt_option())
                                     continue
                                 var if_stmt_inner = ast_if_statement_ptr(make_operator_call("==", vector(make_operator_call("->", vector(replacement_this, flag)), ast_value_ptr(to_string(i), type_ptr(base_type::integer())))))
-                                /*var option = option_union->type_def.variables[i]->declaration_statement.identifier*/
                                 var option = type_def_option_map[node][i]
                                 var our_option = make_operator_call(".", vector(make_operator_call("->", vector(replacement_this, option_union_ident)), option))
                                 var their_option = make_operator_call(".", vector(make_operator_call(".", vector(other, option_union_ident)), option))
@@ -101,12 +91,10 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         } else if (func->function.name == "copy_construct") {
                             var other = func->function.parameters[0]
                             block->code_block.children.add(ast_statement_ptr(ast_assignment_statement_ptr(make_operator_call("->", vector(replacement_this, flag)), make_operator_call("->", vector(other, flag)))))
-                            /*for (var i = 0; i < option_union->type_def.variables.size; i++;) {*/
                             for (var i = 0; i < type_def_option_map[node].size; i++;) {
                                 if (get_ast_type(type_def_option_map[node][i])->is_empty_adt_option())
                                     continue
                                 var if_stmt_inner = ast_if_statement_ptr(make_operator_call("==", vector(make_operator_call("->", vector(replacement_this, flag)), ast_value_ptr(to_string(i), type_ptr(base_type::integer())))))
-                                /*var option = option_union->type_def.variables[i]->declaration_statement.identifier*/
                                 var option = type_def_option_map[node][i]
                                 var our_option = make_operator_call(".", vector(make_operator_call("->", vector(replacement_this, option_union_ident)), option))
                                 var their_option = make_operator_call(".", vector(make_operator_call("->", vector(other, option_union_ident)), option))
