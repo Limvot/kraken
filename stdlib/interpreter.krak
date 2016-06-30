@@ -31,7 +31,7 @@ adt value {
     pointer: pair<*void,*type>,
     object_like: pair<*void,*type>,
     variable: pair<*void,*type>,
-    function: pair<*ast_node,map<*ast_node,value>>
+    function: pair<*ast_node,*map<*ast_node,value>>
 }
 adt control_flow {
     nor,
@@ -295,7 +295,7 @@ fun store_into_variable(to: ref value, from: value) {
     // TODO - check to make sure that we don't have to cast pre assign (perhaps alwyas send through the cast?)
     match (variable.second->base) {
         base_type::object() { assert(is_object_like(from), "mismatching assignemnt types - from is not object"); memmove(variable.first, from.object_like.first, type_size(from.object_like.second)); }
-        base_type::function() { assert(is_function(from), "mismatching assignemnt types - from is not function"); *(variable.first) cast *pair<*ast_node, map<*ast_node,value>> = from.function; }
+        base_type::function() { assert(is_function(from), "mismatching assignemnt types - from is not function"); *(variable.first) cast *pair<*ast_node, *map<*ast_node,value>> = from.function; }
         base_type::boolean() { assert(is_boolean(from), "mismatching assignemnt types - from is not boolean"); *(variable.first) cast *bool = from.boolean; }
         base_type::character() { assert(is_character(from), "mismatching assignemnt types - from is not character"); *(variable.first) cast *char = from.character; }
         base_type::ucharacter() { assert(is_ucharacter(from), "mismatching assignemnt types - from is not ucharacter"); *(variable.first) cast *uchar = from.ucharacter; }
@@ -332,7 +332,7 @@ fun get_real_value(v: value): value {
         base_type::ulong_int() return value::ulong_int(*(var_ptr) cast *ulong)
         base_type::floating() return value::floating(*(var_ptr) cast *float)
         base_type::double_precision() return value::double_precision(*(var_ptr) cast *double)
-        base_type::function() return value::function(*(var_ptr) cast *pair<*ast_node,map<*ast_node,value>>)
+        base_type::function() return value::function(*(var_ptr) cast *pair<*ast_node,*map<*ast_node,value>>)
     }
     error(string("Cannot get real value from variable: ") + variable.second->to_string())
 }
@@ -343,9 +343,9 @@ fun wrap_into_variable(v: value): value {
         return value::variable(make_pair(v.object_like.first, v.object_like.second))
     var variable_type = get_type_from_primitive_value(v)
     var to_ret = value::variable(make_pair(malloc(type_size(variable_type)), variable_type))
-    if (is_function(v))
-        (to_ret.variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->copy_construct(&v.function)
-    else
+    /*if (is_function(v))*/
+        /*(to_ret.variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->copy_construct(&v.function)*/
+    /*else*/
         store_into_variable(to_ret, v)
     return to_ret
 }
@@ -467,7 +467,7 @@ fun type_size(t: *type): ulong {
             })
             return size
         }
-        base_type::function() return #sizeof<pair<*ast_node,map<*ast_node,value>>>
+        base_type::function() return #sizeof<pair<*ast_node,*map<*ast_node,value>>>
         base_type::boolean() return #sizeof<bool>
         base_type::character() return #sizeof<char>
         base_type::ucharacter() return #sizeof<uchar>
@@ -591,11 +591,11 @@ obj interpreter (Object) {
             /*println(string("func_call_func is not a function: ") + get_ast_name(func_call_func))*/
             var func_value = get_real_value(interpret(func_call_func, var_stack, enclosing_object, enclosing_func).first)
             func_call_func = func_value.function.first
-            possible_closure_map = func_value.function.second
-            println("possible_closure_map is")
-            possible_closure_map.for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)
-            println()
-            println("end pcm")
+            possible_closure_map = *func_value.function.second
+            /*println("possible_closure_map is")*/
+            /*possible_closure_map.for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)*/
+            /*println()*/
+            /*println("end pcm")*/
             /*println(string("calling func we got from interpreting: ") + get_ast_name(func_call_func))*/
         }
         // note here also that this is likely not a foolproof method
@@ -693,13 +693,13 @@ obj interpreter (Object) {
         // start out with the possible closure map as the highest scope (gloabals checked seperately)
         var new_var_stack = stack(possible_closure_map)
         new_var_stack.push(map<*ast_node,value>())
-        println("stack after pcm and new m is")
-        for (var i = 0; i < new_var_stack.size(); i++;) {
-            println(string("level: ") + i)
-            new_var_stack.from_top(i).for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)
-            println()
-        }
-        println("end stack after")
+        /*println("stack after pcm and new m is")*/
+        /*for (var i = 0; i < new_var_stack.size(); i++;) {*/
+            /*println(string("level: ") + i)*/
+            /*new_var_stack.from_top(i).for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)*/
+            /*println()*/
+        /*}*/
+        /*println("end stack after")*/
         // if this is a value based call, pull from parameters
         if (parameter_sources.size == 0) {
             /*println(func_name + " being called with parameter values")*/
@@ -716,8 +716,8 @@ obj interpreter (Object) {
                 } else {
                     new_var_stack.top()[param_ident] = value::variable(make_pair(malloc(type_size(param_type)), param_type))
                     //HERE
-                    if (param_type->indirection == 0 && param_type->is_function())
-                        (new_var_stack.top()[param_ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()
+                    /*if (param_type->indirection == 0 && param_type->is_function())*/
+                        /*(new_var_stack.top()[param_ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()*/
                     store_into_variable(new_var_stack.top()[param_ident], get_real_value(parameters[i]))
                 }
             }
@@ -740,8 +740,8 @@ obj interpreter (Object) {
                 } else {
                     new_var_stack.top()[param_ident] = value::variable(make_pair(malloc(type_size(param_type)), param_type))
                     //HERE
-                    if (param_type->indirection == 0 && param_type->is_function())
-                        (new_var_stack.top()[param_ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()
+                    /*if (param_type->indirection == 0 && param_type->is_function())*/
+                        /*(new_var_stack.top()[param_ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()*/
                     store_into_variable(new_var_stack.top()[param_ident], get_real_value(interpret(parameter_sources[i], var_stack, enclosing_object, enclosing_func).first))
                 }
             }
@@ -825,15 +825,15 @@ obj interpreter (Object) {
         return value::void_nothing()
     }
     fun interpret_function(function: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node): pair<value, control_flow> {
-        var possible_closure_map = map<*ast_node,value>()
+        var possible_closure_map = new<map<*ast_node,value>>()->construct()
         function->function.closed_variables.for_each(fun(v: *ast_node) {
-            possible_closure_map[v] = interpret_identifier(v, var_stack, enclosing_object, enclosing_func).first
-            println(string("closing over ") + get_ast_name(v))
+            (*possible_closure_map)[v] = interpret_identifier(v, var_stack, enclosing_object, enclosing_func).first
+            /*println(string("closing over ") + get_ast_name(v))*/
         })
-        println("in interpret function possible_closure_map is")
-        possible_closure_map.for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)
-        println()
-        println("end in inteprret function pcm")
+        /*println("in interpret function possible_closure_map is")*/
+        /*possible_closure_map->for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)*/
+        /*println()*/
+        /*println("end in inteprret function pcm")*/
         return make_pair(value::function(make_pair(function, possible_closure_map)), control_flow::nor())
     }
     fun interpret_statement(stmt: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node): pair<value, control_flow> {
@@ -925,8 +925,8 @@ obj interpreter (Object) {
         } else {
             to_ret = value::variable(make_pair(malloc(type_size(return_type)), return_type))
             //HERE
-            if (return_type->indirection == 0 && return_type->is_function())
-                (to_ret.variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()
+            /*if (return_type->indirection == 0 && return_type->is_function())*/
+                /*(to_ret.variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()*/
             var ret_val = interpret(return_expression, var_stack, enclosing_object, enclosing_func).first
             store_into_variable(to_ret, get_real_value(ret_val))
         }
@@ -937,8 +937,8 @@ obj interpreter (Object) {
         var ident_type = ident->identifier.type
         var_stack->top()[ident] = value::variable(make_pair(malloc(type_size(ident_type)),ident_type))
         //HERE
-        if (ident_type->indirection == 0 && ident_type->is_function())
-            (var_stack->top()[ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()
+        /*if (ident_type->indirection == 0 && ident_type->is_function())*/
+            /*(var_stack->top()[ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()*/
         // NOTE: store_into_variable takes to in as a ref because it might change it in the special case ref = ptr
         if (stmt->declaration_statement.expression) {
             store_into_variable(var_stack->top()[ident], get_real_value(interpret(stmt->declaration_statement.expression, var_stack, enclosing_object, enclosing_func).first))
