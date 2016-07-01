@@ -110,7 +110,10 @@ fun wrap_value(val: *ast_node): value {
             if (value_str[value_str.length()-1] == 'f')
                 return value::floating((string_to_double(value_str.slice(0,-2))) cast float)
             else
-                return value::double_precision(string_to_double(value_str))
+                if (value_str[value_str.length()-1] == 'd')
+                    return value::double_precision(string_to_double(value_str.slice(0,-2)))
+                else
+                    return value::double_precision(string_to_double(value_str))
         else
             return value::integer(string_to_int(value_str))
     }
@@ -742,9 +745,6 @@ obj interpreter (Object) {
                         new_var_stack.top()[param_ident] = wrap_into_variable(param)
                 } else {
                     new_var_stack.top()[param_ident] = value::variable(make_pair(malloc(type_size(param_type)), param_type))
-                    //HERE
-                    /*if (param_type->indirection == 0 && param_type->is_function())*/
-                        /*(new_var_stack.top()[param_ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()*/
                     store_into_variable(new_var_stack.top()[param_ident], get_real_value(interpret(parameter_sources[i], var_stack, enclosing_object, enclosing_func).first))
                 }
             }
@@ -932,24 +932,14 @@ obj interpreter (Object) {
                 error("interpreter returning reference is not variable")
             }
         } else {
-            /*to_ret = value::variable(make_pair(malloc(type_size(return_type)), return_type))*/
-            //HERE
-            /*if (return_type->indirection == 0 && return_type->is_function())*/
-                /*(to_ret.variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()*/
-            /*var ret_val = interpret(return_expression, var_stack, enclosing_object, enclosing_func).first*/
             to_ret = interpret(return_expression, var_stack, enclosing_object, enclosing_func).first
-            /*store_into_variable(to_ret, get_real_value(ret_val))*/
         }
-        /*return make_pair(get_real_value(to_ret), control_flow::ret())*/
         return make_pair(to_ret, control_flow::ret())
     }
     fun interpret_declaration_statement(stmt: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node): pair<value, control_flow> {
         var ident = stmt->declaration_statement.identifier
         var ident_type = ident->identifier.type
         var_stack->top()[ident] = value::variable(make_pair(malloc(type_size(ident_type)),ident_type))
-        //HERE
-        /*if (ident_type->indirection == 0 && ident_type->is_function())*/
-            /*(var_stack->top()[ident].variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()*/
         // NOTE: store_into_variable takes to in as a ref because it might change it in the special case ref = ptr
         if (stmt->declaration_statement.expression) {
             store_into_variable(var_stack->top()[ident], get_real_value(interpret(stmt->declaration_statement.expression, var_stack, enclosing_object, enclosing_func).first))
