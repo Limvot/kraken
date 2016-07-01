@@ -955,7 +955,7 @@ obj interpreter (Object) {
         // unless it's an object
         var from_real = get_real_value(from)
         // NOTE: store_into_variable takes to in as a ref because it might change it in the special case ref = ptr
-        if (is_object_like(from_real))
+        if (is_object_like(from_real) || is_function(from_real))
             store_into_variable(to, from_real)
         else
             store_into_variable(to, cast_value(from_real, to.variable.second))
