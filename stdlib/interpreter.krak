@@ -586,7 +586,7 @@ obj interpreter (Object) {
         var dot_style_method_call = is_dot_style_method_call(func_call)
         var possible_closure_map = map<*ast_node,value>()
         // test for function value
-        if (!dot_style_method_call && !is_function(func_call_func)) {
+        if (!dot_style_method_call && (!is_function(func_call_func) || func_call_func->function.closed_variables.size())) {
             /*error("func_call_func is not a function")*/
             /*println(string("func_call_func is not a function: ") + get_ast_name(func_call_func))*/
             var func_value = get_real_value(interpret(func_call_func, var_stack, enclosing_object, enclosing_func).first)
@@ -657,8 +657,11 @@ obj interpreter (Object) {
                     return make_pair(value::pointer(make_pair(parameters[0].variable.first, parameters[0].variable.second->clone_with_increased_indirection())), control_flow::nor())
                 else if (is_object_like(parameters[0]))
                     return make_pair(value::pointer(make_pair(parameters[0].object_like.first, parameters[0].object_like.second->clone_with_increased_indirection())), control_flow::nor())
-                else
+                else {
+                    print("can't take address of: ")
+                    print_value(parameters[0])
                     error("Trying to take address of not a variable or object_like")
+                }
             }
             // to dereference, we basically take the pointer's value (maybe going through a variable to get it)
             // and re-wrap it up into a variable value (so it can be assigned to, etc)
@@ -826,9 +829,10 @@ obj interpreter (Object) {
     }
     fun interpret_function(function: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node): pair<value, control_flow> {
         var possible_closure_map = new<map<*ast_node,value>>()->construct()
+        /*println("trying to close")*/
         function->function.closed_variables.for_each(fun(v: *ast_node) {
             (*possible_closure_map)[v] = interpret_identifier(v, var_stack, enclosing_object, enclosing_func).first
-            /*println(string("closing over ") + get_ast_name(v))*/
+            /*println(string("closed over ") + get_ast_name(v))*/
         })
         /*println("in interpret function possible_closure_map is")*/
         /*possible_closure_map->for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)*/
@@ -922,15 +926,22 @@ obj interpreter (Object) {
         var to_ret.construct(): value
         if (get_ast_type(enclosing_func)->return_type->is_ref) {
             to_ret = interpret(return_expression, var_stack, enclosing_object, enclosing_func).first
+            if (!is_variable(to_ret)) {
+                print("here is: ")
+                print_value(to_ret)
+                error("interpreter returning reference is not variable")
+            }
         } else {
-            to_ret = value::variable(make_pair(malloc(type_size(return_type)), return_type))
+            /*to_ret = value::variable(make_pair(malloc(type_size(return_type)), return_type))*/
             //HERE
             /*if (return_type->indirection == 0 && return_type->is_function())*/
                 /*(to_ret.variable.first) cast *pair<*ast_node,map<*ast_node,value>> ->construct()*/
-            var ret_val = interpret(return_expression, var_stack, enclosing_object, enclosing_func).first
-            store_into_variable(to_ret, get_real_value(ret_val))
+            /*var ret_val = interpret(return_expression, var_stack, enclosing_object, enclosing_func).first*/
+            to_ret = interpret(return_expression, var_stack, enclosing_object, enclosing_func).first
+            /*store_into_variable(to_ret, get_real_value(ret_val))*/
         }
-        return make_pair(get_real_value(to_ret), control_flow::ret())
+        /*return make_pair(get_real_value(to_ret), control_flow::ret())*/
+        return make_pair(to_ret, control_flow::ret())
     }
     fun interpret_declaration_statement(stmt: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node): pair<value, control_flow> {
         var ident = stmt->declaration_statement.identifier
