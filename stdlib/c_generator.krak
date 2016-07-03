@@ -7,6 +7,8 @@ import util:*
 import tree:*
 import symbol:*
 import ast_nodes:*
+// for error with syntax tree
+import ast_transformation:*
 import poset:*
 
 fun code_triple(): code_triple return code_triple(string(), string(), string());
@@ -463,6 +465,9 @@ obj c_generator (Object) {
         var return_value = node->return_statement.return_value
         var function_return_type = get_ast_type(enclosing_func)->return_type
         var to_ret = code_triple()
+
+        if (!function_return_type->is_void() && !function_return_type->equality(get_ast_type(return_value), false))
+            error(ast_to_syntax[node], "return value type does not match function return type")
 
         to_ret += "return"
         var refamp = string()

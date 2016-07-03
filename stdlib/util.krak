@@ -41,18 +41,18 @@ fun min<T>(a: T, b: T): T {
 
 fun hash<T(Hashable)>(item: T): ulong return item.hash()
 fun hash<T>(item: *T): ulong return (item) cast ulong
-fun hash(item: char): ulong return item
-fun hash(item: uchar): ulong return item
-fun hash(item: short): ulong return item
-fun hash(item: ushort): ulong return item
-fun hash(item: int): ulong return item
-fun hash(item: uint): ulong return item
-fun hash(item: long): ulong return item
-fun hash(item: ulong): ulong return item
+fun hash(item: char): ulong return (item) cast ulong
+fun hash(item: uchar): ulong return (item) cast ulong
+fun hash(item: short): ulong return (item) cast ulong
+fun hash(item: ushort): ulong return (item) cast ulong
+fun hash(item: int): ulong return (item) cast ulong
+fun hash(item: uint): ulong return (item) cast ulong
+fun hash(item: long): ulong return (item) cast ulong
+fun hash(item: ulong): ulong return (item) cast ulong
 // default hash
 fun hash<T>(item: T): ulong {
     io::println("using empty hash - please do not do!")
-    return 0
+    return (0) cast ulong
 }
 
 fun make_pair<T,U>(first: T, second: U): pair<T,U> {

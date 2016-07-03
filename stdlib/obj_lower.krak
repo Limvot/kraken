@@ -170,7 +170,12 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         return;
                     if (!ident_type->is_ref && ident_type->indirection == 0 && ident_type->is_object()) {
                         if (backing.expression && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(backing.expression)->clone_with_increased_indirection()))) {
-                            add_after_in(ast_statement_ptr(make_method_call(backing.identifier, "copy_construct", vector(make_operator_call("&", vector(backing.expression))))),
+                            var temp_cpy_ctst = ast_identifier_ptr("temp_declaration_copy_construct", get_ast_type(backing.expression)->clone_without_ref(), null<ast_node>())
+                            var declaration = ast_statement_ptr(ast_declaration_statement_ptr(temp_cpy_ctst, backing.expression, false))
+                            add_after_in(ast_statement_ptr(make_method_call(backing.identifier, "copy_construct", vector(make_operator_call("&", vector(temp_cpy_ctst))))),
+                                    parent_chain->top(), parent_chain->from_top(1))
+                            // do second so the order's right
+                            add_after_in(declaration, 
                                     parent_chain->top(), parent_chain->from_top(1))
                             backing.expression = null<ast_node>()
                         }

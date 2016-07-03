@@ -1,3 +1,4 @@
+Test linear map:
 3
 2
 1
@@ -10,6 +11,7 @@ Lookie, a map!
 What I get for not testing different types
 key: 7, value: Lookie, a map!
 key: 30, value: we'll look for for_each too
+Test hash map:
 3
 2
 1

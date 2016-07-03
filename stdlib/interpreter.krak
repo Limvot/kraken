@@ -80,6 +80,9 @@ fun wrap_value(val: *ast_node): value {
             } else if (value_str[i] == '\\' && value_str[i+1] == 't') {
                 to_ret += '\t'
                 i++
+            } else if (value_str[i] == '\\' && value_str[i+1] == '\\') {
+                to_ret += '\\'
+                i++
             } else if (i == value_str.length()-2) {
                 to_ret += value_str[i]
                 to_ret += value_str[i+1]
@@ -189,6 +192,15 @@ fun do_basic_op(func_name: string, a: value, b: value): value {
         value::floating(av) return do_basic_floating_op_second_half(func_name, av, b, null<type>())
         value::double_precision(av) return do_basic_floating_op_second_half(func_name, av, b, null<type>())
         value::pointer(av) {
+            var real_b = get_real_value(b)
+            if (func_name == "==") {
+                if (!is_pointer(real_b)) {
+                    print("equality between pointer and not pointer: ")
+                    print_value(real_b)
+                    error(":/")
+                }
+                return value::boolean(av.first == real_b.pointer.first)
+            }
             var inc_in_bytes = cast_value(b, type_ptr(base_type::ulong_int())).ulong_int * type_size(av.second->clone_with_decreased_indirection())
             var ptr = null<void>()
             if (func_name == "+") {
@@ -196,7 +208,9 @@ fun do_basic_op(func_name: string, a: value, b: value): value {
             } else if (func_name == "-") {
                 ptr = ((av.first) cast *char - inc_in_bytes) cast *void
             } else {
-                error("pointer arithmatic is not + or -")
+                println(string("pointer arithmatic is not + or -: ") + func_name + ", b is: ")
+                print_value(b)
+                error(string("pointer arithmatic is not + or -: ") + func_name)
             }
             return value::pointer(make_pair(ptr, av.second))
         }
@@ -486,9 +500,9 @@ fun type_size(t: *type): ulong {
     error(string("Invalid type for type_size: ") + t->to_string())
 }
 fun offset_into_struct(struct_type: *type, ident: *ast_node): ulong {
-    if (struct_type->type_def->type_def.is_union)
-        return 0
     var size: ulong = 0
+    if (struct_type->type_def->type_def.is_union)
+        return size
     for (var i = 0; i < struct_type->type_def->type_def.variables.size; i++;)
         if (struct_type->type_def->type_def.variables[i]->declaration_statement.identifier == ident)
             break
@@ -496,6 +510,8 @@ fun offset_into_struct(struct_type: *type, ident: *ast_node): ulong {
             size += type_size(struct_type->type_def->type_def.variables[i]->declaration_statement.identifier->identifier.type)
     return size
 }
+fun dereference_pointer_into_variable(dereference_val: value): value
+    return value::variable(make_pair(get_real_value(dereference_val).pointer.first, dereference_val.pointer.second->clone_with_decreased_indirection()))
 fun pop_and_free(var_stack: *stack<map<*ast_node, value>>) {
     var_stack->pop().for_each(fun(k: *ast_node, v: value) {
         match(v) {
@@ -595,6 +611,12 @@ obj interpreter (Object) {
             var func_value = get_real_value(interpret(func_call_func, var_stack, enclosing_object, enclosing_func).first)
             func_call_func = func_value.function.first
             possible_closure_map = *func_value.function.second
+            // if the closure closes over this, put it as the enclosing object inside the closure
+            possible_closure_map.for_each(fun(key: *ast_node, v: value) {
+                if (key->identifier.name == "this") {
+                    new_enclosing_object = get_real_value(dereference_pointer_into_variable(v))
+                }
+            })
             /*println("possible_closure_map is")*/
             /*possible_closure_map.for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)*/
             /*println()*/
@@ -674,7 +696,7 @@ obj interpreter (Object) {
                     dereference_val = do_basic_op(string("+"), parameters[0], parameters[1])
                 if (!is_pointer(get_real_value(parameters[0])))
                     error("Trying to take dereference not a pointer")
-                return make_pair(value::variable(make_pair(get_real_value(dereference_val).pointer.first, dereference_val.pointer.second->clone_with_decreased_indirection())), control_flow::nor())
+                return make_pair(dereference_pointer_into_variable(dereference_val), control_flow::nor())
             }
             // check for built-in-ish externs (everything the standard library needs)
             if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "memmove" || func_name == "fflush" || func_name == "snprintf" || func_name == "fopen" || func_name == "fclose" || func_name == "ftell" || func_name == "fseek" || func_name == "fread" || func_name == "fwrite" || func_name == "atan" || func_name == "atan2" || func_name == "acos" || func_name == "asin" || func_name == "tan" || func_name == "cos" || func_name == "sin")
@@ -981,11 +1003,21 @@ obj interpreter (Object) {
         // check for global
         if (globals.contains_key(ident))
             return make_pair(globals[ident], control_flow::nor())
-        println("couldn't find it in interpret identifier")
+        println("couldn't find it in interpret identifier, scope:")
         for (var i = 0; i < var_stack->size(); i++;) {
             println(string("level: ") + i)
             var_stack->from_top(i).for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)
             println()
+        }
+        if (is_object_like(enclosing_object)) {
+            println("object scope:")
+            var object_def = enclosing_object.object_like.second->type_def
+            for (var i = 0; i < object_def->type_def.variables.size; i++;) {
+                print(get_ast_name(object_def->type_def.variables[i]) + " ")
+            }
+        } else {
+            print("no object scope: ")
+            print_value(enclosing_object)
         }
         error(string("Cannot find variable: ") + ident->identifier.name)
     }

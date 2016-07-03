@@ -24,9 +24,11 @@ fun test_map<T,V>(m: ref T, mapEx: ref V) {
     mapEx.for_each(fun(key:int, value:*char) { print("key: "); print(key); print(", value: "); println(value); })
 }
 fun main(): int {
+    println("Test linear map:")
     var m1 = map(3,1)
     var mapEx1 = map(7, "Lookie, a map!")
     test_map(m1, mapEx1)
+    println("Test hash map:")
     var m2 = hash_map(3,1)
     var mapEx2 = hash_map(7, "Lookie, a map!")
     test_map(m2, mapEx2)
