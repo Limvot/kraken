@@ -104,89 +104,91 @@ obj importer (Object) {
         printlnerr("**Fourth Pass**")
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.fourth_pass(tree_pair.first, tree_pair.second);)
     }
-    fun trim(parse_tree: *tree<symbol>) {
-        remove_node(symbol("$NULL$", false), parse_tree)
-	    remove_node(symbol("WS", false), parse_tree)
-        // the terminals have " around them, which we have to escape
-	    remove_node(symbol("\"\\(\"", true), parse_tree)
-	    remove_node(symbol("\"\\)\"", true), parse_tree)
-        remove_node(symbol("\"template\"", true), parse_tree)
-        remove_node(symbol("\"return\"", true), parse_tree)
-        remove_node(symbol("\"defer\"", true), parse_tree)
-        remove_node(symbol("\";\"", true), parse_tree)
-        remove_node(symbol("line_end", false), parse_tree)
-        remove_node(symbol("\"{\"", true), parse_tree)
-        remove_node(symbol("\"}\"", true), parse_tree)
-        remove_node(symbol("\"(\"", true), parse_tree)
-        remove_node(symbol("\")\"", true), parse_tree)
-        remove_node(symbol("\"if\"", true), parse_tree)
-        remove_node(symbol("\"while\"", true), parse_tree)
-        remove_node(symbol("\"__if_comp__\"", true), parse_tree)
-        remove_node(symbol("\"comp_simple_passthrough\"", true), parse_tree)
-        /*remove_node(symbol("obj_nonterm", false), parse_tree)*/
-        remove_node(symbol("adt_nonterm", false), parse_tree)
+}
 
-        collapse_node(symbol("case_statement_list", false), parse_tree)
-        collapse_node(symbol("opt_param_assign_list", false), parse_tree)
-        collapse_node(symbol("param_assign_list", false), parse_tree)
-        collapse_node(symbol("opt_typed_parameter_list", false), parse_tree)
-        collapse_node(symbol("opt_parameter_list", false), parse_tree)
-        collapse_node(symbol("intrinsic_parameter_list", false), parse_tree)
-        collapse_node(symbol("identifier_list", false), parse_tree)
-        collapse_node(symbol("adt_option_list", false), parse_tree)
-        collapse_node(symbol("statement_list", false), parse_tree)
-        collapse_node(symbol("parameter_list", false), parse_tree)
-        collapse_node(symbol("typed_parameter_list", false), parse_tree)
-        collapse_node(symbol("unorderd_list_part", false), parse_tree)
-        collapse_node(symbol("if_comp_pred", false), parse_tree)
-        collapse_node(symbol("declaration_block", false), parse_tree)
-        collapse_node(symbol("type_list", false), parse_tree)
-        collapse_node(symbol("opt_type_list", false), parse_tree)
-        collapse_node(symbol("template_param_list", false), parse_tree)
-        collapse_node(symbol("trait_list", false), parse_tree)
-        collapse_node(symbol("dec_type", false), parse_tree)
-    }
-    fun remove_node(remove: symbol, parse_tree: *tree<symbol>) {
-        var to_process = queue<*tree<symbol>>()
-        to_process.push(parse_tree)
-        while(!to_process.empty()) {
-            var node = to_process.pop()
-            for (var i = 0; i < node->children.size; i++;) {
-                if (!node->children[i] || node->children[i]->data.equal_wo_data(remove)) {
-                    /*
-                    if (!node->children[i])
-                        println("not because null")
-                    else {
-                        print("not because "); println(remove.name)
-                    }
-                    */
-                    node->children.remove(i)
-                    i--;
-                } else {
-                    /*println(remove.to_string() + " not equal " + node->children[i]->data.to_string())*/
-                    to_process.push(node->children[i])
+fun trim(parse_tree: *tree<symbol>): *tree<symbol> {
+    remove_node(symbol("$NULL$", false), parse_tree)
+    remove_node(symbol("WS", false), parse_tree)
+    // the terminals have " around them, which we have to escape
+    remove_node(symbol("\"\\(\"", true), parse_tree)
+    remove_node(symbol("\"\\)\"", true), parse_tree)
+    remove_node(symbol("\"template\"", true), parse_tree)
+    remove_node(symbol("\"return\"", true), parse_tree)
+    remove_node(symbol("\"defer\"", true), parse_tree)
+    remove_node(symbol("\";\"", true), parse_tree)
+    remove_node(symbol("line_end", false), parse_tree)
+    remove_node(symbol("\"{\"", true), parse_tree)
+    remove_node(symbol("\"}\"", true), parse_tree)
+    remove_node(symbol("\"(\"", true), parse_tree)
+    remove_node(symbol("\")\"", true), parse_tree)
+    remove_node(symbol("\"if\"", true), parse_tree)
+    remove_node(symbol("\"while\"", true), parse_tree)
+    remove_node(symbol("\"__if_comp__\"", true), parse_tree)
+    remove_node(symbol("\"comp_simple_passthrough\"", true), parse_tree)
+    /*remove_node(symbol("obj_nonterm", false), parse_tree)*/
+    remove_node(symbol("adt_nonterm", false), parse_tree)
+
+    collapse_node(symbol("case_statement_list", false), parse_tree)
+    collapse_node(symbol("opt_param_assign_list", false), parse_tree)
+    collapse_node(symbol("param_assign_list", false), parse_tree)
+    collapse_node(symbol("opt_typed_parameter_list", false), parse_tree)
+    collapse_node(symbol("opt_parameter_list", false), parse_tree)
+    collapse_node(symbol("intrinsic_parameter_list", false), parse_tree)
+    collapse_node(symbol("identifier_list", false), parse_tree)
+    collapse_node(symbol("adt_option_list", false), parse_tree)
+    collapse_node(symbol("statement_list", false), parse_tree)
+    collapse_node(symbol("parameter_list", false), parse_tree)
+    collapse_node(symbol("typed_parameter_list", false), parse_tree)
+    collapse_node(symbol("unorderd_list_part", false), parse_tree)
+    collapse_node(symbol("if_comp_pred", false), parse_tree)
+    collapse_node(symbol("declaration_block", false), parse_tree)
+    collapse_node(symbol("type_list", false), parse_tree)
+    collapse_node(symbol("opt_type_list", false), parse_tree)
+    collapse_node(symbol("template_param_list", false), parse_tree)
+    collapse_node(symbol("trait_list", false), parse_tree)
+    collapse_node(symbol("dec_type", false), parse_tree)
+
+    return parse_tree
+}
+fun remove_node(remove: symbol, parse_tree: *tree<symbol>) {
+    var to_process = queue<*tree<symbol>>()
+    to_process.push(parse_tree)
+    while(!to_process.empty()) {
+        var node = to_process.pop()
+        for (var i = 0; i < node->children.size; i++;) {
+            if (!node->children[i] || node->children[i]->data.equal_wo_data(remove)) {
+                /*
+                if (!node->children[i])
+                    println("not because null")
+                else {
+                    print("not because "); println(remove.name)
                 }
-            }
-        }
-    }
-    fun collapse_node(remove: symbol, parse_tree: *tree<symbol>) {
-        var to_process = queue<*tree<symbol>>()
-        to_process.push(parse_tree)
-        while(!to_process.empty()) {
-            var node = to_process.pop()
-            for (var i = 0; i < node->children.size; i++;) {
-                if (node->children[i]->data.equal_wo_data(remove)) {
-                    var add_children = node->children[i]->children;
-                    // stick child's children between the current children divided
-                    // on i, without including i
-                    node->children = node->children.slice(0,i) +
-                                        add_children + node->children.slice(i+1,-1)
-                    i--;
-                } else {
-                    to_process.push(node->children[i])
-                }
+                */
+                node->children.remove(i)
+                i--;
+            } else {
+                /*println(remove.to_string() + " not equal " + node->children[i]->data.to_string())*/
+                to_process.push(node->children[i])
             }
         }
     }
 }
-
+fun collapse_node(remove: symbol, parse_tree: *tree<symbol>) {
+    var to_process = queue<*tree<symbol>>()
+    to_process.push(parse_tree)
+    while(!to_process.empty()) {
+        var node = to_process.pop()
+        for (var i = 0; i < node->children.size; i++;) {
+            if (node->children[i]->data.equal_wo_data(remove)) {
+                var add_children = node->children[i]->children;
+                // stick child's children between the current children divided
+                // on i, without including i
+                node->children = node->children.slice(0,i) +
+                                    add_children + node->children.slice(i+1,-1)
+                i--;
+            } else {
+                to_process.push(node->children[i])
+            }
+        }
+    }
+}

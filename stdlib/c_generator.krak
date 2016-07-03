@@ -8,7 +8,7 @@ import tree:*
 import symbol:*
 import ast_nodes:*
 // for error with syntax tree
-import ast_transformation:*
+import pass_common:*
 import poset:*
 
 fun code_triple(): code_triple return code_triple(string(), string(), string());
@@ -71,27 +71,6 @@ obj code_triple (Object) {
     fun one_string():string {
         return pre+value+post
     }
-}
-fun is_dot_style_method_call(node: *ast_node): bool {
-    return is_function_call(node->function_call.func) &&
-            is_function(node->function_call.func->function_call.func) &&
-            (node->function_call.func->function_call.func->function.name == "->" || node->function_call.func->function_call.func->function.name == ".") &&
-            is_function(node->function_call.func->function_call.parameters[1]) &&
-            (is_type_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0]) ||
-            // or if it's a templated method (yes, this has gotten uuuuugly)
-            is_type_def(get_ast_scope(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0])->get(string("~enclosing_scope"))[0]) ||
-            // or it's in an adt
-            is_adt_def(get_ast_scope(node->function_call.func->function_call.parameters[1])->get(string("~enclosing_scope"))[0]))
-            // should get uglier when we have to figure out if it's just an inside lambda
-}
-fun method_in_object(method: *ast_node, enclosing_object: *ast_node): bool {
-   var methods = enclosing_object->type_def.methods
-   for (var i = 0; i < methods.size; i++;) {
-        if (methods[i] == method || (is_template(methods[i]) && methods[i]->template.instantiated.contains(method))) {
-            return true
-        }
-    }
-    return false
 }
 obj c_generator (Object) {
     var id_counter: int

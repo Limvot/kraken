@@ -20,6 +20,14 @@ fun error(message: string::string) {
     io::printlnerr(message)
     os::exit(-1)
 }
+fun assert(works: bool, message: *char) {
+    if (!works)
+        error(message)
+}
+fun assert(works: bool, message: string::string) {
+    if (!works)
+        error(message)
+}
 
 fun deref_equality<T>(a: *T, b: *T): bool {
     if ( (a && b && !(*a == *b)) || (a && !b) || (!a && b) )

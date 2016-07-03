@@ -16,33 +16,7 @@ import c_line_control:*
 import c_generator:*
 import compiler_version
 
-
 fun main(argc: int, argv: **char):int {
-    if (argc <= 1) {
-        error("No input file!\n Call with one argument (the input file), or two arguments (input file and output name)")
-    } else if (string(argv[1]) == "-v" || string(argv[1]) == "--version") {
-        println(compiler_version::version_string)
-        exit(0)
-    }
-    var input_file_offset = 1
-    var interpret_instead = false
-    var argv1_str = string(argv[1])
-    var opt_str = string("-O3")
-    var line_ctrl = false
-    if (argv1_str == "-i") {
-        interpret_instead = true
-        input_file_offset++
-    } else if (argv1_str.length() > 2 && argv1_str.slice(0,2) == "-O") {
-        opt_str = argv1_str
-        input_file_offset++
-    } else if (argv1_str == "-g") {
-        line_ctrl = true
-        input_file_offset++
-    }
-    var kraken_file_name = string(argv[input_file_offset])
-    var executable_name = string(".").join(kraken_file_name.split('.').slice(0,-2))
-    if (argc == input_file_offset+2)
-        executable_name = string(argv[input_file_offset+1])
     // delay construction until we either load it or copy construct it
     var gram: grammer
     var base_dir = string("/").join(string(argv[0]).split('/').slice(0,-2))
@@ -51,19 +25,44 @@ fun main(argc: int, argv: **char):int {
     var compiled_version = 1
     var file_contents = read_file(file_name)
     var loaded_and_valid = false
+    var doing_repl = false
+
+    if (argc <= 1) {
+        println("No input file!\n Call with one argument (the input file), or two arguments (input file and output name)\n Falling into REPL...")
+        compiled_name += ".expr"
+        file_contents = string("RealGoal = boolean_expression ;\n") + file_contents
+        doing_repl = true
+    } else if (string(argv[1]) == "-v" || string(argv[1]) == "--version") {
+        println(compiler_version::version_string)
+        exit(0)
+    }
+    var input_file_offset = 1
+    var interpret_instead = false
+    var opt_str = string("-O3")
+    var line_ctrl = false
+    if (!doing_repl) {
+        var argv1_str = string(argv[1])
+        if (argv1_str == "-i") {
+            interpret_instead = true
+            input_file_offset++
+        } else if (argv1_str.length() > 2 && argv1_str.slice(0,2) == "-O") {
+            opt_str = argv1_str
+            input_file_offset++
+        } else if (argv1_str == "-g") {
+            line_ctrl = true
+            input_file_offset++
+        }
+    }
 
     if (file_exists(compiled_name)) {
-        /*println("cached file exists")*/
         var pos = 0
         var binary = read_file_binary(compiled_name)
-        /*println("read file!")*/
         var saved_version = 0
         unpack(saved_version, pos) = unserialize<int>(binary, pos)
         if (saved_version == compiled_version) {
             var cached_contents = string()
             unpack(cached_contents, pos) = unserialize<string>(binary, pos)
             if (cached_contents == file_contents) {
-                /*println("loaded_and_valid, using cached version!")*/
                 loaded_and_valid = true
                 pos = gram.unserialize(binary, pos)
             } else println("contents different")
@@ -73,7 +72,6 @@ fun main(argc: int, argv: **char):int {
     }
     if (!loaded_and_valid) {
         println("Not loaded_and_valid, re-generating and writing out")
-        /*gram = load_grammer(file_contents)*/
         // since we now don't construct before hand
         gram.copy_construct(&load_grammer(file_contents))
         println("grammer loaded, calculate_first_set")
@@ -98,6 +96,22 @@ fun main(argc: int, argv: **char):int {
     /*var parsers = vector(parse1,parse2,parse3,parse4)*/
     /*var parsers = vector(parse1,parse2,parse3,parse4,parse5,parse6)*/
     /*var parsers = vector(parse1,parse2,parse3,parse4,parse5,parse6,parse7,parse8)*/
+
+    // This is our REPL loop
+    var scope = ast_translation_unit_ptr(string("stdin"))
+    while (doing_repl) {
+        var line = get_line(string("> "), 100)
+        if (line == "end")
+            return 0
+        var trimmed_parse = trim(parse1.parse_input(line, string("stdin")))
+        var ast_expression = ast_pass.transform_expression(trimmed_parse, scope, map<string, *type>())
+        print_value(evaluate_constant_expression(ast_expression))
+    }
+
+    var kraken_file_name = string(argv[input_file_offset])
+    var executable_name = string(".").join(kraken_file_name.split('.').slice(0,-2))
+    if (argc == input_file_offset+2)
+        executable_name = string(argv[input_file_offset+1])
     var importer.construct(parsers, ast_pass, vector(string(), base_dir + "/stdlib/")): importer
     importer.import(kraken_file_name)
     // Passes
@@ -109,8 +123,7 @@ fun main(argc: int, argv: **char):int {
     defer_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
     if (interpret_instead) {
         printlnerr("Interpreting!")
-        var interpret.construct(importer.name_ast_map, importer.ast_pass.ast_to_syntax): interpreter
-        interpret.call_main()
+        call_main(importer.name_ast_map)
     } else {
         if (line_ctrl) {
             printlnerr("running C-specific passes")
@@ -122,7 +135,6 @@ fun main(argc: int, argv: **char):int {
         var c_output_pair = c_generator.generate_c(importer.name_ast_map, importer.ast_pass.ast_to_syntax)
         var kraken_c_output_name = kraken_file_name + ".c"
         write_file(kraken_c_output_name, c_output_pair.first)
-        /*println(string("linker string: ") + c_output_pair.second)*/
         var compile_string = "cc -g " + opt_str + " -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -std=c99 " + c_output_pair.second + " " + kraken_c_output_name + " -o " + executable_name
         printlnerr(compile_string)
         system(compile_string)
