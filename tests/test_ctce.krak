@@ -1,0 +1,8 @@
+import io: *
+
+fun main(): int {
+    var a = #ctce(1+2)
+    println(a)
+    println(#ctce("junkhello, world"+4))
+    return 0
+}
