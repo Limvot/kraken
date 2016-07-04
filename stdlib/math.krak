@@ -1,3 +1,4 @@
+/*#link("m")*/
 #link(m)
 
 fun fibanacci(num: int): int {

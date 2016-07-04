@@ -19,8 +19,8 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::defer_statement(backing) {
-                    if (is_code_block(parent_chain->top()) || (is_statement(parent_chain->top()) && is_code_block(parent_chain->from_top(1)))) {
-                        remove_full_statement(node, parent_chain)
+                    if (is_code_block(parent_chain->top())) {
+                        remove(node, parent_chain)
                         defer_double_stack.top().push(backing.statement)
                     } else {
                         replace_with_in(node, backing.statement, parent_chain)
@@ -47,7 +47,7 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
                     replace_with_in(node, block, parent_chain)
                     for (var i = 0; i < defer_double_stack.size() - loop_stack.top(); i++;)
                         block->code_block.children.add_all(defer_double_stack.from_top(i).reverse_vector())
-                    block->code_block.children.add(ast_statement_ptr(node))
+                    block->code_block.children.add(node)
                 }
                 ast_node::return_statement(backing) {
                     var block = ast_code_block_ptr()
@@ -57,8 +57,8 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
                         if (get_ast_type(enclosing_function)->return_type->is_ref)
                             return_value = make_operator_call("&", vector(return_value))
                         var temp_return = ast_identifier_ptr("temp_boom_return", get_ast_type(return_value)->clone_without_ref(), block)
-                        block->code_block.children.add(ast_statement_ptr(ast_declaration_statement_ptr(temp_return, null<ast_node>(), false)))
-                        block->code_block.children.add(ast_statement_ptr(assign_or_copy_construct_statement(temp_return, return_value)))
+                        block->code_block.children.add(ast_declaration_statement_ptr(temp_return, null<ast_node>(), false))
+                        block->code_block.children.add(assign_or_copy_construct_statement(temp_return, return_value))
                         // dereference so that the real ref can take it back
                         if (get_ast_type(enclosing_function)->return_type->is_ref)
                             temp_return = make_operator_call("*", vector(temp_return))
@@ -66,7 +66,7 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
                     }
                     for (var i = 0; i < defer_double_stack.size(); i++;)
                         block->code_block.children.add_all(defer_double_stack.from_top(i).reverse_vector())
-                    block->code_block.children.add(ast_statement_ptr(node))
+                    block->code_block.children.add(node)
                 }
                 ast_node::code_block(backing) {
                     node->code_block.children.add_all(defer_double_stack.pop().reverse_vector())

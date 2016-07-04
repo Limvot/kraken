@@ -4,9 +4,22 @@ import mem
 import serialize
 import io
 
-/*fun to_string(in: bool): string*/
-    /*if (in) return string("true")*/
-    /*else return string("false")*/
+ext fun snprintf(to_str: *char, num: ulong, format: *char, ...): int
+fun to_string(in: float): string
+    return to_string((in) cast double)
+fun to_string(in: double): string {
+    var how_much = snprintf(mem::null<char>(), (0) cast ulong, "%f", in)
+    var int_str =  mem::new<char>(how_much+2)
+    snprintf(int_str, (how_much+1) cast ulong, "%f", in)
+    var to_ret = string(int_str)
+    mem::delete(int_str)
+    return to_ret
+}
+fun to_string(in: bool): string
+    if (in) return string("true")
+    else return string("false")
+fun to_string(in: char): string
+    return string(in)
 fun to_string(in: uchar): string
     return to_string_num(in)
 fun to_string(in: short): string
@@ -98,10 +111,6 @@ obj string (Object, Serializable) {
         data.construct(len);
         data.set_size(len);
         mem::memmove((data.getBackingMemory()) cast *void, (str) cast *void, (len) cast ulong)
-        /*while(*str) {*/
-            /*data.addEnd(*str);*/
-            /*str += 1;*/
-        /*}*/
         // no null terminator
         return this;
     }

@@ -607,9 +607,7 @@ obj ast_transformation (Object) {
         return new_passthrough
     }
     fun transform_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-        var to_ret = ast_statement_ptr(transform(node->children[0], scope, template_replacements));
-        ast_to_syntax.set(to_ret, node)
-        return to_ret
+        return transform(node->children[0], scope, template_replacements);
     }
     fun transform_declaration_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
         // this might have an init position method call
@@ -759,6 +757,7 @@ obj ast_transformation (Object) {
            error(node, string("the number of adts found was not 1, it was ") + the_adts.size + " for " + concat_symbol_tree(get_node("scoped_identifier", node)))
         var the_adt = the_adts[0]
         var the_option_name = concat_symbol_tree(get_node("identifier", get_node("scoped_identifier", node)))
+        // ADD IN ERROR CHECKING HERE
         var the_option = the_adt->adt_def.options.find_first_satisfying(fun(option: *ast_node): bool return option->identifier.name == the_option_name;)
         to_ret->case_statement.option = the_option
         var possible_ident = get_node("identifier", node)
@@ -779,32 +778,26 @@ obj ast_transformation (Object) {
         var func = transform(get_node("unarad", node), scope, search_type::function(parameter_types), template_replacements)
         // may return an identifier of type object if doing operator() - but the () have been stripped out by importer
         if (get_ast_type(func)->is_object()) {
-           /*println("Making an operator() method call!")*/
            return make_method_call(func, "operator", parameters)
         }
         var f = ast_function_call_ptr(func, parameters)
-        /*print("function call function ")*/
-        /*println(f->function_call.func)*/
-        /*print("function call parameters ")*/
-        /*f->function_call.parameters.for_each(fun(param: *ast_node) print(param);)*/
         return f
     }
     fun transform_compiler_intrinsic(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
-        // don't bother with a full transform for parameters with their own function, just get the boolean expression and transform it
-        var parameters = vector<string>()
-        var type_parameters = vector<*type>()
-        if (get_nodes("intrinsic_parameter", node).size)
-            parameters = get_nodes("intrinsic_parameter", node).map(fun(child: *tree<symbol>): string return concat_symbol_tree(child);)
-        if (get_nodes("type", node).size)
-            type_parameters = get_nodes("type", node).map(fun(child: *tree<symbol>): *type return transform_type(child, scope, template_replacements);)
-        return ast_compiler_intrinsic_ptr(concat_symbol_tree(get_node("identifier", node)), parameters, type_parameters, type_ptr(base_type::ulong_int()))
-        /*return ast_compiler_intrinsic_ptr(concat_symbol_tree(get_node("identifier", node)), parameters, type_parameters, type_ptr(base_type::integer()))*/
+        var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)
+        var type_parameters = get_nodes("type", node).map(fun(child: *tree<symbol>): *type return transform_type(child, scope, template_replacements);)
+        var intrinsic_name = concat_symbol_tree(get_node("identifier", node))
+        var intrinsic_return_type: *type
+        if (intrinsic_name == "ctce")
+            intrinsic_return_type = get_ast_type(parameters[0])
+        else
+            intrinsic_return_type = type_ptr(base_type::ulong_int())
+        return ast_compiler_intrinsic_ptr(intrinsic_name, parameters, type_parameters, intrinsic_return_type)
     }
     fun transform_lambda(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
         var function_node = second_pass_function(node, scope, template_replacements, false)
         function_node->function.body_statement = transform_statement(get_node("statement", node), function_node, template_replacements)
         function_node->function.closed_variables = find_closed_variables(function_node, function_node->function.body_statement)
-        /*println(string("Found ") + function_node->function.closed_variables.size() + " closed variables!")*/
         while (!is_translation_unit(scope)) scope = get_ast_scope(scope)->get(string("~enclosing_scope"))[0]
         scope->translation_unit.lambdas.add(function_node)
         return function_node
@@ -815,9 +808,6 @@ obj ast_transformation (Object) {
             ast_node::identifier(backing) {
                 if (!in_scope_chain(backing.enclosing_scope, func))
                     return set(node);
-            }
-            ast_node::statement(backing) {
-                return find_closed_variables(func, backing.child)
             }
             ast_node::code_block(backing) {
                 var to_ret = set<*ast_node>()
@@ -894,7 +884,8 @@ obj ast_transformation (Object) {
            return in_scope_chain(get_ast_scope(node)->get(string("~enclosing_scope"))[0], high_scope)
         return false
     }
-    fun transform_expression(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node return transform_expression(node, scope, search_type::none(), template_replacements)
+    fun transform_expression(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node
+        return transform_expression(node, scope, search_type::none(), template_replacements)
     fun transform_expression(node: *tree<symbol>, scope: *ast_node, searching_for: search_type, template_replacements: map<string, *type>): *ast_node {
         var func_name = string()
         var parameters = vector<*ast_node>()

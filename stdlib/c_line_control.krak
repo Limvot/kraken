@@ -20,18 +20,16 @@ fun get_line(node: *tree<symbol>, name: string): *ast_node {
 fun c_line_control(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var first = true
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
-        var helper = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
-            match(*node) {
-                ast_node::statement(backing) {
-                    if (is_code_block(parent_chain->top()) && ast_to_syntax->contains_key(node)) {
+        /*var helper = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {*/
+            /*match(*node) {*/
+                    /*if (is_code_block(parent_chain->top()) && ast_to_syntax->contains_key(node)) {*/
                         /*println(string("adding ") + get_ast_name(node) + " to " + get_ast_name(parent))*/
-                        add_before_in(get_line(ast_to_syntax->get(node), name), node, parent_chain->top())
-                    }
-                }
-            }
-        }
-        if (first)
-            run_on_tree(helper, empty_pass_second_half, syntax_ast_pair.second)
+                        /*add_before_in(get_line(ast_to_syntax->get(node), name), node, parent_chain->top())*/
+                    /*}*/
+            /*}*/
+        /*}*/
+        /*if (first)*/
+            /*run_on_tree(helper, empty_pass_second_half, syntax_ast_pair.second)*/
         first = false
     })
 }

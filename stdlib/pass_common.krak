@@ -262,15 +262,6 @@ fun get_children_pointer(node: *ast_node): *vector<*ast_node> {
     }
     return bc
 }
-
-fun remove_full_statement(node: *ast_node, parent_chain: *stack<*ast_node>): *ast_node {
-    if (is_statement(node))
-        return remove(node, parent_chain)
-    if (is_statement(parent_chain->top()))
-        return remove(parent_chain->top(), parent_chain->from_top(1))
-    error(string("cannot remove full statement in ") + get_ast_name(parent_chain->top()))
-}
-
 fun remove(orig: *ast_node, in: *stack<*ast_node>): *ast_node
     return remove(orig, in->top())
 fun remove(orig: *ast_node, in: *ast_node): *ast_node {
@@ -289,7 +280,6 @@ fun replace_with_in(orig: *ast_node, new: *ast_node, in: *stack<*ast_node>)
     replace_with_in(orig, new, in->top())
 fun replace_with_in(orig: *ast_node, new: *ast_node, in: *ast_node) {
     match (*in) {
-        ast_node::statement(backing) { backing.child = new; return; }
         ast_node::return_statement(backing) { backing.return_value = new; return; }
         ast_node::assignment_statement(backing) {
             if (backing.to == orig) {
@@ -431,7 +421,6 @@ fun run_on_tree_helper(func_before: fun(*ast_node,*stack<*ast_node>):bool, func_
             ast_node::function(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
             ast_node::template(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, true);)
             ast_node::code_block(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
-            ast_node::statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
             ast_node::if_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
             ast_node::match_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)
             ast_node::case_statement(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, false);)

@@ -119,6 +119,33 @@ fun wrap_value(val: *ast_node): value {
     error("Could not wrap value")
     return value::void_nothing()
 }
+fun unwrap_value(val: value): *ast_node {
+    // string, char, bool, floating
+    var value_string = string()
+    match (get_real_value(val)) {
+        value::boolean(data) value_string = to_string(data)
+        value::character(data) value_string = to_string(data)
+        value::ucharacter(data) value_string = to_string(data)
+        value::short_int(data) value_string = to_string(data)
+        value::ushort_int(data) value_string = to_string(data)
+        value::integer(data) value_string = to_string(data)
+        value::uinteger(data) value_string = to_string(data)
+        value::long_int(data) value_string = to_string(data)
+        value::ulong_int(data) value_string = to_string(data)
+        value::floating(data) value_string = to_string(data)
+        value::double_precision(data) value_string = to_string(data)
+        value::void_nothing() error("trying to unwrap a void into an ast_value_ptr")
+        value::pointer(point) {
+            if (point.second->base == base_type::character() && point.second->indirection == 1)
+                value_string = string("\"") + string((point.first) cast *char) + "\""
+            else
+                error("trying to unwrap a pointer into an ast_value_ptr")
+        }
+        value::object_like(ob) error("trying to unwrap an object_like into an ast_value_ptr")
+        value::function(fn) error("trying to unwrap a function into an ast_value_ptr")
+    }
+    return ast_value_ptr(value_string, get_type_from_primitive_value(get_real_value(val)))
+}
 
 fun is_boolean(it: value): bool { match(it) { value::boolean(var) return true; } return false; }
 fun is_character(it: value): bool { match(it) { value::character(var) return true; } return false; }
@@ -799,9 +826,6 @@ fun interpret_function(function: *ast_node, var_stack: *stack<map<*ast_node, val
     })
     return make_pair(value::function(make_pair(function, possible_closure_map)), control_flow::nor())
 }
-fun interpret_statement(stmt: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node, globals: *map<*ast_node, value>): pair<value, control_flow> {
-    return interpret(stmt->statement.child, var_stack, enclosing_object, enclosing_func, globals)
-}
 fun interpret_if_statement(if_stmt: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node, globals: *map<*ast_node, value>): pair<value, control_flow> {
     var_stack->push(map<*ast_node,value>())
     var value_from_inside = make_pair(value::void_nothing(), control_flow::nor())
@@ -974,7 +998,6 @@ fun interpret(node: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosi
     match (*node) {
         ast_node::function_call(backing) return interpret_function_call(node, var_stack, enclosing_object, enclosing_func, globals)
         ast_node::function(backing) return interpret_function(node, var_stack, enclosing_object, enclosing_func, globals)
-        ast_node::statement(backing) return interpret_statement(node, var_stack, enclosing_object, enclosing_func, globals)
         ast_node::if_statement(backing) return interpret_if_statement(node, var_stack, enclosing_object, enclosing_func, globals)
         ast_node::while_loop(backing) return interpret_while_loop(node, var_stack, enclosing_object, enclosing_func, globals)
         ast_node::for_loop(backing) return interpret_for_loop(node, var_stack, enclosing_object, enclosing_func, globals)

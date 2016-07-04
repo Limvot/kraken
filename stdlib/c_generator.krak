@@ -229,8 +229,8 @@ obj c_generator (Object) {
             if (!backing.is_extern)
                 function_definitions += prototype_and_header.second
             if (backing.body_statement) {
-                function_definitions += string(" {\n") + generate_statement(backing.body_statement, enclosing_object, child).one_string()
-                function_definitions += "}\n"
+                function_definitions += string(" {\n") + generate(backing.body_statement, enclosing_object, child, false).one_string()
+                function_definitions += ";\n}\n"
             } else if (!backing.is_extern) {
                 error("Empty function statement and not extern - no ADTs anymore!")
             }
@@ -256,8 +256,8 @@ obj c_generator (Object) {
                 match (*child) {
                     // should really check the genrator
                     ast_node::if_comp(backing) {
-                        if (is_simple_passthrough(backing.statement->statement.child))
-                            top_level_c_passthrough += generate_simple_passthrough(backing.statement->statement.child, true)
+                        if (is_simple_passthrough(backing.statement))
+                            top_level_c_passthrough += generate_simple_passthrough(backing.statement, true)
                     }
                     ast_node::simple_passthrough(backing) top_level_c_passthrough += generate_simple_passthrough(child, true)
                     ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<ast_node>(), false).one_string() + ";\n" // false - don't do defer
@@ -368,7 +368,6 @@ obj c_generator (Object) {
             return pre + result + post
         return pre + "{" + result + "}" + post
     }
-    fun generate_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple return generate(node->statement.child, enclosing_object, enclosing_func, false) + ";\n";
     fun generate_declaration_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, add_to_defer: bool): code_triple {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
@@ -508,7 +507,7 @@ obj c_generator (Object) {
     }
     fun generate_code_block(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
         var to_ret = code_triple("{\n")
-        node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child, enclosing_object, enclosing_func, false).one_string();)
+        node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child, enclosing_object, enclosing_func, false).one_string() + ";\n";)
         return to_ret + "}"
     }
     // this generates the function as a value, not the actual function
@@ -682,8 +681,8 @@ obj c_generator (Object) {
                 error("wrong parameters to sizeof compiler intrinsic")
             return code_triple("sizeof(") + type_to_c(node->compiler_intrinsic.type_parameters[0]) + ")"
         } else if (node->compiler_intrinsic.intrinsic == "link") {
-            node->compiler_intrinsic.parameters.for_each(fun(str: string) {
-                linker_string += string("-l") + str + " "
+            node->compiler_intrinsic.parameters.for_each(fun(value: *ast_node) {
+                linker_string += string("-l") + value->value.string_value.slice(1,-2) + " "
             })
             return code_triple()
         }
@@ -697,7 +696,6 @@ obj c_generator (Object) {
         match (*node) {
             ast_node::if_comp(backing) return generate_if_comp(node, enclosing_object, enclosing_func)
             ast_node::simple_passthrough(backing) return code_triple() + generate_simple_passthrough(node, false)
-            ast_node::statement(backing) return generate_statement(node, enclosing_object, enclosing_func)
             ast_node::declaration_statement(backing) return generate_declaration_statement(node, enclosing_object, enclosing_func, true)
             ast_node::assignment_statement(backing) return generate_assignment_statement(node, enclosing_object, enclosing_func)
             ast_node::if_statement(backing) return generate_if_statement(node, enclosing_object, enclosing_func)

@@ -21,7 +21,6 @@ adt ast_node {
     function: function,
     template: template,
     code_block: code_block,
-    statement: statement,
     if_statement: if_statement,
     match_statement: match_statement,
     case_statement: case_statement,
@@ -456,42 +455,6 @@ obj code_block (Object) {
     }
     fun operator==(other: ref code_block): bool {
         return children == other.children && scope == other.scope
-    }
-}
-fun ast_statement_ptr(child: *ast_node): *ast_node {
-    var to_ret.construct(child): statement
-    var ptr = new<ast_node>()
-    ptr->copy_construct(&ast_node::statement(to_ret))
-    return ptr
-}
-fun is_statement(node: *ast_node): bool {
-    match(*node) {
-        ast_node::statement(backing) return true
-    }
-    return false
-}
-obj statement (Object) {
-    var scope: map<string, vector<*ast_node>>
-    var child: *ast_node
-    fun construct(child_in: *ast_node): *statement  {
-        child = null<ast_node>()
-        scope.construct()
-        child = child_in
-        return this
-    }
-    fun copy_construct(old: *statement) {
-        scope.copy_construct(&old->scope)
-        child = old->child
-    }
-    fun destruct() {
-        scope.destruct()
-    }
-    fun operator=(other: ref statement) {
-        destruct()
-        copy_construct(&other)
-    }
-    fun operator==(other: ref statement): bool {
-        return child == other.child
     }
 }
 fun ast_if_statement_ptr(condition: *ast_node): *ast_node {
@@ -992,7 +955,7 @@ obj function_call (Object) {
         return func == func && parameters == other.parameters
     }
 }
-fun ast_compiler_intrinsic_ptr(intrinsic: string, parameters: vector<string>, type_parameters: vector<*type>, return_type: *type): *ast_node {
+fun ast_compiler_intrinsic_ptr(intrinsic: string, parameters: vector<*ast_node>, type_parameters: vector<*type>, return_type: *type): *ast_node {
     var to_ret.construct(intrinsic, parameters, type_parameters, return_type): compiler_intrinsic
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::compiler_intrinsic(to_ret))
@@ -1006,10 +969,10 @@ fun is_compiler_intrinsic(node: *ast_node): bool {
 }
 obj compiler_intrinsic (Object) {
     var intrinsic: string
-    var parameters: vector<string>
+    var parameters: vector<*ast_node>
     var type_parameters: vector<*type>
     var return_type: *type
-    fun construct(intrinsic_in: string, parameters_in: vector<string>, type_parameters_in: vector<*type>, return_type_in: *type): *compiler_intrinsic  {
+    fun construct(intrinsic_in: string, parameters_in: vector<*ast_node>, type_parameters_in: vector<*type>, return_type_in: *type): *compiler_intrinsic  {
         intrinsic.copy_construct(&intrinsic_in)
         parameters.copy_construct(&parameters_in)
         type_parameters.copy_construct(&type_parameters_in)
@@ -1120,7 +1083,6 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::function(backing) return backing.parameters + backing.body_statement
         ast_node::template(backing) return backing.instantiated
         ast_node::code_block(backing) return backing.children
-        ast_node::statement(backing) return vector<*ast_node>(backing.child)
         ast_node::if_statement(backing) return vector(backing.condition, backing.then_part, backing.else_part)
         ast_node::match_statement(backing) return vector(backing.value) + backing.cases
         ast_node::case_statement(backing) return vector(backing.option, backing.unpack_ident, backing.statement)
@@ -1159,7 +1121,6 @@ fun get_ast_name(node: *ast_node): string {
         }
         ast_node::template(backing) return string("template: ") + backing.name
         ast_node::code_block(backing) return string("code_block")
-        ast_node::statement(backing) return string("statement")
         ast_node::if_statement(backing) return string("if_statement")
         ast_node::match_statement(backing) return string("match_statement")
         ast_node::case_statement(backing) return string("case_statement")
@@ -1189,7 +1150,6 @@ fun get_ast_scope(node: *ast_node): *map<string,vector<*ast_node>> {
         ast_node::function() return &node->function.scope
         ast_node::template() return &node->template.scope
         ast_node::code_block() return &node->code_block.scope
-        ast_node::statement() return &node->statement.scope
         ast_node::if_statement() return &node->if_statement.scope
         ast_node::match_statement() return &node->match_statement.scope
         ast_node::case_statement() return &node->case_statement.scope

@@ -116,9 +116,7 @@ continue_statement = "continue" ;
 defer_statement = "defer" WS statement ;
 function_call = unarad WS "\(" WS opt_parameter_list WS "\)" ;
 
-compiler_intrinsic = "#" identifier WS "\(" WS intrinsic_parameter_list WS "\)" | "#" identifier WS "<" WS type_list WS ">" ;
-intrinsic_parameter_list = intrinsic_parameter_list WS "," WS intrinsic_parameter | intrinsic_parameter ;
-intrinsic_parameter = identifier ;
+compiler_intrinsic = "#" identifier WS "\(" WS opt_parameter_list WS "\)" | "#" identifier WS "<" WS type_list WS ">" ;
 
 boolean_expression = boolean_expression WS "\|\|" WS and_boolean_expression | and_boolean_expression ;
 and_boolean_expression = and_boolean_expression WS "&&" WS bitwise_or | bitwise_or ;

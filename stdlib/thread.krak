@@ -3,6 +3,7 @@ import os:*
 import mem:*
 import util:*
 
+/*#link("pthread")*/
 #link(pthread)
 ext fun pthread_attr_init(attr_ptr: *void): int
 ext fun pthread_create(thread: *ulong, attr_ptr: *void, func: *void, param: *void): int
