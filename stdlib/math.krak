@@ -1,5 +1,4 @@
-/*#link("m")*/
-#link(m)
+#link("m")
 
 fun fibanacci(num: int): int {
     var l1 = 1
