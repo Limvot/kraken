@@ -1,12 +1,7 @@
 #!/bin/bash
 
 kraken="kraken"
-bootstrap_commits=(cf46fb13afe66ba475db9725e9269c9c1cd3bbc3 2cd43e5a217318c70097334b3598d2924f64b362 2051f54b559ac5edf67277d4f1134aca2cb9215d ecbbcb4eda56e2467efb0a04e7d668b95856aa4b d126cbf24ba8b26e3814e2260d555ecaee86508c 947384cced5397a517a71963edc8f47e668d734f cfcaff7887a804fe77dadaf2ebb0251d6e8ae8e2 12dfa837e31bf09adb1335219473b9a7e6db9eac acb0e48324f353d30d148eb11d1bf2843d83b51a 29eff2a23e5c8afc59dc71a9ecd74cedbd5663c3 0f2ac1421a4da5ff63a2df94efa2bcb37eec40b8)
-
-
-# Echo version string to a file included by kraken.krak
-# There is a default version string in the file in case kraken is not built with captain
-echo "var version_string = \"Self-hosted Kraken compiler \\\"Kalypso\\\" - revision $(git rev-list HEAD | wc -l), commit: $(git rev-parse HEAD)\";" > compiler_version.krak
+bootstrap_commits=(cf46fb13afe66ba475db9725e9269c9c1cd3bbc3 2cd43e5a217318c70097334b3598d2924f64b362 2051f54b559ac5edf67277d4f1134aca2cb9215d ecbbcb4eda56e2467efb0a04e7d668b95856aa4b d126cbf24ba8b26e3814e2260d555ecaee86508c 947384cced5397a517a71963edc8f47e668d734f cfcaff7887a804fe77dadaf2ebb0251d6e8ae8e2 12dfa837e31bf09adb1335219473b9a7e6db9eac acb0e48324f353d30d148eb11d1bf2843d83b51a 29eff2a23e5c8afc59dc71a9ecd74cedbd5663c3 0f2ac1421a4da5ff63a2df94efa2bcb37eec40b8 f71b5f3576b5ddbb19b8df4e5d786f0147160c13)
 
 if ! [ -s "cached_builds" ]
 then
@@ -107,14 +102,14 @@ else
                         echo "commit hash: ${bootstrap_commits[$i]}"
                         mv ./krakenGrammer.kgm krakenGrammer.kgm_old
                         git checkout ${bootstrap_commits[$i]}
-                        echo "var version_string = \"Self-hosted Kraken compiler \\\"Kalypso\\\" - revision $(git rev-list HEAD | wc -l), commit: $(git rev-parse HEAD)\";" > compiler_version.krak
+                        echo "var version_string = \"BOOTSTRAPPING VERSION - Self-hosted Kraken compiler \\\"Kalypso\\\" - revision $(git rev-list HEAD | wc -l), commit: $(git rev-parse HEAD)\";" > compiler_version.krak
                         mv ./krakenGrammer.kgm krakenGrammer.kgm_new
                         mv ./krakenGrammer.kgm_old krakenGrammer.kgm
                         # Quick fix - I made a commit that actually depends on it's own grammer to be built
                         if [[ ${bootstrap_commits[$i]} == "12dfa837e31bf09adb1335219473b9a7e6db9eac" ]]
                         then
                             echo "Hot fixing mistake - using new grammer instead of old"
-                            mv ./krakenGrammer.kgm_new krakenGrammer.kgm
+                            cp ./krakenGrammer.kgm_new krakenGrammer.kgm
                         fi
                         ./${kraken}_bootstrap kraken.krak ${kraken}_bootstrap
                         mkdir "../cached_builds/${bootstrap_commits[$i]}"
