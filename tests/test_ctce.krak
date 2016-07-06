@@ -1,8 +1,28 @@
 import io: *
+import os: *
+import string: *
+import ast_nodes: *
+
+fun compare_sizes<T>() {
+    var a = #sizeof<T>
+    var b = #ctce(#sizeof<T>)
+    println(a == b)
+    if (a != b)
+        println(string() + a + " is not the same size as " + b)
+}
 
 fun main(): int {
     var a = #ctce(1+2)
     println(a)
     println(#ctce("junkhello, world"+4))
+    for (var i = 0; i < 10; i++;) {
+        println(#ctce(fun(): *char {
+            println("\n\n=====During CTCE!=====\n\n")
+            var it = from_system_command(string("echo From Shell"), 100)
+            return it.toCharArray()
+        }()))
+    }
+    compare_sizes<string>()
+    compare_sizes<ast_node>()
     return 0
 }

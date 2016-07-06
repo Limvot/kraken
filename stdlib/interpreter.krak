@@ -553,9 +553,10 @@ fun call_main(name_ast_map: ref map<string, pair<*tree<symbol>,*ast_node>>) {
     var result = call_function(results[0], vector<value>(), vector<*ast_node>(), &var_stack, map<*ast_node,value>(), value::void_nothing(), value::void_nothing(), null<ast_node>(), &globals)
     pop_and_free(&var_stack)
 }
-fun evaluate_constant_expression(node: *ast_node): value {
+fun evaluate_constant_expression(node: *ast_node): value
     return interpret(node, null<stack<map<*ast_node, value>>>(), value::void_nothing(), null<ast_node>(), null<map<*ast_node, value>>()).first
-}
+fun evaluate_with_globals(node: *ast_node, globals: *map<*ast_node, value>): value
+    return interpret(node, null<stack<map<*ast_node, value>>>(), value::void_nothing(), null<ast_node>(), globals).first
 fun setup_globals(name_ast_map: ref map<string, pair<*tree<symbol>,*ast_node>>): map<*ast_node, value> {
     var globals = map<*ast_node, value>()
     name_ast_map.for_each(fun(key: string, value: pair<*tree<symbol>,*ast_node>) {
@@ -679,7 +680,7 @@ fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<*ast_nod
             return make_pair(dereference_pointer_into_variable(dereference_val), control_flow::nor())
         }
         // check for built-in-ish externs (everything the standard library needs)
-        if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "memmove" || func_name == "fflush" || func_name == "snprintf" || func_name == "fopen" || func_name == "fclose" || func_name == "ftell" || func_name == "fseek" || func_name == "fread" || func_name == "fwrite" || func_name == "atan" || func_name == "atan2" || func_name == "acos" || func_name == "asin" || func_name == "tan" || func_name == "cos" || func_name == "sin")
+        if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "memmove" || func_name == "fflush" || func_name == "snprintf" || func_name == "fopen" || func_name == "fclose" || func_name == "ftell" || func_name == "fseek" || func_name == "fread" || func_name == "fwrite" || func_name == "atan" || func_name == "atan2" || func_name == "acos" || func_name == "asin" || func_name == "tan" || func_name == "cos" || func_name == "sin" || func_name == "fgets" || func_name == "popen" || func_name == "pclose")
             return make_pair(call_built_in_extern(func_name, parameters), control_flow::nor())
         if (!func_call_func->function.body_statement)
             error(string("trying to call unsupported extern function: ") + func_name)
@@ -814,6 +815,17 @@ fun call_built_in_extern(func_name: string, parameters: vector<value>): value {
     } else if (func_name == "sin") {
         assert(parameters.size == 1 && is_double_precision(parameters[0]), "Calling sin with wrong params")
         return value::double_precision(sin(parameters[0].double_precision))
+    } else if (func_name == "fgets") {
+        assert(parameters.size == 3 && is_pointer(parameters[0]) && is_integer(parameters[1]) && is_pointer(parameters[2]), "Calling fgets with wrong params")
+        // first param is *char, so reuse for return
+        return value::pointer(make_pair((fgets((parameters[0].pointer.first) cast *char, parameters[1].integer, parameters[2].pointer.first)) cast *void, parameters[0].pointer.second))
+    } else if (func_name == "popen") {
+        assert(parameters.size == 2 && is_pointer(parameters[0]) && is_pointer(parameters[1]), "Calling popen with wrong params")
+        return value::pointer(
+            make_pair(popen((parameters[0].pointer.first) cast *char, (parameters[1].pointer.first) cast *char), type_ptr(base_type::void_return(), 1)))
+    } else if (func_name == "pclose") {
+        assert(parameters.size == 1 && is_pointer(parameters[0]), "Calling pclose with wrong params")
+        return value::integer(pclose(parameters[0].pointer.first))
     } else {
         error(string("trying to call invalid func: ") + func_name)
     }

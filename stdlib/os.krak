@@ -1,5 +1,6 @@
 import string:*
 import mem:*
+import io:*
 
 fun system(call_string: string):int {
     var c_call_string = call_string.toCharArray()
@@ -9,5 +10,15 @@ fun system(call_string: string):int {
 }
 ext fun system(call_string: *char): int
 ext fun exit(code: int):void
-fun exit() exit(0);
+fun exit() exit(0)
 
+ext fun popen(command: *char, mode: *char): *void
+ext fun pclose(file: *void): int
+fun from_system_command(command: string, line_size: int): string {
+    var command_string = command.toCharArray()
+    defer delete(command_string)
+    var p = popen(command_string, "r")
+    var to_ret = get_line(line_size, p)
+    pclose(p)
+    return to_ret
+}

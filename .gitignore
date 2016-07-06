@@ -14,6 +14,7 @@ kraklist.txt
 papers
 callgrind*
 *.comp_new
+*.comp_new.expr
 *.comp_bac
 bintest.bin
 *.dot

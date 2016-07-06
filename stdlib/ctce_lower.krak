@@ -13,12 +13,13 @@ import interpreter:*
 import pass_common:*
 
 fun ctce_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+    var globals = setup_globals(*name_ast_map)
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::compiler_intrinsic(backing) {
                     if (backing.intrinsic == "ctce") {
-                        var result = evaluate_constant_expression(backing.parameters[0])
+                        var result = evaluate_with_globals(backing.parameters[0], &globals)
                         *node = *unwrap_value(result)
                     }
                 }

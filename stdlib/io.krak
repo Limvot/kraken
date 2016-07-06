@@ -14,9 +14,11 @@ fun get_line(prompt: string::string, line_size: int): string::string {
     print(prompt)
     return get_line(line_size)
 }
-fun get_line(line_size: int): string::string {
+fun get_line(line_size: int): string::string
+    return get_line(line_size, stdin)
+fun get_line(line_size: int, file: *void): string::string {
     var buff = new<char>(line_size)
-    fgets(buff, line_size, stdin)
+    fgets(buff, line_size, file)
     var to_ret = string::string(buff)
     delete(buff)
     return to_ret.slice(0,-2) // remove '\n'
