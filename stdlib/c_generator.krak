@@ -203,8 +203,11 @@ obj c_generator (Object) {
             parameter_types += ", ..."
             parameters += ", ..."
         }
-        return make_pair(type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n",
-                         type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ")")
+        var possibly_static = string()
+        if (!backing.is_extern && decorated_name != "main")
+            possibly_static = "static "
+        return make_pair(possibly_static + type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n",
+                         possibly_static + type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ")")
     }
     fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>> ): pair<string,string> {
         ast_to_syntax = ast_to_syntax_in

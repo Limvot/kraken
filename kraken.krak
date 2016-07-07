@@ -14,6 +14,7 @@ import obj_lower:*
 import defer_lower:*
 import ctce_lower:*
 import c_line_control:*
+import node_counter:*
 import c_generator:*
 
 fun main(argc: int, argv: **char):int {
@@ -125,14 +126,24 @@ fun main(argc: int, argv: **char):int {
     var importer.construct(parsers, ast_pass, vector(string(), base_dir + "/stdlib/")): importer
     importer.import(kraken_file_name)
     // Passes
+    /*printlnerr("Counting Nodes")*/
+    /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
     printlnerr("Lowering ADTs")
     adt_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
+    /*printlnerr("Counting Nodes")*/
+    /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
     printlnerr("Lowering Objects")
     obj_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
+    /*printlnerr("Counting Nodes")*/
+    /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
     printlnerr("Lowering Defer")
     defer_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
+    /*printlnerr("Counting Nodes")*/
+    /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
     printlnerr("Lowering CTCE")
     ctce_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
+    /*printlnerr("Counting Nodes")*/
+    /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
     if (interpret_instead) {
         printlnerr("Interpreting!")
         call_main(importer.name_ast_map)
