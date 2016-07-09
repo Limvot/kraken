@@ -36,10 +36,9 @@ fun ctce_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to
         var params = vector<interpreter::value>()
         // easier to pick up types from the function itself
         if (!is_function(func)) error(string("trying to CTCE pass with non function") + get_ast_name(func))
-        error("what")
-        /*params.add(interpreter::value::pointer(make_pair((name_ast_map) cast *void, func->function.type->parameter_types[0])))*/
-        /*params.add(interpreter::value::pointer(make_pair((ast_to_syntax) cast *void, func->function.type->parameter_types[1])))*/
-        /*call_function(func, params, &globals)*/
+        params.add(interpreter::value::pointer(make_pair((name_ast_map) cast *void, func->function.type->parameter_types[0])))
+        params.add(interpreter::value::pointer(make_pair((ast_to_syntax) cast *void, func->function.type->parameter_types[1])))
+        call_function(func, params, &globals)
     })
 }
 
