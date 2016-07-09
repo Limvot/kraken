@@ -1,0 +1,34 @@
+import symbol:*
+import tree:*
+import vector:*
+import map:*
+import util:*
+import string:*
+import mem:*
+import io:*
+import ast_nodes:*
+import ast_transformation:*
+
+import pass_common:*
+
+fun node_counter(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+    var counter = node_counter_helper(name_ast_map, ast_to_syntax)
+    println(string("Number of nodes touched: ") + counter)
+}
+fun node_counter_test(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+    var counter = node_counter_helper(name_ast_map, ast_to_syntax)
+    if (counter > 10000)
+        println("more than 10000 nodes!")
+}
+fun node_counter_helper(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>): int {
+    var counter = 0
+    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+        var helper = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
+            counter++
+        }
+        run_on_tree(helper, empty_pass_second_half, syntax_ast_pair.second)
+    })
+    return counter
+}
+
+

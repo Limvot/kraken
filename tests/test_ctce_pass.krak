@@ -1,0 +1,12 @@
+import node_counter: *
+
+#ctce_pass(node_counter::node_counter_test)
+
+fun small_func() {
+    println("hello")
+}
+
+fun main(): int {
+    return 0
+}
+

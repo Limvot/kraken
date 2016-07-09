@@ -140,6 +140,7 @@ fun main(argc: int, argv: **char):int {
     defer_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
     /*printlnerr("Counting Nodes")*/
     /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
+    // Lowers #ctce and the current #ctce_pass
     printlnerr("Lowering CTCE")
     ctce_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
     /*printlnerr("Counting Nodes")*/

@@ -128,8 +128,6 @@ obj ast_transformation (Object) {
             } else if (child->data.name == "declaration_statement") {
                 // second pass declaration can actually just call a normal transform (but maybe should be it's own method to do so because typedef has to do it too?)...
                 translation_unit->translation_unit.children.add(transform_declaration_statement(child, translation_unit, map<string, *type>()))
-            } else if (child->data.name == "compiler_intrinsic") {
-                translation_unit->translation_unit.children.add(transform_compiler_intrinsic(child, translation_unit, map<string, *type>()))
             }
         })
         // work on the ones already started
@@ -254,28 +252,28 @@ obj ast_transformation (Object) {
         parameters.for_each(fun(parameter: *ast_node) add_to_scope(parameter->identifier.name, parameter, function_node);)
         return function_node
     }
-    // The third pass finishes up by doing all function bodies (top level and methods in objects)
+    // The third pass finishes up by doing all function bodies (top level and methods in objects), and top level compiler intrinsics
     fun third_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
         /*println(string("Third Pass for ") + translation_unit->translation_unit.name)*/
         translation_unit->translation_unit.children.for_each(fun(node: *ast_node) {
             match(*node) {
                 ast_node::type_def(backing) {
-                    // make sure not a template? or the method not a template?
                     // also same body problem as below
-                    if (!is_template(node)) {
-                        node->type_def.methods.for_each(fun(method: *ast_node) {
-                            if (!is_template(method))
-                                method->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[method]), method, map<string, *type>())
-                        })
-                    }
+                    backing.methods.for_each(fun(method: *ast_node) {
+                        if (!is_template(method))
+                            method->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[method]), method, map<string, *type>())
+                    })
                 }
                 ast_node::function(backing) {
                     // make sure not a template
-                    // huh, I guess I can't actually assign to the backing.
-                    // This is actually a little bit of a problem, maybe these should be pointers also. All the pointers!
-                    if (!node->function.is_extern)
-                        node->function.body_statement = transform_statement(get_node("statement", ast_to_syntax[node]), node, map<string, *type>())
+                    if (!backing.is_extern)
+                        backing.body_statement = transform_statement(get_node("statement", ast_to_syntax[node]), node, map<string, *type>())
                 }
+            }
+        })
+        parse_tree->children.for_each(fun(child: *tree<symbol>) {
+            if (child->data.name == "compiler_intrinsic") {
+                translation_unit->translation_unit.children.add(transform_compiler_intrinsic(child, translation_unit, map<string, *type>()))
             }
         })
     }
@@ -889,6 +887,9 @@ obj ast_transformation (Object) {
             ast_node::if_comp(backing) {
                 return find_closed_variables(func, backing.statement)
             }
+            ast_node::cast(backing) {
+                return find_closed_variables(func, backing.value)
+            }
         }
         return set<*ast_node>()
     }
@@ -910,7 +911,8 @@ obj ast_transformation (Object) {
                 search_type::function(type_vec) possible_value = find_or_instantiate_template_function(concat_symbol_tree(node->children[0]), null<tree<symbol>>(), scope, type_vec, template_replacements, map<string, *type>());
             }
             if (!possible_value)
-                error(node, concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS")
+                error(node, concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS\nlooking for: " +
+                    concat_symbol_tree(node->children[0]) + "(" + searching_for.function.reduce(fun(n:*type, s:string):string return s+","+n->to_string();, string()) + ")")
             return possible_value
         } else if (node->children.size == 2) {
             var template_inst = get_node("template_inst", node)

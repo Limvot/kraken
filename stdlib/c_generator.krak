@@ -204,8 +204,9 @@ obj c_generator (Object) {
             parameters += ", ..."
         }
         var possibly_static = string()
-        if (!backing.is_extern && decorated_name != "main")
-            possibly_static = "static "
+        // commented out to fix phantom crash
+        /*if (!backing.is_extern && decorated_name != "main")*/
+            /*possibly_static = "static "*/
         return make_pair(possibly_static + type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n",
                          possibly_static + type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ")")
     }

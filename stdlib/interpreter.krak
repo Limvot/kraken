@@ -234,6 +234,13 @@ fun do_basic_op(func_name: string, a: value, b: value): value {
                     error(":/")
                 }
                 return value::boolean(av.first == real_b.pointer.first)
+            } else if (func_name == "!=") {
+                if (!is_pointer(real_b)) {
+                    print("inequality between pointer and not pointer: ")
+                    print_value(real_b)
+                    error(":/")
+                }
+                return value::boolean(av.first != real_b.pointer.first)
             }
             var inc_in_bytes = cast_value(b, type_ptr(base_type::ulong_int())).ulong_int * type_size(av.second->clone_with_decreased_indirection())
             var ptr = null<void>()
@@ -242,9 +249,9 @@ fun do_basic_op(func_name: string, a: value, b: value): value {
             } else if (func_name == "-") {
                 ptr = ((av.first) cast *char - inc_in_bytes) cast *void
             } else {
-                println(string("pointer arithmatic is not +, -, or ==: ") + func_name + ", b is: ")
+                println(string("pointer arithmatic is not +, -, ==, or !=: ") + func_name + ", b is: ")
                 print_value(b)
-                error(string("pointer arithmatic is not +, -, or ==: ") + func_name)
+                error(string("pointer arithmatic is not +, -, ==, or !=: ") + func_name)
             }
             return value::pointer(make_pair(ptr, av.second))
         }
@@ -575,10 +582,7 @@ fun call_main(name_ast_map: ref map<string, pair<*tree<symbol>,*ast_node>>) {
     if (results.size != 1)
         error(string("wrong number of mains to call: ") + results.size)
     var globals = setup_globals(name_ast_map)
-    var var_stack = stack<map<*ast_node, value>>()
-    var_stack.push(map<*ast_node,value>())
-    var result = call_function(results[0], vector<value>(), vector<*ast_node>(), &var_stack, map<*ast_node,value>(), value::void_nothing(), value::void_nothing(), null<ast_node>(), &globals)
-    pop_and_free(&var_stack)
+    var result = call_function(results[0], vector<value>(), &globals)
 }
 fun evaluate_constant_expression(node: *ast_node): value
     return interpret(node, null<stack<map<*ast_node, value>>>(), value::void_nothing(), null<ast_node>(), null<map<*ast_node, value>>()).first
@@ -716,6 +720,14 @@ fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<*ast_nod
         parameter_sources = func_call_parameters
     }
     return make_pair(call_function(func_call_func, parameters, parameter_sources, var_stack, possible_closure_map, enclosing_object, new_enclosing_object, enclosing_func, globals), control_flow::nor())
+}
+
+fun call_function(func: *ast_node, parameters: vector<value>, globals: *map<*ast_node, value>): value {
+    var var_stack = stack<map<*ast_node, value>>()
+    var_stack.push(map<*ast_node,value>())
+    var result = call_function(func, parameters, vector<*ast_node>(), &var_stack, map<*ast_node,value>(), value::void_nothing(), value::void_nothing(), null<ast_node>(), globals)
+    pop_and_free(&var_stack)
+    return result
 }
 // call_function can be called with either parameter values in parameters or ast expressions in parameter_sources
 // this is to allow easy function calling if we already have the values (for main, say, or to make our job if it's not
