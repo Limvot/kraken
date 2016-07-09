@@ -139,9 +139,8 @@ assignment_statement = factor WS "=" WS boolean_expression | factor WS "\+=" WS 
 # if it's being assigned to, we allow type inferencing
 declaration_statement = "var" WS identifier WS "=" WS boolean_expression | "var" WS identifier WS dec_type WS "=" WS boolean_expression | "var" WS identifier WS dec_type | "ext" WS "var" WS identifier WS dec_type | "var" WS identifier WS "." WS identifier WS "\(" WS opt_parameter_list WS "\)" WS dec_type ;
 hexadecimal = "0x([0-9]|[a-f])+" ;
-integer = numeric | hexadecimal ;
-floating_literal = numeric "." float_end ;
-float_end = "[0-9]+" | "[0-9]+f" | "[0-9]+d" ;
+integer = "[0-9]+u?(c|s|l)?" | hexadecimal ;
+floating_literal = "[0-9]+.[0-9]+(f|d)?" ;
 bool = "true" | "false" ;
 character = "'(`|[0-9]|-|=|(\\t)|[a-z]|\[|]|(\\\\)|;|(\\')|(\\n)|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|[A-Z]|{|}|\||:|\"|<|>|\?| |(\\0))'" ;
 
@@ -149,7 +148,6 @@ keywords_also_identifiers = "obj" | "def" | "fun" | "var" | "ref" | "adt" | "cas
 alpha_alphanumeric = "([a-z]|[A-Z]|_)([a-z]|[A-Z]|_|[0-9])*" ;
 augmented_alpha_alphanumeric = alpha_alphanumeric augmented_alpha_alphanumeric | keywords_also_identifiers augmented_alpha_alphanumeric | alpha_alphanumeric | keywords_also_identifiers ;
 
-numeric = "[0-9]+" ;
 # note the hacks around \things. Hmm, I feel like it actually shouldn't be like this. Added \\\* because I want to come back later
 string = triple_quoted_string | "\"([#-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\\*)|(\\0)|
 |[ -!]|(\\\"))*\"" ;

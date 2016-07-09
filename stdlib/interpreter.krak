@@ -63,6 +63,7 @@ fun raw_to_value(data:double): value
 
 fun wrap_value(val: *ast_node): value {
     var value_str = val->value.string_value
+    var value_type = val->value.value_type
     if (value_str[0] == '"') { // " // Comment hack for emacs now
         var to_ret = string()
         // triple quoted strings
@@ -113,8 +114,18 @@ fun wrap_value(val: *ast_node): value {
                     return value::double_precision(string_to_double(value_str.slice(0,-2)))
                 else
                     return value::double_precision(string_to_double(value_str))
-        else
-            return value::integer(string_to_int(value_str))
+        else {
+            match(value_type->base) {
+                base_type::character() return value::character(string_to_num<char>(value_str))
+                base_type::ucharacter() return value::ucharacter(string_to_num<uchar>(value_str))
+                base_type::short_int() return value::short_int(string_to_num<short>(value_str))
+                base_type::ushort_int() return value::ushort_int(string_to_num<ushort>(value_str))
+                base_type::integer() return value::integer(string_to_num<int>(value_str))
+                base_type::uinteger() return value::uinteger(string_to_num<uint>(value_str))
+                base_type::long_int() return value::long_int(string_to_num<long>(value_str))
+                base_type::ulong_int() return value::ulong_int(string_to_num<ulong>(value_str))
+            }
+        }
     }
     error("Could not wrap value")
     return value::void_nothing()
@@ -484,47 +495,63 @@ fun cast_value_second_half<T>(v: value): value {
     }
     error("Illegal type to cast cast from")
 }
-fun type_size(t: *type): ulong {
+fun type_size(t: *type): ulong
+    return type_size_and_alignment(t).first
+fun type_size_and_alignment(t: *type): pair<ulong,ulong> {
     if (t->indirection)
-        return #sizeof<*void>
+        return make_pair(#sizeof<*void>, #sizeof<*void>)
     match (t->base) {
         base_type::object() {
-            var size: ulong = 0
+            var total_size: ulong = 0
+            var max_size: ulong = 0
+            var max_align: ulong = 0
             t->type_def->type_def.variables.for_each(fun(i: *ast_node) {
-                var individual_size = type_size(i->declaration_statement.identifier->identifier.type)
-                if (t->type_def->type_def.is_union) {
-                    size = max(size, individual_size)
-                } else {
-                    size += individual_size
-                }
+                var individual = type_size_and_alignment(i->declaration_statement.identifier->identifier.type)
+                max_size = max(max_size, individual.first)
+                max_align = max(max_align, individual.second)
+                // increase total size by the individual size + padding to get alignment
+                var padding = 0
+                if (individual.second != 0)
+                    padding = (individual.second - (total_size % individual.second)) % individual.second
+                total_size += individual.first + padding
             })
-            return size
+            if (t->type_def->type_def.is_union)
+                total_size = max_size
+            // pad the end so that consecutive objects in memory are aligned
+            if (max_align != 0)
+                total_size += (max_align - (total_size % max_align)) % max_align
+            return make_pair(total_size, max_align)
         }
-        base_type::function() return #sizeof<pair<*ast_node,*map<*ast_node,value>>>
-        base_type::boolean() return #sizeof<bool>
-        base_type::character() return #sizeof<char>
-        base_type::ucharacter() return #sizeof<uchar>
-        base_type::short_int() return #sizeof<short>
-        base_type::ushort_int() return #sizeof<ushort>
-        base_type::integer() return #sizeof<int>
-        base_type::uinteger() return #sizeof<uint>
-        base_type::long_int() return #sizeof<long>
-        base_type::ulong_int() return #sizeof<ulong>
-        base_type::floating() return #sizeof<float>
-        base_type::double_precision() return #sizeof<double>
+        base_type::function() return make_pair(#sizeof<pair<*ast_node,*map<*ast_node,value>>>, #sizeof<*void>)
+        base_type::boolean() return make_pair(#sizeof<bool>, #sizeof<bool>)
+        base_type::character() return make_pair(#sizeof<char>, #sizeof<char>)
+        base_type::ucharacter() return make_pair(#sizeof<uchar>, #sizeof<uchar>)
+        base_type::short_int() return make_pair(#sizeof<short>, #sizeof<short>)
+        base_type::ushort_int() return make_pair(#sizeof<ushort>, #sizeof<ushort>)
+        base_type::integer() return make_pair(#sizeof<int>, #sizeof<int>)
+        base_type::uinteger() return make_pair(#sizeof<uint>, #sizeof<uint>)
+        base_type::long_int() return make_pair(#sizeof<long>, #sizeof<long>)
+        base_type::ulong_int() return make_pair(#sizeof<ulong>, #sizeof<ulong>)
+        base_type::floating() return make_pair(#sizeof<float>, #sizeof<float>)
+        base_type::double_precision() return make_pair(#sizeof<double>, #sizeof<double>)
     }
     error(string("Invalid type for type_size: ") + t->to_string())
 }
 fun offset_into_struct(struct_type: *type, ident: *ast_node): ulong {
-    var size: ulong = 0
+    var offset: ulong = 0
     if (struct_type->type_def->type_def.is_union)
-        return size
-    for (var i = 0; i < struct_type->type_def->type_def.variables.size; i++;)
+        return offset
+    for (var i = 0; i < struct_type->type_def->type_def.variables.size; i++;) {
+        var size_and_align = type_size_and_alignment(struct_type->type_def->type_def.variables[i]->declaration_statement.identifier->identifier.type)
+        var align = size_and_align.second
+        if (align != 0)
+            offset += (align - (offset % align)) % align
         if (struct_type->type_def->type_def.variables[i]->declaration_statement.identifier == ident)
             break
         else
-            size += type_size(struct_type->type_def->type_def.variables[i]->declaration_statement.identifier->identifier.type)
-    return size
+            offset += size_and_align.first
+    }
+    return offset
 }
 // to dereference, we basically take the pointer's value (maybe going through a variable to get it)
 // and re-wrap it up into a variable value (so it can be assigned to, etc)

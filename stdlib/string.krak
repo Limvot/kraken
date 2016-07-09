@@ -37,14 +37,14 @@ fun to_string(in: ulong): string
 fun to_string<T>(in: *T): string
     return string("ptr:<") + to_string_num((in) cast ulong) + ">"
 
-fun string_to_int(it: string): int {
+fun string_to_num<T>(it: string): T {
     var is_negative = false
     if (it[0] == '-') {
         is_negative = true
         it = it.slice(1,-1)
     }
-    var result = 0
-    var power = 1
+    var result:T = 0
+    var power:T = 1
     while (it.length()) {
         result += power * (it.last() - '0')
         it = it.slice(0,-2)
@@ -58,7 +58,7 @@ fun string_to_double(it: string): double {
     var parts = it.split('.')
     var divisor = 1
     for (var i = 0; i < parts[1].length(); i++;) divisor *= 10
-    return string_to_int(parts[0]) + (string_to_int(parts[1])) cast double / divisor
+    return string_to_num<long>(parts[0]) + (string_to_num<long>(parts[1])) cast double / divisor
 }
 
 fun to_string_num<T>(in: T): string {

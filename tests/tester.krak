@@ -27,10 +27,10 @@ fun main(argc: int, argv: **char): int {
     for (var i = 1; i < argc; i++;) {
         var test_name = string(argv[i])
         println(string("Doing test for ") + test_name)
-        if (system(kraken_path + " " + test_name + ".krak")) error("could not compile")
         var results_file_name = test_name + ".results"
         var expected_results_file_name = test_name + ".expected_results"
-        if (system(string("./") + test_name + " > " + results_file_name)) error("could not run")
+        if (system(kraken_path + " " + test_name + ".krak > " + results_file_name)) error("could not compile")
+        if (system(string("./") + test_name + " >> " + results_file_name)) error("could not run")
         if (file_exists(results_file_name) && file_exists(expected_results_file_name) && read_file(results_file_name) == read_file(expected_results_file_name)) {
             println(test_name + "\tPASSED!")
             all_results += pad_with_spaces(test_name) + "\tPASSED!\n"

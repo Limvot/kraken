@@ -554,13 +554,28 @@ obj ast_transformation (Object) {
                     break
                 }
             }
-            if (contains_dot)
-                if (value_str[value_str.length()-1] == 'f')
+            if (contains_dot) {
+                if (value_str.last() == 'f')
                     value_type = type_ptr(base_type::floating()) //value_type = type_ptr(base_type::floating())
                 else
                     value_type = type_ptr(base_type::double_precision()) //value_type = type_ptr(base_type::floating())
-            else
-                value_type = type_ptr(base_type::integer())
+            } else {
+                var chop = 0
+                if (value_str.length() > 2) {
+                    var s = value_str.slice(-3,-1)
+                    if (s == "uc") { chop = 2; value_type = type_ptr(base_type::ucharacter()); }
+                    else if (s == "us") { chop = 2; value_type = type_ptr(base_type::ushort_int()); }
+                    else if (s == "ul") { chop = 2; value_type = type_ptr(base_type::ulong_int()); }
+                }
+                if (chop == 0) {
+                    if (value_str.last() == 'c') { chop = 1; value_type = type_ptr(base_type::character()); }
+                    else if (value_str.last() == 's') { chop = 1; value_type = type_ptr(base_type::short_int()); }
+                    else if (value_str.last() == 'u') { chop = 1; value_type = type_ptr(base_type::uinteger()); }
+                    else if (value_str.last() == 'l') { chop = 1; value_type = type_ptr(base_type::long_int()); }
+                }
+                if (chop == 0) value_type = type_ptr(base_type::integer())
+                value_str = value_str.slice(0, -1-chop)
+            }
         }
         return ast_value_ptr(value_str, value_type)
     }
