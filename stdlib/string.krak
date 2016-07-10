@@ -239,6 +239,7 @@ obj string (Object, Serializable) {
         out.add(current)
         return out
     }
+    fun first(): char return data.first()
     fun last(): char return data.last()
     fun lines(): vector::vector<string> return split('\n')
     fun split(delim: char): vector::vector<string> {

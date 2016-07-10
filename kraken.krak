@@ -47,19 +47,24 @@ fun main(argc: int, argv: **char):int {
     var interpret_instead = false
     var opt_str = string("-O3")
     var line_ctrl = false
-    if (!doing_repl) {
-        var argv1_str = string(argv[1])
-        if (argv1_str == "-i") {
+    var positional_args = vector<string>()
+    var flags = set<string>()
+    for (var i = 1; i < argc; i++;) {
+        var arg_str = string(argv[i])
+        if (arg_str == "-i") {
             interpret_instead = true
-            input_file_offset++
-        } else if (argv1_str.length() > 2 && argv1_str.slice(0,2) == "-O") {
-            opt_str = argv1_str
-            input_file_offset++
-        } else if (argv1_str == "-g") {
+        } else if (arg_str.length() > 2 && arg_str.slice(0,2) == "-O") {
+            opt_str = arg_str
+        } else if (arg_str == "-g") {
             line_ctrl = true
-            input_file_offset++
+        } else if (arg_str.length() > 2 && arg_str.first() == '-') {
+            flags.add(arg_str.slice(1,-1))
+        } else {
+            positional_args.add(arg_str)
         }
     }
+    /*positional_args.for_each(fun(i:string) println("positional_arg: " + i);)*/
+    flags.for_each(fun(i:string) println("flag: " + i);)
 
     if (file_exists(compiled_name)) {
         var pos = 0
@@ -119,10 +124,10 @@ fun main(argc: int, argv: **char):int {
         }
     }
 
-    var kraken_file_name = string(argv[input_file_offset])
+    var kraken_file_name = positional_args[0]
     var executable_name = string(".").join(kraken_file_name.split('.').slice(0,-2))
-    if (argc == input_file_offset+2)
-        executable_name = string(argv[input_file_offset+1])
+    if (positional_args.size > 1)
+        executable_name = positional_args[1]
     var importer.construct(parsers, ast_pass, vector(string(), base_dir + "/stdlib/")): importer
     importer.import(kraken_file_name)
     // Passes
