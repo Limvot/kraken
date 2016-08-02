@@ -912,7 +912,12 @@ obj ast_transformation (Object) {
             }
             if (!possible_value)
                 error(node, concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS\nlooking for: " +
-                    concat_symbol_tree(node->children[0]) + "(" + searching_for.function.reduce(fun(n:*type, s:string):string return s+","+n->to_string();, string()) + ")")
+                    concat_symbol_tree(node->children[0]) + "(" + searching_for.function.reduce(fun(n:*type, s:string):string {
+                        if (n)
+                            return s+","+n->to_string()
+                        else
+                            return s+",null"
+                    }, string()) + ")")
             return possible_value
         } else if (node->children.size == 2) {
             var template_inst = get_node("template_inst", node)

@@ -15,12 +15,23 @@ fun regex(in: string::string):regex {
     var out.construct(in):regex
     return out
 }
-
+fun regexState(): regexState {
+    var to_ret.construct(): regexState
+    return to_ret
+}
+fun regexState(charIn: char): regexState {
+    var to_ret.construct(charIn): regexState
+    return to_ret
+}
+fun regexState(first: char, last: char): regexState {
+    var to_ret.construct(first, last): regexState
+    return to_ret
+}
 obj regexState (Object) {
     // if only one character, both are the same
     var characterBegin: char
     var characterEnd: char
-    var next_states: set::set<*regexState>
+    var next_states: set::set<int>
     fun construct(charIn:char): *regexState {
         return construct(charIn, charIn)
     }
@@ -41,26 +52,37 @@ obj regexState (Object) {
     fun destruct():void {
         next_states.destruct()
     }
-    fun match_char(input: char): set::set<*regexState> {
-        return next_states.filter(fun(it:*regexState):bool { return it->characterBegin <= input && input <= it->characterEnd; })
+    fun match_char(input: char, states: ref vector::vector<regexState>, flags: *vector::vector<bool>, num_states: *int) {
+        next_states.for_each(fun(it:int) {
+            if (states[it].characterBegin <= input && input <= states[it].characterEnd) {
+                (*flags)[it] = true
+                (*num_states)++
+            }
+        })
     }
-    fun is_end():bool {
-        return next_states.any_true(fun(state: *regexState):bool { return state->characterBegin == 1; })
+    fun is_end(states: ref vector::vector<regexState>):bool {
+        return next_states.any_true(fun(state: int):bool { return states[state].characterBegin == 1; })
     }
 }
 
 obj regex (Object, Serializable) {
     var regexString: string::string
-    var begin: *regexState
-    var referenceCounter: *int
+    var states: vector::vector<regexState>
+    var flagsA: vector::vector<bool>
+    var flagsB: vector::vector<bool>
     var is_straight_string: bool
 
     fun construct(): *regex {
         regexString.construct()
+        states.construct()
+        flagsA.construct()
+        flagsB.construct()
+        is_straight_string = false
         return this
     }
     fun construct(regexStringIn: string::string): *regex {
         regexString.copy_construct(&regexStringIn)
+        states.construct()
         is_straight_string = true
         for (var i = 0; i < regexString.length(); i++;) {
             // simple implementation doesn't count escaped characters as straight string
@@ -70,44 +92,40 @@ obj regex (Object, Serializable) {
             }
         }
         if (!is_straight_string) {
-            referenceCounter = mem::new<int>()
-            *referenceCounter = 1
             var beginningAndEnd = compile(regexStringIn)
             // init our begin, and the end state as the next state of each end
-            begin = beginningAndEnd.first
-            var end = mem::new<regexState>()->construct((1) cast char)
-            beginningAndEnd.second.for_each(fun(it: *regexState): void { it->next_states.add(end); })
+            var end = states.size
+            states.add(regexState((1) cast char))
+            beginningAndEnd.second.for_each(fun(it: int): void { states[it].next_states.add(end); })
         }
+        flagsA.construct(states.size); flagsA.size = states.size
+        flagsB.construct(states.size); flagsB.size = states.size
         return this
     }
 
     fun copy_construct(old:*regex):void {
         regexString.copy_construct(&old->regexString)
         is_straight_string = old->is_straight_string
-        if (!is_straight_string) {
-            begin = old->begin
-            referenceCounter = old->referenceCounter
-            *referenceCounter += 1
-        }
+        states.copy_construct(&old->states)
+        flagsA.construct(states.size); flagsA.size = states.size
+        flagsB.construct(states.size); flagsB.size = states.size
     }
 
     fun destruct():void {
         regexString.destruct()
-        if (!is_straight_string) {
-            *referenceCounter -= 1
-            if (*referenceCounter == 0) {
-                util::safe_recursive_delete(begin, fun(it: *regexState): set::set<*regexState> { return it->next_states; } )
-                mem::delete(referenceCounter)
-            }
-        }
+        states.destruct()
+        flagsA.destruct()
+        flagsB.destruct()
     }
     fun serialize(): vector::vector<char> {
         return serialize::serialize(regexString)
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
-        var temp = string::string()
-        util::unpack(temp, pos) = serialize::unserialize<string::string>(it, pos)
-        construct(temp)
+        pos = regexString.unserialize(it, pos)
+        states.construct()
+        construct(regexString)
+        flagsA.construct(states.size); flagsA.size = states.size
+        flagsB.construct(states.size); flagsB.size = states.size
         return pos
     }
 
@@ -120,11 +138,11 @@ obj regex (Object, Serializable) {
         copy_construct(&other)
     }
 
-    fun compile(regex_string: string::string): util::pair<*regexState, set::set<*regexState>> {
+    fun compile(regex_string: string::string): util::pair<int, set::set<int>> {
         /*io::println(regex_string)*/
-        var first = mem::new<regexState>()->construct()
-        var previous_begin = set::set<*regexState>()
-        var previous_end = set::set<*regexState>()
+        var first = states.size; states.add(regexState())
+        var previous_begin = set::set<int>()
+        var previous_end = set::set<int>()
         var current_begin = set::set(first)
         var current_end = set::set(first)
         var alternating = false
@@ -132,12 +150,12 @@ obj regex (Object, Serializable) {
 
         for (var i = 0; i < regex_string.length(); i++;) {
             if (regex_string[i] == '*' && !escapeing) {
-                current_end.for_each(fun(item: *regexState) item->next_states.add_all(current_begin);)
+                current_end.for_each(fun(item: int) states[item].next_states.add_all(current_begin);)
                 current_begin.add_all(previous_begin)
                 current_end.add_all(previous_end)
 
             } else if (regex_string[i] == '+' && !escapeing) {
-                current_end.for_each(fun(item: *regexState) item->next_states.add_all(current_begin);)
+                current_end.for_each(fun(item: int) states[item].next_states.add_all(current_begin);)
 
             } else if (regex_string[i] == '?' && !escapeing) {
                 current_begin.add_all(previous_begin)
@@ -145,7 +163,6 @@ obj regex (Object, Serializable) {
 
             } else if (regex_string[i] == '|' && !escapeing) {
                 alternating = true
-
             } else if (regex_string[i] == '(' && !escapeing) {
                 // note that we don't have a ')' case, as we skip past it with our indicies
                 var perenEnd = i + 1
@@ -165,35 +182,34 @@ obj regex (Object, Serializable) {
                 i = perenEnd-1
 
                 if (alternating) {
-                    previous_end.for_each(fun(it: *regexState):void { it->next_states.add_all(innerBeginEnd.first->next_states); } )
-                    current_begin.add_all(innerBeginEnd.first->next_states)
+                    previous_end.for_each(fun(it: int):void { states[it].next_states.add_all(states[innerBeginEnd.first].next_states); } )
+                    current_begin.add_all(states[innerBeginEnd.first].next_states)
                     current_end.add_all(innerBeginEnd.second)
                 } else {
-                    current_end.for_each(fun(it: *regexState):void { it->next_states.add_all(innerBeginEnd.first->next_states); } )
+                    current_end.for_each(fun(it: int):void { states[it].next_states.add_all(states[innerBeginEnd.first].next_states); } )
                     previous_begin = current_begin
                     previous_end = current_end
-                    current_begin = innerBeginEnd.first->next_states
+                    current_begin = states[innerBeginEnd.first].next_states
                     current_end = innerBeginEnd.second
                 }
                 alternating = false
 
             } else if (regex_string[i] == '\\' && !escapeing) {
                 escapeing = true
-
             } else {
-                var next: *regexState
+                var next: int
                 if (regex_string[i] == '[' && !escapeing) {
-                    next = mem::new<regexState>()->construct(regex_string[i+1], regex_string[i+3])
+                    next = states.size; states.add(regexState(regex_string[i+1], regex_string[i+3]))
                     i += 4 // [a-b] is 5, i++ adds one
                 } else {
-                    next = mem::new<regexState>()->construct(regex_string[i])
+                    next = states.size; states.add(regexState(regex_string[i]))
                 }
                 if (alternating) {
-                    previous_end.for_each(fun(it: *regexState):void { it->next_states.add(next); })
+                    previous_end.for_each(fun(it: int):void { states[it].next_states.add(next); })
                     current_begin.add(next)
                     current_end.add(next)
                 } else {
-                    current_end.for_each(fun(it: *regexState):void { it->next_states.add(next); })
+                    current_end.for_each(fun(it: int):void { states[it].next_states.add(next); })
                     previous_begin = current_begin
                     previous_end = current_end
                     current_begin = set::set(next)
@@ -219,18 +235,35 @@ obj regex (Object, Serializable) {
             return regexString.length();
         }
         /*var next = set::set(begin)*/
-        var next.construct(): set::set<*regexState>
-        next.add(begin)
+        for (var i = 1; i < flagsA.size; i++;)
+            flagsA[i] = false;
+        flagsA[0] = true
+        var num_active = 1
         var longest = -1
+        var flags = &flagsA
+        var next_flags = &flagsB
         for (var i = 0; i < end-position; i++;) {
-            if (next.size() == 0)
+            if (num_active == 0)
                 return longest
-            if (next.any_true(fun(state: *regexState):bool { return state->is_end(); }))
-                longest = i
-            next = next.flatten_map(fun(state: *regexState): set::set<*regexState> { return state->match_char(to_match[position+i]); })
+            num_active = 0
+            for (var state = 0; state < flags->size; state++;) {
+                if ((*flags)[state] && states[state].is_end(states)) {
+                    longest = i
+                    break
+                }
+            }
+            for (var j = 0; j < next_flags->size; j++;)
+                (*next_flags)[j] = false;
+            for (var state = 0; state < flags->size; state++;)
+                if ((*flags)[state])
+                    states[state].match_char(to_match[position+i], states, next_flags, &num_active)
+            var tmp = flags
+            flags = next_flags
+            next_flags = tmp
         }
-        if (next.any_true(fun(state: *regexState):bool { return state->is_end(); }))
-            return end-position
+        for (var state = 0; state < flags->size; state++;)
+            if ((*flags)[state] && states[state].is_end(states))
+                return end-position
         return longest
     }
 }
