@@ -436,6 +436,7 @@ obj c_generator (Object) {
         if (enclosing_func && enclosing_func->function.closed_variables.contains(node))
             return code_triple(pre + string("(*(closure_data->") + get_name(node) + "))" + post)
         else if (get_ast_type(node)->is_ref) {
+            error("still existin ref in identifier")
            pre += "(*"
            post += ")"
         }
@@ -454,7 +455,8 @@ obj c_generator (Object) {
         to_ret += "return"
         var refamp = string()
         if (function_return_type->is_ref)
-           refamp = "&"
+            error("still exsisting ref in return")
+           /*refamp = "&"*/
         if (return_value)
             to_ret += code_triple(" ") + refamp + generate(return_value, enclosing_object, enclosing_func, false)
         return to_ret
@@ -611,8 +613,12 @@ obj c_generator (Object) {
             if (call_string != "")
                 call_string += ", "
 
-            if (in_function_param_type->is_ref)
-               call_string += "&"
+            if (in_function_param_type->is_ref) {
+                /*for (var n = node->function_call.func; n; get_from_scope(n, "~enclosing_scope"))) {*/
+                /*}*/
+                error(string("problem :") + (node->function_call.func) cast int + " " + get_fully_scoped_name(node->function_call.func) + ": still ref in function calling, func_type: " + func_type->to_string())
+            }
+               /*call_string += "&"*/
 
             var param_type = get_ast_type(param)
             call_string += generate(param, enclosing_object, enclosing_func, in_function_param_type->is_ref)
@@ -630,6 +636,7 @@ obj c_generator (Object) {
         var ref_pre = string()
         var ref_post = string()
         if (func_return_type->is_ref) {
+            error("still ref in function calling")
            ref_pre += "(*"
            ref_post += ")"
         }
@@ -722,7 +729,7 @@ obj c_generator (Object) {
     }
     fun type_decoration(type: *type): string {
         var indirection = string()
-        if (type->is_ref) indirection += "ref_"
+        if (type->is_ref) error("still ref in type decoration") //indirection += "ref_"
         for (var i = 0; i < type->indirection; i++;) indirection += "p"
         if (type->indirection) indirection += "_"
         match (type->base) {
@@ -752,7 +759,7 @@ obj c_generator (Object) {
     }
     fun type_to_c(type: *type): string {
         var indirection = string()
-        if (type->is_ref) indirection += "/*ref*/ *"
+        if (type->is_ref) error("still ref in type_to_c") //indirection += "/*ref*/ *"
         for (var i = 0; i < type->indirection; i++;) indirection += "*"
         match (type->base) {
             base_type::none() return string("none") + indirection

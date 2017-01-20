@@ -1015,7 +1015,7 @@ fun interpret_identifier(ident: *ast_node, var_stack: *stack<map<*ast_node, valu
     // check for global
     if (globals->contains_key(ident))
         return make_pair((*globals)[ident], control_flow::nor())
-    println("couldn't find it in interpret identifier, scope:")
+    println("couldn't find " + get_ast_name(ident) + " in interpret identifier, scope:")
     for (var i = 0; i < var_stack->size(); i++;) {
         println(string("level: ") + i)
         var_stack->from_top(i).for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)
@@ -1025,7 +1025,7 @@ fun interpret_identifier(ident: *ast_node, var_stack: *stack<map<*ast_node, valu
         println("object scope:")
         var object_def = enclosing_object.object_like.second->type_def
         for (var i = 0; i < object_def->type_def.variables.size; i++;) {
-            print(get_ast_name(object_def->type_def.variables[i]) + " ")
+            print(get_ast_name(object_def->type_def.variables[i]->declaration_statement.identifier) + " ")
         }
     } else {
         print("no object scope: ")

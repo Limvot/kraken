@@ -12,6 +12,7 @@ import ast_transformation:*
 import adt_lower:*
 import obj_lower:*
 import defer_lower:*
+import ref_lower:*
 import ctce_lower:*
 import c_line_control:*
 import node_counter:*
@@ -34,12 +35,13 @@ fun main(argc: int, argv: **char):int {
         file_contents = string("RealGoal = boolean_expression ;\n") + file_contents
         doing_repl = true
     } else if (string(argv[1]) == "-v" || string(argv[1]) == "--version") {
-        var version_c_string = #ctce(fun(): *char {
-            var version_string = string("Self-hosted Kraken compiler \"Kalypso\" - revision ") + from_system_command(string("git rev-list HEAD | wc -l"), 100) +
-                ", commit: " + from_system_command(string("git rev-parse HEAD"), 100) +
-                ", compile date: " + from_system_command(string("date"), 100) 
-            return version_string.toCharArray()
-        }())
+        var version_c_string = "fail"
+        /*var version_c_string = #ctce(fun(): *char {*/
+            /*var version_string = string("Self-hosted Kraken compiler \"Kalypso\" - revision ") + from_system_command(string("git rev-list HEAD | wc -l"), 100) +*/
+                /*", commit: " + from_system_command(string("git rev-parse HEAD"), 100) +*/
+                /*", compile date: " + from_system_command(string("date"), 100) */
+            /*return version_string.toCharArray()*/
+        /*}())*/
         println(version_c_string)
         exit(0)
     }
@@ -146,6 +148,10 @@ fun main(argc: int, argv: **char):int {
     /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
     printlnerr("Lowering Defer")
     defer_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
+    /*printlnerr("Counting Nodes")*/
+    /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
+    printlnerr("Lowering Ref")
+    ref_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
     /*printlnerr("Counting Nodes")*/
     /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
     // Lowers #ctce and the current #ctce_pass

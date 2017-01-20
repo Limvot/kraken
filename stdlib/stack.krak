@@ -82,4 +82,7 @@ obj stack<T> (Object, Serializable) {
                 return i
         return -1
     }
+    fun item_from_top_satisfying(func: fun(T):bool): T {
+        return from_top(index_from_top_satisfying(func))
+    }
 }

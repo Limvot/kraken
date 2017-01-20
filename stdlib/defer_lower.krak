@@ -13,6 +13,7 @@ import pass_common:*
 
 fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var enclosing_function = null<ast_node>()
+    var visited = set<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var defer_double_stack = stack<stack<*ast_node>>()
         var loop_stack = stack(-1)
@@ -79,7 +80,7 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
                 }
             }
         }
-        run_on_tree(helper_before, helper_after, syntax_ast_pair.second)
+        run_on_tree(helper_before, helper_after, syntax_ast_pair.second, &visited)
     })
 }
 

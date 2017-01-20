@@ -991,6 +991,7 @@ obj ast_transformation (Object) {
             }
             parameters = vector(first_param, second_param)
         }
+        parameters.for_each(fun(param: *ast_node) if (!is_legal_parameter_node_type(param)) error(node, "illegal node type used as parameter (perhaps name resolves to type or translation unit?)");)
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
         // check for operator overloading
         var possible_overload_call = find_and_make_any_operator_overload_call(func_name, parameters, scope, template_replacements)

@@ -21,6 +21,9 @@ import pass_common:*
 //      temporaries.
 // 3 this is also when we add in defer destructs for function parameters (inside the function) and declaration statements
 fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+    var visited1 = set<*ast_node>()
+    var visited2 = set<*ast_node>()
+    var visited3 = set<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         // Pass 1
         var ensure_block_and_munge = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
@@ -67,9 +70,9 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                 }
             }
         }
-        run_on_tree(ensure_block_and_munge, empty_pass_second_half, syntax_ast_pair.second)
+        run_on_tree(ensure_block_and_munge, empty_pass_second_half, syntax_ast_pair.second, &visited1)
         // Pass 2
-        var short_circut_op: fun(*ast_node,*stack<*ast_node>): bool = fun(node: *ast_node, parent_chain: *stack<*ast_node>): bool {
+        var short_circut_op: fun(*ast_node,*stack<*ast_node>,*set<*ast_node>): bool = fun(node: *ast_node, parent_chain: *stack<*ast_node>, visited: *set<*ast_node>): bool {
             match(*node) {
                 ast_node::function_call(backing) {
                     var func_name = string()
@@ -98,15 +101,18 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         add_before_in(short_circuit_if, parent_chain->from_top(enclosing_block_idx-1), parent_chain->from_top(enclosing_block_idx))
                         replace_with_in(node, short_circuit_result, parent_chain)
                         var shorter_tree = stack_from_vector( parent_chain->data.slice(0, parent_chain->size()-enclosing_block_idx))
-                        run_on_tree_helper(short_circut_op, empty_pass_second_half, short_circuit_declaration, &shorter_tree, false)
-                        run_on_tree_helper(short_circut_op, empty_pass_second_half, short_circuit_if, &shorter_tree, false)
+                        /*visited->add(short_circuit_result)*/
+                        /*visited->add(short_circuit_declaration)*/
+                        /*visited->add(short_circuit_if)*/
+                        run_on_tree_helper(short_circut_op, empty_pass_second_half, short_circuit_declaration, &shorter_tree, visited)
+                        run_on_tree_helper(short_circut_op, empty_pass_second_half, short_circuit_if, &shorter_tree, visited)
                         return false
                     }
                 }
             }
             return true
         }
-        run_on_tree(short_circut_op, empty_pass_second_half, syntax_ast_pair.second)
+        run_on_tree(short_circut_op, empty_pass_second_half, syntax_ast_pair.second, &visited2)
         // Pass 3
         var construct_in_destruct_out = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
@@ -194,7 +200,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                 }
             }
         }
-        run_on_tree(empty_pass_first_half, construct_in_destruct_out, syntax_ast_pair.second)
+        run_on_tree(empty_pass_first_half, construct_in_destruct_out, syntax_ast_pair.second, &visited3)
     })
 }
 
