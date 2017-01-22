@@ -24,6 +24,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
     var visited1 = set<*ast_node>()
     var visited2 = set<*ast_node>()
     var visited3 = set<*ast_node>()
+    var functions_visited_for_construct_in_destruct_out = set<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         // Pass 1
         var ensure_block_and_munge = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
@@ -166,6 +167,12 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     }
                 }
                 ast_node::function(backing) {
+                    // Because of how iteration is done now, we might touch functions multiple times (binding-like iteration in a DFS)
+                    // To deal with this, we keep a visited set.
+                    if (functions_visited_for_construct_in_destruct_out.contains(node))
+                        return;
+                    functions_visited_for_construct_in_destruct_out.add(node)
+
                     var order = 0;
                     backing.parameters.for_each(fun(param: *ast_node) {
                         var param_type = get_ast_type(param)
@@ -192,7 +199,6 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                             backing.expression = null<ast_node>()
                         }
                         if (has_method(ident_type->type_def, "destruct", vector<*type>())) {
-                            // have to go up one because our parent is a statement
                             add_after_in(ast_defer_statement_ptr(make_method_call(backing.identifier, "destruct", vector<*ast_node>())),
                                     node, parent_chain->top())
                         }

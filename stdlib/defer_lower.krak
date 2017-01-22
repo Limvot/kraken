@@ -12,32 +12,33 @@ import ast_transformation:*
 import pass_common:*
 
 fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
-    var enclosing_function = null<ast_node>()
+    var enclosing_function_stack = stack<*ast_node>()
     var visited = set<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
-        var defer_double_stack = stack<stack<*ast_node>>()
+        var defer_triple_stack = stack<stack<stack<*ast_node>>>()
         var loop_stack = stack(-1)
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::defer_statement(backing) {
                     if (is_code_block(parent_chain->top())) {
                         remove(node, parent_chain)
-                        defer_double_stack.top().push(backing.statement)
+                        defer_triple_stack.top().top().push(backing.statement)
                     } else {
                         replace_with_in(node, backing.statement, parent_chain)
                     }
                 }
                 ast_node::code_block(backing) {
-                    defer_double_stack.push(stack<*ast_node>())
+                    defer_triple_stack.top().push(stack<*ast_node>())
                 }
                 ast_node::for_loop(backing) {
-                    loop_stack.push(defer_double_stack.size())
+                    loop_stack.push(defer_triple_stack.top().size())
                 }
                 ast_node::while_loop(backing) {
-                    loop_stack.push(defer_double_stack.size())
+                    loop_stack.push(defer_triple_stack.top().size())
                 }
                 ast_node::function(backing) {
-                    enclosing_function = node
+                    enclosing_function_stack.push(node)
+                    defer_triple_stack.push(stack<stack<*ast_node>>())
                 }
             }
         }
@@ -46,8 +47,8 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
                 ast_node::branching_statement(backing) {
                     var block = ast_code_block_ptr()
                     replace_with_in(node, block, parent_chain)
-                    for (var i = 0; i < defer_double_stack.size() - loop_stack.top(); i++;)
-                        block->code_block.children.add_all(defer_double_stack.from_top(i).reverse_vector())
+                    for (var i = 0; i < defer_triple_stack.top().size() - loop_stack.top(); i++;)
+                        block->code_block.children.add_all(defer_triple_stack.top().from_top(i).reverse_vector())
                     block->code_block.children.add(node)
                 }
                 ast_node::return_statement(backing) {
@@ -55,28 +56,32 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
                     replace_with_in(node, block, parent_chain)
                     var return_value = node->return_statement.return_value
                     if (return_value) {
-                        if (get_ast_type(enclosing_function)->return_type->is_ref)
+                        if (get_ast_type(enclosing_function_stack.top())->return_type->is_ref)
                             return_value = make_operator_call("&", vector(return_value))
                         var temp_return = ast_identifier_ptr("temp_boom_return", get_ast_type(return_value)->clone_without_ref(), block)
                         block->code_block.children.add(ast_declaration_statement_ptr(temp_return, null<ast_node>(), false))
                         block->code_block.children.add(assign_or_copy_construct_statement(temp_return, return_value))
                         // dereference so that the real ref can take it back
-                        if (get_ast_type(enclosing_function)->return_type->is_ref)
+                        if (get_ast_type(enclosing_function_stack.top())->return_type->is_ref)
                             temp_return = make_operator_call("*", vector(temp_return))
                         node->return_statement.return_value = temp_return
                     }
-                    for (var i = 0; i < defer_double_stack.size(); i++;)
-                        block->code_block.children.add_all(defer_double_stack.from_top(i).reverse_vector())
+                    for (var i = 0; i < defer_triple_stack.top().size(); i++;)
+                        block->code_block.children.add_all(defer_triple_stack.top().from_top(i).reverse_vector())
                     block->code_block.children.add(node)
                 }
                 ast_node::code_block(backing) {
-                    node->code_block.children.add_all(defer_double_stack.pop().reverse_vector())
+                    node->code_block.children.add_all(defer_triple_stack.top().pop().reverse_vector())
                 }
                 ast_node::for_loop(backing) {
                     loop_stack.pop()
                 }
                 ast_node::while_loop(backing) {
                     loop_stack.pop()
+                }
+                ast_node::function(backing) {
+                    defer_triple_stack.pop()
+                    enclosing_function_stack.pop()
                 }
             }
         }

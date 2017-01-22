@@ -35,13 +35,12 @@ fun main(argc: int, argv: **char):int {
         file_contents = string("RealGoal = boolean_expression ;\n") + file_contents
         doing_repl = true
     } else if (string(argv[1]) == "-v" || string(argv[1]) == "--version") {
-        var version_c_string = "fail"
-        /*var version_c_string = #ctce(fun(): *char {*/
-            /*var version_string = string("Self-hosted Kraken compiler \"Kalypso\" - revision ") + from_system_command(string("git rev-list HEAD | wc -l"), 100) +*/
-                /*", commit: " + from_system_command(string("git rev-parse HEAD"), 100) +*/
-                /*", compile date: " + from_system_command(string("date"), 100) */
-            /*return version_string.toCharArray()*/
-        /*}())*/
+        var version_c_string = #ctce(fun(): *char {
+            var version_string = string("Self-hosted Kraken compiler \"Kalypso\" - revision ") + from_system_command(string("git rev-list HEAD | wc -l"), 100) +
+                ", commit: " + from_system_command(string("git rev-parse HEAD"), 100) +
+                ", compile date: " + from_system_command(string("date"), 100) 
+            return version_string.toCharArray()
+        }())
         println(version_c_string)
         exit(0)
     }

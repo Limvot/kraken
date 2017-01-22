@@ -53,11 +53,8 @@ fun ref_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                 }
                 ast_node::function(backing) {
                     var full_name = get_fully_scoped_name(node) + " - (" + backing.name + ")"
-                    println("looking at " + full_name + (node) cast int)
-                    if (has_ref_inside(backing.type)) {
+                    if (has_ref_inside(backing.type))
                         remove_ref_type_set.add(make_pair(full_name, backing.type))
-                        println("HAD REF PARAM: ")
-                    }
                 }
                 ast_node::function_call(backing) {
                     // check to see if it's taking a ref, if so add in the &
@@ -80,9 +77,9 @@ fun ref_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
     })
     remove_ref_type_set.for_each(fun(p: pair<string, *type>) {
         var t = p.second
-        println("before" + p.first + ": " + t->to_string())
+        /*println("before" + p.first + ": " + t->to_string())*/
         remove_ref(t)
-        println("after" + p.first + ": " + t->to_string())
+        /*println("after" + p.first + ": " + t->to_string())*/
     })
     modify_reference_use_set.for_each(fun(p: pair<*ast_node, *ast_node>) {
         // if we haven't modified it's indirection yet
@@ -91,8 +88,8 @@ fun ref_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
             p.first->identifier.type = p.first->identifier.type->clone_with_increased_indirection(1, false);
         }
         // note that we definitly want to replace the type for unused parameters, but we don't want to add the * for paramters
-        // in function declarations or declaration statements
-        if (!is_identifier(p.first) || (!is_function(p.second) && !is_declaration_statement(p.second)))
+        // in function declarations or the new identifier in declaration statements (but we do for expressions in declaration statements)
+        if (!is_identifier(p.first) || (!is_function(p.second) && (!is_declaration_statement(p.second) || p.second->declaration_statement.identifier != p.first)))
             replace_with_in(p.first, make_operator_call("*", vector(p.first)), p.second);
     })
     modify_return_set.for_each(fun(r: *ast_node) {
