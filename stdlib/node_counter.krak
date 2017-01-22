@@ -22,7 +22,7 @@ fun node_counter_test(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>,
 }
 fun node_counter_helper(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>): int {
     var counter = 0
-    var visited = set<*ast_node>()
+    var visited = hash_set<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             counter++

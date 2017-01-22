@@ -4,6 +4,7 @@ import util:*
 import vector:*
 import stack:*
 import string:*
+import hash_set:*
 
 fun make_this_noncached(object: *ast_node): *ast_node {
     return ast_identifier_ptr("this", object->type_def.self_type->clone_with_indirection(1), object)
@@ -404,18 +405,18 @@ fun add_after_in(to_add: *ast_node, before: *ast_node, in: *ast_node) {
     error(string("cannot add_after_in to ") + get_ast_name(in))
 }
 
-fun empty_pass_first_half(node: *ast_node, parent_chain: *stack<*ast_node>, visited: *set<*ast_node>): bool { return true; }
+fun empty_pass_first_half(node: *ast_node, parent_chain: *stack<*ast_node>, visited: *hash_set<*ast_node>): bool { return true; }
 fun empty_pass_second_half(node: *ast_node, parent_chain: *stack<*ast_node>) {}
-fun run_on_tree(func_before: fun(*ast_node,*stack<*ast_node>):void, func_after: fun(*ast_node,*stack<*ast_node>):void, tree: *ast_node, visited: *set<*ast_node>)
-    run_on_tree(fun(n: *ast_node, s: *stack<*ast_node>, v: *set<*ast_node>): bool {func_before(n, s);return true;}, func_after, tree, visited)
+fun run_on_tree(func_before: fun(*ast_node,*stack<*ast_node>):void, func_after: fun(*ast_node,*stack<*ast_node>):void, tree: *ast_node, visited: *hash_set<*ast_node>)
+    run_on_tree(fun(n: *ast_node, s: *stack<*ast_node>, v: *hash_set<*ast_node>): bool {func_before(n, s);return true;}, func_after, tree, visited)
 
-fun run_on_tree(func_before: fun(*ast_node,*stack<*ast_node>,*set<*ast_node>):bool, func_after: fun(*ast_node,*stack<*ast_node>):void, tree: *ast_node, visited: *set<*ast_node>) {
+fun run_on_tree(func_before: fun(*ast_node,*stack<*ast_node>,*hash_set<*ast_node>):bool, func_after: fun(*ast_node,*stack<*ast_node>):void, tree: *ast_node, visited: *hash_set<*ast_node>) {
     var parent_stack = stack<*ast_node>()
     run_on_tree_helper(func_before, func_after, tree, &parent_stack, visited)
 }
-fun run_on_tree_helper(func_before: fun(*ast_node,*stack<*ast_node>,*set<*ast_node>):bool,
+fun run_on_tree_helper(func_before: fun(*ast_node,*stack<*ast_node>,*hash_set<*ast_node>):bool,
                        func_after:  fun(*ast_node,*stack<*ast_node>):void,
-                       node: *ast_node, parent_chain: *stack<*ast_node>, visited: *set<*ast_node>) {
+                       node: *ast_node, parent_chain: *stack<*ast_node>, visited: *hash_set<*ast_node>) {
     // So some nodes should be done regardless of weather or not we've visited them - these are the places where a more reasonable AST might use bindings, i.e. variables and functions.
     if (!node || (!is_function(node) && !is_identifier(node) && visited->contains(node))) return;
     visited->add(node)

@@ -3,6 +3,7 @@ import tree:*
 import map:*
 import vector:*
 import set:*
+import hash_set:*
 import util:*
 import string:*
 import mem:*
@@ -40,7 +41,7 @@ fun ref_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
     var remove_ref_type_set = set<pair<string,*type>>()
     var modify_reference_use_set = set<pair<*ast_node, *ast_node>>()
     var modify_return_set = set<*ast_node>()
-    var visited = set<*ast_node>()
+    var visited = hash_set<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {

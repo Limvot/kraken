@@ -8,13 +8,14 @@ import mem:*
 import io:*
 import ast_nodes:*
 import ast_transformation:*
+import hash_set:*
 
 import pass_common:*
 
 fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var type_def_option_map = map<*ast_node, vector<*ast_node>>()
-    var visited1 = set<*ast_node>()
-    var visited2 = set<*ast_node>()
+    var visited1 = hash_set<*ast_node>()
+    var visited2 = hash_set<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
@@ -53,7 +54,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         block->code_block.children.add(ast_assignment_statement_ptr(make_operator_call(".", vector(to_ret, flag)), value))
                         var opt = type_def_option_map[node][idx]
                         var lvalue = make_operator_call(".", vector(make_operator_call(".", vector(to_ret, option_union_ident)), opt))
-                        if (func->function.parameters.size) { 
+                        if (func->function.parameters.size) {
                             // do copy_construct if it should
                             block->code_block.children.add(assign_or_copy_construct_statement(lvalue, func->function.parameters[0]))
                         }

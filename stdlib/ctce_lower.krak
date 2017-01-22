@@ -9,11 +9,12 @@ import io:*
 import ast_nodes:*
 import ast_transformation:*
 import interpreter:*
+import hash_set:*
 
 import pass_common:*
 
 fun ctce_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
-    var visited = set<*ast_node>()
+    var visited = hash_set<*ast_node>()
     var globals = setup_globals(*name_ast_map)
     var ctce_passes = vector<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {

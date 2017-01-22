@@ -8,12 +8,13 @@ import mem:*
 import io:*
 import ast_nodes:*
 import ast_transformation:*
+import hash_set:*
 
 import pass_common:*
 
 fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var enclosing_function_stack = stack<*ast_node>()
-    var visited = set<*ast_node>()
+    var visited = hash_set<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var defer_triple_stack = stack<stack<stack<*ast_node>>>()
         var loop_stack = stack(-1)
