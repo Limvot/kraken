@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 runner_path="./tester"
 #testDir=${1:-"../tests"}

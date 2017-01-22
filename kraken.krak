@@ -12,6 +12,7 @@ import ast_transformation:*
 import adt_lower:*
 import obj_lower:*
 import defer_lower:*
+import ref_lower:*
 import ctce_lower:*
 import c_line_control:*
 import node_counter:*
@@ -146,6 +147,10 @@ fun main(argc: int, argv: **char):int {
     /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
     printlnerr("Lowering Defer")
     defer_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
+    /*printlnerr("Counting Nodes")*/
+    /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
+    printlnerr("Lowering Ref")
+    ref_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
     /*printlnerr("Counting Nodes")*/
     /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
     // Lowers #ctce and the current #ctce_pass
