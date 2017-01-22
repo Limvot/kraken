@@ -1,6 +1,7 @@
 import io:*
 import mem:*
 import map:*
+import hash_map:*
 import stack:*
 import string:*
 import util:*

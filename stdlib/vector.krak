@@ -43,6 +43,17 @@ obj vector<T> (Object, Serializable) {
             memmove((data) cast *void, (old->data) cast *void, size * #sizeof<T>)
         }
     }
+    fun swap(other: ref vector<T>) {
+        var temp_data = data
+        var temp_size = size
+        var temp_available = available
+        data = other.data
+        size = other.size
+        available = other.available
+        other.data = temp_data
+        other.size = temp_size
+        other.available = temp_available
+    }
     fun serialize(): vector<char> {
         var toRet = serialize(size)
         for (var i = 0; i < size; i++;)

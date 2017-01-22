@@ -53,19 +53,22 @@ obj hash_map<T,U> (Object, Serializable) {
         if (!data[(key_hash%data.size) cast int].contains_key(key)) {
             size++
             if (size > data.size) {
-                var new_data = vector::vector<map::map<T,U>>()
+                var new_data.construct(size*2): vector::vector<map::map<T,U>>
                 for (var i = 0; i < size*2; i++;)
                     new_data.addEnd(map::map<T,U>())
                 for_each(fun(key: T, value: U) {
                     new_data[(util::hash(key)%new_data.size) cast int].set(key, value)
                 })
-                data = new_data
+                data.swap(new_data)
             }
         }
         data[(key_hash%data.size) cast int].set(key, value)
     }
     fun get(key: ref T): ref U {
         return data[(util::hash(key)%data.size) cast int].get(key)
+    }
+    fun get_ptr_or_null(key: ref T): *U {
+        return data[(util::hash(key)%data.size) cast int].get_ptr_or_null(key)
     }
     fun contains_key(key: ref T): bool {
         return data[(util::hash(key)%data.size) cast int].contains_key(key)
