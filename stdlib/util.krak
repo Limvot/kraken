@@ -47,18 +47,28 @@ fun min<T>(a: T, b: T): T {
     return a;
 }
 
-fun hash<T(Hashable)>(item: T): ulong return item.hash()
-fun hash<T>(item: *T): ulong return (item) cast ulong
-fun hash(item: char): ulong return (item) cast ulong
-fun hash(item: uchar): ulong return (item) cast ulong
-fun hash(item: short): ulong return (item) cast ulong
-fun hash(item: ushort): ulong return (item) cast ulong
-fun hash(item: int): ulong return (item) cast ulong
-fun hash(item: uint): ulong return (item) cast ulong
-fun hash(item: long): ulong return (item) cast ulong
-fun hash(item: ulong): ulong return (item) cast ulong
-// default hash
 fun hash<T>(item: T): ulong {
+    var h = hash_first(item)
+    /*h ^= h >> 16*/
+    /*h *= 0x85ebca6b*/
+    /*h ^= h >> 13*/
+    /*h *= 0xc2b2ae35*/
+    /*h ^= h >> 16*/
+    return h
+}
+
+fun hash_first<T(Hashable)>(item: T): ulong return item.hash()
+fun hash_first<T>(item: *T): ulong return (item) cast ulong
+fun hash_first(item: char): ulong return (item) cast ulong
+fun hash_first(item: uchar): ulong return (item) cast ulong
+fun hash_first(item: short): ulong return (item) cast ulong
+fun hash_first(item: ushort): ulong return (item) cast ulong
+fun hash_first(item: int): ulong return (item) cast ulong
+fun hash_first(item: uint): ulong return (item) cast ulong
+fun hash_first(item: long): ulong return (item) cast ulong
+fun hash_first(item: ulong): ulong return (item) cast ulong
+// default hash
+fun hash_first<T>(item: T): ulong {
     io::println("using empty hash - please do not do!")
     return (0) cast ulong
 }

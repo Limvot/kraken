@@ -135,7 +135,7 @@ cast_expression = "\(" WS boolean_expression WS "\)" WS "cast" WS type ;
 number = integer | floating_literal ;
 access_operation = unarad WS "." WS identifier | unarad WS "->" WS identifier | unarad WS "." WS identifier WS template_inst | unarad WS "->" WS identifier WS template_inst ;
 
-assignment_statement = factor WS "=" WS boolean_expression | factor WS "\+=" WS boolean_expression | factor WS "-=" WS boolean_expression | factor WS "\*=" WS boolean_expression | factor WS "/=" WS boolean_expression ;
+assignment_statement = factor WS "=" WS boolean_expression | factor WS "\+=" WS boolean_expression | factor WS "-=" WS boolean_expression | factor WS "\*=" WS boolean_expression | factor WS "/=" WS boolean_expression | factor WS "^=" WS boolean_expression ;
 # if it's being assigned to, we allow type inferencing
 declaration_statement = "var" WS identifier WS "=" WS boolean_expression | "var" WS identifier WS dec_type WS "=" WS boolean_expression | "var" WS identifier WS dec_type | "ext" WS "var" WS identifier WS dec_type | "var" WS identifier WS "." WS identifier WS "\(" WS opt_parameter_list WS "\)" WS dec_type ;
 hexadecimal = "0x([0-9]|[a-f])+" ;

@@ -29,16 +29,16 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     var option_union = ast_type_def_ptr(backing.name + "_union", true);
                     node->adt_def.options.for_each(fun(opt: *ast_node) {
                         if (!opt->identifier.type->is_empty_adt_option())
-                            option_union->type_def.variables.add(ast_declaration_statement_ptr(opt, null<ast_node>(), false))
+                            option_union->type_def.variables.add(ast_declaration_statement_ptr(opt, null<ast_node>()))
                         type_def_option_map[node].add(opt)
                     })
                     var option_union_type = type_ptr(option_union)
                     option_union->type_def.self_type = option_union_type
                     var option_union_ident = ast_identifier_ptr(string("data"), option_union_type, replacement)
-                    replacement->type_def.variables.add(ast_declaration_statement_ptr(option_union_ident, null<ast_node>(), false))
+                    replacement->type_def.variables.add(ast_declaration_statement_ptr(option_union_ident, null<ast_node>()))
                     add_to_scope("data", option_union_ident, replacement)
                     var flag = ast_identifier_ptr(string("flag"), type_ptr(base_type::integer()), replacement)
-                    replacement->type_def.variables.add(ast_declaration_statement_ptr(flag, null<ast_node>(), false))
+                    replacement->type_def.variables.add(ast_declaration_statement_ptr(flag, null<ast_node>()))
                     add_to_scope("flag", flag, replacement)
                     add_before_in(option_union, node, parent_chain)
                     var enclosing_scope = node->adt_def.scope[string("~enclosing_scope")][0]
@@ -48,7 +48,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         var block = ast_code_block_ptr()
                         func->function.body_statement = block
                         var to_ret = ast_identifier_ptr(string("to_ret"), adt_type, block)
-                        block->code_block.children.add(ast_declaration_statement_ptr(to_ret, null<ast_node>(), false))
+                        block->code_block.children.add(ast_declaration_statement_ptr(to_ret, null<ast_node>()))
 
                         var value = ast_value_ptr(to_string(idx), type_ptr(base_type::integer()))
                         block->code_block.children.add(ast_assignment_statement_ptr(make_operator_call(".", vector(to_ret, flag)), value))
@@ -141,7 +141,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     var block = ast_code_block_ptr()
                     var value = backing.value
                     var holder = ast_identifier_ptr(string("holder"), get_ast_type(value)->clone_with_increased_indirection(), block)
-                    block->code_block.children.add(ast_declaration_statement_ptr(holder, null<ast_node>(), false))
+                    block->code_block.children.add(ast_declaration_statement_ptr(holder, null<ast_node>()))
                     block->code_block.children.add(ast_assignment_statement_ptr(holder, make_operator_call("&", vector(value))))
                     backing.cases.for_each(fun(case_stmt: *ast_node) {
                         var option = case_stmt->case_statement.option
@@ -161,7 +161,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                             var get_option = make_operator_call(".", vector(make_operator_call("->", vector(holder, data)), option))
                             get_option = make_operator_call("&", vector(get_option))
                             unpack_ident->identifier.type = unpack_ident->identifier.type->clone_with_ref()
-                            inner_block->code_block.children.add(ast_declaration_statement_ptr(unpack_ident, get_option, false))
+                            inner_block->code_block.children.add(ast_declaration_statement_ptr(unpack_ident, get_option))
                         }
                         inner_block->code_block.children.add(case_stmt->case_statement.statement)
                         if_stmt->if_statement.then_part = inner_block

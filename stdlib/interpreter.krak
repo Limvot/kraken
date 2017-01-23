@@ -595,7 +595,7 @@ fun setup_globals(name_ast_map: ref map<string, pair<*tree<symbol>,*ast_node>>):
             if (is_declaration_statement(child)) {
                 var declaration = child->declaration_statement
                 var identifier = declaration.identifier->identifier
-                if (declaration.is_extern) {
+                if (identifier.is_extern) {
                     if (identifier.name == "stderr") {
                         var stderr_type = type_ptr(base_type::void_return(), 1)
                         var stderr_pointer = malloc(type_size(stderr_type))

@@ -42,7 +42,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     backing.condition = ast_value_ptr(string("true"), type_ptr(base_type::boolean()))
                     // objects do not coerce to booleans, so it should be ok for this not to be a ref
                     var condition_ident = ast_identifier_ptr("condition_temp", get_ast_type(condition), backing.statement)
-                    backing.statement->code_block.children.add(0, ast_declaration_statement_ptr(condition_ident, condition, false))
+                    backing.statement->code_block.children.add(0, ast_declaration_statement_ptr(condition_ident, condition))
                     var condition_if = ast_if_statement_ptr(make_operator_call("!", vector(condition_ident)))
                     condition_if->if_statement.then_part = ast_branching_statement_ptr(branching_type::break_stmt())
                     backing.statement->code_block.children.add(1, condition_if)
@@ -53,7 +53,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     backing.init = null<ast_node>()
                     // the do_update goes in the block above the for
                     var update_ident = ast_identifier_ptr("do_update", type_ptr(base_type::boolean()), parent_chain->top())
-                    add_before_in(ast_declaration_statement_ptr(update_ident, ast_value_ptr(string("false"), type_ptr(base_type::boolean())), false),
+                    add_before_in(ast_declaration_statement_ptr(update_ident, ast_value_ptr(string("false"), type_ptr(base_type::boolean()))),
                             node, parent_chain->top())
                     var update_if = ast_if_statement_ptr(update_ident)
                     update_if->if_statement.then_part = ast_code_block_ptr(backing.update)
@@ -65,7 +65,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     backing.condition = ast_value_ptr(string("true"), type_ptr(base_type::boolean()))
                     // objects do not coerce to booleans, so it should be ok for this not to be a ref
                     var condition_ident = ast_identifier_ptr("condition_temp", get_ast_type(condition), backing.body)
-                    backing.body->code_block.children.add(2, ast_declaration_statement_ptr(condition_ident, condition, false))
+                    backing.body->code_block.children.add(2, ast_declaration_statement_ptr(condition_ident, condition))
                     var condition_if = ast_if_statement_ptr(make_operator_call("!", vector(condition_ident)))
                     condition_if->if_statement.then_part = ast_branching_statement_ptr(branching_type::break_stmt())
                     backing.body->code_block.children.add(3, condition_if)
@@ -92,7 +92,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     if (func_name == "||" || func_name == "&&") {
                         var enclosing_block_idx = parent_chain->index_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i);)
                         var short_circuit_result = ast_identifier_ptr("short_circut_result", type_ptr(base_type::boolean()), parent_chain->from_top(enclosing_block_idx))
-                        var short_circuit_declaration = ast_declaration_statement_ptr(short_circuit_result, backing.parameters[0], false)
+                        var short_circuit_declaration = ast_declaration_statement_ptr(short_circuit_result, backing.parameters[0])
                         var condition = short_circuit_result
                         if (func_name == "||")
                             condition = make_operator_call("!", vector(condition))
@@ -147,7 +147,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         var param_type = get_ast_type(param)
                         if (!in_function_param_type->is_ref && param_type->indirection == 0 && (param_type->is_object() && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1))))) {
                             var temp_ident = ast_identifier_ptr("temporary_param_boom", param_type->clone_without_ref(), null<ast_node>())
-                            var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>(), false)
+                            var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
                             var copy_in = make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(param))))
                             add_before_in(declaration, replace_before, replace_in)
                             add_before_in(copy_in, replace_before, replace_in)
@@ -157,7 +157,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     var func_return_type = func_type->return_type
                     if (!func_return_type->is_ref && func_return_type->indirection == 0 && (func_return_type->is_object() && has_method(func_return_type->type_def, "destruct", vector<*type>()))) {
                         var temp_return = ast_identifier_ptr("temporary_return_boomchaka", func_return_type, null<ast_node>())
-                        var declaration = ast_declaration_statement_ptr(temp_return, node, false)
+                        var declaration = ast_declaration_statement_ptr(temp_return, node)
                         add_before_in(declaration, replace_before, replace_in)
                         add_before_in(ast_defer_statement_ptr(make_method_call(temp_return, "destruct", vector<*ast_node>())),
                                 replace_before, replace_in)
@@ -188,7 +188,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     if (!ident_type->is_ref && ident_type->indirection == 0 && ident_type->is_object()) {
                         if (backing.expression && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(backing.expression)->clone_with_increased_indirection()))) {
                             var temp_cpy_ctst = ast_identifier_ptr("temp_declaration_copy_construct", get_ast_type(backing.expression)->clone_without_ref(), null<ast_node>())
-                            var declaration = ast_declaration_statement_ptr(temp_cpy_ctst, backing.expression, false)
+                            var declaration = ast_declaration_statement_ptr(temp_cpy_ctst, backing.expression)
                             add_after_in(make_method_call(backing.identifier, "copy_construct", vector(make_operator_call("&", vector(temp_cpy_ctst)))),
                                     node, parent_chain->top())
                             // do second so the order's right

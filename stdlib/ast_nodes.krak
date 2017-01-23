@@ -148,7 +148,10 @@ fun ast_identifier_ptr(name: *char, type: *type, enclosing_scope: *ast_node): *a
     return ast_identifier_ptr(string(name), type, enclosing_scope)
 }
 fun ast_identifier_ptr(name: string, type: *type, enclosing_scope: *ast_node): *ast_node {
-    var to_ret.construct(name, type, enclosing_scope): identifier
+    return ast_identifier_ptr(name, type, enclosing_scope, false)
+}
+fun ast_identifier_ptr(name: string, type: *type, enclosing_scope: *ast_node, is_extern: bool): *ast_node {
+    var to_ret.construct(name, type, enclosing_scope, is_extern): identifier
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::identifier(to_ret))
     return ptr
@@ -164,11 +167,13 @@ obj identifier (Object) {
     var scope: map<string, vector<*ast_node>>
     var type: *type
     var enclosing_scope: *ast_node
-    fun construct(name_in: string, type_in: *type, enclosing_scope: *ast_node): *identifier {
+    var is_extern: bool
+    fun construct(name_in: string, type_in: *type, enclosing_scope: *ast_node, is_extern_in: bool): *identifier {
         name.copy_construct(&name_in)
         scope.construct()
         type = type_in
         identifier::enclosing_scope = enclosing_scope
+        is_extern = is_extern_in
         return this
     }
     fun copy_construct(old: *identifier) {
@@ -176,6 +181,7 @@ obj identifier (Object) {
         scope.copy_construct(&old->scope)
         type = old->type
         enclosing_scope = old->enclosing_scope
+        is_extern = old->is_extern
     }
     fun destruct() {
         name.destruct()
@@ -186,7 +192,7 @@ obj identifier (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref identifier): bool {
-        return name == other.name && type == other.type && enclosing_scope == other.enclosing_scope
+        return name == other.name && type == other.type && enclosing_scope == other.enclosing_scope && is_extern == other.is_extern
     }
 }
 /*fun ast_type_def_ptr(name: string): *ast_node {*/
@@ -797,8 +803,8 @@ obj assignment_statement (Object) {
         return to == other.to && from == other.from
     }
 }
-fun ast_declaration_statement_ptr(ident: *ast_node, expression: *ast_node, is_extern: bool): *ast_node {
-    var to_ret.construct(ident, expression, is_extern): declaration_statement
+fun ast_declaration_statement_ptr(ident: *ast_node, expression: *ast_node): *ast_node {
+    var to_ret.construct(ident, expression): declaration_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::declaration_statement(to_ret))
     return ptr
@@ -813,19 +819,16 @@ obj declaration_statement (Object) {
     var identifier: *ast_node
     var expression: *ast_node
     var init_method_call: *ast_node
-    var is_extern: bool
-    fun construct(identifier_in: *ast_node, expression_in: *ast_node, is_extern_in: bool): *declaration_statement  {
+    fun construct(identifier_in: *ast_node, expression_in: *ast_node): *declaration_statement  {
         identifier = identifier_in
         expression = expression_in
         init_method_call = null<ast_node>()
-        is_extern = is_extern_in
         return this
     }
     fun copy_construct(old: *declaration_statement) {
         identifier = old->identifier
         expression = old->expression
         init_method_call = old->init_method_call
-        is_extern = old->is_extern
     }
     fun destruct() {
     }
@@ -834,7 +837,7 @@ obj declaration_statement (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref declaration_statement): bool {
-        return identifier == other.identifier && expression == other.expression && init_method_call == other.init_method_call && is_extern == other.is_extern
+        return identifier == other.identifier && expression == other.expression && init_method_call == other.init_method_call
     }
 }
 fun ast_if_comp_ptr(): *ast_node {

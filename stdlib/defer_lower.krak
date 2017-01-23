@@ -60,7 +60,7 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
                         if (get_ast_type(enclosing_function_stack.top())->return_type->is_ref)
                             return_value = make_operator_call("&", vector(return_value))
                         var temp_return = ast_identifier_ptr("temp_boom_return", get_ast_type(return_value)->clone_without_ref(), block)
-                        block->code_block.children.add(ast_declaration_statement_ptr(temp_return, null<ast_node>(), false))
+                        block->code_block.children.add(ast_declaration_statement_ptr(temp_return, null<ast_node>()))
                         block->code_block.children.add(assign_or_copy_construct_statement(temp_return, return_value))
                         // dereference so that the real ref can take it back
                         if (get_ast_type(enclosing_function_stack.top())->return_type->is_ref)

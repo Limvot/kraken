@@ -631,7 +631,7 @@ obj ast_transformation (Object) {
         var expression_syntax_node = get_node("boolean_expression", node)
         var expression = null<ast_node>()
         // we do it early so that if there is a type_syntax_node we can add to scope so that the expression can find this for things like rec closures
-        var identifier = ast_identifier_ptr(name, null<type>(), scope)
+        var identifier = ast_identifier_ptr(name, null<type>(), scope, get_node("\"ext\"", node) != null<tree<symbol>>())
         add_to_scope(name, identifier, scope)
         if (type_syntax_node) identifier->identifier.type = transform_type(type_syntax_node, scope, template_replacements)
         if (expression_syntax_node) {
@@ -641,7 +641,7 @@ obj ast_transformation (Object) {
         }
         if (!identifier->identifier.type) error(node, "declaration statement with no type or expression from which to inference type")
         if (identifier->identifier.type->is_none() || (identifier->identifier.type->indirection == 0 && identifier->identifier.type->is_void())) error(node, "declaration statement with bad type")
-        var declaration = ast_declaration_statement_ptr(identifier, expression, get_node("\"ext\"", node) != null<tree<symbol>>())
+        var declaration = ast_declaration_statement_ptr(identifier, expression)
         // ok, deal with the possible init position method call
         if (identifiers.size == 2) {
             var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)
@@ -707,6 +707,13 @@ obj ast_transformation (Object) {
                 return possible_assign
             }
             to_assign = make_operator_call("/", vector(assign_to, to_assign))
+        } else   if (get_node("\"^=\"", node)){
+            var possible_assign = find_and_make_any_operator_overload_call(string("^="), vector(assign_to, to_assign), scope, template_replacements)
+            if (possible_assign) {
+                /*print("Computed and returning operator/=")*/
+                return possible_assign
+            }
+            to_assign = make_operator_call("^", vector(assign_to, to_assign))
         }
         var assignment = ast_assignment_statement_ptr(assign_to, to_assign)
         return assignment
