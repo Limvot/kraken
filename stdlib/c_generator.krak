@@ -422,10 +422,14 @@ obj c_generator (Object) {
         var cond = code_triple(";")
         if (node->for_loop.condition)
             cond = generate(node->for_loop.condition, enclosing_object, enclosing_func, false)
-        var update = code_triple()
-        if (node->for_loop.update)
-            update = generate(node->for_loop.update, enclosing_object, enclosing_func, false)
-        var to_ret = string("for (") + init.one_string() + cond.one_string() + "; " + update.one_string().slice(0,-2) + ")\n" +
+        var update = string()
+        if (node->for_loop.update) {
+            update = generate(node->for_loop.update, enclosing_object, enclosing_func, false).one_string()
+            if (update.length() < 2)
+                error("update less than 2! Likely legal, but need easy compiler mod here")
+            update = update.slice(0,-2)
+        }
+        var to_ret = string("for (") + init.one_string() + cond.one_string() + "; " + update + ")\n" +
             generate(node->for_loop.body, enclosing_object, enclosing_func, false).one_string()
         return code_triple(to_ret)
     }
