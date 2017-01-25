@@ -1,6 +1,7 @@
 import symbol:*
 import tree:*
 import vector:*
+import queue:*
 import stack:*
 import map:*
 import util:*

@@ -1,7 +1,7 @@
 import symbol:*
 import tree:*
 import vector:*
-import queue:*
+import stack:*
 import map:*
 import util:*
 import string:*
@@ -151,7 +151,7 @@ fun trim(parse_tree: *tree<symbol>): *tree<symbol> {
     return parse_tree
 }
 fun remove_node(remove: symbol, parse_tree: *tree<symbol>) {
-    var to_process = queue<*tree<symbol>>()
+    var to_process = stack<*tree<symbol>>()
     to_process.push(parse_tree)
     while(!to_process.empty()) {
         var node = to_process.pop()
@@ -174,7 +174,7 @@ fun remove_node(remove: symbol, parse_tree: *tree<symbol>) {
     }
 }
 fun collapse_node(remove: symbol, parse_tree: *tree<symbol>) {
-    var to_process = queue<*tree<symbol>>()
+    var to_process = stack<*tree<symbol>>()
     to_process.push(parse_tree)
     while(!to_process.empty()) {
         var node = to_process.pop()

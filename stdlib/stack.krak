@@ -24,6 +24,10 @@ obj stack<T> (Object, Serializable) {
         data.construct()
         return this
     }
+    fun construct(ammt: int): *stack<T> {
+        data.construct(ammt)
+        return this
+    }
     fun copy_construct(other: *stack<T>) {
         data.copy_construct(&other->data)
     }
@@ -58,6 +62,9 @@ obj stack<T> (Object, Serializable) {
     }
     fun size(): int {
         return data.size
+    }
+    fun available(): int {
+        return data.available
     }
     fun empty():bool {
         return data.size == 0

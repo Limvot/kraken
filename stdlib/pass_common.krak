@@ -196,7 +196,7 @@ fun get_builtin_function(name: string, param_types: vector<*type>, syntax: *tree
     }
     if (name == "&" && param_types.size == 1)
         return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection()), vector<*ast_node>(), false)
-    if (name == "\*" && param_types.size == 1) {
+    if (name == "*" && param_types.size == 1) {
         if (param_types[0]->indirection == 0)
             error(syntax, string("drereferencing not a pointer: ") + name)
         else
