@@ -76,7 +76,7 @@ obj code_triple (Object) {
 obj c_generator (Object) {
     var id_counter: int
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
-    /*var ast_name_map: hash_map<*ast_node, string>*/
+    var ast_name_map: map<*ast_node, string>
     var closure_struct_map: map<set<*ast_node>, string>
     var function_type_map: map<type, string>
     var function_typedef_string: string
@@ -88,7 +88,7 @@ obj c_generator (Object) {
     fun construct(): *c_generator {
         id_counter = 0
         ast_to_syntax.construct()
-        /*ast_name_map.construct()*/
+        ast_name_map.construct()
         closure_struct_map.construct()
         function_type_map.construct()
         function_typedef_string.construct()
@@ -147,7 +147,7 @@ obj c_generator (Object) {
     fun copy_construct(old: *c_generator) {
         id_counter = old->id_counter
         ast_to_syntax.copy_construct(&old->ast_to_syntax)
-        /*ast_name_map.copy_construct(&old->ast_name_map)*/
+        ast_name_map.copy_construct(&old->ast_name_map)
         closure_struct_map.copy_construct(&old->closure_struct_map)
         function_type_map.copy_construct(&old->function_type_map)
         function_typedef_string.copy_construct(&old->function_typedef_string)
@@ -163,7 +163,7 @@ obj c_generator (Object) {
     }
     fun destruct() {
         ast_to_syntax.destruct()
-        /*ast_name_map.destruct()*/
+        ast_name_map.destruct()
         closure_struct_map.destruct()
         function_type_map.destruct()
         function_typedef_string.destruct()
@@ -632,7 +632,7 @@ obj c_generator (Object) {
         // temporary returns if we're asked for them or we need them for destruct
         if (!func_return_type->is_ref && !func_return_type->is_void() && need_variable) {
             // kind of ugly combo here of
-            var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id() + "temporary_end1", func_return_type, null<ast_node>())
+            var temp_ident = ast_identifier_ptr(string("temporary_return") + get_id(), func_return_type, null<ast_node>())
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
             // have to pass false to the declaration generator, so can't do it through generate_statement
             call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, false).one_string() + ";\n"
@@ -650,7 +650,7 @@ obj c_generator (Object) {
             if (!dot_style_method_call) {
                 // lambda
                 if (pre_call == "" && (!func_return_type->is_void() || func_return_type->indirection)) {
-                    var temp_ident = ast_identifier_ptr(string("temporary_return")+get_id() + "temporary_end2", func_return_type, null<ast_node>())
+                    var temp_ident = ast_identifier_ptr(string("temporary_return") + get_id(), func_return_type, null<ast_node>())
                     var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
                     // have to pass false to the declaration generator, so can't do it through generate_statement
                     call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, false).one_string() + ";\n"
@@ -805,17 +805,17 @@ obj c_generator (Object) {
         return string("impossible type") + indirection
     }
     fun get_name(node: *ast_node): string {
-        /*var maybe_it = ast_name_map.get_ptr_or_null(node);*/
-        /*if (maybe_it)*/
-            /*return *maybe_it*/
+        var maybe_it = ast_name_map.get_ptr_or_null(node);
+        if (maybe_it)
+            return *maybe_it
         var result = string("impossible name")
         var make_unique = true
         match (*node) {
             ast_node::type_def(backing) {
-                /*var upper = backing.scope[string("~enclosing_scope")][0]*/
+                var upper = backing.scope[string("~enclosing_scope")][0]
                 result = cify_name(backing.name)
-                /*if (is_template(upper))*/
-                    /*upper->template.instantiated_map.reverse_get(node).for_each(fun(t: ref type) result += string("_") + type_decoration(&t);)*/
+                if (is_template(upper))
+                    upper->template.instantiated_map.reverse_get(node).for_each(fun(t: ref type) result += string("_") + type_decoration(&t);)
             }
             ast_node::adt_def(backing) {
                 error("shouldn't have adt")
@@ -827,11 +827,11 @@ obj c_generator (Object) {
                     make_unique = false
                 } else {
                     result = "fun_"
-                    /*var upper = backing.scope.get_with_default(string("~enclosing_scope"), vector(null<ast_node>()))[0]*/
-                    /*if (upper && is_type_def(upper))*/
-                        /*result += get_name(upper) + "_"*/
+                    var upper = backing.scope.get_with_default(string("~enclosing_scope"), vector(null<ast_node>()))[0]
+                    if (upper && is_type_def(upper))
+                        result += get_name(upper) + "_"
                     result += cify_name(node->function.name)
-                    /*node->function.parameters.for_each(fun(param: *ast_node) result += string("_") + type_decoration(param->identifier.type);)*/
+                    node->function.parameters.for_each(fun(param: *ast_node) result += string("_") + type_decoration(param->identifier.type);)
                 }
             }
             ast_node::identifier(backing) {
@@ -843,13 +843,11 @@ obj c_generator (Object) {
         if (result == "impossible name")
             error("HUGE PROBLEMS")
         // TODO keyword avoid seems not to work
-        /*if (make_unique && (ast_name_map.contains_value(result) || c_keyword_avoid.contains(result)))*/
-            /*result += get_id()*/
-        if (make_unique)
-            result += to_string(hash(node)) + "_end_of_hash"
-        /*println("the hash of the node is: " + to_string(hash(node)))*/
-        /*println("the result of the node is: " + result)*/
-        /*ast_name_map.set(node, result)*/
+        if (make_unique && (ast_name_map.contains_value(result) || c_keyword_avoid.contains(result)))
+            result += get_id()
+        /*if (make_unique)*/
+            /*result += to_string(hash(node)) + "_end_of_hash"*/
+        ast_name_map.set(node, result)
         return result
     }
     fun cify_name(name: string): string {

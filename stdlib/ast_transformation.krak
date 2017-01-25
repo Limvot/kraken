@@ -710,7 +710,6 @@ obj ast_transformation (Object) {
         } else   if (get_node("\"^=\"", node)){
             var possible_assign = find_and_make_any_operator_overload_call(string("^="), vector(assign_to, to_assign), scope, template_replacements)
             if (possible_assign) {
-                /*print("Computed and returning operator/=")*/
                 return possible_assign
             }
             to_assign = make_operator_call("^", vector(assign_to, to_assign))
