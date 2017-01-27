@@ -172,9 +172,9 @@ obj ast_transformation (Object) {
             var function_node = null<ast_node>()
             if (type_syntax) {
                var identifier_param = ast_identifier_ptr(option_name, ident_type, node)
-               function_node = ast_function_ptr(option_name, type_ptr(vector(get_ast_type(identifier_param)), node->adt_def.self_type), vector(identifier_param), false)
+               function_node = ast_function_ptr(option_name, type_ptr(vector(get_ast_type(identifier_param)), node->adt_def.self_type, 0, false, false, false), vector(identifier_param), false)
             } else {
-               function_node = ast_function_ptr(option_name, type_ptr(vector<*type>(), node->adt_def.self_type), vector<*ast_node>(), false)
+               function_node = ast_function_ptr(option_name, type_ptr(vector<*type>(), node->adt_def.self_type, 0, false, false, false), vector<*ast_node>(), false)
             }
             add_to_scope(option_name, function_node, node)
             add_to_scope("~enclosing_scope", node, function_node)
@@ -189,12 +189,12 @@ obj ast_transformation (Object) {
         var copy_construct_param = ast_identifier_ptr(string("in"), node->adt_def.self_type->clone_with_indirection(1,false), node)
         var assign_param = ast_identifier_ptr(string("in"), node->adt_def.self_type->clone_with_indirection(0,true), node)
         vector(
-            make_pair("operator==", ast_function_ptr(string("operator=="), type_ptr(vector(equals_param->identifier.type), type_ptr(base_type::boolean())), vector(equals_param), false)),
-            make_pair("operator!=", ast_function_ptr(string("operator!="), type_ptr(vector(nequals_param->identifier.type), type_ptr(base_type::boolean())), vector(nequals_param), false)),
-            make_pair("construct", ast_function_ptr(string("construct"), type_ptr(vector<*type>(), node->adt_def.self_type->clone_with_increased_indirection()), vector<*ast_node>(), false)),
-            make_pair("copy_construct", ast_function_ptr(string("copy_construct"), type_ptr(vector(copy_construct_param->identifier.type), type_ptr(base_type::void_return())), vector(copy_construct_param), false)),
-            make_pair("operator=", ast_function_ptr(string("operator="), type_ptr(vector(assign_param->identifier.type), type_ptr(base_type::void_return())), vector(assign_param), false)),
-            make_pair("destruct", ast_function_ptr(string("destruct"), type_ptr(vector<*type>(), type_ptr(base_type::void_return())), vector<*ast_node>(), false))
+            make_pair("operator==", ast_function_ptr(string("operator=="), type_ptr(vector(equals_param->identifier.type), type_ptr(base_type::boolean()), 0, false, false, false), vector(equals_param), false)),
+            make_pair("operator!=", ast_function_ptr(string("operator!="), type_ptr(vector(nequals_param->identifier.type), type_ptr(base_type::boolean()), 0, false, false, false), vector(nequals_param), false)),
+            make_pair("construct", ast_function_ptr(string("construct"), type_ptr(vector<*type>(), node->adt_def.self_type->clone_with_increased_indirection(), 0, false, false, false), vector<*ast_node>(), false)),
+            make_pair("copy_construct", ast_function_ptr(string("copy_construct"), type_ptr(vector(copy_construct_param->identifier.type), type_ptr(base_type::void_return()), 0, false, false, false), vector(copy_construct_param), false)),
+            make_pair("operator=", ast_function_ptr(string("operator="), type_ptr(vector(assign_param->identifier.type), type_ptr(base_type::void_return()), 0, false, false, false), vector(assign_param), false)),
+            make_pair("destruct", ast_function_ptr(string("destruct"), type_ptr(vector<*type>(), type_ptr(base_type::void_return()), 0, false, false, false), vector<*ast_node>(), false))
         ).for_each(fun(func_pair: pair<*char, *ast_node>) {
             node->adt_def.regular_funcs.add(func_pair.second)
             add_to_scope(string(func_pair.first), func_pair.second, node)
@@ -240,10 +240,11 @@ obj ast_transformation (Object) {
             parameters.add(ast_identifier_ptr(concat_symbol_tree(get_node("identifier", child)), param_type, null<ast_node>()))
         })
         var is_variadic = get_node("\"...\"", node) != null<tree<symbol>>()
+        var is_raw = false
         // figure out function type and make function_node
         var function_node = ast_function_ptr(function_name,
             type_ptr(parameters.map(fun(parameter: *ast_node): *type return parameter->identifier.type;),
-            return_type, 0, false, is_variadic), parameters, get_node("\"ext\"", node) != null<tree<symbol>>(), is_variadic)
+            return_type, 0, false, is_variadic, is_raw), parameters, get_node("\"ext\"", node) != null<tree<symbol>>(), is_variadic)
         // fix up the enclosing_scope's
         parameters.for_each(fun(n: *ast_node) n->identifier.enclosing_scope = function_node;)
         // add to scope
@@ -426,8 +427,9 @@ obj ast_transformation (Object) {
         else if (type_syntax_str == "double")
             return type_ptr(base_type::double_precision(), indirection, is_ref)
         else if (get_node("function_type", real_node)) {
-            var types = get_nodes("type", get_node("function_type", real_node)).map(fun(node: *tree<symbol>): *type transform_type(node, scope, template_replacements);)
-            return type_ptr(types.slice(0,-2), types.last(), indirection, is_ref)
+            var function_type = get_node("function_type", real_node)
+            var types = get_nodes("type", function_type).map(fun(node: *tree<symbol>): *type transform_type(node, scope, template_replacements);)
+            return type_ptr(types.slice(0,-2), types.last(), indirection, is_ref, false, get_node("\"run\"", function_type) != null<tree<symbol>>()) // check for raw function pointer
         } else {
             // do lookup for objects, ADTs, templates, etc
             var possibilities = scope_lookup(type_syntax_str, scope)

@@ -787,15 +787,19 @@ obj c_generator (Object) {
                 // maybe disregard indirection in the future?
                 type = type->clone_with_indirection(0,false)
                 if (!function_type_map.contains_key(*type)) {
-                    var temp_name = string("function_struct") + get_id()
+                    var temp_name = string("function") + get_id()
                     var temp = string()
                     type->parameter_types.for_each(fun(parameter_type: *type) temp += string(", ") + type_to_c(parameter_type) + " ";)
-                    var with_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_with_data)(void*" + temp + ");\n"
-                    var without_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_without_data)(" + temp.slice(1,-1) + ");\n"
-                    function_typedef_string += with_data
-                    function_typedef_string += without_data
-                    function_typedef_string += string("typedef struct {\nvoid* data;\n") + temp_name  + "_with_data func;\n} " + temp_name + ";\n"
-                    function_typedef_string += string("/* ") + type->to_string() + " */\n"
+                    if (type->is_raw) {
+                        function_typedef_string += string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + ")(" + temp.slice(1,-1) + ");\n"
+                    } else {
+                        var with_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_with_data)(void*" + temp + ");\n"
+                        var without_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_without_data)(" + temp.slice(1,-1) + ");\n"
+                        function_typedef_string += with_data
+                        function_typedef_string += without_data
+                        function_typedef_string += string("typedef struct {\nvoid* data;\n") + temp_name  + "_with_data func;\n} " + temp_name + ";\n"
+                        function_typedef_string += string("/* ") + type->to_string() + " */\n"
+                    }
                     // again, the indirection
                     function_type_map[*type] = temp_name
                 }

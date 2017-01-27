@@ -5,7 +5,7 @@ unorderd_list_part = import WS unorderd_list_part | function WS unorderd_list_pa
 
 type = "ref" WS pre_reffed | pre_reffed ;
 pre_reffed = "\*" WS pre_reffed | "void" | "char" | "uchar" | "short" | "ushort" | "int" | "uint" | "long" | "ulong" | "float" | "double" | scoped_identifier | scoped_identifier WS template_inst | function_type ;
-function_type = "fun" WS "\(" WS opt_type_list WS "\)" WS ":" WS type ;
+function_type = "fun" WS "\(" WS opt_type_list WS "\)" WS ":" WS type | "run" WS "\(" WS opt_type_list WS "\)" WS ":" WS type ;
 dec_type = ":" WS type ;
 
 opt_type_list = type_list | ;
@@ -144,7 +144,7 @@ floating_literal = "[0-9]+.[0-9]+(f|d)?" ;
 bool = "true" | "false" ;
 character = "'(`|[0-9]|-|=|(\\t)|[a-z]|\[|]|(\\\\)|;|(\\')|(\\n)|,|.|/|~|!|@|#|$|%|^|&|\*|\(|\)|_|\+|[A-Z]|{|}|\||:|\"|<|>|\?| |(\\0))'" ;
 
-keywords_also_identifiers = "obj" | "def" | "fun" | "var" | "ref" | "adt" | "cast" | "import" | "simple_passthrough" ;
+keywords_also_identifiers = "obj" | "def" | "fun" | "run" | "var" | "ref" | "adt" | "cast" | "import" | "simple_passthrough" ;
 alpha_alphanumeric = "([a-z]|[A-Z]|_)([a-z]|[A-Z]|_|[0-9])*" ;
 augmented_alpha_alphanumeric = alpha_alphanumeric augmented_alpha_alphanumeric | keywords_also_identifiers augmented_alpha_alphanumeric | alpha_alphanumeric | keywords_also_identifiers ;
 
