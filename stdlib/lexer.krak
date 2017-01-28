@@ -60,7 +60,9 @@ obj lexer (Object) {
     fun add_regex(newOne: *char) {
         regs.add(util::make_pair(string::string(newOne), regex::regex(newOne)))
     }
-    fun set_input(in: string::string) {
+    fun set_input(in: ref string::string) {
+        position = 0
+        line_number = 1
         input = in
     }
     fun next(): symbol::symbol {

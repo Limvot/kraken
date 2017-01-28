@@ -14,6 +14,7 @@ import io:*
 obj parser (Object) {
     var input: vector<symbol>
     var gram: *grammer
+    var lex: *lexer
     var gss: gss
     var to_reduce: stack<reduction>
     var to_shift: stack< pair<*tree<int>, int> >
@@ -21,9 +22,10 @@ obj parser (Object) {
     var packed_map: map<*tree<symbol>, bool>
     var reduces_to_null_map: map<vector<symbol>, bool>
 
-    fun construct(grammerIn: *grammer): *parser {
+    fun construct(grammerIn: *grammer, lexIn: *lexer): *parser {
         input.construct()
         gram = grammerIn
+        lex = lexIn
         gss.construct()
         to_reduce.construct()
         to_shift.construct()
@@ -32,12 +34,14 @@ obj parser (Object) {
         reduces_to_null_map.construct()
         return this
     }
+    // for maybe_construct for containers
     fun construct(): *parser {
-        return construct(null<grammer>())
+        return construct(null<grammer>(), null<lexer>())
     }
     fun copy_construct(old: *parser) {
         input.copy_construct(&old->input)
         gram = old->gram
+        lex = old->lex
         gss.copy_construct(&old->gss)
         to_reduce.copy_construct(&old->to_reduce)
         to_shift.copy_construct(&old->to_shift)
@@ -75,10 +79,9 @@ obj parser (Object) {
             return new<tree<symbol>>()->construct(null_symbol())
         }
 
-        var lex = lexer(gram->terminals)
-        lex.set_input(inputStr)
+        lex->set_input(inputStr)
         var current_symbol.construct(): symbol
-        for (current_symbol = lex.next(); current_symbol != eof_symbol() && current_symbol != invalid_symbol(); current_symbol = lex.next();) {
+        for (current_symbol = lex->next(); current_symbol != eof_symbol() && current_symbol != invalid_symbol(); current_symbol = lex->next();) {
             if (current_symbol != eof_symbol() && current_symbol != invalid_symbol())
                 current_symbol.source = name
             input.addEnd(current_symbol)

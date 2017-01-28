@@ -234,7 +234,6 @@ obj regex (Object, Serializable) {
                     return -1
             return regexString.length();
         }
-        /*var next = set::set(begin)*/
         for (var i = 1; i < flagsA.size; i++;)
             flagsA[i] = false;
         flagsA[0] = true

@@ -1,5 +1,6 @@
 import io:*
 import grammer:*
+import lexer:*
 import parser:*
 import string:*
 import util:*
@@ -17,6 +18,8 @@ import ctce_lower:*
 import c_line_control:*
 import node_counter:*
 import c_generator:*
+import vector:*
+import set:*
 
 fun main(argc: int, argv: **char):int {
     // delay construction until we either load it or copy construct it
@@ -99,7 +102,8 @@ fun main(argc: int, argv: **char):int {
         println("done writing")
     }
 
-    var parse1.construct(&gram): parser
+    var lex = lexer(gram.terminals)
+    var parse1.construct(&gram, &lex): parser
     /*var parse2.construct(&gram): parser*/
     /*var parse3.construct(&gram): parser*/
     /*var parse4.construct(&gram): parser*/

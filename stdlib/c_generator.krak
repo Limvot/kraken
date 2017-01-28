@@ -645,8 +645,9 @@ obj c_generator (Object) {
            ref_pre += "(*"
            ref_post += ")"
         }
-        if (!is_function(node->function_call.func) || node->function_call.func->function.closed_variables.size()) {
+        if (!func_type->is_raw && (!is_function(node->function_call.func) || node->function_call.func->function.closed_variables.size())) {
             // not function, so we must be an identifier or function call return or something
+            // and also is closure style, so need special call
             if (!dot_style_method_call) {
                 // lambda
                 if (pre_call == "" && (!func_return_type->is_void() || func_return_type->indirection)) {
@@ -661,23 +662,18 @@ obj c_generator (Object) {
                 call_string.post += name_temp.post
                 func_name = name_temp.value
                 // should not have return var because is void
-                if (pre_call == "") {
-                    var func_type = get_ast_type(node->function_call.func)
-                    call_string.pre += string("if (")+func_name+".data) ((" + type_to_c(func_type) + "_with_data) "+func_name+".func)("+func_name +".data"
-                    if (call_string.value != "")
-                       call_string.pre += string(",") + call_string.value
-                    call_string.pre += ");\n"
-                    call_string.pre += string("else ((") + type_to_c(func_type) + "_without_data) " + func_name+".func)(" + call_string.value + ");\n"
-                    call_string.value = ""
-                } else {
-                    var func_type = get_ast_type(node->function_call.func)
-                    call_string.pre += string("if (")+func_name+".data) " + pre_call + " = ((" + type_to_c(func_type) + "_with_data) "+func_name+".func)("+func_name +".data"
-                    if (call_string.value != "")
-                       call_string.pre += string(",") + call_string.value
-                    call_string.pre += ");\n"
-                    call_string.pre += string("else ") + pre_call + " = ((" + type_to_c(func_type) + "_without_data) " + func_name+".func)(" + call_string.value + ");\n"
-                    call_string.value = pre_call
-                }
+                var pre_call_plus = pre_call
+                if (pre_call_plus != "")
+                    pre_call_plus += " = "
+
+                var func_type = get_ast_type(node->function_call.func)
+                call_string.pre += string("if (")+func_name+".data) " + pre_call_plus + " ((" + type_to_c(func_type) + "_with_data) "+func_name+".func)("+func_name +".data"
+                if (call_string.value != "")
+                   call_string.pre += string(",") + call_string.value
+                call_string.pre += ");\n"
+                call_string.pre += string("else ") + pre_call_plus + " ((" + type_to_c(func_type) + "_without_data) " + func_name+".func)(" + call_string.value + ");\n"
+                call_string.value = pre_call
+
                 call_string.value = ref_pre + call_string.value + ref_post
                 return call_string
             }
