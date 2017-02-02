@@ -1,0 +1,80 @@
+import symbol:*
+import tree:*
+import vector:*
+import map:*
+import util:*
+import string:*
+import mem:*
+import io:*
+import ast_nodes:*
+import ast_transformation:*
+import hash_set:*
+
+import pass_common:*
+
+obj function_parent_block {
+    var function: *ast_node
+    var parent: *ast_node
+    var block: *ast_node
+}
+fun make_function_parent_block(function: *ast_node, parent: *ast_node, block: *ast_node): function_parent_block {
+    var result: function_parent_block
+    result.function = function
+    result.parent = parent
+    result.block = block
+    return result
+}
+
+fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+    var visited = hash_set<*ast_node>()
+    var lambdas = set<*ast_node>()
+    var function_types_needed_wo_lambdas = set<type>()
+    var function_value_creation_points = vector<function_parent_block>()
+    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+        lambdas.add(syntax_ast_pair.second->translation_unit.lambdas)
+    })
+    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+        var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
+            match(*node) {
+                ast_node::function(backing) {
+                    var parent = parent_chain->top()
+                    // need to use function value if
+                    //               it isn't a regular function definition (or lambda top reference) and
+                    var need_done = (!is_translation_unit(parent) && !is_type_def(parent) && !is_template(parent) && backing.body_statement) && (
+                    // it is a lambda     or  it's not a lambda and it's not being called immediantly or
+                    lambdas.contains(node) || (!is_function_call(parent) ||
+                        // it's parent is a function call, but it's not calling us, so we're used as a parameter and
+                                                                // us as a parameter isn't the right side of a . or -> because our parent
+                                                                            // isn't a function                 or has a body
+                        (parent->function_call.func != node && (!is_function(parent->function_call.func) || parent->function_call.func->function.body_statement
+                            // or it is a . or -> but it's parent isn't a function call
+                                                                       // or it is, but our grandparent's funciton call isn't our access operation
+                                                                       // and thus we're being passed as a parameter. Not sure if this actually works right now
+                                                                       // as I'm not sure you can pass member functions anyway
+                        || parent_chain->size() < 2 || !is_function_call(parent_chain->from_top(1)) || parent_chain->from_top(1)->function_call.func != parent))))
+                    if (need_done) {
+                        function_value_creation_points.add(make_function_parent_block(node, parent_chain->top(),
+                                                            parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i);)))
+                    }
+
+                    if (backing.type->return_type->is_function())
+                        function_types_needed_wo_lambdas.add(*backing.type->return_type)
+                    for (var i = 0; i < backing.type->parameter_types.size; i++;)
+                        if (backing.type->parameter_types[i]->is_function())
+                            function_types_needed_wo_lambdas.add(*backing.type->parameter_types[i])
+                }
+                ast_node::identifier(backing) {
+                    if (backing.type->is_function())
+                        function_types_needed_wo_lambdas.add(*backing.type)
+                }
+            }
+        }
+        run_on_tree(helper_before, empty_pass_second_half, syntax_ast_pair.second, &visited)
+    })
+    var function_types_needed_for_lambdas = lambdas.map(fun(l: *ast_node): type { return *l->function.type; })
+    println(string("there are ") + function_value_creation_points.size + " function value creation points in the program.")
+    println(string("there are ") + function_types_needed_wo_lambdas.size() + " function types needed wo lambdas in the program.")
+    println(string("there are ") + function_types_needed_for_lambdas.size() + " function types needed for lambdas in the program.")
+    println(string("there are ") + (function_types_needed_wo_lambdas + function_types_needed_for_lambdas).size() + " total (set union, not addition) in the program.")
+}
+

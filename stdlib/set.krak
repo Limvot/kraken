@@ -82,6 +82,9 @@ obj set<T> (Object, Serializable) {
     fun add(items: ref set<T>) {
         items.for_each( fun(item: ref T) add(item); )
     }
+    fun add(items: ref vector::vector<T>) {
+        items.for_each( fun(item: ref T) add(item); )
+    }
     fun remove(item: ref T) {
         var idx = data.find(item)
         if (idx == -1) {
@@ -101,6 +104,12 @@ obj set<T> (Object, Serializable) {
     }
     fun reduce<U>(func: fun(T,U): U, initial: U): U {
         return data.reduce(func, initial)
+    }
+    fun map<U>(func: fun(T):U):set<U> {
+        var newSet.construct(size()): set<U>
+        for (var i = 0; i < size(); i++;)
+            newSet.add(func(data[i]))
+        return newSet
     }
     fun flatten_map<U>(func: fun(T):set<U>):set<U> {
         var newSet.construct(size()): set<U>
