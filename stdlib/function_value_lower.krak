@@ -75,6 +75,15 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
     println(string("there are ") + function_value_creation_points.size + " function value creation points in the program.")
     println(string("there are ") + function_types_needed_wo_lambdas.size() + " function types needed wo lambdas in the program.")
     println(string("there are ") + function_types_needed_for_lambdas.size() + " function types needed for lambdas in the program.")
-    println(string("there are ") + (function_types_needed_wo_lambdas + function_types_needed_for_lambdas).size() + " total (set union, not addition) in the program.")
+    println(string("there are ") + (function_types_needed_wo_lambdas + function_types_needed_for_lambdas).size() + " total (set union, not addition) in the program."); // darn vexing parse
+
+    (function_types_needed_wo_lambdas + function_types_needed_for_lambdas).for_each(fun(t: type) {
+        var new_type_def_name = t.to_string() + "_function_value_struct"
+        var new_type_def = ast_type_def_ptr(new_type_def_name)
+        add_to_scope("~enclosing_scope", name_ast_map->values.first().second, new_type_def)
+        add_to_scope(new_type_def_name, new_type_def, name_ast_map->values.first().second)
+        name_ast_map->values.first().second->translation_unit.children.add(new_type_def)
+    })
+
 }
 
