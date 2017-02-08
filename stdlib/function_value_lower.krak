@@ -80,6 +80,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
     (function_types_needed_wo_lambdas + function_types_needed_for_lambdas).for_each(fun(t: type) {
         var new_type_def_name = t.to_string() + "_function_value_struct"
         var new_type_def = ast_type_def_ptr(new_type_def_name)
+        new_type_def->type_def.variables.add(ast_declaration_statement_ptr(ast_identifier_ptr("func", t.clone(), new_type_def), null<ast_node>()))
         add_to_scope("~enclosing_scope", name_ast_map->values.first().second, new_type_def)
         add_to_scope(new_type_def_name, new_type_def, name_ast_map->values.first().second)
         name_ast_map->values.first().second->translation_unit.children.add(new_type_def)
