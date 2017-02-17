@@ -20,9 +20,9 @@ fun get_first_terminal(source: *tree<symbol>): *tree<symbol> {
 }
 fun error(source: *tree<symbol>, message: *char) error(source, string(message));
 fun error(source: *tree<symbol>, message: string) {
-    source = get_first_terminal(source)
-    if (source)
-        error("***error |" + concat_symbol_tree(source) + "| *** " + source->data.source + ": " + source->data.position + " " + message)
+    var first = get_first_terminal(source)
+    if (first)
+        error("***error |" + concat_symbol_tree(source) + "| *** " + first->data.source + ": " + first->data.position + " " + message)
     error(message)
 }
 fun method_in_object(method: *ast_node, enclosing_object: *ast_node): bool {

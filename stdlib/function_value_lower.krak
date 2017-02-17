@@ -75,16 +75,39 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
     println(string("there are ") + function_value_creation_points.size + " function value creation points in the program.")
     println(string("there are ") + function_types_needed_wo_lambdas.size() + " function types needed wo lambdas in the program.")
     println(string("there are ") + function_types_needed_for_lambdas.size() + " function types needed for lambdas in the program.")
-    println(string("there are ") + (function_types_needed_wo_lambdas + function_types_needed_for_lambdas).size() + " total (set union, not addition) in the program."); // darn vexing parse
+    println(string("there are ") + (function_types_needed_wo_lambdas + function_types_needed_for_lambdas).size() + " total (set union, not addition) in the program.")
 
+    var void_ptr = type_ptr(base_type::void_return(), 1); // this most vexing parse actually causes a compiler segfault as it tries to call the result of type_ptr as a function....
+    // AND IT STILL DOES EVEN WITH ALL MY CHEKCS
     (function_types_needed_wo_lambdas + function_types_needed_for_lambdas).for_each(fun(t: type) {
+        var cleaned = t.clone()
+        cleaned->is_raw = true
+
         var new_type_def_name = t.to_string() + "_function_value_struct"
         var new_type_def = ast_type_def_ptr(new_type_def_name)
-        new_type_def->type_def.variables.add(ast_declaration_statement_ptr(ast_identifier_ptr("func", t.clone(), new_type_def), null<ast_node>()))
+        new_type_def->type_def.variables.add(ast_declaration_statement_ptr(ast_identifier_ptr("func", cleaned, new_type_def), null<ast_node>()))
+        new_type_def->type_def.variables.add(ast_declaration_statement_ptr(ast_identifier_ptr("data", void_ptr, new_type_def), null<ast_node>()))
         add_to_scope("~enclosing_scope", name_ast_map->values.first().second, new_type_def)
         add_to_scope(new_type_def_name, new_type_def, name_ast_map->values.first().second)
         name_ast_map->values.first().second->translation_unit.children.add(new_type_def)
     })
 
+    // create the closure type for each lambda
+    var closure_id = 0
+    lambdas.for_each(fun(l: *ast_node) {
+        if (l->function.closed_variables.size()) {
+            var new_type_def_name = string("closure_struct_") + closure_id++
+            var new_type_def = ast_type_def_ptr(new_type_def_name)
+            l->function.closed_variables.for_each(fun(v: *ast_node) {
+                // TODO: need to clean this type if it's a lambda type or contains it
+                new_type_def->type_def.variables.add(ast_declaration_statement_ptr(ast_identifier_ptr(v->identifier.name, v->identifier.type->clone_with_ref(), new_type_def), null<ast_node>()))
+            })
+            add_to_scope("~enclosing_scope", name_ast_map->values.first().second, new_type_def)
+            add_to_scope(new_type_def_name, new_type_def, name_ast_map->values.first().second)
+            name_ast_map->values.first().second->translation_unit.children.add(new_type_def)
+        }
+    })
+    function_value_creation_points.for_each(fun(p: function_parent_block) {
+    })
 }
 

@@ -203,7 +203,7 @@ obj ast_transformation (Object) {
     }
     fun second_pass_function(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>, do_raw_template: bool): *ast_node {
         var func_identifier_node = get_node("func_identifier", node)
-        var function_name = string("lambda")
+        var function_name = string("__compiler_lambda__")
         if (func_identifier_node)
            function_name = concat_symbol_tree(func_identifier_node)
         var template_dec = get_node("template_dec", node)
@@ -799,9 +799,12 @@ obj ast_transformation (Object) {
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
         var func = transform(get_node("unarad", node), scope, search_type::function(parameter_types), template_replacements)
         // may return an identifier of type object if doing operator() - but the () have been stripped out by importer
-        if (get_ast_type(func)->is_object()) {
+        var func_type = get_ast_type(func)
+        if (func_type->is_object() && func_type->indirection == 0) {
            return make_method_call(func, "operator", parameters)
         }
+        if (!(func_type->is_function() && func_type->indirection == 0))
+            error(node, "trying to call not a function")
         var f = ast_function_call_ptr(func, parameters)
         return f
     }
@@ -965,7 +968,7 @@ obj ast_transformation (Object) {
                 if (!first_param_type)
                     error(node, "Cannot get type from left side of access operation")
                 if (!first_param_type->is_object())
-                    error(node, "Type from left side of access operation isn't object")
+                    error(node, "Type from left side of access operation (" + func_name + ") isn't object, is: " + first_param_type->to_string())
                 second_param = transform(node->children[2], first_param_type->type_def, searching_for, template_replacements)
                 // template member functions
                 // XXX add in template inst if it exists
