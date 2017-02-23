@@ -49,9 +49,9 @@ fun is_dot_style_method_call(node: *ast_node): bool {
 fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool {
     var func_type = get_ast_type(node)
     var func_param_types = func_type->parameter_types
-    var param_string = string()
-    param_types.for_each(fun(t: *type) param_string += t->to_string() + ", ";)
     if (!func_type->is_variadic && func_param_types.size != param_types.size) {
+        var param_string = string()
+        param_types.for_each(fun(t: *type) param_string += t->to_string() + ", ";)
         /*println(string("type sizes don't match ") + param_types.size + " with needed " + param_string)*/
         return false
     } else if (param_types.size < func_param_types.size) {
@@ -69,6 +69,19 @@ fun function_satisfies_params(node: *ast_node, param_types: vector<*type>): bool
         }
     }
     return true
+}
+fun access_expression(left: *ast_node, right: *char): *ast_node return access_expression(left, string(right))
+fun access_expression(left: *ast_node, right: ref string): *ast_node {
+    var ltype = get_ast_type(left)
+    if (!ltype->is_object())
+        error("Trying to generate an access expression and the left side is not an object")
+    var ident = identifier_lookup(right, ltype->type_def)
+    if (!ident)
+        error("Trying to generate an access expression, can't find right: " + right)
+
+    if (ltype->indirection)
+        return make_operator_call("->", vector(left, ident))
+    return make_operator_call(".", vector(left, ident))
 }
 fun function_lookup(name: string, scope: *ast_node, param_types: vector<*type>): *ast_node {
     var results = scope_lookup(name, scope)

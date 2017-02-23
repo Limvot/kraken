@@ -797,6 +797,8 @@ obj ast_transformation (Object) {
         // don't bother with a full transform for parameters with their own function, just get the boolean expression and transform it
         var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
+        if (parameter_types.any_true(fun(ptype: *type): bool return !ptype;))
+            error(node, "One of the parameter types is null!")
         var func = transform(get_node("unarad", node), scope, search_type::function(parameter_types), template_replacements)
         // may return an identifier of type object if doing operator() - but the () have been stripped out by importer
         var func_type = get_ast_type(func)

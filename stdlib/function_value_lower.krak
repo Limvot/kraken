@@ -3,6 +3,7 @@ import tree:*
 import vector:*
 import map:*
 import util:*
+import type:*
 import string:*
 import mem:*
 import io:*
@@ -79,19 +80,26 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
 
     var void_ptr = type_ptr(base_type::void_return(), 1); // this most vexing parse actually causes a compiler segfault as it tries to call the result of type_ptr as a function....
     // AND IT STILL DOES EVEN WITH ALL MY CHEKCS
+    var lambda_type_to_struct_type = map<type, *type>(); //freaking vexing parse moved
     (function_types_needed_wo_lambdas + function_types_needed_for_lambdas).for_each(fun(t: type) {
         var cleaned = t.clone()
         cleaned->is_raw = true
 
         var new_type_def_name = t.to_string() + "_function_value_struct"
         var new_type_def = ast_type_def_ptr(new_type_def_name)
-        new_type_def->type_def.variables.add(ast_declaration_statement_ptr(ast_identifier_ptr("func", cleaned, new_type_def), null<ast_node>()))
-        new_type_def->type_def.variables.add(ast_declaration_statement_ptr(ast_identifier_ptr("data", void_ptr, new_type_def), null<ast_node>()))
+        var func_ident = ast_identifier_ptr("func", cleaned, new_type_def)
+        add_to_scope("func", func_ident, new_type_def)
+        var data_ident = ast_identifier_ptr("data", void_ptr, new_type_def)
+        add_to_scope("data", data_ident, new_type_def)
+        new_type_def->type_def.variables.add(ast_declaration_statement_ptr(func_ident, null<ast_node>()))
+        new_type_def->type_def.variables.add(ast_declaration_statement_ptr(data_ident, null<ast_node>()))
         add_to_scope("~enclosing_scope", name_ast_map->values.first().second, new_type_def)
         add_to_scope(new_type_def_name, new_type_def, name_ast_map->values.first().second)
         name_ast_map->values.first().second->translation_unit.children.add(new_type_def)
+        lambda_type_to_struct_type[t] = type_ptr(new_type_def)
     })
 
+    var lambda_creation_funcs = map<*ast_node, *ast_node>()
     // create the closure type for each lambda
     var closure_id = 0
     lambdas.for_each(fun(l: *ast_node) {
@@ -106,8 +114,23 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
             add_to_scope(new_type_def_name, new_type_def, name_ast_map->values.first().second)
             name_ast_map->values.first().second->translation_unit.children.add(new_type_def)
         }
+
+        var return_type = lambda_type_to_struct_type[*l->function.type]
+        var creation_type = type_ptr(vector<*type>(), return_type, 0, false, false, true)
+        lambda_creation_funcs[l] = ast_function_ptr(l->function.name + "_creation", creation_type, vector<*ast_node>(), false);
+        var body = ast_code_block_ptr()
+        var ident = ast_identifier_ptr("to_ret", return_type, body)
+        body->code_block.children.add(ast_declaration_statement_ptr(ident, null<ast_node>()))
+        body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "func"), l))
+        body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "data"), ast_value_ptr(string("0"), type_ptr(base_type::void_return(), 1))))
+        lambda_creation_funcs[l]->function.body_statement = body
+        name_ast_map->values.first().second->translation_unit.children.add(lambda_creation_funcs[l])
+        // after we use it's type to look up the new one...
+        l->function.type->is_raw = true;
     })
     function_value_creation_points.for_each(fun(p: function_parent_block) {
+        var func_call = ast_function_call_ptr(lambda_creation_funcs[p.function], vector<*ast_node>())
+        replace_with_in(p.function, func_call, p.parent)
     })
 }
 
