@@ -523,22 +523,22 @@ obj c_generator (Object) {
     }
     // this generates the function as a value, not the actual function
     fun generate_function(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, as_value: bool, need_variable: bool): code_triple {
-        if (as_value) {
-           var closed_vars = node->function.closed_variables
-           if (closed_vars.size() == 0)
-                return code_triple(string("((") + type_to_c(node->function.type) + "){(void*)0,(void*)" + get_name(node) + "})")
-            var temp_closure_struct = string("closure_struct_temp") + get_id()
-            var to_ret = code_triple()
-            var closure_type_str = get_closure_struct_type(closed_vars)
-            to_ret.pre += closure_type_str + " " + temp_closure_struct + " = (" + closure_type_str + "){"
-            closed_vars.for_each(fun(i: *ast_node) {
-                // note that we get/have gotten rid of refs here, or maybe more accurately, everything is a ref
-                // should be a variable anyway?
-                to_ret.pre += string(".") + get_name(i) + "=(void*)&" + generate(i, enclosing_object, enclosing_func, true).one_string() + ","
-            })
-            to_ret.pre += "};\n"
-            return to_ret + string("((") + type_to_c(node->function.type) + "){(void*)&" + temp_closure_struct + ",(void*)" + get_name(node) + "})"
-        }
+        /*if (as_value) {*/
+           /*var closed_vars = node->function.closed_variables*/
+           /*if (closed_vars.size() == 0)*/
+                /*return code_triple(string("((") + type_to_c(node->function.type) + "){(void*)0,(void*)" + get_name(node) + "})")*/
+            /*var temp_closure_struct = string("closure_struct_temp") + get_id()*/
+            /*var to_ret = code_triple()*/
+            /*var closure_type_str = get_closure_struct_type(closed_vars)*/
+            /*to_ret.pre += closure_type_str + " " + temp_closure_struct + " = (" + closure_type_str + "){"*/
+            /*closed_vars.for_each(fun(i: *ast_node) {*/
+                /*// note that we get/have gotten rid of refs here, or maybe more accurately, everything is a ref*/
+                /*// should be a variable anyway?*/
+                /*to_ret.pre += string(".") + get_name(i) + "=(void*)&" + generate(i, enclosing_object, enclosing_func, true).one_string() + ","*/
+            /*})*/
+            /*to_ret.pre += "};\n"*/
+            /*return to_ret + string("((") + type_to_c(node->function.type) + "){(void*)&" + temp_closure_struct + ",(void*)" + get_name(node) + "})"*/
+        /*}*/
         return code_triple(get_name(node))
     }
     fun generate_function_call(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, need_variable: bool): code_triple {
