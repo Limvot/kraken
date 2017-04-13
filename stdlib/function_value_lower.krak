@@ -16,24 +16,23 @@ import pass_common:*
 obj function_parent_block {
     var function: *ast_node
     var parent: *ast_node
-    var block: *ast_node
 }
-fun make_function_parent_block(function: *ast_node, parent: *ast_node, block: *ast_node): function_parent_block {
+fun make_function_parent_block(function: *ast_node, parent: *ast_node): function_parent_block {
     var result: function_parent_block
     result.function = function
     result.parent = parent
-    result.block = block
     return result
 }
 
 fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var visited = hash_set<*ast_node>()
     var lambdas = set<*ast_node>()
-    var all_types = set<*type>()
-    var function_value_creation_points = vector<function_parent_block>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         lambdas.add(syntax_ast_pair.second->translation_unit.lambdas)
     })
+    var all_types = set<*type>()
+    var function_value_creation_points = vector<function_parent_block>()
+    var function_value_call_points = vector<function_parent_block>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             var t = get_ast_type(node)
@@ -43,23 +42,27 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
                     var parent = parent_chain->top()
                     // need to use function value if
                     //               it isn't a regular function definition (or lambda top reference) and
-                    var need_done = (!is_translation_unit(parent) && !is_type_def(parent) && !is_template(parent) && backing.body_statement) && (
+                    var need_done = !is_translation_unit(parent) && !backing.type->is_raw
+                    /*var need_done = (!is_translation_unit(parent) && !is_type_def(parent) && !is_template(parent) && backing.body_statement) && (*/
                     // it is a lambda     or  it's not a lambda and it's not being called immediantly or
-                    lambdas.contains(node) || (!is_function_call(parent) ||
+                    /*lambdas.contains(node) || (!is_function_call(parent) ||*/
                         // it's parent is a function call, but it's not calling us, so we're used as a parameter and
                                                                 // us as a parameter isn't the right side of a . or -> because our parent
                                                                             // isn't a function                 or has a body
-                        (parent->function_call.func != node && (!is_function(parent->function_call.func) || parent->function_call.func->function.body_statement
+                        /*(parent->function_call.func != node && (!is_function(parent->function_call.func) || parent->function_call.func->function.body_statement*/
                             // or it is a . or -> but it's parent isn't a function call
                                                                        // or it is, but our grandparent's funciton call isn't our access operation
                                                                        // and thus we're being passed as a parameter. Not sure if this actually works right now
                                                                        // as I'm not sure you can pass member functions anyway
-                        || parent_chain->size() < 2 || !is_function_call(parent_chain->from_top(1)) || parent_chain->from_top(1)->function_call.func != parent))))
+                        /*|| parent_chain->size() < 2 || !is_function_call(parent_chain->from_top(1)) || parent_chain->from_top(1)->function_call.func != parent))))*/
                     if (need_done) {
-                        function_value_creation_points.add(make_function_parent_block(node, parent_chain->top(),
-                                                            parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i);)))
+                        function_value_creation_points.add(make_function_parent_block(node, parent_chain->top()))
                     }
 
+                }
+                ast_node::function_call(backing) {
+                    if (!get_ast_type(backing.func)->is_raw)
+                        function_value_call_points.add(make_function_parent_block(backing.func, node))
                 }
             }
         }
@@ -70,10 +73,10 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
 
     var void_ptr = type_ptr(base_type::void_return(), 1); // this most vexing parse actually causes a compiler segfault as it tries to call the result of type_ptr as a function....
     // AND IT STILL DOES EVEN WITH ALL MY CHEKCS
-    var lambda_type_to_struct_type = map<type, *type>(); //freaking vexing parse moved
+    var lambda_type_to_struct_type_and_call_func = map<type, pair<*type, *ast_node>>(); //freaking vexing parse moved
     var all_type_values = all_types.map(fun(t: *type): type return *t;)
     all_type_values.for_each(fun(t: type) {
-        if (t.is_function() && !t.is_raw) {
+        if (t.is_function() && !t.is_raw && !lambda_type_to_struct_type_and_call_func.contains_key(t)) {
             var cleaned = t.clone()
             cleaned->is_raw = true
 
@@ -89,7 +92,18 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
             add_to_scope(new_type_def_name, new_type_def, name_ast_map->values.first().second)
             name_ast_map->values.first().second->translation_unit.children.add(new_type_def)
 
-            lambda_type_to_struct_type[t] = type_ptr(new_type_def)
+            var lambda_struct_type = type_ptr(new_type_def)
+
+            var lambda_call_type = type_ptr(vector(lambda_struct_type) + t.parameter_types, t.return_type, 0, false, false, true)
+            // create parameters
+            var lambda_call_parameters = vector<*ast_node>()
+            var lambda_call_function = ast_function_ptr(string("lambda_call"), lambda_call_type, lambda_call_parameters, false)
+            lambda_call_function->function.body_statement = ast_code_block_ptr()
+            // create call body with if, etc
+            lambda_type_to_struct_type_and_call_func[t] = make_pair(lambda_struct_type, lambda_call_function)
+
+            name_ast_map->values.first().second->translation_unit.children.add(new_type_def)
+            name_ast_map->values.first().second->translation_unit.children.add(lambda_call_function)
         }
     })
 
@@ -109,7 +123,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
             name_ast_map->values.first().second->translation_unit.children.add(new_type_def)
         }
 
-        var return_type = lambda_type_to_struct_type[*l->function.type]
+        var return_type = lambda_type_to_struct_type_and_call_func[*l->function.type].first
         var creation_type = type_ptr(vector<*type>(), return_type, 0, false, false, true)
         lambda_creation_funcs[l] = ast_function_ptr(l->function.name + "_creation", creation_type, vector<*ast_node>(), false);
         var body = ast_code_block_ptr()
@@ -122,14 +136,20 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         // after we use it's type to look up the new one...
         l->function.type->is_raw = true;
     })
+    function_value_call_points.for_each(fun(p: function_parent_block) {
+        // parent is the function call
+        var function_struct = p.function
+        p.parent->function_call.func = lambda_type_to_struct_type_and_call_func[*get_ast_type(p.function)].second
+        p.parent->function_call.parameters.add(0, function_struct)
+    })
     function_value_creation_points.for_each(fun(p: function_parent_block) {
         var func_call = ast_function_call_ptr(lambda_creation_funcs[p.function], vector<*ast_node>())
         replace_with_in(p.function, func_call, p.parent)
     })
     lambdas.for_each(fun(l: *ast_node) l->function.type = l->function.type->clone();)
     all_types.for_each(fun(t: *type) {
-        if (lambda_type_to_struct_type.contains_key(*t))
-            *t = *lambda_type_to_struct_type[*t]
+        if (lambda_type_to_struct_type_and_call_func.contains_key(*t))
+            *t = *lambda_type_to_struct_type_and_call_func[*t].first
     })
 }
 
