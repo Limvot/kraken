@@ -1,7 +1,6 @@
 
 fun main(argc: int, argv: **char): int {
-    var a = fun(): int { return 1; }
-    a()
-    return 0
+    var a = fun(): int { return 11; }
+    return a()
 }
 
