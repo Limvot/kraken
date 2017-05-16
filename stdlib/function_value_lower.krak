@@ -97,10 +97,12 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
             var lambda_call_type = type_ptr(vector(lambda_struct_type) + t.parameter_types, t.return_type, 0, false, false, true)
             // create parameters
             var lambda_call_func_param = ast_identifier_ptr("func_struct", lambda_struct_type, null<ast_node>())
-            var lambda_call_parameters = vector(lambda_call_func_param)
+            var lambda_call_parameters = vector(lambda_call_func_param) + cleaned->parameter_types.map(fun(t:*type): *ast_node {
+                return ast_identifier_ptr("pass_through_param", t, null<ast_node>())
+            })
             var lambda_call_function = ast_function_ptr(string("lambda_call"), lambda_call_type, lambda_call_parameters, false)
             lambda_call_function->function.body_statement = ast_code_block_ptr()
-            lambda_call_function->function.body_statement->code_block.children.add(ast_return_statement_ptr(ast_function_call_ptr(access_expression(lambda_call_func_param, "func"), vector<*ast_node>())))
+            lambda_call_function->function.body_statement->code_block.children.add(ast_return_statement_ptr(ast_function_call_ptr(access_expression(lambda_call_func_param, "func"), lambda_call_parameters.slice(1,-1))))
             // create call body with if, etc
             lambda_type_to_struct_type_and_call_func[t] = make_pair(lambda_struct_type, lambda_call_function)
 

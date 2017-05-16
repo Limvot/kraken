@@ -192,32 +192,32 @@ fun get_builtin_function(name: string, param_types: vector<*type>, syntax: *tree
     // none of the builtin functions should take in references
     param_types = param_types.map(fun(t: *type): *type return t->clone_without_ref();)
     if (name == "==" || name == "!=" || name == ">" || name == "<" || name == "<=" || name == ">" || name == ">=" || name == "&&" || name == "||" || name == "!")
-        return ast_function_ptr(name, type_ptr(param_types, type_ptr(base_type::boolean()), 0, false, false, false), vector<*ast_node>(), false)
+        return ast_function_ptr(name, type_ptr(param_types, type_ptr(base_type::boolean()), 0, false, false, true), vector<*ast_node>(), false)
     if (name == "." || name == "->") {
         if (name == "->" && param_types[0]->indirection == 0)
             error(syntax, string("drereferencing not a pointer: ") + name)
         else if (name == "." && param_types[0]->indirection != 0)
             error(syntax, string("dot operator on a pointer: ") + name)
         else
-            return ast_function_ptr(name, type_ptr(param_types, param_types[1], 0, false, false, false), vector<*ast_node>(), false)
+            return ast_function_ptr(name, type_ptr(param_types, param_types[1], 0, false, false, true), vector<*ast_node>(), false)
     }
     if (name == "[]") {
         if (param_types[0]->indirection == 0)
             error(syntax, string("drereferencing not a pointer: ") + name)
         else
-            return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection(), 0, false, false, false), vector<*ast_node>(), false)
+            return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection(), 0, false, false, true), vector<*ast_node>(), false)
     }
     if (name == "&" && param_types.size == 1)
-        return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection(), 0, false, false, false), vector<*ast_node>(), false)
+        return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection(), 0, false, false, true), vector<*ast_node>(), false)
     if (name == "*" && param_types.size == 1) {
         if (param_types[0]->indirection == 0)
             error(syntax, string("drereferencing not a pointer: ") + name)
         else
-            return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection(), 0, false, false, false), vector<*ast_node>(), false)
+            return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection(), 0, false, false, true), vector<*ast_node>(), false)
     }
     if (param_types.size > 1 && param_types[1]->rank() > param_types[0]->rank())
-        return ast_function_ptr(name, type_ptr(param_types, param_types[1], 0, false, false, false), vector<*ast_node>(), false)
-    return ast_function_ptr(name, type_ptr(param_types, param_types[0], 0, false, false, false), vector<*ast_node>(), false)
+        return ast_function_ptr(name, type_ptr(param_types, param_types[1], 0, false, false, true), vector<*ast_node>(), false)
+    return ast_function_ptr(name, type_ptr(param_types, param_types[0], 0, false, false, true), vector<*ast_node>(), false)
 }
 fun possible_object_equality(lvalue: *ast_node, rvalue: *ast_node): *ast_node {
     var ltype = get_ast_type(lvalue)
