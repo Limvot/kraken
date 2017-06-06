@@ -35,11 +35,20 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
     var all_types = set<*type>()
     var function_value_creation_points = vector<function_parent_block>()
     var function_value_call_points = vector<function_parent_block>()
+    var closed_over_uses = vector<pair<*ast_node, pair<*ast_node, *ast_node>>>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             var t = get_ast_type(node)
             if (t) all_types.add(t)
             match(*node) {
+                ast_node::identifier(backing) {
+                    // see if this identifier use is a closed variable in a closure
+                    var enclosing_func = parent_chain->item_from_top_satisfying(fun(n: *ast_node): bool return is_function(n);)
+                    if (enclosing_func->function.closed_variables.contains(node)) {
+                        println(backing.name + " is being used in a closed fashion")
+                        closed_over_uses.add(make_pair(node, make_pair(parent_chain->top(), enclosing_func)))
+                    }
+                }
                 ast_node::function(backing) {
                     var parent = parent_chain->top()
                     // need to use function value if
@@ -138,7 +147,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
             var new_type_def = ast_type_def_ptr(new_type_def_name)
             l->function.closed_variables.for_each(fun(v: *ast_node) {
                 // TODO: need to clean this type if it's a lambda type or contains it
-                var closed_ident = ast_identifier_ptr(v->identifier.name, v->identifier.type->clone_with_ref(), new_type_def)
+                var closed_ident = ast_identifier_ptr(v->identifier.name, v->identifier.type->clone_with_increased_indirection(), new_type_def)
                 new_type_def->type_def.variables.add(ast_declaration_statement_ptr(closed_ident, null<ast_node>()))
                 add_to_scope(v->identifier.name, closed_ident, new_type_def)
             })
@@ -157,14 +166,15 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "func"), l))
         body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "func_closure"), l))
         if (l->function.closed_variables.size()) {
+            var closure_lambda_param = ast_identifier_ptr("closure_data_pass", closure_struct_type, l)
+            l->function.parameters.add(0, closure_lambda_param)
             var closure_param = ast_identifier_ptr("closure", closure_struct_type, body)
             lambda_creation_funcs[l]->function.parameters.add(closure_param)
             body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "data"), closure_param))
             l->function.closed_variables.for_each(fun(v: *ast_node) {
                 var closed_param = ast_identifier_ptr("closed_param", v->identifier.type->clone_with_increased_indirection(), l)
                 lambda_creation_funcs[l]->function.parameters.add(closed_param)
-                /*body->code_block.children.add(ast_assignment_statement_ptr(access_expression(closure_param, v->identifier.name), closed_param))*/
-                body->code_block.children.add(ast_assignment_statement_ptr(closure_param, closed_param))
+                body->code_block.children.add(ast_assignment_statement_ptr(access_expression(closure_param, v->identifier.name), closed_param))
             })
         } else {
             body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "data"), ast_value_ptr(string("0"), type_ptr(base_type::void_return(), 1))))
@@ -201,6 +211,13 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
     all_types.for_each(fun(t: *type) {
         if (lambda_type_to_struct_type_and_call_func.contains_key(*t))
             *t = *lambda_type_to_struct_type_and_call_func[*t].first
+    })
+    closed_over_uses.for_each(fun(p: pair<*ast_node, pair<*ast_node, *ast_node>>) {
+        var variable = p.first
+        var parent = p.second.first
+        var lambda = p.second.second
+        var closure_param = lambda->function.parameters[0]
+        replace_with_in(variable, make_operator_call("*", vector(access_expression(closure_param, variable->identifier.name))), parent)
     })
 }
 

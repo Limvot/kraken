@@ -77,7 +77,7 @@ obj c_generator (Object) {
     var id_counter: int
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
     var ast_name_map: map<*ast_node, string>
-    var closure_struct_map: map<set<*ast_node>, string>
+    /*var closure_struct_map: map<set<*ast_node>, string>*/
     var function_type_map: map<type, string>
     var function_typedef_string: string
     var closure_struct_definitions: string
@@ -89,7 +89,7 @@ obj c_generator (Object) {
         id_counter = 0
         ast_to_syntax.construct()
         ast_name_map.construct()
-        closure_struct_map.construct()
+        /*closure_struct_map.construct()*/
         function_type_map.construct()
         function_typedef_string.construct()
         closure_struct_definitions.construct()
@@ -148,7 +148,7 @@ obj c_generator (Object) {
         id_counter = old->id_counter
         ast_to_syntax.copy_construct(&old->ast_to_syntax)
         ast_name_map.copy_construct(&old->ast_name_map)
-        closure_struct_map.copy_construct(&old->closure_struct_map)
+        /*closure_struct_map.copy_construct(&old->closure_struct_map)*/
         function_type_map.copy_construct(&old->function_type_map)
         function_typedef_string.copy_construct(&old->function_typedef_string)
         closure_struct_definitions.copy_construct(&old->closure_struct_definitions)
@@ -164,7 +164,7 @@ obj c_generator (Object) {
     fun destruct() {
         ast_to_syntax.destruct()
         ast_name_map.destruct()
-        closure_struct_map.destruct()
+        /*closure_struct_map.destruct()*/
         function_type_map.destruct()
         function_typedef_string.destruct()
         closure_struct_definitions.destruct()
@@ -183,12 +183,12 @@ obj c_generator (Object) {
             parameter_types = type_to_c(enclosing_object->type_def.self_type) + "*"
             parameters = type_to_c(enclosing_object->type_def.self_type) + "* this"
         }
-        if (backing.closed_variables.size()) {
-            if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
-            var closed_type_name = get_closure_struct_type(backing.closed_variables)
-            parameter_types += closed_type_name + "*"
-            parameters += closed_type_name + "* closure_data"
-        }
+        /*if (backing.closed_variables.size()) {*/
+            /*if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}*/
+            /*var closed_type_name = get_closure_struct_type(backing.closed_variables)*/
+            /*parameter_types += closed_type_name + "*"*/
+            /*parameters += closed_type_name + "* closure_data"*/
+        /*}*/
 
         var decorated_name = string()
         if (backing.is_extern)
@@ -330,20 +330,20 @@ obj c_generator (Object) {
 
         return make_pair(prequal+plain_typedefs+function_typedef_string+top_level_c_passthrough+variable_extern_declarations+structs+closure_struct_definitions+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
-    fun get_closure_struct_type(closed_variables: set<*ast_node>): string {
-        if (!closure_struct_map.contains_key(closed_variables)) {
-            var closure_name = string("closure_data_type") + get_id()
-            closure_struct_definitions += "typedef struct {\n"
-            // note that we keep our is_ref, which would not normally happen on a clone with increased indirection
-            // closed_variables.for_each(fun(i: *ast_node) closure_struct_definitions += type_to_c(i->identifier.type->clone_with_increased_indirection(1,i->identifier.type->is_ref)) +
-            // NO, now we don't keep our ref. Too hard to make, as &(&*i) isn't legal C
-            closed_variables.for_each(fun(i: *ast_node) closure_struct_definitions += type_to_c(i->identifier.type->clone_with_increased_indirection()) +
-                                             " " + get_name(i) + ";\n";)
-            closure_struct_definitions += string("} ") + closure_name + ";\n"
-            closure_struct_map[closed_variables] = closure_name
-        }
-        return closure_struct_map[closed_variables]
-    }
+    /*fun get_closure_struct_type(closed_variables: set<*ast_node>): string {*/
+        /*if (!closure_struct_map.contains_key(closed_variables)) {*/
+            /*var closure_name = string("closure_data_type") + get_id()*/
+            /*closure_struct_definitions += "typedef struct {\n"*/
+            /*// note that we keep our is_ref, which would not normally happen on a clone with increased indirection*/
+            /*// closed_variables.for_each(fun(i: *ast_node) closure_struct_definitions += type_to_c(i->identifier.type->clone_with_increased_indirection(1,i->identifier.type->is_ref)) +*/
+            /*// NO, now we don't keep our ref. Too hard to make, as &(&*i) isn't legal C*/
+            /*closed_variables.for_each(fun(i: *ast_node) closure_struct_definitions += type_to_c(i->identifier.type->clone_with_increased_indirection()) +*/
+                                             /*" " + get_name(i) + ";\n";)*/
+            /*closure_struct_definitions += string("} ") + closure_name + ";\n"*/
+            /*closure_struct_map[closed_variables] = closure_name*/
+        /*}*/
+        /*return closure_struct_map[closed_variables]*/
+    /*}*/
     fun generate_if_comp(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
         if (node->if_comp.wanted_generator == "__C__")
             return generate(node->if_comp.statement, enclosing_object, enclosing_func, false)
@@ -438,13 +438,15 @@ obj c_generator (Object) {
         var post = string()
         // note that we get rid of references on closing over, (or maybe everything's kind of a reference)
         // so we do else if here
-        if (enclosing_func && enclosing_func->function.closed_variables.contains(node))
-            return code_triple(pre + string("(*(closure_data->") + get_name(node) + "))" + post)
-        else if (get_ast_type(node)->is_ref) {
+        if (get_ast_type(node)->is_ref)
             error("still existin ref in identifier")
-           pre += "(*"
-           post += ")"
-        }
+        /*if (enclosing_func && enclosing_func->function.closed_variables.contains(node))*/
+            /*return code_triple(pre + string("(*(closure_data->") + get_name(node) + "))" + post)*/
+        /*else if (get_ast_type(node)->is_ref) {*/
+            /*error("still existin ref in identifier")*/
+           /*pre += "(*"*/
+           /*post += ")"*/
+        /*}*/
         if (enclosing_object && get_ast_scope(enclosing_object)->contains_key(node->identifier.name) && get_ast_scope(enclosing_object)->get(node->identifier.name).contains(node))
             return code_triple(pre + "(this->" + get_name(node) + ")" + post)
         return  code_triple(pre + get_name(node) + post)
@@ -570,9 +572,9 @@ obj c_generator (Object) {
         // handle method call from inside method of same object
         if (!dot_style_method_call && enclosing_object) {
             if (method_in_object(node->function_call.func, enclosing_object)) {
-                if (enclosing_func && enclosing_func->function.closed_variables.size())
-                    call_string += "(*(closure_data->this))";
-                else
+                /*if (enclosing_func && enclosing_func->function.closed_variables.size())*/
+                    /*call_string += "(*(closure_data->this))";*/
+                /*else*/
                     call_string += "this";
             }
         }
@@ -645,42 +647,43 @@ obj c_generator (Object) {
            ref_pre += "(*"
            ref_post += ")"
         }
-        if (!is_function(node->function_call.func) || node->function_call.func->function.closed_variables.size()) {
+        if (!is_function(node->function_call.func)) {
+        /*if (!is_function(node->function_call.func) || node->function_call.func->function.closed_variables.size()) {*/
             // not function, so we must be an identifier or function call return or something
             if (!dot_style_method_call) {
                 // and also is closure style, so need special call
-                if (!func_type->is_raw) {
-                    // lambda
-                    if (pre_call == "" && (!func_return_type->is_void() || func_return_type->indirection)) {
-                        var temp_ident = ast_identifier_ptr(string("temporary_return") + get_id(), func_return_type, null<ast_node>())
-                        var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
-                        // have to pass false to the declaration generator, so can't do it through generate_statement
-                        call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, false).one_string() + ";\n"
-                        pre_call = generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string()
-                    }
-                    var name_temp = generate(node->function_call.func, enclosing_object, enclosing_func, false)
-                    call_string.pre += name_temp.pre
-                    call_string.post += name_temp.post
-                    func_name = name_temp.value
-                    // should not have return var because is void
-                    var pre_call_plus = pre_call
-                    if (pre_call_plus != "")
-                        pre_call_plus += " = "
+                /*if (!func_type->is_raw) {*/
+                    /*// lambda*/
+                    /*if (pre_call == "" && (!func_return_type->is_void() || func_return_type->indirection)) {*/
+                        /*var temp_ident = ast_identifier_ptr(string("temporary_return") + get_id(), func_return_type, null<ast_node>())*/
+                        /*var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())*/
+                        /*// have to pass false to the declaration generator, so can't do it through generate_statement*/
+                        /*call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, false).one_string() + ";\n"*/
+                        /*pre_call = generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string()*/
+                    /*}*/
+                    /*var name_temp = generate(node->function_call.func, enclosing_object, enclosing_func, false)*/
+                    /*call_string.pre += name_temp.pre*/
+                    /*call_string.post += name_temp.post*/
+                    /*func_name = name_temp.value*/
+                    /*// should not have return var because is void*/
+                    /*var pre_call_plus = pre_call*/
+                    /*if (pre_call_plus != "")*/
+                        /*pre_call_plus += " = "*/
 
-                    var func_type = get_ast_type(node->function_call.func)
-                    call_string.pre += string("if (")+func_name+".data) " + pre_call_plus + " ((" + type_to_c(func_type) + "_with_data) "+func_name+".func)("+func_name +".data"
-                    if (call_string.value != "")
-                       call_string.pre += string(",") + call_string.value
-                    call_string.pre += ");\n"
-                    call_string.pre += string("else ") + pre_call_plus + " ((" + type_to_c(func_type) + "_without_data) " + func_name+".func)(" + call_string.value + ");\n"
-                    call_string.value = pre_call
+                    /*var func_type = get_ast_type(node->function_call.func)*/
+                    /*call_string.pre += string("if (")+func_name+".data) " + pre_call_plus + " ((" + type_to_c(func_type) + "_with_data) "+func_name+".func)("+func_name +".data"*/
+                    /*if (call_string.value != "")*/
+                       /*call_string.pre += string(",") + call_string.value*/
+                    /*call_string.pre += ");\n"*/
+                    /*call_string.pre += string("else ") + pre_call_plus + " ((" + type_to_c(func_type) + "_without_data) " + func_name+".func)(" + call_string.value + ");\n"*/
+                    /*call_string.value = pre_call*/
 
-                    call_string.value = ref_pre + call_string.value + ref_post
-                    return call_string
-                } else {
+                    /*call_string.value = ref_pre + call_string.value + ref_post*/
+                    /*return call_string*/
+                /*} else {*/
                     // this is a raw function value
                     func_name = generate(node->function_call.func, enclosing_object, enclosing_func, false).one_string()
-                }
+                /*}*/
             }
         }
         if (pre_call != "") {
