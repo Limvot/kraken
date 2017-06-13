@@ -96,4 +96,10 @@ obj stack<T> (Object, Serializable) {
     fun item_from_top_satisfying(func: fun(T):bool): T {
         return from_top(index_from_top_satisfying(func))
     }
+    fun item_from_top_satisfying_or(func: fun(T):bool, other: T): T {
+        var idx = index_from_top_satisfying(func)
+        if (idx != -1)
+            return from_top(idx)
+        return other
+    }
 }

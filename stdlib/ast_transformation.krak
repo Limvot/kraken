@@ -189,7 +189,7 @@ obj ast_transformation (Object) {
         var copy_construct_param = ast_identifier_ptr(string("in"), node->adt_def.self_type->clone_with_indirection(1,false), node)
         var assign_param = ast_identifier_ptr(string("in"), node->adt_def.self_type->clone_with_indirection(0,true), node)
         vector(
-            make_pair("operator==", ast_function_ptr(string("operator=="), type_ptr(vector(equals_param->identifier.type), type_ptr(base_type::boolean()), 0, false, false, false), vector(equals_param), false)),
+            make_pair("operator==", ast_function_ptr(string("operator=="), type_ptr(vector(equals_param->identifier.type), type_ptr(base_type::boolean()), 0, false, false, true), vector(equals_param), false)),
             make_pair("operator!=", ast_function_ptr(string("operator!="), type_ptr(vector(nequals_param->identifier.type), type_ptr(base_type::boolean()), 0, false, false, true), vector(nequals_param), false)),
             make_pair("construct", ast_function_ptr(string("construct"), type_ptr(vector<*type>(), node->adt_def.self_type->clone_with_increased_indirection(), 0, false, false, true), vector<*ast_node>(), false)),
             make_pair("copy_construct", ast_function_ptr(string("copy_construct"), type_ptr(vector(copy_construct_param->identifier.type), type_ptr(base_type::void_return()), 0, false, false, true), vector(copy_construct_param), false)),

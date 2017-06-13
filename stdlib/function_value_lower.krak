@@ -43,9 +43,8 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
             match(*node) {
                 ast_node::identifier(backing) {
                     // see if this identifier use is a closed variable in a closure
-                    var enclosing_func = parent_chain->item_from_top_satisfying(fun(n: *ast_node): bool return is_function(n);)
-                    if (enclosing_func->function.closed_variables.contains(node)) {
-                        println(backing.name + " is being used in a closed fashion")
+                    var enclosing_func = parent_chain->item_from_top_satisfying_or(fun(n: *ast_node): bool return is_function(n);, null<ast_node>())
+                    if (enclosing_func && enclosing_func->function.closed_variables.contains(node)) {
                         closed_over_uses.add(make_pair(node, make_pair(parent_chain->top(), enclosing_func)))
                     }
                 }
