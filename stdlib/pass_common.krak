@@ -418,8 +418,12 @@ fun add_after_in(to_add: *ast_node, before: *ast_node, in: *ast_node) {
     error(string("cannot add_after_in to ") + get_ast_name(in))
 }
 
-fun empty_pass_first_half(node: *ast_node, parent_chain: *stack<*ast_node>, visited: *hash_set<*ast_node>): bool { return true; }
-fun empty_pass_second_half(node: *ast_node, parent_chain: *stack<*ast_node>) {}
+fun empty_pass_first_half(): fun(*ast_node, *stack<*ast_node>, *hash_set<*ast_node>): bool {
+    return fun(node: *ast_node, parent_chain: *stack<*ast_node>, visited: *hash_set<*ast_node>): bool { return true; }
+}
+fun empty_pass_second_half(): fun(*ast_node, *stack<*ast_node>): void {
+    return fun(node: *ast_node, parent_chain: *stack<*ast_node>) {}
+}
 fun run_on_tree(func_before: fun(*ast_node,*stack<*ast_node>):void, func_after: fun(*ast_node,*stack<*ast_node>):void, tree: *ast_node, visited: *hash_set<*ast_node>)
     run_on_tree(fun(n: *ast_node, s: *stack<*ast_node>, v: *hash_set<*ast_node>): bool {func_before(n, s);return true;}, func_after, tree, visited)
 

@@ -27,7 +27,7 @@ fun node_counter_helper(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>
         var helper = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             counter++
         }
-        run_on_tree(helper, empty_pass_second_half, syntax_ast_pair.second, &visited)
+        run_on_tree(helper, empty_pass_second_half(), syntax_ast_pair.second, &visited)
     })
     return counter
 }

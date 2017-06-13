@@ -78,7 +78,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
                 }
             }
         }
-        run_on_tree(helper_before, empty_pass_second_half, syntax_ast_pair.second, &visited)
+        run_on_tree(helper_before, empty_pass_second_half(), syntax_ast_pair.second, &visited)
     })
     println(string("there are ") + function_value_creation_points.size + " function value creation points in the program.")
     println(string("there are ") + all_types.size() + " all types in the program.")

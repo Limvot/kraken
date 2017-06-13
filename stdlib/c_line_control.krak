@@ -29,7 +29,7 @@ fun c_line_control(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, as
             /*}*/
         /*}*/
         /*if (first)*/
-            /*run_on_tree(helper, empty_pass_second_half, syntax_ast_pair.second)*/
+            /*run_on_tree(helper, empty_pass_second_half(), syntax_ast_pair.second)*/
         first = false
     })
 }

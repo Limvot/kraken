@@ -89,6 +89,10 @@ obj stack<T> (Object, Serializable) {
                 return i
         return -1
     }
+    fun item_from_top_satisfying(func_raw: run(T):bool): T {
+        var temp_lambda = fun(i: T):bool { return func_raw(i); }
+        return item_from_top_satisfying(temp_lambda);
+    }
     fun item_from_top_satisfying(func: fun(T):bool): T {
         return from_top(index_from_top_satisfying(func))
     }

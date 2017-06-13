@@ -31,7 +31,7 @@ fun ctce_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to
                 }
             }
         }
-        run_on_tree(helper_before, empty_pass_second_half, syntax_ast_pair.second, &visited)
+        run_on_tree(helper_before, empty_pass_second_half(), syntax_ast_pair.second, &visited)
     })
     ctce_passes.for_each(fun(func: *ast_node) {
         // don't want to pick up the ast_node::value

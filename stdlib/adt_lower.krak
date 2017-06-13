@@ -132,7 +132,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                 }
             }
         }
-        run_on_tree(helper_before, empty_pass_second_half, syntax_ast_pair.second, &visited1)
+        run_on_tree(helper_before, empty_pass_second_half(), syntax_ast_pair.second, &visited1)
     })
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var second_helper = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
@@ -185,7 +185,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                 }
             }
         }
-        run_on_tree(second_helper, empty_pass_second_half, syntax_ast_pair.second, &visited2)
+        run_on_tree(second_helper, empty_pass_second_half(), syntax_ast_pair.second, &visited2)
     })
 }
 

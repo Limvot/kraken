@@ -72,7 +72,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                 }
             }
         }
-        run_on_tree(ensure_block_and_munge, empty_pass_second_half, syntax_ast_pair.second, &visited1)
+        run_on_tree(ensure_block_and_munge, empty_pass_second_half(), syntax_ast_pair.second, &visited1)
         // Pass 2
         var short_circut_op: fun(*ast_node,*stack<*ast_node>,*hash_set<*ast_node>): bool = fun(node: *ast_node, parent_chain: *stack<*ast_node>, visited: *hash_set<*ast_node>): bool {
             match(*node) {
@@ -103,15 +103,15 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         add_before_in(short_circuit_if, parent_chain->from_top(enclosing_block_idx-1), parent_chain->from_top(enclosing_block_idx))
                         replace_with_in(node, short_circuit_result, parent_chain)
                         var shorter_tree = stack_from_vector( parent_chain->data.slice(0, parent_chain->size()-enclosing_block_idx))
-                        run_on_tree_helper(short_circut_op, empty_pass_second_half, short_circuit_declaration, &shorter_tree, visited)
-                        run_on_tree_helper(short_circut_op, empty_pass_second_half, short_circuit_if, &shorter_tree, visited)
+                        run_on_tree_helper(short_circut_op, empty_pass_second_half(), short_circuit_declaration, &shorter_tree, visited)
+                        run_on_tree_helper(short_circut_op, empty_pass_second_half(), short_circuit_if, &shorter_tree, visited)
                         return false
                     }
                 }
             }
             return true
         }
-        run_on_tree(short_circut_op, empty_pass_second_half, syntax_ast_pair.second, &visited2)
+        run_on_tree(short_circut_op, empty_pass_second_half(), syntax_ast_pair.second, &visited2)
         // Pass 3
         var construct_in_destruct_out = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
@@ -204,7 +204,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                 }
             }
         }
-        run_on_tree(empty_pass_first_half, construct_in_destruct_out, syntax_ast_pair.second, &visited3)
+        run_on_tree(empty_pass_first_half(), construct_in_destruct_out, syntax_ast_pair.second, &visited3)
     })
 }
 

@@ -74,7 +74,7 @@ fun ref_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                 }
             }
         }
-        run_on_tree(helper_before, empty_pass_second_half, syntax_ast_pair.second, &visited)
+        run_on_tree(helper_before, empty_pass_second_half(), syntax_ast_pair.second, &visited)
     })
     remove_ref_type_set.for_each(fun(p: pair<string, *type>) {
         var t = p.second
