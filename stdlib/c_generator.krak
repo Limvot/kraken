@@ -457,7 +457,7 @@ obj c_generator (Object) {
         var to_ret = code_triple()
 
         if (!function_return_type->is_void() && !function_return_type->equality(get_ast_type(return_value), false))
-            error(ast_to_syntax[node], "return value type does not match function return type")
+            error(ast_to_syntax[node], "return value type does not match function return type" + function_return_type->to_string() + " versus " + get_ast_type(return_value)->to_string())
 
         to_ret += "return"
         var refamp = string()

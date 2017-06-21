@@ -1,0 +1,15 @@
+
+fun first():int { return 12; }
+
+fun test(f: run():int):int {
+    return test2(fun():int { return f();})
+}
+
+fun test2(f: fun():int):int {
+    return f()
+}
+
+fun main():int {
+    /*return test(first)*/
+    return 0
+}

@@ -85,9 +85,16 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
     var void_ptr = type_ptr(base_type::void_return(), 1); // this most vexing parse actually causes a compiler segfault as it tries to call the result of type_ptr as a function....
     // AND IT STILL DOES EVEN WITH ALL MY CHECKS
     var lambda_type_to_struct_type_and_call_func = map<type, pair<*type, *ast_node>>(); //freaking vexing parse moved
+    all_types.chaotic_closure(fun(t: *type): set<*type> {
+        if (t->is_function())
+            return from_vector(t->parameter_types + t->return_type)
+        return set<*type>()
+    })
     var all_type_values = all_types.map(fun(t: *type): type return *t;)
     all_type_values.for_each(fun(t: type) {
-        if (t.is_function() && !t.is_raw && !lambda_type_to_struct_type_and_call_func.contains_key(t)) {
+        // not sure about t.indirection == 0
+        /*if (t.is_function() && !t.is_raw && !lambda_type_to_struct_type_and_call_func.contains_key(t)) {*/
+        if (t.is_function() && t.indirection == 0 && !t.is_raw && !lambda_type_to_struct_type_and_call_func.contains_key(t)) {
             var cleaned = t.clone()
             cleaned->is_raw = true
 
@@ -129,7 +136,11 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
                                                                                 vector(access_expression(lambda_call_func_param, "data")) + lambda_call_parameters.slice(1,-1))))
             if_statement->if_statement.else_part = ast_code_block_ptr(ast_return_statement_ptr(ast_function_call_ptr(access_expression(lambda_call_func_param, "func"),
                                                                                 lambda_call_parameters.slice(1,-1))))
+
             lambda_type_to_struct_type_and_call_func[t] = make_pair(lambda_struct_type, lambda_call_function)
+            // we have to add it for t and *cleaned since we might get either (we make the lambda's type raw later, so if used at creation point will be cleaned...)
+            // NOPE does this for other functions not lambdas super wrong
+            /*lambda_type_to_struct_type_and_call_func[*cleaned] = make_pair(lambda_struct_type, lambda_call_function)*/
 
             name_ast_map->values.first().second->translation_unit.children.add(new_type_def)
             name_ast_map->values.first().second->translation_unit.children.add(lambda_call_function)
@@ -171,6 +182,14 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
             lambda_creation_funcs[l]->function.parameters.add(closure_param)
             body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "data"), closure_param))
             l->function.closed_variables.for_each(fun(v: *ast_node) {
+                // HACK
+                if (v->identifier.name == "this") {
+                    // add in an assignment at the beginning of the lambda
+                    if (!is_code_block(l->function.body_statement))
+                        error("lambda body isn't a block in function_value_lower")
+                    l->function.body_statement->code_block.children.add(0, ast_declaration_statement_ptr(ast_identifier_ptr("this", v->identifier.type, l->function.body_statement),
+                                                                           make_operator_call("*", vector(access_expression(closure_lambda_param, v->identifier.name)))))
+                }
                 var closed_param = ast_identifier_ptr("closed_param", v->identifier.type->clone_with_increased_indirection(), l)
                 lambda_creation_funcs[l]->function.parameters.add(closed_param)
                 body->code_block.children.add(ast_assignment_statement_ptr(access_expression(closure_param, v->identifier.name), closed_param))
@@ -182,7 +201,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         lambda_creation_funcs[l]->function.body_statement = body
         name_ast_map->values.first().second->translation_unit.children.add(lambda_creation_funcs[l])
         // after we use it's type to look up the new one...
-        l->function.type->is_raw = true;
+        /*l->function.type->is_raw = true;*/
     })
     function_value_call_points.for_each(fun(p: function_parent_block) {
         // parent is the function call

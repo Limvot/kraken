@@ -1,0 +1,20 @@
+
+obj a {
+    var i: int
+    fun other() {
+        i = 1
+    }
+    fun wasthatakey() {
+        fun() {
+            other()
+            /*i = 1*/
+        }()
+    }
+}
+
+fun main():int {
+    var b: a
+    b.wasthatakey()
+    return 0
+}
+

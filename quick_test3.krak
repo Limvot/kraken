@@ -1,0 +1,12 @@
+
+
+fun main():int {
+    var I = 0
+    fun() {
+        fun() {
+            I = 1
+        }()
+    }()
+    return 0
+}
+

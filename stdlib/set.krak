@@ -67,6 +67,11 @@ obj set<T> (Object, Serializable) {
     fun operator+=(items: ref set<T>) {
         add(items)
     }
+    fun operator+(item: ref T): set<T> {
+        var to_ret.copy_construct(this): set<T>
+        to_ret.add(item)
+        return to_ret
+    }
     fun operator+(items: ref set<T>): set<T> {
         var to_ret.copy_construct(this): set<T>
         to_ret.add(items)
@@ -121,6 +126,15 @@ obj set<T> (Object, Serializable) {
         var newSet.construct(): set<T>
         newSet.data = data.filter(func)
         return newSet
+    }
+    fun chaotic_closure(func: fun(T): set<T>) {
+        var prev_size = 0
+        while (prev_size != data.size) {
+            prev_size = data.size
+            for (var i = 0; i < data.size; i++;)
+                add(func(data[i]))
+        }
+
     }
 }
 
