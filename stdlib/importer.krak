@@ -10,7 +10,6 @@ import io:*
 import ast_nodes:*
 import ast_transformation:*
 import parser:*
-import thread:*
 
 obj importer (Object) {
     var parsers: vector<parser>
@@ -63,37 +62,15 @@ obj importer (Object) {
         printerr("parsing: ")
         import_first_pass(make_pair(file_name,0))
         for (var i = 0; i < imports_to_fix.size; i++;) {
-            /*println(string("iteration of imports to fix: ") + i)*/
-            var threads = vector<*ulong>()
-            var num_threads = min(imports_to_fix.size - i, parsers.size)
-            for (var j = i; j < i+num_threads; j++;) {
-                var import_name = imports_to_fix[j]->import.name
-                var file_name = import_name + ".krak"
-                if (!name_ast_map.contains_key(file_name)) {
-                    /*import_first_pass(file_name)*/
-                    /*join(run(import_first_pass, file_name))*/
-                    if (num_threads > 1)
-                        threads.add(run(import_first_pass, make_pair(file_name, j-i)))
-                    else
-                        import_first_pass(make_pair(file_name,0))
-                } else {
-                    threads.add(null<ulong>())
-                }
+            var import_name = imports_to_fix[i]->import.name
+            var file_name = import_name + ".krak"
+            if (!name_ast_map.contains_key(file_name)) {
+                import_first_pass(make_pair(file_name,0))
             }
-            /*println(string("iteration of imports to fix: ") + i + " made")*/
-            for (var j = i; j < i+num_threads; j++;) {
-                if (num_threads > 1) {
-                    if (threads[j-i])
-                        join(threads[j-i])
-                }
-                var im = imports_to_fix[j]
-                var import_name = im->import.name
-                var file_name = import_name + ".krak"
-                im->import.translation_unit = name_ast_map[file_name].second
-                add_to_scope(import_name, im->import.translation_unit, im->import.containing_translation_unit)
-            }
-            /*println(string("iteration of imports to fix: ") + i + " done")*/
-            i += num_threads-1
+            var im = imports_to_fix[i]
+            var file_name = import_name + ".krak"
+            im->import.translation_unit = name_ast_map[file_name].second
+            add_to_scope(import_name, im->import.translation_unit, im->import.containing_translation_unit)
         }
         printlnerr()
         printlnerr("**Second Pass**")

@@ -17,12 +17,14 @@ obj function_parent_block {
     var function: *ast_node
     var parent: *ast_node
     var parent_block: *ast_node
+    var parent_function: *ast_node
 }
-fun make_function_parent_block(function: *ast_node, parent: *ast_node, parent_block: *ast_node): function_parent_block {
+fun make_function_parent_block(function: *ast_node, parent: *ast_node, parent_block: *ast_node, parent_function: *ast_node): function_parent_block {
     var result: function_parent_block
     result.function = function
     result.parent = parent
     result.parent_block = parent_block
+    result.parent_function = parent_function
     return result
 }
 
@@ -51,29 +53,19 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
                 ast_node::function(backing) {
                     var parent = parent_chain->top()
                     // need to use function value if
-                    //               it isn't a regular function definition (or lambda top reference) and
+                    //               it isn't a regular function definition (or lambda top reference)
                     var need_done = !is_translation_unit(parent) && !backing.type->is_raw
-                    /*var need_done = (!is_translation_unit(parent) && !is_type_def(parent) && !is_template(parent) && backing.body_statement) && (*/
-                    // it is a lambda     or  it's not a lambda and it's not being called immediantly or
-                    /*lambdas.contains(node) || (!is_function_call(parent) ||*/
-                        // it's parent is a function call, but it's not calling us, so we're used as a parameter and
-                                                                // us as a parameter isn't the right side of a . or -> because our parent
-                                                                            // isn't a function                 or has a body
-                        /*(parent->function_call.func != node && (!is_function(parent->function_call.func) || parent->function_call.func->function.body_statement*/
-                            // or it is a . or -> but it's parent isn't a function call
-                                                                       // or it is, but our grandparent's funciton call isn't our access operation
-                                                                       // and thus we're being passed as a parameter. Not sure if this actually works right now
-                                                                       // as I'm not sure you can pass member functions anyway
-                        /*|| parent_chain->size() < 2 || !is_function_call(parent_chain->from_top(1)) || parent_chain->from_top(1)->function_call.func != parent))))*/
                     if (need_done) {
                         function_value_creation_points.add(make_function_parent_block(node, parent_chain->top(),
-                            parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i);)))
+                            parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i);),
+                            parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool return is_function(i);)
+                            ))
                     }
 
                 }
                 ast_node::function_call(backing) {
                     if (!get_ast_type(backing.func)->is_raw)
-                        function_value_call_points.add(make_function_parent_block(backing.func, node, null<ast_node>()))
+                        function_value_call_points.add(make_function_parent_block(backing.func, node, null<ast_node>(), null<ast_node>()))
                 }
             }
         }
@@ -82,8 +74,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
     println(string("there are ") + function_value_creation_points.size + " function value creation points in the program.")
     println(string("there are ") + all_types.size() + " all types in the program.")
 
-    var void_ptr = type_ptr(base_type::void_return(), 1); // this most vexing parse actually causes a compiler segfault as it tries to call the result of type_ptr as a function....
-    // AND IT STILL DOES EVEN WITH ALL MY CHECKS
+    var void_ptr = type_ptr(base_type::void_return(), 1)
     var lambda_type_to_struct_type_and_call_func = map<type, pair<*type, *ast_node>>(); //freaking vexing parse moved
     all_types.chaotic_closure(fun(t: *type): set<*type> {
         if (t->is_function())
@@ -92,8 +83,6 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
     })
     var all_type_values = all_types.map(fun(t: *type): type return *t;)
     all_type_values.for_each(fun(t: type) {
-        // not sure about t.indirection == 0
-        /*if (t.is_function() && !t.is_raw && !lambda_type_to_struct_type_and_call_func.contains_key(t)) {*/
         if (t.is_function() && t.indirection == 0 && !t.is_raw && !lambda_type_to_struct_type_and_call_func.contains_key(t)) {
             var cleaned = t.clone()
             cleaned->is_raw = true
@@ -156,8 +145,10 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
             var new_type_def_name = string("closure_struct_") + closure_id++
             var new_type_def = ast_type_def_ptr(new_type_def_name)
             l->function.closed_variables.for_each(fun(v: *ast_node) {
-                // TODO: need to clean this type if it's a lambda type or contains it
-                var closed_ident = ast_identifier_ptr(v->identifier.name, v->identifier.type->clone_with_increased_indirection(), new_type_def)
+                var closed_var_type = v->identifier.type
+                if (lambda_type_to_struct_type_and_call_func.contains_key(*closed_var_type))
+                    closed_var_type = lambda_type_to_struct_type_and_call_func[*closed_var_type].first
+                var closed_ident = ast_identifier_ptr(v->identifier.name, closed_var_type->clone_with_increased_indirection(), new_type_def)
                 new_type_def->type_def.variables.add(ast_declaration_statement_ptr(closed_ident, null<ast_node>()))
                 add_to_scope(v->identifier.name, closed_ident, new_type_def)
             })
@@ -190,7 +181,11 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
                     l->function.body_statement->code_block.children.add(0, ast_declaration_statement_ptr(ast_identifier_ptr("this", v->identifier.type, l->function.body_statement),
                                                                            make_operator_call("*", vector(access_expression(closure_lambda_param, v->identifier.name)))))
                 }
-                var closed_param = ast_identifier_ptr("closed_param", v->identifier.type->clone_with_increased_indirection(), l)
+                // have to make sure to clean here as well
+                var closed_param_type = v->identifier.type
+                if (lambda_type_to_struct_type_and_call_func.contains_key(*closed_param_type))
+                    closed_param_type = lambda_type_to_struct_type_and_call_func[*closed_param_type].first
+                var closed_param = ast_identifier_ptr("closed_param", closed_param_type->clone_with_increased_indirection(), l)
                 lambda_creation_funcs[l]->function.parameters.add(closed_param)
                 body->code_block.children.add(ast_assignment_statement_ptr(access_expression(closure_param, v->identifier.name), closed_param))
             })
@@ -200,8 +195,6 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         body->code_block.children.add(ast_return_statement_ptr(ident))
         lambda_creation_funcs[l]->function.body_statement = body
         name_ast_map->values.first().second->translation_unit.children.add(lambda_creation_funcs[l])
-        // after we use it's type to look up the new one...
-        /*l->function.type->is_raw = true;*/
     })
     function_value_call_points.for_each(fun(p: function_parent_block) {
         // parent is the function call
@@ -219,7 +212,11 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
             p.parent_block->code_block.children.add(0,ast_declaration_statement_ptr(closure_struct_ident, null<ast_node>()))
             lambda_creation_params.add(make_operator_call("&", vector(closure_struct_ident)))
             p.function->function.closed_variables.for_each(fun(v: *ast_node) {
-                lambda_creation_params.add(make_operator_call("&", vector(v)))
+                var addr_of = make_operator_call("&", vector(v))
+                if (p.parent_function->function.closed_variables.contains(v)) {
+                    closed_over_uses.add(make_pair(v, make_pair(addr_of, p.parent_function)))
+                }
+                lambda_creation_params.add(addr_of)
             })
         }
         var func_call = ast_function_call_ptr(lambda_creation_funcs[p.function], lambda_creation_params)
@@ -236,6 +233,10 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         var lambda = p.second.second
         var closure_param = lambda->function.parameters[0]
         replace_with_in(variable, make_operator_call("*", vector(access_expression(closure_param, variable->identifier.name))), parent)
+    })
+    // now we can make them raw
+    lambdas.for_each(fun(l: *ast_node) {
+        l->function.type->is_raw = true;
     })
 }
 

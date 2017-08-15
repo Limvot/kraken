@@ -797,7 +797,8 @@ obj c_generator (Object) {
                     if (type->is_raw) {
                         function_typedef_string += string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + ")(" + temp.slice(1,-1) + ");\n"
                     } else {
-                        var with_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_with_data)(void*" + temp + ");\n"
+                        /*error(type->to_string() + " is not raw!")*/
+                        var with_data = string("/* not raw */ typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_with_data)(void*" + temp + ");\n"
                         var without_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_without_data)(" + temp.slice(1,-1) + ");\n"
                         function_typedef_string += with_data
                         function_typedef_string += without_data
