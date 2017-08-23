@@ -194,7 +194,7 @@ obj c_generator (Object) {
         if (backing.is_extern)
             decorated_name = backing.name
         else
-            decorated_name = generate_function(child, enclosing_object, null<ast_node>(), false, false).one_string()
+            decorated_name = generate_function(child).one_string()
         backing.parameters.for_each(fun(parameter: *ast_node) {
             if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
             parameter_types += type_to_c(parameter->identifier.type)
@@ -524,23 +524,7 @@ obj c_generator (Object) {
         return to_ret + "}"
     }
     // this generates the function as a value, not the actual function
-    fun generate_function(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, as_value: bool, need_variable: bool): code_triple {
-        /*if (as_value) {*/
-           /*var closed_vars = node->function.closed_variables*/
-           /*if (closed_vars.size() == 0)*/
-                /*return code_triple(string("((") + type_to_c(node->function.type) + "){(void*)0,(void*)" + get_name(node) + "})")*/
-            /*var temp_closure_struct = string("closure_struct_temp") + get_id()*/
-            /*var to_ret = code_triple()*/
-            /*var closure_type_str = get_closure_struct_type(closed_vars)*/
-            /*to_ret.pre += closure_type_str + " " + temp_closure_struct + " = (" + closure_type_str + "){"*/
-            /*closed_vars.for_each(fun(i: *ast_node) {*/
-                /*// note that we get/have gotten rid of refs here, or maybe more accurately, everything is a ref*/
-                /*// should be a variable anyway?*/
-                /*to_ret.pre += string(".") + get_name(i) + "=(void*)&" + generate(i, enclosing_object, enclosing_func, true).one_string() + ","*/
-            /*})*/
-            /*to_ret.pre += "};\n"*/
-            /*return to_ret + string("((") + type_to_c(node->function.type) + "){(void*)&" + temp_closure_struct + ",(void*)" + get_name(node) + "})"*/
-        /*}*/
+    fun generate_function(node: *ast_node): code_triple {
         return code_triple(get_name(node))
     }
     fun generate_function_call(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, need_variable: bool): code_triple {
@@ -554,20 +538,17 @@ obj c_generator (Object) {
         var dot_style_method_call = is_dot_style_method_call(node)
 
         if (dot_style_method_call) {
-            func_name = generate_function(node->function_call.func->function_call.parameters[1], enclosing_object, enclosing_func, false, false).one_string()
+            func_name = generate_function(node->function_call.func->function_call.parameters[1]).one_string()
             // don't add & if it was ->
             if (node->function_call.func->function_call.func->function.name == ".")
                 call_string += "&"
 
             call_string += generate(node->function_call.func->function_call.parameters[0], enclosing_object, enclosing_func, true)
         } else {
-            // not function, so we must be an identifier or function call return or something
             func_name = generate(node->function_call.func, enclosing_object, enclosing_func, false).one_string()
-        }
 
-        // handle method call from inside method of same object
-        if (!dot_style_method_call && enclosing_object) {
-            if (method_in_object(node->function_call.func, enclosing_object)) {
+            // handle method call from inside method of same object
+            if (enclosing_object && method_in_object(node->function_call.func, enclosing_object)) {
                 call_string += "this";
             }
         }
@@ -661,7 +642,7 @@ obj c_generator (Object) {
             ast_node::if_statement(backing) return generate_if_statement(node, enclosing_object, enclosing_func)
             ast_node::while_loop(backing) return generate_while_loop(node, enclosing_object, enclosing_func)
             ast_node::for_loop(backing) return generate_for_loop(node, enclosing_object, enclosing_func)
-            ast_node::function(backing) return generate_function(node, enclosing_object, enclosing_func, true, need_variable)
+            ast_node::function(backing) return generate_function(node)
             ast_node::function_call(backing) return generate_function_call(node, enclosing_object, enclosing_func, need_variable)
             ast_node::compiler_intrinsic(backing) return generate_compiler_intrinsic(node)
             ast_node::code_block(backing) return generate_code_block(node, enclosing_object, enclosing_func)
