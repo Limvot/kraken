@@ -560,9 +560,6 @@ obj c_generator (Object) {
                 call_string += "&"
 
             call_string += generate(node->function_call.func->function_call.parameters[0], enclosing_object, enclosing_func, true)
-        } else if (is_function(node->function_call.func)) {
-            // we handle the case when it's not this later, i.e. it's a lambda returned from another function or something
-            func_name = generate_function(node->function_call.func, enclosing_object, enclosing_func, false, false).one_string()
         } else {
             // not function, so we must be an identifier or function call return or something
             func_name = generate(node->function_call.func, enclosing_object, enclosing_func, false).one_string()
