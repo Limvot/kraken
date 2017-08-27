@@ -77,7 +77,6 @@ obj c_generator (Object) {
     var id_counter: int
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
     var ast_name_map: map<*ast_node, string>
-    /*var closure_struct_map: map<set<*ast_node>, string>*/
     var function_type_map: map<type, string>
     var function_typedef_string: string
     var closure_struct_definitions: string
@@ -89,7 +88,6 @@ obj c_generator (Object) {
         id_counter = 0
         ast_to_syntax.construct()
         ast_name_map.construct()
-        /*closure_struct_map.construct()*/
         function_type_map.construct()
         function_typedef_string.construct()
         closure_struct_definitions.construct()
@@ -148,7 +146,6 @@ obj c_generator (Object) {
         id_counter = old->id_counter
         ast_to_syntax.copy_construct(&old->ast_to_syntax)
         ast_name_map.copy_construct(&old->ast_name_map)
-        /*closure_struct_map.copy_construct(&old->closure_struct_map)*/
         function_type_map.copy_construct(&old->function_type_map)
         function_typedef_string.copy_construct(&old->function_typedef_string)
         closure_struct_definitions.copy_construct(&old->closure_struct_definitions)
@@ -164,7 +161,6 @@ obj c_generator (Object) {
     fun destruct() {
         ast_to_syntax.destruct()
         ast_name_map.destruct()
-        /*closure_struct_map.destruct()*/
         function_type_map.destruct()
         function_typedef_string.destruct()
         closure_struct_definitions.destruct()
@@ -183,12 +179,6 @@ obj c_generator (Object) {
             parameter_types = type_to_c(enclosing_object->type_def.self_type) + "*"
             parameters = type_to_c(enclosing_object->type_def.self_type) + "* this"
         }
-        /*if (backing.closed_variables.size()) {*/
-            /*if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}*/
-            /*var closed_type_name = get_closure_struct_type(backing.closed_variables)*/
-            /*parameter_types += closed_type_name + "*"*/
-            /*parameters += closed_type_name + "* closure_data"*/
-        /*}*/
 
         var decorated_name = string()
         if (backing.is_extern)
@@ -330,20 +320,6 @@ obj c_generator (Object) {
 
         return make_pair(prequal+plain_typedefs+function_typedef_string+top_level_c_passthrough+variable_extern_declarations+structs+closure_struct_definitions+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
-    /*fun get_closure_struct_type(closed_variables: set<*ast_node>): string {*/
-        /*if (!closure_struct_map.contains_key(closed_variables)) {*/
-            /*var closure_name = string("closure_data_type") + get_id()*/
-            /*closure_struct_definitions += "typedef struct {\n"*/
-            /*// note that we keep our is_ref, which would not normally happen on a clone with increased indirection*/
-            /*// closed_variables.for_each(fun(i: *ast_node) closure_struct_definitions += type_to_c(i->identifier.type->clone_with_increased_indirection(1,i->identifier.type->is_ref)) +*/
-            /*// NO, now we don't keep our ref. Too hard to make, as &(&*i) isn't legal C*/
-            /*closed_variables.for_each(fun(i: *ast_node) closure_struct_definitions += type_to_c(i->identifier.type->clone_with_increased_indirection()) +*/
-                                             /*" " + get_name(i) + ";\n";)*/
-            /*closure_struct_definitions += string("} ") + closure_name + ";\n"*/
-            /*closure_struct_map[closed_variables] = closure_name*/
-        /*}*/
-        /*return closure_struct_map[closed_variables]*/
-    /*}*/
     fun generate_if_comp(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
         if (node->if_comp.wanted_generator == "__C__")
             return generate(node->if_comp.statement, enclosing_object, enclosing_func, false)
@@ -410,9 +386,8 @@ obj c_generator (Object) {
         return if_str + "\n"
     }
     fun generate_while_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
-        var to_ret = code_triple("while (" + generate(node->while_loop.condition, enclosing_object, enclosing_func, false).one_string() + ")\n"
+        return code_triple("while (" + generate(node->while_loop.condition, enclosing_object, enclosing_func, false).one_string() + ")\n"
                 + generate(node->while_loop.statement, enclosing_object, enclosing_func, false).one_string())
-        return to_ret
     }
     fun generate_for_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
         // gotta take off last semicolon
@@ -434,39 +409,24 @@ obj c_generator (Object) {
         return code_triple(to_ret)
     }
     fun generate_identifier(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
-        var pre = string()
-        var post = string()
-        // note that we get rid of references on closing over, (or maybe everything's kind of a reference)
-        // so we do else if here
         if (get_ast_type(node)->is_ref)
             error("still existin ref in identifier")
-        /*if (enclosing_func && enclosing_func->function.closed_variables.contains(node))*/
-            /*return code_triple(pre + string("(*(closure_data->") + get_name(node) + "))" + post)*/
-        /*else if (get_ast_type(node)->is_ref) {*/
-            /*error("still existin ref in identifier")*/
-           /*pre += "(*"*/
-           /*post += ")"*/
-        /*}*/
         if (enclosing_object && get_ast_scope(enclosing_object)->contains_key(node->identifier.name) && get_ast_scope(enclosing_object)->get(node->identifier.name).contains(node))
-            return code_triple(pre + "(this->" + get_name(node) + ")" + post)
-        return  code_triple(pre + get_name(node) + post)
+            return code_triple("(this->" + get_name(node) + ")")
+        return code_triple(get_name(node))
     }
     fun generate_return_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
         var return_value = node->return_statement.return_value
         var function_return_type = get_ast_type(enclosing_func)->return_type
-        var to_ret = code_triple()
 
         if (!function_return_type->is_void() && !function_return_type->equality(get_ast_type(return_value), false))
             error(ast_to_syntax[node], "return value type does not match function return type" + function_return_type->to_string() + " versus " + get_ast_type(return_value)->to_string())
-
-        to_ret += "return"
-        var refamp = string()
         if (function_return_type->is_ref)
             error("still exsisting ref in return")
-           /*refamp = "&"*/
+
         if (return_value)
-            to_ret += code_triple(" ") + refamp + generate(return_value, enclosing_object, enclosing_func, false)
-        return to_ret
+            return code_triple("return ") + generate(return_value, enclosing_object, enclosing_func, false)
+        return code_triple("return")
     }
     fun generate_branching_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
         match(node->branching_statement.b_type) {
@@ -479,8 +439,6 @@ obj c_generator (Object) {
     }
     fun generate_match_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
         error("remaining match")
-        var to_ret = code_triple("/* begin match */")
-        return to_ret
     }
     fun generate_cast(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
         return code_triple("((") + type_to_c(node->cast.to_type) + ")(" + generate(node->cast.value, enclosing_object, enclosing_func, false) + "))"
@@ -535,9 +493,7 @@ obj c_generator (Object) {
             error("still ref in function calling")
         }
 
-        var dot_style_method_call = is_dot_style_method_call(node)
-
-        if (dot_style_method_call) {
+        if (is_dot_style_method_call(node)) {
             func_name = generate_function(node->function_call.func->function_call.parameters[1]).one_string()
             // don't add & if it was ->
             if (node->function_call.func->function_call.func->function.name == ".")
@@ -598,7 +554,7 @@ obj c_generator (Object) {
             }
 
             var param_type = get_ast_type(param)
-            call_string += generate(param, enclosing_object, enclosing_func, in_function_param_type->is_ref)
+            call_string += generate(param, enclosing_object, enclosing_func, false)
         }
         // temporary returns if we're asked for them or we need them for destruct
         if (!func_return_type->is_ref && !func_return_type->is_void() && need_variable) {
@@ -616,6 +572,7 @@ obj c_generator (Object) {
         }
         return call_string
     }
+
     fun generate_compiler_intrinsic(node: *ast_node): code_triple {
         if (node->compiler_intrinsic.intrinsic == "sizeof") {
             if (node->compiler_intrinsic.parameters.size || node->compiler_intrinsic.type_parameters.size != 1)
@@ -775,8 +732,6 @@ obj c_generator (Object) {
         // TODO keyword avoid seems not to work
         if (make_unique && (ast_name_map.contains_value(result) || c_keyword_avoid.contains(result)))
             result += get_id()
-        /*if (make_unique)*/
-            /*result += to_string(hash(node)) + "_end_of_hash"*/
         ast_name_map.set(node, result)
         return result
     }
