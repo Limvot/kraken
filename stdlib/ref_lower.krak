@@ -78,9 +78,7 @@ fun ref_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
     })
     remove_ref_type_set.for_each(fun(p: pair<string, *type>) {
         var t = p.second
-        /*println("before" + p.first + ": " + t->to_string())*/
         remove_ref(t)
-        /*println("after" + p.first + ": " + t->to_string())*/
     })
     modify_reference_use_set.for_each(fun(p: pair<*ast_node, *ast_node>) {
         // if we haven't modified it's indirection yet
@@ -97,4 +95,3 @@ fun ref_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
         r->return_statement.return_value = make_operator_call("&", vector(r->return_statement.return_value));
     })
 }
-

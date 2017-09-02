@@ -489,9 +489,8 @@ obj c_generator (Object) {
         var func_name = string()
         var call_string = code_triple()
         var func_return_type = get_ast_type(node)
-        if (func_return_type->is_ref) {
+        if (func_return_type->is_ref)
             error("still ref in function calling")
-        }
 
         if (is_dot_style_method_call(node)) {
             func_name = generate_function(node->function_call.func->function_call.parameters[1]).one_string()
@@ -557,7 +556,7 @@ obj c_generator (Object) {
             call_string += generate(param, enclosing_object, enclosing_func, false)
         }
         // temporary returns if we're asked for them or we need them for destruct
-        if (!func_return_type->is_ref && !func_return_type->is_void() && need_variable) {
+        if (!func_return_type->is_void() && need_variable) {
             var pre_call = string()
             // kind of ugly combo here of
             var temp_ident = ast_identifier_ptr(string("temporary_return") + get_id(), func_return_type, null<ast_node>())
