@@ -128,8 +128,9 @@ fun main(argc: int, argv: **char):int {
             var line = get_line(string("> "), 100)
             if (line == "end")
                 return 0
-            var trimmed_parse = trim(parse1.parse_input(line, string("stdin")))
-            var ast_expression = ast_pass.transform_expression(trimmed_parse, scope, map<string, *type>())
+            var parse = parse1.parse_input(line, string("stdin"))
+            trim(parse)
+            var ast_expression = ast_pass.transform_expression(parse, scope, map<string, *type>())
             print_value(evaluate_constant_expression(ast_expression))
             /*print_value(evaluate_with_globals(ast_expression, &globals))*/
         }

@@ -2,6 +2,7 @@ import hash_map
 import vector
 import io
 import serialize
+import set
 
 fun hash_set<T>(): hash_set<T> {
     var toRet.construct() : hash_set<T>
@@ -89,9 +90,14 @@ obj hash_set<T> (Object, Serializable) {
     /*fun for_each(func: fun(ref T):void) {*/
         /*data.for_each(func)*/
     /*}*/
-    /*fun for_each(func: fun(T):void) {*/
-        /*data.for_each(func)*/
-    /*}*/
+    fun for_each(func: fun(T):void) {
+        data.for_each(fun(key: T, value: bool) { func(key); })
+    }
+    fun map<U>(func: fun(T):U): set::set<U> {
+        var newSet.construct(size()): set::set<U>
+        for_each(fun(i: T) { newSet.add(func(i)); })
+        return newSet
+    }
     /*fun any_true(func: fun(T):bool):bool {*/
         /*return data.any_true(func)*/
     /*}*/
@@ -109,5 +115,17 @@ obj hash_set<T> (Object, Serializable) {
         /*newSet.data = data.filter(func)*/
         /*return newSet*/
     /*}*/
+    fun chaotic_closure(func: fun(T): set::set<T>) {
+        var prev_size = 0
+        while (prev_size != size()) {
+            prev_size = size()
+            var to_add.construct(size()): vector::vector<T>
+            for_each(fun(i: T) {
+                func(i).for_each(fun(j: T) { to_add.add(j); })
+            })
+            to_add.for_each(fun(i:T) { add(i); })
+        }
+
+    }
 }
 

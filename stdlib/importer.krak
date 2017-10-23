@@ -56,7 +56,7 @@ fun import(file_name: string, parsers: ref vector<parser>, ast_pass: ref ast_tra
     return name_ast_map
 }
 
-fun trim(parse_tree: *tree<symbol>): *tree<symbol> {
+fun trim(parse_tree: *tree<symbol>) {
     remove_node(symbol("$NULL$", false), parse_tree)
     remove_node(symbol("WS", false), parse_tree)
     // the terminals have " around them, which we have to escape
@@ -97,8 +97,6 @@ fun trim(parse_tree: *tree<symbol>): *tree<symbol> {
     collapse_node(symbol("template_param_list", false), parse_tree)
     collapse_node(symbol("trait_list", false), parse_tree)
     collapse_node(symbol("dec_type", false), parse_tree)
-
-    return parse_tree
 }
 fun remove_node(remove: symbol, parse_tree: *tree<symbol>) {
     var to_process = stack<*tree<symbol>>()
