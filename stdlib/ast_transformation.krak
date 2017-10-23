@@ -44,7 +44,7 @@ obj ast_transformation (Object) {
         fourth_pass_worklist.destruct()
     }
     // first pass defines all type_defs (objects and aliases), ADTs, and top-level if-comps/passthroughs
-    fun first_pass(file_name: string, parse_tree: *tree<symbol>, importer: *importer): pair<*ast_node, vector<*ast_node>> {
+    fun first_pass(file_name: string, parse_tree: *tree<symbol>): pair<*ast_node, vector<*ast_node>> {
         var translation_unit = ast_translation_unit_ptr(file_name)
         parse_tree->children.for_each(fun(child: *tree<symbol>) {
             if (child->data.name == "type_def") {

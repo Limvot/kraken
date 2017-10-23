@@ -11,76 +11,49 @@ import ast_nodes:*
 import ast_transformation:*
 import parser:*
 
-obj importer (Object) {
-    var parsers: vector<parser>
-    var ast_pass: ast_transformation
-    var name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>
-    var import_paths: vector<string>
-    fun construct(parsersIn: ref vector<parser>, ast_passIn: ref ast_transformation, import_paths_in: vector<string>): *importer {
-        parsers.copy_construct(&parsersIn)
-        ast_pass.copy_construct(&ast_passIn)
-        name_ast_map.construct()
-        import_paths.copy_construct(&import_paths_in)
-        return this
-    }
-    fun copy_construct(old: *importer) {
-        parsers.copy_construct(&old->parsers)
-        ast_pass.copy_construct(&old->ast_pass)
-        name_ast_map.copy_construct(&old->name_ast_map)
-        import_paths.copy_construct(&old->import_paths)
-    }
-    fun operator=(old: ref importer) {
-        destruct()
-        copy_construct(&old)
-    }
-    fun destruct() {
-        parsers.destruct()
-        ast_pass.destruct()
-        name_ast_map.destruct()
-        import_paths.destruct()
-    }
-    fun import(file_name: string) {
-        // lambda closes over our fix-up list
-        var imports_to_fix = vector<*ast_node>()
-        var import_first_pass = fun(file_name_idx: pair<string,int>) {
-            var file_name = file_name_idx.first
-            var file = string()
-            import_paths.for_each(fun(path: string) {
-                if (file_exists(path + file_name)) {
-                    file = read_file(path + file_name)
-                } else {
-                }
-            })
-            printerr(file_name + ", ")
-            var parse_tree = parsers[file_name_idx.second].parse_input(file, file_name)
-            trim(parse_tree)
-            var ast_and_imports = ast_pass.first_pass(file_name, parse_tree, this)
-            imports_to_fix += ast_and_imports.second
-            name_ast_map[file_name] = make_pair(parse_tree, ast_and_imports.first)
-        }
-        printlnerr("**First Pass**")
-        printerr("parsing: ")
-        import_first_pass(make_pair(file_name,0))
-        for (var i = 0; i < imports_to_fix.size; i++;) {
-            var import_name = imports_to_fix[i]->import.name
-            var file_name = import_name + ".krak"
-            if (!name_ast_map.contains_key(file_name)) {
-                import_first_pass(make_pair(file_name,0))
+fun import(file_name: string, parsers: ref vector<parser>, ast_pass: ref ast_transformation, import_paths: vector<string>): map<string, pair<*tree<symbol>,*ast_node>> {
+    var name_ast_map = map<string, pair<*tree<symbol>,*ast_node>>()
+    // lambda closes over our fix-up list
+    var imports_to_fix = vector<*ast_node>()
+    var import_first_pass = fun(file_name_idx: pair<string,int>) {
+        var file_name = file_name_idx.first
+        var file = string()
+        import_paths.for_each(fun(path: string) {
+            if (file_exists(path + file_name)) {
+                file = read_file(path + file_name)
+            } else {
             }
-            var im = imports_to_fix[i]
-            var file_name = import_name + ".krak"
-            im->import.translation_unit = name_ast_map[file_name].second
-            add_to_scope(import_name, im->import.translation_unit, im->import.containing_translation_unit)
-        }
-        printlnerr()
-        printlnerr("**Second Pass**")
-        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.second_pass(tree_pair.first, tree_pair.second);)
-        printlnerr("**Third Pass**")
-        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.third_pass(tree_pair.first, tree_pair.second);)
-        // this needs to be modified to do chaotic iteration on instantiating template classes, based on what I see in the C++ version
-        printlnerr("**Fourth Pass**")
-        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.fourth_pass(tree_pair.first, tree_pair.second);)
+        })
+        printerr(file_name + ", ")
+        var parse_tree = parsers[file_name_idx.second].parse_input(file, file_name)
+        trim(parse_tree)
+        var ast_and_imports = ast_pass.first_pass(file_name, parse_tree)
+        imports_to_fix += ast_and_imports.second
+        name_ast_map[file_name] = make_pair(parse_tree, ast_and_imports.first)
     }
+    printlnerr("**First Pass**")
+    printerr("parsing: ")
+    import_first_pass(make_pair(file_name,0))
+    for (var i = 0; i < imports_to_fix.size; i++;) {
+        var import_name = imports_to_fix[i]->import.name
+        var file_name = import_name + ".krak"
+        if (!name_ast_map.contains_key(file_name)) {
+            import_first_pass(make_pair(file_name,0))
+        }
+        var im = imports_to_fix[i]
+        var file_name = import_name + ".krak"
+        im->import.translation_unit = name_ast_map[file_name].second
+        add_to_scope(import_name, im->import.translation_unit, im->import.containing_translation_unit)
+    }
+    printlnerr()
+    printlnerr("**Second Pass**")
+    name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.second_pass(tree_pair.first, tree_pair.second);)
+    printlnerr("**Third Pass**")
+    name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.third_pass(tree_pair.first, tree_pair.second);)
+    printlnerr("**Fourth Pass**")
+    name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.fourth_pass(tree_pair.first, tree_pair.second);)
+
+    return name_ast_map
 }
 
 fun trim(parse_tree: *tree<symbol>): *tree<symbol> {
@@ -134,17 +107,9 @@ fun remove_node(remove: symbol, parse_tree: *tree<symbol>) {
         var node = to_process.pop()
         for (var i = 0; i < node->children.size; i++;) {
             if (!node->children[i] || node->children[i]->data.equal_wo_data(remove)) {
-                /*
-                if (!node->children[i])
-                    println("not because null")
-                else {
-                    print("not because "); println(remove.name)
-                }
-                */
                 node->children.remove(i)
                 i--;
             } else {
-                /*println(remove.to_string() + " not equal " + node->children[i]->data.to_string())*/
                 to_process.push(node->children[i])
             }
         }
