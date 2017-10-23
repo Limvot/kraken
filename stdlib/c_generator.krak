@@ -12,73 +12,6 @@ import ast_nodes:*
 import pass_common:*
 import poset:*
 
-fun code_triple(): code_triple return code_triple(string(), string(), string());
-fun code_triple(only: *char): code_triple return code_triple(string(), string(only), string());
-fun code_triple(only: string): code_triple return code_triple(string(), only, string());
-fun code_triple(first: string, second: string, third: string): code_triple {
-    var to_ret.construct(first, second, third): code_triple
-    return to_ret
-}
-obj code_triple (Object) {
-    var pre: string
-    var value: string
-    var post: string
-    fun construct(first: string, second: string, third: string): *code_triple {
-        pre.copy_construct(&first)
-        value.copy_construct(&second)
-        post.copy_construct(&third)
-        return this
-    }
-    fun copy_construct(old: *code_triple) {
-        pre.copy_construct(&old->pre)
-        value.copy_construct(&old->value)
-        post.copy_construct(&old->post)
-    }
-    fun operator=(other: code_triple) {
-        destruct()
-        copy_construct(&other)
-    }
-    fun destruct() {
-        pre.destruct()
-        value.destruct()
-        post.destruct()
-    }
-    fun operator==(other: code_triple): bool return pre == other.pre && value == other.value && post == other.value;
-    fun operator==(other: string): bool return (pre + value + post) == other;
-    fun operator==(other: *char): bool return (pre + value + post) == other;
-    fun operator!=(other: code_triple): bool return pre != other.pre || value != other.value || post != other.value;
-    fun operator!=(other: string): bool return (pre + value + post) != other;
-    fun operator!=(other: *char): bool return (pre + value + post) != other;
-    fun operator+(other: code_triple): code_triple {
-        return code_triple(pre+other.pre, value+other.value, other.post+post);
-    }
-    fun operator+(other: string): code_triple {
-        return code_triple(pre, value+other, post);
-    }
-    fun operator+(other: *char): code_triple {
-        return code_triple(pre, value + other, post);
-    }
-    fun operator+=(other: string) {
-        value += other
-    }
-    fun operator+=(other: *char) {
-        value += other
-    }
-    fun operator+=(other: code_triple) {
-        pre += other.pre
-        value += other.value
-        post += other.post
-    }
-    fun one_string():string {
-        return pre+value+post
-    }
-}
-fun operator+(first: *char, second: ref code_triple): code_triple {
-    return code_triple(first) + second
-}
-fun operator+(first: ref string, second: ref code_triple): code_triple {
-    return code_triple(first) + second
-}
 obj c_generator (Object) {
     var id_counter: int
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
@@ -194,7 +127,7 @@ obj c_generator (Object) {
         if (backing.is_extern)
             decorated_name = backing.name
         else
-            decorated_name = generate_function(child).one_string()
+            decorated_name = generate_function(child)
         backing.parameters.for_each(fun(parameter: *ast_node) {
             if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
             parameter_types += type_to_c(parameter->identifier.type)
@@ -232,7 +165,7 @@ obj c_generator (Object) {
             if (!backing.is_extern)
                 function_definitions += prototype_and_header.second
             if (backing.body_statement) {
-                function_definitions += " {\n" + generate(backing.body_statement, enclosing_object, child, false).one_string()
+                function_definitions += " {\n" + generate(backing.body_statement, enclosing_object, child, false)
                 function_definitions += ";\n}\n"
             } else if (!backing.is_extern) {
                 error("Empty function statement and not extern - no ADTs anymore!")
@@ -258,7 +191,7 @@ obj c_generator (Object) {
                 match (*child) {
                     ast_node::if_comp(backing) error("if_comp not currently supported")
                     ast_node::simple_passthrough(backing) error("simple_passthrough deprecated")
-                    ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<ast_node>()).one_string() + ";\n" // false - don't do defer
+                    ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<ast_node>()) + ";\n" // false - don't do defer
                     // shouldn't need to do anything with return, as the intrinsic should be something like link
                     ast_node::compiler_intrinsic(backing) generate_compiler_intrinsic(child)
                     ast_node::function(backing) {
@@ -308,7 +241,7 @@ obj c_generator (Object) {
             }
             plain_typedefs += base_name + "_dummy " + base_name + ";\n"
             structs += base_name + "_dummy {\n"
-            vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<ast_node>()).one_string() + ";\n";)
+            vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<ast_node>()) + ";\n";)
             // generate the methods (note some of these may be templates)
             vert->type_def.methods.for_each(fun(method: *ast_node) {
                 if (is_template(method))
@@ -321,73 +254,69 @@ obj c_generator (Object) {
 
         return make_pair(prequal+plain_typedefs+function_typedef_string+top_level_c_passthrough+variable_extern_declarations+structs+closure_struct_definitions+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
-    fun generate_declaration_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
+    fun generate_declaration_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
         // we do the declaration in the pre now so that we can take it's address to close over it for things like recursive closures
         // we only make it first if it's a function type though, so that global levels still work
-        var pre_stuff = type_to_c(identifier->identifier.type) + " " + get_name(identifier)
+        var to_ret = type_to_c(identifier->identifier.type) + " " + get_name(identifier)
         if (identifier->identifier.is_extern)
-            pre_stuff = "extern " + pre_stuff
-        var to_ret = code_triple(pre_stuff, string(), string())
+            to_ret = "extern " + to_ret
         if (node->declaration_statement.expression) {
             if (ident_type->is_function()) {
-                to_ret.pre += ";\n"
-                to_ret += get_name(identifier) + " = " + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, false).one_string()
+                to_ret += ";\n"
+                to_ret += get_name(identifier) + " = " + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, false)
             } else {
                 // some shifting around to get it to work in all cases
                 // what cases?
-                to_ret.value = to_ret.pre
-                to_ret.pre = ""
-                to_ret += " = " + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, false).one_string()
+                to_ret += " = " + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, false)
             }
         }
         if (node->declaration_statement.init_method_call) {
-           to_ret.pre += ";\n"
-           to_ret += generate(node->declaration_statement.init_method_call, enclosing_object, enclosing_func, false).one_string()
+           to_ret += ";\n"
+           to_ret += generate(node->declaration_statement.init_method_call, enclosing_object, enclosing_func, false)
         }
         return to_ret
     }
-    fun generate_assignment_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
+    fun generate_assignment_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
         return generate(node->assignment_statement.to, enclosing_object, enclosing_func, false) + " = " + generate(node->assignment_statement.from, enclosing_object, enclosing_func, false)
     }
-    fun generate_if_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
-        var if_str = code_triple("if (") + generate(node->if_statement.condition, enclosing_object, enclosing_func, false) + ") {\n" + generate(node->if_statement.then_part, enclosing_object, enclosing_func, false).one_string() + "}"
+    fun generate_if_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
+        var if_str = "if (" + generate(node->if_statement.condition, enclosing_object, enclosing_func, false) + ") {\n" + generate(node->if_statement.then_part, enclosing_object, enclosing_func, false) + "}"
         if (node->if_statement.else_part)
-            if_str += code_triple(" else {\n") + generate(node->if_statement.else_part, enclosing_object, enclosing_func, false).one_string() + "}"
+            if_str += " else {\n" + generate(node->if_statement.else_part, enclosing_object, enclosing_func, false) + "}"
         return if_str + "\n"
     }
-    fun generate_while_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
-        return code_triple("while (" + generate(node->while_loop.condition, enclosing_object, enclosing_func, false).one_string() + ")\n"
-                + generate(node->while_loop.statement, enclosing_object, enclosing_func, false).one_string())
+    fun generate_while_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
+        return "while (" + generate(node->while_loop.condition, enclosing_object, enclosing_func, false) + ")\n" + generate(node->while_loop.statement, enclosing_object, enclosing_func, false)
     }
-    fun generate_for_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
+    fun generate_for_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
         // gotta take off last semicolon
-        var init = code_triple(";")
+        var init = string(";")
         if (node->for_loop.init)
             init = generate(node->for_loop.init, enclosing_object, enclosing_func, false)
-        var cond = code_triple(";")
+        var cond = string(";")
         if (node->for_loop.condition)
             cond = generate(node->for_loop.condition, enclosing_object, enclosing_func, false)
         var update = string()
         if (node->for_loop.update) {
-            update = generate(node->for_loop.update, enclosing_object, enclosing_func, false).one_string()
+            update = generate(node->for_loop.update, enclosing_object, enclosing_func, false)
             if (update.length() < 2)
                 error("update less than 2! Likely legal, but need easy compiler mod here")
             update = update.slice(0,-2)
         }
-        var to_ret = string("for (") + init.one_string() + cond.one_string() + "; " + update + ")\n" +
-            generate(node->for_loop.body, enclosing_object, enclosing_func, false).one_string()
-        return code_triple(to_ret)
+        var to_ret = string("for (") + init + cond + "; " + update + ")\n" +
+            generate(node->for_loop.body, enclosing_object, enclosing_func, false)
+        return to_ret
     }
-    fun generate_identifier(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
+    fun generate_identifier(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
         if (get_ast_type(node)->is_ref)
             error("still existin ref in identifier")
         if (enclosing_object && get_ast_scope(enclosing_object)->contains_key(node->identifier.name) && get_ast_scope(enclosing_object)->get(node->identifier.name).contains(node))
-            return code_triple("(this->" + get_name(node) + ")")
-        return code_triple(get_name(node))
+            return "(this->" + get_name(node) + ")"
+        return get_name(node)
     }
-    fun generate_return_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
+    fun generate_return_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
         var return_value = node->return_statement.return_value
         var function_return_type = get_ast_type(enclosing_func)->return_type
 
@@ -397,25 +326,25 @@ obj c_generator (Object) {
             error("still exsisting ref in return")
 
         if (return_value)
-            return code_triple("return ") + generate(return_value, enclosing_object, enclosing_func, false)
-        return code_triple("return")
+            return "return " + generate(return_value, enclosing_object, enclosing_func, false)
+        return string("return")
     }
-    fun generate_branching_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
+    fun generate_branching_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
         match(node->branching_statement.b_type) {
-            branching_type::break_stmt() return code_triple("break")
-            branching_type::continue_stmt() return code_triple("continue")
+            branching_type::break_stmt() return string("break")
+            branching_type::continue_stmt() return string("continue")
         }
     }
-    fun generate_defer_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
+    fun generate_defer_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
         error("Unremoved defer!")
     }
-    fun generate_match_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
+    fun generate_match_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
         error("remaining match")
     }
-    fun generate_cast(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
-        return code_triple("((") + type_to_c(node->cast.to_type) + ")(" + generate(node->cast.value, enclosing_object, enclosing_func, false) + "))"
+    fun generate_cast(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
+        return "((" + type_to_c(node->cast.to_type) + ")(" + generate(node->cast.value, enclosing_object, enclosing_func, false) + "))"
     }
-    fun generate_value(node: *ast_node, need_variable: bool): code_triple {
+    fun generate_value(node: *ast_node): string {
         var value = node->value.string_value
         var to_ret = string()
         if (value[0] != '"') {
@@ -437,42 +366,33 @@ obj c_generator (Object) {
             })
             to_ret += "\""
         }
-        if (need_variable) {
-            var temp_ident = ast_identifier_ptr(string("temporary_value")+get_id(), get_ast_type(node), null<ast_node>())
-            var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
-            // have to pass false to the declaration generator, so can't do it through generate_statement
-            var trip_ret = code_triple()
-            trip_ret.pre += generate_declaration_statement(declaration, null<ast_node>(), null<ast_node>()).one_string() + " = " + to_ret + ";\n"
-            trip_ret.value = generate_identifier(temp_ident, null<ast_node>(), null<ast_node>()).one_string()
-            return trip_ret
-        }
-        return code_triple(to_ret)
+        return to_ret
     }
-    fun generate_code_block(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
-        var to_ret = code_triple("{\n")
-        node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child, enclosing_object, enclosing_func, false).one_string() + ";\n";)
+    fun generate_code_block(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
+        var to_ret = string("{\n")
+        node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child, enclosing_object, enclosing_func, false) + ";\n";)
         return to_ret + "}"
     }
     // this generates the function as a value, not the actual function
-    fun generate_function(node: *ast_node): code_triple {
-        return code_triple(get_name(node))
+    fun generate_function(node: *ast_node): string {
+        return get_name(node)
     }
-    fun generate_function_call(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, need_variable: bool): code_triple {
+    fun generate_function_call(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, need_variable: bool): string {
         var func_name = string()
-        var call_string = code_triple()
+        var call_string = string()
         var func_return_type = get_ast_type(node)
         if (func_return_type->is_ref)
             error("still ref in function calling")
 
         if (is_dot_style_method_call(node)) {
-            func_name = generate_function(node->function_call.func->function_call.parameters[1]).one_string()
+            func_name = generate_function(node->function_call.func->function_call.parameters[1])
             // don't add & if it was ->
             if (node->function_call.func->function_call.func->function.name == ".")
                 call_string += "&"
 
             call_string += generate(node->function_call.func->function_call.parameters[0], enclosing_object, enclosing_func, true)
         } else {
-            func_name = generate(node->function_call.func, enclosing_object, enclosing_func, false).one_string()
+            func_name = generate(node->function_call.func, enclosing_object, enclosing_func, false)
 
             // handle method call from inside method of same object
             if (enclosing_object && method_in_object(node->function_call.func, enclosing_object)) {
@@ -486,27 +406,26 @@ obj c_generator (Object) {
             || func_name == "==" || func_name == "!=" || func_name == "%" || func_name == "^"
             || func_name == "|" || func_name == "&" || func_name == ">>" || func_name == "<<"
         ))
-            return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, false) + func_name + generate(parameters[1], enclosing_object, enclosing_func, false) + string(")")
+            return "(" + generate(parameters[0], enclosing_object, enclosing_func, false) + func_name + generate(parameters[1], enclosing_object, enclosing_func, false) + ")"
         if ( parameters.size == 2 && (func_name == "||" || func_name == "&&")) {
             error("Remaining || or &&")
         }
         // don't propegate enclosing function down right of access
         // XXX what about enclosing object? should it be the thing on the left?
         if (func_name == "." || func_name == "->") {
-            return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, false) + func_name + generate(parameters[1], null<ast_node>(), null<ast_node>(), false) + string(")")
+            return "(" + generate(parameters[0], enclosing_object, enclosing_func, false) + func_name + generate(parameters[1], null<ast_node>(), null<ast_node>(), false) + ")"
         }
         if (func_name == "[]")
-            return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, false) + "[" + generate(parameters[1], enclosing_object, enclosing_func, false) + string("])")
+            return "(" + generate(parameters[0], enclosing_object, enclosing_func, false) + "[" + generate(parameters[1], enclosing_object, enclosing_func, false) + "])"
         // the post ones need to be post-ed specifically, and take the p off
         if (func_name == "++p" || func_name == "--p")
-            return code_triple("(") + generate(parameters[0], enclosing_object, enclosing_func, false) + ")" + func_name.slice(0,-2)
+            return "(" + generate(parameters[0], enclosing_object, enclosing_func, false) + ")" + func_name.slice(0,-2)
 
         // So we don't end up copy_constructing etc, we just handle the unary operators right here
         // note also the passing down need_variable for &
         if (func_name == "*" || func_name == "&")
-            return code_triple("(") + func_name + generate(parameters[0], enclosing_object, enclosing_func, func_name == "&") + ")"
+            return "(" + func_name + generate(parameters[0], enclosing_object, enclosing_func, func_name == "&") + ")"
 
-        // for checking if we pass in a ref
         var func_type = get_ast_type(node->function_call.func)
         // regular parameter generation
         for (var i = 0; i < parameters.size; i++;) {
@@ -527,28 +446,28 @@ obj c_generator (Object) {
             var param_type = get_ast_type(param)
             call_string += generate(param, enclosing_object, enclosing_func, false)
         }
-        call_string.value = func_name + "(" + call_string.value + ")"
+        call_string = func_name + "(" + call_string + ")"
         return call_string
     }
 
-    fun generate_compiler_intrinsic(node: *ast_node): code_triple {
+    fun generate_compiler_intrinsic(node: *ast_node): string {
         if (node->compiler_intrinsic.intrinsic == "sizeof") {
             if (node->compiler_intrinsic.parameters.size || node->compiler_intrinsic.type_parameters.size != 1)
                 error("wrong parameters to sizeof compiler intrinsic")
-            return code_triple("sizeof(") + type_to_c(node->compiler_intrinsic.type_parameters[0]) + ")"
+            return "sizeof(" + type_to_c(node->compiler_intrinsic.type_parameters[0]) + ")"
         } else if (node->compiler_intrinsic.intrinsic == "link") {
             node->compiler_intrinsic.parameters.for_each(fun(value: *ast_node) {
                 linker_string += string("-l") + value->value.string_value.slice(1,-2) + " "
             })
-            return code_triple()
+            return string()
         }
         error(node->compiler_intrinsic.intrinsic + ": unknown intrinsic")
-        return code_triple("ERROR")
+        return string("ERROR")
     }
 
     // for now, anyway
-    fun generate(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, need_variable: bool): code_triple {
-        if (!node) return code_triple("/*NULL*/")
+    fun generate(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, need_variable: bool): string {
+        if (!node) return string("/*NULL*/")
         match (*node) {
             ast_node::declaration_statement(backing) return generate_declaration_statement(node, enclosing_object, enclosing_func)
             ast_node::assignment_statement(backing) return generate_assignment_statement(node, enclosing_object, enclosing_func)
@@ -564,11 +483,11 @@ obj c_generator (Object) {
             ast_node::defer_statement(backing) return generate_defer_statement(node, enclosing_object, enclosing_func)
             ast_node::match_statement(backing) return generate_match_statement(node, enclosing_object, enclosing_func)
             ast_node::cast(backing) return generate_cast(node, enclosing_object, enclosing_func)
-            ast_node::value(backing) return generate_value(node, need_variable)
+            ast_node::value(backing) return generate_value(node)
             ast_node::identifier(backing) return generate_identifier(node, enclosing_object, enclosing_func)
         }
         error(string("COULD NOT GENERATE ") + get_ast_name(node))
-        return code_triple("/* COULD NOT GENERATE */")
+        return string("/* COULD NOT GENERATE */")
     }
     fun type_decoration(type: *type): string {
         var indirection = string()
