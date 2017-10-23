@@ -16,6 +16,7 @@ import defer_lower:*
 import function_value_lower:*
 import ref_lower:*
 import ctce_lower:*
+import address_of_ensure_variable_lower:*
 import c_line_control:*
 import node_counter:*
 import c_generator:*
@@ -168,6 +169,9 @@ fun main(argc: int, argv: **char):int {
     ctce_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
     /*printlnerr("Counting Nodes")*/
     /*node_counter(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)*/
+    // Makes sure that & always takes reference to a variable
+    printlnerr("Lowering & to always have variable")
+    address_of_ensure_variable_lower(&importer.name_ast_map, &importer.ast_pass.ast_to_syntax)
     if (interpret_instead) {
         printlnerr("Interpreting!")
         call_main(importer.name_ast_map)
@@ -183,7 +187,7 @@ fun main(argc: int, argv: **char):int {
         var kraken_c_output_name = kraken_file_name + ".c"
         write_file(kraken_c_output_name, c_output_pair.first)
         if (compile_c) {
-            var compile_string = "cc -g " + opt_str + " -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -std=c99 " + c_output_pair.second + " " + kraken_c_output_name + " -o " + executable_name
+            var compile_string = "cc -g " + opt_str + " -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -Wno-incompatible-pointer-types -std=c99 " + c_output_pair.second + " " + kraken_c_output_name + " -o " + executable_name
             printlnerr(compile_string)
             system(compile_string)
         }

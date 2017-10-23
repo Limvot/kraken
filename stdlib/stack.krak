@@ -83,6 +83,10 @@ obj stack<T> (Object, Serializable) {
     }
     fun reverse_vector(): vector::vector<T>
         return data.reverse()
+    fun index_from_top_satisfying(func_raw: run(T):bool): int {
+        var temp_lambda = fun(i: T):bool { return func_raw(i); }
+        return index_from_top_satisfying(temp_lambda);
+    }
     fun index_from_top_satisfying(func: fun(T):bool): int {
         for (var i = 0; i < data.size; i++;)
             if (func(from_top(i)))

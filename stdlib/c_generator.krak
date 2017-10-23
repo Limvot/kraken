@@ -73,6 +73,12 @@ obj code_triple (Object) {
         return pre+value+post
     }
 }
+fun operator+(first: *char, second: ref code_triple): code_triple {
+    return code_triple(first) + second
+}
+fun operator+(first: ref string, second: ref code_triple): code_triple {
+    return code_triple(first) + second
+}
 obj c_generator (Object) {
     var id_counter: int
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
@@ -94,10 +100,8 @@ obj c_generator (Object) {
         linker_string.construct()
         c_keyword_avoid.construct()
         c_keyword_avoid.add(string("extern"))
-        replacement_map.construct()
-        // IMPORTANT
-        longest_replacement = 3
 
+        replacement_map.construct()
      	replacement_map[string("+")] = string("plus")
         replacement_map[string("-")] = string("minus")
         replacement_map[string("*")] = string("star")
@@ -139,6 +143,12 @@ obj c_generator (Object) {
         replacement_map[string(" ")] = string("_")
         replacement_map[string(".")] = string("dot")
         replacement_map[string("->")] = string("arrow")
+
+        longest_replacement = 0
+        replacement_map.for_each(fun(key: string, value: string) {
+            if (key.length() > longest_replacement)
+                longest_replacement = key.length()
+        })
 
         return this
     }
@@ -217,14 +227,12 @@ obj c_generator (Object) {
         // moved out from below so that it can be used for methods as well as regular functions (and eventually lambdas...)
         var generate_function_definition = fun(child: *ast_node, enclosing_object: *ast_node, is_lambda: bool) {
             var backing = child->function
-            // stack-stack thing // this could be a stack of strings too, maybe
-            // start out with one stack on the stack
             var prototype_and_header = generate_function_prototype_and_header(child, enclosing_object, is_lambda)
             function_prototypes += prototype_and_header.first
             if (!backing.is_extern)
                 function_definitions += prototype_and_header.second
             if (backing.body_statement) {
-                function_definitions += string(" {\n") + generate(backing.body_statement, enclosing_object, child, false).one_string()
+                function_definitions += " {\n" + generate(backing.body_statement, enclosing_object, child, false).one_string()
                 function_definitions += ";\n}\n"
             } else if (!backing.is_extern) {
                 error("Empty function statement and not extern - no ADTs anymore!")
@@ -235,7 +243,6 @@ obj c_generator (Object) {
         // iterate through asts
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
             // iterate through children for each ast
-            // assert translation_unit?
             // do lambdas seperatly, so we can reconstitute the enclosing object if it has one
             tree_pair.second->translation_unit.lambdas.for_each(fun(child: *ast_node) {
                 var enclosing_object_traverse = child
@@ -249,13 +256,9 @@ obj c_generator (Object) {
             })
             tree_pair.second->translation_unit.children.for_each(fun(child: *ast_node) {
                 match (*child) {
-                    // should really check the genrator
-                    ast_node::if_comp(backing) {
-                        if (is_simple_passthrough(backing.statement))
-                            top_level_c_passthrough += generate_simple_passthrough(backing.statement, true)
-                    }
-                    ast_node::simple_passthrough(backing) top_level_c_passthrough += generate_simple_passthrough(child, true)
-                    ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<ast_node>(), false).one_string() + ";\n" // false - don't do defer
+                    ast_node::if_comp(backing) error("if_comp not currently supported")
+                    ast_node::simple_passthrough(backing) error("simple_passthrough deprecated")
+                    ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<ast_node>()).one_string() + ";\n" // false - don't do defer
                     // shouldn't need to do anything with return, as the intrinsic should be something like link
                     ast_node::compiler_intrinsic(backing) generate_compiler_intrinsic(child)
                     ast_node::function(backing) {
@@ -292,9 +295,11 @@ obj c_generator (Object) {
             })
         })
         type_poset.get_sorted().for_each(fun(vert: *ast_node) {
+            if (!is_type_def(vert))
+              error("no adt, but how did we get this far?")
             var base_name = get_name(vert)
             plain_typedefs += string("typedef ")
-            if (is_type_def(vert) && vert->type_def.is_union) {
+            if (vert->type_def.is_union) {
                 plain_typedefs += "union "
                 structs += "union "
             } else {
@@ -303,76 +308,43 @@ obj c_generator (Object) {
             }
             plain_typedefs += base_name + "_dummy " + base_name + ";\n"
             structs += base_name + "_dummy {\n"
-            if (is_type_def(vert)) {
-                vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<ast_node>(), false).one_string() + ";\n";) // also no defer stack
-                // generate the methods (note some of these may be templates)
-                vert->type_def.methods.for_each(fun(method: *ast_node) {
-                    if (is_template(method))
-                        method->template.instantiated.for_each(fun(m: *ast_node) generate_function_definition(m, vert, false);)
-                    else
-                        generate_function_definition(method, vert, false);
-                })
-            } else {
-              error("no adt, but how did we get this far?")
-            }
+            vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<ast_node>()).one_string() + ";\n";)
+            // generate the methods (note some of these may be templates)
+            vert->type_def.methods.for_each(fun(method: *ast_node) {
+                if (is_template(method))
+                    method->template.instantiated.for_each(fun(m: *ast_node) generate_function_definition(m, vert, false);)
+                else
+                    generate_function_definition(method, vert, false);
+            })
             structs += "};\n"
         })
 
         return make_pair(prequal+plain_typedefs+function_typedef_string+top_level_c_passthrough+variable_extern_declarations+structs+closure_struct_definitions+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
-    fun generate_if_comp(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
-        if (node->if_comp.wanted_generator == "__C__")
-            return generate(node->if_comp.statement, enclosing_object, enclosing_func, false)
-        return code_triple()
-    }
-    fun generate_simple_passthrough(node: *ast_node, is_top_level: bool): string {
-        // deal with all the passthrough params
-        var result = string()
-        var pre = string()
-        var post = string()
-        if (node->simple_passthrough.linker_str != "")
-            linker_string += node->simple_passthrough.linker_str + " "
-        node->simple_passthrough.in_params.for_each(fun(i: pair<*ast_node, string>) {
-            var wanted_name = i.second
-            var current_name = generate_identifier(i.first, null<ast_node>(), null<ast_node>()).one_string()
-            if (wanted_name != current_name)
-                result += type_to_c(i.first->identifier.type) + " " + wanted_name + " = " + current_name + ";\n"
-        })
-        result += node->simple_passthrough.passthrough_str
-        node->simple_passthrough.out_params.for_each(fun(i: pair<*ast_node, string>) {
-            var temp_name = string("out_temp") + get_id()
-            pre += type_to_c(i.first->identifier.type) + " " + temp_name + ";\n"
-            result += temp_name + " = " + i.second + ";\n"
-            post += generate_identifier(i.first, null<ast_node>(), null<ast_node>()).one_string() + " = " + temp_name + ";\n"
-        })
-        if (is_top_level)
-            return pre + result + post
-        return pre + "{" + result + "}" + post
-    }
-    fun generate_declaration_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, add_to_defer: bool): code_triple {
+    fun generate_declaration_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): code_triple {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
         // we do the declaration in the pre now so that we can take it's address to close over it for things like recursive closures
         // we only make it first if it's a function type though, so that global levels still work
         var pre_stuff = type_to_c(identifier->identifier.type) + " " + get_name(identifier)
         if (identifier->identifier.is_extern)
-            pre_stuff = string("extern ") + pre_stuff
+            pre_stuff = "extern " + pre_stuff
         var to_ret = code_triple(pre_stuff, string(), string())
         if (node->declaration_statement.expression) {
             if (ident_type->is_function()) {
-                to_ret.pre += string(";\n")
-                to_ret += code_triple() + get_name(identifier) + " = " + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, false)
+                to_ret.pre += ";\n"
+                to_ret += get_name(identifier) + " = " + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, false).one_string()
             } else {
                 // some shifting around to get it to work in all cases
                 // what cases?
                 to_ret.value = to_ret.pre
                 to_ret.pre = ""
-                to_ret += code_triple() + string(" = ") + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, false)
+                to_ret += " = " + generate(node->declaration_statement.expression, enclosing_object, enclosing_func, false).one_string()
             }
         }
         if (node->declaration_statement.init_method_call) {
            to_ret.pre += ";\n"
-           to_ret += code_triple() + generate(node->declaration_statement.init_method_call, enclosing_object, enclosing_func, false)
+           to_ret += generate(node->declaration_statement.init_method_call, enclosing_object, enclosing_func, false).one_string()
         }
         return to_ret
     }
@@ -470,7 +442,7 @@ obj c_generator (Object) {
             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
             // have to pass false to the declaration generator, so can't do it through generate_statement
             var trip_ret = code_triple()
-            trip_ret.pre += generate_declaration_statement(declaration, null<ast_node>(), null<ast_node>(), false).one_string() + " = " + to_ret + ";\n"
+            trip_ret.pre += generate_declaration_statement(declaration, null<ast_node>(), null<ast_node>()).one_string() + " = " + to_ret + ";\n"
             trip_ret.value = generate_identifier(temp_ident, null<ast_node>(), null<ast_node>()).one_string()
             return trip_ret
         }
@@ -555,20 +527,7 @@ obj c_generator (Object) {
             var param_type = get_ast_type(param)
             call_string += generate(param, enclosing_object, enclosing_func, false)
         }
-        // temporary returns if we're asked for them or we need them for destruct
-        if (!func_return_type->is_void() && need_variable) {
-            var pre_call = string()
-            // kind of ugly combo here of
-            var temp_ident = ast_identifier_ptr(string("temporary_return") + get_id(), func_return_type, null<ast_node>())
-            var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
-            // have to pass false to the declaration generator, so can't do it through generate_statement
-            call_string.pre += generate_declaration_statement(declaration, enclosing_object, enclosing_func, false).one_string() + ";\n"
-            pre_call = generate_identifier(temp_ident, enclosing_object, enclosing_func).one_string()
-            call_string.pre += pre_call + " = " + func_name + "(" + call_string.value + ");"
-            call_string.value = pre_call
-        } else {
-            call_string.value = func_name + "(" + call_string.value + ")"
-        }
+        call_string.value = func_name + "(" + call_string.value + ")"
         return call_string
     }
 
@@ -591,9 +550,7 @@ obj c_generator (Object) {
     fun generate(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node, need_variable: bool): code_triple {
         if (!node) return code_triple("/*NULL*/")
         match (*node) {
-            ast_node::if_comp(backing) return generate_if_comp(node, enclosing_object, enclosing_func)
-            ast_node::simple_passthrough(backing) return code_triple() + generate_simple_passthrough(node, false)
-            ast_node::declaration_statement(backing) return generate_declaration_statement(node, enclosing_object, enclosing_func, true)
+            ast_node::declaration_statement(backing) return generate_declaration_statement(node, enclosing_object, enclosing_func)
             ast_node::assignment_statement(backing) return generate_assignment_statement(node, enclosing_object, enclosing_func)
             ast_node::if_statement(backing) return generate_if_statement(node, enclosing_object, enclosing_func)
             ast_node::while_loop(backing) return generate_while_loop(node, enclosing_object, enclosing_func)
