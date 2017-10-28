@@ -99,7 +99,7 @@ fun string():string {
     return string("")
 }
 
-obj string (Object, Serializable) {
+obj string (Object, Serializable, Hashable) {
     var data: vector::vector<char>;
     fun construct(): *string {
         data.construct();
@@ -130,6 +130,13 @@ obj string (Object, Serializable) {
         construct(*old)
     }
 
+    fun hash(): ulong {
+        var hash: ulong = 7
+        for (var i = 0; i < data.size; i++;)
+            hash = hash*31 + data[i]
+        return hash
+    }
+
     fun operator=(str: *char): void {
         destruct();
         construct(str)
@@ -147,8 +154,6 @@ obj string (Object, Serializable) {
         return serialize::serialize(data)
     }
     fun unserialize(it: ref vector::vector<char>, pos: int): int {
-        /*construct()*/
-        /*util::unpack(data, pos) = serialize::unserialize<vector::vector<char>>(it, pos)*/
         return data.unserialize(it, pos)
     }
 

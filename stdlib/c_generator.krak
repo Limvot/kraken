@@ -15,7 +15,8 @@ import poset:*
 obj c_generator (Object) {
     var id_counter: int
     var ast_to_syntax: map<*ast_node, *tree<symbol>>
-    var ast_name_map: map<*ast_node, string>
+    var ast_name_map: hash_map<*ast_node, string>
+    var used_names: hash_set<string>
     var function_type_map: map<type, string>
     var function_typedef_string: string
     var closure_struct_definitions: string
@@ -27,6 +28,7 @@ obj c_generator (Object) {
         id_counter = 0
         ast_to_syntax.construct()
         ast_name_map.construct()
+        used_names.construct()
         function_type_map.construct()
         function_typedef_string.construct()
         closure_struct_definitions.construct()
@@ -89,6 +91,7 @@ obj c_generator (Object) {
         id_counter = old->id_counter
         ast_to_syntax.copy_construct(&old->ast_to_syntax)
         ast_name_map.copy_construct(&old->ast_name_map)
+        used_names.copy_construct(&old->used_names)
         function_type_map.copy_construct(&old->function_type_map)
         function_typedef_string.copy_construct(&old->function_typedef_string)
         closure_struct_definitions.copy_construct(&old->closure_struct_definitions)
@@ -104,6 +107,7 @@ obj c_generator (Object) {
     fun destruct() {
         ast_to_syntax.destruct()
         ast_name_map.destruct()
+        used_names.destruct()
         function_type_map.destruct()
         function_typedef_string.destruct()
         closure_struct_definitions.destruct()
@@ -590,9 +594,10 @@ obj c_generator (Object) {
         if (result == "impossible name")
             error("HUGE PROBLEMS")
         // TODO keyword avoid seems not to work
-        if (make_unique && (ast_name_map.contains_value(result) || c_keyword_avoid.contains(result)))
+        if (make_unique && (used_names.contains(result) || c_keyword_avoid.contains(result)))
             result += get_id()
         ast_name_map.set(node, result)
+        used_names.add(result)
         return result
     }
     fun cify_name(name: string): string {
