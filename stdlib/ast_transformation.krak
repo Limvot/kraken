@@ -118,7 +118,6 @@ obj ast_transformation (Object) {
     }
     // defines inside of objects + ADTs, outside declaration statements, and function prototypes
     fun second_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
-        /*println(string("Second Pass for ") + translation_unit->translation_unit.name)*/
         // we go through the parse tree for getting functions, but we're going through the ast for the things we've already set up and using the ast_to_syntax map
         parse_tree->children.for_each(fun(child: *tree<symbol>) {
             if (child->data.name == "function") {
@@ -214,8 +213,6 @@ obj ast_transformation (Object) {
                 template_types.add(concat_symbol_tree(get_node("identifier", template_param)))
                 template_type_replacements.set(template_types.last(), type_ptr(transform_traits(get_node("traits", template_param))))
             })
-            /*template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)*/
-            /*println("MAP DONE")*/
             var template = ast_template_ptr(function_name, node, template_types, template_type_replacements, true)
             add_to_scope(function_name, template, scope)
             add_to_scope("~enclosing_scope", scope, template)
@@ -256,7 +253,6 @@ obj ast_transformation (Object) {
     }
     // The third pass finishes up by doing all function bodies (top level and methods in objects), and top level compiler intrinsics
     fun third_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
-        /*println(string("Third Pass for ") + translation_unit->translation_unit.name)*/
         translation_unit->translation_unit.children.for_each(fun(node: *ast_node) {
             match(*node) {
                 ast_node::type_def(backing) {
@@ -281,7 +277,6 @@ obj ast_transformation (Object) {
     }
     // The fourth pass generates the class templates that have not yet been generated in a worklist loop
     fun fourth_pass(parse_tree: *tree<symbol>, translation_unit: *ast_node) {
-        /*println(string("Fourth Pass for ") + translation_unit->translation_unit.name)*/
         while (!fourth_pass_worklist.empty()) {
             var partially_inst_type_def = fourth_pass_worklist.pop()
             partially_inst_type_def->type_def.methods.for_each(fun(method: *ast_node) {
@@ -312,7 +307,6 @@ obj ast_transformation (Object) {
         var template_inst = get_node("template_inst", real_node)
         if (template_inst) {
             var name = concat_symbol_tree(get_node("scoped_identifier", real_node))
-            /*println(string("trying to instantiate a template object: ") + name)*/
             var real_types = get_nodes("type", template_inst).map(fun(t: *tree<symbol>): *type return transform_type(t, scope, template_replacements);)
             var real_types_deref = real_types.map(fun(t:*type):type return *t;)
             var results = scope_lookup(name, scope)
@@ -321,7 +315,6 @@ obj ast_transformation (Object) {
             for (var i = 0; i < results.size; i++;) {
                 if (!is_template(results[i]) || results[i]->template.is_function)
                     continue
-                /*println(to_string(i) + " is an object template!")*/
                 var template_types = results[i]->template.template_types
                 var template_type_replacements = results[i]->template.template_type_replacements
                 if (template_types.size != real_types.size)
@@ -330,47 +323,27 @@ obj ast_transformation (Object) {
                 var num_satisfied_traits = 0
                 var satisfied_traits = true
                 template_type_replacements.for_each(fun(key: string, value: *type) num_satisfied_traits += value->traits.size();)
-                /*println("FOR FIND OR INSTATINTATE PREEEE")*/
-                /*template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)*/
-                /*println("MAP DONE")*/
                 for (var j = 0; j < template_types.size; j++;) {
                     satisfied_traits = satisfied_traits && real_types[j]->traits.contains(template_type_replacements[template_types[j]]->traits) &&
                                      (real_types[j]->indirection == 0 || template_type_replacements[template_types[j]]->traits.size() == 0)
                     template_type_replacements[template_types[j]] = real_types[j]
-                    /*println("Just made")*/
-                    /*println(template_types[j])*/
-                    /*println("equal to")*/
-                    /*println(real_types[j]->to_string())*/
                 }
-                if (!satisfied_traits) {
-                   /*println(name + " did not satisfy traits!")*/
+                if (!satisfied_traits)
                    continue
-                }
-                /*println("FOR FIND OR INSTATINTATE")*/
-                /*template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)*/
-                /*println("MAP DONE")*/
 
                 var inst_type = null<ast_node>()
                 // check if already instantiated
                 if (results[i]->template.instantiated_map.contains_key(real_types_deref)) {
-                    /*println("USING CACHED TEMPLATE OBJECT")*/
                     inst_type = results[i]->template.instantiated_map[real_types_deref]
                 } else {
-                    /*print("Not using cached template - was looking for:\n\t\t")*/
                     var typeStr = string()
                     real_types_deref.for_each(fun(t: type) typeStr += t.to_string(false) + " ";)
-                    /*print(typeStr)*/
-                    /*println("\ninstead, only had:")*/
                     results[i]->template.instantiated_map.for_each(fun(key: vector<type>, value: *ast_node) {
-                        /*print("\t\t")*/
                         var hasTypStr = string()
                         key.for_each(fun(t: type) hasTypStr += t.to_string(false) + " ";)
-                        /*print(hasTypStr)*/
                         if (typeStr == hasTypStr)
                             error(node, "they're equal but really shouldnt be")
-                        /*println()*/
                     })
-                    /*println("donr")*/
                     if (real_types.any_true(fun(t: *type): bool return t->is_none() || t ->is_template_type();)) {
                         error(node, "Instantiating types for templated object are not all real types!")
                     }
@@ -394,11 +367,8 @@ obj ast_transformation (Object) {
             return fitting_types.max(fun(a: pair<*ast_node, int>, b: pair<*ast_node, int>): bool return a.second < b.second;).first->type_def.self_type->clone_with_indirection(indirection, is_ref)
         }
         var type_syntax_str = concat_symbol_tree(real_node)
-        /*println(type_syntax_str + " *************************")*/
         if (template_replacements.contains_key(type_syntax_str)) {
-            /*print("Is in template_replacements, returning: ")*/
             var to_ret = template_replacements[type_syntax_str]->clone_with_increased_indirection(indirection, is_ref)
-            /*println(to_ret->to_string())*/
             return to_ret
         }
         // should take into account references...
@@ -433,7 +403,6 @@ obj ast_transformation (Object) {
         } else {
             // do lookup for objects, ADTs, templates, etc
             var possibilities = scope_lookup(type_syntax_str, scope)
-            /*print("There are "); print(possibilities.size); println(" possibilites for this object type lookup")*/
             for (var i = 0; i < possibilities.size; i++;) {
                 match(*possibilities[i]) {
                     ast_node::type_def(backing) return backing.self_type->clone_with_indirection(indirection, is_ref)
@@ -441,7 +410,6 @@ obj ast_transformation (Object) {
                 }
             }
             // error("no types found for " + type_syntax_str)
-            /*println("no types found for " + type_syntax_str)*/
             return type_ptr(base_type::none(), indirection, is_ref)
         }
     }
@@ -489,12 +457,10 @@ obj ast_transformation (Object) {
                 || name == "factor" || name == "unarad"
                 || name == "access_operation" || name == "cast_expression"
         ) {
-            // for now, assume passthrough and just transform underneath
             return transform_expression(node, scope, searching_for, template_replacements)
         } else if (name == "bool" || name == "string"
                 || name == "character" || name == "number"
         ) {
-            /*println(string("transforming value: ") + name)*/
             return transform_value(node, scope)
         }
         print("FAILED TO TRANSFORM: "); print(name + ": "); println(concat_symbol_tree(node))
@@ -528,13 +494,11 @@ obj ast_transformation (Object) {
                     var possible_obj_type = get_ast_type(possible_obj)
                     // note operator() has had it's () stripped out...
                     if (possible_obj_type->is_object() && has_method(possible_obj_type->type_def, "operator", type_vec)) {
-                        /*println("Has the operator()!")*/
                         return possible_obj
                     }
                 }
             }
         }
-        /*println("FAILED SEARCH FOR")*/
         return null<ast_node>()
     }
     fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node {
@@ -557,9 +521,9 @@ obj ast_transformation (Object) {
             }
             if (contains_dot) {
                 if (value_str.last() == 'f')
-                    value_type = type_ptr(base_type::floating()) //value_type = type_ptr(base_type::floating())
+                    value_type = type_ptr(base_type::floating())
                 else
-                    value_type = type_ptr(base_type::double_precision()) //value_type = type_ptr(base_type::floating())
+                    value_type = type_ptr(base_type::double_precision())
             } else {
                 var chop = 0
                 if (value_str.length() > 2) {
@@ -659,54 +623,46 @@ obj ast_transformation (Object) {
         var to_assign = transform(get_node("boolean_expression", node), scope, template_replacements)
         // for []= overloading
         if (get_node("\"=\"", node)) {
-            /*println("Regular Assignment!")*/
             var factor_part = get_node("factor", node)
             if (factor_part->children.size == 1) {
-                /*println("Factor has only one child!")*/
                 var inner_unarad = get_node("unarad", factor_part)
                 if (get_node("\"]\"", inner_unarad)) {
                     var assign_to = transform(get_node("unarad", inner_unarad), scope, template_replacements)
                     var assign_idx = transform(get_node("expression", inner_unarad), scope, template_replacements)
                     var possible_bracket_assign = find_and_make_any_operator_overload_call(string("[]="), vector(assign_to, assign_idx, to_assign), scope, template_replacements)
                     if (possible_bracket_assign) {
-                        /*println("Computed and returning []=!")*/
                         return possible_bracket_assign
-                    } // else println("Could not Compute and return []=!")
-                } // else println("Inner Unarad does not have [!")
-            } // else println("Factor not 1 child")
-        } // else println("Not regular assignment")
+                    }
+                }
+            }
+        }
         var assign_to = transform(get_node("factor", node), scope, template_replacements)
         if (get_node("\"=\"", node)) {
             var possible_assign = find_and_make_any_operator_overload_call(string("="), vector(assign_to, to_assign), scope, template_replacements)
             if (possible_assign) {
-                /*println("Computed and returning operator=")*/
                 return possible_assign
             }
         } else if (get_node("\"\\+=\"", node)) {
             var possible_assign = find_and_make_any_operator_overload_call(string("+="), vector(assign_to, to_assign), scope, template_replacements)
             if (possible_assign) {
-                /*print("Computed and returning operator+=")*/
                 return possible_assign
             }
             to_assign = make_operator_call("+", vector(assign_to, to_assign))
         } else   if (get_node("\"-=\"", node)) {
             var possible_assign = find_and_make_any_operator_overload_call(string("-="), vector(assign_to, to_assign), scope, template_replacements)
             if (possible_assign) {
-                /*print("Computed and returning operator-=")*/
                 return possible_assign
             }
             to_assign = make_operator_call("-", vector(assign_to, to_assign))
         } else   if (get_node("\"\\*=\"", node)) {
             var possible_assign = find_and_make_any_operator_overload_call(string("*="), vector(assign_to, to_assign), scope, template_replacements)
             if (possible_assign) {
-                /*print("Computed and returning operator*=")*/
                 return possible_assign
             }
             to_assign = make_operator_call("*", vector(assign_to, to_assign))
         } else   if (get_node("\"/=\"", node)){
             var possible_assign = find_and_make_any_operator_overload_call(string("/="), vector(assign_to, to_assign), scope, template_replacements)
             if (possible_assign) {
-                /*print("Computed and returning operator/=")*/
                 return possible_assign
             }
             to_assign = make_operator_call("/", vector(assign_to, to_assign))
@@ -865,45 +821,25 @@ obj ast_transformation (Object) {
                 backing.closed_variables.for_each(fun(n: *ast_node) to_ret += find_closed_variables(func, n);)
                 return to_ret
             }
-            ast_node::return_statement(backing) {
-                return find_closed_variables(func, backing.return_value)
-            }
-            ast_node::if_statement(backing) {
-                return find_closed_variables(func, backing.condition) + find_closed_variables(func, backing.then_part) + find_closed_variables(func, backing.else_part)
-            }
+            ast_node::return_statement(backing) return find_closed_variables(func, backing.return_value)
+            ast_node::if_statement(backing) return find_closed_variables(func, backing.condition) + find_closed_variables(func, backing.then_part) + find_closed_variables(func, backing.else_part)
             ast_node::match_statement(backing) {
                 var to_ret = set<*ast_node>()
                 backing.cases.for_each(fun(n: *ast_node) to_ret += find_closed_variables(func, n);)
                 return to_ret
             }
-            ast_node::case_statement(backing) {
-                return find_closed_variables(func, backing.statement)
-            }
-            ast_node::while_loop(backing) {
-                return find_closed_variables(func, backing.condition) + find_closed_variables(func, backing.statement)
-            }
+            ast_node::case_statement(backing) return find_closed_variables(func, backing.statement)
+            ast_node::while_loop(backing)     return find_closed_variables(func, backing.condition) + find_closed_variables(func, backing.statement)
             ast_node::for_loop(backing) {
                 return find_closed_variables(func, backing.init) + find_closed_variables(func, backing.condition) +
                        find_closed_variables(func, backing.update) + find_closed_variables(func, backing.body)
             }
-            ast_node::return_statement(backing) {
-                return find_closed_variables(func, backing.return_value)
-            }
-            ast_node::defer_statement(backing) {
-                return find_closed_variables(func, backing.statement)
-            }
-            ast_node::assignment_statement(backing) {
-                return find_closed_variables(func, backing.to) + find_closed_variables(func, backing.from)
-            }
-            ast_node::declaration_statement(backing) {
-                return find_closed_variables(func, backing.expression) + find_closed_variables(func, backing.init_method_call)
-            }
-            ast_node::if_comp(backing) {
-                return find_closed_variables(func, backing.statement)
-            }
-            ast_node::cast(backing) {
-                return find_closed_variables(func, backing.value)
-            }
+            ast_node::return_statement(backing)         return find_closed_variables(func, backing.return_value)
+            ast_node::defer_statement(backing)          return find_closed_variables(func, backing.statement)
+            ast_node::assignment_statement(backing)     return find_closed_variables(func, backing.to) + find_closed_variables(func, backing.from)
+            ast_node::declaration_statement(backing)    return find_closed_variables(func, backing.expression) + find_closed_variables(func, backing.init_method_call)
+            ast_node::if_comp(backing)                  return find_closed_variables(func, backing.statement)
+            ast_node::cast(backing)                     return find_closed_variables(func, backing.value)
         }
         return set<*ast_node>()
     }
@@ -965,7 +901,6 @@ obj ast_transformation (Object) {
             var first_param = transform(node->children[0], scope, template_replacements)
             var second_param = null<ast_node>()
             if (func_name == "." || func_name == "->") {
-                /*println("PRE VANILLA TRY FOR SECOND PARAM")*/
                 var first_param_type = get_ast_type(first_param)
                 if (!first_param_type)
                     error(node, "Cannot get type from left side of access operation")
@@ -979,15 +914,11 @@ obj ast_transformation (Object) {
                         var template_inst = get_node("template_inst", node)
                         var inherited_replacements = map<string, *type>()
                         var parent = get_ast_scope(get_ast_type(first_param)->type_def)->get(string("~enclosing_scope"))[0]
-                        if (is_template(parent)) {
-                           /*println("TEMPLATE type PARENT IS TEMPLATE")*/
+                        if (is_template(parent))
                            for (var i = 0; i < parent->template.template_types.size; i++;)
                                inherited_replacements[parent->template.template_types[i]] = parent->template.instantiated_map.reverse_get(get_ast_type(first_param)->type_def)[i].clone()
-                        } else {
-                           /*println("TEMPLATE type PARENT IS NOT TEMPLATE")*/
-                        }
+
                         var method_name = concat_symbol_tree(node->children[2])
-                        /*println("PRE TEMPLATE TRY FOR SECOND PARAM")*/
                         second_param = find_or_instantiate_template_function(method_name, template_inst, get_ast_type(first_param)->type_def, type_vec, template_replacements, inherited_replacements);
                         if (!second_param) {
                            error(node, "Could not find method " + method_name + " on the right side of (. or ->) " + concat_symbol_tree(node->children[0]) +
@@ -1022,11 +953,8 @@ obj ast_transformation (Object) {
                 var inherited_replacements = map<string, *type>()
                 var parent = get_ast_scope(parameter_types.first()->type_def)->get(string("~enclosing_scope"))[0]
                 if (is_template(parent)) {
-                    /*println("TEMPLATE type PARENT IS TEMPLATE")*/
                     for (var i = 0; i < parent->template.template_types.size; i++;)
                         inherited_replacements[parent->template.template_types[i]] = parent->template.instantiated_map.reverse_get(parameter_types.first()->type_def)[i].clone()
-                } else {
-                    /*println("TEMPLATE type PARENT IS NOT TEMPLATE")*/
                 }
                 possible_overload = find_or_instantiate_template_function(string("operator")+func_name, null<tree<symbol>>(), parameter_types.first()->type_def, parameter_types.slice(1,-1), template_replacements, inherited_replacements)
             }
@@ -1042,7 +970,6 @@ obj ast_transformation (Object) {
     }
     fun find_or_instantiate_template_function(name: string, template_inst: *tree<symbol>, scope: *ast_node, param_types: vector<*type>, template_replacements: map<string, *type>, replacements_base: map<string, *type>): *ast_node {
         // replacments base is for templated methods starting off with the replacements of their parent (possibly templated) object
-        /*println(string("trying to instantiate a template function: ") + name)*/
         var results = scope_lookup(name, scope)
         var real_types = vector<*type>()
         var real_types_deref = vector<type>()
@@ -1055,7 +982,6 @@ obj ast_transformation (Object) {
         var fitting_functions = vector<pair<*ast_node, int>>()
         for (var i = 0; i < results.size; i++;) {
             if (is_template(results[i]) && results[i]->template.is_function) {
-                /*println(string() + i + " is a template!")*/
                 var template_types = results[i]->template.template_types
                 var template_type_replacements = results[i]->template.template_type_replacements
                 if (!had_real_types) {
@@ -1081,44 +1007,20 @@ obj ast_transformation (Object) {
                 template_type_replacements.for_each(fun(key: string, value: *type) num_satisfied_traits += value->traits.size();)
                 // check if already instantiated
                 var inst_func = null<ast_node>()
-                /*println(string("FOR TEMPLATE FUNCTION ") + name)*/
-                /*println("FOR FIND OR INSTATINTATE PREEEE")*/
-                /*template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)*/
-                /*println("MAP DONE")*/
                 for (var j = 0; j < template_types.size; j++;) {
-                    /*print("NEW TRAITS IN ALREADY: ")*/
-                    /*template_type_replacements[template_types[j]]->traits.for_each(fun (t: string) print(t + " ");)*/
-                    /*println()*/
-                    /*print("NEW TRAITS PASSED IN: ")*/
-                    /*real_types[j]->traits.for_each(fun (t: string) print(t + " ");)*/
-                    /*println()*/
                     satisfied_traits = satisfied_traits && real_types[j]->traits.contains(template_type_replacements[template_types[j]]->traits) &&
                                      (real_types[j]->indirection == 0 || template_type_replacements[template_types[j]]->traits.size() == 0)
                     template_type_replacements[template_types[j]] = real_types[j]
-                    /*println("Just made")*/
-                    /*println(template_types[j])*/
-                    /*println("equal to")*/
-                    /*println(real_types[j]->to_string())*/
                 }
                 replacements_base.for_each(fun(key: string, value: *type) {
                     template_type_replacements[key] = value
-                    /*println("Just Inherited")*/
-                    /*println(key)*/
-                    /*println("equal to")*/
-                    /*println(value->to_string())*/
                 })
-                /*println("FOR FIND OR INSTATINTATE")*/
-                /*template_type_replacements.for_each(fun(key: string, value: *type) println(string("MAP: ") + key + " : " + value->to_string());)*/
-                /*println("MAP DONE")*/
 
                 if (!satisfied_traits) {
-                   /*println("Did not satisfy traits!")*/
                    continue
                 }
-                if (real_types.any_true(fun(t: *type): bool return t->is_none() || t ->is_template_type();)) {
-                   /*println("Instantiating types not all real types!")*/
+                if (real_types.any_true(fun(t: *type): bool return t->is_none() || t ->is_template_type();))
                    continue
-                }
 
                 if (results[i]->template.instantiated_map.contains_key(real_types_deref)) {
                     /*println("USING CACHED TEMPLATE FUNCITON")*/
@@ -1134,19 +1036,15 @@ obj ast_transformation (Object) {
                 }
                 if (function_satisfies_params(inst_func, param_types))
                     fitting_functions.add(make_pair(inst_func, num_satisfied_traits))
-                /*else*/
-                    /*println(string("this paticular ") + name + " did not satisfy params")*/
             }
         }
         if (fitting_functions.size == 0) {
-            /*println("no working templated method found")*/
             return null<ast_node>()
         }
         return fitting_functions.max(fun(a: pair<*ast_node, int>, b: pair<*ast_node, int>): bool return a.second < b.second;).first
     }
 }
 fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<string, *type>, template_replacements: map<string, *type>) {
-    /*println(string("Unifying type: ") + concat_symbol_tree(template_type))*/
     // first get rid of the reference if we have it - we don't care for unification
     if (get_node("pre_reffed", template_type))
         template_type = get_node("pre_reffed", template_type)
@@ -1160,20 +1058,14 @@ fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<st
     //      to object templates at all ;)
     if (template_type->children.size == 1) {
         if (get_node("function_type", template_type)) {
-            /*println("UNIFYING FUNCTION")*/
             var template_function_types = get_nodes("type", get_node("function_type", template_type))
             if (!param_type->is_function() || template_function_types.size -1 != param_type->parameter_types.size) {
-               /*println("not combining function because:")*/
-               /*println(param_type->is_function())*/
-               /*println(template_function_types.size-1)*/
-               /*println(param_type->parameter_types.size)*/
                return;
             }
             for (var i = 0; i < template_function_types.size-1; i++;)
                 unify_type(template_function_types[i], param_type->parameter_types[i], new_map, template_replacements)
             unify_type(template_function_types.last(), param_type->return_type, new_map, template_replacements)
         } else {
-            /*println(string("setting ") + concat_symbol_tree(template_type) + " equal to " + param_type->to_string())*/
             new_map->set(concat_symbol_tree(template_type), param_type)
         }
     } else if (get_node("\"\\*\"", template_type)) {
@@ -1188,19 +1080,10 @@ fun unify_type(template_type: *tree<symbol>, param_type: *type, new_map: *map<st
                 var inst_params = enclosing_template->template.instantiated_map.reverse_get(param_type->type_def)
                 var template_params = get_nodes("type", get_node("template_inst", template_type))
                 if (inst_params.size == template_params.size) {
-                   /*println("TEMPLATE inference should be successful")*/
                    for (var i = 0; i < inst_params.size; i++;)
                        unify_type(template_params[i], inst_params[i].clone(), new_map, template_replacements)
-                } else {
-                    /*println("TEMPLATE inference hit different sizes")*/
                 }
-            } else {
-                // error("TEMPLATE inference hit non parent template")
-                /*println("TEMPLATE inference hit non parent template")*/
             }
-        } else {
-            // error("TEMPLATE inference hit non object")
-            /*println("TEMPLATE inference hit non object")*/
         }
     } else {
         println(template_type->children[0]->data.name)

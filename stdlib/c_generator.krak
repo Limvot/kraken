@@ -141,12 +141,8 @@ obj c_generator (Object) {
             parameter_types += ", ..."
             parameters += ", ..."
         }
-        var possibly_static = string()
-        // commented out to fix phantom crash
-        /*if (!backing.is_extern && decorated_name != "main")*/
-            /*possibly_static = "static "*/
-        return make_pair(possibly_static + type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n",
-                         possibly_static + type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ")")
+        return make_pair(type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n",
+                         type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ")")
     }
     fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>> ): pair<string,string> {
         ast_to_syntax = ast_to_syntax_in
@@ -328,38 +324,29 @@ obj c_generator (Object) {
             branching_type::continue_stmt() return string("continue")
         }
     }
-    fun generate_defer_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
-        error("Unremoved defer!")
-    }
-    fun generate_match_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
-        error("remaining match")
-    }
     fun generate_cast(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
         return "((" + type_to_c(node->cast.to_type) + ")(" + generate(node->cast.value, enclosing_object, enclosing_func) + "))"
     }
     fun generate_value(node: *ast_node): string {
         var value = node->value.string_value
-        var to_ret = string()
-        if (value[0] != '"') {
-            to_ret = value;
-        } else {
-            to_ret = string("\"")
-            var triple_quoted = value.slice(0,3) == "\"\"\""
-            if (triple_quoted)
-                value = value.slice(3,-4)
+        if (value[0] != '"')
+            return value
+
+        var to_ret = string("\"")
+        var triple_quoted = value.slice(0,3) == "\"\"\""
+        if (triple_quoted)
+            value = value.slice(3,-4)
+        else
+            value = value.slice(1,-2)
+        value.for_each(fun(c: char) {
+            if (c == '\n')
+                to_ret += "\\n"
+            else if (c == '"' && triple_quoted)
+                to_ret += "\\\""
             else
-                value = value.slice(1,-2)
-            value.for_each(fun(c: char) {
-                if (c == '\n')
-                    to_ret += "\\n"
-                else if (c == '"' && triple_quoted)
-                    to_ret += "\\\""
-                else
-                    to_ret += c
-            })
-            to_ret += "\""
-        }
-        return to_ret
+                to_ret += c
+        })
+        return to_ret + "\""
     }
     fun generate_code_block(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
         var to_ret = string("{\n")
@@ -429,9 +416,8 @@ obj c_generator (Object) {
             if (call_string != "")
                 call_string += ", "
 
-            if (in_function_param_type->is_ref) {
-                error(string("problem :") + (node->function_call.func) cast int + " " + get_fully_scoped_name(node->function_call.func) + ": still ref in function calling, func_type: " + func_type->to_string())
-            }
+            if (in_function_param_type->is_ref)
+                error("problem: " + get_fully_scoped_name(node->function_call.func) + ": still ref in function calling, func_type: " + func_type->to_string())
 
             call_string += generate(param, enclosing_object, enclosing_func)
         }
@@ -454,7 +440,6 @@ obj c_generator (Object) {
         return string("ERROR")
     }
 
-    // for now, anyway
     fun generate(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
         if (!node) return string("/*NULL*/")
         match (*node) {
@@ -469,44 +454,14 @@ obj c_generator (Object) {
             ast_node::code_block(backing) return generate_code_block(node, enclosing_object, enclosing_func)
             ast_node::return_statement(backing) return generate_return_statement(node, enclosing_object, enclosing_func)
             ast_node::branching_statement(backing) return generate_branching_statement(node, enclosing_object, enclosing_func)
-            ast_node::defer_statement(backing) return generate_defer_statement(node, enclosing_object, enclosing_func)
-            ast_node::match_statement(backing) return generate_match_statement(node, enclosing_object, enclosing_func)
+            ast_node::defer_statement(backing) error("unremoved defer")
+            ast_node::match_statement(backing) error("unremoved match")
             ast_node::cast(backing) return generate_cast(node, enclosing_object, enclosing_func)
             ast_node::value(backing) return generate_value(node)
             ast_node::identifier(backing) return generate_identifier(node, enclosing_object, enclosing_func)
         }
         error(string("COULD NOT GENERATE ") + get_ast_name(node))
         return string("/* COULD NOT GENERATE */")
-    }
-    fun type_decoration(type: *type): string {
-        var indirection = string()
-        if (type->is_ref) error("still ref in type decoration") //indirection += "ref_"
-        for (var i = 0; i < type->indirection; i++;) indirection += "p"
-        if (type->indirection) indirection += "_"
-        match (type->base) {
-            base_type::none() return indirection + string("none")
-            base_type::template() return indirection + string("template")
-            base_type::template_type() return indirection + string("template_type")
-            base_type::void_return() return indirection + string("void")
-            base_type::boolean() return indirection + string("bool")
-            base_type::character() return indirection + string("char")
-            base_type::ucharacter() return indirection + string("uchar")
-            base_type::short_int() return indirection + string("short")
-            base_type::ushort_int() return indirection + string("ushort")
-            base_type::integer() return indirection + string("int")
-            base_type::uinteger() return indirection + string("uint")
-            base_type::long_int() return indirection + string("long")
-            base_type::ulong_int() return indirection + string("ulong")
-            base_type::floating() return indirection + string("float")
-            base_type::double_precision() return indirection + string("double")
-            base_type::object() return cify_name(type->type_def->type_def.name)
-            base_type::function() {
-                var temp = indirection + string("function_")
-                type->parameter_types.for_each(fun(parameter_type: *type) temp += type_decoration(parameter_type) + "_";)
-                return indirection + temp + "_" + type_decoration(type->return_type)
-            }
-        }
-        return string("impossible type") + indirection
     }
     fun type_to_c(type: *type): string {
         var indirection = string()
@@ -530,23 +485,18 @@ obj c_generator (Object) {
             base_type::double_precision() return string("double") + indirection
             base_type::object() return get_name(type->type_def) + indirection
             base_type::function() {
-                // maybe disregard indirection in the future?
                 type = type->clone_with_indirection(0,false)
                 if (!function_type_map.contains_key(*type)) {
                     var temp_name = string("function") + get_id()
                     var temp = string()
-                    type->parameter_types.for_each(fun(parameter_type: *type) temp += string(", ") + type_to_c(parameter_type) + " ";)
-                    if (type->is_raw) {
+                    type->parameter_types.for_each(fun(parameter_type: *type) {
+                        temp += string(", ") + type_to_c(parameter_type) + " "
+                        temp_name += "_" + cify_name(type_to_c(parameter_type))
+                    })
+                    if (type->is_raw)
                         function_typedef_string += string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + ")(" + temp.slice(1,-1) + ");\n"
-                    } else {
+                    else
                         error(type->to_string() + " is not raw!")
-                        var with_data = string("/* not raw */ typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_with_data)(void*" + temp + ");\n"
-                        var without_data = string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + "_without_data)(" + temp.slice(1,-1) + ");\n"
-                        function_typedef_string += with_data
-                        function_typedef_string += without_data
-                        function_typedef_string += string("typedef struct {\nvoid* data;\n") + temp_name  + "_with_data func;\n} " + temp_name + ";\n"
-                        function_typedef_string += string("/* ") + type->to_string() + " */\n"
-                    }
                     // again, the indirection
                     function_type_map[*type] = temp_name
                 }
@@ -554,6 +504,9 @@ obj c_generator (Object) {
             }
         }
         return string("impossible type") + indirection
+    }
+    fun type_decoration(type: *type): string {
+        return cify_name(type_to_c(type))
     }
     fun get_name(node: *ast_node): string {
         var maybe_it = ast_name_map.get_ptr_or_null(node);
@@ -568,12 +521,10 @@ obj c_generator (Object) {
                 if (is_template(upper))
                     upper->template.instantiated_map.reverse_get(node).for_each(fun(t: ref type) result += string("_") + type_decoration(&t);)
             }
-            ast_node::adt_def(backing) {
-                error("shouldn't have adt")
-            }
+            ast_node::adt_def(backing) error("shouldn't have adt")
             ast_node::function(backing) {
-                // be careful, operators like . come through this, but so do adt constructor funcs
-                if ((backing.name == "main") || backing.is_extern || (!backing.body_statement && !backing.scope.contains_key(string("~enclosing_scope")))) {
+                // be careful, operators like . come through this
+                if (backing.name == "main" || backing.is_extern || !backing.body_statement) {
                     result = backing.name
                     make_unique = false
                 } else {
@@ -618,4 +569,3 @@ obj c_generator (Object) {
         return to_ret
     }
 }
-

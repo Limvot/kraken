@@ -38,14 +38,6 @@ adt ast_node {
     cast: cast,
     value: value
 }
-/*
-total:
-		ASTType type;
-		Type* valueType;
-		Symbol symbol;
-		std::map<std::string, std::vector<NodeTree<ASTData>*>> scope;
-        std::set<NodeTree<ASTData>*> closedVariables;
-*/
 fun ast_node_ptr(node: ast_node): *ast_node {
     var to_ret = new<ast_node>()
     to_ret->copy_construct(&node)
