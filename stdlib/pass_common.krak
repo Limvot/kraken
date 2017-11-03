@@ -361,6 +361,11 @@ fun replace_with_in(orig: *ast_node, new: *ast_node, in: *ast_node) {
                 return
             }
         }
+        ast_node::function(backing) {
+            if (backing.body_statement == orig)
+                backing.body_statement = new
+            return    
+        }
         ast_node::function_call(backing) {
             if (backing.func == orig) {
                 backing.func = new
@@ -458,8 +463,7 @@ fun run_on_tree_helper(func_before: fun(*ast_node,*stack<*ast_node>,*hash_set<*a
             ast_node::declaration_statement(backing)    get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, visited);)
             ast_node::if_comp(backing)                  get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, visited);)
             ast_node::function_call(backing) {
-                /*if (!is_function(backing.func))*/
-                    run_on_tree_helper(func_before, func_after, backing.func, parent_chain, visited)
+                run_on_tree_helper(func_before, func_after, backing.func, parent_chain, visited)
                 node->function_call.parameters.for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, visited);)
             }
             ast_node::cast(backing) get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, visited);)

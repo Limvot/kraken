@@ -13,7 +13,6 @@ import hash_set:*
 import pass_common:*
 
 fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
-    var enclosing_function_stack = stack<*ast_node>()
     var visited = hash_set<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var defer_triple_stack = stack<stack<stack<*ast_node>>>()
@@ -38,7 +37,6 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
                     loop_stack.push(defer_triple_stack.top().size())
                 }
                 ast_node::function(backing) {
-                    enclosing_function_stack.push(node)
                     defer_triple_stack.push(stack<stack<*ast_node>>())
                 }
             }
@@ -47,29 +45,21 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
             match(*node) {
                 ast_node::branching_statement(backing) {
                     var block = ast_code_block_ptr()
+                    add_to_scope("~enclosing_scope", parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i) || is_function(i);), block)
                     replace_with_in(node, block, parent_chain)
                     for (var i = 0; i < defer_triple_stack.top().size() - loop_stack.top(); i++;)
                         block->code_block.children.add_all(defer_triple_stack.top().from_top(i).reverse_vector())
                     block->code_block.children.add(node)
                 }
                 ast_node::return_statement(backing) {
-                    var block = ast_code_block_ptr()
-                    replace_with_in(node, block, parent_chain)
-                    var return_value = node->return_statement.return_value
-                    if (return_value) {
-                        if (get_ast_type(enclosing_function_stack.top())->return_type->is_ref)
-                            return_value = make_operator_call("&", vector(return_value))
-                        var temp_return = ast_identifier_ptr("temp_boom_return", get_ast_type(return_value)->clone_without_ref(), block)
-                        block->code_block.children.add(ast_declaration_statement_ptr(temp_return, null<ast_node>()))
-                        block->code_block.children.add(assign_or_copy_construct_statement(temp_return, return_value))
-                        // dereference so that the real ref can take it back
-                        if (get_ast_type(enclosing_function_stack.top())->return_type->is_ref)
-                            temp_return = make_operator_call("*", vector(temp_return))
-                        node->return_statement.return_value = temp_return
+                    var block = parent_chain->top()
+                    if (!is_code_block(block))
+                        error("defer doesn't have block - it should from obj lower")
+                    for (var i = 0; i < defer_triple_stack.top().size(); i++;) {
+                        defer_triple_stack.top().from_top(i).reverse_vector().for_each(fun(c: *ast_node) {
+                            add_before_in(c, node, block)
+                        })
                     }
-                    for (var i = 0; i < defer_triple_stack.top().size(); i++;)
-                        block->code_block.children.add_all(defer_triple_stack.top().from_top(i).reverse_vector())
-                    block->code_block.children.add(node)
                 }
                 ast_node::code_block(backing) {
                     node->code_block.children.add_all(defer_triple_stack.top().pop().reverse_vector())
@@ -82,7 +72,6 @@ fun defer_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_t
                 }
                 ast_node::function(backing) {
                     defer_triple_stack.pop()
-                    enclosing_function_stack.pop()
                 }
             }
         }

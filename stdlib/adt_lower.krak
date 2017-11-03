@@ -46,6 +46,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     node->adt_def.option_funcs.for_each(fun(func: *ast_node) {
                         var adt_type = replacement->type_def.self_type
                         var block = ast_code_block_ptr()
+                        add_to_scope("~enclosing_scope", func, block)
                         func->function.body_statement = block
                         var to_ret = ast_identifier_ptr(string("to_ret"), adt_type, block)
                         block->code_block.children.add(ast_declaration_statement_ptr(to_ret, null<ast_node>()))
@@ -66,6 +67,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     })
                     node->adt_def.regular_funcs.for_each(fun(func: *ast_node) {
                         var block = ast_code_block_ptr()
+                        add_to_scope("~enclosing_scope", func, block)
                         func->function.body_statement = block
                         if (func->function.name == "operator==") {
                             var other = func->function.parameters[0]
@@ -139,6 +141,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
             match(*node) {
                 ast_node::match_statement(backing) {
                     var block = ast_code_block_ptr()
+                    add_to_scope("~enclosing_scope", parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i) || is_function(i);), block)
                     var value = backing.value
                     var holder = ast_identifier_ptr(string("holder"), get_ast_type(value)->clone_with_increased_indirection(), block)
                     block->code_block.children.add(ast_declaration_statement_ptr(holder, null<ast_node>()))
@@ -156,6 +159,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         var condition = make_operator_call("==", vector(make_operator_call("->", vector(holder, flag)), ast_value_ptr(to_string(option_num), type_ptr(base_type::integer()))))
                         var if_stmt = ast_if_statement_ptr(condition)
                         var inner_block = ast_code_block_ptr()
+                        add_to_scope("~enclosing_scope", block, inner_block)
                         var unpack_ident = case_stmt->case_statement.unpack_ident
                         if (unpack_ident) {
                             var get_option = make_operator_call(".", vector(make_operator_call("->", vector(holder, data)), option))

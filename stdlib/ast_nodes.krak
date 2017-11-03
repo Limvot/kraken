@@ -12,6 +12,10 @@ import io:*
 import type:*
 
 
+
+
+
+
 adt ast_node {
     translation_unit: translation_unit,
     import: import,
@@ -1070,7 +1074,9 @@ obj value (Object) {
 
 fun get_ast_children(node: *ast_node): vector<*ast_node> {
     match (*node) {
-        ast_node::translation_unit(backing) return backing.children + backing.lambdas
+        // Don't get lambdas, let them come up naturally in passes (so can get enclosing function and stuff)
+        /*ast_node::translation_unit(backing) return backing.children + backing.lambdas*/
+        ast_node::translation_unit(backing) return backing.children
         ast_node::import(backing) return vector<*ast_node>()
         ast_node::identifier(backing) return vector<*ast_node>()
         ast_node::type_def(backing) return backing.variables + backing.methods

@@ -780,75 +780,9 @@ obj ast_transformation (Object) {
     fun transform_lambda(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node {
         var function_node = second_pass_function(node, scope, template_replacements, false)
         function_node->function.body_statement = transform_statement(get_node("statement", node), function_node, template_replacements)
-        function_node->function.closed_variables = find_closed_variables(function_node, function_node->function.body_statement)
         while (!is_translation_unit(scope)) scope = get_ast_scope(scope)->get(string("~enclosing_scope"))[0]
         scope->translation_unit.lambdas.add(function_node)
         return function_node
-    }
-    fun find_closed_variables(func: *ast_node, node: *ast_node): set<*ast_node> {
-        if (!node) return set<*ast_node>()
-        match (*node) {
-            ast_node::identifier(backing) {
-                if (!in_scope_chain(backing.enclosing_scope, func))
-                    return set(node);
-            }
-            ast_node::code_block(backing) {
-                var to_ret = set<*ast_node>()
-                backing.children.for_each(fun(n: *ast_node) to_ret += find_closed_variables(func, n);)
-                return to_ret
-            }
-            ast_node::function_call(backing) {
-                if (is_function(backing.func) && (backing.func->function.name == "." || backing.func->function.name == "->"))
-                   return find_closed_variables(func, backing.parameters.first())
-                var to_ret = find_closed_variables(func, backing.func)
-                backing.parameters.for_each(fun(n: *ast_node) to_ret += find_closed_variables(func, n);)
-                return to_ret
-            }
-            ast_node::function(backing) {
-                // now if this is a method, it is called without an access operator because we are in a lambda inside another method
-                // this is because we don't look at the right side of access operators, note the above function_call case
-                if (backing.scope.contains_key(string("~enclosing_scope"))) {
-                    var enclosing = backing.scope[string("~enclosing_scope")][0]
-                    if (is_type_def(enclosing))
-                    return set(make_this(enclosing))
-                    if (is_template(enclosing) && is_type_def(enclosing->template.scope[string("~enclosing_scope")][0]))
-                    return set(make_this(enclosing->template.scope[string("~enclosing_scope")][0]))
-                }
-                // if this is a lambda, we need to check all of the things it closes over
-                // we don't need an if - if it's empty and not a lambda, it's empty
-                // and we don't close over actual functions
-                var to_ret = set<*ast_node>()
-                backing.closed_variables.for_each(fun(n: *ast_node) to_ret += find_closed_variables(func, n);)
-                return to_ret
-            }
-            ast_node::return_statement(backing) return find_closed_variables(func, backing.return_value)
-            ast_node::if_statement(backing) return find_closed_variables(func, backing.condition) + find_closed_variables(func, backing.then_part) + find_closed_variables(func, backing.else_part)
-            ast_node::match_statement(backing) {
-                var to_ret = set<*ast_node>()
-                backing.cases.for_each(fun(n: *ast_node) to_ret += find_closed_variables(func, n);)
-                return to_ret
-            }
-            ast_node::case_statement(backing) return find_closed_variables(func, backing.statement)
-            ast_node::while_loop(backing)     return find_closed_variables(func, backing.condition) + find_closed_variables(func, backing.statement)
-            ast_node::for_loop(backing) {
-                return find_closed_variables(func, backing.init) + find_closed_variables(func, backing.condition) +
-                       find_closed_variables(func, backing.update) + find_closed_variables(func, backing.body)
-            }
-            ast_node::return_statement(backing)         return find_closed_variables(func, backing.return_value)
-            ast_node::defer_statement(backing)          return find_closed_variables(func, backing.statement)
-            ast_node::assignment_statement(backing)     return find_closed_variables(func, backing.to) + find_closed_variables(func, backing.from)
-            ast_node::declaration_statement(backing)    return find_closed_variables(func, backing.expression) + find_closed_variables(func, backing.init_method_call)
-            ast_node::if_comp(backing)                  return find_closed_variables(func, backing.statement)
-            ast_node::cast(backing)                     return find_closed_variables(func, backing.value)
-        }
-        return set<*ast_node>()
-    }
-    fun in_scope_chain(node: *ast_node, high_scope: *ast_node): bool {
-        if (node == high_scope)
-           return true
-        if (get_ast_scope(node)->contains_key(string("~enclosing_scope")))
-           return in_scope_chain(get_ast_scope(node)->get(string("~enclosing_scope"))[0], high_scope)
-        return false
     }
     fun transform_expression(node: *tree<symbol>, scope: *ast_node, template_replacements: map<string, *type>): *ast_node
         return transform_expression(node, scope, search_type::none(), template_replacements)
@@ -1023,7 +957,6 @@ obj ast_transformation (Object) {
                    continue
 
                 if (results[i]->template.instantiated_map.contains_key(real_types_deref)) {
-                    /*println("USING CACHED TEMPLATE FUNCITON")*/
                     inst_func = results[i]->template.instantiated_map[real_types_deref]
                 } else {
                     inst_func = second_pass_function(results[i]->template.syntax_node, results[i], template_type_replacements, false)

@@ -10,34 +10,58 @@ import ast_nodes:*
 import ast_transformation:*
 import pass_common:*
 import hash_set:*
+/*
+ Here's how we lower objects
+ PASS ONE THROUGH name_ast_map
+ 1 first, we make sure that all functions, if statments, while loops and for loops have code blocks
+      as children, not just statements.
+ 1 during the same pass, we "uglify" for loops and while loops so that functions that need pre and post statements always
+      have a code block to insert them into that makes sure that they get run.
+ 1 we also make a set of all type_defs for pass 4
 
-// Here's how we lower objects
-// 1 first, we make sure that all functions, if statments, while loops and for loops have code blocks
-//      as children, not just statements.
-// 1 during the same pass, we "uglify" for loops and while loops so that functions that need pre and post statements always
-//      have a code block to insert them into that makes sure that they get run.
-// 2 in another pass (more complicated because different children have different parent scopes)
-//      we transform the short circuit operators
-// 3 then on the pass up the chain, at function calls we add in they copy_construct in and defer destruct out
-//      temporaries.
-// 3 this is also when we add in defer destructs for function parameters (inside the function) and declaration statements
+ 2 in another pass (more complicated because different children have different parent scopes)
+      we transform the short circuit operators
+
+ 3 then on the pass up the chain, at function calls we add in they copy_construct in and defer destruct out
+      temporaries. Also, pull out init method calls.
+ 3 this is also when we add in defer destructs for function parameters (inside the function) and declaration statements
+
+ PASS TWO THROUGH name_ast_map
+ 4 change all methods to take in self, change all method calls to pass in self, change all in method references to be explicit
+*/
 fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var visited1 = hash_set<*ast_node>()
     var visited2 = hash_set<*ast_node>()
     var visited3 = hash_set<*ast_node>()
     var functions_visited_for_construct_in_destruct_out = hash_set<*ast_node>()
+    var all_type_defs = set<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         // Pass 1
         var ensure_block_and_munge = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
-                ast_node::function(backing) if (backing.body_statement && !is_code_block(backing.body_statement)) backing.body_statement = ast_code_block_ptr(backing.body_statement)
+                ast_node::type_def(backing) all_type_defs.add(node)
+                ast_node::function(backing) if (backing.body_statement && !is_code_block(backing.body_statement)) { 
+                    backing.body_statement = ast_code_block_ptr(backing.body_statement)
+                    add_to_scope("~enclosing_scope", node, backing.body_statement)
+                    if (!is_code_block(backing.body_statement))
+                        error("BUT EXTRA WHY")
+                }
                 ast_node::if_statement(backing) {
-                    if (!is_code_block(backing.then_part)) backing.then_part = ast_code_block_ptr(backing.then_part)
-                    if (backing.else_part && !is_code_block(backing.else_part)) backing.else_part = ast_code_block_ptr(backing.else_part)
+                    if (!is_code_block(backing.then_part)) {
+                        backing.then_part = ast_code_block_ptr(backing.then_part)
+                        add_to_scope("~enclosing_scope", node, backing.then_part)
+                    }
+                    if (backing.else_part && !is_code_block(backing.else_part)) {
+                        backing.else_part = ast_code_block_ptr(backing.else_part)
+                        add_to_scope("~enclosing_scope", node, backing.else_part)
+                    }
                 }
                 // no need for case because it's already been lowered
                 ast_node::while_loop(backing) {
-                    if (!is_code_block(backing.statement)) backing.statement = ast_code_block_ptr(backing.statement)
+                    if (!is_code_block(backing.statement)) {
+                        backing.statement = ast_code_block_ptr(backing.statement)
+                        add_to_scope("~enclosing_scope", node, backing.statement)
+                    }
                     var condition = backing.condition
                     backing.condition = ast_value_ptr(string("true"), type_ptr(base_type::boolean()))
                     // objects do not coerce to booleans, so it should be ok for this not to be a ref
@@ -48,7 +72,10 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     backing.statement->code_block.children.add(1, condition_if)
                 }
                 ast_node::for_loop(backing) {
-                    if (!is_code_block(backing.body)) backing.body = ast_code_block_ptr(backing.body)
+                    if (!is_code_block(backing.body)) {
+                        backing.body = ast_code_block_ptr(backing.body)
+                        add_to_scope("~enclosing_scope", node, backing.body)
+                    }
                     add_before_in(backing.init, node, parent_chain->top())
                     backing.init = null<ast_node>()
                     // the do_update goes in the block above the for
@@ -56,7 +83,9 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     add_before_in(ast_declaration_statement_ptr(update_ident, ast_value_ptr(string("false"), type_ptr(base_type::boolean()))),
                             node, parent_chain->top())
                     var update_if = ast_if_statement_ptr(update_ident)
+                    add_to_scope("~enclosing_scope", backing.body, update_if)
                     update_if->if_statement.then_part = ast_code_block_ptr(backing.update)
+                    add_to_scope("~enclosing_scope", update_if, update_if->if_statement.then_part)
                     backing.update = null<ast_node>()
                     backing.body->code_block.children.add(0, update_if)
                     backing.body->code_block.children.add(1, ast_assignment_statement_ptr(update_ident, ast_value_ptr(string("true"), type_ptr(base_type::boolean()))))
@@ -69,6 +98,36 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     var condition_if = ast_if_statement_ptr(make_operator_call("!", vector(condition_ident)))
                     condition_if->if_statement.then_part = ast_branching_statement_ptr(branching_type::break_stmt())
                     backing.body->code_block.children.add(3, condition_if)
+                }
+                ast_node::return_statement(backing) {
+                    var block = parent_chain->top()
+                    if (!is_code_block(block))
+                        error("Isn't block in return statement obj munging")
+                    /*var block = ast_code_block_ptr()*/
+                    /*add_to_scope("~enclosing_scope", parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i) || is_function(i);), block)*/
+                    /*replace_with_in(node, block, parent_chain)*/
+                    var return_value = backing.return_value
+                    var enclosing_function = parent_chain->item_from_top_satisfying(is_function)
+                    if (!is_code_block(enclosing_function->function.body_statement))
+                        error("this would by unusual")
+                    if (return_value) {
+                        if (get_ast_type(enclosing_function)->return_type->is_ref)
+                            return_value = make_operator_call("&", vector(return_value))
+                        var temp_return = ast_identifier_ptr("temp_boom_return", get_ast_type(return_value)->clone_without_ref(), block)
+                        add_to_scope("temp_boom_return", temp_return, block)
+                        add_to_scope("~enclosing_scope", block, temp_return)
+                        /*block->code_block.children.add(ast_declaration_statement_ptr(temp_return, null<ast_node>()))*/
+                        /*block->code_block.children.add(assign_or_copy_construct_statement(temp_return, return_value))*/
+                        add_before_in(ast_declaration_statement_ptr(temp_return, null<ast_node>()), node, block)
+                        add_before_in(assign_or_copy_construct_statement(temp_return, return_value), node, block)
+                        // dereference so that the real ref can take it back
+                        if (get_ast_type(enclosing_function)->return_type->is_ref)
+                            temp_return = make_operator_call("*", vector(temp_return))
+                        backing.return_value = temp_return
+                    }
+                    if (!is_code_block(enclosing_function->function.body_statement))
+                        error("is this would by unusual")
+                    /*block->code_block.children.add(node)*/
                 }
             }
         }
@@ -97,8 +156,10 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         if (func_name == "||")
                             condition = make_operator_call("!", vector(condition))
                         var short_circuit_if = ast_if_statement_ptr(condition)
+                        add_to_scope("~enclosing_scope", parent_chain->from_top(enclosing_block_idx), short_circuit_if)
                         // how to get proper parent scoping working for this part
                         short_circuit_if->if_statement.then_part = ast_code_block_ptr(ast_assignment_statement_ptr(short_circuit_result, backing.parameters[1]))
+                        add_to_scope("~enclosing_scope", short_circuit_if, short_circuit_if->if_statement.then_part)
                         add_before_in(short_circuit_declaration, parent_chain->from_top(enclosing_block_idx-1), parent_chain->from_top(enclosing_block_idx))
                         add_before_in(short_circuit_if, parent_chain->from_top(enclosing_block_idx-1), parent_chain->from_top(enclosing_block_idx))
                         replace_with_in(node, short_circuit_result, parent_chain)
@@ -128,12 +189,14 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         )
                             return
                     }
-                    var enclosing_block_idx = parent_chain->index_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i);)
+                    var enclosing_block_idx = parent_chain->index_from_top_satisfying(is_code_block)
                     var replace_before: *ast_node
                     if (enclosing_block_idx > 0)
                         replace_before = parent_chain->from_top(enclosing_block_idx-1)
-                    else
+                    else if (enclosing_block_idx == 0)
                         replace_before = node
+                    else
+                        error("gonna corrupt")
                     var replace_in = parent_chain->from_top(enclosing_block_idx)
                     var func_type = get_ast_type(backing.func)
                     for (var i = 0; i < backing.parameters.size; i++;) {
@@ -146,7 +209,9 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                             in_function_param_type = get_ast_type(param)->clone_without_ref()
                         var param_type = get_ast_type(param)
                         if (!in_function_param_type->is_ref && param_type->indirection == 0 && (param_type->is_object() && has_method(param_type->type_def, "copy_construct", vector(param_type->clone_with_indirection(1))))) {
-                            var temp_ident = ast_identifier_ptr("temporary_param_boom", param_type->clone_without_ref(), null<ast_node>())
+                            var temp_ident = ast_identifier_ptr("temporary_param_boom", param_type->clone_without_ref(), replace_in)
+                            add_to_scope("temporary_param_boom", temp_ident, replace_in)
+                            add_to_scope("~enclosing_scope", replace_in, temp_ident)
                             var declaration = ast_declaration_statement_ptr(temp_ident, null<ast_node>())
                             var copy_in = make_method_call(temp_ident, "copy_construct", vector(make_operator_call("&", vector(param))))
                             add_before_in(declaration, replace_before, replace_in)
@@ -155,9 +220,10 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         }
                     }
                     var func_return_type = func_type->return_type
-                    /*if (!func_return_type->is_ref && func_return_type->indirection == 0 && (func_return_type->is_object() && has_method(func_return_type->type_def, "destruct", vector<*type>()))) {*/
                     if (!func_return_type->is_ref && func_return_type->indirection == 0 && func_return_type->is_object()) {
-                        var temp_return = ast_identifier_ptr("temporary_return_boomchaka", func_return_type, null<ast_node>())
+                        var temp_return = ast_identifier_ptr("temporary_return_boomchaka", func_return_type, replace_in)
+                        add_to_scope("temporary_return_boomchaka", temp_return, replace_in)
+                        add_to_scope("~enclosing_scope", replace_in, temp_return)
                         var declaration = ast_declaration_statement_ptr(temp_return, node)
                         add_before_in(declaration, replace_before, replace_in)
                         if (has_method(func_return_type->type_def, "destruct", vector<*type>())) {
@@ -179,6 +245,8 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         var param_type = get_ast_type(param)
                         if (!param_type->is_ref && param_type->indirection == 0 && (param_type->is_object() && has_method(param_type->type_def, "destruct", vector<*type>()))) {
                             // the first pass ensures a code_block child
+                            if (!is_code_block(backing.body_statement))
+                                error("BUT WHY")
                             backing.body_statement->code_block.children.add(order++,
                                 ast_defer_statement_ptr(make_method_call(param, "destruct", vector<*ast_node>())))
                         }
@@ -190,7 +258,9 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         return;
                     if (!ident_type->is_ref && ident_type->indirection == 0 && ident_type->is_object()) {
                         if (backing.expression && has_method(ident_type->type_def, "copy_construct", vector(get_ast_type(backing.expression)->clone_with_increased_indirection()))) {
-                            var temp_cpy_ctst = ast_identifier_ptr("temp_declaration_copy_construct", get_ast_type(backing.expression)->clone_without_ref(), null<ast_node>())
+                            var temp_cpy_ctst = ast_identifier_ptr("temp_declaration_copy_construct", get_ast_type(backing.expression)->clone_without_ref(), parent_chain->top())
+                            add_to_scope("temp_declaration_copy_construct", temp_cpy_ctst, parent_chain->top())
+                            add_to_scope("~enclosing_scope", parent_chain->top(), temp_cpy_ctst)
                             var declaration = ast_declaration_statement_ptr(temp_cpy_ctst, backing.expression)
                             add_after_in(make_method_call(backing.identifier, "copy_construct", vector(make_operator_call("&", vector(temp_cpy_ctst)))),
                                     node, parent_chain->top())
@@ -204,10 +274,92 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                                     node, parent_chain->top())
                         }
                     }
+                    if (backing.init_method_call) {
+                        add_after_in(backing.init_method_call, node, parent_chain)
+                        backing.init_method_call = null<ast_node>()
+                    }
                 }
             }
         }
         run_on_tree(empty_pass_first_half(), construct_in_destruct_out, syntax_ast_pair.second, &visited3)
     })
+    var visited4 = hash_set<*ast_node>()
+    var var_to_obj = map<*ast_node, *ast_node>()
+    var fun_to_obj = map<*ast_node, *ast_node>()
+    all_type_defs.for_each(fun(t: *ast_node) {
+        t->type_def.variables.for_each(fun(v: *ast_node) {
+            if (is_declaration_statement(v)) {
+                var_to_obj[v->declaration_statement.identifier] = t
+            } else {
+                // is template
+                v->template.instantiated.for_each(fun(tv: *ast_node) {
+                    var_to_obj[v->declaration_statement.identifier] = t
+                })
+            }
+        })
+        t->type_def.methods.for_each(fun(m: *ast_node) {
+            if (is_function(m)) {
+                fun_to_obj[m] = t
+            } else {
+                // is template
+                m->template.instantiated.for_each(fun(tm: *ast_node) {
+                    fun_to_obj[tm] = t
+                })
+            }
+        })
+    })
+    fun_to_obj.for_each(fun(method: *ast_node, object: *ast_node) {
+        var this_type = object->type_def.self_type->clone_with_increased_indirection()
+        var this_ident = ast_identifier_ptr("this", this_type, method)
+        method->function.parameters.add(0, this_ident)
+        add_to_scope("this", this_ident, method)
+        add_to_scope("~enclosing_scope", method, this_ident)
+        method->function.type->parameter_types.add(0, this_type)
+    })
+    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+        // Pass 4
+        var unmethod: fun(*ast_node,*stack<*ast_node>,*hash_set<*ast_node>): bool = fun(node: *ast_node, parent_chain: *stack<*ast_node>, visited: *hash_set<*ast_node>): bool {
+            match(*node) {
+                ast_node::function_call(backing) {
+                    // add this to call (including if it's implicit)
+                    if (is_dot_style_method_call(node)) {
+                        var this_ident = backing.func->function_call.parameters[0]
+                        if (backing.func->function_call.func->function.name == ".")
+                            this_ident = make_operator_call("&", vector(this_ident))
+                        backing.func = backing.func->function_call.parameters[1]
+                        backing.parameters.add(0, this_ident)
+                    } else {
+                        // add this
+                        // don't need to check to see if is implicit because a non implicit one wouldn't be in the map
+                        var enclosing_obj = fun_to_obj.get_with_default(backing.func, null<ast_node>())
+                        if (enclosing_obj) {
+                            var this_ident = parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool {
+                                return is_function(i) && fun_to_obj.get_with_default(i, null<ast_node>()) == enclosing_obj  
+                            })->function.parameters[0]
+                            backing.parameters.add(0, this_ident)
+                        }
+                    }
+                }
+                ast_node::identifier(backing) {
+                    // not if this is the declaration
+                    if (!is_declaration_statement(parent_chain->top()) || parent_chain->top()->declaration_statement.identifier != node) {
+                        // needs to make sure this is actually implicit
+                        var enclosing_obj = var_to_obj.get_with_default(node, null<ast_node>())
+                        if (enclosing_obj && !(is_function_call(parent_chain->top()) &&
+                            is_function(parent_chain->top()->function_call.func) &&
+                                (parent_chain->top()->function_call.func->function.name == "." ||
+                                 parent_chain->top()->function_call.func->function.name == "->") &&
+                                 parent_chain->top()->function_call.parameters[1] == node)) {
+                            var this_ident = parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool {
+                                return is_function(i) && fun_to_obj.get_with_default(i, null<ast_node>()) == enclosing_obj  
+                            })->function.parameters[0]
+                            replace_with_in(node, make_operator_call("->", vector(this_ident, node)), parent_chain)
+                        }
+                    }
+                }
+            }
+            return true
+        }
+        run_on_tree(unmethod, empty_pass_second_half(), syntax_ast_pair.second, &visited4)
+    })
 }
-
