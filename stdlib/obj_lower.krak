@@ -19,6 +19,7 @@ import hash_set:*
       have a code block to insert them into that makes sure that they get run.
  1 we also make a set of all type_defs for pass 4
 
+ PASS TWO THROUGH name_ast_map
  2 in another pass (more complicated because different children have different parent scopes)
       we transform the short circuit operators
 
@@ -26,7 +27,7 @@ import hash_set:*
       temporaries. Also, pull out init method calls.
  3 this is also when we add in defer destructs for function parameters (inside the function) and declaration statements
 
- PASS TWO THROUGH name_ast_map
+ PASS THREE THROUGH name_ast_map
  4 change all methods to take in self, change all method calls to pass in self, change all in method references to be explicit
 */
 fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
@@ -45,6 +46,8 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     add_to_scope("~enclosing_scope", node, backing.body_statement)
                     if (!is_code_block(backing.body_statement))
                         error("BUT EXTRA WHY")
+                    if (!is_code_block(node->function.body_statement))
+                        error("BUT EXTRA WHY - now with more")
                 }
                 ast_node::if_statement(backing) {
                     if (!is_code_block(backing.then_part)) {
@@ -132,9 +135,28 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
             }
         }
         run_on_tree(ensure_block_and_munge, empty_pass_second_half(), syntax_ast_pair.second, &visited1)
+    })
+    // make sure all blockes munged before we move ahead
+    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+        var visit = hash_set<*ast_node>()
+        var short_check: fun(*ast_node,*stack<*ast_node>,*hash_set<*ast_node>): bool = fun(node: *ast_node, parent_chain: *stack<*ast_node>, visited: *hash_set<*ast_node>): bool {
+            match(*node) {
+                ast_node::function(backing) {
+                    if (backing.body_statement && !is_code_block(backing.body_statement))
+                        error("Bad in short chec")
+                }
+            }
+            return true
+        }
+        run_on_tree(short_check, empty_pass_second_half(), syntax_ast_pair.second, &visit)
+
         // Pass 2
         var short_circut_op: fun(*ast_node,*stack<*ast_node>,*hash_set<*ast_node>): bool = fun(node: *ast_node, parent_chain: *stack<*ast_node>, visited: *hash_set<*ast_node>): bool {
             match(*node) {
+                ast_node::function(backing) {
+                    if (backing.body_statement && !is_code_block(backing.body_statement))
+                        error("Bad in 2")
+                }
                 ast_node::function_call(backing) {
                     var func_name = string()
                     if (is_function(backing.func)) {
