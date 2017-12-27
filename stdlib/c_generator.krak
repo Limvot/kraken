@@ -116,22 +116,17 @@ obj c_generator (Object) {
         linker_string.destruct()
     }
     fun get_id(): string return to_string(id_counter++);
-    fun generate_function_prototype_and_header(child: *ast_node, enclosing_object: *ast_node, is_lambda: bool):pair<string,string> {
+    fun generate_function_prototype_and_header(child: *ast_node):pair<string,string> {
         var backing = child->function
-
         var parameter_types = string()
         var parameters = string()
-        // lambdas can have the enclosing object too, if it's needed (lambda in a method)
-        /*if (enclosing_object && !is_lambda) {*/
-            /*parameter_types = type_to_c(enclosing_object->type_def.self_type) + "*"*/
-            /*parameters = type_to_c(enclosing_object->type_def.self_type) + "* this"*/
-        /*}*/
-
         var decorated_name = string()
+
         if (backing.is_extern)
             decorated_name = backing.name
         else
             decorated_name = generate_function(child)
+
         backing.parameters.for_each(fun(parameter: *ast_node) {
             if (parameter_types != "") { parameter_types += ", "; parameters += ", ";}
             parameter_types += type_to_c(parameter->identifier.type)
@@ -158,17 +153,15 @@ obj c_generator (Object) {
         var variable_declarations: string = "\n/**Variable Declarations**/\n"
 
         // moved out from below so that it can be used for methods as well as regular functions (and eventually lambdas...)
-        var generate_function_definition = fun(child: *ast_node, enclosing_object: *ast_node, is_lambda: bool) {
+        var generate_function_definition = fun(child: *ast_node) {
             var backing = child->function
-            var prototype_and_header = generate_function_prototype_and_header(child, enclosing_object, is_lambda)
+            var prototype_and_header = generate_function_prototype_and_header(child)
             function_prototypes += prototype_and_header.first
             if (!backing.is_extern)
                 function_definitions += prototype_and_header.second
             if (backing.body_statement) {
-                function_definitions += " {\n" + generate(backing.body_statement, enclosing_object, child)
+                function_definitions += " {\n" + generate(backing.body_statement)
                 function_definitions += ";\n}\n"
-            } else if (!backing.is_extern) {
-                error("Empty function statement and not extern - no ADTs anymore!")
             }
         }
 
@@ -178,30 +171,23 @@ obj c_generator (Object) {
             // iterate through children for each ast
             // do lambdas seperatly, so we can reconstitute the enclosing object if it has one
             tree_pair.second->translation_unit.lambdas.for_each(fun(child: *ast_node) {
-                var enclosing_object_traverse = child
-                while(enclosing_object_traverse && !is_type_def(enclosing_object_traverse) &&
-                        get_ast_scope(enclosing_object_traverse) && get_ast_scope(enclosing_object_traverse)->contains_key(string("~enclosing_scope")))
-                    enclosing_object_traverse = get_ast_scope(enclosing_object_traverse)->get(string("~enclosing_scope"))[0]
-                if (enclosing_object_traverse && is_type_def(enclosing_object_traverse))
-                    generate_function_definition(child, enclosing_object_traverse, true)
-                else
-                    generate_function_definition(child, null<ast_node>(), true)
+                generate_function_definition(child)
             })
             tree_pair.second->translation_unit.children.for_each(fun(child: *ast_node) {
                 match (*child) {
                     ast_node::if_comp(backing) error("if_comp not currently supported")
                     ast_node::simple_passthrough(backing) error("simple_passthrough removed")
-                    ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child, null<ast_node>(), null<ast_node>()) + ";\n" // false - don't do defer
+                    ast_node::declaration_statement(backing) variable_declarations += generate_declaration_statement(child) + ";\n" // false - don't do defer
                     // shouldn't need to do anything with return, as the intrinsic should be something like link
                     ast_node::compiler_intrinsic(backing) generate_compiler_intrinsic(child)
                     ast_node::function(backing) {
                         // check for and add to parameters if a closure
-                        generate_function_definition(child, null<ast_node>(), false)
+                        generate_function_definition(child)
                     }
                     ast_node::template(backing) {
                         backing.instantiated.for_each(fun(node: *ast_node) {
                             match (*node) {
-                                ast_node::function(backing) generate_function_definition(node, null<ast_node>(), false)
+                                ast_node::function(backing) generate_function_definition(node)
                                 ast_node::type_def(backing) {
                                     type_poset.add_vertex(node)
                                     backing.variables.for_each(fun(i: *ast_node) {
@@ -226,8 +212,6 @@ obj c_generator (Object) {
             })
         })
         type_poset.get_sorted().for_each(fun(vert: *ast_node) {
-            if (!is_type_def(vert))
-              error("no adt, but how did we get this far?")
             var base_name = get_name(vert)
             plain_typedefs += string("typedef ")
             if (vert->type_def.is_union) {
@@ -239,20 +223,20 @@ obj c_generator (Object) {
             }
             plain_typedefs += base_name + "_dummy " + base_name + ";\n"
             structs += base_name + "_dummy {\n"
-            vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration, null<ast_node>(), null<ast_node>()) + ";\n";)
+            vert->type_def.variables.for_each(fun(variable_declaration: *ast_node) structs += generate_declaration_statement(variable_declaration) + ";\n";)
             // generate the methods (note some of these may be templates)
             vert->type_def.methods.for_each(fun(method: *ast_node) {
                 if (is_template(method))
-                    method->template.instantiated.for_each(fun(m: *ast_node) generate_function_definition(m, vert, false);)
+                    method->template.instantiated.for_each(fun(m: *ast_node) generate_function_definition(m);)
                 else
-                    generate_function_definition(method, vert, false);
+                    generate_function_definition(method);
             })
             structs += "};\n"
         })
 
         return make_pair(prequal+plain_typedefs+function_typedef_string+top_level_c_passthrough+variable_extern_declarations+structs+closure_struct_definitions+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
-    fun generate_declaration_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
+    fun generate_declaration_statement(node: *ast_node): string {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
         var to_ret = type_to_c(identifier->identifier.type) + " " + get_name(identifier)
@@ -261,70 +245,60 @@ obj c_generator (Object) {
         if (node->declaration_statement.expression) {
             // in case of recursive closures, make sure variable is declared before assignment
             to_ret += ";\n"
-            to_ret += get_name(identifier) + " = " + generate(node->declaration_statement.expression, enclosing_object, enclosing_func)
+            to_ret += get_name(identifier) + " = " + generate(node->declaration_statement.expression)
         }
         if (node->declaration_statement.init_method_call) {
             error("init_method_call remaining")
         }
         return to_ret
     }
-    fun generate_assignment_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
-        return generate(node->assignment_statement.to, enclosing_object, enclosing_func) + " = " + generate(node->assignment_statement.from, enclosing_object, enclosing_func)
+    fun generate_assignment_statement(node: *ast_node): string {
+        return generate(node->assignment_statement.to) + " = " + generate(node->assignment_statement.from)
     }
-    fun generate_if_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
-        var if_str = "if (" + generate(node->if_statement.condition, enclosing_object, enclosing_func) + ") {\n" + generate(node->if_statement.then_part, enclosing_object, enclosing_func) + "}"
+    fun generate_if_statement(node: *ast_node): string {
+        var if_str = "if (" + generate(node->if_statement.condition) + ") {\n" + generate(node->if_statement.then_part) + "}"
         if (node->if_statement.else_part)
-            if_str += " else {\n" + generate(node->if_statement.else_part, enclosing_object, enclosing_func) + "}"
+            if_str += " else {\n" + generate(node->if_statement.else_part) + "}"
         return if_str + "\n"
     }
-    fun generate_while_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
-        return "while (" + generate(node->while_loop.condition, enclosing_object, enclosing_func) + ")\n" + generate(node->while_loop.statement, enclosing_object, enclosing_func)
+    fun generate_while_loop(node: *ast_node): string {
+        return "while (" + generate(node->while_loop.condition) + ")\n" + generate(node->while_loop.statement)
     }
-    fun generate_for_loop(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
+    fun generate_for_loop(node: *ast_node): string {
         var init = string(";")
         if (node->for_loop.init)
-            init = generate(node->for_loop.init, enclosing_object, enclosing_func)
+            init = generate(node->for_loop.init)
         var cond = string(";")
         if (node->for_loop.condition)
-            cond = generate(node->for_loop.condition, enclosing_object, enclosing_func)
+            cond = generate(node->for_loop.condition)
         // gotta take off last semicolon
         var update = string()
         if (node->for_loop.update) {
-            update = generate(node->for_loop.update, enclosing_object, enclosing_func)
+            update = generate(node->for_loop.update)
             if (update.length() < 2)
                 error("update less than 2! Likely legal, but need easy compiler mod here")
             update = update.slice(0,-2)
         }
-        return "for (" + init + cond + "; " + update + ")\n" + generate(node->for_loop.body, enclosing_object, enclosing_func)
+        return "for (" + init + cond + "; " + update + ")\n" + generate(node->for_loop.body)
     }
-    fun generate_identifier(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
+    fun generate_identifier(node: *ast_node): string {
         if (get_ast_type(node)->is_ref)
             error("still existin ref in identifier")
-        /*if (enclosing_object && get_ast_scope(enclosing_object)->contains_key(node->identifier.name) && get_ast_scope(enclosing_object)->get(node->identifier.name).contains(node))*/
-            /*return "(this->" + get_name(node) + ")"*/
         return get_name(node)
     }
-    fun generate_return_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
-        var return_value = node->return_statement.return_value
-        var function_return_type = get_ast_type(enclosing_func)->return_type
-
-        if (!function_return_type->is_void() && !function_return_type->equality(get_ast_type(return_value), false))
-            error(ast_to_syntax[node], "return value type does not match function return type" + function_return_type->to_string() + " versus " + get_ast_type(return_value)->to_string())
-        if (function_return_type->is_ref)
-            error("still exsisting ref in return")
-
-        if (return_value)
-            return "return " + generate(return_value, enclosing_object, enclosing_func)
+    fun generate_return_statement(node: *ast_node): string {
+        if (node->return_statement.return_value)
+            return "return " + generate(node->return_statement.return_value)
         return string("return")
     }
-    fun generate_branching_statement(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
+    fun generate_branching_statement(node: *ast_node): string {
         match(node->branching_statement.b_type) {
             branching_type::break_stmt() return string("break")
             branching_type::continue_stmt() return string("continue")
         }
     }
-    fun generate_cast(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
-        return "((" + type_to_c(node->cast.to_type) + ")(" + generate(node->cast.value, enclosing_object, enclosing_func) + "))"
+    fun generate_cast(node: *ast_node): string {
+        return "((" + type_to_c(node->cast.to_type) + ")(" + generate(node->cast.value) + "))"
     }
     fun generate_value(node: *ast_node): string {
         var value = node->value.string_value
@@ -347,37 +321,19 @@ obj c_generator (Object) {
         })
         return to_ret + "\""
     }
-    fun generate_code_block(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
+    fun generate_code_block(node: *ast_node): string {
         var to_ret = string("{\n")
-        node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child, enclosing_object, enclosing_func) + ";\n";)
+        node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child) + ";\n";)
         return to_ret + "}"
     }
     // this generates the function as a value, not the actual function
     fun generate_function(node: *ast_node): string {
         return get_name(node)
     }
-    fun generate_function_call(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
-        var func_name = string()
+    fun generate_function_call(node: *ast_node): string {
+        var func_name = generate(node->function_call.func)
         var call_string = string()
         var func_return_type = get_ast_type(node)
-        if (func_return_type->is_ref)
-            error("still ref in function calling")
-
-        /*if (is_dot_style_method_call(node)) {*/
-            /*func_name = generate_function(node->function_call.func->function_call.parameters[1])*/
-            /*// don't add & if it was ->*/
-            /*if (node->function_call.func->function_call.func->function.name == ".")*/
-                /*call_string += "&"*/
-
-            /*call_string += generate(node->function_call.func->function_call.parameters[0], enclosing_object, enclosing_func)*/
-        /*} else {*/
-            func_name = generate(node->function_call.func, enclosing_object, enclosing_func)
-
-            // handle method call from inside method of same object
-            /*if (enclosing_object && method_in_object(node->function_call.func, enclosing_object)) {*/
-                /*call_string += "this";*/
-            /*}*/
-        /*}*/
 
         var parameters = node->function_call.parameters
         if ( parameters.size == 2 && (func_name == "+" || func_name == "-" || func_name == "*" || func_name == "/"
@@ -385,22 +341,22 @@ obj c_generator (Object) {
             || func_name == "==" || func_name == "!=" || func_name == "%" || func_name == "^"
             || func_name == "|" || func_name == "&" || func_name == ">>" || func_name == "<<"
         ))
-            return "(" + generate(parameters[0], enclosing_object, enclosing_func) + func_name + generate(parameters[1], enclosing_object, enclosing_func) + ")"
+            return "(" + generate(parameters[0]) + func_name + generate(parameters[1]) + ")"
         if ( parameters.size == 2 && (func_name == "||" || func_name == "&&"))
             error("Remaining || or &&")
         // don't propegate enclosing function down right of access
         // XXX what about enclosing object? should it be the thing on the left?
         if (func_name == "." || func_name == "->")
-            return "(" + generate(parameters[0], enclosing_object, enclosing_func) + func_name + generate(parameters[1], null<ast_node>(), null<ast_node>()) + ")"
+            return "(" + generate(parameters[0]) + func_name + generate(parameters[1]) + ")"
         if (func_name == "[]")
-            return "(" + generate(parameters[0], enclosing_object, enclosing_func) + "[" + generate(parameters[1], enclosing_object, enclosing_func) + "])"
+            return "(" + generate(parameters[0]) + "[" + generate(parameters[1]) + "])"
         // the post ones need to be post-ed specifically, and take the p off
         if (func_name == "++p" || func_name == "--p")
-            return "(" + generate(parameters[0], enclosing_object, enclosing_func) + ")" + func_name.slice(0,-2)
+            return "(" + generate(parameters[0]) + ")" + func_name.slice(0,-2)
 
         // So we don't end up copy_constructing etc, we just handle the unary operators right here
         if (func_name == "*" || func_name == "&")
-            return "(" + func_name + generate(parameters[0], enclosing_object, enclosing_func) + ")"
+            return "(" + func_name + generate(parameters[0]) + ")"
 
         var func_type = get_ast_type(node->function_call.func)
         // regular parameter generation
@@ -415,10 +371,7 @@ obj c_generator (Object) {
             if (call_string != "")
                 call_string += ", "
 
-            if (in_function_param_type->is_ref)
-                error("problem: " + get_fully_scoped_name(node->function_call.func) + ": still ref in function calling, func_type: " + func_type->to_string())
-
-            call_string += generate(param, enclosing_object, enclosing_func)
+            call_string += generate(param)
         }
         call_string = func_name + "(" + call_string + ")"
         return call_string
@@ -439,25 +392,25 @@ obj c_generator (Object) {
         return string("ERROR")
     }
 
-    fun generate(node: *ast_node, enclosing_object: *ast_node, enclosing_func: *ast_node): string {
+    fun generate(node: *ast_node): string {
         if (!node) return string("/*NULL*/")
         match (*node) {
-            ast_node::declaration_statement(backing) return generate_declaration_statement(node, enclosing_object, enclosing_func)
-            ast_node::assignment_statement(backing) return generate_assignment_statement(node, enclosing_object, enclosing_func)
-            ast_node::if_statement(backing) return generate_if_statement(node, enclosing_object, enclosing_func)
-            ast_node::while_loop(backing) return generate_while_loop(node, enclosing_object, enclosing_func)
-            ast_node::for_loop(backing) return generate_for_loop(node, enclosing_object, enclosing_func)
-            ast_node::function(backing) return generate_function(node)
-            ast_node::function_call(backing) return generate_function_call(node, enclosing_object, enclosing_func)
-            ast_node::compiler_intrinsic(backing) return generate_compiler_intrinsic(node)
-            ast_node::code_block(backing) return generate_code_block(node, enclosing_object, enclosing_func)
-            ast_node::return_statement(backing) return generate_return_statement(node, enclosing_object, enclosing_func)
-            ast_node::branching_statement(backing) return generate_branching_statement(node, enclosing_object, enclosing_func)
-            ast_node::defer_statement(backing) error("unremoved defer")
-            ast_node::match_statement(backing) error("unremoved match")
-            ast_node::cast(backing) return generate_cast(node, enclosing_object, enclosing_func)
-            ast_node::value(backing) return generate_value(node)
-            ast_node::identifier(backing) return generate_identifier(node, enclosing_object, enclosing_func)
+            ast_node::declaration_statement(backing)    return generate_declaration_statement(node)
+            ast_node::assignment_statement(backing)     return generate_assignment_statement(node)
+            ast_node::if_statement(backing)             return generate_if_statement(node)
+            ast_node::while_loop(backing)               return generate_while_loop(node)
+            ast_node::for_loop(backing)                 return generate_for_loop(node)
+            ast_node::function(backing)                 return generate_function(node)
+            ast_node::function_call(backing)            return generate_function_call(node)
+            ast_node::compiler_intrinsic(backing)       return generate_compiler_intrinsic(node)
+            ast_node::code_block(backing)               return generate_code_block(node)
+            ast_node::return_statement(backing)         return generate_return_statement(node)
+            ast_node::branching_statement(backing)      return generate_branching_statement(node)
+            ast_node::defer_statement(backing)          error("unremoved defer")
+            ast_node::match_statement(backing)          error("unremoved match")
+            ast_node::cast(backing)                     return generate_cast(node)
+            ast_node::value(backing)                    return generate_value(node)
+            ast_node::identifier(backing)               return generate_identifier(node)
         }
         error(string("COULD NOT GENERATE ") + get_ast_name(node))
         return string("/* COULD NOT GENERATE */")
@@ -467,22 +420,22 @@ obj c_generator (Object) {
         if (type->is_ref) error("still ref in type_to_c") //indirection += "/*ref*/ *"
         for (var i = 0; i < type->indirection; i++;) indirection += "*"
         match (type->base) {
-            base_type::none() return string("none") + indirection
-            base_type::template() return string("template") + indirection
-            base_type::template_type() return string("template_type") + indirection
-            base_type::void_return() return string("void") + indirection
-            base_type::boolean() return string("bool") + indirection
-            base_type::character() return string("char") + indirection
-            base_type::ucharacter() return string("unsigned char") + indirection
-            base_type::short_int() return string("short") + indirection
-            base_type::ushort_int() return string("unsigned short") + indirection
-            base_type::integer() return string("int") + indirection
-            base_type::uinteger() return string("unsigned int") + indirection
-            base_type::long_int() return string("long") + indirection
-            base_type::ulong_int() return string("unsigned long") + indirection
-            base_type::floating() return string("float") + indirection
-            base_type::double_precision() return string("double") + indirection
-            base_type::object() return get_name(type->type_def) + indirection
+            base_type::none()               return string("none") + indirection
+            base_type::template()           return string("template") + indirection
+            base_type::template_type()      return string("template_type") + indirection
+            base_type::void_return()        return string("void") + indirection
+            base_type::boolean()            return string("bool") + indirection
+            base_type::character()          return string("char") + indirection
+            base_type::ucharacter()         return string("unsigned char") + indirection
+            base_type::short_int()          return string("short") + indirection
+            base_type::ushort_int()         return string("unsigned short") + indirection
+            base_type::integer()            return string("int") + indirection
+            base_type::uinteger()           return string("unsigned int") + indirection
+            base_type::long_int()           return string("long") + indirection
+            base_type::ulong_int()          return string("unsigned long") + indirection
+            base_type::floating()           return string("float") + indirection
+            base_type::double_precision()   return string("double") + indirection
+            base_type::object()             return get_name(type->type_def) + indirection
             base_type::function() {
                 type = type->clone_with_indirection(0,false)
                 if (!function_type_map.contains_key(*type)) {
@@ -520,7 +473,6 @@ obj c_generator (Object) {
                 if (is_template(upper))
                     upper->template.instantiated_map.reverse_get(node).for_each(fun(t: ref type) result += string("_") + type_decoration(&t);)
             }
-            ast_node::adt_def(backing) error("shouldn't have adt")
             ast_node::function(backing) {
                 // be careful, operators like . come through this
                 if (backing.name == "main" || backing.is_extern || !backing.body_statement) {
