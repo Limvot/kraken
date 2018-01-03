@@ -14,27 +14,22 @@ import poset:*
 
 obj c_generator (Object) {
     var id_counter: int
-    var ast_to_syntax: map<*ast_node, *tree<symbol>>
     var ast_name_map: hash_map<*ast_node, string>
     var used_names: hash_set<string>
     var function_type_map: map<type, string>
-    var function_typedef_string: string
-    var closure_struct_definitions: string
-    var c_keyword_avoid: set<string>
     var replacement_map: map<string, string>
     var longest_replacement: int
+    var function_typedef_string: string
     var linker_string: string
     fun construct(): *c_generator {
         id_counter = 0
-        ast_to_syntax.construct()
         ast_name_map.construct()
         used_names.construct()
+        // to avoid using c keywords
+        used_names.add(string("extern"))
         function_type_map.construct()
         function_typedef_string.construct()
-        closure_struct_definitions.construct()
         linker_string.construct()
-        c_keyword_avoid.construct()
-        c_keyword_avoid.add(string("extern"))
 
         replacement_map.construct()
      	replacement_map[string("+")] = string("plus")
@@ -89,13 +84,10 @@ obj c_generator (Object) {
     }
     fun copy_construct(old: *c_generator) {
         id_counter = old->id_counter
-        ast_to_syntax.copy_construct(&old->ast_to_syntax)
         ast_name_map.copy_construct(&old->ast_name_map)
         used_names.copy_construct(&old->used_names)
         function_type_map.copy_construct(&old->function_type_map)
         function_typedef_string.copy_construct(&old->function_typedef_string)
-        closure_struct_definitions.copy_construct(&old->closure_struct_definitions)
-        c_keyword_avoid.copy_construct(&old->c_keyword_avoid)
         replacement_map.copy_construct(&old->replacement_map)
         longest_replacement = old->longest_replacement
         linker_string.copy_construct(&old->linker_string)
@@ -105,13 +97,10 @@ obj c_generator (Object) {
         copy_construct(&other)
     }
     fun destruct() {
-        ast_to_syntax.destruct()
         ast_name_map.destruct()
         used_names.destruct()
         function_type_map.destruct()
         function_typedef_string.destruct()
-        closure_struct_definitions.destruct()
-        c_keyword_avoid.destruct()
         replacement_map.destruct()
         linker_string.destruct()
     }
@@ -140,14 +129,12 @@ obj c_generator (Object) {
                          type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ")")
     }
     fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>> ): pair<string,string> {
-        ast_to_syntax = ast_to_syntax_in
         var prequal: string = "#include <stdbool.h>\n"
         var plain_typedefs: string = "\n/**Plain Typedefs**/\n"
         var top_level_c_passthrough: string = ""
         var variable_extern_declarations: string = ""
         var structs: string = "\n/**Type Structs**/\n"
         function_typedef_string = "\n/**Typedefs**/\n"
-        closure_struct_definitions = "\n/**Closure Struct Definitions**/\n"
         var function_prototypes: string = "\n/**Function Prototypes**/\n"
         var function_definitions: string = "\n/**Function Definitions**/\n"
         var variable_declarations: string = "\n/**Variable Declarations**/\n"
@@ -234,7 +221,7 @@ obj c_generator (Object) {
             structs += "};\n"
         })
 
-        return make_pair(prequal+plain_typedefs+function_typedef_string+top_level_c_passthrough+variable_extern_declarations+structs+closure_struct_definitions+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
+        return make_pair(prequal+plain_typedefs+function_typedef_string+top_level_c_passthrough+variable_extern_declarations+structs+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
     fun generate_declaration_statement(node: *ast_node): string {
         var identifier = node->declaration_statement.identifier
@@ -495,8 +482,7 @@ obj c_generator (Object) {
         }
         if (result == "impossible name")
             error("HUGE PROBLEMS")
-        // TODO keyword avoid seems not to work
-        if (make_unique && (used_names.contains(result) || c_keyword_avoid.contains(result)))
+        if (make_unique && used_names.contains(result))
             result += get_id()
         ast_name_map.set(node, result)
         used_names.add(result)

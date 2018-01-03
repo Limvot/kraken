@@ -462,6 +462,7 @@ fun run_on_tree_helper(func_before: fun(*ast_node,*stack<*ast_node>,*hash_set<*a
             ast_node::assignment_statement(backing)     get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, visited);)
             ast_node::declaration_statement(backing)    get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, visited);)
             ast_node::if_comp(backing)                  get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, visited);)
+            ast_node::compiler_intrinsic(backing)       get_ast_children(node).for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, visited);)
             ast_node::function_call(backing) {
                 run_on_tree_helper(func_before, func_after, backing.func, parent_chain, visited)
                 node->function_call.parameters.for_each(fun(n: *ast_node) run_on_tree_helper(func_before, func_after, n, parent_chain, visited);)

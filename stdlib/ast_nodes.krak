@@ -11,11 +11,6 @@ import mem:*
 import io:*
 import type:*
 
-
-
-
-
-
 adt ast_node {
     translation_unit: translation_unit,
     import: import,
@@ -1097,7 +1092,7 @@ fun get_ast_children(node: *ast_node): vector<*ast_node> {
         ast_node::if_comp(backing) return vector<*ast_node>(backing.statement)
         ast_node::simple_passthrough(backing) return vector<*ast_node>()
         ast_node::function_call(backing) return vector(backing.func) + backing.parameters
-        ast_node::compiler_intrinsic(backing) return vector<*ast_node>()
+        ast_node::compiler_intrinsic(backing) return backing.parameters
         ast_node::cast(backing) return vector<*ast_node>(backing.value)
         ast_node::value(backing) return vector<*ast_node>()
     }
