@@ -1,0 +1,189 @@
+import io:*
+import mem:*
+import map:*
+import hash_map:*
+import stack:*
+import string:*
+import util:*
+import tree:*
+import symbol:*
+import ast_nodes:*
+// for error with syntax tree
+import pass_common:*
+import poset:*
+
+
+adt byte_inst {
+    nop
+}
+
+fun bytecode_to_string(bytecode: ref vector<byte_inst>): string {
+    var res = string()
+    bytecode.for_each(fun(b: byte_inst) {
+        match (b) {
+            byte_inst::nop() res += "nop"
+        }
+        res += "\n"
+    })
+    return res
+}
+
+fun generate_bytecode(name_ast_map: ref map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: ref map<*ast_node, *tree<symbol>> ): vector<byte_inst> {
+    var generator.construct(): bytecode_generator
+    return generator.generate_bytecode(name_ast_map, ast_to_syntax_in)
+}
+
+obj bytecode_generator (Object) {
+    var id_counter: int
+    var ast_name_map: hash_map<*ast_node, string>
+    var bytecode: vector<byte_inst>
+    fun construct(): *bytecode_generator {
+        id_counter = 0
+        ast_name_map.construct()
+        bytecode.construct()
+
+        return this
+    }
+    fun copy_construct(old: *bytecode_generator) {
+        id_counter = old->id_counter
+        ast_name_map.copy_construct(&old->ast_name_map)
+        bytecode.copy_construct(&old->bytecode)
+    }
+    fun operator=(other: ref bytecode_generator) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+        ast_name_map.destruct()
+        bytecode.destruct()
+    }
+    fun get_id(): string return to_string(id_counter++);
+    fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>> ): vector<byte_inst> {
+
+        // iterate through asts
+        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
+            // iterate through children for each ast
+            // do lambdas seperatly, so we can reconstitute the enclosing object if it has one
+            tree_pair.second->translation_unit.lambdas.for_each(fun(child: *ast_node) {
+                generate_function_definition(child)
+            })
+            tree_pair.second->translation_unit.children.for_each(fun(child: *ast_node) {
+                match (*child) {
+                    ast_node::declaration_statement(backing)    generate_declaration_statement(child)
+                    ast_node::compiler_intrinsic(backing)       generate_compiler_intrinsic(child)
+                    ast_node::function(backing)                 generate_function_definition(child)
+                    ast_node::template(backing) {
+                        backing.instantiated.for_each(fun(node: *ast_node) {
+                            match (*node) {
+                                ast_node::function(backing) generate_function_definition(node)
+                                ast_node::type_def(backing) {
+                                    backing.methods.for_each(fun(method: *ast_node) {
+                                        if (is_template(method))
+                                            method->template.instantiated.for_each(fun(m: *ast_node) generate_function_definition(m);)
+                                        else
+                                            generate_function_definition(method)
+                                    })
+                                }
+                            }
+                        })
+                    }
+                    ast_node::type_def(backing) {
+                        backing.methods.for_each(fun(method: *ast_node) {
+                            if (is_template(method))
+                                method->template.instantiated.for_each(fun(m: *ast_node) generate_function_definition(m);)
+                            else
+                                generate_function_definition(method)
+                        })
+                    }
+                }
+            })
+        })
+        return bytecode
+    }
+    fun generate_function_definition(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+    fun generate_declaration_statement(node: *ast_node) {
+        var identifier = node->declaration_statement.identifier
+        var ident_type = identifier->identifier.type
+        if (identifier->identifier.is_extern)
+            bytecode.add(byte_inst::nop())
+        if (node->declaration_statement.expression) {
+            bytecode.add(byte_inst::nop())
+        }
+    }
+    fun generate_assignment_statement(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+    fun generate_if_statement(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+    fun generate_while_loop(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+    fun generate_for_loop(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+    fun generate_identifier(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+    fun generate_return_statement(node: *ast_node) {
+        if (node->return_statement.return_value)
+            bytecode.add(byte_inst::nop())
+        else
+            bytecode.add(byte_inst::nop())
+    }
+    fun generate_branching_statement(node: *ast_node) {
+        match(node->branching_statement.b_type) {
+            branching_type::break_stmt()    bytecode.add(byte_inst::nop())
+            branching_type::continue_stmt() bytecode.add(byte_inst::nop())
+        }
+    }
+    fun generate_cast(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+    fun generate_value(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+    fun generate_code_block(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+    // this generates the function as a value, not the actual function
+    fun generate_function(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+    fun generate_function_call(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+
+    fun generate_compiler_intrinsic(node: *ast_node) {
+        bytecode.add(byte_inst::nop())
+    }
+
+    fun generate(node: *ast_node) {
+        match (*node) {
+            ast_node::declaration_statement(backing)    generate_declaration_statement(node)
+            ast_node::assignment_statement(backing)     generate_assignment_statement(node)
+            ast_node::if_statement(backing)             generate_if_statement(node)
+            ast_node::while_loop(backing)               generate_while_loop(node)
+            ast_node::for_loop(backing)                 generate_for_loop(node)
+            ast_node::function(backing)                 generate_function(node)
+            ast_node::function_call(backing)            generate_function_call(node)
+            ast_node::compiler_intrinsic(backing)       generate_compiler_intrinsic(node)
+            ast_node::code_block(backing)               generate_code_block(node)
+            ast_node::return_statement(backing)         generate_return_statement(node)
+            ast_node::branching_statement(backing)      generate_branching_statement(node)
+            ast_node::cast(backing)                     generate_cast(node)
+            ast_node::value(backing)                    generate_value(node)
+            ast_node::identifier(backing)               generate_identifier(node)
+        }
+    }
+    fun get_name(node: *ast_node): string {
+        var maybe_it = ast_name_map.get_ptr_or_null(node);
+        if (maybe_it)
+            return *maybe_it
+        var result = "name" + get_id()
+        ast_name_map.set(node, result)
+        return result
+    }
+}

@@ -10,6 +10,7 @@ import io:*
 import ast_nodes:*
 import ast_transformation:*
 import hash_set:*
+import os:*
 
 import pass_common:*
 
@@ -88,6 +89,7 @@ fun in_scope_chain(node: *ast_node, high_scope: *ast_node): bool {
 }
 
 fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+    var curr_time = get_time()
     var visited = hash_set<*ast_node>()
     var lambdas = set<*ast_node>()
     name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
@@ -135,6 +137,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         }
         run_on_tree(helper_before, empty_pass_second_half(), syntax_ast_pair.second, &visited)
     })
+    curr_time = split(curr_time, "\tclosed_over_uses + function_value_call_points")
 
     var void_ptr = type_ptr(base_type::void_return(), 1)
     var lambda_type_to_struct_type_and_call_func = map<type, pair<*type, *ast_node>>(); //freaking vexing parse moved
@@ -144,6 +147,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         return set<*type>()
     })
     var all_type_values = all_types.map(fun(t: *type): type return *t;)
+    curr_time = split(curr_time, "\tall types/all type values")
     all_type_values.for_each(fun(t: type) {
         if (t.is_function() && t.indirection == 0 && !t.is_raw && !lambda_type_to_struct_type_and_call_func.contains_key(t)) {
             var cleaned = t.clone()
@@ -197,6 +201,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
             name_ast_map->values.first().second->translation_unit.children.add(lambda_call_function)
         }
     })
+    curr_time = split(curr_time, "\tall type values forEach")
 
     var lambda_creation_funcs = map<*ast_node, *ast_node>()
     // create the closure type for each lambda
@@ -258,12 +263,14 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         lambda_creation_funcs[l]->function.body_statement = body
         name_ast_map->values.first().second->translation_unit.children.add(lambda_creation_funcs[l])
     })
+    curr_time = split(curr_time, "\tlambdas forEach")
     function_value_call_points.for_each(fun(p: function_parent_block) {
         // parent is the function call
         var function_struct = p.function
         p.parent->function_call.func = lambda_type_to_struct_type_and_call_func[*get_ast_type(p.function)].second
         p.parent->function_call.parameters.add(0, function_struct)
     })
+    curr_time = split(curr_time, "\tfunction_value_call_points.forEach")
     function_value_creation_points.for_each(fun(p: function_parent_block) {
         var lambda_creation_params = vector<*ast_node>()
         // add the declaration of the closure struct to the enclosing code block
@@ -284,11 +291,13 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         var func_call = ast_function_call_ptr(lambda_creation_funcs[p.function], lambda_creation_params)
         replace_with_in(p.function, func_call, p.parent)
     })
+    curr_time = split(curr_time, "\tfunction_value_creation_points.forEach")
     lambdas.for_each(fun(l: *ast_node) l->function.type = l->function.type->clone();)
     all_types.for_each(fun(t: *type) {
         if (lambda_type_to_struct_type_and_call_func.contains_key(*t))
             *t = *lambda_type_to_struct_type_and_call_func[*t].first
     })
+    curr_time = split(curr_time, "\tlambdas.for_each")
     closed_over_uses.for_each(fun(p: pair<*ast_node, pair<*ast_node, *ast_node>>) {
         var variable = p.first
         var parent = p.second.first
@@ -296,9 +305,11 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         var closure_param = lambda->function.parameters[0]
         replace_with_in(variable, make_operator_call("*", vector(access_expression(closure_param, variable->identifier.name))), parent)
     })
+    curr_time = split(curr_time, "\tclosed_over_uses")
     // now we can make them raw
     lambdas.for_each(fun(l: *ast_node) {
         l->function.type->is_raw = true;
     })
+    curr_time = split(curr_time, "\tlambdas is raw")
 }
 

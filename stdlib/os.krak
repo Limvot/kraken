@@ -22,3 +22,11 @@ fun from_system_command(command: string, line_size: int): string {
     pclose(p)
     return to_ret
 }
+fun get_time(): long { return string_to_num<long>(from_system_command(string("date +%s"), 50)); }
+fun split(time: long, split_label: *char): long {
+    var new_time = get_time()
+    print(string(split_label) + ": ")
+    println(new_time - time)
+    return new_time
+}
+

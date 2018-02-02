@@ -8,6 +8,7 @@ import symbol:*
 import tree:*
 import serialize:*
 import interpreter:*
+import bytecode_generator:*
 import os:*
 import ast_transformation:*
 import importer:*
@@ -25,6 +26,7 @@ import vector:*
 import set:*
 
 fun main(argc: int, argv: **char):int {
+    var curr_time = get_time()
     // delay construction until we either load it or copy construct it
     var gram: grammer
     var base_dir = string("/").join(string(argv[0]).split('/').slice(0,-2))
@@ -103,6 +105,7 @@ fun main(argc: int, argv: **char):int {
         println("calculated, writing out")
         write_file_binary(compiled_name, serialize(compiled_version) + serialize(file_contents) + serialize(gram))
         println("done writing")
+        curr_time = split(curr_time, "Grammer regen")
     }
 
     var lex = lexer(gram.terminals)
@@ -140,57 +143,71 @@ fun main(argc: int, argv: **char):int {
     var executable_name = string(".").join(kraken_file_name.split('.').slice(0,-2))
     if (positional_args.size > 1)
         executable_name = positional_args[1]
+    curr_time = split(curr_time, "Finish setup")
     var name_ast_map = import(kraken_file_name, parsers, ast_pass, vector(string(), base_dir + "/stdlib/"))
+    curr_time = split(curr_time, "Import")
     // Passes
     /*printlnerr("Counting Nodes")*/
     /*node_counter(&name_ast_map, &ast_pass.ast_to_syntax)*/
-    printlnerr("Lowering ADTs")
+    /*printlnerr("Lowering ADTs")*/
     adt_lower(&name_ast_map, &ast_pass.ast_to_syntax)
+    curr_time = split(curr_time, "Lowering ADTs")
     /*printlnerr("Counting Nodes")*/
     /*node_counter(&name_ast_map, &ast_pass.ast_to_syntax)*/
-    printlnerr("Lowering Objects")
+    /*printlnerr("Lowering Objects")*/
     obj_lower(&name_ast_map, &ast_pass.ast_to_syntax)
+    curr_time = split(curr_time, "Lowering Objects")
     /*printlnerr("Counting Nodes")*/
     /*node_counter(&name_ast_map, &ast_pass.ast_to_syntax)*/
-    printlnerr("Lowering Defer")
+    /*printlnerr("Lowering Defer")*/
     defer_lower(&name_ast_map, &ast_pass.ast_to_syntax)
+    curr_time = split(curr_time, "Lowering Defer")
     /*printlnerr("Counting Nodes")*/
     /*node_counter(&name_ast_map, &ast_pass.ast_to_syntax)*/
     // Should come after lowering of ADTs and before lowering of Refs
-    printlnerr("Lowering Function Values (Lambdas, etc)")
+    /*printlnerr("Lowering Function Values (Lambdas, etc)")*/
     function_value_lower(&name_ast_map, &ast_pass.ast_to_syntax)
+    curr_time = split(curr_time, "Lowering Function Values (Lambdas, etc)")
     /*printlnerr("Counting Nodes")*/
     /*node_counter(&name_ast_map, &ast_pass.ast_to_syntax)*/
-    printlnerr("Lowering Ref")
+    /*printlnerr("Lowering Ref")*/
     ref_lower(&name_ast_map, &ast_pass.ast_to_syntax)
+    curr_time = split(curr_time, "Lowering Ref")
     /*printlnerr("Counting Nodes")*/
     /*node_counter(&name_ast_map, &ast_pass.ast_to_syntax)*/
     // Lowers #ctce and the current #ctce_pass
-    printlnerr("Lowering CTCE")
+    /*printlnerr("Lowering CTCE")*/
     ctce_lower(&name_ast_map, &ast_pass.ast_to_syntax)
+    curr_time = split(curr_time, "Lowering CTCE")
     /*printlnerr("Counting Nodes")*/
     /*node_counter(&name_ast_map, &ast_pass.ast_to_syntax)*/
     // Makes sure that & always takes reference to a variable
-    printlnerr("Lowering & to always have variable")
+    /*printlnerr("Lowering & to always have variable")*/
     address_of_ensure_variable_lower(&name_ast_map, &ast_pass.ast_to_syntax)
+    curr_time = split(curr_time, "Lowering & to always have variable")
     if (interpret_instead) {
-        printlnerr("Interpreting!")
-        call_main(name_ast_map)
+        /*printlnerr("Interpreting!")*/
+        /*call_main(name_ast_map)*/
+        printlnerr("Generating bytecode!")
+        var bytecode = generate_bytecode(name_ast_map, ast_pass.ast_to_syntax)
+        printlnerr(bytecode_to_string(bytecode))
     } else {
         if (line_ctrl) {
             printlnerr("running C-specific passes")
             printlnerr("running #line")
             c_line_control(&name_ast_map, &ast_pass.ast_to_syntax)
         }
-        printlnerr("Generating C")
+        /*printlnerr("Generating C")*/
         var c_generator.construct(): c_generator
         var c_output_pair = c_generator.generate_c(name_ast_map, ast_pass.ast_to_syntax)
         var kraken_c_output_name = kraken_file_name + ".c"
         write_file(kraken_c_output_name, c_output_pair.first)
+        curr_time = split(curr_time, "Generating C")
         if (compile_c) {
             var compile_string = "cc -g " + opt_str + " -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -Wno-incompatible-pointer-types -std=c99 " + c_output_pair.second + " " + kraken_c_output_name + " -o " + executable_name
             printlnerr(compile_string)
             system(compile_string)
+            curr_time = split(curr_time, "Compiling C")
         }
     }
 
