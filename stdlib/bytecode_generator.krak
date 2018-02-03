@@ -14,40 +14,106 @@ import poset:*
 
 
 adt byte_inst {
-    nop
+    nop,
+    imm: imm,
+    ld: ld,
+    st: st,
+    call,
+    ret: ret
+}
+obj imm {
+    var reg: int
+    var val: int
+}
+obj ld {
+    var reg: int
+}
+obj st {
+    var to_reg: int
+    var from_reg: int
+}
+obj ret {
+    var reg: int
 }
 
-fun bytecode_to_string(bytecode: ref vector<byte_inst>): string {
-    var res = string()
-    bytecode.for_each(fun(b: byte_inst) {
-        match (b) {
-            byte_inst::nop() res += "nop"
-        }
-        res += "\n"
-    })
-    return res
+fun to_string(b: byte_inst): string {
+    match (b) {
+        byte_inst::nop()  return string("nop")
+        byte_inst::imm(i) return to_string(i.reg) + " = imm " + i.val
+        byte_inst::ld(l)  return to_string(l.reg) + " = ld "
+        byte_inst::st(s)  return string("st(") + s.to_reg + " <= " + s.from_reg + ")"
+        byte_inst::call() return string("call")
+        byte_inst::ret(r) return string("ret ") + r.reg
+    }
+    return string("Missed byte_inst case in to_string")
 }
 
-fun generate_bytecode(name_ast_map: ref map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: ref map<*ast_node, *tree<symbol>> ): vector<byte_inst> {
+fun bytecode_to_string(bytecode: ref vector<basic_block>): string {
+    return string("\n").join(bytecode.map(fun(bb: ref basic_block): string return bb.to_string();))
+}
+
+fun basic_block(name: ref string): basic_block {
+    var to_ret.construct(name): basic_block
+    return to_ret
+}
+obj basic_block (Object) {
+    var name: string
+    var instructions: vector<byte_inst>
+
+    fun construct(): *basic_block {
+        instructions.construct()
+        name.construct()
+        return this
+    }
+    fun construct(name_in: ref string): *basic_block {
+        instructions.construct()
+        name.copy_construct(&name_in)
+        return this
+    }
+    fun copy_construct(old: *basic_block) {
+        instructions.copy_construct(&old->instructions)
+        name.copy_construct(&old->name)
+    }
+    fun operator=(other: ref basic_block) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+        instructions.destruct()
+        name.destruct()
+    }
+    fun to_string(): string {
+        var res = name + ":\n"
+        instructions.for_each(fun(b: byte_inst) {
+            res += "\t" + to_string(b) + "\n"
+        })
+        return res
+    }
+}
+
+fun generate_bytecode(name_ast_map: ref map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: ref map<*ast_node, *tree<symbol>> ): vector<basic_block> {
     var generator.construct(): bytecode_generator
     return generator.generate_bytecode(name_ast_map, ast_to_syntax_in)
 }
 
 obj bytecode_generator (Object) {
+    var reg_counter: int
     var id_counter: int
     var ast_name_map: hash_map<*ast_node, string>
-    var bytecode: vector<byte_inst>
+    var blocks: vector<basic_block>
     fun construct(): *bytecode_generator {
+        reg_counter = 0
         id_counter = 0
         ast_name_map.construct()
-        bytecode.construct()
+        blocks.construct()
 
         return this
     }
     fun copy_construct(old: *bytecode_generator) {
+        reg_counter = old->reg_counter
         id_counter = old->id_counter
         ast_name_map.copy_construct(&old->ast_name_map)
-        bytecode.copy_construct(&old->bytecode)
+        blocks.copy_construct(&old->blocks)
     }
     fun operator=(other: ref bytecode_generator) {
         destruct()
@@ -55,10 +121,11 @@ obj bytecode_generator (Object) {
     }
     fun destruct() {
         ast_name_map.destruct()
-        bytecode.destruct()
+        blocks.destruct()
     }
     fun get_id(): string return to_string(id_counter++);
-    fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>> ): vector<byte_inst> {
+    fun get_reg(): int return reg_counter++;
+    fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>> ): vector<basic_block> {
 
         // iterate through asts
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
@@ -98,92 +165,149 @@ obj bytecode_generator (Object) {
                 }
             })
         })
-        return bytecode
+        return blocks
     }
-    fun generate_function_definition(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
+    fun generate_function_definition(node: *ast_node): int {
+        blocks.add(basic_block(get_name(node)))
+        generate(node->function.body_statement)
+        return -1
     }
-    fun generate_declaration_statement(node: *ast_node) {
+    fun generate_declaration_statement(node: *ast_node): int {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
-        if (identifier->identifier.is_extern)
-            bytecode.add(byte_inst::nop())
+        if (identifier->identifier.is_extern) {
+        }
         if (node->declaration_statement.expression) {
-            bytecode.add(byte_inst::nop())
+            generate(node->declaration_statement.expression)
         }
+        return -1
     }
-    fun generate_assignment_statement(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
+    fun generate_assignment_statement(node: *ast_node): int {
+        var to   = generate(node->assignment_statement.to)
+        var from = generate(node->assignment_statement.from)
+        emit_st(to, from)
+        return -1
     }
-    fun generate_if_statement(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
+    fun generate_if_statement(node: *ast_node): int {
+        generate(node->if_statement.condition)
+        generate(node->if_statement.then_part)
+        if (node->if_statement.else_part)
+            generate(node->if_statement.else_part)
+        return -1
     }
-    fun generate_while_loop(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
+    fun generate_while_loop(node: *ast_node): int {
+        generate(node->while_loop.condition)
+        generate(node->while_loop.statement)
+        return -1
     }
-    fun generate_for_loop(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
+    fun generate_for_loop(node: *ast_node): int {
+        if (node->for_loop.init)
+            generate(node->for_loop.init)
+        if (node->for_loop.condition)
+            generate(node->for_loop.condition)
+        if (node->for_loop.update)
+            generate(node->for_loop.update)
+        generate(node->for_loop.body)
+        return -1
     }
-    fun generate_identifier(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
+    fun generate_identifier(node: *ast_node): int {
+        return emit_ld()
     }
-    fun generate_return_statement(node: *ast_node) {
+    fun generate_return_statement(node: *ast_node): int {
         if (node->return_statement.return_value)
-            bytecode.add(byte_inst::nop())
+            emit_ret(generate(node->return_statement.return_value))
         else
-            bytecode.add(byte_inst::nop())
+            emit_ret(-1)
+        return -1
     }
-    fun generate_branching_statement(node: *ast_node) {
+    fun generate_branching_statement(node: *ast_node): int {
         match(node->branching_statement.b_type) {
-            branching_type::break_stmt()    bytecode.add(byte_inst::nop())
-            branching_type::continue_stmt() bytecode.add(byte_inst::nop())
+            branching_type::break_stmt()    blocks.last().instructions.add(byte_inst::nop())
+            branching_type::continue_stmt() blocks.last().instructions.add(byte_inst::nop())
         }
+        return -1
     }
-    fun generate_cast(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
+    fun generate_cast(node: *ast_node): int {
+        return generate(node->cast.value)
     }
-    fun generate_value(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
+    fun generate_value(node: *ast_node): int {
+        return emit_imm(string_to_num<int>(node->value.string_value))
     }
-    fun generate_code_block(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
+    fun generate_code_block(node: *ast_node): int {
+        node->code_block.children.for_each(fun(child: *ast_node) generate(child);)
+        return -1
     }
     // this generates the function as a value, not the actual function
-    fun generate_function(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
+    fun generate_function(node: *ast_node): int {
+        return emit_imm(-2)
     }
-    fun generate_function_call(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
-    }
-
-    fun generate_compiler_intrinsic(node: *ast_node) {
-        bytecode.add(byte_inst::nop())
+    fun generate_function_call(node: *ast_node): int {
+        node->function_call.parameters.for_each(fun(child: *ast_node) generate(child);)
+        return emit_call()
     }
 
-    fun generate(node: *ast_node) {
+    fun generate_compiler_intrinsic(node: *ast_node): int {
+        blocks.last().instructions.add(byte_inst::nop())
+        return -1
+    }
+
+    fun generate(node: *ast_node): int {
         match (*node) {
-            ast_node::declaration_statement(backing)    generate_declaration_statement(node)
-            ast_node::assignment_statement(backing)     generate_assignment_statement(node)
-            ast_node::if_statement(backing)             generate_if_statement(node)
-            ast_node::while_loop(backing)               generate_while_loop(node)
-            ast_node::for_loop(backing)                 generate_for_loop(node)
-            ast_node::function(backing)                 generate_function(node)
-            ast_node::function_call(backing)            generate_function_call(node)
-            ast_node::compiler_intrinsic(backing)       generate_compiler_intrinsic(node)
-            ast_node::code_block(backing)               generate_code_block(node)
-            ast_node::return_statement(backing)         generate_return_statement(node)
-            ast_node::branching_statement(backing)      generate_branching_statement(node)
-            ast_node::cast(backing)                     generate_cast(node)
-            ast_node::value(backing)                    generate_value(node)
-            ast_node::identifier(backing)               generate_identifier(node)
+            ast_node::declaration_statement(backing)    return generate_declaration_statement(node)
+            ast_node::assignment_statement(backing)     return generate_assignment_statement(node)
+            ast_node::if_statement(backing)             return generate_if_statement(node)
+            ast_node::while_loop(backing)               return generate_while_loop(node)
+            ast_node::for_loop(backing)                 return generate_for_loop(node)
+            ast_node::function(backing)                 return generate_function(node)
+            ast_node::function_call(backing)            return generate_function_call(node)
+            ast_node::compiler_intrinsic(backing)       return generate_compiler_intrinsic(node)
+            ast_node::code_block(backing)               return generate_code_block(node)
+            ast_node::return_statement(backing)         return generate_return_statement(node)
+            ast_node::branching_statement(backing)      return generate_branching_statement(node)
+            ast_node::cast(backing)                     return generate_cast(node)
+            ast_node::value(backing)                    return generate_value(node)
+            ast_node::identifier(backing)               return generate_identifier(node)
         }
+        error("Bad node")
     }
     fun get_name(node: *ast_node): string {
         var maybe_it = ast_name_map.get_ptr_or_null(node);
         if (maybe_it)
             return *maybe_it
-        var result = "name" + get_id()
+        var result = get_ast_name(node) + get_id()
+        if (is_function(node) && node->function.name == "main")
+            result = "main"
         ast_name_map.set(node, result)
         return result
+    }
+    fun emit_imm(value: int): int {
+        var i: imm
+        i.reg = get_reg()
+        i.val = value
+        blocks.last().instructions.add(byte_inst::imm(i))
+        return i.reg
+    }
+    fun emit_ld(): int {
+        var l: ld
+        l.reg = get_reg()
+        blocks.last().instructions.add(byte_inst::ld(l))
+        return l.reg
+    }
+    fun emit_st(to_reg: int, from_reg: int): int {
+        var s: st
+        s.to_reg = to_reg
+        s.from_reg = from_reg
+        blocks.last().instructions.add(byte_inst::st(s))
+        return -1
+    }
+    fun emit_ret(reg: int): int {
+        var r: ret
+        r.reg = reg
+        blocks.last().instructions.add(byte_inst::ret(r))
+        return -1
+    }
+    fun emit_call(): int {
+        blocks.last().instructions.add(byte_inst::call())
+        return -1
     }
 }
