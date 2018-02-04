@@ -16,6 +16,7 @@ import poset:*
 adt byte_inst {
     nop,
     imm: imm,
+    alloca: alloca,
     ld: ld,
     st: st,
     call,
@@ -25,8 +26,14 @@ obj imm {
     var reg: int
     var val: int
 }
-obj ld {
+obj alloca {
     var reg: int
+    var ident: *ast_node
+}
+obj ld {
+    var to_reg: int
+    var from_reg: int
+    var ident: *ast_node
 }
 obj st {
     var to_reg: int
@@ -38,12 +45,13 @@ obj ret {
 
 fun to_string(b: byte_inst): string {
     match (b) {
-        byte_inst::nop()  return string("nop")
-        byte_inst::imm(i) return to_string(i.reg) + " = imm " + i.val
-        byte_inst::ld(l)  return to_string(l.reg) + " = ld "
-        byte_inst::st(s)  return string("st(") + s.to_reg + " <= " + s.from_reg + ")"
-        byte_inst::call() return string("call")
-        byte_inst::ret(r) return string("ret ") + r.reg
+        byte_inst::nop()     return string("nop")
+        byte_inst::imm(i)    return string("r") + i.reg + " = imm " + i.val
+        byte_inst::alloca(a) return string("r") + a.reg + " = alloca(" + a.ident->identifier.name + ")"
+        byte_inst::ld(l)     return string("r") + l.to_reg + " = ld r" + l.from_reg + " (" + l.ident->identifier.name + ")"
+        byte_inst::st(s)     return string("st(r") + s.to_reg + " <= r" + s.from_reg + ")"
+        byte_inst::call()    return string("call")
+        byte_inst::ret(r)    return string("ret r") + r.reg
     }
     return string("Missed byte_inst case in to_string")
 }
@@ -91,20 +99,17 @@ obj basic_block (Object) {
     }
 }
 
-fun generate_bytecode(name_ast_map: ref map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: ref map<*ast_node, *tree<symbol>> ): vector<basic_block> {
-    var generator.construct(): bytecode_generator
-    return generator.generate_bytecode(name_ast_map, ast_to_syntax_in)
-}
-
 obj bytecode_generator (Object) {
     var reg_counter: int
     var id_counter: int
     var ast_name_map: hash_map<*ast_node, string>
+    var var_to_reg: map<*ast_node, int>
     var blocks: vector<basic_block>
     fun construct(): *bytecode_generator {
         reg_counter = 0
         id_counter = 0
         ast_name_map.construct()
+        var_to_reg.construct()
         blocks.construct()
 
         return this
@@ -113,6 +118,7 @@ obj bytecode_generator (Object) {
         reg_counter = old->reg_counter
         id_counter = old->id_counter
         ast_name_map.copy_construct(&old->ast_name_map)
+        var_to_reg.copy_construct(&old->var_to_reg)
         blocks.copy_construct(&old->blocks)
     }
     fun operator=(other: ref bytecode_generator) {
@@ -121,11 +127,12 @@ obj bytecode_generator (Object) {
     }
     fun destruct() {
         ast_name_map.destruct()
+        var_to_reg.destruct()
         blocks.destruct()
     }
     fun get_id(): string return to_string(id_counter++);
     fun get_reg(): int return reg_counter++;
-    fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>> ): vector<basic_block> {
+    fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): vector<basic_block> {
 
         // iterate through asts
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
@@ -169,21 +176,23 @@ obj bytecode_generator (Object) {
     }
     fun generate_function_definition(node: *ast_node): int {
         blocks.add(basic_block(get_name(node)))
+        node->function.parameters.for_each(fun(p: *ast_node) {
+            var_to_reg[p] = emit_alloca(p)
+        })
         generate(node->function.body_statement)
         return -1
     }
     fun generate_declaration_statement(node: *ast_node): int {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
-        if (identifier->identifier.is_extern) {
-        }
+        var_to_reg[identifier] = emit_alloca(identifier)
         if (node->declaration_statement.expression) {
-            generate(node->declaration_statement.expression)
+            emit_st(var_to_reg[identifier], generate(node->declaration_statement.expression))
         }
         return -1
     }
     fun generate_assignment_statement(node: *ast_node): int {
-        var to   = generate(node->assignment_statement.to)
+        var to   = generate(node->assignment_statement.to, true)
         var from = generate(node->assignment_statement.from)
         emit_st(to, from)
         return -1
@@ -210,8 +219,11 @@ obj bytecode_generator (Object) {
         generate(node->for_loop.body)
         return -1
     }
-    fun generate_identifier(node: *ast_node): int {
-        return emit_ld()
+    fun generate_identifier(node: *ast_node, lvalue: bool): int {
+        if (lvalue)
+            return var_to_reg[node]
+        else
+            return emit_ld(node)
     }
     fun generate_return_statement(node: *ast_node): int {
         if (node->return_statement.return_value)
@@ -241,7 +253,7 @@ obj bytecode_generator (Object) {
     fun generate_function(node: *ast_node): int {
         return emit_imm(-2)
     }
-    fun generate_function_call(node: *ast_node): int {
+    fun generate_function_call(node: *ast_node, lvalue: bool): int {
         node->function_call.parameters.for_each(fun(child: *ast_node) generate(child);)
         return emit_call()
     }
@@ -251,7 +263,8 @@ obj bytecode_generator (Object) {
         return -1
     }
 
-    fun generate(node: *ast_node): int {
+    fun generate(node: *ast_node): int return generate(node, false)
+    fun generate(node: *ast_node, lvalue: bool): int {
         match (*node) {
             ast_node::declaration_statement(backing)    return generate_declaration_statement(node)
             ast_node::assignment_statement(backing)     return generate_assignment_statement(node)
@@ -259,14 +272,14 @@ obj bytecode_generator (Object) {
             ast_node::while_loop(backing)               return generate_while_loop(node)
             ast_node::for_loop(backing)                 return generate_for_loop(node)
             ast_node::function(backing)                 return generate_function(node)
-            ast_node::function_call(backing)            return generate_function_call(node)
+            ast_node::function_call(backing)            return generate_function_call(node, lvalue)
             ast_node::compiler_intrinsic(backing)       return generate_compiler_intrinsic(node)
             ast_node::code_block(backing)               return generate_code_block(node)
             ast_node::return_statement(backing)         return generate_return_statement(node)
             ast_node::branching_statement(backing)      return generate_branching_statement(node)
             ast_node::cast(backing)                     return generate_cast(node)
             ast_node::value(backing)                    return generate_value(node)
-            ast_node::identifier(backing)               return generate_identifier(node)
+            ast_node::identifier(backing)               return generate_identifier(node, lvalue)
         }
         error("Bad node")
     }
@@ -287,11 +300,20 @@ obj bytecode_generator (Object) {
         blocks.last().instructions.add(byte_inst::imm(i))
         return i.reg
     }
-    fun emit_ld(): int {
+    fun emit_alloca(node: *ast_node): int {
+        var a: alloca
+        a.reg = get_reg()
+        a.ident = node
+        blocks.last().instructions.add(byte_inst::alloca(a))
+        return a.reg
+    }
+    fun emit_ld(node: *ast_node): int {
         var l: ld
-        l.reg = get_reg()
+        l.to_reg = get_reg()
+        l.from_reg = var_to_reg[node]
+        l.ident = node
         blocks.last().instructions.add(byte_inst::ld(l))
-        return l.reg
+        return l.to_reg
     }
     fun emit_st(to_reg: int, from_reg: int): int {
         var s: st
@@ -308,6 +330,26 @@ obj bytecode_generator (Object) {
     }
     fun emit_call(): int {
         blocks.last().instructions.add(byte_inst::call())
+        return -1
+    }
+
+    fun evaluate(): int {
+        println("evaling main")
+        var main_entry = blocks.find_first_satisfying(fun(block: basic_block): bool return block.name == "main";)
+        var registers.construct(reg_counter): vector<int>
+        registers.size = reg_counter
+        var stack_mem.construct(): vector<int>
+        for (var i = 0; i < main_entry.instructions.size; i++;) {
+            match(main_entry.instructions[i]) {
+                byte_inst::nop()     {}
+                byte_inst::imm(i)    registers[i.reg] = i.val
+                byte_inst::alloca(a) { stack_mem.add(0); registers[a.reg] = stack_mem.size -1; }
+                byte_inst::ld(l)     registers[l.to_reg] = stack_mem[registers[l.from_reg]]
+                byte_inst::st(s)     stack_mem[registers[s.to_reg]] = registers[s.from_reg]
+                byte_inst::call()    error("call")
+                byte_inst::ret(r)    return registers[r.reg]
+            }
+        }
         return -1
     }
 }

@@ -189,8 +189,11 @@ fun main(argc: int, argv: **char):int {
         /*printlnerr("Interpreting!")*/
         /*call_main(name_ast_map)*/
         printlnerr("Generating bytecode!")
-        var bytecode = generate_bytecode(name_ast_map, ast_pass.ast_to_syntax)
+        var generator.construct(): bytecode_generator
+        var bytecode = generator.generate_bytecode(name_ast_map)
         printlnerr(bytecode_to_string(bytecode))
+        printlnerr("return code is ")
+        printlnerr(to_string(generator.evaluate()))
     } else {
         if (line_ctrl) {
             printlnerr("running C-specific passes")
