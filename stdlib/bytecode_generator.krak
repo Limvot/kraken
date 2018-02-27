@@ -12,88 +12,160 @@ import ast_nodes:*
 import pass_common:*
 import poset:*
 
+fun type_size(t: *type): ulong
+    return type_size_and_alignment(t).first
+fun type_size_and_alignment(t: *type): pair<ulong,ulong> {
+    if (t->indirection)
+        return make_pair(#sizeof<*void>, #sizeof<*void>)
+    match (t->base) {
+        base_type::object() {
+            var total_size: ulong = 0
+            var max_size: ulong = 0
+            var max_align: ulong = 0
+            t->type_def->type_def.variables.for_each(fun(i: *ast_node) {
+                var individual = type_size_and_alignment(i->declaration_statement.identifier->identifier.type)
+                max_size = max(max_size, individual.first)
+                max_align = max(max_align, individual.second)
+                // increase total size by the individual size + padding to get alignment
+                var padding = 0
+                if (individual.second != 0)
+                    padding = (individual.second - (total_size % individual.second)) % individual.second
+                total_size += individual.first + padding
+            })
+            if (t->type_def->type_def.is_union)
+                total_size = max_size
+            // pad the end so that consecutive objects in memory are aligned
+            if (max_align != 0)
+                total_size += (max_align - (total_size % max_align)) % max_align
+            return make_pair(total_size, max_align)
+        }
+        base_type::function() return make_pair(#sizeof<*void>, #sizeof<*void>)
+        base_type::boolean() return make_pair(#sizeof<bool>, #sizeof<bool>)
+        base_type::character() return make_pair(#sizeof<char>, #sizeof<char>)
+        base_type::ucharacter() return make_pair(#sizeof<uchar>, #sizeof<uchar>)
+        base_type::short_int() return make_pair(#sizeof<short>, #sizeof<short>)
+        base_type::ushort_int() return make_pair(#sizeof<ushort>, #sizeof<ushort>)
+        base_type::integer() return make_pair(#sizeof<int>, #sizeof<int>)
+        base_type::uinteger() return make_pair(#sizeof<uint>, #sizeof<uint>)
+        base_type::long_int() return make_pair(#sizeof<long>, #sizeof<long>)
+        base_type::ulong_int() return make_pair(#sizeof<ulong>, #sizeof<ulong>)
+        base_type::floating() return make_pair(#sizeof<float>, #sizeof<float>)
+        base_type::double_precision() return make_pair(#sizeof<double>, #sizeof<double>)
+    }
+    error(string("Invalid type for type_size: ") + t->to_string())
+}
+
+fun offset_into_struct(struct_type: *type, ident: *ast_node): ulong {
+    var offset: ulong = 0
+    if (struct_type->type_def->type_def.is_union)
+        return offset
+    for (var i = 0; i < struct_type->type_def->type_def.variables.size; i++;) {
+        var size_and_align = type_size_and_alignment(struct_type->type_def->type_def.variables[i]->declaration_statement.identifier->identifier.type)
+        var align = size_and_align.second
+        if (align != 0)
+            offset += (align - (offset % align)) % align
+        if (struct_type->type_def->type_def.variables[i]->declaration_statement.identifier == ident)
+            break
+        else
+            offset += size_and_align.first
+    }
+    return offset
+}
 
 adt byte_inst {
     nop,
     imm: imm,
-    alloca: alloca,
-    ld: ld,
-    st: st,
+    add: add,
+    ldr: ldr,
+    str: str,
     call,
-    ret: ret
+    ret
 }
 obj imm {
     var reg: int
     var val: int
 }
-obj alloca {
-    var reg: int
-    var ident: *ast_node
+obj add {
+    var to_reg: int
+    var a: int
+    var b: int
 }
-obj ld {
+obj ldr {
     var to_reg: int
     var from_reg: int
-    var ident: *ast_node
+    var offset: int
 }
-obj st {
+obj str {
     var to_reg: int
+    var offset: int
     var from_reg: int
-}
-obj ret {
-    var reg: int
 }
 
 fun to_string(b: byte_inst): string {
     match (b) {
         byte_inst::nop()     return string("nop")
         byte_inst::imm(i)    return string("r") + i.reg + " = imm " + i.val
-        byte_inst::alloca(a) return string("r") + a.reg + " = alloca(" + a.ident->identifier.name + ")"
-        byte_inst::ld(l)     return string("r") + l.to_reg + " = ld r" + l.from_reg + " (" + l.ident->identifier.name + ")"
-        byte_inst::st(s)     return string("st(r") + s.to_reg + " <= r" + s.from_reg + ")"
+        byte_inst::add(a)    return string("r") + a.to_reg + " = r" + a.a + " + r" + a.b
+        byte_inst::ldr(l)    return string("r") + l.to_reg + " = ldr r" + l.from_reg + " (" + l.offset + ")"
+        byte_inst::str(s)    return string("str(r") + s.to_reg + "(" + s.offset + ") <= r" + s.from_reg + ")"
         byte_inst::call()    return string("call")
-        byte_inst::ret(r)    return string("ret r") + r.reg
+        byte_inst::ret()     return string("ret")
     }
     return string("Missed byte_inst case in to_string")
 }
 
-fun bytecode_to_string(bytecode: ref vector<basic_block>): string {
-    return string("\n").join(bytecode.map(fun(bb: ref basic_block): string return bb.to_string();))
+fun bytecode_to_string(bytecode: ref vector<bytecode_function>): string {
+    return string("\n").join(bytecode.map(fun(bb: ref bytecode_function): string return bb.to_string();))
 }
 
-fun basic_block(name: ref string): basic_block {
-    var to_ret.construct(name): basic_block
+fun bytecode_function(name: ref string): bytecode_function {
+    var to_ret.construct(name): bytecode_function
     return to_ret
 }
-obj basic_block (Object) {
+obj bytecode_function (Object) {
     var name: string
     var instructions: vector<byte_inst>
+    var var_to_frame_offset: map<*ast_node, int>
+    var frame_size: int
 
-    fun construct(): *basic_block {
+    fun construct(): *bytecode_function {
         instructions.construct()
         name.construct()
+        var_to_frame_offset.construct()
+        frame_size = 0
         return this
     }
-    fun construct(name_in: ref string): *basic_block {
+    fun construct(name_in: ref string): *bytecode_function {
         instructions.construct()
         name.copy_construct(&name_in)
+        var_to_frame_offset.construct()
+        frame_size = 0
         return this
     }
-    fun copy_construct(old: *basic_block) {
+    fun copy_construct(old: *bytecode_function) {
         instructions.copy_construct(&old->instructions)
         name.copy_construct(&old->name)
+        var_to_frame_offset.copy_construct(&old->var_to_frame_offset)
+        frame_size = old->frame_size
     }
-    fun operator=(other: ref basic_block) {
+    fun operator=(other: ref bytecode_function) {
         destruct()
         copy_construct(&other)
     }
     fun destruct() {
         instructions.destruct()
         name.destruct()
+        var_to_frame_offset.destruct()
     }
     fun to_string(): string {
-        var res = name + ":\n"
+        var res = name + "(frame size " + frame_size + "):\n"
+        res += "\t frame layout\n"
+        var_to_frame_offset.for_each(fun(n: *ast_node, o: int) {
+            res += "\t\t" + n->identifier.name + ": r0 + " + o
+        })
+        res += "\n\t bytecode\n"
         instructions.for_each(fun(b: byte_inst) {
-            res += "\t" + to_string(b) + "\n"
+            res += "\t\t" + to_string(b) + "\n"
         })
         return res
     }
@@ -101,25 +173,25 @@ obj basic_block (Object) {
 
 obj bytecode_generator (Object) {
     var reg_counter: int
+    var reg_max: int
     var id_counter: int
     var ast_name_map: hash_map<*ast_node, string>
-    var var_to_reg: map<*ast_node, int>
-    var blocks: vector<basic_block>
+    var functions: vector<bytecode_function>
     fun construct(): *bytecode_generator {
-        reg_counter = 0
         id_counter = 0
         ast_name_map.construct()
-        var_to_reg.construct()
-        blocks.construct()
+        functions.construct()
+        reg_counter = 1
+        reg_max = 1
 
         return this
     }
     fun copy_construct(old: *bytecode_generator) {
         reg_counter = old->reg_counter
+        reg_max = old->reg_max
         id_counter = old->id_counter
         ast_name_map.copy_construct(&old->ast_name_map)
-        var_to_reg.copy_construct(&old->var_to_reg)
-        blocks.copy_construct(&old->blocks)
+        functions.copy_construct(&old->functions)
     }
     fun operator=(other: ref bytecode_generator) {
         destruct()
@@ -127,12 +199,17 @@ obj bytecode_generator (Object) {
     }
     fun destruct() {
         ast_name_map.destruct()
-        var_to_reg.destruct()
-        blocks.destruct()
+        functions.destruct()
     }
     fun get_id(): string return to_string(id_counter++);
     fun get_reg(): int return reg_counter++;
-    fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): vector<basic_block> {
+    fun reset_reg() {
+        if (reg_counter > reg_max) {
+            reg_max = reg_counter
+        }
+        reg_counter = 1
+    }
+    fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): vector<bytecode_function> {
 
         // iterate through asts
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
@@ -172,12 +249,13 @@ obj bytecode_generator (Object) {
                 }
             })
         })
-        return blocks
+        return functions
     }
     fun generate_function_definition(node: *ast_node): int {
-        blocks.add(basic_block(get_name(node)))
+        functions.add(bytecode_function(get_name(node)))
         node->function.parameters.for_each(fun(p: *ast_node) {
-            var_to_reg[p] = emit_alloca(p)
+            functions.last().var_to_frame_offset[p] = functions.last().frame_size
+            functions.last().frame_size += type_size(p->identifier.type)
         })
         generate(node->function.body_statement)
         return -1
@@ -185,16 +263,17 @@ obj bytecode_generator (Object) {
     fun generate_declaration_statement(node: *ast_node): int {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
-        var_to_reg[identifier] = emit_alloca(identifier)
+        functions.last().var_to_frame_offset[identifier] = functions.last().frame_size
+        functions.last().frame_size += type_size(ident_type)
         if (node->declaration_statement.expression) {
-            emit_st(var_to_reg[identifier], generate(node->declaration_statement.expression))
+            emit_str(0, functions.last().var_to_frame_offset[identifier], generate(node->declaration_statement.expression))
         }
         return -1
     }
     fun generate_assignment_statement(node: *ast_node): int {
         var to   = generate(node->assignment_statement.to, true)
         var from = generate(node->assignment_statement.from)
-        emit_st(to, from)
+        emit_str(to, 0, from)
         return -1
     }
     fun generate_if_statement(node: *ast_node): int {
@@ -220,22 +299,25 @@ obj bytecode_generator (Object) {
         return -1
     }
     fun generate_identifier(node: *ast_node, lvalue: bool): int {
-        if (lvalue)
-            return var_to_reg[node]
-        else
-            return emit_ld(node)
+        if (lvalue) {
+            return emit_add(0, emit_imm(functions.last().var_to_frame_offset[node]))
+        } else {
+            return emit_ldr(0, functions.last().var_to_frame_offset[node])
+        }
     }
     fun generate_return_statement(node: *ast_node): int {
-        if (node->return_statement.return_value)
-            emit_ret(generate(node->return_statement.return_value))
-        else
-            emit_ret(-1)
+        if (node->return_statement.return_value) {
+            emit_str(0, -(type_size(get_ast_type(node->return_statement.return_value))) cast int / 4, generate(node->return_statement.return_value))
+            emit_ret()
+        } else {
+            emit_ret()
+        }
         return -1
     }
     fun generate_branching_statement(node: *ast_node): int {
         match(node->branching_statement.b_type) {
-            branching_type::break_stmt()    blocks.last().instructions.add(byte_inst::nop())
-            branching_type::continue_stmt() blocks.last().instructions.add(byte_inst::nop())
+            branching_type::break_stmt()    functions.last().instructions.add(byte_inst::nop())
+            branching_type::continue_stmt() functions.last().instructions.add(byte_inst::nop())
         }
         return -1
     }
@@ -246,7 +328,11 @@ obj bytecode_generator (Object) {
         return emit_imm(string_to_num<int>(node->value.string_value))
     }
     fun generate_code_block(node: *ast_node): int {
-        node->code_block.children.for_each(fun(child: *ast_node) generate(child);)
+        node->code_block.children.for_each(fun(child: *ast_node) {
+        // registers aren't used between statements (only stack reg)
+        reset_reg()
+        generate(child)
+        })
         return -1
     }
     // this generates the function as a value, not the actual function
@@ -259,7 +345,7 @@ obj bytecode_generator (Object) {
     }
 
     fun generate_compiler_intrinsic(node: *ast_node): int {
-        blocks.last().instructions.add(byte_inst::nop())
+        functions.last().instructions.add(byte_inst::nop())
         return -1
     }
 
@@ -297,57 +383,71 @@ obj bytecode_generator (Object) {
         var i: imm
         i.reg = get_reg()
         i.val = value
-        blocks.last().instructions.add(byte_inst::imm(i))
+        functions.last().instructions.add(byte_inst::imm(i))
         return i.reg
     }
-    fun emit_alloca(node: *ast_node): int {
-        var a: alloca
-        a.reg = get_reg()
-        a.ident = node
-        blocks.last().instructions.add(byte_inst::alloca(a))
-        return a.reg
+    fun emit_add(a: int, b: int): int {
+        var i: add
+        i.to_reg = get_reg()
+        i.a = a
+        i.b = b
+        functions.last().instructions.add(byte_inst::add(i))
+        return i.to_reg
     }
-    fun emit_ld(node: *ast_node): int {
-        var l: ld
+    fun emit_ldr(reg: int, offset: int): int {
+        var l: ldr
         l.to_reg = get_reg()
-        l.from_reg = var_to_reg[node]
-        l.ident = node
-        blocks.last().instructions.add(byte_inst::ld(l))
+        l.from_reg = reg
+        l.offset = offset
+        functions.last().instructions.add(byte_inst::ldr(l))
         return l.to_reg
     }
-    fun emit_st(to_reg: int, from_reg: int): int {
-        var s: st
+    fun emit_str(to_reg: int, offset: int, from_reg: int): int {
+        var s: str
         s.to_reg = to_reg
+        s.offset = offset
         s.from_reg = from_reg
-        blocks.last().instructions.add(byte_inst::st(s))
+        functions.last().instructions.add(byte_inst::str(s))
         return -1
     }
-    fun emit_ret(reg: int): int {
-        var r: ret
-        r.reg = reg
-        blocks.last().instructions.add(byte_inst::ret(r))
+    fun emit_ret(): int {
+        functions.last().instructions.add(byte_inst::ret())
         return -1
     }
     fun emit_call(): int {
-        blocks.last().instructions.add(byte_inst::call())
+        functions.last().instructions.add(byte_inst::call())
         return -1
     }
 
     fun evaluate(): int {
         println("evaling main")
-        var main_entry = blocks.find_first_satisfying(fun(block: basic_block): bool return block.name == "main";)
+        var main_entry = functions.find_first_satisfying(fun(block: bytecode_function): bool return block.name == "main";)
         var registers.construct(reg_counter): vector<int>
-        registers.size = reg_counter
-        var stack_mem.construct(): vector<int>
+        registers.size = reg_max
+        registers[0] = 1 // start RS at 1, as main returns an int of size 1
+        var stack_mem.construct(10): vector<int>
+        stack_mem.size = 10
+        stack_mem.for_each(fun(i: ref int) { i = 0; })
         for (var i = 0; i < main_entry.instructions.size; i++;) {
             match(main_entry.instructions[i]) {
                 byte_inst::nop()     {}
                 byte_inst::imm(i)    registers[i.reg] = i.val
-                byte_inst::alloca(a) { stack_mem.add(0); registers[a.reg] = stack_mem.size -1; }
-                byte_inst::ld(l)     registers[l.to_reg] = stack_mem[registers[l.from_reg]]
-                byte_inst::st(s)     stack_mem[registers[s.to_reg]] = registers[s.from_reg]
+                byte_inst::add(a)    registers[a.to_reg] = registers[a.a] + registers[a.b]
+                byte_inst::ldr(l)    registers[l.to_reg] = stack_mem[registers[l.from_reg] + l.offset]
+                byte_inst::str(s)    stack_mem[registers[s.to_reg] + s.offset] = registers[s.from_reg]
                 byte_inst::call()    error("call")
-                byte_inst::ret(r)    return registers[r.reg]
+                /*byte_inst::ret()     return stack_mem[registers[0]]*/
+                byte_inst::ret()     {
+                    print("returning! return value is\n\t")
+                    /*println(stack_mem[registers[0]])*/
+                    println(stack_mem[0])
+                    println("total memory is")
+                    stack_mem.for_each(fun(i: int) {
+                        println(string("\t") + i)
+                    })
+                    /*return stack_mem[registers[0]]*/
+                    return stack_mem[0]
+                }
             }
         }
         return -1

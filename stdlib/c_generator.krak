@@ -27,6 +27,7 @@ obj c_generator (Object) {
         used_names.construct()
         // to avoid using c keywords
         used_names.add(string("extern"))
+        used_names.add(string("register"))
         function_type_map.construct()
         function_typedef_string.construct()
         linker_string.construct()
