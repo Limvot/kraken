@@ -79,7 +79,7 @@ adt byte_inst {
     ldr: ldr,
     str: str,
     jmp: jmp,
-    jnz: jnz,
+    jz:  jz,
     call,
     ret
 }
@@ -105,7 +105,7 @@ obj str {
 obj jmp {
     var offset: int
 }
-obj jnz {
+obj jz {
     var reg: int
     var offset: int
 }
@@ -118,7 +118,7 @@ fun to_string(b: byte_inst): string {
         byte_inst::ldr(l)    return string("r") + l.to_reg + " = ldr r" + l.from_reg + " (" + l.offset + ")"
         byte_inst::str(s)    return string("str(r") + s.to_reg + "(" + s.offset + ") <= r" + s.from_reg + ")"
         byte_inst::jmp(j)    return string("jmp(pc += ") + j.offset + ")"
-        byte_inst::jnz(j)    return string("jmp(r") + j.reg + " != 0, pc += " + j.offset + ")"
+        byte_inst::jz(j)    return string("jmp(r") + j.reg + " == 0, pc += " + j.offset + ")"
         byte_inst::call()    return string("call")
         byte_inst::ret()     return string("ret")
     }
@@ -172,7 +172,7 @@ obj bytecode_function (Object) {
         var res = name + "(frame size " + frame_size + "):\n"
         res += "\t frame layout\n"
         var_to_frame_offset.for_each(fun(n: *ast_node, o: int) {
-            res += "\t\t" + n->identifier.name + ": r0 + " + o
+            res += "\t\t" + n->identifier.name + ": r0 + " + o + "\n"
         })
         res += "\n\t bytecode\n"
         var pc = 0
@@ -267,7 +267,7 @@ obj bytecode_generator (Object) {
         functions.add(bytecode_function(get_name(node)))
         node->function.parameters.for_each(fun(p: *ast_node) {
             functions.last().var_to_frame_offset[p] = functions.last().frame_size
-            functions.last().frame_size += type_size(p->identifier.type)
+            functions.last().frame_size += type_size(p->identifier.type) / 4
         })
         generate(node->function.body_statement)
         return -1
@@ -276,7 +276,7 @@ obj bytecode_generator (Object) {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
         functions.last().var_to_frame_offset[identifier] = functions.last().frame_size
-        functions.last().frame_size += type_size(ident_type)
+        functions.last().frame_size += type_size(ident_type) / 4
         if (node->declaration_statement.expression) {
             emit_str(0, functions.last().var_to_frame_offset[identifier], generate(node->declaration_statement.expression))
         }
@@ -290,17 +290,17 @@ obj bytecode_generator (Object) {
     }
     fun generate_if_statement(node: *ast_node): int {
         var cond_reg = generate(node->if_statement.condition)
-        var jnz_index = functions.last().instructions.size
-        emit_jnz(cond_reg,0)
+        var jz_index = functions.last().instructions.size
+        emit_jz(cond_reg,0)
         generate(node->if_statement.then_part)
         if (node->if_statement.else_part) {
             var jmp_index = functions.last().instructions.size
             emit_jmp(0)
-            functions.last().instructions[jnz_index].jnz.offset = functions.last().instructions.size - jnz_index
+            functions.last().instructions[jz_index].jz.offset = functions.last().instructions.size - jz_index
             generate(node->if_statement.else_part)
             functions.last().instructions[jmp_index].jmp.offset = functions.last().instructions.size - jmp_index
         } else {
-            functions.last().instructions[jnz_index].jnz.offset = functions.last().instructions.size - jnz_index
+            functions.last().instructions[jz_index].jz.offset = functions.last().instructions.size - jz_index
         }
         return -1
     }
@@ -440,11 +440,11 @@ obj bytecode_generator (Object) {
         functions.last().instructions.add(byte_inst::jmp(j))
         return -1
     }
-    fun emit_jnz(reg: int, offset: int): int {
-        var j: jnz
+    fun emit_jz(reg: int, offset: int): int {
+        var j: jz
         j.reg = reg
         j.offset = offset
-        functions.last().instructions.add(byte_inst::jnz(j))
+        functions.last().instructions.add(byte_inst::jz(j))
         return -1
     }
     fun emit_ret(): int {
@@ -474,7 +474,7 @@ obj bytecode_generator (Object) {
                 byte_inst::ldr(l)    registers[l.to_reg] = stack_mem[registers[l.from_reg] + l.offset]
                 byte_inst::str(s)    stack_mem[registers[s.to_reg] + s.offset] = registers[s.from_reg]
                 byte_inst::jmp(j)    i += j.offset - 1 // to counteract pc inc
-                byte_inst::jnz(j)    if (registers[j.reg] != 0)
+                byte_inst::jz(j)     if (registers[j.reg] == 0)
                                         i += j.offset - 1 // to counteract pc inc
                 byte_inst::call()    error("call")
                 /*byte_inst::ret()     return stack_mem[registers[0]]*/
