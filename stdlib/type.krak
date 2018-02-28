@@ -231,6 +231,12 @@ obj type (Object) {
         }
         return false
     }
+    fun is_bool(): bool {
+        match (base) {
+            base_type::boolean() return true
+        }
+        return false
+    }
     fun is_function(): bool {
         match (base) {
             base_type::function() return true
