@@ -190,8 +190,9 @@ fun main(argc: int, argv: **char):int {
         /*call_main(name_ast_map)*/
         printlnerr("Generating bytecode!")
         var generator.construct(): bytecode_generator
-        var bytecode = generator.generate_bytecode(name_ast_map)
-        printlnerr(bytecode_to_string(bytecode))
+        /*var bytecode = generator.generate_bytecode(name_ast_map)*/
+        generator.generate_bytecode(name_ast_map)
+        /*printlnerr(bytecode_to_string(bytecode))*/
         printlnerr("return code is ")
         printlnerr(to_string(generator.evaluate()))
     } else {
