@@ -72,6 +72,8 @@ fun offset_into_struct(struct_type: *type, ident: *ast_node): ulong {
     return offset
 }
 
+var register_size:ulong
+/*var register_size = #sizeof<*void>*/
 adt byte_inst {
     nop,
     imm: imm,
@@ -85,7 +87,7 @@ adt byte_inst {
 }
 obj imm {
     var reg: int
-    var val: int
+    var val: long
 }
 obj add {
     var to_reg: int
@@ -95,19 +97,19 @@ obj add {
 obj ldr {
     var to_reg: int
     var from_reg: int
-    var offset: int
+    var offset: long
 }
 obj str {
     var to_reg: int
-    var offset: int
+    var offset: long
     var from_reg: int
 }
 obj jmp {
-    var offset: int
+    var offset: long
 }
 obj jz {
     var reg: int
-    var offset: int
+    var offset: long
 }
 
 fun to_string(b: byte_inst): string {
@@ -143,14 +145,14 @@ obj bytecode_function (Object) {
         instructions.construct()
         name.construct()
         var_to_frame_offset.construct()
-        frame_size = 0
+        frame_size = register_size // for RBP
         return this
     }
     fun construct(name_in: ref string): *bytecode_function {
         instructions.construct()
         name.copy_construct(&name_in)
         var_to_frame_offset.construct()
-        frame_size = 0
+        frame_size = register_size // for RBP
         return this
     }
     fun copy_construct(old: *bytecode_function) {
@@ -171,8 +173,9 @@ obj bytecode_function (Object) {
     fun to_string(): string {
         var res = name + "(frame size " + frame_size + "):\n"
         res += "\t frame layout\n"
+        res += "\t\tsaved RBP : RPB + 0\n"
         var_to_frame_offset.for_each(fun(n: *ast_node, o: int) {
-            res += "\t\t" + n->identifier.name + ": r0 + " + o + "\n"
+            res += "\t\t" + n->identifier.name + ": RBP + " + o + "\n"
         })
         res += "\n\t bytecode\n"
         var pc = 0
@@ -193,8 +196,8 @@ obj bytecode_generator (Object) {
         id_counter = 0
         ast_name_map.construct()
         functions.construct()
-        reg_counter = 1
-        reg_max = 1
+        reg_counter = 3
+        reg_max = 3
 
         return this
     }
@@ -219,7 +222,7 @@ obj bytecode_generator (Object) {
         if (reg_counter > reg_max) {
             reg_max = reg_counter
         }
-        reg_counter = 1
+        reg_counter = 3
     }
     fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): vector<bytecode_function> {
 
@@ -267,18 +270,28 @@ obj bytecode_generator (Object) {
         functions.add(bytecode_function(get_name(node)))
         node->function.parameters.for_each(fun(p: *ast_node) {
             functions.last().var_to_frame_offset[p] = functions.last().frame_size
-            functions.last().frame_size += type_size(p->identifier.type) / 4
+            functions.last().frame_size += type_size(p->identifier.type)
         })
+        emit_add(0, 0, emit_imm(-register_size))    // these two lines push rbp onto the stack, which grows towards negative
+        emit_str(0, 0, 1)                           // rsp[0] <= rbp
+        emit_add(1, 0, emit_imm(0))                 // note that we start the frame size at register_size for this reason
+
+        var push_frame_idx = functions.last().instructions.size
+        emit_add(0, 0, emit_imm(0))                 // this has to be fixed afterwards to be the -frame_size + register_size (because rbp already on stack)
+
         generate(node->function.body_statement)
+
+        functions.last().instructions[push_frame_idx].imm.val = -functions.last().frame_size + register_size
+
         return -1
     }
     fun generate_declaration_statement(node: *ast_node): int {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
         functions.last().var_to_frame_offset[identifier] = functions.last().frame_size
-        functions.last().frame_size += type_size(ident_type) / 4
+        functions.last().frame_size += type_size(ident_type)
         if (node->declaration_statement.expression) {
-            emit_str(0, functions.last().var_to_frame_offset[identifier], generate(node->declaration_statement.expression))
+            emit_str(1, functions.last().var_to_frame_offset[identifier], generate(node->declaration_statement.expression))
         }
         return -1
     }
@@ -321,14 +334,15 @@ obj bytecode_generator (Object) {
     }
     fun generate_identifier(node: *ast_node, lvalue: bool): int {
         if (lvalue) {
-            return emit_add(0, emit_imm(functions.last().var_to_frame_offset[node]))
+            return emit_add(1, emit_imm(-functions.last().var_to_frame_offset[node]))
         } else {
-            return emit_ldr(0, functions.last().var_to_frame_offset[node])
+            return emit_ldr(1, -functions.last().var_to_frame_offset[node])
         }
     }
     fun generate_return_statement(node: *ast_node): int {
         if (node->return_statement.return_value) {
-            emit_str(0, -(type_size(get_ast_type(node->return_statement.return_value))) cast int / 4, generate(node->return_statement.return_value))
+            /*emit_str(1, register_size, generate(node->return_statement.return_value))*/
+            emit_add(2, emit_imm(0), generate(node->return_statement.return_value))
             emit_ret()
         } else {
             emit_ret()
@@ -353,9 +367,9 @@ obj bytecode_generator (Object) {
     }
     fun generate_code_block(node: *ast_node): int {
         node->code_block.children.for_each(fun(child: *ast_node) {
-        // registers aren't used between statements (only stack reg)
-        reset_reg()
-        generate(child)
+            // registers aren't used between statements (only stack reg)
+            reset_reg()
+            generate(child)
         })
         return -1
     }
@@ -403,6 +417,7 @@ obj bytecode_generator (Object) {
         ast_name_map.set(node, result)
         return result
     }
+    fun emit_imm(value: ulong): int { return emit_imm((value) cast int); }
     fun emit_imm(value: int): int {
         var i: imm
         i.reg = get_reg()
@@ -411,16 +426,22 @@ obj bytecode_generator (Object) {
         return i.reg
     }
     fun emit_add(a: int, b: int): int {
+        return emit_add(get_reg(), a, b)
+    }
+    fun emit_add(dest: int, a: int, b: int): int {
         var i: add
-        i.to_reg = get_reg()
+        i.to_reg = dest
         i.a = a
         i.b = b
         functions.last().instructions.add(byte_inst::add(i))
         return i.to_reg
     }
     fun emit_ldr(reg: int, offset: int): int {
+        return emit_ldr(get_reg(), reg, offset)
+    }
+    fun emit_ldr(dest: int, reg: int, offset: int): int {
         var l: ldr
-        l.to_reg = get_reg()
+        l.to_reg = dest
         l.from_reg = reg
         l.offset = offset
         functions.last().instructions.add(byte_inst::ldr(l))
@@ -456,38 +477,58 @@ obj bytecode_generator (Object) {
         return -1
     }
 
+    // Stack ABI
+    // it's system v x64, but all params passed on stack
     fun evaluate(): int {
         println("evaling main")
         var main_entry = functions.find_first_satisfying(fun(block: bytecode_function): bool return block.name == "main";)
-        var registers.construct(reg_counter): vector<int>
+        var registers.construct(reg_max): vector<long>
         registers.size = reg_max
-        registers[0] = 1 // start RS at 1, as main returns an int of size 1
-        var stack_mem.construct(10): vector<int>
-        stack_mem.size = 10
-        stack_mem.for_each(fun(i: ref int) { i = 0; })
+        registers[0] = 0
+        var stack_size = 8 * 1024 * 1024
+        var stack = new<uchar>(stack_size) + stack_size
+        for (var i = 0; i < stack_size; i++;)
+            stack[-i + -1] = 0
         for (var i = 0; i < main_entry.instructions.size; i++;) {
             println(string("evaling: ") + i + ": " + to_string(main_entry.instructions[i]))
             match(main_entry.instructions[i]) {
                 byte_inst::nop()     {}
                 byte_inst::imm(i)    registers[i.reg] = i.val
                 byte_inst::add(a)    registers[a.to_reg] = registers[a.a] + registers[a.b]
-                byte_inst::ldr(l)    registers[l.to_reg] = stack_mem[registers[l.from_reg] + l.offset]
-                byte_inst::str(s)    stack_mem[registers[s.to_reg] + s.offset] = registers[s.from_reg]
+                byte_inst::ldr(l)    registers[l.to_reg] = *(stack + registers[l.from_reg] + l.offset) cast *long
+                byte_inst::str(s)    *(stack + registers[s.to_reg] + s.offset) cast *long = registers[s.from_reg]
                 byte_inst::jmp(j)    i += j.offset - 1 // to counteract pc inc
                 byte_inst::jz(j)     if (registers[j.reg] == 0)
                                         i += j.offset - 1 // to counteract pc inc
-                byte_inst::call()    error("call")
-                /*byte_inst::ret()     return stack_mem[registers[0]]*/
+                byte_inst::call()    {
+                    /*stack_mem[registers[0]] = i + 1*/
+                    /*registers[0]++*/
+                }
                 byte_inst::ret()     {
                     print("returning! return value is\n\t")
-                    /*println(stack_mem[registers[0]])*/
-                    println(stack_mem[0])
-                    println("total memory is")
-                    stack_mem.for_each(fun(i: int) {
-                        println(string("\t") + i)
-                    })
+                    /*var value = *(stack + registers[0] + s.offset) cast *long*/
+                    var value = registers[2]
+                    println(value)
+                    println("first part of memory is")
+                    /*for (var i = 1; i <= 10; i++;)*/
+                        /*println(*(stack - i*#sizeof<long>) cast *long)*/
+                    for (var i = 0; i < 8*8; i+=8;) {
+                        print(string("-") + i + string(": "))
+                        for (var j = 0; j < 8; j++;) {
+                            if (j == 4)
+                                print(" ")
+                            print(*(stack - (i+j)*#sizeof<uchar> - 1) cast *uchar)
+                            print(" ")
+                        }
+                        println()
+                    }
+                    println("Done")
+                    /*println("total memory is")*/
+                    /*stack_mem.for_each(fun(i: int) {*/
+                        /*println(string("\t") + i)*/
+                    /*})*/
                     /*return stack_mem[registers[0]]*/
-                    return stack_mem[0]
+                    return value
                 }
             }
         }

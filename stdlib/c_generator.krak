@@ -232,8 +232,9 @@ obj c_generator (Object) {
             to_ret = "extern " + to_ret
         if (node->declaration_statement.expression) {
             // in case of recursive closures, make sure variable is declared before assignment
-            to_ret += ";\n"
-            to_ret += get_name(identifier) + " = " + generate(node->declaration_statement.expression)
+            /*to_ret += ";\n"*/
+            /*to_ret += get_name(identifier) + " = " + generate(node->declaration_statement.expression)*/
+            to_ret += " = " + generate(node->declaration_statement.expression)
         }
         if (node->declaration_statement.init_method_call) {
             error("init_method_call remaining")

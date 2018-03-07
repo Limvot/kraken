@@ -85,6 +85,9 @@ fun to_string_num<T>(in: T): string {
 fun operator+(first: *char, second: ref string): string {
     return string(first) + second
 }
+fun operator+(first: int, second: ref string): string {
+    return to_string(first) + second
+}
 
 fun string(in:*char):string {
     var out.construct(in):string
@@ -185,6 +188,7 @@ obj string (Object, Serializable, Hashable) {
     }
 
     fun operator+(integer: int): string return *this + to_string(integer);
+    fun operator+(integer: long): string return *this + to_string(integer);
     fun operator+(integer: ulong): string return *this + to_string(integer);
     /*fun operator+(b: bool): string return *this + to_string(b);*/
 
