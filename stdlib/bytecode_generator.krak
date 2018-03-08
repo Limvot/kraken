@@ -205,7 +205,7 @@ obj bytecode_function (Object) {
         res += "\t frame layout\n"
         res += "\t\tsaved RBP : RPB = 0\n"
         var_to_frame_offset.for_each(fun(n: *ast_node, o: int) {
-            res += "\t\t" + n->identifier.name + ": RBP - " + o + "\n"
+            res += "\t\t" + n->identifier.name + ": RBP + " + o + "\n"
         })
         res += "\n\t bytecode\n"
         for (var i = instruction_start; i < instruction_end; i++;)
@@ -317,9 +317,10 @@ obj bytecode_generator (Object) {
         reset_reg()
         node_function_idx[node] = functions.size
         functions.add(bytecode_function(get_name(node), instructions.size))
+        var parameter_offset = (register_size*2) cast int // have to pass saved RBP and return address
         node->function.parameters.for_each(fun(p: *ast_node) {
-            functions.last().var_to_frame_offset[p] = functions.last().frame_size
-            functions.last().frame_size += type_size(p->identifier.type)
+            functions.last().var_to_frame_offset[p] = parameter_offset
+            parameter_offset += type_size(p->identifier.type)
         })
         emit_add(0, 0, emit_imm(-register_size))    // these two lines push rbp onto the stack, which grows towards negative
         emit_str(0, 0, 1, operand_size::b64())      // rsp[0] <= rbp
@@ -338,7 +339,7 @@ obj bytecode_generator (Object) {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
         functions.last().frame_size += type_size(ident_type)
-        functions.last().var_to_frame_offset[identifier] = functions.last().frame_size
+        functions.last().var_to_frame_offset[identifier] = -functions.last().frame_size
         if (node->declaration_statement.expression) {
             emit_str(1, functions.last().var_to_frame_offset[identifier], generate(node->declaration_statement.expression), size_to_operand_size(type_size(get_ast_type(identifier))))
         }
@@ -384,9 +385,9 @@ obj bytecode_generator (Object) {
     }
     fun generate_identifier(node: *ast_node, lvalue: bool): int {
         if (lvalue) {
-            return emit_add(1, emit_imm(-functions.last().var_to_frame_offset[node]))
+            return emit_add(1, emit_imm(functions.last().var_to_frame_offset[node]))
         } else {
-            return emit_ldr(1, -functions.last().var_to_frame_offset[node], size_to_operand_size(type_size(get_ast_type(node))))
+            return emit_ldr(1, functions.last().var_to_frame_offset[node], size_to_operand_size(type_size(get_ast_type(node))))
         }
     }
     fun generate_return_statement(node: *ast_node): int {
@@ -431,8 +432,18 @@ obj bytecode_generator (Object) {
         return emit_imm(-2)
     }
     fun generate_function_call(node: *ast_node, lvalue: bool): int {
-        node->function_call.parameters.for_each(fun(child: *ast_node) generate(child);)
-        return emit_call(generate_function(node->function_call.func))
+        var stack_offset = 0
+        // reverse order
+        node->function_call.parameters.reverse().for_each(fun(child: *ast_node) {
+            // push param onto stack
+            var param_size = type_size(get_ast_type(child))
+            emit_add(0, 0, emit_imm(-param_size))
+            stack_offset += param_size
+            emit_str(0, 0, generate(child), size_to_operand_size(param_size))
+        })
+        var return_reg = emit_call(generate_function(node->function_call.func))
+        emit_add(0, 0, emit_imm(stack_offset))
+        return return_reg
     }
 
     fun generate_compiler_intrinsic(node: *ast_node): int {
@@ -572,6 +583,19 @@ obj bytecode_generator (Object) {
                     registers[0] = registers[0] - register_size
                     *(stack + registers[0]) cast *long = i + 1
                     i = registers[c.reg] - 1
+                    print("call!")
+                    println("first part of memory is (after push)")
+                    for (var i = 0; i < 8*8; i+=8;) {
+                        print(string("-") + i + string(": "))
+                        for (var j = 0; j < 8; j++;) {
+                            if (j == 4)
+                                print(" ")
+                            print(*(stack - (i+j)*#sizeof<uchar> - 1) cast *uchar)
+                            print(" ")
+                        }
+                        println()
+                    }
+                    println("Done")
                 }
                 byte_inst::ret()     {
                     var pc = *(stack + registers[0]) cast *long
