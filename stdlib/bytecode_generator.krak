@@ -432,18 +432,48 @@ obj bytecode_generator (Object) {
         return emit_imm(-2)
     }
     fun generate_function_call(node: *ast_node, lvalue: bool): int {
-        var stack_offset = 0
-        // reverse order
-        node->function_call.parameters.reverse().for_each(fun(child: *ast_node) {
-            // push param onto stack
-            var param_size = type_size(get_ast_type(child))
-            emit_add(0, 0, emit_imm(-param_size))
-            stack_offset += param_size
-            emit_str(0, 0, generate(child), size_to_operand_size(param_size))
-        })
-        var return_reg = emit_call(generate_function(node->function_call.func))
-        emit_add(0, 0, emit_imm(stack_offset))
-        return return_reg
+        var func = node->function_call.func
+        if (is_function(func) && func->function.body_statement == null<ast_node>()) {
+            var name = func->function.name
+            var params = node->function_call.parameters.map(fun(n: *ast_node): int return generate(n);)
+            if        (name == "+") {
+                if (params.size == 1)
+                    error("positivate not supported")
+                else
+                    return emit_add(params[0], params[1])
+            } else if (name == "-") {
+                error("subtract/negate not supported")
+            } else if (name == "!") {
+                error("not not supported")
+            } else if (name == "--" || name == "++" || name == "--p" || name == "++p") {
+                error("increment / decrement not supported")
+            } else if (name == "[]" || name == "." || name == "->" || (name == "*" && params.size == 1) || (name == "&" && params.size == 1)) {
+                error("access operators are not supported")
+            } else if (name == "==" || name == "<=" || name == ">=" || name == "!=" || name == "<" || name == ">") {
+                error("comparator operators are not supported")
+            } else if (name == "|" || (name == "&" && params.size == 2) || name == "^" || name == "~") {
+                error("bitwise operators are not supported")
+            } else if (name == ">>" || name == "<<") {
+                error("shift operators are not supported")
+            } else if (name == "/" || name == "%" || (name == "*" && params.size == 2)) {
+                error("mult div mod operators are not supported")
+            } else {
+                error("unknown operator " + name)
+            }
+        } else {
+            var stack_offset = 0
+            // reverse order
+            node->function_call.parameters.reverse().for_each(fun(child: *ast_node) {
+                // push param onto stack
+                var param_size = type_size(get_ast_type(child))
+                emit_add(0, 0, emit_imm(-param_size))
+                stack_offset += param_size
+                emit_str(0, 0, generate(child), size_to_operand_size(param_size))
+            })
+            var return_reg = emit_call(generate_function(node->function_call.func))
+            emit_add(0, 0, emit_imm(stack_offset))
+            return return_reg
+        }
     }
 
     fun generate_compiler_intrinsic(node: *ast_node): int {
