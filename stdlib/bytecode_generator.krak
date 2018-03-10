@@ -90,6 +90,10 @@ adt byte_inst {
     nop,
     imm:  imm,
     add:  add,
+    addi: addi,
+    and:  and,
+    or:   or,
+    not:  not,
     ldr:  ldr,
     str:  str,
     jmp:  jmp,
@@ -105,6 +109,25 @@ obj add {
     var to_reg: int
     var a: int
     var b: int
+}
+obj addi {
+    var to_reg: int
+    var a: int
+    var bi:long
+}
+obj and {
+    var to_reg: int
+    var a: int
+    var b: int
+}
+obj or {
+    var to_reg: int
+    var a: int
+    var b: int
+}
+obj not {
+    var to_reg: int
+    var a: int
 }
 obj ldr {
     var to_reg: int
@@ -144,11 +167,15 @@ fun to_string(b: byte_inst): string {
         byte_inst::nop()     return string("nop")
         byte_inst::imm(i)    return string("r") + i.reg + " = imm " + i.val
         byte_inst::add(a)    return string("r") + a.to_reg + " = r" + a.a + " + r" + a.b
+        byte_inst::addi(a)   return string("r") + a.to_reg + " = r" + a.a + " + " + a.bi
+        byte_inst::and(a)    return string("r") + a.to_reg + " = r" + a.a + " & " + a.b
+        byte_inst::or(a)     return string("r") + a.to_reg + " = r" + a.a + " | " + a.b
+        byte_inst::not(a)    return string("r") + a.to_reg + " = ~r" + a.a
         byte_inst::ldr(l)    return string("r") + l.to_reg + " = ldr" + to_string(l.size) + " r" + l.from_reg + " (" + l.offset + ")"
         byte_inst::str(s)    return "str" + to_string(s.size) + " (r" + s.to_reg + "(" + s.offset + ") <= r" + s.from_reg + ")"
         byte_inst::jmp(j)    return string("jmp(pc += ") + j.offset + ")"
         byte_inst::jz(j)     return string("jmp(r") + j.reg + " == 0, pc += " + j.offset + ")"
-        byte_inst::call(c)    return string("call pc = r") + c.reg
+        byte_inst::call(c)   return string("call pc = r") + c.reg
         byte_inst::ret()     return string("ret")
     }
     return string("Missed byte_inst case in to_string")
@@ -322,16 +349,16 @@ obj bytecode_generator (Object) {
             functions.last().var_to_frame_offset[p] = parameter_offset
             parameter_offset += type_size(p->identifier.type)
         })
-        emit_add(0, 0, emit_imm(-register_size))    // these two lines push rbp onto the stack, which grows towards negative
+        emit_addi(0, 0, -register_size)             // these two lines push rbp onto the stack, which grows towards negative
         emit_str(0, 0, 1, operand_size::b64())      // rsp[0] <= rbp
-        emit_add(1, 0, emit_imm(0))                 // note that we start the frame size at register_size for this reason
+        emit_addi(1, 0, 0)                          // note that we start the frame size at register_size for this reason
 
         var push_frame_idx = instructions.size
-        emit_add(0, 0, emit_imm(0))                 // this has to be fixed afterwards to be the -frame_size
+        emit_addi(0, 0, 0)                          // this has to be fixed afterwards to be the -frame_size
 
         generate(node->function.body_statement)
 
-        instructions[push_frame_idx].imm.val = -functions.last().frame_size
+        instructions[push_frame_idx].addi.bi = -functions.last().frame_size
 
         return -1
     }
@@ -385,16 +412,15 @@ obj bytecode_generator (Object) {
     }
     fun generate_identifier(node: *ast_node, lvalue: bool): int {
         if (lvalue) {
-            return emit_add(1, emit_imm(functions.last().var_to_frame_offset[node]))
+            return emit_addi(1, functions.last().var_to_frame_offset[node])
         } else {
             return emit_ldr(1, functions.last().var_to_frame_offset[node], size_to_operand_size(type_size(get_ast_type(node))))
         }
     }
     fun generate_return_statement(node: *ast_node): int {
         if (node->return_statement.return_value) {
-            /*emit_str(1, register_size, generate(node->return_statement.return_value))*/
-            emit_add(2, emit_imm(0), generate(node->return_statement.return_value))
-            emit_add(0, 1, emit_imm(register_size))
+            emit_addi(2, generate(node->return_statement.return_value), 0)
+            emit_addi(0, 1, register_size)
             emit_ldr(1, 1, 0, operand_size::b64())
             emit_ret()
         } else {
@@ -442,7 +468,10 @@ obj bytecode_generator (Object) {
                 else
                     return emit_add(params[0], params[1])
             } else if (name == "-") {
-                error("subtract/negate not supported")
+                if (params.size == 1)
+                    return emit_addi(emit_not(params[0]), 1)
+                else
+                    return emit_add(params[0], emit_addi(emit_not(params[1]), 1))
             } else if (name == "!") {
                 error("not not supported")
             } else if (name == "--" || name == "++" || name == "--p" || name == "++p") {
@@ -452,6 +481,9 @@ obj bytecode_generator (Object) {
             } else if (name == "==" || name == "<=" || name == ">=" || name == "!=" || name == "<" || name == ">") {
                 error("comparator operators are not supported")
             } else if (name == "|" || (name == "&" && params.size == 2) || name == "^" || name == "~") {
+                if (name == "|") return emit_or(params[0], params[1])
+                if (name == "&") return emit_and(params[0], params[1])
+                if (name == "~") return emit_not(params[0])
                 error("bitwise operators are not supported")
             } else if (name == ">>" || name == "<<") {
                 error("shift operators are not supported")
@@ -466,12 +498,12 @@ obj bytecode_generator (Object) {
             node->function_call.parameters.reverse().for_each(fun(child: *ast_node) {
                 // push param onto stack
                 var param_size = type_size(get_ast_type(child))
-                emit_add(0, 0, emit_imm(-param_size))
+                emit_addi(0, 0, -param_size)
                 stack_offset += param_size
                 emit_str(0, 0, generate(child), size_to_operand_size(param_size))
             })
             var return_reg = emit_call(generate_function(node->function_call.func))
-            emit_add(0, 0, emit_imm(stack_offset))
+            emit_addi(0, 0, stack_offset)
             return return_reg
         }
     }
@@ -519,15 +551,52 @@ obj bytecode_generator (Object) {
         instructions.add(byte_inst::imm(i))
         return i.reg
     }
-    fun emit_add(a: int, b: int): int {
-        return emit_add(get_reg(), a, b)
-    }
+    fun emit_add(a: int, b: int): int { return emit_add(get_reg(), a, b); }
     fun emit_add(dest: int, a: int, b: int): int {
         var i: add
         i.to_reg = dest
         i.a = a
         i.b = b
         instructions.add(byte_inst::add(i))
+        return i.to_reg
+    }
+    fun emit_addi(a: int, bi: long): int                { return emit_addi(get_reg(), a, bi); }
+    fun emit_addi(a: int, bi: int): int                 { return emit_addi(get_reg(), a, (bi) cast long); }
+    fun emit_addi(dest: int, a: int, bi: int): int      { return emit_addi(dest, a, (bi) cast long); }
+    fun emit_addi(a: int, bi: ulong): int               { return emit_addi(get_reg(), a, (bi) cast long); }
+    fun emit_addi(dest: int, a: int, bi: ulong): int    { return emit_addi(dest, a, (bi) cast long); }
+    fun emit_addi(dest: int, a: int, bi: long): int {
+        var i: addi
+        i.to_reg = dest
+        i.a = a
+        i.bi = bi
+        instructions.add(byte_inst::addi(i))
+        return i.to_reg
+    }
+    fun emit_and(a: int, b: int): int { return emit_and(get_reg(), a, b); }
+    fun emit_and(dest: int, a: int, b: int): int {
+        var i: and
+        i.to_reg = dest
+        i.a = a
+        i.b = b
+        instructions.add(byte_inst::and(i))
+        return i.to_reg
+    }
+    fun emit_or(a: int, b: int): int { return emit_or(get_reg(), a, b); }
+    fun emit_or(dest: int, a: int, b: int): int {
+        var i: or
+        i.to_reg = dest
+        i.a = a
+        i.b = b
+        instructions.add(byte_inst::or(i))
+        return i.to_reg
+    }
+    fun emit_not(a: int): int { return emit_not(get_reg(), a); }
+    fun emit_not(dest: int, a: int): int {
+        var i: not
+        i.to_reg = dest
+        i.a = a
+        instructions.add(byte_inst::not(i))
         return i.to_reg
     }
     fun emit_ldr(reg: int, offset: int, size: operand_size): int { return emit_ldr(get_reg(), reg, offset, size); }
@@ -593,6 +662,10 @@ obj bytecode_generator (Object) {
                 byte_inst::nop()     {}
                 byte_inst::imm(i)    registers[i.reg] = i.val
                 byte_inst::add(a)    registers[a.to_reg] = registers[a.a] + registers[a.b]
+                byte_inst::addi(a)   registers[a.to_reg] = registers[a.a] + a.bi
+                byte_inst::and(a)    registers[a.to_reg] = registers[a.a] & registers[a.b]
+                byte_inst::or(a)     registers[a.to_reg] = registers[a.a] | registers[a.b]
+                byte_inst::not(a)    registers[a.to_reg] = ~registers[a.a]
                 byte_inst::ldr(l)    match (l.size) {
                                         operand_size::b8()  registers[l.to_reg] = *(stack + registers[l.from_reg] + l.offset) cast *char
                                         operand_size::b16() registers[l.to_reg] = *(stack + registers[l.from_reg] + l.offset) cast *short
