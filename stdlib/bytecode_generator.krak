@@ -461,7 +461,12 @@ obj bytecode_generator (Object) {
         var func = node->function_call.func
         if (is_function(func) && func->function.body_statement == null<ast_node>()) {
             var name = func->function.name
-            var params = node->function_call.parameters.map(fun(n: *ast_node): int return generate(n);)
+            var parameter_nodes = node->function_call.parameters
+            // generate with lvalue=true to make return a pointer
+            if (name == "&" && parameter_nodes.size == 1)
+                return generate(parameter_nodes[0], true)
+
+            var params = parameter_nodes.map(fun(n: *ast_node): int return generate(n);)
             if        (name == "+") {
                 if (params.size == 1)
                     error("positivate not supported")
@@ -474,10 +479,18 @@ obj bytecode_generator (Object) {
                     return emit_add(params[0], emit_addi(emit_not(params[1]), 1))
             } else if (name == "!") {
                 error("not not supported")
-            } else if (name == "--" || name == "++" || name == "--p" || name == "++p") {
-                error("increment / decrement not supported")
-            } else if (name == "[]" || name == "." || name == "->" || (name == "*" && params.size == 1) || (name == "&" && params.size == 1)) {
-                error("access operators are not supported")
+            } else if (name == "[]" || name == "." || name == "->" || (name == "*" && params.size == 1)) {
+                if (name == "[]") {
+                                  if (lvalue) return emit_add(params[0], params[1])
+                                  else        return emit_ldr(emit_add(params[0], params[1]), 0, size_to_operand_size(type_size(get_ast_type(parameter_nodes[0])->clone_with_decreased_indirection())))
+                                  }
+                if (name == "." || name == "->")  error("no structs")
+                /*if (name == "." || name == "->")  if (lvalue) return emit_add(params[0], params[1])*/
+                                  /*else        return emit_ldr(emit_add(params[0], params[1]), 0, size_to_operand_size(type_size(get_ast_type(parameter_nodes[1]))))*/
+                if (name == "*")  {
+                                  if (lvalue) return params[0]
+                                  else        return emit_ldr(params[0], 0, size_to_operand_size(type_size(get_ast_type(parameter_nodes[0])->clone_with_decreased_indirection())))
+                                  }
             } else if (name == "==" || name == "<=" || name == ">=" || name == "!=" || name == "<" || name == ">") {
                 error("comparator operators are not supported")
             } else if (name == "|" || (name == "&" && params.size == 2) || name == "^" || name == "~") {
