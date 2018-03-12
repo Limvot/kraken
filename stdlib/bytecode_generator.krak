@@ -93,6 +93,7 @@ adt byte_inst {
     addi: addi,
     and:  and,
     or:   or,
+    xor:  xor,
     not:  not,
     ldr:  ldr,
     str:  str,
@@ -121,6 +122,11 @@ obj and {
     var b: int
 }
 obj or {
+    var to_reg: int
+    var a: int
+    var b: int
+}
+obj xor {
     var to_reg: int
     var a: int
     var b: int
@@ -170,6 +176,7 @@ fun to_string(b: byte_inst): string {
         byte_inst::addi(a)   return string("r") + a.to_reg + " = r" + a.a + " + " + a.bi
         byte_inst::and(a)    return string("r") + a.to_reg + " = r" + a.a + " & " + a.b
         byte_inst::or(a)     return string("r") + a.to_reg + " = r" + a.a + " | " + a.b
+        byte_inst::xor(a)    return string("r") + a.to_reg + " = r" + a.a + " ^ " + a.b
         byte_inst::not(a)    return string("r") + a.to_reg + " = ~r" + a.a
         byte_inst::ldr(l)    return string("r") + l.to_reg + " = ldr" + to_string(l.size) + " r" + l.from_reg + " (" + l.offset + ")"
         byte_inst::str(s)    return "str" + to_string(s.size) + " (r" + s.to_reg + "(" + s.offset + ") <= r" + s.from_reg + ")"
@@ -496,15 +503,14 @@ obj bytecode_generator (Object) {
             } else if (name == "|" || (name == "&" && params.size == 2) || name == "^" || name == "~") {
                 if (name == "|") return emit_or(params[0], params[1])
                 if (name == "&") return emit_and(params[0], params[1])
+                if (name == "^") return emit_xor(params[0], params[1])
                 if (name == "~") return emit_not(params[0])
-                error("bitwise operators are not supported")
             } else if (name == ">>" || name == "<<") {
                 error("shift operators are not supported")
             } else if (name == "/" || name == "%" || (name == "*" && params.size == 2)) {
                 error("mult div mod operators are not supported")
-            } else {
-                error("unknown operator " + name)
             }
+            error("unknown operator " + name)
         } else {
             var stack_offset = 0
             // reverse order
@@ -604,6 +610,15 @@ obj bytecode_generator (Object) {
         instructions.add(byte_inst::or(i))
         return i.to_reg
     }
+    fun emit_xor(a: int, b: int): int { return emit_xor(get_reg(), a, b); }
+    fun emit_xor(dest: int, a: int, b: int): int {
+        var i: xor
+        i.to_reg = dest
+        i.a = a
+        i.b = b
+        instructions.add(byte_inst::xor(i))
+        return i.to_reg
+    }
     fun emit_not(a: int): int { return emit_not(get_reg(), a); }
     fun emit_not(dest: int, a: int): int {
         var i: not
@@ -678,6 +693,7 @@ obj bytecode_generator (Object) {
                 byte_inst::addi(a)   registers[a.to_reg] = registers[a.a] + a.bi
                 byte_inst::and(a)    registers[a.to_reg] = registers[a.a] & registers[a.b]
                 byte_inst::or(a)     registers[a.to_reg] = registers[a.a] | registers[a.b]
+                byte_inst::xor(a)    registers[a.to_reg] = registers[a.a] ^ registers[a.b]
                 byte_inst::not(a)    registers[a.to_reg] = ~registers[a.a]
                 byte_inst::ldr(l)    match (l.size) {
                                         operand_size::b8()  registers[l.to_reg] = *(stack + registers[l.from_reg] + l.offset) cast *char
