@@ -252,6 +252,8 @@ obj bytecode_generator (Object) {
     var node_function_idx: map<*ast_node, int>
     var instructions: vector<byte_inst>
     var fixup_function_addresses: vector<pair<int, *ast_node>>
+    var fixup_break_addresses: stack<vector<int>>
+    var fixup_continue_addresses: stack<vector<int>>
     fun construct(): *bytecode_generator {
         id_counter = 0
         ast_name_map.construct()
@@ -259,6 +261,8 @@ obj bytecode_generator (Object) {
         node_function_idx.construct()
         instructions.construct()
         fixup_function_addresses.construct()
+        fixup_break_addresses.construct()
+        fixup_continue_addresses.construct()
         reg_counter = 3
         reg_max = 3
 
@@ -273,6 +277,8 @@ obj bytecode_generator (Object) {
         node_function_idx.copy_construct(&old->node_function_idx)
         instructions.copy_construct(&old->instructions)
         fixup_function_addresses.copy_construct(&old->fixup_function_addresses)
+        fixup_break_addresses.copy_construct(&old->fixup_break_addresses)
+        fixup_continue_addresses.copy_construct(&old->fixup_continue_addresses)
     }
     fun operator=(other: ref bytecode_generator) {
         destruct()
@@ -284,6 +290,8 @@ obj bytecode_generator (Object) {
         node_function_idx.destruct()
         instructions.destruct()
         fixup_function_addresses.destruct()
+        fixup_break_addresses.destruct()
+        fixup_continue_addresses.destruct()
     }
     fun get_id(): string return to_string(id_counter++);
     fun get_reg(): int return reg_counter++;
@@ -370,14 +378,15 @@ obj bytecode_generator (Object) {
         functions.last().frame_size += type_size(ident_type)
         functions.last().var_to_frame_offset[identifier] = -functions.last().frame_size
         if (node->declaration_statement.expression) {
+            // STRUCT HERE
             emit_str(1, functions.last().var_to_frame_offset[identifier], generate(node->declaration_statement.expression), size_to_operand_size(type_size(get_ast_type(identifier))))
         }
         return -1
     }
     fun generate_assignment_statement(node: *ast_node): int {
-        /*var to   = generate(node->assignment_statement.to, true)*/
         var from = generate(node->assignment_statement.from)
         var to   = generate(node->assignment_statement.to, true)
+        // STRUCT HERE
         emit_str(to, 0, from, size_to_operand_size(type_size(get_ast_type(node->assignment_statement.to))))
         return -1
     }
@@ -398,21 +407,70 @@ obj bytecode_generator (Object) {
         return -1
     }
     fun generate_while_loop(node: *ast_node): int {
-        generate(node->while_loop.condition)
+        var top_index = instructions.size
+        var cond_reg = generate(node->while_loop.condition)
+        var jz_index = instructions.size
+        emit_jz(cond_reg,0)
+        fixup_break_addresses.push(vector<int>())
+        fixup_continue_addresses.push(vector<int>())
         generate(node->while_loop.statement)
+        emit_jmp(top_index - instructions.size)
+        instructions[jz_index].jz.offset = instructions.size - jz_index
+        fixup_continue_addresses.pop().for_each(fun(i: int) {
+            instructions[i].jmp = instructions.size - i
+        })
+        fixup_break_addresses.pop().for_each(fun(i: int) {
+            instructions[i].jmp = instructions.size - i
+        })
         return -1
     }
     fun generate_for_loop(node: *ast_node): int {
         if (node->for_loop.init)
             generate(node->for_loop.init)
+        var top_index = instructions.size
+        var cond_reg = 0
         if (node->for_loop.condition)
-            generate(node->for_loop.condition)
+            cond_reg = generate(node->for_loop.condition)
+        else
+            cond_reg = emit_imm(1)
+        var jz_index = instructions.size
+        emit_jz(cond_reg,0)
+        fixup_break_addresses.push(vector<int>())
+        fixup_continue_addresses.push(vector<int>())
+
+        generate(node->for_loop.body)
+
+        fixup_continue_addresses.pop().for_each(fun(i: int) {
+            instructions[i].jmp = instructions.size - i
+        })
+
         if (node->for_loop.update)
             generate(node->for_loop.update)
-        generate(node->for_loop.body)
+
+        emit_jmp(top_index - instructions.size)
+
+        instructions[jz_index].jz.offset = instructions.size - jz_index
+        fixup_break_addresses.pop().for_each(fun(i: int) {
+            instructions[i].jmp = instructions.size - i
+        })
+
+        return -1
+    }
+    fun generate_branching_statement(node: *ast_node): int {
+        match(node->branching_statement.b_type) {
+            branching_type::break_stmt() {
+                fixup_break_addresses.top().add(instructions.size)
+                emit_jmp(0)
+            }
+            branching_type::continue_stmt() {
+                fixup_continue_addresses.top().add(instructions.size)
+                emit_jmp(0)
+            }
+        }
         return -1
     }
     fun generate_identifier(node: *ast_node, lvalue: bool): int {
+        // STRUCT HERE
         if (lvalue) {
             return emit_addi(1, functions.last().var_to_frame_offset[node])
         } else {
@@ -420,6 +478,7 @@ obj bytecode_generator (Object) {
         }
     }
     fun generate_return_statement(node: *ast_node): int {
+        // STRUCT HERE
         if (node->return_statement.return_value) {
             emit_addi(2, generate(node->return_statement.return_value), 0)
             emit_addi(0, 1, register_size)
@@ -427,13 +486,6 @@ obj bytecode_generator (Object) {
             emit_ret()
         } else {
             emit_ret()
-        }
-        return -1
-    }
-    fun generate_branching_statement(node: *ast_node): int {
-        match(node->branching_statement.b_type) {
-            branching_type::break_stmt()    error("can't break")
-            branching_type::continue_stmt() error("can't continue")
         }
         return -1
     }
@@ -488,6 +540,7 @@ obj bytecode_generator (Object) {
                     else
                         return emit_ldr(emit_add(params[0], params[1]), 0, size_to_operand_size(type_size(get_ast_type(parameter_nodes[0])->clone_with_decreased_indirection())))
                 }
+                // STRUCT HERE
                 if (name == "." || name == "->") {
                     error("no structs")
                 }
@@ -532,6 +585,7 @@ obj bytecode_generator (Object) {
             error("unknown operator " + name)
         } else {
             var stack_offset = 0
+            // STRUCT HERE
             // reverse order
             node->function_call.parameters.reverse().for_each(fun(child: *ast_node) {
                 // push param onto stack
