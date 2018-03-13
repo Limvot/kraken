@@ -267,5 +267,19 @@ obj type (Object) {
         }
         return false
     }
+    fun is_signed_type(): bool {
+        match (base) {
+            base_type::character()  return true
+            base_type::short_int()  return true
+            base_type::integer()    return true
+            base_type::long_int()   return true
+
+            base_type::ucharacter() return false
+            base_type::ushort_int() return false
+            base_type::uinteger()   return false
+            base_type::ulong_int()  return false
+        }
+        return false
+    }
 }
 

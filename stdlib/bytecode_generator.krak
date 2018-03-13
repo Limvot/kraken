@@ -89,73 +89,51 @@ fun size_to_operand_size(size: ulong): operand_size {
 adt byte_inst {
     nop,
     imm:  imm,
-    add:  add,
-    addi: addi,
-    and:  and,
-    or:   or,
-    xor:  xor,
-    not:  not,
-    ldr:  ldr,
-    str:  str,
-    jmp:  jmp,
-    jz:   jz,
-    call: call,
+    add:  reg2,
+    addi: reg1i,
+    smul: reg2,
+    umul: reg2,
+    sdiv: reg2,
+    udiv: reg2,
+    mod:  reg2,
+    and:  reg2,
+    or:   reg2,
+    xor:  reg2,
+    not:  reg1,
+    ldr:  reg1is,
+    str:  reg1is,
+    jmp:  long,
+    jz:   test,
+    call: int,
     ret
 }
 obj imm {
-    var reg: int
+    var to_reg: int
     var val: long
 }
-obj add {
+obj reg1 {
     var to_reg: int
     var a: int
-    var b: int
 }
-obj addi {
+obj reg1i {
     var to_reg: int
     var a: int
     var bi:long
 }
-obj and {
-    var to_reg: int
-    var a: int
-    var b: int
-}
-obj or {
-    var to_reg: int
-    var a: int
-    var b: int
-}
-obj xor {
-    var to_reg: int
-    var a: int
-    var b: int
-}
-obj not {
-    var to_reg: int
-    var a: int
-}
-obj ldr {
-    var to_reg: int
-    var from_reg: int
+obj reg1is {
+    var reg: int
+    var base_reg: int
     var offset: long
     var size: operand_size
 }
-obj str {
+obj reg2 {
     var to_reg: int
-    var offset: long
-    var from_reg: int
-    var size: operand_size
+    var a: int
+    var b: int
 }
-obj jmp {
-    var offset: long
-}
-obj jz {
+obj test {
     var reg: int
     var offset: long
-}
-obj call {
-    var reg: int
 }
 
 fun to_string(s: operand_size): string {
@@ -171,18 +149,23 @@ fun to_string(s: operand_size): string {
 fun to_string(b: byte_inst): string {
     match (b) {
         byte_inst::nop()     return string("nop")
-        byte_inst::imm(i)    return string("r") + i.reg + " = imm " + i.val
+        byte_inst::imm(i)    return string("r") + i.to_reg + " = imm " + i.val
         byte_inst::add(a)    return string("r") + a.to_reg + " = r" + a.a + " + r" + a.b
         byte_inst::addi(a)   return string("r") + a.to_reg + " = r" + a.a + " + " + a.bi
+        byte_inst::smul(a)   return string("r") + a.to_reg + " = r" + a.a + " * " + a.b
+        byte_inst::umul(a)   return string("r") + a.to_reg + " = r" + a.a + " u* "+ a.b
+        byte_inst::sdiv(a)   return string("r") + a.to_reg + " = r" + a.a + " / " + a.b
+        byte_inst::udiv(a)   return string("r") + a.to_reg + " = r" + a.a + " u/ "+ a.b
+        byte_inst::mod(a)    return string("r") + a.to_reg + " = r" + a.a + " % " + a.b
         byte_inst::and(a)    return string("r") + a.to_reg + " = r" + a.a + " & " + a.b
         byte_inst::or(a)     return string("r") + a.to_reg + " = r" + a.a + " | " + a.b
         byte_inst::xor(a)    return string("r") + a.to_reg + " = r" + a.a + " ^ " + a.b
         byte_inst::not(a)    return string("r") + a.to_reg + " = ~r" + a.a
-        byte_inst::ldr(l)    return string("r") + l.to_reg + " = ldr" + to_string(l.size) + " r" + l.from_reg + " (" + l.offset + ")"
-        byte_inst::str(s)    return "str" + to_string(s.size) + " (r" + s.to_reg + "(" + s.offset + ") <= r" + s.from_reg + ")"
-        byte_inst::jmp(j)    return string("jmp(pc += ") + j.offset + ")"
+        byte_inst::ldr(l)    return string("r") + l.reg    + " = ldr" + to_string(l.size) + " r" + l.base_reg + " (" + l.offset + ")"
+        byte_inst::str(s)    return "str" + to_string(s.size) + " (r" + s.base_reg + "(" + s.offset + ") <= r" + s.reg + ")"
+        byte_inst::jmp(j)    return string("jmp(pc += ") + j + ")"
         byte_inst::jz(j)     return string("jmp(r") + j.reg + " == 0, pc += " + j.offset + ")"
-        byte_inst::call(c)   return string("call pc = r") + c.reg
+        byte_inst::call(c)   return string("call pc = r") + c
         byte_inst::ret()     return string("ret")
     }
     return string("Missed byte_inst case in to_string")
@@ -396,7 +379,7 @@ obj bytecode_generator (Object) {
             emit_jmp(0)
             instructions[jz_index].jz.offset = instructions.size - jz_index
             generate(node->if_statement.else_part)
-            instructions[jmp_index].jmp.offset = instructions.size - jmp_index
+            instructions[jmp_index].jmp = instructions.size - jmp_index
         } else {
             instructions[jz_index].jz.offset = instructions.size - jz_index
         }
@@ -508,7 +491,14 @@ obj bytecode_generator (Object) {
             } else if (name == ">>" || name == "<<") {
                 error("shift operators are not supported")
             } else if (name == "/" || name == "%" || (name == "*" && params.size == 2)) {
-                error("mult div mod operators are not supported")
+                if (get_ast_type(parameter_nodes[0])->is_signed_type()) {
+                    if (name == "/") return emit_sdiv(params[0], params[1])
+                    if (name == "*") return emit_smul(params[0], params[1])
+                } else {
+                    if (name == "/") return emit_udiv(params[0], params[1])
+                    if (name == "*") return emit_umul(params[0], params[1])
+                }
+                if (name == "%") return emit_mod(params[0], params[1])
             }
             error("unknown operator " + name)
         } else {
@@ -565,14 +555,14 @@ obj bytecode_generator (Object) {
     fun emit_imm(value: ulong): int { return emit_imm((value) cast int); }
     fun emit_imm(value: int): int {
         var i: imm
-        i.reg = get_reg()
+        i.to_reg = get_reg()
         i.val = value
         instructions.add(byte_inst::imm(i))
-        return i.reg
+        return i.to_reg
     }
     fun emit_add(a: int, b: int): int { return emit_add(get_reg(), a, b); }
     fun emit_add(dest: int, a: int, b: int): int {
-        var i: add
+        var i: reg2
         i.to_reg = dest
         i.a = a
         i.b = b
@@ -585,16 +575,56 @@ obj bytecode_generator (Object) {
     fun emit_addi(a: int, bi: ulong): int               { return emit_addi(get_reg(), a, (bi) cast long); }
     fun emit_addi(dest: int, a: int, bi: ulong): int    { return emit_addi(dest, a, (bi) cast long); }
     fun emit_addi(dest: int, a: int, bi: long): int {
-        var i: addi
+        var i: reg1i
         i.to_reg = dest
         i.a = a
         i.bi = bi
         instructions.add(byte_inst::addi(i))
         return i.to_reg
     }
+    fun emit_umul(a: int, b: int): int {
+        var i: reg2
+        i.to_reg = get_reg()
+        i.a = a
+        i.b = b
+        instructions.add(byte_inst::umul(i))
+        return i.to_reg
+    }
+    fun emit_smul(a: int, b: int): int {
+        var i: reg2
+        i.to_reg = get_reg()
+        i.a = a
+        i.b = b
+        instructions.add(byte_inst::smul(i))
+        return i.to_reg
+    }
+    fun emit_udiv(a: int, b: int): int {
+        var i: reg2
+        i.to_reg = get_reg()
+        i.a = a
+        i.b = b
+        instructions.add(byte_inst::udiv(i))
+        return i.to_reg
+    }
+    fun emit_sdiv(a: int, b: int): int {
+        var i: reg2
+        i.to_reg = get_reg()
+        i.a = a
+        i.b = b
+        instructions.add(byte_inst::sdiv(i))
+        return i.to_reg
+    }
+    fun emit_mod(a: int, b: int): int {
+        var i: reg2
+        i.to_reg = get_reg()
+        i.a = a
+        i.b = b
+        instructions.add(byte_inst::mod(i))
+        return i.to_reg
+    }
     fun emit_and(a: int, b: int): int { return emit_and(get_reg(), a, b); }
     fun emit_and(dest: int, a: int, b: int): int {
-        var i: and
+        var i: reg2
         i.to_reg = dest
         i.a = a
         i.b = b
@@ -603,7 +633,7 @@ obj bytecode_generator (Object) {
     }
     fun emit_or(a: int, b: int): int { return emit_or(get_reg(), a, b); }
     fun emit_or(dest: int, a: int, b: int): int {
-        var i: or
+        var i: reg2
         i.to_reg = dest
         i.a = a
         i.b = b
@@ -612,7 +642,7 @@ obj bytecode_generator (Object) {
     }
     fun emit_xor(a: int, b: int): int { return emit_xor(get_reg(), a, b); }
     fun emit_xor(dest: int, a: int, b: int): int {
-        var i: xor
+        var i: reg2
         i.to_reg = dest
         i.a = a
         i.b = b
@@ -621,7 +651,7 @@ obj bytecode_generator (Object) {
     }
     fun emit_not(a: int): int { return emit_not(get_reg(), a); }
     fun emit_not(dest: int, a: int): int {
-        var i: not
+        var i: reg1
         i.to_reg = dest
         i.a = a
         instructions.add(byte_inst::not(i))
@@ -629,31 +659,30 @@ obj bytecode_generator (Object) {
     }
     fun emit_ldr(reg: int, offset: int, size: operand_size): int { return emit_ldr(get_reg(), reg, offset, size); }
     fun emit_ldr(dest: int, reg: int, offset: int, size: operand_size): int {
-        var l: ldr
-        l.to_reg = dest
-        l.from_reg = reg
+        var l: reg1is
+        l.reg = dest
+        l.base_reg = reg
         l.offset = offset
         l.size = size
         instructions.add(byte_inst::ldr(l))
-        return l.to_reg
+        return l.reg
     }
     fun emit_str(to_reg: int, offset: int, from_reg: int, size: operand_size): int {
-        var s: str
-        s.to_reg = to_reg
+        var s: reg1is
+        s.reg = from_reg
         s.offset = offset
-        s.from_reg = from_reg
+        s.base_reg = to_reg
         s.size = size
         instructions.add(byte_inst::str(s))
         return -1
     }
-    fun emit_jmp(offset: int): int {
-        var j: jmp
-        j.offset = offset
-        instructions.add(byte_inst::jmp(j))
+    fun emit_jmp(offset: int): int { return emit_jmp((offset) cast long); }
+    fun emit_jmp(offset: long): int {
+        instructions.add(byte_inst::jmp(offset))
         return -1
     }
     fun emit_jz(reg: int, offset: int): int {
-        var j: jz
+        var j: test
         j.reg = reg
         j.offset = offset
         instructions.add(byte_inst::jz(j))
@@ -664,9 +693,7 @@ obj bytecode_generator (Object) {
         return -1
     }
     fun emit_call(reg: int): int {
-        var c: call
-        c.reg = reg
-        instructions.add(byte_inst::call(c))
+        instructions.add(byte_inst::call(reg))
         return 2
     }
 
@@ -688,33 +715,38 @@ obj bytecode_generator (Object) {
             println(string("evaling: ") + i + ": " + to_string(instructions[i]))
             match(instructions[i]) {
                 byte_inst::nop()     {}
-                byte_inst::imm(i)    registers[i.reg] = i.val
+                byte_inst::imm(i)    registers[i.to_reg] = i.val
                 byte_inst::add(a)    registers[a.to_reg] = registers[a.a] + registers[a.b]
                 byte_inst::addi(a)   registers[a.to_reg] = registers[a.a] + a.bi
+                byte_inst::umul(a)   registers[a.to_reg] = (registers[a.a]) cast ulong * (registers[a.b]) cast ulong
+                byte_inst::smul(a)   registers[a.to_reg] = registers[a.a] * registers[a.b]
+                byte_inst::udiv(a)   registers[a.to_reg] = (registers[a.a]) cast ulong / (registers[a.b]) cast ulong
+                byte_inst::sdiv(a)   registers[a.to_reg] = registers[a.a] / registers[a.b]
+                byte_inst::mod(a)    registers[a.to_reg] = (registers[a.a]) cast ulong % (registers[a.b]) cast ulong
                 byte_inst::and(a)    registers[a.to_reg] = registers[a.a] & registers[a.b]
                 byte_inst::or(a)     registers[a.to_reg] = registers[a.a] | registers[a.b]
                 byte_inst::xor(a)    registers[a.to_reg] = registers[a.a] ^ registers[a.b]
                 byte_inst::not(a)    registers[a.to_reg] = ~registers[a.a]
                 byte_inst::ldr(l)    match (l.size) {
-                                        operand_size::b8()  registers[l.to_reg] = *(stack + registers[l.from_reg] + l.offset) cast *char
-                                        operand_size::b16() registers[l.to_reg] = *(stack + registers[l.from_reg] + l.offset) cast *short
-                                        operand_size::b32() registers[l.to_reg] = *(stack + registers[l.from_reg] + l.offset) cast *int
-                                        operand_size::b64() registers[l.to_reg] = *(stack + registers[l.from_reg] + l.offset) cast *long
+                                        operand_size::b8()  registers[l.reg] = *(stack + registers[l.base_reg] + l.offset) cast *char
+                                        operand_size::b16() registers[l.reg] = *(stack + registers[l.base_reg] + l.offset) cast *short
+                                        operand_size::b32() registers[l.reg] = *(stack + registers[l.base_reg] + l.offset) cast *int
+                                        operand_size::b64() registers[l.reg] = *(stack + registers[l.base_reg] + l.offset) cast *long
                                      }
                 byte_inst::str(s)    match (s.size) {
-                                        operand_size::b8()  *(stack + registers[s.to_reg] + s.offset) cast *uchar  = registers[s.from_reg]
-                                        operand_size::b16() *(stack + registers[s.to_reg] + s.offset) cast *ushort = registers[s.from_reg]
-                                        operand_size::b32() *(stack + registers[s.to_reg] + s.offset) cast *uint   = registers[s.from_reg]
-                                        operand_size::b64() *(stack + registers[s.to_reg] + s.offset) cast *ulong  = registers[s.from_reg]
+                                        operand_size::b8()  *(stack + registers[s.base_reg] + s.offset) cast *uchar  = registers[s.reg]
+                                        operand_size::b16() *(stack + registers[s.base_reg] + s.offset) cast *ushort = registers[s.reg]
+                                        operand_size::b32() *(stack + registers[s.base_reg] + s.offset) cast *uint   = registers[s.reg]
+                                        operand_size::b64() *(stack + registers[s.base_reg] + s.offset) cast *ulong  = registers[s.reg]
                                      }
-                byte_inst::jmp(j)    i += j.offset - 1 // to counteract pc inc
+                byte_inst::jmp(offset)    i += offset - 1 // to counteract pc inc
                 byte_inst::jz(j)     if (registers[j.reg] == 0)
                                         i += j.offset - 1 // to counteract pc inc
                 byte_inst::call(c)    {
                     /*registers[0] -= register_size*/
                     registers[0] = registers[0] - register_size
                     *(stack + registers[0]) cast *long = i + 1
-                    i = registers[c.reg] - 1
+                    i = registers[c] - 1
                     print("call!")
                     println("first part of memory is (after push)")
                     for (var i = 0; i < 8*8; i+=8;) {
