@@ -96,10 +96,16 @@ adt byte_inst {
     sdiv: reg2,
     udiv: reg2,
     mod:  reg2,
+    shl:  reg2,
+    shr:  reg2,
+    sar:  reg2,
     and:  reg2,
     or:   reg2,
     xor:  reg2,
     not:  reg1,
+    gz:   reg1,
+    lz:   reg1,
+    ez:   reg1, // also logical not
     ldr:  reg1is,
     str:  reg1is,
     jmp:  long,
@@ -158,9 +164,15 @@ fun to_string(b: byte_inst): string {
         byte_inst::udiv(a)   return string("r") + a.to_reg + " = r" + a.a + " u/ "+ a.b
         byte_inst::mod(a)    return string("r") + a.to_reg + " = r" + a.a + " % " + a.b
         byte_inst::and(a)    return string("r") + a.to_reg + " = r" + a.a + " & " + a.b
+        byte_inst::shl(a)    return string("r") + a.to_reg + " = r" + a.a + " u<< " + a.b
+        byte_inst::shr(a)    return string("r") + a.to_reg + " = r" + a.a + " u>> " + a.b
+        byte_inst::sar(a)    return string("r") + a.to_reg + " = r" + a.a + " s>> " + a.b
         byte_inst::or(a)     return string("r") + a.to_reg + " = r" + a.a + " | " + a.b
         byte_inst::xor(a)    return string("r") + a.to_reg + " = r" + a.a + " ^ " + a.b
         byte_inst::not(a)    return string("r") + a.to_reg + " = ~r" + a.a
+        byte_inst::gz(a)     return string("r") + a.to_reg + " = r" + a.a + " > 0"
+        byte_inst::lz(a)     return string("r") + a.to_reg + " = r" + a.a + " < 0"
+        byte_inst::ez(a)     return string("r") + a.to_reg + " = r" + a.a + " == 0"
         byte_inst::ldr(l)    return string("r") + l.reg    + " = ldr" + to_string(l.size) + " r" + l.base_reg + " (" + l.offset + ")"
         byte_inst::str(s)    return "str" + to_string(s.size) + " (r" + s.base_reg + "(" + s.offset + ") <= r" + s.reg + ")"
         byte_inst::jmp(j)    return string("jmp(pc += ") + j + ")"
@@ -420,8 +432,8 @@ obj bytecode_generator (Object) {
     }
     fun generate_branching_statement(node: *ast_node): int {
         match(node->branching_statement.b_type) {
-            branching_type::break_stmt()    instructions.add(byte_inst::nop())
-            branching_type::continue_stmt() instructions.add(byte_inst::nop())
+            branching_type::break_stmt()    error("can't break")
+            branching_type::continue_stmt() error("can't continue")
         }
         return -1
     }
@@ -459,7 +471,7 @@ obj bytecode_generator (Object) {
             var params = parameter_nodes.map(fun(n: *ast_node): int return generate(n);)
             if        (name == "+") {
                 if (params.size == 1)
-                    error("positivate not supported")
+                    return emit_smul(params[0], emit_or(emit_gz(params[0]), emit_smul(emit_lz(params[0]), emit_imm(-1))))
                 else
                     return emit_add(params[0], params[1])
             } else if (name == "-") {
@@ -468,28 +480,45 @@ obj bytecode_generator (Object) {
                 else
                     return emit_add(params[0], emit_addi(emit_not(params[1]), 1))
             } else if (name == "!") {
-                error("not not supported")
+                return emit_ez(params[0])
             } else if (name == "[]" || name == "." || name == "->" || (name == "*" && params.size == 1)) {
                 if (name == "[]") {
-                                  if (lvalue) return emit_add(params[0], params[1])
-                                  else        return emit_ldr(emit_add(params[0], params[1]), 0, size_to_operand_size(type_size(get_ast_type(parameter_nodes[0])->clone_with_decreased_indirection())))
-                                  }
-                if (name == "." || name == "->")  error("no structs")
+                    if (lvalue)
+                        return emit_add(params[0], params[1])
+                    else
+                        return emit_ldr(emit_add(params[0], params[1]), 0, size_to_operand_size(type_size(get_ast_type(parameter_nodes[0])->clone_with_decreased_indirection())))
+                }
+                if (name == "." || name == "->") {
+                    error("no structs")
+                }
                 /*if (name == "." || name == "->")  if (lvalue) return emit_add(params[0], params[1])*/
                                   /*else        return emit_ldr(emit_add(params[0], params[1]), 0, size_to_operand_size(type_size(get_ast_type(parameter_nodes[1]))))*/
                 if (name == "*")  {
-                                  if (lvalue) return params[0]
-                                  else        return emit_ldr(params[0], 0, size_to_operand_size(type_size(get_ast_type(parameter_nodes[0])->clone_with_decreased_indirection())))
-                                  }
+                    if (lvalue)
+                        return params[0]
+                    else
+                        return emit_ldr(params[0], 0, size_to_operand_size(type_size(get_ast_type(parameter_nodes[0])->clone_with_decreased_indirection())))
+                }
             } else if (name == "==" || name == "<=" || name == ">=" || name == "!=" || name == "<" || name == ">") {
-                error("comparator operators are not supported")
+                var diff = emit_add(params[0], emit_addi(emit_not(params[1]), 1))
+                if (name == "==") return emit_ez(diff)
+                if (name == "<=") return emit_or(emit_ez(diff), emit_lz(diff))
+                if (name == ">=") return emit_or(emit_ez(diff), emit_gz(diff))
+                if (name == "!=") return emit_ez(emit_ez(diff))
+                if (name == "<")  return emit_lz(diff)
+                if (name == ">")  return emit_gz(diff)
             } else if (name == "|" || (name == "&" && params.size == 2) || name == "^" || name == "~") {
                 if (name == "|") return emit_or(params[0], params[1])
                 if (name == "&") return emit_and(params[0], params[1])
                 if (name == "^") return emit_xor(params[0], params[1])
                 if (name == "~") return emit_not(params[0])
             } else if (name == ">>" || name == "<<") {
-                error("shift operators are not supported")
+                if (name == "<<")
+                    return emit_shl(params[0], params[1])
+                if (get_ast_type(parameter_nodes[0])->is_signed_type())
+                    return emit_sar(params[0], params[1])
+                else
+                    return emit_shr(params[0], params[1])
             } else if (name == "/" || name == "%" || (name == "*" && params.size == 2)) {
                 if (get_ast_type(parameter_nodes[0])->is_signed_type()) {
                     if (name == "/") return emit_sdiv(params[0], params[1])
@@ -622,6 +651,30 @@ obj bytecode_generator (Object) {
         instructions.add(byte_inst::mod(i))
         return i.to_reg
     }
+    fun emit_shr(a: int, b: int): int {
+        var i: reg2
+        i.to_reg = get_reg()
+        i.a = a
+        i.b = b
+        instructions.add(byte_inst::shr(i))
+        return i.to_reg
+    }
+    fun emit_sar(a: int, b: int): int {
+        var i: reg2
+        i.to_reg = get_reg()
+        i.a = a
+        i.b = b
+        instructions.add(byte_inst::sar(i))
+        return i.to_reg
+    }
+    fun emit_shl(a: int, b: int): int {
+        var i: reg2
+        i.to_reg = get_reg()
+        i.a = a
+        i.b = b
+        instructions.add(byte_inst::shl(i))
+        return i.to_reg
+    }
     fun emit_and(a: int, b: int): int { return emit_and(get_reg(), a, b); }
     fun emit_and(dest: int, a: int, b: int): int {
         var i: reg2
@@ -655,6 +708,27 @@ obj bytecode_generator (Object) {
         i.to_reg = dest
         i.a = a
         instructions.add(byte_inst::not(i))
+        return i.to_reg
+    }
+    fun emit_gz(a: int): int {
+        var i: reg1
+        i.to_reg = get_reg()
+        i.a = a
+        instructions.add(byte_inst::gz(i))
+        return i.to_reg
+    }
+    fun emit_lz(a: int): int {
+        var i: reg1
+        i.to_reg = get_reg()
+        i.a = a
+        instructions.add(byte_inst::lz(i))
+        return i.to_reg
+    }
+    fun emit_ez(a: int): int {
+        var i: reg1
+        i.to_reg = get_reg()
+        i.a = a
+        instructions.add(byte_inst::ez(i))
         return i.to_reg
     }
     fun emit_ldr(reg: int, offset: int, size: operand_size): int { return emit_ldr(get_reg(), reg, offset, size); }
@@ -723,10 +797,16 @@ obj bytecode_generator (Object) {
                 byte_inst::udiv(a)   registers[a.to_reg] = (registers[a.a]) cast ulong / (registers[a.b]) cast ulong
                 byte_inst::sdiv(a)   registers[a.to_reg] = registers[a.a] / registers[a.b]
                 byte_inst::mod(a)    registers[a.to_reg] = (registers[a.a]) cast ulong % (registers[a.b]) cast ulong
+                byte_inst::shr(a)    registers[a.to_reg] = (registers[a.a]) cast ulong >>(registers[a.b]) cast ulong
+                byte_inst::sar(a)    registers[a.to_reg] = registers[a.a] >> registers[a.b]
+                byte_inst::shl(a)    registers[a.to_reg] = (registers[a.a]) cast ulong <<(registers[a.b]) cast ulong
                 byte_inst::and(a)    registers[a.to_reg] = registers[a.a] & registers[a.b]
                 byte_inst::or(a)     registers[a.to_reg] = registers[a.a] | registers[a.b]
                 byte_inst::xor(a)    registers[a.to_reg] = registers[a.a] ^ registers[a.b]
                 byte_inst::not(a)    registers[a.to_reg] = ~registers[a.a]
+                byte_inst::gz(a)     registers[a.to_reg] = registers[a.a] > 0
+                byte_inst::lz(a)     registers[a.to_reg] = registers[a.a] < 0
+                byte_inst::ez(a)     registers[a.to_reg] = registers[a.a] == 0
                 byte_inst::ldr(l)    match (l.size) {
                                         operand_size::b8()  registers[l.reg] = *(stack + registers[l.base_reg] + l.offset) cast *char
                                         operand_size::b16() registers[l.reg] = *(stack + registers[l.base_reg] + l.offset) cast *short
