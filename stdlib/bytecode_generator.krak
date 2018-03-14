@@ -158,17 +158,17 @@ fun to_string(b: byte_inst): string {
         byte_inst::imm(i)    return string("r") + i.to_reg + " = imm " + i.val
         byte_inst::add(a)    return string("r") + a.to_reg + " = r" + a.a + " + r" + a.b
         byte_inst::addi(a)   return string("r") + a.to_reg + " = r" + a.a + " + " + a.bi
-        byte_inst::smul(a)   return string("r") + a.to_reg + " = r" + a.a + " * " + a.b
-        byte_inst::umul(a)   return string("r") + a.to_reg + " = r" + a.a + " u* "+ a.b
-        byte_inst::sdiv(a)   return string("r") + a.to_reg + " = r" + a.a + " / " + a.b
-        byte_inst::udiv(a)   return string("r") + a.to_reg + " = r" + a.a + " u/ "+ a.b
-        byte_inst::mod(a)    return string("r") + a.to_reg + " = r" + a.a + " % " + a.b
-        byte_inst::and(a)    return string("r") + a.to_reg + " = r" + a.a + " & " + a.b
-        byte_inst::shl(a)    return string("r") + a.to_reg + " = r" + a.a + " u<< " + a.b
-        byte_inst::shr(a)    return string("r") + a.to_reg + " = r" + a.a + " u>> " + a.b
-        byte_inst::sar(a)    return string("r") + a.to_reg + " = r" + a.a + " s>> " + a.b
-        byte_inst::or(a)     return string("r") + a.to_reg + " = r" + a.a + " | " + a.b
-        byte_inst::xor(a)    return string("r") + a.to_reg + " = r" + a.a + " ^ " + a.b
+        byte_inst::smul(a)   return string("r") + a.to_reg + " = r" + a.a + " * r" + a.b
+        byte_inst::umul(a)   return string("r") + a.to_reg + " = r" + a.a + " u* r"+ a.b
+        byte_inst::sdiv(a)   return string("r") + a.to_reg + " = r" + a.a + " / r" + a.b
+        byte_inst::udiv(a)   return string("r") + a.to_reg + " = r" + a.a + " u/ r"+ a.b
+        byte_inst::mod(a)    return string("r") + a.to_reg + " = r" + a.a + " % r" + a.b
+        byte_inst::and(a)    return string("r") + a.to_reg + " = r" + a.a + " & r" + a.b
+        byte_inst::shl(a)    return string("r") + a.to_reg + " = r" + a.a + " u<< r" + a.b
+        byte_inst::shr(a)    return string("r") + a.to_reg + " = r" + a.a + " u>> r" + a.b
+        byte_inst::sar(a)    return string("r") + a.to_reg + " = r" + a.a + " s>> r" + a.b
+        byte_inst::or(a)     return string("r") + a.to_reg + " = r" + a.a + " | r" + a.b
+        byte_inst::xor(a)    return string("r") + a.to_reg + " = r" + a.a + " ^ r" + a.b
         byte_inst::not(a)    return string("r") + a.to_reg + " = ~r" + a.a
         byte_inst::gz(a)     return string("r") + a.to_reg + " = r" + a.a + " > 0"
         byte_inst::lz(a)     return string("r") + a.to_reg + " = r" + a.a + " < 0"
@@ -294,12 +294,14 @@ obj bytecode_generator (Object) {
         fixup_continue_addresses.destruct()
     }
     fun get_id(): string return to_string(id_counter++);
-    fun get_reg(): int return reg_counter++;
-    fun reset_reg() {
+    fun get_reg(): int   return reg_counter++;
+    fun peek_reg(): int  return reg_counter;
+    fun reset_reg()      reset_reg(3);
+    fun reset_reg(to: int) {
         if (reg_counter > reg_max) {
             reg_max = reg_counter
         }
-        reg_counter = 3
+        reg_counter = to
     }
     /*fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<vector<bytecode_function>, vector<byte_inst>> {*/
     fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>) {
@@ -380,6 +382,7 @@ obj bytecode_generator (Object) {
         if (node->declaration_statement.expression) {
             // STRUCT HERE
             emit_str(1, functions.last().var_to_frame_offset[identifier], generate(node->declaration_statement.expression), size_to_operand_size(type_size(get_ast_type(identifier))))
+            reset_reg()
         }
         return -1
     }
@@ -388,19 +391,23 @@ obj bytecode_generator (Object) {
         var to   = generate(node->assignment_statement.to, true)
         // STRUCT HERE
         emit_str(to, 0, from, size_to_operand_size(type_size(get_ast_type(node->assignment_statement.to))))
+        reset_reg()
         return -1
     }
     fun generate_if_statement(node: *ast_node): int {
         var cond_reg = generate(node->if_statement.condition)
         var jz_index = instructions.size
         emit_jz(cond_reg,0)
+        reset_reg()
         generate(node->if_statement.then_part)
+        reset_reg()
         if (node->if_statement.else_part) {
             var jmp_index = instructions.size
             emit_jmp(0)
             instructions[jz_index].jz.offset = instructions.size - jz_index
             generate(node->if_statement.else_part)
             instructions[jmp_index].jmp = instructions.size - jmp_index
+            reset_reg()
         } else {
             instructions[jz_index].jz.offset = instructions.size - jz_index
         }
@@ -411,9 +418,11 @@ obj bytecode_generator (Object) {
         var cond_reg = generate(node->while_loop.condition)
         var jz_index = instructions.size
         emit_jz(cond_reg,0)
+        reset_reg()
         fixup_break_addresses.push(vector<int>())
         fixup_continue_addresses.push(vector<int>())
         generate(node->while_loop.statement)
+        reset_reg()
         emit_jmp(top_index - instructions.size)
         instructions[jz_index].jz.offset = instructions.size - jz_index
         fixup_continue_addresses.pop().for_each(fun(i: int) {
@@ -427,6 +436,7 @@ obj bytecode_generator (Object) {
     fun generate_for_loop(node: *ast_node): int {
         if (node->for_loop.init)
             generate(node->for_loop.init)
+        reset_reg()
         var top_index = instructions.size
         var cond_reg = 0
         if (node->for_loop.condition)
@@ -435,17 +445,21 @@ obj bytecode_generator (Object) {
             cond_reg = emit_imm(1)
         var jz_index = instructions.size
         emit_jz(cond_reg,0)
+        reset_reg()
         fixup_break_addresses.push(vector<int>())
         fixup_continue_addresses.push(vector<int>())
 
         generate(node->for_loop.body)
+        reset_reg()
 
         fixup_continue_addresses.pop().for_each(fun(i: int) {
             instructions[i].jmp = instructions.size - i
         })
 
-        if (node->for_loop.update)
+        if (node->for_loop.update) {
             generate(node->for_loop.update)
+            reset_reg()
+        }
 
         emit_jmp(top_index - instructions.size)
 
@@ -483,8 +497,10 @@ obj bytecode_generator (Object) {
             emit_addi(2, generate(node->return_statement.return_value), 0)
             emit_addi(0, 1, register_size)
             emit_ldr(1, 1, 0, operand_size::b64())
+            reset_reg()
             emit_ret()
         } else {
+            reset_reg()
             emit_ret()
         }
         return -1
@@ -584,18 +600,39 @@ obj bytecode_generator (Object) {
             }
             error("unknown operator " + name)
         } else {
-            var stack_offset = 0
+            // save regs
+            var save_til = peek_reg()
+            var save_size = (save_til - 3) * register_size
+            if (save_size != 0) {
+                emit_addi(0, 0, -save_size)
+                for (var i = 3; i < save_til; i++;) {
+                    emit_str(0, ((i-3)*register_size) cast int, i, operand_size::b64())
+                }
+            }
             // STRUCT HERE
             // reverse order
+            var total_param_size = 0
             node->function_call.parameters.reverse().for_each(fun(child: *ast_node) {
                 // push param onto stack
                 var param_size = type_size(get_ast_type(child))
                 emit_addi(0, 0, -param_size)
-                stack_offset += param_size
+                total_param_size += param_size
                 emit_str(0, 0, generate(child), size_to_operand_size(param_size))
+                reset_reg(save_til)
             })
             var return_reg = emit_call(generate_function(node->function_call.func))
-            emit_addi(0, 0, stack_offset)
+            // returning through r2 every time doesn't give unique regs for functions used together in an expression
+            // so get a new one for this time
+            return_reg = emit_addi(return_reg, 0)
+            emit_addi(0, 0, total_param_size)
+
+            // restore regs
+            for (var i = 3; i < save_til; i++;) {
+                emit_ldr(i, 0, ((i-3)*register_size) cast int, operand_size::b64())
+            }
+            if (save_size != 0)
+                emit_addi(0, 0, save_size)
+
             return return_reg
         }
     }
