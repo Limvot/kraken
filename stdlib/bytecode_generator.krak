@@ -535,6 +535,22 @@ obj bytecode_generator (Object) {
             // generate with lvalue=true to make return a pointer
             if (name == "&" && parameter_nodes.size == 1)
                 return generate(parameter_nodes[0], true)
+            if (name == "++" || name == "++p" || name == "--" || name == "--p") {
+                var op_size = size_to_operand_size(type_size(get_ast_type(parameter_nodes[0])))
+                var addr_reg = generate(parameter_nodes[0], true)
+                var value_reg = emit_ldr(addr_reg, 0, op_size)
+                var mod_reg = -1
+                if (name[0] == '+')
+                    mod_reg = emit_addi(value_reg, 1)
+                else
+                    mod_reg = emit_addi(value_reg, -1)
+                emit_str(addr_reg, 0, mod_reg, op_size)
+                // if preincrement, return modified value, else unmodified
+                if (name.length() == 2)
+                    return mod_reg
+                else
+                    return value_reg
+            }
 
             var params = parameter_nodes.map(fun(n: *ast_node): int return generate(n);)
             if        (name == "+") {
