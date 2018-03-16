@@ -644,10 +644,15 @@ obj bytecode_generator (Object) {
             var total_param_size = 0
             node->function_call.parameters.reverse().for_each(fun(child: *ast_node) {
                 // push param onto stack
-                var param_size = type_size(get_ast_type(child))
+                var param_type = get_ast_type(child)
+                var param_size = type_size(param_type)
+                var param_reg  = generate(child)
                 emit_addi(0, 0, -param_size)
                 total_param_size += param_size
-                emit_str(0, 0, generate(child), size_to_operand_size(param_size))
+                if (param_type->is_object() && param_type->indirection == 0)
+                    emit_struct_copy(0, 0, param_reg, 0, param_type)
+                else
+                    emit_str(0, 0, param_reg, size_to_operand_size(param_size))
                 reset_reg(save_til)
             })
             var return_reg = emit_call(generate_function(node->function_call.func))
