@@ -381,7 +381,10 @@ obj bytecode_generator (Object) {
         functions.last().var_to_frame_offset[identifier] = -functions.last().frame_size
         if (node->declaration_statement.expression) {
             // STRUCT HERE
-            emit_str(1, functions.last().var_to_frame_offset[identifier], generate(node->declaration_statement.expression), size_to_operand_size(type_size(get_ast_type(identifier))))
+            if (ident_type->is_object() && ident_type->indirection == 0)
+                emit_struct_copy(1, functions.last().var_to_frame_offset[identifier], generate(node->declaration_statement.expression), 0, get_ast_type(identifier))
+            else
+                emit_str(1, functions.last().var_to_frame_offset[identifier], generate(node->declaration_statement.expression), size_to_operand_size(type_size(get_ast_type(identifier))))
             reset_reg()
         }
         return -1
@@ -389,8 +392,12 @@ obj bytecode_generator (Object) {
     fun generate_assignment_statement(node: *ast_node): int {
         var from = generate(node->assignment_statement.from)
         var to   = generate(node->assignment_statement.to, true)
+        var var_type = get_ast_type(node->assignment_statement.to)
         // STRUCT HERE
-        emit_str(to, 0, from, size_to_operand_size(type_size(get_ast_type(node->assignment_statement.to))))
+        if (var_type->is_object() && var_type->indirection == 0)
+            emit_struct_copy(to, 0, from, 0, var_type)
+        else
+            emit_str(to, 0, from, size_to_operand_size(type_size(var_type)))
         reset_reg()
         return -1
     }
@@ -694,6 +701,19 @@ obj bytecode_generator (Object) {
             result = "main"
         ast_name_map.set(node, result)
         return result
+    }
+    fun emit_struct_copy(to: int, to_offset: int, from: int, from_offset: int, t: *type) {
+        for (var i = 0; i < t->type_def->type_def.variables.size; i++;) {
+            var member_var = t->type_def->type_def.variables[i]->declaration_statement.identifier
+            var member_type = get_ast_type(member_var)
+            var member_offset = offset_into_struct(t, member_var)
+            if (member_type->is_object() && member_type->indirection == 0) {
+                emit_struct_copy(to, (to_offset + member_offset) cast int, from, (from_offset + member_offset) cast int, member_type)
+            } else {
+                var member_size = size_to_operand_size(type_size(member_type))
+                emit_str(to, (to_offset + member_offset) cast int, emit_ldr(from, (from_offset + member_offset) cast int, member_size), member_size)
+            }
+        }
     }
     fun emit_imm(value: ulong): int { return emit_imm((value) cast int); }
     fun emit_imm(value: int): int {
