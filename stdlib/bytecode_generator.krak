@@ -357,6 +357,15 @@ obj bytecode_generator (Object) {
         node_function_idx[node] = functions.size
         functions.add(bytecode_function(get_name(node), instructions.size))
         var parameter_offset = (register_size*2) cast int // have to pass saved RBP and return address
+        
+        var return_type = get_ast_type(node)->return_type
+        // if we're returning an object, our caller passes the address
+        // we should save our return value as as the first parameter
+        if (return_type->is_object() && return_type->indirection == 0) {
+            var ptr_type = return_type->clone_with_increased_indirection()
+            functions.last().var_to_frame_offset[ast_identifier_ptr("bytecode_struct_return_temp_address", ptr_type, null<ast_node>())] = parameter_offset
+            parameter_offset += type_size(ptr_type)
+        }
         node->function.parameters.for_each(fun(p: *ast_node) {
             functions.last().var_to_frame_offset[p] = parameter_offset
             parameter_offset += type_size(p->identifier.type)
@@ -501,15 +510,23 @@ obj bytecode_generator (Object) {
     fun generate_return_statement(node: *ast_node): int {
         // STRUCT HERE
         if (node->return_statement.return_value) {
-            emit_addi(2, generate(node->return_statement.return_value), 0)
-            emit_addi(0, 1, register_size)
-            emit_ldr(1, 1, 0, operand_size::b64())
-            reset_reg()
-            emit_ret()
-        } else {
-            reset_reg()
-            emit_ret()
+            var return_value_reg = generate(node->return_statement.return_value)
+            var return_type = get_ast_type(node->return_statement.return_value) 
+            if (return_type->is_object() && return_type->indirection == 0) {
+                // fix this up to be nicer
+                // this is the hardcoded offset of the "first parameter" which
+                // is the address into which we should save our resulting struct
+                emit_struct_copy(emit_ldr(1, (register_size*2) cast int, size_to_operand_size(register_size)), 0, return_value_reg, 0, return_type)
+            } else {
+                emit_addi(2, return_value_reg, 0)
+            }
         }
+
+        emit_addi(0, 1, register_size)
+        emit_ldr(1, 1, 0, operand_size::b64())
+        reset_reg()
+        emit_ret()
+
         return -1
     }
     fun generate_cast(node: *ast_node): int {
@@ -630,6 +647,18 @@ obj bytecode_generator (Object) {
             }
             error("unknown operator " + name)
         } else {
+            // if this function returns a struct, we have to allocate space for it on the top of the stack
+            // before we save registers, as it has to persist beyond the call (for whatever happens to it next)
+            // We stick it in the function as if this is the declaration of a temporary variable, basically
+
+            var return_type = get_ast_type(func)->return_type
+            var struct_return_temp_ident = null<ast_node>()
+            if (return_type->is_object() && return_type->indirection == 0) {
+                struct_return_temp_ident = ast_identifier_ptr("bytecode_struct_return_temp", return_type, null<ast_node>())
+                functions.last().frame_size += type_size(return_type)
+                functions.last().var_to_frame_offset[struct_return_temp_ident] = -functions.last().frame_size
+            }
+
             // save regs
             var save_til = peek_reg()
             var save_size = (save_til - 3) * register_size
@@ -655,10 +684,24 @@ obj bytecode_generator (Object) {
                     emit_str(0, 0, param_reg, size_to_operand_size(param_size))
                 reset_reg(save_til)
             })
+            // pass the address to save the struct into as a parameter
+            if (return_type->is_object() && return_type->indirection == 0) {
+                emit_addi(0, 0, -(register_size) cast int)
+                total_param_size += (register_size) cast int
+                emit_str(0, 0, emit_addi(1, functions.last().var_to_frame_offset[struct_return_temp_ident]), size_to_operand_size(register_size))
+                reset_reg(save_til)
+            }
             var return_reg = emit_call(generate_function(node->function_call.func))
-            // returning through r2 every time doesn't give unique regs for functions used together in an expression
-            // so get a new one for this time
-            return_reg = emit_addi(return_reg, 0)
+
+            if (return_type->is_object() && return_type->indirection == 0) {
+                // if returned struct, then the struct was saved where we asked for it to be
+                // return pointer with that address
+                return_reg = emit_addi(1, functions.last().var_to_frame_offset[struct_return_temp_ident])
+            } else {
+                // returning through r2 every time doesn't give unique regs for functions used together in an expression
+                // so get a new one for this time
+                return_reg = emit_addi(return_reg, 0)
+            }
             emit_addi(0, 0, total_param_size)
 
             // restore regs
