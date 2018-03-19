@@ -72,9 +72,15 @@ fun offset_into_struct(struct_type: *type, ident: *ast_node): ulong {
     return offset
 }
 
+
 var register_size = #sizeof<*void>
-var malloc_addr = -1
-var free_addr   = -2
+var malloc_addr    = -1
+var free_addr      = -2
+var memmove_addr   = -3
+var printf_addr    = -4
+var fprintf_addr   = -5
+var fflush_addr    = -6
+var fgets_addr     = -7
 
 adt operand_size {
     b8,
@@ -353,6 +359,16 @@ obj bytecode_generator (Object) {
                     instructions[p.first].imm.val = malloc_addr
                 else if (p.second->function.name == "free")
                     instructions[p.first].imm.val = free_addr
+                else if (p.second->function.name == "memmove")
+                    instructions[p.first].imm.val = memmove_addr
+                else if (p.second->function.name == "printf")
+                    instructions[p.first].imm.val = printf_addr
+                else if (p.second->function.name == "fprintf")
+                    instructions[p.first].imm.val = fprintf_addr
+                else if (p.second->function.name == "fflush")
+                    instructions[p.first].imm.val = fflush_addr
+                else if (p.second->function.name == "fgets")
+                    instructions[p.first].imm.val = fgets_addr
                 else
                     error("bad extern function used: " + p.second->function.name)
              } else {
@@ -517,10 +533,23 @@ obj bytecode_generator (Object) {
     fun generate_identifier(node: *ast_node, lvalue: bool): int {
         // STRUCT HERE
         var ident_type = get_ast_type(node)
-        if (lvalue || (ident_type->is_object() && ident_type->indirection == 0))
-            return emit_addi(1, functions.last().var_to_frame_offset[node])
-        else
-            return emit_ldr(1, functions.last().var_to_frame_offset[node], size_to_operand_size(type_size(ident_type)))
+        if (node->identifier.is_extern) {
+            var addr_reg = -1
+
+            if      (node->identifier.name == "stderr") addr_reg = emit_imm( (&stderr) cast long)
+            else if (node->identifier.name == "stdin")  addr_reg = emit_imm( (&stdin)  cast long)
+            else error("does not support external identifier " + node->identifier.name + " in bytecode")
+
+            if (lvalue || (ident_type->is_object() && ident_type->indirection == 0))
+                return addr_reg
+            else
+                return emit_ldr(addr_reg, 0, size_to_operand_size(type_size(ident_type)))
+        } else {
+            if (lvalue || (ident_type->is_object() && ident_type->indirection == 0))
+                return emit_addi(1, functions.last().var_to_frame_offset[node])
+            else
+                return emit_ldr(1, functions.last().var_to_frame_offset[node], size_to_operand_size(type_size(ident_type)))
+        }
     }
     fun generate_return_statement(node: *ast_node): int {
         // STRUCT HERE
@@ -548,8 +577,13 @@ obj bytecode_generator (Object) {
         return generate(node->cast.value)
     }
     fun generate_value(node: *ast_node): int {
-        if (node->value.value_type->is_bool())
-            return emit_imm((node->value.string_value == "true") cast int)
+        println("generating value " + node->value.string_value)
+        println(node->value.value_type->base == base_type::character())
+        println(node->value.value_type->indirection == 1)
+        if      (node->value.value_type->is_bool())
+            return emit_imm((node->value.string_value == "true") cast long)
+        else if (node->value.value_type->base == base_type::character() && node->value.value_type->indirection == 1)
+            return emit_imm((&node->value.string_value[0]) cast long)
         else
             return emit_imm(string_to_num<int>(node->value.string_value))
     }
@@ -798,8 +832,9 @@ obj bytecode_generator (Object) {
             }
         }
     }
-    fun emit_imm(value: ulong): int { return emit_imm((value) cast int); }
-    fun emit_imm(value: int): int {
+    fun emit_imm(value: ulong): int { return emit_imm((value) cast long); }
+    fun emit_imm(value: int):   int { return emit_imm((value) cast long); }
+    fun emit_imm(value: long): int {
         var i: imm
         i.to_reg = get_reg()
         i.val = value
@@ -1043,15 +1078,39 @@ obj bytecode_generator (Object) {
                 byte_inst::call(c)    {
                     var func_start = registers[c]
                     // extern call
+
+/*ext fun malloc(size: ulong): *void*/
+/*ext fun free(size: *void)*/
+/*ext fun memmove(dest: *void, src: *void, size: ulong): *void*/
+
+/*ext fun printf(fmt_str: *char, ...): int*/
+/*ext fun fprintf(file: *void, format: *char, ...): int*/
+/*ext fun fflush(file: int): int*/
+/*ext fun fgets(buff: *char, size: int, file: *void): *char*/
+/*ext var stderr: *void*/
+/*ext var stdin: *void*/
                     if (func_start < 0) {
                         if      (func_start == malloc_addr)
-                            /*registers[2] = (malloc(*(stack + registers[0]) cast *ulong)) cast long*/
-                            {
-                            got_malloc = malloc(*(registers[0]) cast *ulong)
-                            registers[2] = (got_malloc) cast long
-                            }
+                            registers[2] = (malloc(*(registers[0]) cast *ulong)) cast long
                         else if (func_start == free_addr)
                             free(*(registers[0]) cast **void)
+                        else if (func_start == memmove_addr)
+                            registers[2] = (memmove(*(registers[0]) cast **void,
+                                                    *(registers[0] + #sizeof<*void>) cast **void,
+                                                    *(registers[0] + 2*#sizeof<*void>) cast *ulong)) cast long
+                        else if (func_start == printf_addr)
+                            registers[2] = (printf( *(registers[0]) cast **char,
+                                                    *(registers[0] + #sizeof<*char>) cast **char)) cast long
+                        else if (func_start == fprintf_addr)
+                            registers[2] = (fprintf(*(registers[0]) cast **void,
+                                                    *(registers[0] + #sizeof<*void>) cast **char,
+                                                    *(registers[0] + #sizeof<*void> + #sizeof<*char>) cast **char)) cast long
+                        else if (func_start == fflush_addr)
+                            registers[2] = (fflush( *(registers[0]) cast *int)) cast long
+                        else if (func_start == fgets_addr)
+                            registers[2] = (fgets(  *(registers[0]) cast **char,
+                                                    *(registers[0] + #sizeof<*char>) cast *int,
+                                                    *(registers[0] + #sizeof<*char> + #sizeof<int>) cast **void)) cast long
                         else
                             error(string("bad extern call number") + func_start)
                     } else {
@@ -1094,7 +1153,7 @@ obj bytecode_generator (Object) {
                     }
                     println("Done")
                     if (pc == 0) {
-                        println(string("got malloc is ") + *(got_malloc) cast *int)
+                        /*println(string("got malloc is ") + *(got_malloc) cast *int)*/
                         return value
                     } else {
                         i = pc - 1
