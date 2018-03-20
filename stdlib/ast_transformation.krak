@@ -504,9 +504,33 @@ obj ast_transformation (Object) {
     fun transform_value(node: *tree<symbol>, scope: *ast_node): *ast_node {
         var value_str = concat_symbol_tree(node)
         var value_type = null<type>()
-        if (value_str[0] == '"') // " // Comment hack for emacs now
+        if (value_str[0] == '"') { // " // Comment hack for emacs now
             value_type = type_ptr(base_type::character(), 1)
-        else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
+            var start = 1
+            var end = value_str.length() -1
+            if (value_str.length() > 3 && value_str[1] == '"' && value_str[2] == '"') {
+                value_str = value_str.slice(3,-4)
+            } else {
+                var new_str.construct(end-start): string
+                var escaped = false
+                for (var i = 1; i < value_str.length()-1; i++;) {
+                    if (escaped) {
+                        escaped = false
+                        if (value_str[i] == 'n')
+                            new_str += '\n'
+                        else if (value_str[i] == 't')
+                            new_str += '\t'
+                        else
+                            new_str += value_str[i]
+                    } else if (value_str[i] == '\\') {
+                        escaped = true
+                    } else {
+                        new_str += value_str[i]
+                    }
+                }
+                value_str = new_str
+            }
+        } else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
             value_type = type_ptr(base_type::character())
         else if (value_str == "true" || value_str == "false")
             value_type = type_ptr(base_type::boolean())

@@ -291,19 +291,16 @@ obj c_generator (Object) {
     }
     fun generate_value(node: *ast_node): string {
         var value = node->value.string_value
-        if (value[0] != '"')
+        if (node->value.value_type->base != base_type::character() || node->value.value_type->indirection != 1)
             return value
 
-        var to_ret = string("\"")
-        var triple_quoted = value.slice(0,3) == "\"\"\""
-        if (triple_quoted)
-            value = value.slice(3,-4)
-        else
-            value = value.slice(1,-2)
+        var to_ret = string("\"") //"
         value.for_each(fun(c: char) {
             if (c == '\n')
                 to_ret += "\\n"
-            else if (c == '"' && triple_quoted)
+            else if (c == '\\')
+                to_ret += "\\\\"
+            else if (c == '"')
                 to_ret += "\\\""
             else
                 to_ret += c
@@ -373,7 +370,7 @@ obj c_generator (Object) {
             return "sizeof(" + type_to_c(node->compiler_intrinsic.type_parameters[0]) + ")"
         } else if (node->compiler_intrinsic.intrinsic == "link") {
             node->compiler_intrinsic.parameters.for_each(fun(value: *ast_node) {
-                linker_string += string("-l") + value->value.string_value.slice(1,-2) + " "
+                linker_string += string("-l") + value->value.string_value + " "
             })
             return string()
         }

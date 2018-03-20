@@ -577,9 +577,6 @@ obj bytecode_generator (Object) {
         return generate(node->cast.value)
     }
     fun generate_value(node: *ast_node): int {
-        println("generating value " + node->value.string_value)
-        println(node->value.value_type->base == base_type::character())
-        println(node->value.value_type->indirection == 1)
         if      (node->value.value_type->is_bool())
             return emit_imm((node->value.string_value == "true") cast long)
         else if (node->value.value_type->base == base_type::character() && node->value.value_type->indirection == 1)

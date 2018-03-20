@@ -108,6 +108,10 @@ obj string (Object, Serializable, Hashable) {
         data.construct();
         return this;
     }
+    fun construct(ammt: int): *string {
+        data.construct(ammt);
+        return this;
+    }
     fun construct(str: *char): *string {
         var len = 0
         while (str[len] != 0) len++
