@@ -6,9 +6,6 @@ import stack:*
 import string:*
 import hash_set:*
 
-fun make_this_noncached(object: *ast_node): *ast_node {
-    return ast_identifier_ptr("this", object->type_def.self_type->clone_with_indirection(1), object)
-}
 fun get_first_terminal(source: *tree<symbol>): *tree<symbol> {
     if (!source)
         return null<tree<symbol>>()

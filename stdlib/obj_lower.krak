@@ -329,7 +329,7 @@ fun obj_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
     })
     fun_to_obj.for_each(fun(method: *ast_node, object: *ast_node) {
         var this_type = object->type_def.self_type->clone_with_increased_indirection()
-        var this_ident = ast_identifier_ptr("this", this_type, method)
+        var this_ident = method->function.this_param
         method->function.parameters.add(0, this_ident)
         add_to_scope("this", this_ident, method)
         add_to_scope("~enclosing_scope", method, this_ident)

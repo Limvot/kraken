@@ -296,9 +296,9 @@ obj adt_def (Object) {
     }
 }
 fun ast_function_ptr(name: string, type: *type, parameters: vector<*ast_node>, is_extern: bool): *ast_node
-    return ast_function_ptr(name, type, parameters, is_extern, false)
-fun ast_function_ptr(name: string, type: *type, parameters: vector<*ast_node>, is_extern: bool, is_variadic: bool): *ast_node {
-    var to_ret.construct(name, type, parameters, is_extern, is_variadic): function
+    return ast_function_ptr(name, type, parameters, null<ast_node>(), is_extern, false)
+fun ast_function_ptr(name: string, type: *type, parameters: vector<*ast_node>, this_param: *ast_node, is_extern: bool, is_variadic: bool): *ast_node {
+    var to_ret.construct(name, type, parameters, this_param, is_extern, is_variadic): function
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::function(to_ret))
     return ptr
@@ -313,14 +313,16 @@ obj function (Object) {
     var name: string
     var type: *type
     var parameters: vector<*ast_node>
+    var this_param: *ast_node
     var closed_variables: set<*ast_node>
     var body_statement: *ast_node
     var scope: map<string, vector<*ast_node>>
     var is_extern: bool
     var is_variadic: bool
-    fun construct(name_in: string, type_in: *type, parameters_in: vector<*ast_node>, is_extern_in: bool, is_variadic_in: bool): *function  {
+    fun construct(name_in: string, type_in: *type, parameters_in: vector<*ast_node>, this_param_in: *ast_node, is_extern_in: bool, is_variadic_in: bool): *function  {
         name.copy_construct(&name_in)
         parameters.copy_construct(&parameters_in)
+        this_param = this_param_in
         closed_variables.construct()
         scope.construct()
         type = type_in
@@ -334,6 +336,7 @@ obj function (Object) {
         type = old->type
         body_statement = old->body_statement
         parameters.copy_construct(&old->parameters)
+        this_param = old->this_param
         closed_variables.copy_construct(&old->closed_variables)
         scope.copy_construct(&old->scope)
         is_extern = old->is_extern
@@ -350,7 +353,7 @@ obj function (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref function): bool {
-        return name == name && type == other.type && parameters == other.parameters && body_statement == other.body_statement && closed_variables == other.closed_variables && is_extern == other.is_extern && is_variadic == other.is_variadic
+        return name == name && type == other.type && parameters == other.parameters && this_param == other.this_param && body_statement == other.body_statement && closed_variables == other.closed_variables && is_extern == other.is_extern && is_variadic == other.is_variadic
     }
 }
 fun ast_template_ptr(name: string, syntax_node: *tree<symbol>, template_types: vector<string>, template_type_replacements: map<string, *type>, is_function: bool): *ast_node {

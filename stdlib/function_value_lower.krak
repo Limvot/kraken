@@ -240,14 +240,6 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
             lambda_creation_funcs[l]->function.parameters.add(closure_param)
             body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "data"), closure_param))
             l->function.closed_variables.for_each(fun(v: *ast_node) {
-                // HACK
-                /*if (v->identifier.name == "this") {*/
-                    /*// add in an assignment at the beginning of the lambda*/
-                    /*if (!is_code_block(l->function.body_statement))*/
-                        /*error("lambda body isn't a block in function_value_lower")*/
-                    /*l->function.body_statement->code_block.children.add(0, ast_declaration_statement_ptr(ast_identifier_ptr("this", v->identifier.type, l->function.body_statement),*/
-                                                                           /*make_operator_call("*", vector(access_expression(closure_lambda_param, v->identifier.name)))))*/
-                /*}*/
                 // have to make sure to clean here as well
                 var closed_param_type = v->identifier.type
                 if (lambda_type_to_struct_type_and_call_func.contains_key(*closed_param_type))

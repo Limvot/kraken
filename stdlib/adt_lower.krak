@@ -12,6 +12,7 @@ import hash_set:*
 
 import pass_common:*
 
+
 fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var type_def_option_map = map<*ast_node, vector<*ast_node>>()
     var visited1 = hash_set<*ast_node>()
@@ -25,7 +26,7 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     var replacement = ast_type_def_ptr(backing.name, false);
                     // we're going to be replacing adt_def in the same ptr, so this works
                     replacement->type_def.self_type = node->adt_def.self_type
-                    var replacement_this = make_this_noncached(replacement)
+
                     var option_union = ast_type_def_ptr(backing.name + "_union", true);
                     node->adt_def.options.for_each(fun(opt: *ast_node) {
                         if (!opt->identifier.type->is_empty_adt_option())
@@ -69,18 +70,19 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                         var block = ast_code_block_ptr()
                         add_to_scope("~enclosing_scope", func, block)
                         func->function.body_statement = block
+                        var func_this = func->function.this_param
                         if (func->function.name == "operator==") {
                             var other = func->function.parameters[0]
-                            var if_stmt = ast_if_statement_ptr(make_operator_call("!=", vector(make_operator_call("->", vector(replacement_this, flag)), make_operator_call(".", vector(other, flag)))))
+                            var if_stmt = ast_if_statement_ptr(make_operator_call("!=", vector(make_operator_call("->", vector(func_this, flag)), make_operator_call(".", vector(other, flag)))))
                             if_stmt->if_statement.then_part = ast_return_statement_ptr(ast_value_ptr(string("false"), type_ptr(base_type::boolean())))
                             block->code_block.children.add(if_stmt)
 
                             for (var i = 0; i < type_def_option_map[node].size; i++;) {
                                 if (get_ast_type(type_def_option_map[node][i])->is_empty_adt_option())
                                     continue
-                                var if_stmt_inner = ast_if_statement_ptr(make_operator_call("==", vector(make_operator_call("->", vector(replacement_this, flag)), ast_value_ptr(to_string(i), type_ptr(base_type::integer())))))
+                                var if_stmt_inner = ast_if_statement_ptr(make_operator_call("==", vector(make_operator_call("->", vector(func_this, flag)), ast_value_ptr(to_string(i), type_ptr(base_type::integer())))))
                                 var option = type_def_option_map[node][i]
-                                var our_option = make_operator_call(".", vector(make_operator_call("->", vector(replacement_this, option_union_ident)), option))
+                                var our_option = make_operator_call(".", vector(make_operator_call("->", vector(func_this, option_union_ident)), option))
                                 var their_option = make_operator_call(".", vector(make_operator_call(".", vector(other, option_union_ident)), option))
                                 if_stmt_inner->if_statement.then_part = ast_return_statement_ptr(possible_object_equality(our_option, their_option))
                                 block->code_block.children.add(if_stmt_inner)
@@ -88,28 +90,28 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                             block->code_block.children.add(ast_return_statement_ptr(ast_value_ptr(string("true"), type_ptr(base_type::boolean()))))
                         } else if (func->function.name == "operator!=") {
                             var other = func->function.parameters[0]
-                            block->code_block.children.add(ast_return_statement_ptr(make_operator_call("!", vector(make_method_call(replacement_this, "operator==", vector(other))))))
+                            block->code_block.children.add(ast_return_statement_ptr(make_operator_call("!", vector(make_method_call(func_this, "operator==", vector(other))))))
                         } else if (func->function.name == "construct") {
                             var value = ast_value_ptr(string("-1"), type_ptr(base_type::integer()))
-                            block->code_block.children.add(ast_assignment_statement_ptr(make_operator_call("->", vector(replacement_this, flag)), value))
-                            block->code_block.children.add(ast_return_statement_ptr(replacement_this))
+                            block->code_block.children.add(ast_assignment_statement_ptr(make_operator_call("->", vector(func_this, flag)), value))
+                            block->code_block.children.add(ast_return_statement_ptr(func_this))
                         } else if (func->function.name == "copy_construct") {
                             var other = func->function.parameters[0]
-                            block->code_block.children.add(ast_assignment_statement_ptr(make_operator_call("->", vector(replacement_this, flag)), make_operator_call("->", vector(other, flag))))
+                            block->code_block.children.add(ast_assignment_statement_ptr(make_operator_call("->", vector(func_this, flag)), make_operator_call("->", vector(other, flag))))
                             for (var i = 0; i < type_def_option_map[node].size; i++;) {
                                 if (get_ast_type(type_def_option_map[node][i])->is_empty_adt_option())
                                     continue
-                                var if_stmt_inner = ast_if_statement_ptr(make_operator_call("==", vector(make_operator_call("->", vector(replacement_this, flag)), ast_value_ptr(to_string(i), type_ptr(base_type::integer())))))
+                                var if_stmt_inner = ast_if_statement_ptr(make_operator_call("==", vector(make_operator_call("->", vector(func_this, flag)), ast_value_ptr(to_string(i), type_ptr(base_type::integer())))))
                                 var option = type_def_option_map[node][i]
-                                var our_option = make_operator_call(".", vector(make_operator_call("->", vector(replacement_this, option_union_ident)), option))
+                                var our_option = make_operator_call(".", vector(make_operator_call("->", vector(func_this, option_union_ident)), option))
                                 var their_option = make_operator_call(".", vector(make_operator_call("->", vector(other, option_union_ident)), option))
                                 if_stmt_inner->if_statement.then_part = assign_or_copy_construct_statement(our_option, their_option)
                                 block->code_block.children.add(if_stmt_inner)
                             }
                         } else if (func->function.name == "operator=") {
                             var other = func->function.parameters[0]
-                            block->code_block.children.add(make_method_call(replacement_this, "destruct", vector<*ast_node>()))
-                            block->code_block.children.add(make_method_call(replacement_this, "copy_construct", vector(make_operator_call("&", vector(other)))))
+                            block->code_block.children.add(make_method_call(func_this, "destruct", vector<*ast_node>()))
+                            block->code_block.children.add(make_method_call(func_this, "copy_construct", vector(make_operator_call("&", vector(other)))))
                         } else if (func->function.name == "destruct") {
                             for (var i = 0; i < type_def_option_map[node].size; i++;) {
                                 var option = type_def_option_map[node][i]
@@ -117,8 +119,8 @@ fun adt_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                                 if (option_type->is_empty_adt_option())
                                     continue
                                 if (option_type->indirection == 0 && option_type->is_object() && has_method(option_type->type_def, "destruct", vector<*type>())) {
-                                    var if_stmt_inner = ast_if_statement_ptr(make_operator_call("==", vector(make_operator_call("->", vector(replacement_this, flag)), ast_value_ptr(to_string(i), type_ptr(base_type::integer())))))
-                                    var our_option = make_operator_call(".", vector(make_operator_call("->", vector(replacement_this, option_union_ident)), option))
+                                    var if_stmt_inner = ast_if_statement_ptr(make_operator_call("==", vector(make_operator_call("->", vector(func_this, flag)), ast_value_ptr(to_string(i), type_ptr(base_type::integer())))))
+                                    var our_option = make_operator_call(".", vector(make_operator_call("->", vector(func_this, option_union_ident)), option))
                                     if_stmt_inner->if_statement.then_part = make_method_call(our_option, "destruct", vector<*ast_node>())
                                     block->code_block.children.add(if_stmt_inner)
                                 }

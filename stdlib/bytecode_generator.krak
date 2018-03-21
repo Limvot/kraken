@@ -93,7 +93,7 @@ fun size_to_operand_size(size: ulong): operand_size {
     if (size == 2) return operand_size::b16()
     if (size == 4) return operand_size::b32()
     if (size == 8) return operand_size::b64()
-    error("invalid operand size")
+    error(string("invalid operand size ") + size)
 }
 adt byte_inst {
     nop,
@@ -580,7 +580,7 @@ obj bytecode_generator (Object) {
         if      (node->value.value_type->is_bool())
             return emit_imm((node->value.string_value == "true") cast long)
         else if (node->value.value_type->base == base_type::character() && node->value.value_type->indirection == 1)
-            return emit_imm((&node->value.string_value[0]) cast long)
+            return emit_imm((node->value.string_value.toCharArray()) cast long)
         else
             return emit_imm(string_to_num<int>(node->value.string_value))
     }
@@ -660,19 +660,20 @@ obj bytecode_generator (Object) {
             } else if (name == "!") {
                 return emit_ez(params[0])
             } else if (name == "[]" || (name == "*" && params.size == 1)) {
-                var derefed_size = type_size(lhs_type->clone_with_decreased_indirection())
+                var derefed_type = lhs_type->clone_with_decreased_indirection()
+                var derefed_size = type_size(derefed_type)
                 if (name == "[]") {
                     var offset_reg = params[1]
                     if (derefed_size != 1)
                         offset_reg = emit_smul(offset_reg, emit_imm(derefed_size))
                     var addr_reg = emit_add(params[0], offset_reg)
-                    if (lvalue)
+                    if (lvalue || (derefed_type->is_object() && derefed_type->indirection == 0))
                         return addr_reg
                     else
                         return emit_ldr(addr_reg, 0, size_to_operand_size(derefed_size))
                 }
                 if (name == "*")  {
-                    if (lvalue)
+                    if (lvalue || (derefed_type->is_object() && derefed_type->indirection == 0))
                         return params[0]
                     else
                         return emit_ldr(params[0], 0, size_to_operand_size(derefed_size))
