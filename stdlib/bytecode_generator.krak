@@ -81,6 +81,17 @@ var printf_addr    = -4
 var fprintf_addr   = -5
 var fflush_addr    = -6
 var fgets_addr     = -7
+var fopen_addr     = -8
+var fclose_addr    = -9
+var ftell_addr     = -10
+var fseek_addr     = -11
+var fread_addr     = -12
+var fwrite_addr    = -13
+var system_addr    = -14
+var exit_addr      = -15
+var popen_addr     = -16
+var pclose_addr    = -17
+var snprintf_addr  = -18
 
 adt operand_size {
     b8,
@@ -369,6 +380,28 @@ obj bytecode_generator (Object) {
                     instructions[p.first].imm.val = fflush_addr
                 else if (p.second->function.name == "fgets")
                     instructions[p.first].imm.val = fgets_addr
+                else if (p.second->function.name == "fopen")
+                    instructions[p.first].imm.val = fopen_addr
+                else if (p.second->function.name == "fclose")
+                    instructions[p.first].imm.val = fclose_addr
+                else if (p.second->function.name == "ftell")
+                    instructions[p.first].imm.val = ftell_addr
+                else if (p.second->function.name == "fseek")
+                    instructions[p.first].imm.val = fseek_addr
+                else if (p.second->function.name == "fread")
+                    instructions[p.first].imm.val = fread_addr
+                else if (p.second->function.name == "fwrite")
+                    instructions[p.first].imm.val = fwrite_addr
+                else if (p.second->function.name == "system")
+                    instructions[p.first].imm.val = system_addr
+                else if (p.second->function.name == "exit")
+                    instructions[p.first].imm.val = exit_addr
+                else if (p.second->function.name == "popen")
+                    instructions[p.first].imm.val = popen_addr
+                else if (p.second->function.name == "pclose")
+                    instructions[p.first].imm.val = pclose_addr
+                else if (p.second->function.name == "snprintf")
+                    instructions[p.first].imm.val = snprintf_addr
                 else
                     error("bad extern function used: " + p.second->function.name)
              } else {
@@ -410,6 +443,9 @@ obj bytecode_generator (Object) {
         emit_addi(0, 0, 0)                          // this has to be fixed afterwards to be the -frame_size
 
         generate(node->function.body_statement)
+
+        // generate a return just in case the function itself doesn't have one
+        generate_return_statement(ast_return_statement_ptr(null<ast_node>()))
 
         instructions[push_frame_idx].addi.bi = -functions.last().frame_size
 
@@ -594,6 +630,8 @@ obj bytecode_generator (Object) {
     }
     // this generates the function as a value, not the actual function
     fun generate_function(node: *ast_node): int {
+        if (!is_function(node))
+            error("trying to generate a function but isn't a function")
         fixup_function_addresses.add(make_pair(instructions.size,node))
         return emit_imm(-2)
     }
@@ -754,7 +792,7 @@ obj bytecode_generator (Object) {
                 emit_str(0, 0, emit_addi(1, functions.last().var_to_frame_offset[struct_return_temp_ident]), size_to_operand_size(register_size))
                 reset_reg(save_til)
             }
-            var return_reg = emit_call(generate_function(node->function_call.func))
+            var return_reg = emit_call(generate(node->function_call.func))
 
             if (return_type->is_object() && return_type->indirection == 0) {
                 // if returned struct, then the struct was saved where we asked for it to be
@@ -1037,7 +1075,7 @@ obj bytecode_generator (Object) {
             stack[-i + -1] = 0
         registers[0] = (stack-register_size) cast long // with the stack being zeroed out, this makes it a return address of 0
         for (var i = main_entry.instruction_start; i < instructions.size; i++;) {
-            println(string("evaling: ") + i + ": " + to_string(instructions[i]))
+            /*println(string("evaling: ") + i + ": " + to_string(instructions[i]))*/
             match(instructions[i]) {
                 byte_inst::nop()     {}
                 byte_inst::imm(i)    registers[i.to_reg] = i.val
@@ -1087,6 +1125,21 @@ obj bytecode_generator (Object) {
 /*ext fun fgets(buff: *char, size: int, file: *void): *char*/
 /*ext var stderr: *void*/
 /*ext var stdin: *void*/
+
+/*ext fun fopen(path: *char, mode: *char): *void*/
+/*ext fun fclose(file: *void): int*/
+/*ext fun ftell(file: *void): long*/
+/*ext fun fseek(file: *void, offset: long, whence: int): int*/
+/*ext fun fread(ptr: *void, size: ulong, nmemb: ulong, file: *void): ulong*/
+/*ext fun fwrite(ptr: *void, size: ulong, nmemb: ulong, file: *void): ulong*/
+
+/*ext fun system(call_string: *char): int*/
+/*ext fun exit(code: int):void*/
+
+/*ext fun popen(command: *char, mode: *char): *void*/
+/*ext fun pclose(file: *void): int*/
+
+/*ext fun snprintf(to_str: *char, num: ulong, format: *char, ...): int*/
                     if (func_start < 0) {
                         if      (func_start == malloc_addr)
                             registers[2] = (malloc(*(registers[0]) cast *ulong)) cast long
@@ -1116,46 +1169,47 @@ obj bytecode_generator (Object) {
                         registers[0] = registers[0] - register_size
                         *(registers[0]) cast *long = i + 1
                         i = func_start - 1
-                        print("call!")
-                        println("first part of memory is (after push)")
-                        for (var i = 0; i < 8*8; i+=8;) {
-                            print(string("-") + i + string(": "))
-                            for (var j = 0; j < 8; j++;) {
-                                if (j == 4)
-                                    print(" ")
-                                print(*(stack - (i+j)*#sizeof<uchar> - 1) cast *uchar)
-                                print(" ")
-                            }
-                            println()
-                        }
-                        println("Done")
+                        /*print("call!")*/
+                        /*println("call: " + functions.find_first_satisfying(fun(f: bytecode_function): bool return f.instruction_start == func_start;).name)*/
+                        /*println("first part of memory is (after push)")*/
+                        /*for (var i = 0; i < 8*8; i+=8;) {*/
+                            /*print(string("-") + i + string(": "))*/
+                            /*for (var j = 0; j < 8; j++;) {*/
+                                /*if (j == 4)*/
+                                    /*print(" ")*/
+                                /*print(*(stack - (i+j)*#sizeof<uchar> - 1) cast *uchar)*/
+                                /*print(" ")*/
+                            /*}*/
+                            /*println()*/
+                        /*}*/
+                        /*println("Done")*/
                     }
                 }
                 byte_inst::ret()     {
                     var pc = *(registers[0]) cast *long
                     /*registers[0] += register_size*/
                     registers[0] = registers[0] + register_size
-                    print("returning! return value is\n\t")
-                    var value = registers[2]
-                    println(value)
-                    println("first part of memory is")
-                    for (var i = 0; i < 8*8; i+=8;) {
-                        print(string("-") + i + string(": "))
-                        for (var j = 0; j < 8; j++;) {
-                            if (j == 4)
-                                print(" ")
-                            print(*(stack - (i+j)*#sizeof<uchar> - 1) cast *uchar)
-                            print(" ")
-                        }
-                        println()
-                    }
-                    println("Done")
+                    /*print("returning!")*/
+                    /*println("first part of memory is")*/
+                    /*for (var i = 0; i < 8*8; i+=8;) {*/
+                        /*print(string("-") + i + string(": "))*/
+                        /*for (var j = 0; j < 8; j++;) {*/
+                            /*if (j == 4)*/
+                                /*print(" ")*/
+                            /*print(*(stack - (i+j)*#sizeof<uchar> - 1) cast *uchar)*/
+                            /*print(" ")*/
+                        /*}*/
+                        /*println()*/
+                    /*}*/
+                    /*println("Done")*/
                     if (pc == 0) {
                         /*println(string("got malloc is ") + *(got_malloc) cast *int)*/
+                        var value = registers[2]
+                        println(string("returning from main, value is ") + value)
                         return value
                     } else {
                         i = pc - 1
-                        println(string("returning to ") + pc)
+                        /*println(string("returning to ") + pc)*/
                     }
                 }
             }
