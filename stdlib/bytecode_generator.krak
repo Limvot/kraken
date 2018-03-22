@@ -617,6 +617,8 @@ obj bytecode_generator (Object) {
             return emit_imm((node->value.string_value == "true") cast long)
         else if (node->value.value_type->base == base_type::character() && node->value.value_type->indirection == 1)
             return emit_imm((node->value.string_value.toCharArray()) cast long)
+        else if (node->value.value_type->base == base_type::character() && node->value.value_type->indirection == 0)
+            return emit_imm((node->value.string_value[0]) cast long)
         else
             return emit_imm(string_to_num<int>(node->value.string_value))
     }

@@ -291,6 +291,8 @@ obj c_generator (Object) {
     }
     fun generate_value(node: *ast_node): string {
         var value = node->value.string_value
+        if (node->value.value_type->base == base_type::character() && node->value.value_type->indirection == 0)
+            return "'" + value + "'"
         if (node->value.value_type->base != base_type::character() || node->value.value_type->indirection != 1)
             return value
 

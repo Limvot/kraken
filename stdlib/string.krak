@@ -191,6 +191,11 @@ obj string (Object, Serializable, Hashable) {
         return *this == str
     }
 
+    fun operator+(c: char): string {
+        var to_ret = *this
+        to_ret += c
+        return to_ret
+    }
     fun operator+(integer: int): string return *this + to_string(integer);
     fun operator+(integer: long): string return *this + to_string(integer);
     fun operator+(integer: ulong): string return *this + to_string(integer);

@@ -549,9 +549,10 @@ obj ast_transformation (Object) {
                 }
                 value_str = new_str
             }
-        } else if (value_str[0] == '\'') //'// lol, comment hack for vim syntax highlighting (my fault, of course)
+        } else if (value_str[0] == '\'') { //'// lol, comment hack for vim syntax highlighting (my fault, of course)
             value_type = type_ptr(base_type::character())
-        else if (value_str == "true" || value_str == "false")
+            value_str = value_str.slice(1,-2)
+        } else if (value_str == "true" || value_str == "false")
             value_type = type_ptr(base_type::boolean())
         else {
             // should differentiate between float and double...
