@@ -1,4 +1,5 @@
 import io:*
+import os:*
 import mem:*
 import map:*
 import hash_map:*
@@ -329,7 +330,6 @@ obj bytecode_generator (Object) {
         // iterate through asts
         name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
             // iterate through children for each ast
-            // do lambdas seperatly, so we can reconstitute the enclosing object if it has one
             tree_pair.second->translation_unit.lambdas.for_each(fun(child: *ast_node) {
                 generate_function_definition(child)
             })
@@ -1164,6 +1164,8 @@ obj bytecode_generator (Object) {
                             registers[2] = (fgets(  *(registers[0]) cast **char,
                                                     *(registers[0] + #sizeof<*char>) cast *int,
                                                     *(registers[0] + #sizeof<*char> + #sizeof<int>) cast **void)) cast long
+                        else if (func_start == system_addr)
+                            registers[2] = (system( *(registers[0]) cast **char)) cast long
                         else
                             error(string("bad extern call number") + func_start)
                     } else {
