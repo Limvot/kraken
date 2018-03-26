@@ -619,7 +619,13 @@ obj bytecode_generator (Object) {
             return emit_imm((node->value.string_value.toCharArray()) cast long)
         else if (node->value.value_type->base == base_type::character() && node->value.value_type->indirection == 0)
             return emit_imm((node->value.string_value[0]) cast long)
-        else
+        else if (node->value.value_type->base == base_type::floating() && node->value.value_type->indirection == 0) {
+            var double_temp: double = ((string_to_double(node->value.string_value)) cast float)
+            return emit_imm(*(&double_temp) cast *long)
+        } else if (node->value.value_type->base == base_type::double_precision() && node->value.value_type->indirection == 0) {
+            var double_temp: double = string_to_double(node->value.string_value)
+            return emit_imm(*(&double_temp) cast *long)
+        } else
             return emit_imm(string_to_num<int>(node->value.string_value))
     }
     fun generate_code_block(node: *ast_node): int {
@@ -1164,8 +1170,41 @@ obj bytecode_generator (Object) {
                             registers[2] = (fgets(  *(registers[0]) cast **char,
                                                     *(registers[0] + #sizeof<*char>) cast *int,
                                                     *(registers[0] + #sizeof<*char> + #sizeof<int>) cast **void)) cast long
+                        else if (func_start == fopen_addr)
+                            registers[2] = (fopen(  *(registers[0]) cast **char,
+                                                    *(registers[0] + #sizeof<*char>) cast **char)) cast long
+                        else if (func_start == fclose_addr)
+                            registers[2] = (fclose( *(registers[0]) cast **void)) cast long
+                        else if (func_start == ftell_addr)
+                            registers[2] = (ftell(  *(registers[0]) cast **void)) cast long
+                        else if (func_start == fseek_addr)
+                            registers[2] = (fseek(  *(registers[0]) cast **void,
+                                                    *(registers[0] + #sizeof<*void>) cast *long,
+                                                    *(registers[0] + #sizeof<*void> + #sizeof<long>) cast *int)) cast long
+                        else if (func_start == fread_addr)
+                            registers[2] = (fread(  *(registers[0]) cast **void,
+                                                    *(registers[0] + #sizeof<*void>) cast *ulong,
+                                                    *(registers[0] + #sizeof<*void> + #sizeof<ulong>) cast *ulong,
+                                                    *(registers[0] + #sizeof<*void>+2*#sizeof<ulong>) cast **void)) cast long
+                        else if (func_start == fwrite_addr)
+                            registers[2] = (fwrite( *(registers[0]) cast **void,
+                                                    *(registers[0] + #sizeof<*void>) cast *ulong,
+                                                    *(registers[0] + #sizeof<*void> + #sizeof<ulong>) cast *ulong,
+                                                    *(registers[0] + #sizeof<*void>+2*#sizeof<ulong>) cast **void)) cast long
                         else if (func_start == system_addr)
                             registers[2] = (system( *(registers[0]) cast **char)) cast long
+                        else if (func_start == exit_addr)
+                            exit(*(registers[0]) cast *int)
+                        else if (func_start == popen_addr)
+                            registers[2] = (popen(  *(registers[0]) cast **char,
+                                                    *(registers[0] + #sizeof<*char>) cast **char)) cast long
+                        else if (func_start == pclose_addr)
+                            registers[2] = (pclose( *(registers[0]) cast **void)) cast long
+                        else if (func_start == snprintf_addr)
+                            registers[2] =(snprintf(*(registers[0]) cast **char,
+                                                    *(registers[0] + #sizeof<*char>) cast *ulong,
+                                                    *(registers[0] + #sizeof<*char> + #sizeof<ulong>) cast **char,
+                                                    *(registers[0] + #sizeof<*char> + #sizeof<ulong> + #sizeof<*char>) cast *double)) cast long
                         else
                             error(string("bad extern call number") + func_start)
                     } else {
