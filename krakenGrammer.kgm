@@ -95,7 +95,7 @@ adt_def = adt_nonterm WS identifier WS "{" WS adt_option_list WS "}" ;
 adt_option_list = adt_option | adt_option WS "," WS adt_option_list ;
 adt_option = identifier | identifier WS dec_type ;
 
-if_statement = "if" WS "\(" WS boolean_expression WS "\)" WS statement | "if" WS "\(" WS boolean_expression WS "\)" WS statement WS "else" WS statement ;
+if_statement = "if" WS boolean_expression WS statement | "if" WS "\(" WS boolean_expression WS "\)" WS statement WS "else" WS statement ;
 
 match_statement = "match" WS "\(" WS boolean_expression WS "\)" WS "{" WS case_statement_list WS "}" ;
 case_statement_list = case_statement WS case_statement_list | case_statement ;
@@ -114,7 +114,7 @@ statement = if_statement | match_statement | while_loop | for_loop | return_stat
 break_statement = "break" ;
 continue_statement = "continue" ;
 defer_statement = "defer" WS statement ;
-function_call = unarad WS "\(" WS opt_parameter_list WS "\)" ;
+function_call = unarad "\(" WS opt_parameter_list WS "\)" ;
 
 compiler_intrinsic = "#" identifier WS "\(" WS opt_parameter_list WS "\)" | "#" identifier WS "<" WS type_list WS ">" ;
 
