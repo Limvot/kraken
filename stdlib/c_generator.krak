@@ -3,7 +3,7 @@ import mem:*
 import map:*
 import hash_map:*
 import stack:*
-import string:*
+import str:*
 import util:*
 import tree:*
 import symbol:*
@@ -14,69 +14,69 @@ import poset:*
 
 obj c_generator (Object) {
     var id_counter: int
-    var ast_name_map: hash_map<*ast_node, string>
-    var used_names: hash_set<string>
-    var function_type_map: map<type, string>
-    var replacement_map: map<string, string>
+    var ast_name_map: hash_map<*ast_node, str>
+    var used_names: hash_set<str>
+    var function_type_map: map<type, str>
+    var replacement_map: map<str, str>
     var longest_replacement: int
-    var function_typedef_string: string
-    var linker_string: string
+    var function_typedef_string: str
+    var linker_string: str
     fun construct(): *c_generator {
         id_counter = 0
         ast_name_map.construct()
         used_names.construct()
         // to avoid using c keywords
-        used_names.add(string("extern"))
-        used_names.add(string("register"))
+        used_names.add(str("extern"))
+        used_names.add(str("register"))
         function_type_map.construct()
         function_typedef_string.construct()
         linker_string.construct()
 
         replacement_map.construct()
-     	replacement_map[string("+")] = string("plus")
-        replacement_map[string("-")] = string("minus")
-        replacement_map[string("*")] = string("star")
-        replacement_map[string("/")] = string("div")
-        replacement_map[string("%")] = string("mod")
-        replacement_map[string("^")] = string("carat")
-        replacement_map[string("&")] = string("amprsd")
-        replacement_map[string("|")] = string("pipe")
-        replacement_map[string("~")] = string("tilde")
-        replacement_map[string("!")] = string("exlmtnpt")
-        replacement_map[string(",")] = string("comma")
-        replacement_map[string("=")] = string("eq")
-        replacement_map[string("++")] = string("dbplus")
-        replacement_map[string("--")] = string("dbminus")
-        replacement_map[string("<<")] = string("dbleft")
-        replacement_map[string(">>")] = string("dbright")
-        replacement_map[string("::")] = string("scopeop")
-        replacement_map[string(":")] = string("colon")
-        replacement_map[string("==")] = string("dbq")
-        replacement_map[string("!=")] = string("notequals")
-        replacement_map[string("&&")] = string("doubleamprsnd")
-        replacement_map[string("||")] = string("doublepipe")
-        replacement_map[string("+=")] = string("plusequals")
-        replacement_map[string("-=")] = string("minusequals")
-        replacement_map[string("/=")] = string("divequals")
-        replacement_map[string("%=")] = string("modequals")
-        replacement_map[string("^=")] = string("caratequals")
-        replacement_map[string("&=")] = string("amprsdequals")
-        replacement_map[string("|=")] = string("pipeequals")
-        replacement_map[string("*=")] = string("starequals")
-        replacement_map[string("<<=")] = string("doublerightequals")
-        replacement_map[string("<")] = string("lt")
-        replacement_map[string(">")] = string("gt")
-        replacement_map[string(">>=")] = string("doubleleftequals")
-        replacement_map[string("(")] = string("openparen")
-        replacement_map[string(")")] = string("closeparen")
-        replacement_map[string("[")] = string("obk")
-        replacement_map[string("]")] = string("cbk")
-        replacement_map[string(" ")] = string("_")
-        replacement_map[string(".")] = string("dot")
-        replacement_map[string("->")] = string("arrow")
+     	replacement_map[str("+")] = str("plus")
+        replacement_map[str("-")] = str("minus")
+        replacement_map[str("*")] = str("star")
+        replacement_map[str("/")] = str("div")
+        replacement_map[str("%")] = str("mod")
+        replacement_map[str("^")] = str("carat")
+        replacement_map[str("&")] = str("amprsd")
+        replacement_map[str("|")] = str("pipe")
+        replacement_map[str("~")] = str("tilde")
+        replacement_map[str("!")] = str("exlmtnpt")
+        replacement_map[str(",")] = str("comma")
+        replacement_map[str("=")] = str("eq")
+        replacement_map[str("++")] = str("dbplus")
+        replacement_map[str("--")] = str("dbminus")
+        replacement_map[str("<<")] = str("dbleft")
+        replacement_map[str(">>")] = str("dbright")
+        replacement_map[str("::")] = str("scopeop")
+        replacement_map[str(":")] = str("colon")
+        replacement_map[str("==")] = str("dbq")
+        replacement_map[str("!=")] = str("notequals")
+        replacement_map[str("&&")] = str("doubleamprsnd")
+        replacement_map[str("||")] = str("doublepipe")
+        replacement_map[str("+=")] = str("plusequals")
+        replacement_map[str("-=")] = str("minusequals")
+        replacement_map[str("/=")] = str("divequals")
+        replacement_map[str("%=")] = str("modequals")
+        replacement_map[str("^=")] = str("caratequals")
+        replacement_map[str("&=")] = str("amprsdequals")
+        replacement_map[str("|=")] = str("pipeequals")
+        replacement_map[str("*=")] = str("starequals")
+        replacement_map[str("<<=")] = str("doublerightequals")
+        replacement_map[str("<")] = str("lt")
+        replacement_map[str(">")] = str("gt")
+        replacement_map[str(">>=")] = str("doubleleftequals")
+        replacement_map[str("(")] = str("openparen")
+        replacement_map[str(")")] = str("closeparen")
+        replacement_map[str("[")] = str("obk")
+        replacement_map[str("]")] = str("cbk")
+        replacement_map[str(" ")] = str("_")
+        replacement_map[str(".")] = str("dot")
+        replacement_map[str("->")] = str("arrow")
 
         longest_replacement = 0
-        replacement_map.for_each(fun(key: string, value: string) {
+        replacement_map.for_each(fun(key: str, value: str) {
             if (key.length() > longest_replacement)
                 longest_replacement = key.length()
         })
@@ -105,12 +105,12 @@ obj c_generator (Object) {
         replacement_map.destruct()
         linker_string.destruct()
     }
-    fun get_id(): string return to_string(id_counter++);
-    fun generate_function_prototype_and_header(child: *ast_node):pair<string,string> {
+    fun get_id(): str return to_string(id_counter++);
+    fun generate_function_prototype_and_header(child: *ast_node):pair<str,str> {
         var backing = child->function
-        var parameter_types = string()
-        var parameters = string()
-        var decorated_name = string()
+        var parameter_types = str()
+        var parameters = str()
+        var decorated_name = str()
 
         if (backing.is_extern)
             decorated_name = backing.name
@@ -129,16 +129,16 @@ obj c_generator (Object) {
         return make_pair(type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameter_types + ");\n",
                          type_to_c(backing.type->return_type) + " " + decorated_name + "(" + parameters + ")")
     }
-    fun generate_c(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>> ): pair<string,string> {
-        var prequal: string = "#include <stdbool.h>\n"
-        var plain_typedefs: string = "\n/**Plain Typedefs**/\n"
-        var top_level_c_passthrough: string = ""
-        var variable_extern_declarations: string = ""
-        var structs: string = "\n/**Type Structs**/\n"
+    fun generate_c(name_ast_map: map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syntax_in: map<*ast_node, *tree<symbol>> ): pair<str,str> {
+        var prequal: str = "#include <stdbool.h>\n"
+        var plain_typedefs: str = "\n/**Plain Typedefs**/\n"
+        var top_level_c_passthrough: str = ""
+        var variable_extern_declarations: str = ""
+        var structs: str = "\n/**Type Structs**/\n"
         function_typedef_string = "\n/**Typedefs**/\n"
-        var function_prototypes: string = "\n/**Function Prototypes**/\n"
-        var function_definitions: string = "\n/**Function Definitions**/\n"
-        var variable_declarations: string = "\n/**Variable Declarations**/\n"
+        var function_prototypes: str = "\n/**Function Prototypes**/\n"
+        var function_definitions: str = "\n/**Function Definitions**/\n"
+        var variable_declarations: str = "\n/**Variable Declarations**/\n"
 
         // moved out from below so that it can be used for methods as well as regular functions (and eventually lambdas...)
         var generate_function_definition = fun(child: *ast_node) {
@@ -155,7 +155,7 @@ obj c_generator (Object) {
 
         var type_poset = poset<*ast_node>()
         // iterate through asts
-        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
+        name_ast_map.for_each(fun(name: str, tree_pair: pair<*tree<symbol>,*ast_node>) {
             // iterate through children for each ast
             // do lambdas seperatly, so we can reconstitute the enclosing object if it has one
             tree_pair.second->translation_unit.lambdas.for_each(fun(child: *ast_node) {
@@ -201,7 +201,7 @@ obj c_generator (Object) {
         })
         type_poset.get_sorted().for_each(fun(vert: *ast_node) {
             var base_name = get_name(vert)
-            plain_typedefs += string("typedef ")
+            plain_typedefs += str("typedef ")
             if (vert->type_def.is_union) {
                 plain_typedefs += "union "
                 structs += "union "
@@ -224,7 +224,7 @@ obj c_generator (Object) {
 
         return make_pair(prequal+plain_typedefs+function_typedef_string+top_level_c_passthrough+variable_extern_declarations+structs+function_prototypes+variable_declarations+function_definitions + "\n", linker_string)
     }
-    fun generate_declaration_statement(node: *ast_node): string {
+    fun generate_declaration_statement(node: *ast_node): str {
         var identifier = node->declaration_statement.identifier
         var ident_type = identifier->identifier.type
         var to_ret = type_to_c(identifier->identifier.type) + " " + get_name(identifier)
@@ -241,27 +241,27 @@ obj c_generator (Object) {
         }
         return to_ret
     }
-    fun generate_assignment_statement(node: *ast_node): string {
+    fun generate_assignment_statement(node: *ast_node): str {
         return generate(node->assignment_statement.to) + " = " + generate(node->assignment_statement.from)
     }
-    fun generate_if_statement(node: *ast_node): string {
+    fun generate_if_statement(node: *ast_node): str {
         var if_str = "if (" + generate(node->if_statement.condition) + ") {\n" + generate(node->if_statement.then_part) + "}"
         if (node->if_statement.else_part)
             if_str += " else {\n" + generate(node->if_statement.else_part) + "}"
         return if_str + "\n"
     }
-    fun generate_while_loop(node: *ast_node): string {
+    fun generate_while_loop(node: *ast_node): str {
         return "while (" + generate(node->while_loop.condition) + ")\n" + generate(node->while_loop.statement)
     }
-    fun generate_for_loop(node: *ast_node): string {
-        var init = string(";")
+    fun generate_for_loop(node: *ast_node): str {
+        var init = str(";")
         if (node->for_loop.init)
             init = generate(node->for_loop.init)
-        var cond = string(";")
+        var cond = str(";")
         if (node->for_loop.condition)
             cond = generate(node->for_loop.condition)
         // gotta take off last semicolon
-        var update = string()
+        var update = str()
         if (node->for_loop.update) {
             update = generate(node->for_loop.update)
             if (update.length() < 2)
@@ -270,33 +270,33 @@ obj c_generator (Object) {
         }
         return "for (" + init + cond + "; " + update + ")\n" + generate(node->for_loop.body)
     }
-    fun generate_identifier(node: *ast_node): string {
+    fun generate_identifier(node: *ast_node): str {
         if (get_ast_type(node)->is_ref)
             error("still existin ref in identifier")
         return get_name(node)
     }
-    fun generate_return_statement(node: *ast_node): string {
+    fun generate_return_statement(node: *ast_node): str {
         if (node->return_statement.return_value)
             return "return " + generate(node->return_statement.return_value)
-        return string("return")
+        return str("return")
     }
-    fun generate_branching_statement(node: *ast_node): string {
+    fun generate_branching_statement(node: *ast_node): str {
         match(node->branching_statement.b_type) {
-            branching_type::break_stmt() return string("break")
-            branching_type::continue_stmt() return string("continue")
+            branching_type::break_stmt() return str("break")
+            branching_type::continue_stmt() return str("continue")
         }
     }
-    fun generate_cast(node: *ast_node): string {
+    fun generate_cast(node: *ast_node): str {
         return "((" + type_to_c(node->cast.to_type) + ")(" + generate(node->cast.value) + "))"
     }
-    fun generate_value(node: *ast_node): string {
+    fun generate_value(node: *ast_node): str {
         var value = node->value.string_value
         if (node->value.value_type->base == base_type::character() && node->value.value_type->indirection == 0)
             return "'" + value + "'"
         if (node->value.value_type->base != base_type::character() || node->value.value_type->indirection != 1)
             return value
 
-        var to_ret = string("\"") //"
+        var to_ret = str("\"") //"
         value.for_each(fun(c: char) {
             if (c == '\n')
                 to_ret += "\\n"
@@ -309,18 +309,18 @@ obj c_generator (Object) {
         })
         return to_ret + "\""
     }
-    fun generate_code_block(node: *ast_node): string {
-        var to_ret = string("{\n")
+    fun generate_code_block(node: *ast_node): str {
+        var to_ret = str("{\n")
         node->code_block.children.for_each(fun(child: *ast_node) to_ret += generate(child) + ";\n";)
         return to_ret + "}"
     }
     // this generates the function as a value, not the actual function
-    fun generate_function(node: *ast_node): string {
+    fun generate_function(node: *ast_node): str {
         return get_name(node)
     }
-    fun generate_function_call(node: *ast_node): string {
+    fun generate_function_call(node: *ast_node): str {
         var func_name = generate(node->function_call.func)
-        var call_string = string()
+        var call_string = str()
         var func_return_type = get_ast_type(node)
 
         var parameters = node->function_call.parameters
@@ -365,23 +365,23 @@ obj c_generator (Object) {
         return call_string
     }
 
-    fun generate_compiler_intrinsic(node: *ast_node): string {
+    fun generate_compiler_intrinsic(node: *ast_node): str {
         if (node->compiler_intrinsic.intrinsic == "sizeof") {
             if (node->compiler_intrinsic.parameters.size || node->compiler_intrinsic.type_parameters.size != 1)
                 error("wrong parameters to sizeof compiler intrinsic")
             return "sizeof(" + type_to_c(node->compiler_intrinsic.type_parameters[0]) + ")"
         } else if (node->compiler_intrinsic.intrinsic == "link") {
             node->compiler_intrinsic.parameters.for_each(fun(value: *ast_node) {
-                linker_string += string("-l") + value->value.string_value + " "
+                linker_string += str("-l") + value->value.string_value + " "
             })
-            return string()
+            return str()
         }
         error(node->compiler_intrinsic.intrinsic + ": unknown intrinsic")
-        return string("ERROR")
+        return str("ERROR")
     }
 
-    fun generate(node: *ast_node): string {
-        if (!node) return string("/*NULL*/")
+    fun generate(node: *ast_node): str {
+        if (!node) return str("/*NULL*/")
         match (*node) {
             ast_node::declaration_statement(backing)    return generate_declaration_statement(node)
             ast_node::assignment_statement(backing)     return generate_assignment_statement(node)
@@ -400,41 +400,41 @@ obj c_generator (Object) {
             ast_node::value(backing)                    return generate_value(node)
             ast_node::identifier(backing)               return generate_identifier(node)
         }
-        error(string("COULD NOT GENERATE ") + get_ast_name(node))
-        return string("/* COULD NOT GENERATE */")
+        error(str("COULD NOT GENERATE ") + get_ast_name(node))
+        return str("/* COULD NOT GENERATE */")
     }
-    fun type_to_c(type: *type): string {
-        var indirection = string()
+    fun type_to_c(type: *type): str {
+        var indirection = str()
         if (type->is_ref) error("still ref in type_to_c") //indirection += "/*ref*/ *"
         for (var i = 0; i < type->indirection; i++;) indirection += "*"
         match (type->base) {
-            base_type::none()               return string("none") + indirection
-            base_type::template()           return string("template") + indirection
-            base_type::template_type()      return string("template_type") + indirection
-            base_type::void_return()        return string("void") + indirection
-            base_type::boolean()            return string("bool") + indirection
-            base_type::character()          return string("char") + indirection
-            base_type::ucharacter()         return string("unsigned char") + indirection
-            base_type::short_int()          return string("short") + indirection
-            base_type::ushort_int()         return string("unsigned short") + indirection
-            base_type::integer()            return string("int") + indirection
-            base_type::uinteger()           return string("unsigned int") + indirection
-            base_type::long_int()           return string("long") + indirection
-            base_type::ulong_int()          return string("unsigned long") + indirection
-            base_type::floating()           return string("float") + indirection
-            base_type::double_precision()   return string("double") + indirection
+            base_type::none()               return str("none") + indirection
+            base_type::template()           return str("template") + indirection
+            base_type::template_type()      return str("template_type") + indirection
+            base_type::void_return()        return str("void") + indirection
+            base_type::boolean()            return str("bool") + indirection
+            base_type::character()          return str("char") + indirection
+            base_type::ucharacter()         return str("unsigned char") + indirection
+            base_type::short_int()          return str("short") + indirection
+            base_type::ushort_int()         return str("unsigned short") + indirection
+            base_type::integer()            return str("int") + indirection
+            base_type::uinteger()           return str("unsigned int") + indirection
+            base_type::long_int()           return str("long") + indirection
+            base_type::ulong_int()          return str("unsigned long") + indirection
+            base_type::floating()           return str("float") + indirection
+            base_type::double_precision()   return str("double") + indirection
             base_type::object()             return get_name(type->type_def) + indirection
             base_type::function() {
                 type = type->clone_with_indirection(0,false)
                 if (!function_type_map.contains_key(*type)) {
-                    var temp_name = string("function") + get_id()
-                    var temp = string()
+                    var temp_name = str("function") + get_id()
+                    var temp = str()
                     type->parameter_types.for_each(fun(parameter_type: *type) {
-                        temp += string(", ") + type_to_c(parameter_type) + " "
+                        temp += str(", ") + type_to_c(parameter_type) + " "
                         temp_name += "_" + cify_name(type_to_c(parameter_type))
                     })
                     if (type->is_raw)
-                        function_typedef_string += string("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + ")(" + temp.slice(1,-1) + ");\n"
+                        function_typedef_string += str("typedef ") + type_to_c(type->return_type) + " (*" + temp_name + ")(" + temp.slice(1,-1) + ");\n"
                     else
                         error(type->to_string() + " is not raw!")
                     // again, the indirection
@@ -443,23 +443,23 @@ obj c_generator (Object) {
                 return function_type_map[*type] + indirection
             }
         }
-        return string("impossible type") + indirection
+        return str("impossible type") + indirection
     }
-    fun type_decoration(type: *type): string {
+    fun type_decoration(type: *type): str {
         return cify_name(type_to_c(type))
     }
-    fun get_name(node: *ast_node): string {
+    fun get_name(node: *ast_node): str {
         var maybe_it = ast_name_map.get_ptr_or_null(node);
         if (maybe_it)
             return *maybe_it
-        var result = string("impossible name")
+        var result = str("impossible name")
         var make_unique = true
         match (*node) {
             ast_node::type_def(backing) {
-                var upper = backing.scope[string("~enclosing_scope")][0]
+                var upper = backing.scope[str("~enclosing_scope")][0]
                 result = cify_name(backing.name)
                 if (is_template(upper))
-                    upper->template.instantiated_map.reverse_get(node).for_each(fun(t: ref type) result += string("_") + type_decoration(&t);)
+                    upper->template.instantiated_map.reverse_get(node).for_each(fun(t: ref type) result += str("_") + type_decoration(&t);)
             }
             ast_node::function(backing) {
                 // be careful, operators like . come through this
@@ -468,11 +468,11 @@ obj c_generator (Object) {
                     make_unique = false
                 } else {
                     result = "fun_"
-                    var upper = backing.scope.get_with_default(string("~enclosing_scope"), vector(null<ast_node>()))[0]
+                    var upper = backing.scope.get_with_default(str("~enclosing_scope"), vec(null<ast_node>()))[0]
                     if (upper && is_type_def(upper))
                         result += get_name(upper) + "_"
                     result += cify_name(node->function.name)
-                    node->function.parameters.for_each(fun(param: *ast_node) result += string("_") + type_decoration(param->identifier.type);)
+                    node->function.parameters.for_each(fun(param: *ast_node) result += str("_") + type_decoration(param->identifier.type);)
                 }
             }
             ast_node::identifier(backing) {
@@ -489,8 +489,8 @@ obj c_generator (Object) {
         used_names.add(result)
         return result
     }
-    fun cify_name(name: string): string {
-        var to_ret = string()
+    fun cify_name(name: str): str {
+        var to_ret = str()
         for (var i = 0; i < name.length(); i++;) {
             var replaced = false
             for (var j = longest_replacement; j > 0; j--;) {

@@ -1,6 +1,6 @@
 import stack
 import serialize
-import vector
+import vec
 
 fun queue<T>() : queue<T> {
     var out.construct() : queue<T>
@@ -32,11 +32,11 @@ obj queue<T> (Object, Serializable) {
         stack2 = other.stack2
     }
 
-    fun serialize() : vector::vector<char> {
+    fun serialize() : vec::vec<char> {
         return serialize::serialize(stack1)+serialize::serialize(stack2)
     }
 
-    fun unserialize(it : ref vector::vector<char>, pos : int) : int {
+    fun unserialize(it : ref vec::vec<char>, pos : int) : int {
         pos = stack1.unserialize(it,pos)
         pos = stack2.unserialize(it,pos)
         return pos

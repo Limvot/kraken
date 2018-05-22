@@ -1,50 +1,50 @@
-import string
+import str
 import serialize
-import vector
+import vec
 import util
 
 fun null_symbol(): symbol {
-    var toRet.construct(string::string("$NULL$"), false, string::string("$NULL$")): symbol
+    var toRet.construct(str::str("$NULL$"), false, str::str("$NULL$")): symbol
     return toRet
 }
 fun eof_symbol(): symbol {
-    var toRet.construct(string::string("$EOF$"), false, string::string("$EOF$")): symbol
+    var toRet.construct(str::str("$EOF$"), false, str::str("$EOF$")): symbol
     return toRet
 }
 fun invalid_symbol(): symbol {
-    var toRet.construct(string::string("$INVALID$"), false, string::string("$INVALID$")): symbol
+    var toRet.construct(str::str("$INVALID$"), false, str::str("$INVALID$")): symbol
     return toRet
 }
 
 fun symbol(nameIn: *char, terminalIn: bool): symbol {
-    var toRet.construct(string::string(nameIn), terminalIn, string::string("no_value")): symbol
+    var toRet.construct(str::str(nameIn), terminalIn, str::str("no_value")): symbol
     return toRet
 }
 
-fun symbol(nameIn: ref string::string, terminalIn: bool): symbol {
-    var toRet.construct(nameIn, terminalIn, string::string("no_value")): symbol
+fun symbol(nameIn: ref str::str, terminalIn: bool): symbol {
+    var toRet.construct(nameIn, terminalIn, str::str("no_value")): symbol
     return toRet
 }
 
 fun symbol(nameIn: *char, terminalIn: bool, dataIn: *char): symbol {
-    var toRet.construct(string::string(nameIn), terminalIn, string::string(dataIn)): symbol
+    var toRet.construct(str::str(nameIn), terminalIn, str::str(dataIn)): symbol
     return toRet
 }
 
-fun symbol(nameIn: ref string::string, terminalIn: bool, dataIn: ref string::string): symbol return symbol(nameIn, terminalIn, dataIn, 0)
+fun symbol(nameIn: ref str::str, terminalIn: bool, dataIn: ref str::str): symbol return symbol(nameIn, terminalIn, dataIn, 0)
 
-fun symbol(nameIn: ref string::string, terminalIn: bool, dataIn: ref string::string, position: int): symbol {
+fun symbol(nameIn: ref str::str, terminalIn: bool, dataIn: ref str::str, position: int): symbol {
     var toRet.construct(nameIn, terminalIn, dataIn): symbol
     toRet.position = position
     return toRet
 }
 
 obj symbol (Object, Serializable) {
-    var data: string::string
-    var name: string::string
+    var data: str::str
+    var name: str::str
     var terminal: bool
 
-    var source: string::string
+    var source: str::str
     var position: int
 
     fun construct(): *symbol {
@@ -55,7 +55,7 @@ obj symbol (Object, Serializable) {
         position = 0
         return this
     }
-    fun construct(nameIn: ref string::string, terminalIn: bool, dataIn: ref string::string): *symbol {
+    fun construct(nameIn: ref str::str, terminalIn: bool, dataIn: ref str::str): *symbol {
         name.construct(nameIn)
         terminal = terminalIn
         data.construct(dataIn)
@@ -79,13 +79,13 @@ obj symbol (Object, Serializable) {
         destruct()
         copy_construct(&old)
     }
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(data) + serialize::serialize(name) + serialize::serialize(terminal) + serialize::serialize(source) + serialize::serialize(position)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         /*construct()*/
-        /*util::unpack(data, pos) = serialize::unserialize<string::string>(it, pos)*/
-        /*util::unpack(name, pos) = serialize::unserialize<string::string>(it, pos)*/
+        /*util::unpack(data, pos) = serialize::unserialize<str::str>(it, pos)*/
+        /*util::unpack(name, pos) = serialize::unserialize<str::str>(it, pos)*/
         pos = data.unserialize(it, pos)
         pos = name.unserialize(it, pos)
         util::unpack(terminal, pos) = serialize::unserialize<bool>(it, pos)
@@ -102,7 +102,7 @@ obj symbol (Object, Serializable) {
     fun operator!=(other: ref symbol): bool {
         return !(*this == other);
     }
-    fun to_string(): string::string {
+    fun to_string(): str::str {
         var terminalString: *char
         if (terminal)
             terminalString = "true"

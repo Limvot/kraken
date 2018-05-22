@@ -1,22 +1,22 @@
-import vector
+import vec
 
-fun vector<T>(first:T, second:T):vector::vector<T> {
-    var out.construct():vector::vector<T>
+fun vec<T>(first:T, second:T):vec::vec<T> {
+    var out.construct():vec::vec<T>
     out.add(first)
     out.add(second)
     return out
 }
 
-fun vector<T>(first:T, second:T, third:T):vector::vector<T> {
-    var out.construct():vector::vector<T>
+fun vec<T>(first:T, second:T, third:T):vec::vec<T> {
+    var out.construct():vec::vec<T>
     out.add(first)
     out.add(second)
     out.add(third)
     return out
 }
 
-fun vector<T>(first:T, second:T, third:T, fourth:T):vector::vector<T> {
-    var out.construct():vector::vector<T>
+fun vec<T>(first:T, second:T, third:T, fourth:T):vec::vec<T> {
+    var out.construct():vec::vec<T>
     out.add(first)
     out.add(second)
     out.add(third)
@@ -24,8 +24,8 @@ fun vector<T>(first:T, second:T, third:T, fourth:T):vector::vector<T> {
     return out
 }
 
-fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T):vector::vector<T> {
-    var out.construct():vector::vector<T>
+fun vec<T>(first:T, second:T, third:T, fourth:T, fifth:T):vec::vec<T> {
+    var out.construct():vec::vec<T>
     out.add(first)
     out.add(second)
     out.add(third)
@@ -34,8 +34,8 @@ fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T):vector::vector<T> {
     return out
 }
 
-fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T):vector::vector<T> {
-    var out.construct():vector::vector<T>
+fun vec<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T):vec::vec<T> {
+    var out.construct():vec::vec<T>
     out.add(first)
     out.add(second)
     out.add(third)
@@ -45,8 +45,8 @@ fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T):vector::ve
     return out
 }
 
-fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T):vector::vector<T> {
-    var out.construct():vector::vector<T>
+fun vec<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T):vec::vec<T> {
+    var out.construct():vec::vec<T>
     out.add(first)
     out.add(second)
     out.add(third)
@@ -57,8 +57,8 @@ fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T)
     return out
 }
 
-fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T):vector::vector<T> {
-    var out.construct():vector::vector<T>
+fun vec<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T):vec::vec<T> {
+    var out.construct():vec::vec<T>
     out.add(first)
     out.add(second)
     out.add(third)
@@ -70,8 +70,8 @@ fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T,
     return out
 }
 
-fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T, ninth:T):vector::vector<T> {
-    var out.construct():vector::vector<T>
+fun vec<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T, ninth:T):vec::vec<T> {
+    var out.construct():vec::vec<T>
     out.add(first)
     out.add(second)
     out.add(third)
@@ -84,8 +84,8 @@ fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T,
     return out
 }
 
-fun vector<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T, ninth:T, tenth:T, eleventh:T, twelveth:T):vector::vector<T> {
-    var out.construct():vector::vector<T>
+fun vec<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T, ninth:T, tenth:T, eleventh:T, twelveth:T):vec::vec<T> {
+    var out.construct():vec::vec<T>
     out.add(first)
     out.add(second)
     out.add(third)

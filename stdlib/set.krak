@@ -1,4 +1,4 @@
-import vector
+import vec
 import io
 import serialize
 
@@ -13,14 +13,14 @@ fun set<T>(item: T): set<T> {
     return toRet
 }
 
-fun from_vector<T>(items: vector::vector<T>): set<T> {
+fun from_vector<T>(items: vec::vec<T>): set<T> {
     var toRet.construct() : set<T>
     items.for_each( fun(item: T) toRet.add(item); )
     return toRet
 }
 
 obj set<T> (Object, Serializable) {
-    var data: vector::vector<T>
+    var data: vec::vec<T>
     fun construct(): *set<T> {
         data.construct()
         return this
@@ -35,10 +35,10 @@ obj set<T> (Object, Serializable) {
     fun operator=(rhs: ref set<T>) {
         data = rhs.data
     }
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(data)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         return data.unserialize(it, pos)
     }
     fun operator==(rhs: ref set<T>): bool {
@@ -87,7 +87,7 @@ obj set<T> (Object, Serializable) {
     fun add(items: ref set<T>) {
         items.for_each( fun(item: ref T) add(item); )
     }
-    fun add(items: ref vector::vector<T>) {
+    fun add(items: ref vec::vec<T>) {
         items.for_each( fun(item: ref T) add(item); )
     }
     fun remove(item: ref T) {

@@ -1,43 +1,43 @@
-import vector
+import vec
 import util
 import mem
 import serialize
 import io
 
 ext fun snprintf(to_str: *char, num: ulong, format: *char, ...): int
-fun to_string(in: float): string
+fun to_string(in: float): str
     return to_string((in) cast double)
-fun to_string(in: double): string {
+fun to_string(in: double): str {
     var how_much = snprintf(mem::null<char>(), (0) cast ulong, "%f", in)
     var int_str =  mem::new<char>(how_much+2)
     snprintf(int_str, (how_much+1) cast ulong, "%f", in)
-    var to_ret = string(int_str)
+    var to_ret = str(int_str)
     mem::delete(int_str)
     return to_ret
 }
-fun to_string(in: bool): string
-    if (in) return string("true")
-    else return string("false")
-fun to_string(in: char): string
-    return string(in)
-fun to_string(in: uchar): string
+fun to_string(in: bool): str
+    if (in) return str("true")
+    else return str("false")
+fun to_string(in: char): str
+    return str(in)
+fun to_string(in: uchar): str
     return to_string_num(in)
-fun to_string(in: short): string
+fun to_string(in: short): str
     return to_string_num(in)
-fun to_string(in: ushort): string
+fun to_string(in: ushort): str
     return to_string_num(in)
-fun to_string(in: int): string
+fun to_string(in: int): str
     return to_string_num(in)
-fun to_string(in: uint): string
+fun to_string(in: uint): str
     return to_string_num(in)
-fun to_string(in: long): string
+fun to_string(in: long): str
     return to_string_num(in)
-fun to_string(in: ulong): string
+fun to_string(in: ulong): str
     return to_string_num(in)
-fun to_string<T>(in: *T): string
-    return string("ptr:<") + to_string_num((in) cast ulong) + ">"
+fun to_string<T>(in: *T): str
+    return str("ptr:<") + to_string_num((in) cast ulong) + ">"
 
-fun string_to_num<T>(it: string): T {
+fun string_to_num<T>(it: str): T {
     var is_negative = false
     if (it[0] == '-') {
         is_negative = true
@@ -54,17 +54,17 @@ fun string_to_num<T>(it: string): T {
         return -result
     return result
 }
-fun string_to_double(it: string): double {
+fun string_to_double(it: str): double {
     var parts = it.split('.')
     var divisor = 1
     for (var i = 0; i < parts[1].length(); i++;) divisor *= 10
     return string_to_num<long>(parts[0]) + (string_to_num<long>(parts[1])) cast double / divisor
 }
 
-fun to_string_num<T>(in: T): string {
+fun to_string_num<T>(in: T): str {
     if (in == 0)
-        return string("0")
-    var ret = string()
+        return str("0")
+    var ret = str()
     var pos = 0
     var is_neg = false
     if (in > 0) {
@@ -74,45 +74,45 @@ fun to_string_num<T>(in: T): string {
         is_neg = true
     }
     while (pos) {
-        ret = string((pos%10 + '0') cast char) + ret
+        ret = str((pos%10 + '0') cast char) + ret
         pos = pos / 10
     }
     if (is_neg)
-        return string("-") + ret
+        return str("-") + ret
     return ret
 }
 
-fun operator+(first: *char, second: ref string): string {
-    return string(first) + second
+fun operator+(first: *char, second: ref str): str {
+    return str(first) + second
 }
-fun operator+(first: int, second: ref string): string {
+fun operator+(first: int, second: ref str): str {
     return to_string(first) + second
 }
 
-fun string(in:*char):string {
-    var out.construct(in):string
+fun str(in:*char):str {
+    var out.construct(in):str
     return out
 }
-fun string(in:char):string {
-    var out.construct():string
+fun str(in:char):str {
+    var out.construct():str
     out += in
     return out
 }
-fun string():string {
-    return string("")
+fun str():str {
+    return str("")
 }
 
-obj string (Object, Serializable, Hashable) {
-    var data: vector::vector<char>;
-    fun construct(): *string {
+obj str (Object, Serializable, Hashable) {
+    var data: vec::vec<char>;
+    fun construct(): *str {
         data.construct();
         return this;
     }
-    fun construct(ammt: int): *string {
+    fun construct(ammt: int): *str {
         data.construct(ammt);
         return this;
     }
-    fun construct(str: *char): *string {
+    fun construct(str: *char): *str {
         var len = 0
         while (str[len] != 0) len++
         data.construct(len);
@@ -121,15 +121,15 @@ obj string (Object, Serializable, Hashable) {
         // no null terminator
         return this;
     }
-    fun construct(vec: ref vector::vector<char>): *string {
+    fun construct(vec: ref vec::vec<char>): *str {
         data.copy_construct(&vec);
         return this;
     }
-    fun construct(str: ref string): *string {
+    fun construct(str: ref str): *str {
         return construct(str.data);
     }
 
-    fun copy_construct(old: *string): void {
+    fun copy_construct(old: *str): void {
         data.copy_construct(&old->data)
     }
 
@@ -149,7 +149,7 @@ obj string (Object, Serializable, Hashable) {
         construct(str)
     }
 
-    fun operator=(str: ref string): void {
+    fun operator=(str: ref str): void {
         data = str.data
     }
 
@@ -157,16 +157,16 @@ obj string (Object, Serializable, Hashable) {
         data.destruct()
     }
 
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(data)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         return data.unserialize(it, pos)
     }
 
     fun operator[](index: int): ref char { return data[index]; }
-    fun slice(first: int, second: int): string {
-        var new.construct(data.slice(first,second)): string
+    fun slice(first: int, second: int): str {
+        var new.construct(data.slice(first,second)): str
         return new
     }
     fun set(index: int, toSet: char) {
@@ -174,9 +174,9 @@ obj string (Object, Serializable, Hashable) {
     }
     fun length():int { return data.size; }
 
-    fun operator!=(other: ref string): bool return !(*this ==other)
+    fun operator!=(other: ref str): bool return !(*this ==other)
     fun operator!=(other: *char): bool return !(*this==other)
-    fun operator==(other: ref string): bool {
+    fun operator==(other: ref str): bool {
         // you were too good for this world
         //return length() == other.length() && !util::range(length()).any_true(fun(i: int):bool { return data[i] != other[i]; } )
         if (data.size != other.data.size)
@@ -187,28 +187,28 @@ obj string (Object, Serializable, Hashable) {
         return true
     }
     fun operator==(other: *char): bool {
-        var str.construct(other) : string
+        var str.construct(other) : str
         return *this == str
     }
 
-    fun operator+(c: char): string {
+    fun operator+(c: char): str {
         var to_ret = *this
         to_ret += c
         return to_ret
     }
-    fun operator+(integer: int): string return *this + to_string(integer);
-    fun operator+(integer: long): string return *this + to_string(integer);
-    fun operator+(integer: ulong): string return *this + to_string(integer);
-    /*fun operator+(b: bool): string return *this + to_string(b);*/
+    fun operator+(integer: int): str return *this + to_string(integer);
+    fun operator+(integer: long): str return *this + to_string(integer);
+    fun operator+(integer: ulong): str return *this + to_string(integer);
+    /*fun operator+(b: bool): str return *this + to_string(b);*/
 
-    fun operator+(str: *char): string {
-        var newStr.construct(str):string
-        var ret.construct(data + newStr.data):string
+    fun operator+(str: *char): str {
+        var newStr.construct(str):str
+        var ret.construct(data + newStr.data):str
         return ret
     }
 
-    fun operator+(str: ref string): string {
-        var ret.construct(data + str.data):string
+    fun operator+(str: ref str): str {
+        var ret.construct(data + str.data):str
         return ret
     }
 
@@ -221,12 +221,12 @@ obj string (Object, Serializable, Hashable) {
     }
 
     fun operator+=(str: *char): void {
-        var newStr.construct(str):string
+        var newStr.construct(str):str
         data += newStr.data
     }
 
-    fun operator+=(str: ref string): void {
-        //var newStr.construct(str):string
+    fun operator+=(str: ref str): void {
+        //var newStr.construct(str):str
         //data += newStr.data
         data += str.data
     }
@@ -241,14 +241,14 @@ obj string (Object, Serializable, Hashable) {
     }
     fun getBackingMemory(): *char return data.getBackingMemory();
 
-    fun split(delim: *char): vector::vector<string> return split(string(delim))
-    fun split(delim: string): vector::vector<string> {
-        var out.construct(): vector::vector<string>
-        var current = string("")
+    fun split(delim: *char): vec::vec<str> return split(str(delim))
+    fun split(delim: str): vec::vec<str> {
+        var out.construct(): vec::vec<str>
+        var current = str("")
         for (var i = 0; i < data.size; i++;) {
             if (i < data.size-delim.length() && slice(i, i+delim.length()) == delim) {
                 out.add(current)
-                current = string("")
+                current = str("")
                 i += delim.length()-1
             } else {
                 current += data[i]
@@ -259,14 +259,14 @@ obj string (Object, Serializable, Hashable) {
     }
     fun first(): char return data.first()
     fun last(): char return data.last()
-    fun lines(): vector::vector<string> return split('\n')
-    fun split(delim: char): vector::vector<string> {
-        var out.construct(): vector::vector<string>
-        var current = string("")
+    fun lines(): vec::vec<str> return split('\n')
+    fun split(delim: char): vec::vec<str> {
+        var out.construct(): vec::vec<str>
+        var current = str("")
         for (var i = 0; i < data.size; i++;) {
             if (data[i] == delim) {
                 out.add(current)
-                current = string("")
+                current = str("")
             } else {
                 current += data[i]
             }
@@ -274,7 +274,7 @@ obj string (Object, Serializable, Hashable) {
         out.add(current)
         return out
     }
-    fun join(to_join: ref vector::vector<string>): string {
+    fun join(to_join: ref vec::vec<str>): str {
         var to_ret = to_join.first()
         for (var i = 1; i < to_join.size; i++;)
             to_ret += *this + to_join[i]

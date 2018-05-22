@@ -1,9 +1,9 @@
 import mem
-import vector
+import vec
 
 obj tree<T> (Object) {
     var data: T
-    var children: vector::vector<*tree<T>>
+    var children: vec::vec<*tree<T>>
     fun construct(dataIn: T): *tree<T> {
         mem::maybe_copy_construct(&data, &dataIn)
         children.construct()

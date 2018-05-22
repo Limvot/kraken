@@ -1,24 +1,24 @@
 import symbol:*
 import tree:*
-import vector:*
+import vec:*
 import stack:*
 import map:*
 import util:*
-import string:*
+import str:*
 import mem:*
 import io:*
 import ast_nodes:*
 import ast_transformation:*
 import parser:*
 
-fun import(file_name: string, parsers: ref vector<parser>, ast_pass: ref ast_transformation, import_paths: vector<string>): map<string, pair<*tree<symbol>,*ast_node>> {
-    var name_ast_map = map<string, pair<*tree<symbol>,*ast_node>>()
+fun import(file_name: str, parsers: ref vec<parser>, ast_pass: ref ast_transformation, import_paths: vec<str>): map<str, pair<*tree<symbol>,*ast_node>> {
+    var name_ast_map = map<str, pair<*tree<symbol>,*ast_node>>()
     // lambda closes over our fix-up list
-    var imports_to_fix = vector<*ast_node>()
-    var import_first_pass = fun(file_name_idx: pair<string,int>) {
+    var imports_to_fix = vec<*ast_node>()
+    var import_first_pass = fun(file_name_idx: pair<str,int>) {
         var file_name = file_name_idx.first
-        var file = string()
-        import_paths.for_each(fun(path: string) {
+        var file = str()
+        import_paths.for_each(fun(path: str) {
             if (file_exists(path + file_name)) {
                 file = read_file(path + file_name)
             } else {
@@ -47,11 +47,11 @@ fun import(file_name: string, parsers: ref vector<parser>, ast_pass: ref ast_tra
     }
     printlnerr()
     printlnerr("**Second Pass**")
-    name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.second_pass(tree_pair.first, tree_pair.second);)
+    name_ast_map.for_each(fun(name: str, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.second_pass(tree_pair.first, tree_pair.second);)
     printlnerr("**Third Pass**")
-    name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.third_pass(tree_pair.first, tree_pair.second);)
+    name_ast_map.for_each(fun(name: str, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.third_pass(tree_pair.first, tree_pair.second);)
     printlnerr("**Fourth Pass**")
-    name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.fourth_pass(tree_pair.first, tree_pair.second);)
+    name_ast_map.for_each(fun(name: str, tree_pair: pair<*tree<symbol>, *ast_node>) ast_pass.fourth_pass(tree_pair.first, tree_pair.second);)
 
     return name_ast_map
 }

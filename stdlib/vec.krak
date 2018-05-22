@@ -4,36 +4,36 @@ import io:*;
 import serialize:*;
 import util:*;
 
-fun vector<T>():vector<T> {
-    var out.construct():vector<T>
+fun vec<T>():vec<T> {
+    var out.construct():vec<T>
     return out
 }
 
-fun vector<T>(in:T):vector<T> {
-    var out.construct():vector<T>
+fun vec<T>(in:T):vec<T> {
+    var out.construct():vec<T>
     out.add(in)
     return out
 }
 
-obj vector<T> (Object, Serializable) {
+obj vec<T> (Object, Serializable) {
     var data: *T;
     var size: int;
     var available: int;
 
-    fun construct(): *vector<T> {
+    fun construct(): *vec<T> {
         size = 0;
         available = 8;
         data = new<T>(8);
         return this;
     }
-    fun construct(ammt: int): *vector<T> {
+    fun construct(ammt: int): *vec<T> {
         size = 0;
         available = ammt;
         data = new<T>(ammt);
         return this;
     }
 
-    fun copy_construct(old: *vector<T>): void {
+    fun copy_construct(old: *vec<T>): void {
         construct(old->available)
         size = old->size
         if (is_object<T>()) {
@@ -43,7 +43,7 @@ obj vector<T> (Object, Serializable) {
             memmove((data) cast *void, (old->data) cast *void, size * #sizeof<T>)
         }
     }
-    fun swap(other: ref vector<T>) {
+    fun swap(other: ref vec<T>) {
         var temp_data = data
         var temp_size = size
         var temp_available = available
@@ -54,13 +54,13 @@ obj vector<T> (Object, Serializable) {
         other.size = temp_size
         other.available = temp_available
     }
-    fun serialize(): vector<char> {
+    fun serialize(): vec<char> {
         var toRet = serialize(size)
         for (var i = 0; i < size; i++;)
             toRet += serialize(data[i])
         return toRet
     }
-    fun unserialize(it: ref vector<char>, pos: int): int {
+    fun unserialize(it: ref vec<char>, pos: int): int {
         unpack(size, pos) = unserialize<int>(it, pos)
         data = new<T>(size)
         available = size
@@ -83,7 +83,7 @@ obj vector<T> (Object, Serializable) {
         size = s
     }
 
-    fun operator=(other:ref vector<T>):void {
+    fun operator=(other:ref vec<T>):void {
         if (size < other.size) {
             destruct()
             copy_construct(&other)
@@ -99,16 +99,16 @@ obj vector<T> (Object, Serializable) {
         }
     }
 
-    fun operator+(other: ref vector<T>):vector<T> {
-        var newVec.construct(size+other.size):vector<T>
+    fun operator+(other: ref vec<T>):vec<T> {
+        var newVec.construct(size+other.size):vec<T>
         for (var i = 0; i < size; i++;)
             newVec.addEnd(get(i))
         for (var i = 0; i < other.size; i++;)
             newVec.addEnd(other.get(i))
         return newVec
     }
-    fun operator+(other: ref T):vector<T> {
-        var newVec.copy_construct(this):vector<T>
+    fun operator+(other: ref T):vec<T> {
+        var newVec.copy_construct(this):vec<T>
         newVec.addEnd(other)
         return newVec
     }
@@ -117,19 +117,19 @@ obj vector<T> (Object, Serializable) {
         addEnd(other)
     }
 
-    fun operator+=(other: ref vector<T>):void {
+    fun operator+=(other: ref vec<T>):void {
         for (var i = 0; i < other.size; i++;)
             addEnd(other.get(i))
     }
 
-    fun clone(): vector<T> {
-        var newVec.construct(size): vector<T>
+    fun clone(): vec<T> {
+        var newVec.construct(size): vec<T>
         for (var i = 0; i < size; i++;)
             newVec.addEnd(data[i])
         return newVec
     }
-    fun reverse(): vector<T> {
-        var newVec.construct(size): vector<T>
+    fun reverse(): vec<T> {
+        var newVec.construct(size): vec<T>
         for (var i = 0; i < size; i++;)
             newVec.addEnd(data[(size-i)-1])
         return newVec
@@ -148,12 +148,12 @@ obj vector<T> (Object, Serializable) {
         return true;
     }
 
-    fun slice(start: int, end: int): vector<T> {
+    fun slice(start: int, end: int): vec<T> {
         if (start < 0)
             start += size + 1
         if (end < 0)
             end += size + 1
-        var new.construct(end-start): vector<T>
+        var new.construct(end-start): vec<T>
         for (var i = start; i < end; i++;)
             new.add(data[i])
         return new
@@ -172,7 +172,7 @@ obj vector<T> (Object, Serializable) {
             println("Vector access out of bounds! Retuning 0th element as sanest option");
             print("Vector tried to access element: ");
             println(index);
-            print("Max Index of vector: ");
+            print("Max Index of vec: ");
             println(size-1);
             while(true) {}
             return data[0];
@@ -184,7 +184,7 @@ obj vector<T> (Object, Serializable) {
 
     // This is a template for the interesting reason that structs
     // can not be compared for equality in C, and maybe we haven't defined equality
-    // on an object that we want to put in a vector. In this way we avoid the problem
+    // on an object that we want to put in a vec. In this way we avoid the problem
     // by not generating this function unless it's called - we also get the ability to
     // do a find index using a different type, which could be fun.
     fun find<U>(value: ref U): int {
@@ -199,7 +199,7 @@ obj vector<T> (Object, Serializable) {
     }
 
     // yep
-    fun operator==<U>(other: ref vector<U>):bool {
+    fun operator==<U>(other: ref vec<U>):bool {
         if (size != other.size)
             return false
         for (var i = 0; i < size; i++;)
@@ -213,7 +213,7 @@ obj vector<T> (Object, Serializable) {
             return;
         data[index] = dataIn;
     }
-    fun add_all(dataIn: ref vector<T>): void {
+    fun add_all(dataIn: ref vec<T>): void {
         for (var i = 0; i < dataIn.size; i++;)
             addEnd(dataIn[i]);
     }
@@ -283,20 +283,20 @@ obj vector<T> (Object, Serializable) {
         for (var i = 0; i < size; i++;)
             data[i] = func(data[i])
     }
-    fun map<U>(func: fun(ref T):U):vector<U> {
-        var newVec.construct(size): vector<U>
+    fun map<U>(func: fun(ref T):U):vec<U> {
+        var newVec.construct(size): vec<U>
         for (var i = 0; i < size; i++;)
             newVec.addEnd(func(data[i]))
         return newVec
     }
-    fun map<U>(func: fun(T):U):vector<U> {
-        var newVec.construct(size): vector<U>
+    fun map<U>(func: fun(T):U):vec<U> {
+        var newVec.construct(size): vec<U>
         for (var i = 0; i < size; i++;)
             newVec.addEnd(func(data[i]))
         return newVec
     }
-    fun flatten_map<U>(func: fun(T):vector<U>):vector<U> {
-        var newVec.construct(size): vector<U>
+    fun flatten_map<U>(func: fun(T):vec<U>):vec<U> {
+        var newVec.construct(size): vec<U>
         for (var i = 0; i < size; i++;) {
             var to_add = func(data[i])
             for (var j = 0; j < to_add.size; j++;)
@@ -305,8 +305,8 @@ obj vector<T> (Object, Serializable) {
         return newVec
     }
     fun find_first_satisfying(func: fun(T):bool): T return filter(func)[0]
-    fun filter(func: fun(T):bool):vector<T> {
-        var newVec.construct(): vector<T>
+    fun filter(func: fun(T):bool):vec<T> {
+        var newVec.construct(): vec<T>
         for (var i = 0; i < size; i++;)
             if (func(data[i]))
                 newVec.addEnd(data[i])

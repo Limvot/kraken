@@ -1,17 +1,17 @@
 import io
-import string
+import str
 import util
-import vector
-import string
+import vec
+import str
 import mem
 import set
 import util
 import serialize
 
 fun regex(in: *char):regex {
-    return regex(string::string(in))
+    return regex(str::str(in))
 }
-fun regex(in: string::string):regex {
+fun regex(in: str::str):regex {
     var out.construct(in):regex
     return out
 }
@@ -52,7 +52,7 @@ obj regexState (Object) {
     fun destruct():void {
         next_states.destruct()
     }
-    fun match_char(input: char, states: ref vector::vector<regexState>, flags: *vector::vector<bool>, num_states: *int) {
+    fun match_char(input: char, states: ref vec::vec<regexState>, flags: *vec::vec<bool>, num_states: *int) {
         next_states.for_each(fun(it:int) {
             if (states[it].characterBegin <= input && input <= states[it].characterEnd) {
                 (*flags)[it] = true
@@ -60,16 +60,16 @@ obj regexState (Object) {
             }
         })
     }
-    fun is_end(states: ref vector::vector<regexState>):bool {
+    fun is_end(states: ref vec::vec<regexState>):bool {
         return next_states.any_true(fun(state: int):bool { return states[state].characterBegin == 1; })
     }
 }
 
 obj regex (Object, Serializable) {
-    var regexString: string::string
-    var states: vector::vector<regexState>
-    var flagsA: vector::vector<bool>
-    var flagsB: vector::vector<bool>
+    var regexString: str::str
+    var states: vec::vec<regexState>
+    var flagsA: vec::vec<bool>
+    var flagsB: vec::vec<bool>
     var is_straight_string: bool
 
     fun construct(): *regex {
@@ -80,12 +80,12 @@ obj regex (Object, Serializable) {
         is_straight_string = false
         return this
     }
-    fun construct(regexStringIn: string::string): *regex {
+    fun construct(regexStringIn: str::str): *regex {
         regexString.copy_construct(&regexStringIn)
         states.construct()
         is_straight_string = true
         for (var i = 0; i < regexString.length(); i++;) {
-            // simple implementation doesn't count escaped characters as straight string
+            // simple implementation doesn't count escaped characters as straight str
             if (regexString[i] == '\\' || regexString[i] == '(' || regexString[i] == ')' || regexString[i] == '[' || regexString[i] == '*' || regexString[i] == '+' || regexString[i] == '?' || regexString[i] == '|') {
                 is_straight_string = false
                 break
@@ -117,10 +117,10 @@ obj regex (Object, Serializable) {
         flagsA.destruct()
         flagsB.destruct()
     }
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(regexString)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         pos = regexString.unserialize(it, pos)
         states.construct()
         construct(regexString)
@@ -138,7 +138,7 @@ obj regex (Object, Serializable) {
         copy_construct(&other)
     }
 
-    fun compile(regex_string: string::string): util::pair<int, set::set<int>> {
+    fun compile(regex_string: str::str): util::pair<int, set::set<int>> {
         /*io::println(regex_string)*/
         var first = states.size; states.add(regexState())
         var previous_begin = set::set<int>()
@@ -168,7 +168,7 @@ obj regex (Object, Serializable) {
                 var perenEnd = i + 1
                 for (var depth = 1; depth > 0; perenEnd++;) {
                     if (perenEnd >= regex_string.length())
-                        util::error(string::string("can't find matching peren in: ") + regex_string)
+                        util::error(str::str("can't find matching peren in: ") + regex_string)
                     // be careful, this isn't quite right yet
                     /*var not_non_special = perenEnd == 0 || (regex_string[perenEnd-1] != '\\' && regex_string[perenEnd-1] != '[' && (perenEnd+1 >= regex_string.length() || regex_string[perenEnd+1] != ']'))*/
                     var not_non_special = perenEnd == 0 || (regex_string[perenEnd-1] != '[' && (perenEnd+1 >= regex_string.length() || regex_string[perenEnd+1] != ']'))
@@ -223,8 +223,8 @@ obj regex (Object, Serializable) {
         return beginAndEnd
     }
 
-    fun long_match(to_match: *char): int { return long_match(string::string(to_match)); }
-    fun long_match(to_match: string::string): int return long_match(to_match.getBackingMemory(), 0, to_match.length())
+    fun long_match(to_match: *char): int { return long_match(str::str(to_match)); }
+    fun long_match(to_match: str::str): int return long_match(to_match.getBackingMemory(), 0, to_match.length())
     fun long_match(to_match: *char, position: int, end: int): int {
         if (is_straight_string) {
             if (regexString.length() > end-position)

@@ -1,10 +1,10 @@
 import mem
 import io
 import os
-import string
+import str
 import set
 import map
-import vector
+import vec
 import serialize
 
 
@@ -14,8 +14,8 @@ fun do_nothing() {}
 fun is_object<T>(): bool return false
 fun is_object<T(Object)>(): bool return true
 
-fun error(message: *char) error(string::string(message));
-fun error(message: string::string) {
+fun error(message: *char) error(str::str(message));
+fun error(message: str::str) {
     io::printlnerr("****ERROR****")
     io::printlnerr(message)
     os::exit(-1)
@@ -24,7 +24,7 @@ fun assert(works: bool, message: *char) {
     if (!works)
         error(message)
 }
-fun assert(works: bool, message: string::string) {
+fun assert(works: bool, message: str::str) {
     if (!works)
         error(message)
 }
@@ -110,10 +110,10 @@ obj pair<T,U> (Object, Serializable, Hashable) {
         mem::maybe_destruct(&first)
         mem::maybe_destruct(&second)
     }
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(first) + serialize::serialize(second)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         // can't use unpack :( (b/c we can't make an already constructed empty one)
         var first_pair = serialize::unserialize<T>(it, pos)
         var second_pair = serialize::unserialize<U>(it, first_pair.second)
@@ -158,8 +158,8 @@ obj range {
         for (var i = begin; i < end; i+= step;)
             func(i)
     }
-    fun map<T>(func: fun(int): T): vector::vector<T> {
-        var ret.construct( (end-begin)/step + 1 ) : vector::vector<T>
+    fun map<T>(func: fun(int): T): vec::vec<T> {
+        var ret.construct( (end-begin)/step + 1 ) : vec::vec<T>
         for (var i = begin; i < end; i+= step;)
             ret.addEnd(func(i))
         return ret

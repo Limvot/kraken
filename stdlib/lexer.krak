@@ -1,10 +1,10 @@
 import regex
 import symbol
-import string
-import vector
+import str
+import vec
 import util
 
-fun lexer(regs: vector::vector<regex::regex>): lexer {
+fun lexer(regs: vec::vec<regex::regex>): lexer {
     /*var toRet:lexer*/
     var toRet.construct() :lexer
     regs.for_each( fun(reg: regex::regex) {
@@ -13,7 +13,7 @@ fun lexer(regs: vector::vector<regex::regex>): lexer {
     return toRet
 }
 
-fun lexer(regs: vector::vector<util::pair<symbol::symbol, regex::regex>>): lexer {
+fun lexer(regs: vec::vec<util::pair<symbol::symbol, regex::regex>>): lexer {
     /*var toRet:lexer*/
     var toRet.construct() :lexer
     regs.for_each( fun(reg: util::pair<symbol::symbol, regex::regex>)
@@ -23,8 +23,8 @@ fun lexer(regs: vector::vector<util::pair<symbol::symbol, regex::regex>>): lexer
 }
 
 obj lexer (Object) {
-    var regs: vector::vector<util::pair<string::string, regex::regex>>
-    var input: string::string
+    var regs: vec::vec<util::pair<str::str, regex::regex>>
+    var input: str::str
     var position: int
     var line_number: int
     fun construct(): *lexer {
@@ -48,19 +48,19 @@ obj lexer (Object) {
         destruct()
         copy_construct(&old)
     }
-    fun add_regex(name: string::string, newOne: regex::regex) {
+    fun add_regex(name: str::str, newOne: regex::regex) {
         regs.add(util::make_pair(name,newOne))
     }
-    fun add_regex(newOne: util::pair<string::string,regex::regex>) {
+    fun add_regex(newOne: util::pair<str::str,regex::regex>) {
         regs.add(newOne)
     }
     fun add_regex(newOne: regex::regex) {
         regs.add(util::make_pair(newOne.regexString, newOne))
     }
     fun add_regex(newOne: *char) {
-        regs.add(util::make_pair(string::string(newOne), regex::regex(newOne)))
+        regs.add(util::make_pair(str::str(newOne), regex::regex(newOne)))
     }
-    fun set_input(in: ref string::string) {
+    fun set_input(in: ref str::str) {
         position = 0
         line_number = 1
         input = in

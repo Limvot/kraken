@@ -1,9 +1,9 @@
 import symbol:*
 import tree:*
-import vector:*
+import vec:*
 import map:*
 import util:*
-import string:*
+import str:*
 import mem:*
 import io:*
 import ast_nodes:*
@@ -13,11 +13,11 @@ import hash_set:*
 
 import pass_common:*
 
-fun ctce_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+fun ctce_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var visited = hash_set<*ast_node>()
     var globals = setup_globals(*name_ast_map)
-    var ctce_passes = vector<*ast_node>()
-    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+    var ctce_passes = vec<*ast_node>()
+    name_ast_map->for_each(fun(name: str, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::compiler_intrinsic(backing) {
@@ -35,9 +35,9 @@ fun ctce_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to
     })
     ctce_passes.for_each(fun(func: *ast_node) {
         // don't want to pick up the ast_node::value
-        var params = vector<interpreter::value>()
+        var params = vec<interpreter::value>()
         // easier to pick up types from the function itself
-        if (!is_function(func)) error(string("trying to CTCE pass with non function") + get_ast_name(func))
+        if (!is_function(func)) error(str("trying to CTCE pass with non function") + get_ast_name(func))
         params.add(interpreter::value::pointer(make_pair((name_ast_map) cast *void, func->function.type->parameter_types[0])))
         params.add(interpreter::value::pointer(make_pair((ast_to_syntax) cast *void, func->function.type->parameter_types[1])))
         call_function(func, params, &globals)

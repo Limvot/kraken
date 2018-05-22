@@ -1,8 +1,8 @@
-import string:*
+import str:*
 import mem:*
 import io:*
 
-fun system(call_string: string):int {
+fun system(call_string: str):int {
     var c_call_string = call_string.toCharArray()
     var result  = system(c_call_string)
     delete(c_call_string)
@@ -14,7 +14,7 @@ fun exit() exit(0)
 
 ext fun popen(command: *char, mode: *char): *void
 ext fun pclose(file: *void): int
-fun from_system_command(command: string, line_size: int): string {
+fun from_system_command(command: str, line_size: int): str {
     var command_string = command.toCharArray()
     defer delete(command_string)
     var p = popen(command_string, "r")
@@ -22,10 +22,10 @@ fun from_system_command(command: string, line_size: int): string {
     pclose(p)
     return to_ret
 }
-fun get_time(): long { return string_to_num<long>(from_system_command(string("date +%s"), 50)); }
+fun get_time(): long { return string_to_num<long>(from_system_command(str("date +%s"), 50)); }
 fun split(time: long, split_label: *char): long {
     var new_time = get_time()
-    print(string(split_label) + ": ")
+    print(str(split_label) + ": ")
     println(new_time - time)
     return new_time
 }

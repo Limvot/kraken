@@ -1,10 +1,10 @@
 import symbol:*
 import tree:*
-import vector:*
+import vec:*
 import map:*
 import util:*
 import type:*
-import string:*
+import str:*
 import mem:*
 import io:*
 import ast_nodes:*
@@ -83,16 +83,16 @@ fun find_closed_variables(func: *ast_node, node: *ast_node): set<*ast_node> {
 fun in_scope_chain(node: *ast_node, high_scope: *ast_node): bool {
     if (node == high_scope)
        return true
-    if (get_ast_scope(node)->contains_key(string("~enclosing_scope")))
-       return in_scope_chain(get_ast_scope(node)->get(string("~enclosing_scope"))[0], high_scope)
+    if (get_ast_scope(node)->contains_key(str("~enclosing_scope")))
+       return in_scope_chain(get_ast_scope(node)->get(str("~enclosing_scope"))[0], high_scope)
     return false
 }
 
-fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var curr_time = get_time()
     var visited = hash_set<*ast_node>()
     var lambdas = set<*ast_node>()
-    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+    name_ast_map->for_each(fun(name: str, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         lambdas.add(syntax_ast_pair.second->translation_unit.lambdas)
         // do in order so that inner lambdas are done before outer ones, so enclosed
         // variables can propegate outwards
@@ -101,10 +101,10 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         })
     })
     var all_types = hash_set<*type>()
-    var function_value_creation_points = vector<function_parent_block>()
-    var function_value_call_points = vector<function_parent_block>()
-    var closed_over_uses = vector<pair<*ast_node, pair<*ast_node, *ast_node>>>()
-    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+    var function_value_creation_points = vec<function_parent_block>()
+    var function_value_call_points = vec<function_parent_block>()
+    var closed_over_uses = vec<pair<*ast_node, pair<*ast_node, *ast_node>>>()
+    name_ast_map->for_each(fun(name: str, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             var t = get_ast_type(node)
             if (t) all_types.add(t)
@@ -177,18 +177,18 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
 
             var lambda_struct_type = type_ptr(new_type_def)
 
-            var lambda_call_type = type_ptr(vector(lambda_struct_type) + t.parameter_types, t.return_type, 0, false, false, true)
+            var lambda_call_type = type_ptr(vec(lambda_struct_type) + t.parameter_types, t.return_type, 0, false, false, true)
             // create parameters
             var lambda_call_func_param = ast_identifier_ptr("func_struct", lambda_struct_type, null<ast_node>())
-            var lambda_call_parameters = vector(lambda_call_func_param) + cleaned->parameter_types.map(fun(t:*type): *ast_node {
+            var lambda_call_parameters = vec(lambda_call_func_param) + cleaned->parameter_types.map(fun(t:*type): *ast_node {
                 return ast_identifier_ptr("pass_through_param", t, null<ast_node>())
             })
-            var lambda_call_function = ast_function_ptr(string("lambda_call"), lambda_call_type, lambda_call_parameters, false)
+            var lambda_call_function = ast_function_ptr(str("lambda_call"), lambda_call_type, lambda_call_parameters, false)
             // create call body with if, etc
             var if_statement = ast_if_statement_ptr(access_expression(lambda_call_func_param, "data"))
             lambda_call_function->function.body_statement = ast_code_block_ptr(if_statement)
             if_statement->if_statement.then_part = ast_code_block_ptr(ast_return_statement_ptr(ast_function_call_ptr(access_expression(lambda_call_func_param, "func_closure"),
-                                                                                vector(access_expression(lambda_call_func_param, "data")) + lambda_call_parameters.slice(1,-1))))
+                                                                                vec(access_expression(lambda_call_func_param, "data")) + lambda_call_parameters.slice(1,-1))))
             if_statement->if_statement.else_part = ast_code_block_ptr(ast_return_statement_ptr(ast_function_call_ptr(access_expression(lambda_call_func_param, "func"),
                                                                                 lambda_call_parameters.slice(1,-1))))
 
@@ -209,7 +209,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
     lambdas.for_each(fun(l: *ast_node) {
         var closure_struct_type: *type
         if (l->function.closed_variables.size()) {
-            var new_type_def_name = string("closure_struct_") + closure_id++
+            var new_type_def_name = str("closure_struct_") + closure_id++
             var new_type_def = ast_type_def_ptr(new_type_def_name)
             l->function.closed_variables.for_each(fun(v: *ast_node) {
                 var closed_var_type = v->identifier.type
@@ -226,8 +226,8 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         }
 
         var return_type = lambda_type_to_struct_type_and_call_func[*l->function.type].first
-        var creation_type = type_ptr(vector<*type>(), return_type, 0, false, false, true)
-        lambda_creation_funcs[l] = ast_function_ptr(l->function.name + "_creation", creation_type, vector<*ast_node>(), false);
+        var creation_type = type_ptr(vec<*type>(), return_type, 0, false, false, true)
+        lambda_creation_funcs[l] = ast_function_ptr(l->function.name + "_creation", creation_type, vec<*ast_node>(), false);
         var body = ast_code_block_ptr()
         var ident = ast_identifier_ptr("to_ret", return_type, body)
         body->code_block.children.add(ast_declaration_statement_ptr(ident, null<ast_node>()))
@@ -249,7 +249,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
                 body->code_block.children.add(ast_assignment_statement_ptr(access_expression(closure_param, v->identifier.name), closed_param))
             })
         } else {
-            body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "data"), ast_value_ptr(string("0"), type_ptr(base_type::void_return(), 1))))
+            body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "data"), ast_value_ptr(str("0"), type_ptr(base_type::void_return(), 1))))
         }
         body->code_block.children.add(ast_return_statement_ptr(ident))
         lambda_creation_funcs[l]->function.body_statement = body
@@ -264,16 +264,16 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
     })
     curr_time = split(curr_time, "\tfunction_value_call_points.forEach")
     function_value_creation_points.for_each(fun(p: function_parent_block) {
-        var lambda_creation_params = vector<*ast_node>()
+        var lambda_creation_params = vec<*ast_node>()
         // add the declaration of the closure struct to the enclosing code block
         if (p.function->function.closed_variables.size()) {
             // pull closure type off lambda creation func parameter
             var closure_type = get_ast_type(lambda_creation_funcs[p.function]->function.parameters[0])->clone_with_decreased_indirection()
             var closure_struct_ident = ast_identifier_ptr("closure_struct", closure_type, p.parent_block)
             p.parent_block->code_block.children.add(0,ast_declaration_statement_ptr(closure_struct_ident, null<ast_node>()))
-            lambda_creation_params.add(make_operator_call("&", vector(closure_struct_ident)))
+            lambda_creation_params.add(make_operator_call("&", vec(closure_struct_ident)))
             p.function->function.closed_variables.for_each(fun(v: *ast_node) {
-                var addr_of = make_operator_call("&", vector(v))
+                var addr_of = make_operator_call("&", vec(v))
                 if (p.parent_function->function.closed_variables.contains(v)) {
                     closed_over_uses.add(make_pair(v, make_pair(addr_of, p.parent_function)))
                 }
@@ -295,7 +295,7 @@ fun function_value_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node
         var parent = p.second.first
         var lambda = p.second.second
         var closure_param = lambda->function.parameters[0]
-        replace_with_in(variable, make_operator_call("*", vector(access_expression(closure_param, variable->identifier.name))), parent)
+        replace_with_in(variable, make_operator_call("*", vec(access_expression(closure_param, variable->identifier.name))), parent)
     })
     curr_time = split(curr_time, "\tclosed_over_uses")
     // now we can make them raw

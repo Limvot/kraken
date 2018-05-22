@@ -1,4 +1,4 @@
-import vector
+import vec
 import map
 import io
 import serialize
@@ -15,7 +15,7 @@ fun hash_map<T,U>(key: ref T, value: ref U): hash_map<T,U> {
 }
 
 obj hash_map<T,U> (Object, Serializable) {
-    var data: vector::vector<map::map<T,U>>
+    var data: vec::vec<map::map<T,U>>
     var size: int
 
     fun construct(): *hash_map<T,U> {
@@ -35,10 +35,10 @@ obj hash_map<T,U> (Object, Serializable) {
     fun destruct() {
         data.destruct()
     }
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(data) + serialize::serialize(size)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         pos = data.unserialize(it, pos)
         util::unpack(size, pos) = serialize::unserialize<int>(it, pos)
         return pos
@@ -53,7 +53,7 @@ obj hash_map<T,U> (Object, Serializable) {
         if (!data[(key_hash%data.size) cast int].contains_key(key)) {
             size++
             if (size > data.size) {
-                var new_data.construct(size*2): vector::vector<map::map<T,U>>
+                var new_data.construct(size*2): vec::vec<map::map<T,U>>
                 for (var i = 0; i < size*2; i++;)
                     new_data.addEnd(map::map<T,U>())
                 for_each(fun(key: T, value: U) {

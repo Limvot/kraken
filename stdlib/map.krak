@@ -1,4 +1,4 @@
-import vector
+import vec
 import mem
 import io
 import serialize
@@ -15,8 +15,8 @@ fun map<T,U>(key: ref T, value: ref U): map<T,U> {
 }
 
 obj map<T,U> (Object, Serializable) {
-    var keys: vector::vector<T>
-    var values: vector::vector<U>
+    var keys: vec::vec<T>
+    var values: vec::vec<U>
 
     fun construct(): *map<T,U> {
         keys.construct()
@@ -35,10 +35,10 @@ obj map<T,U> (Object, Serializable) {
         keys.destruct()
         values.destruct()
     }
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(keys) + serialize::serialize(values)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         pos = keys.unserialize(it, pos)
         pos = values.unserialize(it, pos)
         return pos

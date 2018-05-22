@@ -1,4 +1,4 @@
-import vector:*
+import vec:*
 import queue:*
 import map:*
 import set:*
@@ -44,8 +44,8 @@ obj poset<T> (Object) {
         })
         return depends_on
     }
-    fun get_sorted(): vector<T> {
-        var sorted = vector<T>()
+    fun get_sorted(): vec<T> {
+        var sorted = vec<T>()
         var to_do = queue<T>()
         // because we're going to destructivly update
         var temp_adj_matrix = adj_matrix

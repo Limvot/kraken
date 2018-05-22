@@ -1,9 +1,9 @@
 import symbol:*
 import tree:*
-import vector:*
+import vec:*
 import map:*
 import util:*
-import string:*
+import str:*
 import mem:*
 import io:*
 import ast_nodes:*
@@ -11,19 +11,19 @@ import ast_transformation:*
 
 import pass_common:*
 
-fun node_counter(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+fun node_counter(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var counter = node_counter_helper(name_ast_map, ast_to_syntax)
-    println(string("Number of nodes touched: ") + counter)
+    println(str("Number of nodes touched: ") + counter)
 }
-fun node_counter_test(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+fun node_counter_test(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var counter = node_counter_helper(name_ast_map, ast_to_syntax)
     if (counter > 10000)
         println("more than 10000 nodes!")
 }
-fun node_counter_helper(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>): int {
+fun node_counter_helper(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>): int {
     var counter = 0
     var visited = hash_set<*ast_node>()
-    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+    name_ast_map->for_each(fun(name: str, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             counter++
         }

@@ -1,11 +1,11 @@
 import symbol:*
 import tree:*
 import map:*
-import vector:*
+import vec:*
 import set:*
 import hash_set:*
 import util:*
-import string:*
+import str:*
 import mem:*
 import io:*
 import ast_nodes:*
@@ -37,12 +37,12 @@ fun remove_ref(t: *type) {
     }
 }
 
-fun ref_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
-    var remove_ref_type_set = set<pair<string,*type>>()
+fun ref_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+    var remove_ref_type_set = set<pair<str,*type>>()
     var modify_reference_use_set = set<pair<*ast_node, *ast_node>>()
     var modify_return_set = set<*ast_node>()
     var visited = hash_set<*ast_node>()
-    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+    name_ast_map->for_each(fun(name: str, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::identifier(backing) {
@@ -62,7 +62,7 @@ fun ref_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
                     var func_type_params = get_ast_type(backing.func)->parameter_types
                     for (var i = 0; i < func_type_params.size; i++;)
                         if (func_type_params[i]->is_ref)
-                            backing.parameters[i] = make_operator_call("&", vector(backing.parameters[i]))
+                            backing.parameters[i] = make_operator_call("&", vec(backing.parameters[i]))
                     // add the function call to the modify_reference_use set if the function returns a ref
                     if (get_ast_type(backing.func)->return_type->is_ref)
                         modify_reference_use_set.add(make_pair(node, parent_chain->top()))
@@ -76,7 +76,7 @@ fun ref_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
         }
         run_on_tree(helper_before, empty_pass_second_half(), syntax_ast_pair.second, &visited)
     })
-    remove_ref_type_set.for_each(fun(p: pair<string, *type>) {
+    remove_ref_type_set.for_each(fun(p: pair<str, *type>) {
         var t = p.second
         remove_ref(t)
     })
@@ -89,9 +89,9 @@ fun ref_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_
         // note that we definitly want to replace the type for unused parameters, but we don't want to add the * for paramters
         // in function declarations or the new identifier in declaration statements (but we do for expressions in declaration statements)
         if (!is_identifier(p.first) || (!is_function(p.second) && (!is_declaration_statement(p.second) || p.second->declaration_statement.identifier != p.first)))
-            replace_with_in(p.first, make_operator_call("*", vector(p.first)), p.second);
+            replace_with_in(p.first, make_operator_call("*", vec(p.first)), p.second);
     })
     modify_return_set.for_each(fun(r: *ast_node) {
-        r->return_statement.return_value = make_operator_call("&", vector(r->return_statement.return_value));
+        r->return_statement.return_value = make_operator_call("&", vec(r->return_statement.return_value));
     })
 }

@@ -2,15 +2,15 @@ import symbol:*
 import tree:*
 import map:*
 import util:*
-import string:*
+import str:*
 import io:*
 import ast_nodes:*
 import ast_transformation:*
 import pass_common:*
 
-fun address_of_ensure_variable_lower(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+fun address_of_ensure_variable_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var visited = hash_set<*ast_node>()
-    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+    name_ast_map->for_each(fun(name: str, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         var helper_before = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::function_call(backing) {

@@ -2,25 +2,25 @@ import grammer:*
 import symbol:*
 import lexer:*
 import tree:*
-import vector:*
+import vec:*
 import stack:*
 import map:*
 import hash_map:*
 import util:*
-import string:*
+import str:*
 import mem:*
 import io:*
 
 obj parser (Object) {
-    var input: vector<symbol>
+    var input: vec<symbol>
     var gram: *grammer
     var lex: *lexer
     var gss: gss
     var to_reduce: stack<reduction>
     var to_shift: stack< pair<*tree<int>, int> >
-    var SPPFStepNodes: vector< pair<*tree<symbol>, int> >
+    var SPPFStepNodes: vec< pair<*tree<symbol>, int> >
     var packed_map: map<*tree<symbol>, bool>
-    var reduces_to_null_map: map<vector<symbol>, bool>
+    var reduces_to_null_map: map<vec<symbol>, bool>
 
     fun construct(grammerIn: *grammer, lexIn: *lexer): *parser {
         input.construct()
@@ -63,7 +63,7 @@ obj parser (Object) {
         reduces_to_null_map.destruct()
     }
 
-    fun parse_input(inputStr: string, name: string): *tree<symbol> {
+    fun parse_input(inputStr: str, name: str): *tree<symbol> {
         input.clear()
         gss.clear()
         to_reduce.clear()
@@ -144,7 +144,7 @@ obj parser (Object) {
     fun reducer(i: int) {
         var curr_reduction = to_reduce.pop()
         gss.get_reachable_paths(curr_reduction.from, max(0, curr_reduction.length-1)).
-                                for_each(fun(path: ref vector<*tree<int>>) {
+                                for_each(fun(path: ref vec<*tree<int>>) {
             var path_edges = range(path.size-1).map(fun(indx: int): *tree<symbol> { return gss.get_edge(path[indx], path[indx+1]);}).reverse()
             if (curr_reduction.length != 0) {
                 path_edges.addEnd(curr_reduction.label)
@@ -262,7 +262,7 @@ obj parser (Object) {
         }
         to_shift = next_shifts
     }
-    fun add_children(parent: *tree<symbol>, children: vector<*tree<symbol>>, nullable_parts: *tree<symbol>) {
+    fun add_children(parent: *tree<symbol>, children: vec<*tree<symbol>>, nullable_parts: *tree<symbol>) {
         if (nullable_parts)
             children.add(nullable_parts)
         if (!belongs_to_family(parent, children)) {
@@ -285,7 +285,7 @@ obj parser (Object) {
             }
         }
     }
-    fun belongs_to_family(node: *tree<symbol>, nodes: vector<*tree<symbol>>): bool {
+    fun belongs_to_family(node: *tree<symbol>, nodes: vec<*tree<symbol>>): bool {
         for (var i = 0; i < nodes.size; i++;) {
             var contains_one = false
             for (var j = 0; j < node->children.size; j++;) {
@@ -300,7 +300,7 @@ obj parser (Object) {
         }
         return true
     }
-    fun are_packed(nodes: vector<*tree<symbol>>): bool {
+    fun are_packed(nodes: vec<*tree<symbol>>): bool {
         return nodes.any_true(fun(it: *tree<symbol>):bool { return packed_map.contains_key(it) && packed_map[it]; })
     }
     fun set_packed(node: *tree<symbol>, packed: bool) {
@@ -330,7 +330,7 @@ obj parser (Object) {
 }
 
 obj gss (Object) {
-    var data: vector<vector<*tree<int>>>
+    var data: vec<vec<*tree<int>>>
     var edges: hash_map< pair<*tree<int>, *tree<int>>, *tree<symbol> >
 
     fun construct(): *gss {
@@ -347,7 +347,7 @@ obj gss (Object) {
         edges.destruct()
     }
     fun clear() {
-        data.for_each(fun(second: ref vector<*tree<int>>) second.for_each(fun(node: *tree<int>) delete(node););)
+        data.for_each(fun(second: ref vec<*tree<int>>) second.for_each(fun(node: *tree<int>) delete(node););)
         data.clear()
         edges.clear()
     }
@@ -356,7 +356,7 @@ obj gss (Object) {
     }
     fun add_to_frontier(frontier: int, node: *tree<int>) {
         while(data.size <= frontier)
-            data.addEnd(vector<*tree<int>>())
+            data.addEnd(vec<*tree<int>>())
         data[frontier].addEnd(node)
     }
     fun frontier_is_empty(frontier: int): bool {
@@ -391,9 +391,9 @@ obj gss (Object) {
                 return i
         return -1
     }
-    fun get_reachable_paths(start: *tree<int>, length: int): vector<vector<*tree<int>>> {
-        var paths = vector<vector<*tree<int>>>()
-        var recursive_path_find: fun(*tree<int>, int, vector<*tree<int>>):void = fun(start: *tree<int>, length: int, current_path: vector<*tree<int>>) {
+    fun get_reachable_paths(start: *tree<int>, length: int): vec<vec<*tree<int>>> {
+        var paths = vec<vec<*tree<int>>>()
+        var recursive_path_find: fun(*tree<int>, int, vec<*tree<int>>):void = fun(start: *tree<int>, length: int, current_path: vec<*tree<int>>) {
             current_path.addEnd(start)
             if (!length) {
                 paths.addEnd(current_path)
@@ -403,7 +403,7 @@ obj gss (Object) {
                 recursive_path_find(child, length-1, current_path)
             })
         }
-        recursive_path_find(start, length, vector<*tree<int>>())
+        recursive_path_find(start, length, vec<*tree<int>>())
         return paths
     }
 }
@@ -453,14 +453,14 @@ obj reduction (Object) {
     }
 }
 
-fun syntax_tree_to_dot(root: *tree<symbol>): string {
-    var ret = string("digraph Kaken {\n")
+fun syntax_tree_to_dot(root: *tree<symbol>): str {
+    var ret = str("digraph Kaken {\n")
     var counter = 0
-    var node_name_map = map<*tree<symbol>, string>()
-    var get_name = fun(node: *tree<symbol>): string {
+    var node_name_map = map<*tree<symbol>, str>()
+    var get_name = fun(node: *tree<symbol>): str {
         if (node_name_map.contains_key(node))
             return node_name_map[node]
-        var escaped = string("")
+        var escaped = str("")
         node->data.to_string().data.for_each(fun(c: char) {
             if (c != '"' && c != '\\')
                 escaped += c
@@ -478,7 +478,7 @@ fun syntax_tree_to_dot(root: *tree<symbol>): string {
         node->children.for_each(fun(child: *tree<symbol>) {
             if (!child)
                 return; // where on earth does the null come from
-            ret += string("\"") + get_name(node) + "\" -> \"" + get_name(child) + "\"\n";
+            ret += str("\"") + get_name(node) + "\" -> \"" + get_name(child) + "\"\n";
             helper(child)
         })
     }

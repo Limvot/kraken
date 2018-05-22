@@ -1,8 +1,8 @@
-import vector
+import vec
 import serialize
 import util
 
-fun stack_from_vector<T>(i: vector::vector<T>): stack<T> {
+fun stack_from_vector<T>(i: vec::vec<T>): stack<T> {
     var to_ret.construct(): stack<T>
     to_ret.data = i
     return to_ret
@@ -19,7 +19,7 @@ fun stack<T>(in:T):stack<T> {
 }
 
 obj stack<T> (Object, Serializable) {
-    var data: vector::vector<T>
+    var data: vec::vec<T>
     fun construct(): *stack<T> {
         data.construct()
         return this
@@ -37,10 +37,10 @@ obj stack<T> (Object, Serializable) {
     fun operator=(other: ref stack<T>) {
         data = other.data
     }
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(data)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         return data.unserialize(it, pos)
     }
     fun push(it: ref T) {
@@ -81,7 +81,7 @@ obj stack<T> (Object, Serializable) {
     fun for_each_reverse(func: fun(T):void) {
         data.for_each_reverse(func)
     }
-    fun reverse_vector(): vector::vector<T>
+    fun reverse_vector(): vec::vec<T>
         return data.reverse()
     fun index_from_top_satisfying(func_raw: run(T):bool): int {
         var temp_lambda = fun(i: T):bool { return func_raw(i); }

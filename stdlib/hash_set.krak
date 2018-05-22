@@ -1,5 +1,5 @@
 import hash_map
-import vector
+import vec
 import io
 import serialize
 import set
@@ -15,7 +15,7 @@ fun hash_set<T>(item: T): hash_set<T> {
     return toRet
 }
 
-fun from_vector<T>(items: vector::vector<T>): hash_set<T> {
+fun from_vector<T>(items: vec::vec<T>): hash_set<T> {
     var toRet.construct() : hash_set<T>
     items.for_each( fun(item: T) toRet.add(item); )
     return toRet
@@ -37,10 +37,10 @@ obj hash_set<T> (Object, Serializable) {
     fun operator=(rhs: ref hash_set<T>) {
         data = rhs.data
     }
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(data)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         return data.unserialize(it, pos)
     }
     // the old unnecessary template to prevent generation
@@ -119,7 +119,7 @@ obj hash_set<T> (Object, Serializable) {
         var prev_size = 0
         while (prev_size != size()) {
             prev_size = size()
-            var to_add.construct(size()): vector::vector<T>
+            var to_add.construct(size()): vec::vec<T>
             for_each(fun(i: T) {
                 func(i).for_each(fun(j: T) { to_add.add(j); })
             })

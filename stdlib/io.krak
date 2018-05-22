@@ -1,5 +1,5 @@
-import string;
-import vector;
+import str;
+import vec;
 import mem:*
 
 ext fun printf(fmt_str: *char, ...): int
@@ -10,16 +10,16 @@ ext fun fgets(buff: *char, size: int, file: *void): *char
 ext var stdin: *void
 
 // dead simple stdin
-fun get_line(prompt: string::string, line_size: int): string::string {
+fun get_line(prompt: str::str, line_size: int): str::str {
     print(prompt)
     return get_line(line_size)
 }
-fun get_line(line_size: int): string::string
+fun get_line(line_size: int): str::str
     return get_line(line_size, stdin)
-fun get_line(line_size: int, file: *void): string::string {
+fun get_line(line_size: int, file: *void): str::str {
     var buff = new<char>(line_size)
     fgets(buff, line_size, file)
-    var to_ret = string::string(buff)
+    var to_ret = str::str(buff)
     delete(buff)
     return to_ret.slice(0,-2) // remove '\n'
 }
@@ -29,7 +29,7 @@ fun printlnerr<T>(toPrint: T) : void {
 }
 fun printlnerr()
     printerr("\n")
-fun printerr(toPrint: string::string) : void {
+fun printerr(toPrint: str::str) : void {
     var charArr = toPrint.toCharArray()
     printerr(charArr)
     delete(charArr)
@@ -51,9 +51,9 @@ fun println()
     print("\n")
 
 fun print(toPrint: char) : void
-    print(string::string(toPrint))
+    print(str::str(toPrint))
 
-fun print(toPrint: string::string) : void {
+fun print(toPrint: str::str) : void {
     var charArr = toPrint.toCharArray()
     print(charArr)
     delete(charArr)
@@ -65,7 +65,7 @@ fun print(toPrint: bool) {
         print("false")
 }
 fun print<T>(toPrint: T): void 
-    print(string::to_string(toPrint))
+    print(str::to_string(toPrint))
 
 // Ok, just some DEAD simple file io for now
 ext fun fopen(path: *char, mode: *char): *void
@@ -75,7 +75,7 @@ ext fun ftell(file: *void): long
 ext fun fseek(file: *void, offset: long, whence: int): int
 ext fun fread(ptr: *void, size: ulong, nmemb: ulong, file: *void): ulong
 ext fun fwrite(ptr: *void, size: ulong, nmemb: ulong, file: *void): ulong
-fun file_exists(path: string::string): bool {
+fun file_exists(path: str::str): bool {
     var char_path = path.toCharArray()
     defer delete(char_path)
     var fp = fopen(char_path, "r")
@@ -85,13 +85,13 @@ fun file_exists(path: string::string): bool {
 	}
     return false
 }
-fun read_file(path: string::string): string::string {
+fun read_file(path: str::str): str::str {
     if (!file_exists(path))
-        return string::string()
-    var toRet.construct(read_file_binary(path)): string::string
+        return str::str()
+    var toRet.construct(read_file_binary(path)): str::str
     return toRet
 }
-fun write_file(path: string::string, data: string::string) {
+fun write_file(path: str::str, data: str::str) {
     var char_path = path.toCharArray()
     defer delete(char_path)
     var char_data = data.toCharArray()
@@ -100,7 +100,7 @@ fun write_file(path: string::string, data: string::string) {
     fprintf(fp, "%s", char_data)
     fclose(fp)
 }
-fun read_file_binary(path: string::string): vector::vector<char> {
+fun read_file_binary(path: str::str): vec::vec<char> {
     var char_path = path.toCharArray()
     defer delete(char_path)
     var fp = fopen(char_path, "r")
@@ -111,13 +111,13 @@ fun read_file_binary(path: string::string): vector::vector<char> {
     var readSize = fread((data) cast *void, (1) cast ulong, (size) cast ulong, fp)
     fclose(fp)
     data[readSize] = 0
-    var toRet.construct((size) cast int): vector::vector<char>
+    var toRet.construct((size) cast int): vec::vec<char>
     for (var i = 0; i < size; i++;)
         toRet.add(data[i])
     delete(data)
     return toRet
 }
-fun write_file_binary(path: string::string, vdata: vector::vector<char>) {
+fun write_file_binary(path: str::str, vdata: vec::vec<char>) {
     var char_path = path.toCharArray()
     defer delete(char_path)
     var data = vdata.getBackingMemory()

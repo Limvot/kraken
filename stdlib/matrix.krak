@@ -1,8 +1,8 @@
-import vector:*;
+import vec:*;
 import io:*;
 
 obj matrix (Object) {
-  var data: vector<double>;
+  var data: vec<double>;
   var rows: int;
   var cols: int;
 

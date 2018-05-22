@@ -4,7 +4,7 @@ import mem:*
 import map:*
 import hash_map:*
 import stack:*
-import string:*
+import str:*
 import util:*
 import tree:*
 import symbol:*
@@ -53,7 +53,7 @@ fun type_size_and_alignment(t: *type): pair<ulong,ulong> {
         base_type::floating() return make_pair(#sizeof<float>, #sizeof<float>)
         base_type::double_precision() return make_pair(#sizeof<double>, #sizeof<double>)
     }
-    error(string("Invalid type for type_size: ") + t->to_string())
+    error(str("Invalid type for type_size: ") + t->to_string())
 }
 
 fun offset_into_struct(struct_type: *type, ident: *ast_node): ulong {
@@ -105,7 +105,7 @@ fun size_to_operand_size(size: ulong): operand_size {
     if (size == 2) return operand_size::b16()
     if (size == 4) return operand_size::b32()
     if (size == 8) return operand_size::b64()
-    error(string("invalid operand size ") + size)
+    error(str("invalid operand size ") + size)
 }
 adt byte_inst {
     nop,
@@ -163,57 +163,57 @@ obj test {
     var offset: long
 }
 
-fun to_string(s: operand_size): string {
+fun to_string(s: operand_size): str {
     match (s) {
-        operand_size::b8()  return string("8")
-        operand_size::b16() return string("16")
-        operand_size::b32() return string("32")
-        operand_size::b64() return string("64")
+        operand_size::b8()  return str("8")
+        operand_size::b16() return str("16")
+        operand_size::b32() return str("32")
+        operand_size::b64() return str("64")
     }
-    return string("missed operand size")
+    return str("missed operand size")
 }
 
-fun to_string(b: byte_inst): string {
+fun to_string(b: byte_inst): str {
     match (b) {
-        byte_inst::nop()     return string("nop")
-        byte_inst::imm(i)    return string("r") + i.to_reg + " = imm " + i.val
-        byte_inst::add(a)    return string("r") + a.to_reg + " = r" + a.a + " + r" + a.b
-        byte_inst::addi(a)   return string("r") + a.to_reg + " = r" + a.a + " + " + a.bi
-        byte_inst::smul(a)   return string("r") + a.to_reg + " = r" + a.a + " * r" + a.b
-        byte_inst::umul(a)   return string("r") + a.to_reg + " = r" + a.a + " u* r"+ a.b
-        byte_inst::sdiv(a)   return string("r") + a.to_reg + " = r" + a.a + " / r" + a.b
-        byte_inst::udiv(a)   return string("r") + a.to_reg + " = r" + a.a + " u/ r"+ a.b
-        byte_inst::mod(a)    return string("r") + a.to_reg + " = r" + a.a + " % r" + a.b
-        byte_inst::and(a)    return string("r") + a.to_reg + " = r" + a.a + " & r" + a.b
-        byte_inst::shl(a)    return string("r") + a.to_reg + " = r" + a.a + " u<< r" + a.b
-        byte_inst::shr(a)    return string("r") + a.to_reg + " = r" + a.a + " u>> r" + a.b
-        byte_inst::sar(a)    return string("r") + a.to_reg + " = r" + a.a + " s>> r" + a.b
-        byte_inst::or(a)     return string("r") + a.to_reg + " = r" + a.a + " | r" + a.b
-        byte_inst::xor(a)    return string("r") + a.to_reg + " = r" + a.a + " ^ r" + a.b
-        byte_inst::not(a)    return string("r") + a.to_reg + " = ~r" + a.a
-        byte_inst::gz(a)     return string("r") + a.to_reg + " = r" + a.a + " > 0"
-        byte_inst::lz(a)     return string("r") + a.to_reg + " = r" + a.a + " < 0"
-        byte_inst::ez(a)     return string("r") + a.to_reg + " = r" + a.a + " == 0"
-        byte_inst::ldr(l)    return string("r") + l.reg    + " = ldr" + to_string(l.size) + " r" + l.base_reg + " (" + l.offset + ")"
+        byte_inst::nop()     return str("nop")
+        byte_inst::imm(i)    return str("r") + i.to_reg + " = imm " + i.val
+        byte_inst::add(a)    return str("r") + a.to_reg + " = r" + a.a + " + r" + a.b
+        byte_inst::addi(a)   return str("r") + a.to_reg + " = r" + a.a + " + " + a.bi
+        byte_inst::smul(a)   return str("r") + a.to_reg + " = r" + a.a + " * r" + a.b
+        byte_inst::umul(a)   return str("r") + a.to_reg + " = r" + a.a + " u* r"+ a.b
+        byte_inst::sdiv(a)   return str("r") + a.to_reg + " = r" + a.a + " / r" + a.b
+        byte_inst::udiv(a)   return str("r") + a.to_reg + " = r" + a.a + " u/ r"+ a.b
+        byte_inst::mod(a)    return str("r") + a.to_reg + " = r" + a.a + " % r" + a.b
+        byte_inst::and(a)    return str("r") + a.to_reg + " = r" + a.a + " & r" + a.b
+        byte_inst::shl(a)    return str("r") + a.to_reg + " = r" + a.a + " u<< r" + a.b
+        byte_inst::shr(a)    return str("r") + a.to_reg + " = r" + a.a + " u>> r" + a.b
+        byte_inst::sar(a)    return str("r") + a.to_reg + " = r" + a.a + " s>> r" + a.b
+        byte_inst::or(a)     return str("r") + a.to_reg + " = r" + a.a + " | r" + a.b
+        byte_inst::xor(a)    return str("r") + a.to_reg + " = r" + a.a + " ^ r" + a.b
+        byte_inst::not(a)    return str("r") + a.to_reg + " = ~r" + a.a
+        byte_inst::gz(a)     return str("r") + a.to_reg + " = r" + a.a + " > 0"
+        byte_inst::lz(a)     return str("r") + a.to_reg + " = r" + a.a + " < 0"
+        byte_inst::ez(a)     return str("r") + a.to_reg + " = r" + a.a + " == 0"
+        byte_inst::ldr(l)    return str("r") + l.reg    + " = ldr" + to_string(l.size) + " r" + l.base_reg + " (" + l.offset + ")"
         byte_inst::str(s)    return "str" + to_string(s.size) + " (r" + s.base_reg + "(" + s.offset + ") <= r" + s.reg + ")"
-        byte_inst::jmp(j)    return string("jmp(pc += ") + j + ")"
-        byte_inst::jz(j)     return string("jmp(r") + j.reg + " == 0, pc += " + j.offset + ")"
-        byte_inst::call(c)   return string("call pc = r") + c
-        byte_inst::ret()     return string("ret")
+        byte_inst::jmp(j)    return str("jmp(pc += ") + j + ")"
+        byte_inst::jz(j)     return str("jmp(r") + j.reg + " == 0, pc += " + j.offset + ")"
+        byte_inst::call(c)   return str("call pc = r") + c
+        byte_inst::ret()     return str("ret")
     }
-    return string("Missed byte_inst case in to_string")
+    return str("Missed byte_inst case in to_string")
 }
 
-fun bytecode_to_string(functions: ref vector<bytecode_function>, instructions: ref vector<byte_inst>): string {
-    return string("\n").join(functions.map(fun(bb: ref bytecode_function): string return bb.to_string(instructions);))
+fun bytecode_to_string(functions: ref vec<bytecode_function>, instructions: ref vec<byte_inst>): str {
+    return str("\n").join(functions.map(fun(bb: ref bytecode_function): str return bb.to_string(instructions);))
 }
 
-fun bytecode_function(name: ref string, start: int): bytecode_function {
+fun bytecode_function(name: ref str, start: int): bytecode_function {
     var to_ret.construct(name, start): bytecode_function
     return to_ret
 }
 obj bytecode_function (Object) {
-    var name: string
+    var name: str
     var instruction_start: int
     var instruction_end: int
     var var_to_frame_offset: map<*ast_node, int>
@@ -227,7 +227,7 @@ obj bytecode_function (Object) {
         frame_size = 0
         return this
     }
-    fun construct(name_in: ref string, instruction_start_in: int): *bytecode_function {
+    fun construct(name_in: ref str, instruction_start_in: int): *bytecode_function {
         instruction_start = instruction_start_in
         instruction_end = 0
         name.copy_construct(&name_in)
@@ -250,7 +250,7 @@ obj bytecode_function (Object) {
         name.destruct()
         var_to_frame_offset.destruct()
     }
-    fun to_string(instructions: ref vector<byte_inst>): string {
+    fun to_string(instructions: ref vec<byte_inst>): str {
         var res = name + "(frame size " + frame_size + "):\n"
         res += "\t frame layout\n"
         res += "\t\tsaved RBP : RPB = 0\n"
@@ -259,7 +259,7 @@ obj bytecode_function (Object) {
         })
         res += "\n\t bytecode\n"
         for (var i = instruction_start; i < instruction_end; i++;)
-            res += string("\t\t") + i + string(": ") + to_string(instructions[i]) + "\n"
+            res += str("\t\t") + i + str(": ") + to_string(instructions[i]) + "\n"
         return res
     }
 }
@@ -268,13 +268,13 @@ obj bytecode_generator (Object) {
     var reg_counter: int
     var reg_max: int
     var id_counter: int
-    var ast_name_map: hash_map<*ast_node, string>
-    var functions: vector<bytecode_function>
+    var ast_name_map: hash_map<*ast_node, str>
+    var functions: vec<bytecode_function>
     var node_function_idx: map<*ast_node, int>
-    var instructions: vector<byte_inst>
-    var fixup_function_addresses: vector<pair<int, *ast_node>>
-    var fixup_break_addresses: stack<vector<int>>
-    var fixup_continue_addresses: stack<vector<int>>
+    var instructions: vec<byte_inst>
+    var fixup_function_addresses: vec<pair<int, *ast_node>>
+    var fixup_break_addresses: stack<vec<int>>
+    var fixup_continue_addresses: stack<vec<int>>
     fun construct(): *bytecode_generator {
         id_counter = 0
         ast_name_map.construct()
@@ -314,7 +314,7 @@ obj bytecode_generator (Object) {
         fixup_break_addresses.destruct()
         fixup_continue_addresses.destruct()
     }
-    fun get_id(): string return to_string(id_counter++);
+    fun get_id(): str return to_string(id_counter++);
     fun get_reg(): int   return reg_counter++;
     fun peek_reg(): int  return reg_counter;
     fun reset_reg()      reset_reg(3);
@@ -324,11 +324,11 @@ obj bytecode_generator (Object) {
         }
         reg_counter = to
     }
-    /*fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>): pair<vector<bytecode_function>, vector<byte_inst>> {*/
-    fun generate_bytecode(name_ast_map: map<string, pair<*tree<symbol>,*ast_node>>) {
+    /*fun generate_bytecode(name_ast_map: map<str, pair<*tree<symbol>,*ast_node>>): pair<vec<bytecode_function>, vec<byte_inst>> {*/
+    fun generate_bytecode(name_ast_map: map<str, pair<*tree<symbol>,*ast_node>>) {
 
         // iterate through asts
-        name_ast_map.for_each(fun(name: string, tree_pair: pair<*tree<symbol>,*ast_node>) {
+        name_ast_map.for_each(fun(name: str, tree_pair: pair<*tree<symbol>,*ast_node>) {
             // iterate through children for each ast
             tree_pair.second->translation_unit.lambdas.for_each(fun(child: *ast_node) {
                 generate_function_definition(child)
@@ -502,8 +502,8 @@ obj bytecode_generator (Object) {
         var jz_index = instructions.size
         emit_jz(cond_reg,0)
         reset_reg()
-        fixup_break_addresses.push(vector<int>())
-        fixup_continue_addresses.push(vector<int>())
+        fixup_break_addresses.push(vec<int>())
+        fixup_continue_addresses.push(vec<int>())
         generate(node->while_loop.statement)
         reset_reg()
         emit_jmp(top_index - instructions.size)
@@ -529,8 +529,8 @@ obj bytecode_generator (Object) {
         var jz_index = instructions.size
         emit_jz(cond_reg,0)
         reset_reg()
-        fixup_break_addresses.push(vector<int>())
-        fixup_continue_addresses.push(vector<int>())
+        fixup_break_addresses.push(vec<int>())
+        fixup_continue_addresses.push(vec<int>())
 
         generate(node->for_loop.body)
         reset_reg()
@@ -853,7 +853,7 @@ obj bytecode_generator (Object) {
         }
         error("Bad node")
     }
-    fun get_name(node: *ast_node): string {
+    fun get_name(node: *ast_node): str {
         var maybe_it = ast_name_map.get_ptr_or_null(node);
         if (maybe_it)
             return *maybe_it
@@ -1073,7 +1073,7 @@ obj bytecode_generator (Object) {
         println("evaling main")
         println(bytecode_to_string(functions, instructions))
         var main_entry = functions.find_first_satisfying(fun(block: bytecode_function): bool return block.name == "main";)
-        var registers.construct(reg_max): vector<long>
+        var registers.construct(reg_max): vec<long>
         registers.size = reg_max
         registers[1] = 0xdeadbeefcafebabe
         var stack_size = 8 * 1024 * 1024
@@ -1083,7 +1083,7 @@ obj bytecode_generator (Object) {
             stack[-i + -1] = 0
         registers[0] = (stack-register_size) cast long // with the stack being zeroed out, this makes it a return address of 0
         for (var i = main_entry.instruction_start; i < instructions.size; i++;) {
-            /*println(string("evaling: ") + i + ": " + to_string(instructions[i]))*/
+            /*println(str("evaling: ") + i + ": " + to_string(instructions[i]))*/
             match(instructions[i]) {
                 byte_inst::nop()     {}
                 byte_inst::imm(i)    registers[i.to_reg] = i.val
@@ -1206,7 +1206,7 @@ obj bytecode_generator (Object) {
                                                     *(registers[0] + #sizeof<*char> + #sizeof<ulong>) cast **char,
                                                     *(registers[0] + #sizeof<*char> + #sizeof<ulong> + #sizeof<*char>) cast *double)) cast long
                         else
-                            error(string("bad extern call number") + func_start)
+                            error(str("bad extern call number") + func_start)
                     } else {
                         /*registers[0] -= register_size*/
                         registers[0] = registers[0] - register_size
@@ -1216,7 +1216,7 @@ obj bytecode_generator (Object) {
                         /*println("call: " + functions.find_first_satisfying(fun(f: bytecode_function): bool return f.instruction_start == func_start;).name)*/
                         /*println("first part of memory is (after push)")*/
                         /*for (var i = 0; i < 8*8; i+=8;) {*/
-                            /*print(string("-") + i + string(": "))*/
+                            /*print(str("-") + i + str(": "))*/
                             /*for (var j = 0; j < 8; j++;) {*/
                                 /*if (j == 4)*/
                                     /*print(" ")*/
@@ -1235,7 +1235,7 @@ obj bytecode_generator (Object) {
                     /*print("returning!")*/
                     /*println("first part of memory is")*/
                     /*for (var i = 0; i < 8*8; i+=8;) {*/
-                        /*print(string("-") + i + string(": "))*/
+                        /*print(str("-") + i + str(": "))*/
                         /*for (var j = 0; j < 8; j++;) {*/
                             /*if (j == 4)*/
                                 /*print(" ")*/
@@ -1246,13 +1246,13 @@ obj bytecode_generator (Object) {
                     /*}*/
                     /*println("Done")*/
                     if (pc == 0) {
-                        /*println(string("got malloc is ") + *(got_malloc) cast *int)*/
+                        /*println(str("got malloc is ") + *(got_malloc) cast *int)*/
                         var value = registers[2]
-                        println(string("returning from main, value is ") + value)
+                        println(str("returning from main, value is ") + value)
                         return value
                     } else {
                         i = pc - 1
-                        /*println(string("returning to ") + pc)*/
+                        /*println(str("returning to ") + pc)*/
                     }
                 }
             }

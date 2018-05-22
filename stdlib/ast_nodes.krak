@@ -1,12 +1,12 @@
 import tree:*
 import symbol:*
-import vector:*
-import vector_literals:*
+import vec:*
+import vec_literals:*
 import set:*
 import stack:*
 import map:*
 import util:*
-import string:*
+import str:*
 import mem:*
 import io:*
 import type:*
@@ -42,7 +42,7 @@ fun ast_node_ptr(node: ast_node): *ast_node {
     to_ret->copy_construct(&node)
     return to_ret
 }
-fun ast_translation_unit_ptr(name: string): *ast_node {
+fun ast_translation_unit_ptr(name: str): *ast_node {
     var obj_var.construct(name): translation_unit
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::translation_unit(obj_var))
@@ -55,11 +55,11 @@ fun is_translation_unit(node: *ast_node): bool {
     return false
 }
 obj translation_unit (Object) {
-    var scope: map<string, vector<*ast_node>>
-    var children: vector<*ast_node>
-    var lambdas: vector<*ast_node>
-    var name: string
-    fun construct(nameIn: string): *translation_unit  {
+    var scope: map<str, vec<*ast_node>>
+    var children: vec<*ast_node>
+    var lambdas: vec<*ast_node>
+    var name: str
+    fun construct(nameIn: str): *translation_unit  {
         scope.construct()
         children.construct()
         lambdas.construct()
@@ -86,7 +86,7 @@ obj translation_unit (Object) {
         return children == other.children && name == other.name && lambdas == other.lambdas
     }
 }
-fun ast_import_ptr(name: string, containing_tu: *ast_node): *ast_node {
+fun ast_import_ptr(name: str, containing_tu: *ast_node): *ast_node {
     var to_ret.construct(name, containing_tu): import
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::import(to_ret))
@@ -99,13 +99,13 @@ fun is_import(node: *ast_node): bool {
     return false
 }
 obj import (Object) {
-    var scope: map<string, vector<*ast_node>>
-    var imported: set<string>
+    var scope: map<str, vec<*ast_node>>
+    var imported: set<str>
     var containing_translation_unit: *ast_node
     var translation_unit: *ast_node
-    var name: string
+    var name: str
     var starred: bool
-    fun construct(nameIn: string, containing_tu: *ast_node): *import  {
+    fun construct(nameIn: str, containing_tu: *ast_node): *import  {
         scope.construct()
         imported.construct()
         name.copy_construct(&nameIn)
@@ -136,12 +136,12 @@ obj import (Object) {
     }
 }
 fun ast_identifier_ptr(name: *char, type: *type, enclosing_scope: *ast_node): *ast_node {
-    return ast_identifier_ptr(string(name), type, enclosing_scope)
+    return ast_identifier_ptr(str(name), type, enclosing_scope)
 }
-fun ast_identifier_ptr(name: string, type: *type, enclosing_scope: *ast_node): *ast_node {
+fun ast_identifier_ptr(name: str, type: *type, enclosing_scope: *ast_node): *ast_node {
     return ast_identifier_ptr(name, type, enclosing_scope, false)
 }
-fun ast_identifier_ptr(name: string, type: *type, enclosing_scope: *ast_node, is_extern: bool): *ast_node {
+fun ast_identifier_ptr(name: str, type: *type, enclosing_scope: *ast_node, is_extern: bool): *ast_node {
     var to_ret.construct(name, type, enclosing_scope, is_extern): identifier
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::identifier(to_ret))
@@ -154,12 +154,12 @@ fun is_identifier(node: *ast_node): bool {
     return false
 }
 obj identifier (Object) {
-    var name: string
-    var scope: map<string, vector<*ast_node>>
+    var name: str
+    var scope: map<str, vec<*ast_node>>
     var type: *type
     var enclosing_scope: *ast_node
     var is_extern: bool
-    fun construct(name_in: string, type_in: *type, enclosing_scope: *ast_node, is_extern_in: bool): *identifier {
+    fun construct(name_in: str, type_in: *type, enclosing_scope: *ast_node, is_extern_in: bool): *identifier {
         name.copy_construct(&name_in)
         scope.construct()
         type = type_in
@@ -186,11 +186,11 @@ obj identifier (Object) {
         return name == other.name && type == other.type && enclosing_scope == other.enclosing_scope && is_extern == other.is_extern
     }
 }
-/*fun ast_type_def_ptr(name: string): *ast_node {*/
-fun ast_type_def_ptr(name: ref string): *ast_node {
+/*fun ast_type_def_ptr(name: str): *ast_node {*/
+fun ast_type_def_ptr(name: ref str): *ast_node {
     return ast_type_def_ptr(name, false)
 }
-fun ast_type_def_ptr(name: ref string, is_union: bool): *ast_node {
+fun ast_type_def_ptr(name: ref str, is_union: bool): *ast_node {
     var to_ret.construct(name, is_union): type_def
     /*var to_ret.construct(name): type_def*/
     var ptr = new<ast_node>()
@@ -204,15 +204,15 @@ fun is_type_def(node: *ast_node): bool {
     return false
 }
 obj type_def (Object) {
-    var scope: map<string, vector<*ast_node>>
-    var name: string
+    var scope: map<str, vec<*ast_node>>
+    var name: str
     var self_type: *type
-    var variables: vector<*ast_node>
-    var methods: vector<*ast_node>
+    var variables: vec<*ast_node>
+    var methods: vec<*ast_node>
     var is_union: bool
-    fun construct(nameIn: ref string, is_unionIn: bool): *type_def  {
-    /*fun construct(nameIn: ref string): *type_def  {*/
-    /*fun construct(nameIn: string): *type_def  {*/
+    fun construct(nameIn: ref str, is_unionIn: bool): *type_def  {
+    /*fun construct(nameIn: ref str): *type_def  {*/
+    /*fun construct(nameIn: str): *type_def  {*/
         scope.construct()
         name.copy_construct(&nameIn)
         is_union = is_unionIn
@@ -244,7 +244,7 @@ obj type_def (Object) {
         /*return name == other.name && self_type == other.self_type && variables == other.variables && methods == other.methods*/
     }
 }
-fun ast_adt_def_ptr(name: string): *ast_node {
+fun ast_adt_def_ptr(name: str): *ast_node {
     var to_ret.construct(name): adt_def
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::adt_def(to_ret))
@@ -257,13 +257,13 @@ fun is_adt_def(node: *ast_node): bool {
     return false
 }
 obj adt_def (Object) {
-    var scope: map<string, vector<*ast_node>>
-    var name: string
+    var scope: map<str, vec<*ast_node>>
+    var name: str
     var self_type: *type
-    var options: vector<*ast_node>
-    var option_funcs: vector<*ast_node>
-    var regular_funcs: vector<*ast_node>
-    fun construct(nameIn: string): *adt_def  {
+    var options: vec<*ast_node>
+    var option_funcs: vec<*ast_node>
+    var regular_funcs: vec<*ast_node>
+    fun construct(nameIn: str): *adt_def  {
         scope.construct()
         name.copy_construct(&nameIn)
         self_type = null<type>()
@@ -295,9 +295,9 @@ obj adt_def (Object) {
         return name == other.name && self_type == other.self_type && options == other.options && option_funcs == other.option_funcs && regular_funcs == other.regular_funcs
     }
 }
-fun ast_function_ptr(name: string, type: *type, parameters: vector<*ast_node>, is_extern: bool): *ast_node
+fun ast_function_ptr(name: str, type: *type, parameters: vec<*ast_node>, is_extern: bool): *ast_node
     return ast_function_ptr(name, type, parameters, null<ast_node>(), is_extern, false)
-fun ast_function_ptr(name: string, type: *type, parameters: vector<*ast_node>, this_param: *ast_node, is_extern: bool, is_variadic: bool): *ast_node {
+fun ast_function_ptr(name: str, type: *type, parameters: vec<*ast_node>, this_param: *ast_node, is_extern: bool, is_variadic: bool): *ast_node {
     var to_ret.construct(name, type, parameters, this_param, is_extern, is_variadic): function
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::function(to_ret))
@@ -310,16 +310,16 @@ fun is_function(node: *ast_node): bool {
     return false
 }
 obj function (Object) {
-    var name: string
+    var name: str
     var type: *type
-    var parameters: vector<*ast_node>
+    var parameters: vec<*ast_node>
     var this_param: *ast_node
     var closed_variables: set<*ast_node>
     var body_statement: *ast_node
-    var scope: map<string, vector<*ast_node>>
+    var scope: map<str, vec<*ast_node>>
     var is_extern: bool
     var is_variadic: bool
-    fun construct(name_in: string, type_in: *type, parameters_in: vector<*ast_node>, this_param_in: *ast_node, is_extern_in: bool, is_variadic_in: bool): *function  {
+    fun construct(name_in: str, type_in: *type, parameters_in: vec<*ast_node>, this_param_in: *ast_node, is_extern_in: bool, is_variadic_in: bool): *function  {
         name.copy_construct(&name_in)
         parameters.copy_construct(&parameters_in)
         this_param = this_param_in
@@ -356,7 +356,7 @@ obj function (Object) {
         return name == name && type == other.type && parameters == other.parameters && this_param == other.this_param && body_statement == other.body_statement && closed_variables == other.closed_variables && is_extern == other.is_extern && is_variadic == other.is_variadic
     }
 }
-fun ast_template_ptr(name: string, syntax_node: *tree<symbol>, template_types: vector<string>, template_type_replacements: map<string, *type>, is_function: bool): *ast_node {
+fun ast_template_ptr(name: str, syntax_node: *tree<symbol>, template_types: vec<str>, template_type_replacements: map<str, *type>, is_function: bool): *ast_node {
     var to_ret.construct(name, syntax_node, template_types, template_type_replacements, is_function): template
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::template(to_ret))
@@ -369,15 +369,15 @@ fun is_template(node: *ast_node): bool {
     return false
 }
 obj template (Object) {
-    var name: string
+    var name: str
     var syntax_node: *tree<symbol>
-    var instantiated: vector<*ast_node>
-    var template_types: vector<string>
-    var template_type_replacements: map<string, *type>
-    var instantiated_map: map<vector<type>, *ast_node>
-    var scope: map<string, vector<*ast_node>>
+    var instantiated: vec<*ast_node>
+    var template_types: vec<str>
+    var template_type_replacements: map<str, *type>
+    var instantiated_map: map<vec<type>, *ast_node>
+    var scope: map<str, vec<*ast_node>>
     var is_function: bool
-    fun construct(name_in: string, syntax_node_in: *tree<symbol>, template_types_in: vector<string>, template_type_replacements_in: map<string, *type>, is_function: bool): *template  {
+    fun construct(name_in: str, syntax_node_in: *tree<symbol>, template_types_in: vec<str>, template_type_replacements_in: map<str, *type>, is_function: bool): *template  {
         name.copy_construct(&name_in)
         syntax_node = syntax_node_in
         instantiated.construct()
@@ -434,8 +434,8 @@ fun is_code_block(node: *ast_node): bool {
     return false
 }
 obj code_block (Object) {
-    var scope: map<string, vector<*ast_node>>
-    var children: vector<*ast_node>
+    var scope: map<str, vec<*ast_node>>
+    var children: vec<*ast_node>
     fun construct(): *code_block {
         scope.construct()
         children.construct()
@@ -474,7 +474,7 @@ obj if_statement (Object) {
     // these are not a part of the constructor because they have to be trnasformed with this as its scope
     var then_part: *ast_node
     var else_part: *ast_node
-    var scope: map<string, vector<*ast_node>>
+    var scope: map<str, vec<*ast_node>>
     fun construct(condition_in: *ast_node): *if_statement  {
         condition = condition_in
         then_part = null<ast_node>()
@@ -512,9 +512,9 @@ fun is_match_statement(node: *ast_node): bool {
     return false
 }
 obj match_statement (Object) {
-    var scope: map<string, vector<*ast_node>>
+    var scope: map<str, vec<*ast_node>>
     var value: *ast_node
-    var cases: vector<*ast_node>
+    var cases: vec<*ast_node>
     fun construct(value_in: *ast_node): *match_statement  {
         scope.construct()
         value = value_in
@@ -551,7 +551,7 @@ fun is_case_statement(node: *ast_node): bool {
     return false
 }
 obj case_statement (Object) {
-    var scope: map<string, vector<*ast_node>>
+    var scope: map<str, vec<*ast_node>>
     var option: *ast_node
     var unpack_ident: *ast_node
     var statement: *ast_node
@@ -594,7 +594,7 @@ fun is_while_loop(node: *ast_node): bool {
 obj while_loop (Object) {
     var condition: *ast_node
     var statement: *ast_node
-    var scope: map<string, vector<*ast_node>>
+    var scope: map<str, vec<*ast_node>>
     fun construct(condition_in: *ast_node): *while_loop  {
         condition = condition_in
         statement = null<ast_node>()
@@ -634,7 +634,7 @@ obj for_loop (Object) {
     var condition: *ast_node
     var update: *ast_node
     var body: *ast_node
-    var scope: map<string, vector<*ast_node>>
+    var scope: map<str, vec<*ast_node>>
     fun construct(): *for_loop  {
         scope.construct()
         init = null<ast_node>()
@@ -675,7 +675,7 @@ fun is_return_statement(node: *ast_node): bool {
 }
 obj return_statement (Object) {
     var return_value: *ast_node
-    var scope: map<string, vector<*ast_node>>
+    var scope: map<str, vec<*ast_node>>
     fun construct(return_value_in: *ast_node): *return_statement  {
         return_value = return_value_in
         scope.construct()
@@ -847,7 +847,7 @@ fun is_if_comp(node: *ast_node): bool {
     return false
 }
 obj if_comp (Object) {
-    var wanted_generator: string
+    var wanted_generator: str
     var statement: *ast_node
     fun construct(): *if_comp  {
         wanted_generator.construct()
@@ -881,11 +881,11 @@ fun is_simple_passthrough(node: *ast_node): bool {
     return false
 }
 obj simple_passthrough (Object) {
-    var scope: map<string, vector<*ast_node>>
-    var passthrough_str: string
-    var in_params: vector<pair<*ast_node,string>>
-    var out_params: vector<pair<*ast_node,string>>
-    var linker_str: string
+    var scope: map<str, vec<*ast_node>>
+    var passthrough_str: str
+    var in_params: vec<pair<*ast_node,str>>
+    var out_params: vec<pair<*ast_node,str>>
+    var linker_str: str
     fun construct(): *simple_passthrough  {
         scope.construct()
         passthrough_str.construct()
@@ -917,7 +917,7 @@ obj simple_passthrough (Object) {
                 out_params == other.out_params && linker_str == other.linker_str
     }
 }
-fun ast_function_call_ptr(func: *ast_node, parameters: vector<*ast_node>): *ast_node {
+fun ast_function_call_ptr(func: *ast_node, parameters: vec<*ast_node>): *ast_node {
     var to_ret.construct(func, parameters): function_call
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::function_call(to_ret))
@@ -931,8 +931,8 @@ fun is_function_call(node: *ast_node): bool {
 }
 obj function_call (Object) {
     var func: *ast_node
-    var parameters: vector<*ast_node>
-    fun construct(func_in: *ast_node, parameters_in: vector<*ast_node>): *function_call  {
+    var parameters: vec<*ast_node>
+    fun construct(func_in: *ast_node, parameters_in: vec<*ast_node>): *function_call  {
         func = func_in
         parameters.copy_construct(&parameters_in)
         return this
@@ -952,7 +952,7 @@ obj function_call (Object) {
         return func == func && parameters == other.parameters
     }
 }
-fun ast_compiler_intrinsic_ptr(intrinsic: string, parameters: vector<*ast_node>, type_parameters: vector<*type>, return_type: *type): *ast_node {
+fun ast_compiler_intrinsic_ptr(intrinsic: str, parameters: vec<*ast_node>, type_parameters: vec<*type>, return_type: *type): *ast_node {
     var to_ret.construct(intrinsic, parameters, type_parameters, return_type): compiler_intrinsic
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::compiler_intrinsic(to_ret))
@@ -965,11 +965,11 @@ fun is_compiler_intrinsic(node: *ast_node): bool {
     return false
 }
 obj compiler_intrinsic (Object) {
-    var intrinsic: string
-    var parameters: vector<*ast_node>
-    var type_parameters: vector<*type>
+    var intrinsic: str
+    var parameters: vec<*ast_node>
+    var type_parameters: vec<*type>
     var return_type: *type
-    fun construct(intrinsic_in: string, parameters_in: vector<*ast_node>, type_parameters_in: vector<*type>, return_type_in: *type): *compiler_intrinsic  {
+    fun construct(intrinsic_in: str, parameters_in: vec<*ast_node>, type_parameters_in: vec<*type>, return_type_in: *type): *compiler_intrinsic  {
         intrinsic.copy_construct(&intrinsic_in)
         parameters.copy_construct(&parameters_in)
         type_parameters.copy_construct(&type_parameters_in)
@@ -1030,7 +1030,7 @@ obj cast (Object) {
         return value == other.value && to_type == other.to_type
     }
 }
-fun ast_value_ptr(string_value: string, value_type: *type): *ast_node {
+fun ast_value_ptr(string_value: str, value_type: *type): *ast_node {
     var to_ret.construct(string_value, value_type): value
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::value(to_ret))
@@ -1043,10 +1043,10 @@ fun is_value(node: *ast_node): bool {
     return false
 }
 obj value (Object) {
-    var string_value: string
+    var string_value: str
     var value_type: *type
-    var scope: map<string, vector<*ast_node>>
-    fun construct(string_value_in: string, value_type_in: *type): *value  {
+    var scope: map<str, vec<*ast_node>>
+    fun construct(string_value_in: str, value_type_in: *type): *value  {
         scope.construct()
         string_value.copy_construct(&string_value_in)
         value_type = value_type_in
@@ -1070,76 +1070,76 @@ obj value (Object) {
     }
 }
 
-fun get_ast_children(node: *ast_node): vector<*ast_node> {
+fun get_ast_children(node: *ast_node): vec<*ast_node> {
     match (*node) {
         // Don't get lambdas, let them come up naturally in passes (so can get enclosing function and stuff)
         /*ast_node::translation_unit(backing) return backing.children + backing.lambdas*/
         ast_node::translation_unit(backing) return backing.children
-        ast_node::import(backing) return vector<*ast_node>()
-        ast_node::identifier(backing) return vector<*ast_node>()
+        ast_node::import(backing) return vec<*ast_node>()
+        ast_node::identifier(backing) return vec<*ast_node>()
         ast_node::type_def(backing) return backing.variables + backing.methods
         ast_node::adt_def(backing) return backing.options + backing.option_funcs
         ast_node::function(backing) return backing.parameters + backing.body_statement
         ast_node::template(backing) return backing.instantiated
         ast_node::code_block(backing) return backing.children
-        ast_node::if_statement(backing) return vector(backing.condition, backing.then_part, backing.else_part)
-        ast_node::match_statement(backing) return vector(backing.value) + backing.cases
-        ast_node::case_statement(backing) return vector(backing.option, backing.unpack_ident, backing.statement)
-        ast_node::while_loop(backing) return vector(backing.condition, backing.statement)
-        ast_node::for_loop(backing) return vector(backing.init, backing.condition, backing.update, backing.body)
-        ast_node::return_statement(backing) return vector(backing.return_value)
-        ast_node::branching_statement(backing) return vector<*ast_node>()
-        ast_node::defer_statement(backing) return vector(backing.statement)
-        ast_node::assignment_statement(backing) return vector(backing.to, backing.from)
-        ast_node::declaration_statement(backing) return vector(backing.identifier, backing.expression, backing.init_method_call)
-        ast_node::if_comp(backing) return vector<*ast_node>(backing.statement)
-        ast_node::simple_passthrough(backing) return vector<*ast_node>()
-        ast_node::function_call(backing) return vector(backing.func) + backing.parameters
+        ast_node::if_statement(backing) return vec(backing.condition, backing.then_part, backing.else_part)
+        ast_node::match_statement(backing) return vec(backing.value) + backing.cases
+        ast_node::case_statement(backing) return vec(backing.option, backing.unpack_ident, backing.statement)
+        ast_node::while_loop(backing) return vec(backing.condition, backing.statement)
+        ast_node::for_loop(backing) return vec(backing.init, backing.condition, backing.update, backing.body)
+        ast_node::return_statement(backing) return vec(backing.return_value)
+        ast_node::branching_statement(backing) return vec<*ast_node>()
+        ast_node::defer_statement(backing) return vec(backing.statement)
+        ast_node::assignment_statement(backing) return vec(backing.to, backing.from)
+        ast_node::declaration_statement(backing) return vec(backing.identifier, backing.expression, backing.init_method_call)
+        ast_node::if_comp(backing) return vec<*ast_node>(backing.statement)
+        ast_node::simple_passthrough(backing) return vec<*ast_node>()
+        ast_node::function_call(backing) return vec(backing.func) + backing.parameters
         ast_node::compiler_intrinsic(backing) return backing.parameters
-        ast_node::cast(backing) return vector<*ast_node>(backing.value)
-        ast_node::value(backing) return vector<*ast_node>()
+        ast_node::cast(backing) return vec<*ast_node>(backing.value)
+        ast_node::value(backing) return vec<*ast_node>()
     }
 }
-fun get_ast_name(node: *ast_node): string {
+fun get_ast_name(node: *ast_node): str {
     match (*node) {
-        ast_node::translation_unit(backing) return string("translation_unit: ") + backing.name
-        ast_node::import(backing) return string("import: ") + backing.name + "; [" + backing.imported.reduce(fun(name: string, acc: string): string return acc + " " + name;, string()) + " ]"
-        ast_node::identifier(backing) return string("identifier: ") + backing.name + ": " + backing.type->to_string()
+        ast_node::translation_unit(backing) return str("translation_unit: ") + backing.name
+        ast_node::import(backing) return str("import: ") + backing.name + "; [" + backing.imported.reduce(fun(name: str, acc: str): str return acc + " " + name;, str()) + " ]"
+        ast_node::identifier(backing) return str("identifier: ") + backing.name + ": " + backing.type->to_string()
         ast_node::type_def(backing) {
             /*if (backing.is_union)*/
-                /*return string("type_def union: ") + backing.name*/
+                /*return str("type_def union: ") + backing.name*/
             /*else*/
-                return string("type_def: ") + backing.name
+                return str("type_def: ") + backing.name
         }
-        ast_node::adt_def(backing) return string("adt_def: ") + backing.name
+        ast_node::adt_def(backing) return str("adt_def: ") + backing.name
         ast_node::function(backing) {
             if (backing.is_extern)
-                return string("extern function: ") + backing.name + ": " + backing.type->to_string()
+                return str("extern function: ") + backing.name + ": " + backing.type->to_string()
             else
-                return string("function: ") + backing.name + ": " + backing.type->to_string()
+                return str("function: ") + backing.name + ": " + backing.type->to_string()
         }
-        ast_node::template(backing) return string("template: ") + backing.name
-        ast_node::code_block(backing) return string("code_block")
-        ast_node::if_statement(backing) return string("if_statement")
-        ast_node::match_statement(backing) return string("match_statement")
-        ast_node::case_statement(backing) return string("case_statement")
-        ast_node::while_loop(backing) return string("while_loop")
-        ast_node::for_loop(backing) return string("for_loop")
-        ast_node::return_statement(backing) return string("return_statement")
-        ast_node::branching_statement(backing) return string("branching_statement")
-        ast_node::defer_statement(backing) return string("defer_statement")
-        ast_node::assignment_statement(backing) return string("assignment_statement")
-        ast_node::declaration_statement(backing) return string("declaration_statement")
-        ast_node::if_comp(backing) return string("if_comp: ") + backing.wanted_generator
-        ast_node::simple_passthrough(backing) return string("simple_passthrough: , string:") + backing.passthrough_str
-        ast_node::function_call(backing) return string("function_call:") + get_ast_name(backing.func) + "(" + backing.parameters.size + ")"
-        ast_node::compiler_intrinsic(backing) return string("compiler_intrinsic:") + backing.intrinsic + "(" + backing.parameters.size + "," + backing.type_parameters.size + "):" + backing.return_type->to_string()
-        ast_node::cast(backing) return string("cast: ") + get_ast_name(backing.value) + ": " + backing.to_type->to_string()
-        ast_node::value(backing) return string("value: ") + backing.string_value + ": " + backing.value_type->to_string()
+        ast_node::template(backing) return str("template: ") + backing.name
+        ast_node::code_block(backing) return str("code_block")
+        ast_node::if_statement(backing) return str("if_statement")
+        ast_node::match_statement(backing) return str("match_statement")
+        ast_node::case_statement(backing) return str("case_statement")
+        ast_node::while_loop(backing) return str("while_loop")
+        ast_node::for_loop(backing) return str("for_loop")
+        ast_node::return_statement(backing) return str("return_statement")
+        ast_node::branching_statement(backing) return str("branching_statement")
+        ast_node::defer_statement(backing) return str("defer_statement")
+        ast_node::assignment_statement(backing) return str("assignment_statement")
+        ast_node::declaration_statement(backing) return str("declaration_statement")
+        ast_node::if_comp(backing) return str("if_comp: ") + backing.wanted_generator
+        ast_node::simple_passthrough(backing) return str("simple_passthrough: , str:") + backing.passthrough_str
+        ast_node::function_call(backing) return str("function_call:") + get_ast_name(backing.func) + "(" + backing.parameters.size + ")"
+        ast_node::compiler_intrinsic(backing) return str("compiler_intrinsic:") + backing.intrinsic + "(" + backing.parameters.size + "," + backing.type_parameters.size + "):" + backing.return_type->to_string()
+        ast_node::cast(backing) return str("cast: ") + get_ast_name(backing.value) + ": " + backing.to_type->to_string()
+        ast_node::value(backing) return str("value: ") + backing.string_value + ": " + backing.value_type->to_string()
     }
-    return string("impossible adt type")
+    return str("impossible adt type")
 }
-fun get_ast_scope(node: *ast_node): *map<string,vector<*ast_node>> {
+fun get_ast_scope(node: *ast_node): *map<str,vec<*ast_node>> {
     match (*node) {
         ast_node::translation_unit() return &node->translation_unit.scope
         ast_node::import() return &node->import.scope
@@ -1158,7 +1158,7 @@ fun get_ast_scope(node: *ast_node): *map<string,vector<*ast_node>> {
         ast_node::simple_passthrough() return &node->simple_passthrough.scope
         ast_node::value() return &node->value.scope
     }
-    return null<map<string,vector<*ast_node>>>()
+    return null<map<str,vec<*ast_node>>>()
 }
 fun get_ast_type(node: *ast_node): *type {
     match (*node) {
@@ -1172,14 +1172,14 @@ fun get_ast_type(node: *ast_node): *type {
     return null<type>()
 }
 
-fun ast_to_dot(root: *ast_node): string {
-    var ret = string("digraph Kaken {\n")
+fun ast_to_dot(root: *ast_node): str {
+    var ret = str("digraph Kaken {\n")
     var counter = 0
-    var node_name_map = map<*ast_node, string>()
-    var get_name = fun(node: *ast_node): string {
+    var node_name_map = map<*ast_node, str>()
+    var get_name = fun(node: *ast_node): str {
         if (node_name_map.contains_key(node))
             return node_name_map[node]
-        var escaped = string("")
+        var escaped = str("")
         get_ast_name(node).data.for_each(fun(c: char) {
             if (c != '"')
                 escaped += c
@@ -1196,7 +1196,7 @@ fun ast_to_dot(root: *ast_node): string {
         get_ast_children(node).for_each(fun(child: *ast_node) {
             if (!child || done_set.contains(child))
                 return; // where on earth does the null come from
-            ret += string("\"") + get_name(node) + "\" -> \"" + get_name(child) + "\"\n";
+            ret += str("\"") + get_name(node) + "\" -> \"" + get_name(child) + "\"\n";
             helper(child)
         })
     }

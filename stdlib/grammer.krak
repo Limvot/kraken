@@ -1,5 +1,5 @@
-import string
-import vector
+import str
+import vec
 import set
 import stack
 import map
@@ -9,9 +9,9 @@ import io
 import util
 import serialize
 
-fun split_into_words(gram_str: string::string): vector::vector<string::string> {
-    // var out.construct(): vector::vector<string>
-    var out.construct(): vector::vector<string::string>
+fun split_into_words(gram_str: str::str): vec::vec<str::str> {
+    // var out.construct(): vec::vec<str>
+    var out.construct(): vec::vec<str::str>
     var begin = 0
     for (var i = 0; i < gram_str.length(); i++;) {
         if (gram_str[i] == '#') {
@@ -26,7 +26,7 @@ fun split_into_words(gram_str: string::string): vector::vector<string::string> {
                 i++
                 // if we hit a " we check to see if an odd number of backslashes preceed it
                 // (meaning that the " is escaped), and if so, we move on. Otherwise, we found
-                // the end of the quoted string
+                // the end of the quoted str
                 if (gram_str[i] == '"') {
                     var escaped = 0
                     while (gram_str[i-(1+escaped)] == '\\') escaped++
@@ -51,25 +51,25 @@ fun split_into_words(gram_str: string::string): vector::vector<string::string> {
     return out
 }
 
-fun load_grammer(gram_str: string::string): grammer {
+fun load_grammer(gram_str: str::str): grammer {
     var gram.construct(): grammer
     var leftSide = symbol::symbol("", false)
     var doLeftSide = true
-    var rightSide = vector::vector<symbol::symbol>()
-    /*split_into_words(io::read_file(path)).for_each(fun(word: string::string) {*/
+    var rightSide = vec::vec<symbol::symbol>()
+    /*split_into_words(io::read_file(path)).for_each(fun(word: str::str) {*/
         /*io::print("word: "); io::println(word);*/
     /*})*/
     /*return gram*/
-    split_into_words(gram_str).for_each(fun(word: string::string) {
+    split_into_words(gram_str).for_each(fun(word: str::str) {
         /*io::print("word: "); io::println(word)*/
         if (word == "=") {
             // do nothing
         } else if (word == "|") {
             gram.rules.add(rule(leftSide, rightSide))
-            rightSide = vector::vector<symbol::symbol>()
+            rightSide = vec::vec<symbol::symbol>()
         } else if (word == ";") {
             gram.rules.add(rule(leftSide, rightSide))
-            rightSide = vector::vector<symbol::symbol>()
+            rightSide = vec::vec<symbol::symbol>()
             doLeftSide = true
         } else {
             if (doLeftSide) {
@@ -80,7 +80,7 @@ fun load_grammer(gram_str: string::string): grammer {
                     // ok, we support both plain terminals "hia*"
                     // and decorated terminals "hia*":hi_with_as
                     // so first check to find the ending " and see if it's
-                    // the end of the string
+                    // the end of the str
                     var last_quote = word.length()-1
                     while(word[last_quote] != '"') last_quote--
                     if (last_quote != word.length()-1) {
@@ -103,9 +103,9 @@ fun load_grammer(gram_str: string::string): grammer {
 }
 
 obj grammer (Object, Serializable) {
-    var rules: vector::vector<rule>
+    var rules: vec::vec<rule>
     var non_terminals: set::set<symbol::symbol>
-    var terminals: vector::vector<util::pair<symbol::symbol, regex::regex>>
+    var terminals: vec::vec<util::pair<symbol::symbol, regex::regex>>
     var first_set_map: map::map<symbol::symbol, set::set<symbol::symbol>>
     var parse_table: table
 
@@ -135,15 +135,15 @@ obj grammer (Object, Serializable) {
         parse_table.destruct()
     }
 
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(rules) + serialize::serialize(non_terminals) + serialize::serialize(terminals) + serialize::serialize(first_set_map) + serialize::serialize(parse_table)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         // get everything constructed before the assignment
         /*construct()*/
-        /*util::unpack(rules, pos) = serialize::unserialize<vector::vector<rule>>(it, pos)*/
+        /*util::unpack(rules, pos) = serialize::unserialize<vec::vec<rule>>(it, pos)*/
         /*util::unpack(non_terminals, pos) = serialize::unserialize<set::set<symbol::symbol>>(it, pos)*/
-        /*util::unpack(terminals, pos) = serialize::unserialize<vector::vector<util::pair<symbol::symbol, regex::regex>>>(it, pos)*/
+        /*util::unpack(terminals, pos) = serialize::unserialize<vec::vec<util::pair<symbol::symbol, regex::regex>>>(it, pos)*/
         /*util::unpack(first_set_map, pos) = serialize::unserialize<map::map<symbol::symbol, set::set<symbol::symbol>>>(it, pos)*/
         /*util::unpack(parse_table, pos) = serialize::unserialize<table>(it, pos)*/
 
@@ -177,7 +177,7 @@ obj grammer (Object, Serializable) {
             })
         }
     }
-    fun first_vector(rhs: ref vector::vector<symbol::symbol>): set::set<symbol::symbol> {
+    fun first_vector(rhs: ref vec::vec<symbol::symbol>): set::set<symbol::symbol> {
         var toRet = set::set<symbol::symbol>()
         if (rhs.size) {
             for (var i = 0; i < rhs.size; i++;) {
@@ -199,8 +199,8 @@ obj grammer (Object, Serializable) {
     }
 
     fun calculate_state_automaton() {
-        var first_state = closure(state(vector::vector(rules[0].with_lookahead(set::set(symbol::eof_symbol())))))
-        var states = vector::vector(first_state) // vector instead of set because we need to iterate by index
+        var first_state = closure(state(vec::vec(rules[0].with_lookahead(set::set(symbol::eof_symbol())))))
+        var states = vec::vec(first_state) // vec instead of set because we need to iterate by index
         var newItems = stack::stack(0) // 0 is the index of the first and only item in states
         var count = 0
         while (newItems.size()) {
@@ -240,7 +240,7 @@ obj grammer (Object, Serializable) {
         /*states.for_each(fun(i: ref state) {*/
             /*io::println("STATE:\n")*/
             /*i.items.for_each(fun(r: ref rule) {*/
-                /*io::println(string::string("\t") + r.to_string())*/
+                /*io::println(str::str("\t") + r.to_string())*/
             /*})*/
         /*})*/
         io::println(" there were : states")
@@ -254,7 +254,7 @@ obj grammer (Object, Serializable) {
         initial.items = closure(initial.items)
         return initial
     }
-    fun closure(initial: ref vector::vector<rule>): vector::vector<rule> {
+    fun closure(initial: ref vec::vec<rule>): vec::vec<rule> {
         var continueIt = true
         //var count = 0
         while (continueIt) {
@@ -286,7 +286,7 @@ obj grammer (Object, Serializable) {
                                 //io::println("and")
                                 //io::println(r.to_string())
                                 //io::println("with")
-                                //var result = string::string("|lookahead {")
+                                //var result = str::str("|lookahead {")
                                 //newLookahead.for_each(fun(i: symbol::symbol) {
                                     //result += i.to_string()
                                 //})
@@ -317,7 +317,7 @@ obj grammer (Object, Serializable) {
     fun goto(I: ref state, X: ref symbol::symbol): state {
         // loop through i, find all that have thing::= something . X more,
         // add thing ::= something X . more
-        var jPrime = vector::vector<rule>()
+        var jPrime = vec::vec<rule>()
         I.items.for_each(fun(i: ref rule) {
             if (!i.at_end() && i.next() == X)
                 jPrime.add(i.advanced())
@@ -326,18 +326,18 @@ obj grammer (Object, Serializable) {
         return state(closure(jPrime))
     }
 
-    fun to_string(): string::string {
-        var result = string::string("grammer rules:")
-        rules.for_each( fun(i : rule) { result += string::string("\n\t") + i.to_string(); } )
+    fun to_string(): str::str {
+        var result = str::str("grammer rules:")
+        rules.for_each( fun(i : rule) { result += str::str("\n\t") + i.to_string(); } )
         result += "\nnon_terminals:"
-        non_terminals.for_each( fun(i : symbol::symbol) { result += string::string("\n\t") + i.to_string(); } )
+        non_terminals.for_each( fun(i : symbol::symbol) { result += str::str("\n\t") + i.to_string(); } )
         result += "\nterminals:"
-        terminals.for_each( fun(i : util::pair<symbol::symbol, regex::regex>) { result += string::string("\n\t") + i.first.to_string() + ": " + i.second.regexString; } )
+        terminals.for_each( fun(i : util::pair<symbol::symbol, regex::regex>) { result += str::str("\n\t") + i.first.to_string() + ": " + i.second.regexString; } )
         return result
     }
 }
 
-fun rule(lhs: symbol::symbol, rhs: vector::vector<symbol::symbol>): rule {
+fun rule(lhs: symbol::symbol, rhs: vec::vec<symbol::symbol>): rule {
     var toRet.construct(): rule
     toRet.lhs = lhs
     toRet.rhs = rhs
@@ -346,19 +346,19 @@ fun rule(lhs: symbol::symbol, rhs: vector::vector<symbol::symbol>): rule {
 
 obj rule (Object, Serializable) {
     var lhs: symbol::symbol
-    var rhs: vector::vector<symbol::symbol>
+    var rhs: vec::vec<symbol::symbol>
     var position: int
     var lookahead: set::set<symbol::symbol>
 
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(lhs) + serialize::serialize(rhs) + serialize::serialize(position) + serialize::serialize(lookahead)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         /*var tempLhs = symbol::invalid_symbol()*/
-        /*var tempRhs = vector::vector<symbol::symbol>()*/
+        /*var tempRhs = vec::vec<symbol::symbol>()*/
         /*var tempLookahead = set::set<symbol::symbol>()*/
         /*util::unpack(tempLhs, pos) = serialize::unserialize<symbol::symbol>(it, pos)*/
-        /*util::unpack(tempRhs, pos) = serialize::unserialize<vector::vector<symbol::symbol>>(it, pos)*/
+        /*util::unpack(tempRhs, pos) = serialize::unserialize<vec::vec<symbol::symbol>>(it, pos)*/
         /*util::unpack(position, pos) = serialize::unserialize<int>(it, pos)*/
         /*util::unpack(tempLookahead, pos) = serialize::unserialize<set::set<symbol::symbol>>(it, pos)*/
 
@@ -405,10 +405,10 @@ obj rule (Object, Serializable) {
     fun next(): ref symbol::symbol {
         return rhs[position]
     }
-    fun after(): vector::vector<symbol::symbol> {
+    fun after(): vec::vec<symbol::symbol> {
         return rhs.slice(position, -1)
     }
-    fun after_next(): vector::vector<symbol::symbol> {
+    fun after_next(): vec::vec<symbol::symbol> {
         return rhs.slice(position + 1, -1)
     }
     fun at_end(): bool {
@@ -430,11 +430,11 @@ obj rule (Object, Serializable) {
         return toRet
     }
 
-    fun to_string(): string::string {
+    fun to_string(): str::str {
         var result = lhs.name + " -> "
         for (var i = 0; i < rhs.size; i++;)
             if (i == position)
-                result += string::string(" . ") + rhs[i].to_string() + ", ";
+                result += str::str(" . ") + rhs[i].to_string() + ", ";
             else
                 result += rhs[i].to_string() + ", ";
         if (position == rhs.size)
@@ -448,18 +448,18 @@ obj rule (Object, Serializable) {
     }
 }
 
-fun state(itemsIn: ref vector::vector<rule>): state {
+fun state(itemsIn: ref vec::vec<rule>): state {
     var toRet.construct(itemsIn): state
     return toRet
 }
 
 obj state (Object) {
-    var items: vector::vector<rule>
+    var items: vec::vec<rule>
 
     fun construct(): *state {
         items.construct()
     }
-    fun construct(itemsIn: ref vector::vector<rule>): *state {
+    fun construct(itemsIn: ref vec::vec<rule>): *state {
         items.copy_construct(&itemsIn)
     }
     fun copy_construct(other: *state) {
@@ -475,8 +475,8 @@ obj state (Object) {
     fun operator==(other: ref state):bool {
         return items == other.items
     }
-    fun to_string(): string::string {
-        return string::string("woo a state")
+    fun to_string(): str::str {
+        return str::str("woo a state")
     }
 }
 
@@ -539,8 +539,8 @@ obj action {
 }
 
 obj table (Object, Serializable) {
-    // a 2 dimensional table made of a vector and a map that maps from stateno & symbol to a vector of parse actions
-    var items: vector::vector<map::map<symbol::symbol, vector::vector<action>>>
+    // a 2 dimensional table made of a vec and a map that maps from stateno & symbol to a vec of parse actions
+    var items: vec::vec<map::map<symbol::symbol, vec::vec<action>>>
 
     fun construct(): *table {
         items.construct()
@@ -555,18 +555,18 @@ obj table (Object, Serializable) {
     fun destruct() {
         items.destruct()
     }
-    fun serialize(): vector::vector<char> {
+    fun serialize(): vec::vec<char> {
         return serialize::serialize(items)
     }
-    fun unserialize(it: ref vector::vector<char>, pos: int): int {
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
         /*construct()*/
-        /*util::unpack(items, pos) = serialize::unserialize<vector::vector<map::map<symbol::symbol, vector::vector<action>>>>(it, pos)*/
+        /*util::unpack(items, pos) = serialize::unserialize<vec::vec<map::map<symbol::symbol, vec::vec<action>>>>(it, pos)*/
         pos = items.unserialize(it, pos)
         return pos
     }
     fun expand_to(include_state: int) {
         while (include_state >= items.size)
-            items.addEnd(map::map<symbol::symbol, vector::vector<action>>())
+            items.addEnd(map::map<symbol::symbol, vec::vec<action>>())
     }
     // we always "clean" the symbol before using it so that having different data doesn't
     // prevent us from finding the symbol in the table
@@ -579,7 +579,7 @@ obj table (Object, Serializable) {
         if (items[from_state].contains_key(cleaned_symbol))
             items[from_state][cleaned_symbol].addEnd(action(action_type::push(), to_state))
         else
-            items[from_state].set(cleaned_symbol, vector::vector(action(action_type::push(), to_state)))
+            items[from_state].set(cleaned_symbol, vec::vec(action(action_type::push(), to_state)))
     }
     fun add_reduce(from_state: int, on_symbol: ref symbol::symbol, by_rule_no: int, rule_position: int) {
         expand_to(from_state)
@@ -587,7 +587,7 @@ obj table (Object, Serializable) {
         if (items[from_state].contains_key(cleaned_symbol))
             items[from_state][cleaned_symbol].addEnd(action(action_type::reduce(), by_rule_no, rule_position))
         else
-            items[from_state].set(cleaned_symbol, vector::vector(action(action_type::reduce(), by_rule_no, rule_position)))
+            items[from_state].set(cleaned_symbol, vec::vec(action(action_type::reduce(), by_rule_no, rule_position)))
     }
     fun add_accept(from_state: int, on_symbol: ref symbol::symbol) {
         expand_to(from_state)
@@ -595,13 +595,13 @@ obj table (Object, Serializable) {
         if (items[from_state].contains_key(cleaned_symbol))
             items[from_state][cleaned_symbol].addEnd(action(action_type::accept(), 0))
         else
-            items[from_state].set(cleaned_symbol, vector::vector(action(action_type::accept(), 0)))
+            items[from_state].set(cleaned_symbol, vec::vec(action(action_type::accept(), 0)))
     }
-    fun get(state: int, on_symbol: ref symbol::symbol): vector::vector<action> {
+    fun get(state: int, on_symbol: ref symbol::symbol): vec::vec<action> {
         var cleaned_symbol = clean_symbol(on_symbol)
         if (items[state].contains_key(cleaned_symbol))
             return items[state][cleaned_symbol]
-        return vector::vector<action>()
+        return vec::vec<action>()
     }
     fun get_shift(state: int, on_symbol: ref symbol::symbol): action {
         var actions = get(state, on_symbol)
@@ -615,17 +615,17 @@ obj table (Object, Serializable) {
         io::println(on_symbol.to_string())
         return action(action_type::invalid(),-1)
     }
-    fun get_reduces(state: int, on_symbol: ref symbol::symbol): vector::vector<action> {
+    fun get_reduces(state: int, on_symbol: ref symbol::symbol): vec::vec<action> {
         return get(state, on_symbol).filter(fun(act: action):bool { return act.act == action_type::reduce(); })
     }
     fun print_string() {
-        /*return string::string("woo a table of size: ") + items.size*/
+        /*return str::str("woo a table of size: ") + items.size*/
         io::print("woo a table of size: ")
         io::println(items.size)
         for (var i = 0; i < items.size; i++;) {
             io::print("for state: ")
             io::println(i)
-            items[i].for_each(fun(sym: symbol::symbol, actions: vector::vector<action>) {
+            items[i].for_each(fun(sym: symbol::symbol, actions: vec::vec<action>) {
                 actions.for_each(fun(action: action) {
                     io::print("\ton symbol: ")
                     io::print(sym.to_string())

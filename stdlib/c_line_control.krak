@@ -1,9 +1,9 @@
 import symbol:*
 import tree:*
-import vector:*
+import vec:*
 import map:*
 import util:*
-import string:*
+import str:*
 import mem:*
 import io:*
 import ast_nodes:*
@@ -11,19 +11,19 @@ import ast_transformation:*
 
 import pass_common:*
 
-fun get_line(node: *tree<symbol>, name: string): *ast_node {
+fun get_line(node: *tree<symbol>, name: str): *ast_node {
     var to_ret = ast_simple_passthrough_ptr()
-    to_ret->simple_passthrough.passthrough_str = string("\n#line ") + get_first_terminal(node)->data.position + " \"" + name + "\"\n"
+    to_ret->simple_passthrough.passthrough_str = str("\n#line ") + get_first_terminal(node)->data.position + " \"" + name + "\"\n"
     return to_ret
 }
 
-fun c_line_control(name_ast_map: *map<string, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
+fun c_line_control(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syntax: *map<*ast_node, *tree<symbol>>) {
     var first = true
-    name_ast_map->for_each(fun(name: string, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
+    name_ast_map->for_each(fun(name: str, syntax_ast_pair: pair<*tree<symbol>,*ast_node>) {
         /*var helper = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {*/
             /*match(*node) {*/
                     /*if (is_code_block(parent_chain->top()) && ast_to_syntax->contains_key(node)) {*/
-                        /*println(string("adding ") + get_ast_name(node) + " to " + get_ast_name(parent))*/
+                        /*println(str("adding ") + get_ast_name(node) + " to " + get_ast_name(parent))*/
                         /*add_before_in(get_line(ast_to_syntax->get(node), name), node, parent_chain->top())*/
                     /*}*/
             /*}*/

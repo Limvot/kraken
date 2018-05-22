@@ -2,7 +2,7 @@ import mem:*
 import math:*
 import map:*
 import stack:*
-import string:*
+import str:*
 import util:*
 import tree:*
 import symbol:*
@@ -65,7 +65,7 @@ fun wrap_value(val: *ast_node): value {
     var value_str = val->value.string_value
     var value_type = val->value.value_type
     if (value_str[0] == '"') { // " // Comment hack for emacs now
-        var to_ret = string()
+        var to_ret = str()
         // triple quoted strings
         if (value_str[1] == '"' && value_str.length() > 2 && value_str[2] == '"')
             value_str = value_str.slice(3,-4)
@@ -131,8 +131,8 @@ fun wrap_value(val: *ast_node): value {
     return value::void_nothing()
 }
 fun unwrap_value(val: value): *ast_node {
-    // string, char, bool, floating
-    var value_string = string()
+    // str, char, bool, floating
+    var value_string = str()
     match (get_real_value(val)) {
         value::boolean(data) value_string = to_string(data)
         value::character(data) value_string = to_string(data)
@@ -148,7 +148,7 @@ fun unwrap_value(val: value): *ast_node {
         value::void_nothing() error("trying to unwrap a void into an ast_value_ptr")
         value::pointer(point) {
             if (point.second->base == base_type::character() && point.second->indirection == 1)
-                value_string = string("\"") + string((point.first) cast *char) + "\""
+                value_string = str("\"") + str((point.first) cast *char) + "\""
             else
                 error("trying to unwrap a pointer into an ast_value_ptr")
         }
@@ -212,7 +212,7 @@ fun truthy(v: ref value):bool {
     }
     error("untruthy value")
 }
-fun do_basic_op(func_name: string, a: value, b: value): value {
+fun do_basic_op(func_name: str, a: value, b: value): value {
     match (get_real_value(a)) {
         value::boolean(av) return do_basic_op_second_half(func_name, av, b, null<type>())
         value::character(av) return do_basic_op_second_half(func_name, av, b, null<type>())
@@ -249,18 +249,18 @@ fun do_basic_op(func_name: string, a: value, b: value): value {
             } else if (func_name == "-") {
                 ptr = ((av.first) cast *char - inc_in_bytes) cast *void
             } else {
-                println(string("pointer arithmatic is not +, -, ==, or !=: ") + func_name + ", b is: ")
+                println(str("pointer arithmatic is not +, -, ==, or !=: ") + func_name + ", b is: ")
                 print_value(b)
-                error(string("pointer arithmatic is not +, -, ==, or !=: ") + func_name)
+                error(str("pointer arithmatic is not +, -, ==, or !=: ") + func_name)
             }
             return value::pointer(make_pair(ptr, av.second))
         }
-        value::void_nothing() error(string("basic op called with void_nothing as first param: ") + func_name)
-        value::object_like() error(string("basic op called with object_like as first param: ") + func_name)
+        value::void_nothing() error(str("basic op called with void_nothing as first param: ") + func_name)
+        value::object_like() error(str("basic op called with object_like as first param: ") + func_name)
     }
-    error(string("basic op called with something wrong as first param: ") + func_name)
+    error(str("basic op called with something wrong as first param: ") + func_name)
 }
-fun do_basic_op_second_half<T>(func_name: string, av: T, b: value, ptr_type: *type): value {
+fun do_basic_op_second_half<T>(func_name: str, av: T, b: value, ptr_type: *type): value {
     // because of the trickery in do_basic_op, if either param is a pointer, it's b
     match (get_real_value(b)) {
         value::boolean(bv) return do_op(func_name, av, bv, ptr_type)
@@ -274,15 +274,15 @@ fun do_basic_op_second_half<T>(func_name: string, av: T, b: value, ptr_type: *ty
         value::ulong_int(bv) return do_op(func_name, av, bv, ptr_type)
         value::floating(bv) return do_floating_op(func_name, av, bv, ptr_type)
         value::double_precision(bv) return do_floating_op(func_name, av, bv, ptr_type)
-        value::void_nothing() error(string("basic op called with void_nothing as second param: ") + func_name)
-        value::object_like() error(string("basic op called with object_like as second param: ") + func_name)
+        value::void_nothing() error(str("basic op called with void_nothing as second param: ") + func_name)
+        value::object_like() error(str("basic op called with object_like as second param: ") + func_name)
         // if one is a pointer, we want it to be a
         value::pointer(bv) return do_basic_op(func_name, b, raw_to_value(av))
     }
     print_value(b)
-    error(string("basic op called with something wrong as second param: ") + func_name)
+    error(str("basic op called with something wrong as second param: ") + func_name)
 }
-fun do_op<T,U>(op: string, a: T, b: U, ptr_type: *type): value {
+fun do_op<T,U>(op: str, a: T, b: U, ptr_type: *type): value {
     if (op == "+") return raw_to_value(a + b)
     if (op == "-") return raw_to_value(a - b)
     if (op == "*") return raw_to_value(a * b)
@@ -299,7 +299,7 @@ fun do_op<T,U>(op: string, a: T, b: U, ptr_type: *type): value {
     if (op == "&") return raw_to_value(a & b)
     error(("Invalid op: ") + op)
 }
-fun do_basic_floating_op_second_half<T>(func_name: string, av: T, b: value, ptr_type: *type): value {
+fun do_basic_floating_op_second_half<T>(func_name: str, av: T, b: value, ptr_type: *type): value {
     // because of the trickery in do_basic_op, if either param is a pointer, it's b
     match (get_real_value(b)) {
         value::boolean(bv) return do_floating_op(func_name, av, bv, ptr_type)
@@ -313,15 +313,15 @@ fun do_basic_floating_op_second_half<T>(func_name: string, av: T, b: value, ptr_
         value::ulong_int(bv) return do_floating_op(func_name, av, bv, ptr_type)
         value::floating(bv) return do_floating_op(func_name, av, bv, ptr_type)
         value::double_precision(bv) return do_floating_op(func_name, av, bv, ptr_type)
-        value::void_nothing() error(string("basic op called with void_nothing as second param: ") + func_name)
-        value::object_like() error(string("basic op called with object_like as second param: ") + func_name)
+        value::void_nothing() error(str("basic op called with void_nothing as second param: ") + func_name)
+        value::object_like() error(str("basic op called with object_like as second param: ") + func_name)
         // if one is a pointer, we want it to be a
         value::pointer(bv) return do_basic_op(func_name, b, raw_to_value(av))
     }
     print_value(b)
-    error(string("basic op called with something wrong as second param: ") + func_name)
+    error(str("basic op called with something wrong as second param: ") + func_name)
 }
-fun do_floating_op<T,U>(op: string, a: T, b: U, ptr_type: *type): value {
+fun do_floating_op<T,U>(op: str, a: T, b: U, ptr_type: *type): value {
     if (op == "+") return raw_to_value(a + b)
     if (op == "-") return raw_to_value(a - b)
     if (op == "*") return raw_to_value(a * b)
@@ -391,7 +391,7 @@ fun get_real_value(v: value): value {
         base_type::double_precision() return value::double_precision(*(var_ptr) cast *double)
         base_type::function() return value::function(*(var_ptr) cast *pair<*ast_node,*map<*ast_node,value>>)
     }
-    error(string("Cannot get real value from variable: ") + variable.second->to_string())
+    error(str("Cannot get real value from variable: ") + variable.second->to_string())
 }
 fun wrap_into_variable(v: value): value {
     if (is_variable(v))
@@ -482,7 +482,7 @@ fun cast_value(v: value, to_type: *type): value {
             value::double_precision(data) return get_real_value(v)
         }
     }
-    error(string("Bad cast to ") + to_type->to_string())
+    error(str("Bad cast to ") + to_type->to_string())
 }
 fun cast_value_second_half<T>(v: value): value {
     match (get_real_value(v)) {
@@ -542,7 +542,7 @@ fun type_size_and_alignment(t: *type): pair<ulong,ulong> {
         base_type::floating() return make_pair(#sizeof<float>, #sizeof<float>)
         base_type::double_precision() return make_pair(#sizeof<double>, #sizeof<double>)
     }
-    error(string("Invalid type for type_size: ") + t->to_string())
+    error(str("Invalid type for type_size: ") + t->to_string())
 }
 fun offset_into_struct(struct_type: *type, ident: *ast_node): ulong {
     var offset: ulong = 0
@@ -574,23 +574,23 @@ fun pop_and_free(var_stack: *stack<map<*ast_node, value>>) {
     })
 }
 
-fun call_main(name_ast_map: ref map<string, pair<*tree<symbol>,*ast_node>>) {
-    var results = vector<*ast_node>()
-    name_ast_map.for_each(fun(key: string, value: pair<*tree<symbol>,*ast_node>) {
-        results += scope_lookup(string("main"), value.second)
+fun call_main(name_ast_map: ref map<str, pair<*tree<symbol>,*ast_node>>) {
+    var results = vec<*ast_node>()
+    name_ast_map.for_each(fun(key: str, value: pair<*tree<symbol>,*ast_node>) {
+        results += scope_lookup(str("main"), value.second)
     })
     if (results.size != 1)
-        error(string("wrong number of mains to call: ") + results.size)
+        error(str("wrong number of mains to call: ") + results.size)
     var globals = setup_globals(name_ast_map)
-    var result = call_function(results[0], vector<value>(), &globals)
+    var result = call_function(results[0], vec<value>(), &globals)
 }
 fun evaluate_constant_expression(node: *ast_node): value
     return interpret(node, null<stack<map<*ast_node, value>>>(), value::void_nothing(), null<ast_node>(), null<map<*ast_node, value>>()).first
 fun evaluate_with_globals(node: *ast_node, globals: *map<*ast_node, value>): value
     return interpret(node, null<stack<map<*ast_node, value>>>(), value::void_nothing(), null<ast_node>(), globals).first
-fun setup_globals(name_ast_map: ref map<string, pair<*tree<symbol>,*ast_node>>): map<*ast_node, value> {
+fun setup_globals(name_ast_map: ref map<str, pair<*tree<symbol>,*ast_node>>): map<*ast_node, value> {
     var globals = map<*ast_node, value>()
-    name_ast_map.for_each(fun(key: string, value: pair<*tree<symbol>,*ast_node>) {
+    name_ast_map.for_each(fun(key: str, value: pair<*tree<symbol>,*ast_node>) {
         value.second->translation_unit.children.for_each(fun(child: *ast_node) {
             if (is_declaration_statement(child)) {
                 var declaration = child->declaration_statement
@@ -607,7 +607,7 @@ fun setup_globals(name_ast_map: ref map<string, pair<*tree<symbol>,*ast_node>>):
                         *(stdin_pointer) cast **void = stdin;
                         globals[declaration.identifier] = value::variable(make_pair(stdin_pointer, stdin_type))
                     } else {
-                        error(string("unknown extern: ") + identifier.name)
+                        error(str("unknown extern: ") + identifier.name)
                     }
                 } else {
                     globals[declaration.identifier] = value::variable(make_pair(calloc(type_size(identifier.type)), identifier.type))
@@ -666,8 +666,8 @@ fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<*ast_nod
     }
     // so here we either do an operator, call call_func with value parameters, or call call_func with ast_expressions
     // (so we can properly copy_construct if necessary)
-    var parameters = vector<value>()
-    var parameter_sources = vector<*ast_node>()
+    var parameters = vec<value>()
+    var parameter_sources = vec<*ast_node>()
     // if we don't have to copy_construct params (is an operator, or has no object params)
     if (func_name == "&" || !func_call_parameters.any_true(fun(p: *ast_node): bool return get_ast_type(p)->is_object() && get_ast_type(p)->indirection == 0;)) {
         parameters = func_call_parameters.map(fun(p: *ast_node): value return interpret(p, var_stack, enclosing_object, enclosing_func, globals).first;)
@@ -679,7 +679,7 @@ fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<*ast_nod
             return make_pair(do_basic_op(func_name, parameters[0], parameters[1]), control_flow::nor())
         // do negate by subtracting from zero
         if (func_name == "-")
-            return make_pair(do_basic_op_second_half(string("-"), 0, parameters[0], null<type>()), control_flow::nor())
+            return make_pair(do_basic_op_second_half(str("-"), 0, parameters[0], null<type>()), control_flow::nor())
         if (func_name == "!")
             return make_pair(value::boolean(!truthy(get_real_value(parameters[0]))), control_flow::nor())
         if (func_name == "++p" || func_name == "--p") {
@@ -705,7 +705,7 @@ fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<*ast_nod
         if (func_name == "*" || func_name == "[]") {
             var dereference_val = parameters[0]
             if (func_name == "[]")
-                dereference_val = do_basic_op(string("+"), parameters[0], parameters[1])
+                dereference_val = do_basic_op(str("+"), parameters[0], parameters[1])
             if (!is_pointer(get_real_value(parameters[0])))
                 error("Trying to take dereference not a pointer")
             return make_pair(dereference_pointer_into_variable(dereference_val), control_flow::nor())
@@ -714,7 +714,7 @@ fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<*ast_nod
         if (func_name == "printf" || func_name == "malloc" || func_name == "free" || func_name == "memmove" || func_name == "fflush" || func_name == "snprintf" || func_name == "fopen" || func_name == "fclose" || func_name == "ftell" || func_name == "fseek" || func_name == "fread" || func_name == "fwrite" || func_name == "atan" || func_name == "atan2" || func_name == "acos" || func_name == "asin" || func_name == "tan" || func_name == "cos" || func_name == "sin" || func_name == "fgets" || func_name == "popen" || func_name == "pclose")
             return make_pair(call_built_in_extern(func_name, parameters), control_flow::nor())
         if (!func_call_func->function.body_statement)
-            error(string("trying to call unsupported extern function: ") + func_name)
+            error(str("trying to call unsupported extern function: ") + func_name)
     } else {
         // not the operator & and at least one object like parameter
         parameter_sources = func_call_parameters
@@ -722,17 +722,17 @@ fun interpret_function_call(func_call: *ast_node, var_stack: *stack<map<*ast_nod
     return make_pair(call_function(func_call_func, parameters, parameter_sources, var_stack, possible_closure_map, enclosing_object, new_enclosing_object, enclosing_func, globals), control_flow::nor())
 }
 
-fun call_function(func: *ast_node, parameters: vector<value>, globals: *map<*ast_node, value>): value {
+fun call_function(func: *ast_node, parameters: vec<value>, globals: *map<*ast_node, value>): value {
     var var_stack = stack<map<*ast_node, value>>()
     var_stack.push(map<*ast_node,value>())
-    var result = call_function(func, parameters, vector<*ast_node>(), &var_stack, map<*ast_node,value>(), value::void_nothing(), value::void_nothing(), null<ast_node>(), globals)
+    var result = call_function(func, parameters, vec<*ast_node>(), &var_stack, map<*ast_node,value>(), value::void_nothing(), value::void_nothing(), null<ast_node>(), globals)
     pop_and_free(&var_stack)
     return result
 }
 // call_function can be called with either parameter values in parameters or ast expressions in parameter_sources
 // this is to allow easy function calling if we already have the values (for main, say, or to make our job if it's not
 // an operator easier), but we need to be able to be called with ast_expressions too so we can properly copy_construct once
-fun call_function(func: *ast_node, parameters: vector<value>, parameter_sources: vector<*ast_node>, var_stack: *stack<map<*ast_node, value>>, possible_closure_map: ref map<*ast_node, value>, enclosing_object: value, new_enclosing_object: value, enclosing_func: *ast_node, globals: *map<*ast_node, value>): value {
+fun call_function(func: *ast_node, parameters: vec<value>, parameter_sources: vec<*ast_node>, var_stack: *stack<map<*ast_node, value>>, possible_closure_map: ref map<*ast_node, value>, enclosing_object: value, new_enclosing_object: value, enclosing_func: *ast_node, globals: *map<*ast_node, value>): value {
     // will need adjustment
     if (!is_function(func))
         error("Can't handle not function function calls (can do regular method, is this chained or something?)")
@@ -745,7 +745,7 @@ fun call_function(func: *ast_node, parameters: vector<value>, parameter_sources:
     if (parameter_sources.size == 0) {
         /*println(func_name + " being called with parameter values")*/
         if (parameters.size != func->function.parameters.size)
-            error(string("calling function ") + func->function.name + " with wrong number of parameters (values)")
+            error(str("calling function ") + func->function.name + " with wrong number of parameters (values)")
         for (var i = 0; i < parameters.size; i++;) {
             var param_type = get_ast_type(func)->parameter_types[i]
             var param_ident = func->function.parameters[i]
@@ -765,7 +765,7 @@ fun call_function(func: *ast_node, parameters: vector<value>, parameter_sources:
         /*println(func_name + " being called with parameter sources")*/
         // need to pull from parameter_sources instead
         if (parameter_sources.size != func->function.parameters.size)
-            error(string("calling function ") + func->function.name + " with wrong number of parameters (sources)")
+            error(str("calling function ") + func->function.name + " with wrong number of parameters (sources)")
         for (var i = 0; i < parameter_sources.size; i++;) {
             var param_type = get_ast_type(func)->parameter_types[i]
             var param_ident = func->function.parameters[i]
@@ -790,7 +790,7 @@ fun call_function(func: *ast_node, parameters: vector<value>, parameter_sources:
     }
     return to_ret
 }
-fun call_built_in_extern(func_name: string, parameters: vector<value>): value {
+fun call_built_in_extern(func_name: str, parameters: vec<value>): value {
     for (var i = 0; i < parameters.size; i++;)
         parameters[i] = get_real_value(parameters[i])
     if (func_name == "printf") {
@@ -866,7 +866,7 @@ fun call_built_in_extern(func_name: string, parameters: vector<value>): value {
         assert(parameters.size == 1 && is_pointer(parameters[0]), "Calling pclose with wrong params")
         return value::integer(pclose(parameters[0].pointer.first))
     } else {
-        error(string("trying to call invalid func: ") + func_name)
+        error(str("trying to call invalid func: ") + func_name)
     }
     return value::void_nothing()
 }
@@ -1017,7 +1017,7 @@ fun interpret_identifier(ident: *ast_node, var_stack: *stack<map<*ast_node, valu
         return make_pair((*globals)[ident], control_flow::nor())
     println("couldn't find " + get_ast_name(ident) + " in interpret identifier, scope:")
     for (var i = 0; i < var_stack->size(); i++;) {
-        println(string("level: ") + i)
+        println(str("level: ") + i)
         var_stack->from_top(i).for_each(fun(key: *ast_node, v: value) print(get_ast_name(key) + " ");)
         println()
     }
@@ -1031,7 +1031,7 @@ fun interpret_identifier(ident: *ast_node, var_stack: *stack<map<*ast_node, valu
         print("no object scope: ")
         print_value(enclosing_object)
     }
-    error(string("Cannot find variable: ") + ident->identifier.name)
+    error(str("Cannot find variable: ") + ident->identifier.name)
 }
 fun interpret_cast(node: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosing_object: value, enclosing_func: *ast_node, globals: *map<*ast_node, value>): pair<value, control_flow> {
     return make_pair(cast_value(interpret(node->cast.value, var_stack, enclosing_object, enclosing_func, globals).first, node->cast.to_type), control_flow::nor())
@@ -1040,7 +1040,7 @@ fun interpret_compiler_intrinsic(node: *ast_node, var_stack: *stack<map<*ast_nod
     var intrinsic_name = node->compiler_intrinsic.intrinsic
     if (intrinsic_name == "sizeof")
         return make_pair(value::ulong_int(type_size(node->compiler_intrinsic.type_parameters[0])), control_flow::nor())
-    error(string("bad intrinsic: ") + intrinsic_name)
+    error(str("bad intrinsic: ") + intrinsic_name)
 }
 fun interpret_value(val: *ast_node): pair<value, control_flow>
     return make_pair(wrap_value(val), control_flow::nor())
@@ -1062,6 +1062,6 @@ fun interpret(node: *ast_node, var_stack: *stack<map<*ast_node, value>>, enclosi
         ast_node::compiler_intrinsic(backing) return interpret_compiler_intrinsic(node, var_stack)
         ast_node::value(backing) return interpret_value(node)
     }
-    error(string("Cannot interpret node: ") + get_ast_name(node))
+    error(str("Cannot interpret node: ") + get_ast_name(node))
 }
 

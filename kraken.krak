@@ -2,7 +2,7 @@ import io:*
 import grammer:*
 import lexer:*
 import parser:*
-import string:*
+import str:*
 import util:*
 import symbol:*
 import tree:*
@@ -22,16 +22,16 @@ import address_of_ensure_variable_lower:*
 import c_line_control:*
 import node_counter:*
 import c_generator:*
-import vector:*
+import vec:*
 import set:*
 
 fun main(argc: int, argv: **char):int {
     var curr_time = get_time()
     // delay construction until we either load it or copy construct it
     var gram: grammer
-    var base_dir = string("/").join(string(argv[0]).split('/').slice(0,-2))
+    var base_dir = str("/").join(str(argv[0]).split('/').slice(0,-2))
     var file_name = base_dir + "/krakenGrammer.kgm"
-    var compiled_name = file_name + string(".comp_new")
+    var compiled_name = file_name + str(".comp_new")
     var compiled_version = 1
     var file_contents = read_file(file_name)
     var loaded_and_valid = false
@@ -40,13 +40,13 @@ fun main(argc: int, argv: **char):int {
     if (argc <= 1) {
         println("No input file!\n Call with one argument (the input file), or two arguments (input file and output name)\n Falling into REPL...")
         compiled_name += ".expr"
-        file_contents = string("RealGoal = boolean_expression ;\n") + file_contents
+        file_contents = str("RealGoal = boolean_expression ;\n") + file_contents
         doing_repl = true
-    } else if (string(argv[1]) == "-v" || string(argv[1]) == "--version") {
+    } else if (str(argv[1]) == "-v" || str(argv[1]) == "--version") {
         /*var version_c_string = #ctce(fun(): *char {*/
-            /*var version_string = string("Self-hosted Kraken compiler \"Kalypso\" - revision ") + from_system_command(string("git rev-list HEAD | wc -l"), 100) +*/
-                /*", commit: " + from_system_command(string("git rev-parse HEAD"), 100) +*/
-                /*", compile date: " + from_system_command(string("date"), 100) */
+            /*var version_string = str("Self-hosted Kraken compiler \"Kalypso\" - revision ") + from_system_command(str("git rev-list HEAD | wc -l"), 100) +*/
+                /*", commit: " + from_system_command(str("git rev-parse HEAD"), 100) +*/
+                /*", compile date: " + from_system_command(str("date"), 100) */
             /*return version_string.toCharArray()*/
         /*}())*/
         /*println(version_c_string)*/
@@ -54,13 +54,13 @@ fun main(argc: int, argv: **char):int {
     }
     var input_file_offset = 1
     var interpret_instead = false
-    var opt_str = string("-O2")
+    var opt_str = str("-O2")
     var line_ctrl = false
     var compile_c = true
-    var positional_args = vector<string>()
-    var flags = set<string>()
+    var positional_args = vec<str>()
+    var flags = set<str>()
     for (var i = 1; i < argc; i++;) {
-        var arg_str = string(argv[i])
+        var arg_str = str(argv[i])
         if (arg_str == "-i") {
             interpret_instead = true
         } else if (arg_str.length() > 2 && arg_str.slice(0,2) == "-O") {
@@ -75,8 +75,8 @@ fun main(argc: int, argv: **char):int {
             positional_args.add(arg_str)
         }
     }
-    /*positional_args.for_each(fun(i:string) println("positional_arg: " + i);)*/
-    flags.for_each(fun(i:string) println("flag: " + i);)
+    /*positional_args.for_each(fun(i:str) println("positional_arg: " + i);)*/
+    flags.for_each(fun(i:str) println("flag: " + i);)
 
     if (file_exists(compiled_name)) {
         var pos = 0
@@ -84,8 +84,8 @@ fun main(argc: int, argv: **char):int {
         var saved_version = 0
         unpack(saved_version, pos) = unserialize<int>(binary, pos)
         if (saved_version == compiled_version) {
-            var cached_contents = string()
-            unpack(cached_contents, pos) = unserialize<string>(binary, pos)
+            var cached_contents = str()
+            unpack(cached_contents, pos) = unserialize<str>(binary, pos)
             if (cached_contents == file_contents) {
                 loaded_and_valid = true
                 pos = gram.unserialize(binary, pos)
@@ -118,33 +118,33 @@ fun main(argc: int, argv: **char):int {
     /*var parse7.construct(&gram): parser*/
     /*var parse8.construct(&gram): parser*/
     var ast_pass.construct(): ast_transformation
-    var parsers = vector(parse1)
-    /*var parsers = vector(parse1,parse2,parse3,parse4)*/
-    /*var parsers = vector(parse1,parse2,parse3,parse4,parse5,parse6)*/
-    /*var parsers = vector(parse1,parse2,parse3,parse4,parse5,parse6,parse7,parse8)*/
+    var parsers = vec(parse1)
+    /*var parsers = vec(parse1,parse2,parse3,parse4)*/
+    /*var parsers = vec(parse1,parse2,parse3,parse4,parse5,parse6)*/
+    /*var parsers = vec(parse1,parse2,parse3,parse4,parse5,parse6,parse7,parse8)*/
 
     // This is our REPL loop
-    var scope = ast_translation_unit_ptr(string("stdin"))
+    var scope = ast_translation_unit_ptr(str("stdin"))
     if (doing_repl) {
         /*var globals = setup_globals(importer.name_ast_map)*/
         while (doing_repl) {
-            var line = get_line(string("> "), 100)
+            var line = get_line(str("> "), 100)
             if (line == "end")
                 return 0
-            var parse = parse1.parse_input(line, string("stdin"))
+            var parse = parse1.parse_input(line, str("stdin"))
             trim(parse)
-            var ast_expression = ast_pass.transform_expression(parse, scope, map<string, *type>())
+            var ast_expression = ast_pass.transform_expression(parse, scope, map<str, *type>())
             print_value(evaluate_constant_expression(ast_expression))
             /*print_value(evaluate_with_globals(ast_expression, &globals))*/
         }
     }
 
     var kraken_file_name = positional_args[0]
-    var executable_name = string(".").join(kraken_file_name.split('.').slice(0,-2))
+    var executable_name = str(".").join(kraken_file_name.split('.').slice(0,-2))
     if (positional_args.size > 1)
         executable_name = positional_args[1]
     curr_time = split(curr_time, "Finish setup")
-    var name_ast_map = import(kraken_file_name, parsers, ast_pass, vector(string(), base_dir + "/stdlib/"))
+    var name_ast_map = import(kraken_file_name, parsers, ast_pass, vec(str(), base_dir + "/stdlib/"))
     curr_time = split(curr_time, "Import")
     // Passes
     /*printlnerr("Counting Nodes")*/
