@@ -428,7 +428,7 @@ obj bytecode_generator (Object) {
         // we should save our return value as as the first parameter
         if (return_type->is_object() && return_type->indirection == 0) {
             var ptr_type = return_type->clone_with_increased_indirection()
-            functions.last().var_to_frame_offset[ast_identifier_ptr("bytecode_struct_return_temp_address", ptr_type, null<ast_node>())] = parameter_offset
+            functions.last().var_to_frame_offset[_ident("bytecode_struct_return_temp_address", ptr_type, null<ast_node>())] = parameter_offset
             parameter_offset += type_size(ptr_type)
         }
         node->function.parameters.for_each(fun(p: *ast_node) {
@@ -445,7 +445,7 @@ obj bytecode_generator (Object) {
         generate(node->function.body_statement)
 
         // generate a return just in case the function itself doesn't have one
-        generate_return_statement(ast_return_statement_ptr(null<ast_node>()))
+        generate_return_statement(_return(null<ast_node>()))
 
         instructions[push_frame_idx].addi.bi = -functions.last().frame_size
 
@@ -763,7 +763,7 @@ obj bytecode_generator (Object) {
             var return_type = get_ast_type(func)->return_type
             var struct_return_temp_ident = null<ast_node>()
             if (return_type->is_object() && return_type->indirection == 0) {
-                struct_return_temp_ident = ast_identifier_ptr("bytecode_struct_return_temp", return_type, null<ast_node>())
+                struct_return_temp_ident = _ident("bytecode_struct_return_temp", return_type, null<ast_node>())
                 functions.last().frame_size += type_size(return_type)
                 functions.last().var_to_frame_offset[struct_return_temp_ident] = -functions.last().frame_size
             }

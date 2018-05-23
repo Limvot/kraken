@@ -145,17 +145,17 @@ fun unwrap_value(val: value): *ast_node {
         value::ulong_int(data) value_string = to_string(data)
         value::floating(data) value_string = to_string(data)
         value::double_precision(data) value_string = to_string(data)
-        value::void_nothing() error("trying to unwrap a void into an ast_value_ptr")
+        value::void_nothing() error("trying to unwrap a void into an _value")
         value::pointer(point) {
             if (point.second->base == base_type::character() && point.second->indirection == 1)
                 value_string = str("\"") + str((point.first) cast *char) + "\""
             else
-                error("trying to unwrap a pointer into an ast_value_ptr")
+                error("trying to unwrap a pointer into an _value")
         }
-        value::object_like(ob) error("trying to unwrap an object_like into an ast_value_ptr")
-        value::function(fn) error("trying to unwrap a function into an ast_value_ptr")
+        value::object_like(ob) error("trying to unwrap an object_like into an _value")
+        value::function(fn) error("trying to unwrap a function into an _value")
     }
-    return ast_value_ptr(value_string, get_type_from_primitive_value(get_real_value(val)))
+    return _value(value_string, get_type_from_primitive_value(get_real_value(val)))
 }
 
 fun is_boolean(it: value): bool { match(it) { value::boolean(var) return true; } return false; }

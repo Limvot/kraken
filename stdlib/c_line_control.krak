@@ -12,7 +12,7 @@ import ast_transformation:*
 import pass_common:*
 
 fun get_line(node: *tree<symbol>, name: str): *ast_node {
-    var to_ret = ast_simple_passthrough_ptr()
+    var to_ret = _passthrough()
     to_ret->simple_passthrough.passthrough_str = str("\n#line ") + get_first_terminal(node)->data.position + " \"" + name + "\"\n"
     return to_ret
 }

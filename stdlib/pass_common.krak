@@ -174,12 +174,12 @@ fun make_method_call(object_ident: *ast_node, method: *ast_node, parameters: vec
     var access_op = "."
     if (get_ast_type(object_ident)->indirection)
         access_op = "->"
-    var method_access = ast_function_call_ptr(get_builtin_function(str(access_op), vec(get_ast_type(object_ident), get_ast_type(method))), vec(object_ident, method))
-    return ast_function_call_ptr(method_access, parameters)
+    var method_access = _func_call(get_builtin_function(str(access_op), vec(get_ast_type(object_ident), get_ast_type(method))), vec(object_ident, method))
+    return _func_call(method_access, parameters)
 }
 fun make_operator_call(func: *char, params: vec<*ast_node>): *ast_node return make_operator_call(str(func), params);
 fun make_operator_call(func: str, params: vec<*ast_node>): *ast_node {
-    return ast_function_call_ptr(get_builtin_function(func, params.map(fun(p:*ast_node): *type return get_ast_type(p);)), params)
+    return _func_call(get_builtin_function(func, params.map(fun(p:*ast_node): *type return get_ast_type(p);)), params)
 }
 fun get_builtin_function(name: *char, param_types: vec<*type>): *ast_node
     return get_builtin_function(str(name), param_types, null<tree<symbol>>())
@@ -189,32 +189,32 @@ fun get_builtin_function(name: str, param_types: vec<*type>, syntax: *tree<symbo
     // none of the builtin functions should take in references
     param_types = param_types.map(fun(t: *type): *type return t->clone_without_ref();)
     if (name == "==" || name == "!=" || name == ">" || name == "<" || name == "<=" || name == ">" || name == ">=" || name == "&&" || name == "||" || name == "!")
-        return ast_function_ptr(name, type_ptr(param_types, type_ptr(base_type::boolean()), 0, false, false, true), vec<*ast_node>(), false)
+        return _function(name, type_ptr(param_types, type_ptr(base_type::boolean()), 0, false, false, true), vec<*ast_node>(), false)
     if (name == "." || name == "->") {
         if (name == "->" && param_types[0]->indirection == 0)
             error(syntax, str("drereferencing not a pointer: ") + name)
         else if (name == "." && param_types[0]->indirection != 0)
             error(syntax, str("dot operator on a pointer: ") + name)
         else
-            return ast_function_ptr(name, type_ptr(param_types, param_types[1], 0, false, false, true), vec<*ast_node>(), false)
+            return _function(name, type_ptr(param_types, param_types[1], 0, false, false, true), vec<*ast_node>(), false)
     }
     if (name == "[]") {
         if (param_types[0]->indirection == 0)
             error(syntax, str("drereferencing not a pointer: ") + name)
         else
-            return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection(), 0, false, false, true), vec<*ast_node>(), false)
+            return _function(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection(), 0, false, false, true), vec<*ast_node>(), false)
     }
     if (name == "&" && param_types.size == 1)
-        return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection(), 0, false, false, true), vec<*ast_node>(), false)
+        return _function(name, type_ptr(param_types, param_types[0]->clone_with_increased_indirection(), 0, false, false, true), vec<*ast_node>(), false)
     if (name == "*" && param_types.size == 1) {
         if (param_types[0]->indirection == 0)
             error(syntax, str("drereferencing not a pointer: ") + name)
         else
-            return ast_function_ptr(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection(), 0, false, false, true), vec<*ast_node>(), false)
+            return _function(name, type_ptr(param_types, param_types[0]->clone_with_decreased_indirection(), 0, false, false, true), vec<*ast_node>(), false)
     }
     if (param_types.size > 1 && param_types[1]->rank() > param_types[0]->rank())
-        return ast_function_ptr(name, type_ptr(param_types, param_types[1], 0, false, false, true), vec<*ast_node>(), false)
-    return ast_function_ptr(name, type_ptr(param_types, param_types[0], 0, false, false, true), vec<*ast_node>(), false)
+        return _function(name, type_ptr(param_types, param_types[1], 0, false, false, true), vec<*ast_node>(), false)
+    return _function(name, type_ptr(param_types, param_types[0], 0, false, false, true), vec<*ast_node>(), false)
 }
 fun possible_object_equality(lvalue: *ast_node, rvalue: *ast_node): *ast_node {
     var ltype = get_ast_type(lvalue)
@@ -223,7 +223,7 @@ fun possible_object_equality(lvalue: *ast_node, rvalue: *ast_node): *ast_node {
         return make_method_call(lvalue, "operator==", vec(rvalue))
     } else if (ltype->is_object())
         // return false if object but no operator== (right now don't try for templated)
-        return ast_value_ptr(str("false"), type_ptr(base_type::boolean()))
+        return _value(str("false"), type_ptr(base_type::boolean()))
     return make_operator_call("==", vec(lvalue, rvalue))
 }
 fun concat_symbol_tree(node: *tree<symbol>): str {
@@ -265,7 +265,7 @@ fun assign_or_copy_construct_statement(lvalue: *ast_node, rvalue: *ast_node): *a
     var ltype = get_ast_type(lvalue)
     if (ltype->indirection == 0 && (ltype->is_object() && has_method(ltype->type_def, "copy_construct", vec(ltype->clone_with_increased_indirection()))))
         return make_method_call(lvalue, "copy_construct", vec(make_operator_call("&", vec(rvalue))))
-    return ast_assignment_statement_ptr(lvalue, rvalue)
+    return _assign(lvalue, rvalue)
 }
 
 fun get_children_pointer(node: *ast_node): *vec<*ast_node> {

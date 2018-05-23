@@ -44,7 +44,7 @@ fun defer_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_s
         var helper_after = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::branching_statement(backing) {
-                    var block = ast_code_block_ptr()
+                    var block = _code_block()
                     add_to_scope("~enclosing_scope", parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i) || is_function(i);), block)
                     replace_with_in(node, block, parent_chain)
                     for (var i = 0; i < defer_triple_stack.top().size() - loop_stack.top(); i++;)

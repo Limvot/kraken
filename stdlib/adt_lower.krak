@@ -23,85 +23,85 @@ fun adt_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syn
                 ast_node::adt_def(backing) {
                     /*println(backing.name + ": transforming!")*/
                     type_def_option_map[node] = vec<*ast_node>()
-                    var replacement = ast_type_def_ptr(backing.name, false);
+                    var replacement = _type_def(backing.name, false);
                     // we're going to be replacing adt_def in the same ptr, so this works
                     replacement->type_def.self_type = node->adt_def.self_type
 
-                    var option_union = ast_type_def_ptr(backing.name + "_union", true);
+                    var option_union = _type_def(backing.name + "_union", true);
                     node->adt_def.options.for_each(fun(opt: *ast_node) {
                         if (!opt->identifier.type->is_empty_adt_option())
-                            option_union->type_def.variables.add(ast_declaration_statement_ptr(opt, null<ast_node>()))
+                            option_union->type_def.variables.add(_declaration(opt, null<ast_node>()))
                         type_def_option_map[node].add(opt)
                     })
                     var option_union_type = type_ptr(option_union)
                     option_union->type_def.self_type = option_union_type
-                    var option_union_ident = ast_identifier_ptr(str("data"), option_union_type, replacement)
-                    replacement->type_def.variables.add(ast_declaration_statement_ptr(option_union_ident, null<ast_node>()))
+                    var option_union_ident = _ident(str("data"), option_union_type, replacement)
+                    replacement->type_def.variables.add(_declaration(option_union_ident, null<ast_node>()))
                     add_to_scope("data", option_union_ident, replacement)
-                    var flag = ast_identifier_ptr(str("flag"), type_ptr(base_type::integer()), replacement)
-                    replacement->type_def.variables.add(ast_declaration_statement_ptr(flag, null<ast_node>()))
+                    var flag = _ident(str("flag"), type_ptr(base_type::integer()), replacement)
+                    replacement->type_def.variables.add(_declaration(flag, null<ast_node>()))
                     add_to_scope("flag", flag, replacement)
                     add_before_in(option_union, node, parent_chain)
                     var enclosing_scope = node->adt_def.scope[str("~enclosing_scope")][0]
                     var idx = 0
                     node->adt_def.option_funcs.for_each(fun(func: *ast_node) {
                         var adt_type = replacement->type_def.self_type
-                        var block = ast_code_block_ptr()
+                        var block = _code_block()
                         add_to_scope("~enclosing_scope", func, block)
                         func->function.body_statement = block
-                        var to_ret = ast_identifier_ptr(str("to_ret"), adt_type, block)
-                        block->code_block.children.add(ast_declaration_statement_ptr(to_ret, null<ast_node>()))
+                        var to_ret = _ident(str("to_ret"), adt_type, block)
+                        block->code_block.children.add(_declaration(to_ret, null<ast_node>()))
 
-                        var value = ast_value_ptr(to_string(idx), type_ptr(base_type::integer()))
-                        block->code_block.children.add(ast_assignment_statement_ptr(make_operator_call(".", vec(to_ret, flag)), value))
+                        var value = _value(to_string(idx), type_ptr(base_type::integer()))
+                        block->code_block.children.add(_assign(make_operator_call(".", vec(to_ret, flag)), value))
                         var opt = type_def_option_map[node][idx]
                         var lvalue = make_operator_call(".", vec(make_operator_call(".", vec(to_ret, option_union_ident)), opt))
                         if (func->function.parameters.size) {
                             // do copy_construct if it should
                             block->code_block.children.add(assign_or_copy_construct_statement(lvalue, func->function.parameters[0]))
                         }
-                        block->code_block.children.add(ast_return_statement_ptr(to_ret))
+                        block->code_block.children.add(_return(to_ret))
                         add_before_in(func, node, parent_chain)
                         add_to_scope(func->function.name, func, enclosing_scope)
                         add_to_scope("~enclosing_scope", enclosing_scope, func)
                         idx++
                     })
                     node->adt_def.regular_funcs.for_each(fun(func: *ast_node) {
-                        var block = ast_code_block_ptr()
+                        var block = _code_block()
                         add_to_scope("~enclosing_scope", func, block)
                         func->function.body_statement = block
                         var func_this = func->function.this_param
                         if (func->function.name == "operator==") {
                             var other = func->function.parameters[0]
-                            var if_stmt = ast_if_statement_ptr(make_operator_call("!=", vec(make_operator_call("->", vec(func_this, flag)), make_operator_call(".", vec(other, flag)))))
-                            if_stmt->if_statement.then_part = ast_return_statement_ptr(ast_value_ptr(str("false"), type_ptr(base_type::boolean())))
+                            var if_stmt = _if(make_operator_call("!=", vec(make_operator_call("->", vec(func_this, flag)), make_operator_call(".", vec(other, flag)))))
+                            if_stmt->if_statement.then_part = _return(_value(str("false"), type_ptr(base_type::boolean())))
                             block->code_block.children.add(if_stmt)
 
                             for (var i = 0; i < type_def_option_map[node].size; i++;) {
                                 if (get_ast_type(type_def_option_map[node][i])->is_empty_adt_option())
                                     continue
-                                var if_stmt_inner = ast_if_statement_ptr(make_operator_call("==", vec(make_operator_call("->", vec(func_this, flag)), ast_value_ptr(to_string(i), type_ptr(base_type::integer())))))
+                                var if_stmt_inner = _if(make_operator_call("==", vec(make_operator_call("->", vec(func_this, flag)), _value(to_string(i), type_ptr(base_type::integer())))))
                                 var option = type_def_option_map[node][i]
                                 var our_option = make_operator_call(".", vec(make_operator_call("->", vec(func_this, option_union_ident)), option))
                                 var their_option = make_operator_call(".", vec(make_operator_call(".", vec(other, option_union_ident)), option))
-                                if_stmt_inner->if_statement.then_part = ast_return_statement_ptr(possible_object_equality(our_option, their_option))
+                                if_stmt_inner->if_statement.then_part = _return(possible_object_equality(our_option, their_option))
                                 block->code_block.children.add(if_stmt_inner)
                             }
-                            block->code_block.children.add(ast_return_statement_ptr(ast_value_ptr(str("true"), type_ptr(base_type::boolean()))))
+                            block->code_block.children.add(_return(_value(str("true"), type_ptr(base_type::boolean()))))
                         } else if (func->function.name == "operator!=") {
                             var other = func->function.parameters[0]
-                            block->code_block.children.add(ast_return_statement_ptr(make_operator_call("!", vec(make_method_call(func_this, "operator==", vec(other))))))
+                            block->code_block.children.add(_return(make_operator_call("!", vec(make_method_call(func_this, "operator==", vec(other))))))
                         } else if (func->function.name == "construct") {
-                            var value = ast_value_ptr(str("-1"), type_ptr(base_type::integer()))
-                            block->code_block.children.add(ast_assignment_statement_ptr(make_operator_call("->", vec(func_this, flag)), value))
-                            block->code_block.children.add(ast_return_statement_ptr(func_this))
+                            var value = _value(str("-1"), type_ptr(base_type::integer()))
+                            block->code_block.children.add(_assign(make_operator_call("->", vec(func_this, flag)), value))
+                            block->code_block.children.add(_return(func_this))
                         } else if (func->function.name == "copy_construct") {
                             var other = func->function.parameters[0]
-                            block->code_block.children.add(ast_assignment_statement_ptr(make_operator_call("->", vec(func_this, flag)), make_operator_call("->", vec(other, flag))))
+                            block->code_block.children.add(_assign(make_operator_call("->", vec(func_this, flag)), make_operator_call("->", vec(other, flag))))
                             for (var i = 0; i < type_def_option_map[node].size; i++;) {
                                 if (get_ast_type(type_def_option_map[node][i])->is_empty_adt_option())
                                     continue
-                                var if_stmt_inner = ast_if_statement_ptr(make_operator_call("==", vec(make_operator_call("->", vec(func_this, flag)), ast_value_ptr(to_string(i), type_ptr(base_type::integer())))))
+                                var if_stmt_inner = _if(make_operator_call("==", vec(make_operator_call("->", vec(func_this, flag)), _value(to_string(i), type_ptr(base_type::integer())))))
                                 var option = type_def_option_map[node][i]
                                 var our_option = make_operator_call(".", vec(make_operator_call("->", vec(func_this, option_union_ident)), option))
                                 var their_option = make_operator_call(".", vec(make_operator_call("->", vec(other, option_union_ident)), option))
@@ -119,7 +119,7 @@ fun adt_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syn
                                 if (option_type->is_empty_adt_option())
                                     continue
                                 if (option_type->indirection == 0 && option_type->is_object() && has_method(option_type->type_def, "destruct", vec<*type>())) {
-                                    var if_stmt_inner = ast_if_statement_ptr(make_operator_call("==", vec(make_operator_call("->", vec(func_this, flag)), ast_value_ptr(to_string(i), type_ptr(base_type::integer())))))
+                                    var if_stmt_inner = _if(make_operator_call("==", vec(make_operator_call("->", vec(func_this, flag)), _value(to_string(i), type_ptr(base_type::integer())))))
                                     var our_option = make_operator_call(".", vec(make_operator_call("->", vec(func_this, option_union_ident)), option))
                                     if_stmt_inner->if_statement.then_part = make_method_call(our_option, "destruct", vec<*ast_node>())
                                     block->code_block.children.add(if_stmt_inner)
@@ -142,12 +142,12 @@ fun adt_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syn
         var second_helper = fun(node: *ast_node, parent_chain: *stack<*ast_node>) {
             match(*node) {
                 ast_node::match_statement(backing) {
-                    var block = ast_code_block_ptr()
+                    var block = _code_block()
                     add_to_scope("~enclosing_scope", parent_chain->item_from_top_satisfying(fun(i: *ast_node): bool return is_code_block(i) || is_function(i);), block)
                     var value = backing.value
-                    var holder = ast_identifier_ptr(str("holder"), get_ast_type(value)->clone_with_increased_indirection(), block)
-                    block->code_block.children.add(ast_declaration_statement_ptr(holder, null<ast_node>()))
-                    block->code_block.children.add(ast_assignment_statement_ptr(holder, make_operator_call("&", vec(value))))
+                    var holder = _ident(str("holder"), get_ast_type(value)->clone_with_increased_indirection(), block)
+                    block->code_block.children.add(_declaration(holder, null<ast_node>()))
+                    block->code_block.children.add(_assign(holder, make_operator_call("&", vec(value))))
                     backing.cases.for_each(fun(case_stmt: *ast_node) {
                         var option = case_stmt->case_statement.option
                         var flag = get_from_scope(get_ast_type(value)->type_def, "flag")
@@ -158,16 +158,16 @@ fun adt_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syn
                         for (var i = 0; i < type_def_option_map[get_ast_type(value)->type_def].size; i++;)
                             if (type_def_option_map[get_ast_type(value)->type_def][i] == option)
                                 option_num = i;
-                        var condition = make_operator_call("==", vec(make_operator_call("->", vec(holder, flag)), ast_value_ptr(to_string(option_num), type_ptr(base_type::integer()))))
-                        var if_stmt = ast_if_statement_ptr(condition)
-                        var inner_block = ast_code_block_ptr()
+                        var condition = make_operator_call("==", vec(make_operator_call("->", vec(holder, flag)), _value(to_string(option_num), type_ptr(base_type::integer()))))
+                        var if_stmt = _if(condition)
+                        var inner_block = _code_block()
                         add_to_scope("~enclosing_scope", block, inner_block)
                         var unpack_ident = case_stmt->case_statement.unpack_ident
                         if (unpack_ident) {
                             var get_option = make_operator_call(".", vec(make_operator_call("->", vec(holder, data)), option))
                             get_option = make_operator_call("&", vec(get_option))
                             unpack_ident->identifier.type = unpack_ident->identifier.type->clone_with_ref()
-                            inner_block->code_block.children.add(ast_declaration_statement_ptr(unpack_ident, get_option))
+                            inner_block->code_block.children.add(_declaration(unpack_ident, get_option))
                         }
                         inner_block->code_block.children.add(case_stmt->case_statement.statement)
                         if_stmt->if_statement.then_part = inner_block

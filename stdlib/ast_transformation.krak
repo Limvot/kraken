@@ -45,13 +45,13 @@ obj ast_transformation (Object) {
     }
     // first pass defines all type_defs (objects and aliases), ADTs, and top-level if-comps/passthroughs
     fun first_pass(file_name: str, parse_tree: *tree<symbol>): pair<*ast_node, vec<*ast_node>> {
-        var translation_unit = ast_translation_unit_ptr(file_name)
+        var translation_unit = _translation_unit(file_name)
         parse_tree->children.for_each(fun(child: *tree<symbol>) {
             if (child->data.name == "type_def") {
                 translation_unit->translation_unit.children.add(first_pass_type_def(child, translation_unit, false))
             } else if (child->data.name == "adt_def") {
                 var name = concat_symbol_tree(get_node("identifier", child))
-                var adt_def_node = ast_adt_def_ptr(name)
+                var adt_def_node = _adt_def(name)
                 adt_def_node->adt_def.self_type = type_ptr(adt_def_node, set(str("Object")))
                 translation_unit->translation_unit.children.add(adt_def_node)
                 ast_to_syntax.set(adt_def_node, child)
@@ -72,7 +72,7 @@ obj ast_transformation (Object) {
             if (child->data.name == "import") {
                 var import_identifier_children = get_nodes("identifier", child)
                 var name = concat_symbol_tree(import_identifier_children[0])
-                var import_node = ast_import_ptr(name, translation_unit)
+                var import_node = _import(name, translation_unit)
                 imports.add(import_node)
                 translation_unit->translation_unit.children.add(import_node)
                 ast_to_syntax.set(import_node, child)
@@ -100,15 +100,15 @@ obj ast_transformation (Object) {
                 template_types.add(concat_symbol_tree(get_node("identifier", template_param)))
                 template_type_replacements.set(template_types.last(), type_ptr(transform_traits(get_node("traits", template_param))))
             })
-            var template = ast_template_ptr(name, child, template_types, template_type_replacements, false)
+            var template = _template(name, child, template_types, template_type_replacements, false)
             add_to_scope("~enclosing_scope", scope, template)
             add_to_scope(name, template, scope)
             return template
         } else {
             // pass in whether or not this is a union
-            var type_def_node = ast_type_def_ptr(name, concat_symbol_tree(get_node("obj_nonterm", child)) == "uni")
-            /*var type_def_node = ast_type_def_ptr(name, false)*/
-            /*var type_def_node = ast_type_def_ptr(name)*/
+            var type_def_node = _type_def(name, concat_symbol_tree(get_node("obj_nonterm", child)) == "uni")
+            /*var type_def_node = _type_def(name, false)*/
+            /*var type_def_node = _type_def(name)*/
             type_def_node->type_def.self_type = type_ptr(type_def_node, transform_traits(get_node("traits", child)))
             ast_to_syntax.set(type_def_node, child)
             add_to_scope("~enclosing_scope", scope, type_def_node)
@@ -161,7 +161,7 @@ obj ast_transformation (Object) {
             else
                 ident_type = type_ptr(base_type::no_type_adt_option())
             var option_name = concat_symbol_tree(get_node("identifier", adt_option))
-            var identifier = ast_identifier_ptr(option_name, ident_type, node)
+            var identifier = _ident(option_name, ident_type, node)
             node->adt_def.options.add(identifier)
             // we add the identifier first so that it's found before the function when doing option.thingy
             add_to_scope(option_name, identifier, node)
@@ -170,10 +170,10 @@ obj ast_transformation (Object) {
 
             var function_node = null<ast_node>()
             if (type_syntax) {
-               var identifier_param = ast_identifier_ptr(option_name, ident_type, node)
-               function_node = ast_function_ptr(option_name, type_ptr(vec(get_ast_type(identifier_param)), node->adt_def.self_type, 0, false, false, true), vec(identifier_param), false)
+               var identifier_param = _ident(option_name, ident_type, node)
+               function_node = _function(option_name, type_ptr(vec(get_ast_type(identifier_param)), node->adt_def.self_type, 0, false, false, true), vec(identifier_param), false)
             } else {
-               function_node = ast_function_ptr(option_name, type_ptr(vec<*type>(), node->adt_def.self_type, 0, false, false, true), vec<*ast_node>(), false)
+               function_node = _function(option_name, type_ptr(vec<*type>(), node->adt_def.self_type, 0, false, false, true), vec<*ast_node>(), false)
             }
             add_to_scope(option_name, function_node, node)
             add_to_scope("~enclosing_scope", node, function_node)
@@ -183,29 +183,29 @@ obj ast_transformation (Object) {
         // note they don't even have real parameters (but the type has them correctly) or bodies
 
         // I'm not sure this is the correct enclosing scope, but I'm not sure how to do it with the function either
-        var equals_param = ast_identifier_ptr(str("in"), node->adt_def.self_type->clone_with_indirection(0,true), node)
-        var nequals_param = ast_identifier_ptr(str("in"), node->adt_def.self_type->clone_with_indirection(0,true), node)
-        var copy_construct_param = ast_identifier_ptr(str("in"), node->adt_def.self_type->clone_with_indirection(1,false), node)
-        var assign_param = ast_identifier_ptr(str("in"), node->adt_def.self_type->clone_with_indirection(0,true), node)
+        var equals_param = _ident(str("in"), node->adt_def.self_type->clone_with_indirection(0,true), node)
+        var nequals_param = _ident(str("in"), node->adt_def.self_type->clone_with_indirection(0,true), node)
+        var copy_construct_param = _ident(str("in"), node->adt_def.self_type->clone_with_indirection(1,false), node)
+        var assign_param = _ident(str("in"), node->adt_def.self_type->clone_with_indirection(0,true), node)
         vec(
-            make_pair("operator==",     ast_function_ptr(str("operator=="),
+            make_pair("operator==",     _function(str("operator=="),
                 type_ptr(vec(equals_param->identifier.type), type_ptr(base_type::boolean()), 0, false, false, true),
-                vec(equals_param), ast_identifier_ptr("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
-            make_pair("operator!=",     ast_function_ptr(str("operator!="),
+                vec(equals_param), _ident("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
+            make_pair("operator!=",     _function(str("operator!="),
                 type_ptr(vec(nequals_param->identifier.type), type_ptr(base_type::boolean()), 0, false, false, true),
-                vec(nequals_param), ast_identifier_ptr("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
-            make_pair("construct",      ast_function_ptr(str("construct"),
+                vec(nequals_param), _ident("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
+            make_pair("construct",      _function(str("construct"),
                 type_ptr(vec<*type>(), node->adt_def.self_type->clone_with_increased_indirection(), 0, false, false, true),
-                vec<*ast_node>(), ast_identifier_ptr("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
-            make_pair("copy_construct", ast_function_ptr(str("copy_construct"),
+                vec<*ast_node>(), _ident("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
+            make_pair("copy_construct", _function(str("copy_construct"),
                 type_ptr(vec(copy_construct_param->identifier.type), type_ptr(base_type::void_return()), 0, false, false, true),
-                vec(copy_construct_param), ast_identifier_ptr("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
-            make_pair("operator=",      ast_function_ptr(str("operator="),
+                vec(copy_construct_param), _ident("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
+            make_pair("operator=",      _function(str("operator="),
                 type_ptr(vec(assign_param->identifier.type), type_ptr(base_type::void_return()), 0, false, false, true),
-                vec(assign_param), ast_identifier_ptr("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
-            make_pair("destruct",       ast_function_ptr(str("destruct"),
+                vec(assign_param), _ident("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
+            make_pair("destruct",       _function(str("destruct"),
                 type_ptr(vec<*type>(), type_ptr(base_type::void_return()), 0, false, false, true),
-                vec<*ast_node>(), ast_identifier_ptr("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false))
+                vec<*ast_node>(), _ident("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false))
         ).for_each(fun(func_pair: pair<*char, *ast_node>) {
             node->adt_def.regular_funcs.add(func_pair.second)
             add_to_scope(str(func_pair.first), func_pair.second, node)
@@ -225,7 +225,7 @@ obj ast_transformation (Object) {
                 template_types.add(concat_symbol_tree(get_node("identifier", template_param)))
                 template_type_replacements.set(template_types.last(), type_ptr(transform_traits(get_node("traits", template_param))))
             })
-            var template = ast_template_ptr(function_name, node, template_types, template_type_replacements, true)
+            var template = _template(function_name, node, template_types, template_type_replacements, true)
             add_to_scope(function_name, template, scope)
             add_to_scope("~enclosing_scope", scope, template)
             return template
@@ -246,21 +246,21 @@ obj ast_transformation (Object) {
             var param_type = transform_type(get_node("type", child), scope, template_replacements)
             if (param_type->is_none())
                 error(child, "parameter type none")
-            parameters.add(ast_identifier_ptr(concat_symbol_tree(get_node("identifier", child)), param_type, null<ast_node>()))
+            parameters.add(_ident(concat_symbol_tree(get_node("identifier", child)), param_type, null<ast_node>()))
         })
         var is_variadic = get_node("\"...\"", node) != null<tree<symbol>>()
         var is_raw = function_name != "__compiler_lambda__"
         var this_param = null<ast_node>()
         if (is_type_def(scope)) {
-           this_param = ast_identifier_ptr("this", scope->type_def.self_type->clone_with_indirection(1), scope)
+           this_param = _ident("this", scope->type_def.self_type->clone_with_indirection(1), scope)
         } else if (is_template(scope)) {
             var parent_scope = get_ast_scope(scope)->get(str("~enclosing_scope"))[0]
             if (is_type_def(parent_scope)) {
-               this_param = ast_identifier_ptr("this", parent_scope->type_def.self_type->clone_with_indirection(1), parent_scope)
+               this_param = _ident("this", parent_scope->type_def.self_type->clone_with_indirection(1), parent_scope)
            }
         }
         // figure out function type and make function_node
-        var function_node = ast_function_ptr(function_name,
+        var function_node = _function(function_name,
             type_ptr(parameters.map(fun(parameter: *ast_node): *type return parameter->identifier.type;),
             return_type, 0, false, is_variadic, is_raw), parameters, this_param, get_node("\"ext\"", node) != null<tree<symbol>>(), is_variadic)
         // fix up the enclosing_scope's
@@ -586,22 +586,22 @@ obj ast_transformation (Object) {
                 value_str = value_str.slice(0, -1-chop)
             }
         }
-        return ast_value_ptr(value_str, value_type)
+        return _value(value_str, value_type)
     }
     fun transform_code_block(node: *tree<symbol>, scope: *ast_node, template_replacements: map<str, *type>): *ast_node {
-        var new_block = ast_code_block_ptr()
+        var new_block = _code_block()
         add_to_scope("~enclosing_scope", scope, new_block)
         new_block->code_block.children = transform_all(node->children, new_block, template_replacements)
         return new_block
     }
     fun transform_if_comp(node: *tree<symbol>, scope: *ast_node): *ast_node {
-        var new_if_comp = ast_if_comp_ptr()
+        var new_if_comp = _if_comp()
         new_if_comp->if_comp.wanted_generator = concat_symbol_tree(get_node("identifier", node))
         new_if_comp->if_comp.statement = transform_statement(get_node("statement", node), scope, map<str, *type>())
         return new_if_comp
     }
     fun transform_simple_passthrough(node: *tree<symbol>, scope: *ast_node): *ast_node {
-        var new_passthrough = ast_simple_passthrough_ptr()
+        var new_passthrough = _passthrough()
         new_passthrough->simple_passthrough.passthrough_str = concat_symbol_tree(get_node("triple_quoted_string", node)).slice(3,-4)
         // setup passthrough params and str
         var passthrough_params = get_node("passthrough_params", node)
@@ -642,7 +642,7 @@ obj ast_transformation (Object) {
         var expression_syntax_node = get_node("boolean_expression", node)
         var expression = null<ast_node>()
         // we do it early so that if there is a type_syntax_node we can add to scope so that the expression can find this for things like rec closures
-        var identifier = ast_identifier_ptr(name, null<type>(), scope, get_node("\"ext\"", node) != null<tree<symbol>>())
+        var identifier = _ident(name, null<type>(), scope, get_node("\"ext\"", node) != null<tree<symbol>>())
         add_to_scope(name, identifier, scope)
         if (type_syntax_node) identifier->identifier.type = transform_type(type_syntax_node, scope, template_replacements)
         if (expression_syntax_node) {
@@ -652,7 +652,7 @@ obj ast_transformation (Object) {
         }
         if (!identifier->identifier.type) error(node, "declaration statement with no type or expression from which to inference type")
         if (identifier->identifier.type->is_none() || (identifier->identifier.type->indirection == 0 && identifier->identifier.type->is_void())) error(node, "declaration statement with bad type")
-        var declaration = ast_declaration_statement_ptr(identifier, expression)
+        var declaration = _declaration(identifier, expression)
         // ok, deal with the possible init position method call
         if (identifiers.size == 2) {
             var parameters = get_nodes("parameter", node).map(fun(child: *tree<symbol>): *ast_node return transform(get_node("boolean_expression", child), scope, template_replacements);)
@@ -717,13 +717,13 @@ obj ast_transformation (Object) {
             }
             to_assign = make_operator_call("^", vec(assign_to, to_assign))
         }
-        var assignment = ast_assignment_statement_ptr(assign_to, to_assign)
+        var assignment = _assign(assign_to, to_assign)
         return assignment
     }
     fun transform_if_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<str, *type>): *ast_node {
         if (get_node("AmbiguityInner", node))
             error(node, "Ambigious two ifs with one else!")
-        var if_statement = ast_if_statement_ptr(transform_expression(get_node("boolean_expression", node), scope, template_replacements))
+        var if_statement = _if(transform_expression(get_node("boolean_expression", node), scope, template_replacements))
         // one variable declarations might be in a code_block-less if statement
         add_to_scope("~enclosing_scope", scope, if_statement)
         var statements = transform_all(get_nodes("statement", node), if_statement, template_replacements)
@@ -734,13 +734,13 @@ obj ast_transformation (Object) {
         return if_statement
     }
     fun transform_while_loop(node: *tree<symbol>, scope: *ast_node, template_replacements: map<str, *type>): *ast_node {
-        var while_loop = ast_while_loop_ptr(transform_expression(get_node("boolean_expression", node), scope, template_replacements))
+        var while_loop = _while(transform_expression(get_node("boolean_expression", node), scope, template_replacements))
         add_to_scope("~enclosing_scope", scope, while_loop)
         while_loop->while_loop.statement = transform(get_node("statement", node), while_loop, template_replacements)
         return while_loop
     }
     fun transform_for_loop(node: *tree<symbol>, scope: *ast_node, template_replacements: map<str, *type>): *ast_node {
-        var for_loop = ast_for_loop_ptr()
+        var for_loop = _for()
         add_to_scope("~enclosing_scope", scope, for_loop)
         var statements = get_nodes("statement", node)
         for_loop->for_loop.init = transform(statements[0], for_loop, template_replacements)
@@ -753,27 +753,27 @@ obj ast_transformation (Object) {
         var return_value = get_node("boolean_expression", node)
         var to_ret: *ast_node
         if (return_value)
-            to_ret =  ast_return_statement_ptr(transform(return_value, scope, template_replacements))
+            to_ret =  _return(transform(return_value, scope, template_replacements))
         else
-            to_ret =  ast_return_statement_ptr(null<ast_node>())
+            to_ret =  _return(null<ast_node>())
         ast_to_syntax.set(to_ret, node)
         return to_ret
     }
     fun transform_branching_statement(node: *tree<symbol>, scope: *ast_node): *ast_node {
         if (node->data.name == "break_statement")
-            return ast_branching_statement_ptr(branching_type::break_stmt())
-        return ast_branching_statement_ptr(branching_type::continue_stmt())
+            return _branch(branching_type::break_stmt())
+        return _branch(branching_type::continue_stmt())
     }
     fun transform_defer_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<str, *type>): *ast_node {
-        return ast_defer_statement_ptr(transform(node->children[0], scope, template_replacements))
+        return _defer(transform(node->children[0], scope, template_replacements))
     }
     fun transform_match_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<str, *type>): *ast_node {
-        var to_ret = ast_match_statement_ptr(transform(get_node("boolean_expression", node), scope, template_replacements))
+        var to_ret = _match(transform(get_node("boolean_expression", node), scope, template_replacements))
         get_nodes("case_statement", node).for_each(fun(syntax: *tree<symbol>) to_ret->match_statement.cases.add(transform_case_statement(syntax, scope, template_replacements));)
         return to_ret
     }
     fun transform_case_statement(node: *tree<symbol>, scope: *ast_node, template_replacements: map<str, *type>): *ast_node {
-        var to_ret = ast_case_statement_ptr()
+        var to_ret = _case()
         var the_adts = scope_lookup(concat_symbol_tree(get_node("scoped_identifier", get_node("scoped_identifier", node))), scope).filter(fun(i: *ast_node): bool return is_adt_def(i);)
         if (the_adts.size != 1)
            error(node, str("the number of adts found was not 1, it was ") + the_adts.size + " for " + concat_symbol_tree(get_node("scoped_identifier", node)))
@@ -784,7 +784,7 @@ obj ast_transformation (Object) {
         to_ret->case_statement.option = the_option
         var possible_ident = get_node("identifier", node)
         if (possible_ident) {
-            var ident = ast_identifier_ptr(concat_symbol_tree(possible_ident), the_option->identifier.type, scope)
+            var ident = _ident(concat_symbol_tree(possible_ident), the_option->identifier.type, scope)
             to_ret->case_statement.unpack_ident = ident
             add_to_scope(ident->identifier.name, ident, to_ret)
         }
@@ -807,7 +807,7 @@ obj ast_transformation (Object) {
         }
         if (!(func_type->is_function() && func_type->indirection == 0))
             error(node, "trying to call not a function")
-        var f = ast_function_call_ptr(func, parameters)
+        var f = _func_call(func, parameters)
         return f
     }
     fun transform_compiler_intrinsic(node: *tree<symbol>, scope: *ast_node, template_replacements: map<str, *type>): *ast_node {
@@ -819,7 +819,7 @@ obj ast_transformation (Object) {
             intrinsic_return_type = get_ast_type(parameters[0])
         else
             intrinsic_return_type = type_ptr(base_type::ulong_int())
-        return ast_compiler_intrinsic_ptr(intrinsic_name, parameters, type_parameters, intrinsic_return_type)
+        return _compiler_intrinsic(intrinsic_name, parameters, type_parameters, intrinsic_return_type)
     }
     fun transform_lambda(node: *tree<symbol>, scope: *ast_node, template_replacements: map<str, *type>): *ast_node {
         var function_node = second_pass_function(node, scope, template_replacements, false)
@@ -875,7 +875,7 @@ obj ast_transformation (Object) {
             if (func_name == "[")
                 func_name += "]"
             if (func_name == "cast")
-                return ast_cast_ptr(transform(get_node("boolean_expression", node), scope, template_replacements), transform_type(get_node("type", node), scope, template_replacements))
+                return _cast(transform(get_node("boolean_expression", node), scope, template_replacements), transform_type(get_node("type", node), scope, template_replacements))
             var first_param = transform(node->children[0], scope, template_replacements)
             var second_param = null<ast_node>()
             if (func_name == "." || func_name == "->") {
@@ -920,7 +920,7 @@ obj ast_transformation (Object) {
         var possible_overload_call = find_and_make_any_operator_overload_call(func_name, parameters, scope, template_replacements)
         if (possible_overload_call)
            return possible_overload_call
-        return ast_function_call_ptr(get_builtin_function(func_name, parameter_types, node), parameters)
+        return _func_call(get_builtin_function(func_name, parameter_types, node), parameters)
     }
     fun find_and_make_any_operator_overload_call(func_name: str, parameters: vec<*ast_node>, scope: *ast_node, template_replacements: map<str, *type>): *ast_node {
         var parameter_types = parameters.map(fun(param: *ast_node): *type return get_ast_type(param);)
@@ -943,7 +943,7 @@ obj ast_transformation (Object) {
         if (!possible_overload)
             possible_overload = find_or_instantiate_template_function(str("operator")+func_name, null<tree<symbol>>(), scope, parameter_types, template_replacements, map<str, *type>())
         if (possible_overload)
-            return ast_function_call_ptr(possible_overload, parameters)
+            return _func_call(possible_overload, parameters)
         return null<ast_node>()
     }
     fun find_or_instantiate_template_function(name: str, template_inst: *tree<symbol>, scope: *ast_node, param_types: vec<*type>, template_replacements: map<str, *type>, replacements_base: map<str, *type>): *ast_node {

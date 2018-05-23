@@ -42,7 +42,7 @@ fun ast_node_ptr(node: ast_node): *ast_node {
     to_ret->copy_construct(&node)
     return to_ret
 }
-fun ast_translation_unit_ptr(name: str): *ast_node {
+fun _translation_unit(name: str): *ast_node {
     var obj_var.construct(name): translation_unit
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::translation_unit(obj_var))
@@ -86,7 +86,7 @@ obj translation_unit (Object) {
         return children == other.children && name == other.name && lambdas == other.lambdas
     }
 }
-fun ast_import_ptr(name: str, containing_tu: *ast_node): *ast_node {
+fun _import(name: str, containing_tu: *ast_node): *ast_node {
     var to_ret.construct(name, containing_tu): import
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::import(to_ret))
@@ -135,13 +135,13 @@ obj import (Object) {
         return imported == other.imported && name == other.name && containing_translation_unit == other.containing_translation_unit && translation_unit == other.translation_unit && starred == other.starred
     }
 }
-fun ast_identifier_ptr(name: *char, type: *type, enclosing_scope: *ast_node): *ast_node {
-    return ast_identifier_ptr(str(name), type, enclosing_scope)
+fun _ident(name: *char, type: *type, enclosing_scope: *ast_node): *ast_node {
+    return _ident(str(name), type, enclosing_scope)
 }
-fun ast_identifier_ptr(name: str, type: *type, enclosing_scope: *ast_node): *ast_node {
-    return ast_identifier_ptr(name, type, enclosing_scope, false)
+fun _ident(name: str, type: *type, enclosing_scope: *ast_node): *ast_node {
+    return _ident(name, type, enclosing_scope, false)
 }
-fun ast_identifier_ptr(name: str, type: *type, enclosing_scope: *ast_node, is_extern: bool): *ast_node {
+fun _ident(name: str, type: *type, enclosing_scope: *ast_node, is_extern: bool): *ast_node {
     var to_ret.construct(name, type, enclosing_scope, is_extern): identifier
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::identifier(to_ret))
@@ -186,11 +186,11 @@ obj identifier (Object) {
         return name == other.name && type == other.type && enclosing_scope == other.enclosing_scope && is_extern == other.is_extern
     }
 }
-/*fun ast_type_def_ptr(name: str): *ast_node {*/
-fun ast_type_def_ptr(name: ref str): *ast_node {
-    return ast_type_def_ptr(name, false)
+/*fun _type_def(name: str): *ast_node {*/
+fun _type_def(name: ref str): *ast_node {
+    return _type_def(name, false)
 }
-fun ast_type_def_ptr(name: ref str, is_union: bool): *ast_node {
+fun _type_def(name: ref str, is_union: bool): *ast_node {
     var to_ret.construct(name, is_union): type_def
     /*var to_ret.construct(name): type_def*/
     var ptr = new<ast_node>()
@@ -244,7 +244,7 @@ obj type_def (Object) {
         /*return name == other.name && self_type == other.self_type && variables == other.variables && methods == other.methods*/
     }
 }
-fun ast_adt_def_ptr(name: str): *ast_node {
+fun _adt_def(name: str): *ast_node {
     var to_ret.construct(name): adt_def
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::adt_def(to_ret))
@@ -295,9 +295,9 @@ obj adt_def (Object) {
         return name == other.name && self_type == other.self_type && options == other.options && option_funcs == other.option_funcs && regular_funcs == other.regular_funcs
     }
 }
-fun ast_function_ptr(name: str, type: *type, parameters: vec<*ast_node>, is_extern: bool): *ast_node
-    return ast_function_ptr(name, type, parameters, null<ast_node>(), is_extern, false)
-fun ast_function_ptr(name: str, type: *type, parameters: vec<*ast_node>, this_param: *ast_node, is_extern: bool, is_variadic: bool): *ast_node {
+fun _function(name: str, type: *type, parameters: vec<*ast_node>, is_extern: bool): *ast_node
+    return _function(name, type, parameters, null<ast_node>(), is_extern, false)
+fun _function(name: str, type: *type, parameters: vec<*ast_node>, this_param: *ast_node, is_extern: bool, is_variadic: bool): *ast_node {
     var to_ret.construct(name, type, parameters, this_param, is_extern, is_variadic): function
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::function(to_ret))
@@ -356,7 +356,7 @@ obj function (Object) {
         return name == name && type == other.type && parameters == other.parameters && this_param == other.this_param && body_statement == other.body_statement && closed_variables == other.closed_variables && is_extern == other.is_extern && is_variadic == other.is_variadic
     }
 }
-fun ast_template_ptr(name: str, syntax_node: *tree<symbol>, template_types: vec<str>, template_type_replacements: map<str, *type>, is_function: bool): *ast_node {
+fun _template(name: str, syntax_node: *tree<symbol>, template_types: vec<str>, template_type_replacements: map<str, *type>, is_function: bool): *ast_node {
     var to_ret.construct(name, syntax_node, template_types, template_type_replacements, is_function): template
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::template(to_ret))
@@ -416,12 +416,12 @@ obj template (Object) {
                 instantiated_map == other.instantiated_map && is_function == other.is_function
     }
 }
-fun ast_code_block_ptr(stmt: *ast_node): *ast_node {
-    var to_ret = ast_code_block_ptr()
+fun _code_block(stmt: *ast_node): *ast_node {
+    var to_ret = _code_block()
     to_ret->code_block.children.add(stmt)
     return to_ret
 }
-fun ast_code_block_ptr(): *ast_node {
+fun _code_block(): *ast_node {
     var to_ret.construct(): code_block
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::code_block(to_ret))
@@ -457,7 +457,7 @@ obj code_block (Object) {
         return children == other.children && scope == other.scope
     }
 }
-fun ast_if_statement_ptr(condition: *ast_node): *ast_node {
+fun _if(condition: *ast_node): *ast_node {
     var to_ret.construct(condition): if_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::if_statement(to_ret))
@@ -499,7 +499,7 @@ obj if_statement (Object) {
         return condition == other.condition && then_part == other.then_part && else_part == other.else_part
     }
 }
-fun ast_match_statement_ptr(value: *ast_node): *ast_node {
+fun _match(value: *ast_node): *ast_node {
     var to_ret.construct(value): match_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::match_statement(to_ret))
@@ -538,7 +538,7 @@ obj match_statement (Object) {
         return value == other.value && cases == other.cases && scope == other.scope
     }
 }
-fun ast_case_statement_ptr(): *ast_node {
+fun _case(): *ast_node {
     var to_ret.construct(): case_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::case_statement(to_ret))
@@ -579,7 +579,7 @@ obj case_statement (Object) {
         return option == other.option && unpack_ident == other.unpack_ident && statement == other.statement
     }
 }
-fun ast_while_loop_ptr(condition: *ast_node): *ast_node {
+fun _while(condition: *ast_node): *ast_node {
     var to_ret.construct(condition): while_loop
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::while_loop(to_ret))
@@ -617,7 +617,7 @@ obj while_loop (Object) {
         return condition == other.condition && statement == other.statement
     }
 }
-fun ast_for_loop_ptr(): *ast_node {
+fun _for(): *ast_node {
     var to_ret.construct(): for_loop
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::for_loop(to_ret))
@@ -661,7 +661,7 @@ obj for_loop (Object) {
         return init == other.init && condition == other.condition && update == other.update && body == other.body
     }
 }
-fun ast_return_statement_ptr(return_value: *ast_node): *ast_node {
+fun _return(return_value: *ast_node): *ast_node {
     var to_ret.construct(return_value): return_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::return_statement(to_ret))
@@ -700,7 +700,7 @@ adt branching_type {
     break_stmt,
     continue_stmt
 }
-fun ast_branching_statement_ptr(b_type: branching_type): *ast_node {
+fun _branch(b_type: branching_type): *ast_node {
     var to_ret.construct(b_type): branching_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::branching_statement(to_ret))
@@ -732,7 +732,7 @@ obj branching_statement (Object) {
         return true
     }
 }
-fun ast_defer_statement_ptr(statement_in: *ast_node): *ast_node {
+fun _defer(statement_in: *ast_node): *ast_node {
     var to_ret.construct(statement_in): defer_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::defer_statement(to_ret))
@@ -763,7 +763,7 @@ obj defer_statement (Object) {
         return true
     }
 }
-fun ast_assignment_statement_ptr(to: *ast_node, from: *ast_node): *ast_node {
+fun _assign(to: *ast_node, from: *ast_node): *ast_node {
     var to_ret.construct(to, from): assignment_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::assignment_statement(to_ret))
@@ -797,7 +797,7 @@ obj assignment_statement (Object) {
         return to == other.to && from == other.from
     }
 }
-fun ast_declaration_statement_ptr(ident: *ast_node, expression: *ast_node): *ast_node {
+fun _declaration(ident: *ast_node, expression: *ast_node): *ast_node {
     var to_ret.construct(ident, expression): declaration_statement
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::declaration_statement(to_ret))
@@ -834,7 +834,7 @@ obj declaration_statement (Object) {
         return identifier == other.identifier && expression == other.expression && init_method_call == other.init_method_call
     }
 }
-fun ast_if_comp_ptr(): *ast_node {
+fun _if_comp(): *ast_node {
     var to_ret.construct(): if_comp
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::if_comp(to_ret))
@@ -868,7 +868,7 @@ obj if_comp (Object) {
         return wanted_generator == other.wanted_generator && statement == other.statement
     }
 }
-fun ast_simple_passthrough_ptr(): *ast_node {
+fun _passthrough(): *ast_node {
     var to_ret.construct(): simple_passthrough
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::simple_passthrough(to_ret))
@@ -917,7 +917,7 @@ obj simple_passthrough (Object) {
                 out_params == other.out_params && linker_str == other.linker_str
     }
 }
-fun ast_function_call_ptr(func: *ast_node, parameters: vec<*ast_node>): *ast_node {
+fun _func_call(func: *ast_node, parameters: vec<*ast_node>): *ast_node {
     var to_ret.construct(func, parameters): function_call
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::function_call(to_ret))
@@ -952,7 +952,7 @@ obj function_call (Object) {
         return func == func && parameters == other.parameters
     }
 }
-fun ast_compiler_intrinsic_ptr(intrinsic: str, parameters: vec<*ast_node>, type_parameters: vec<*type>, return_type: *type): *ast_node {
+fun _compiler_intrinsic(intrinsic: str, parameters: vec<*ast_node>, type_parameters: vec<*type>, return_type: *type): *ast_node {
     var to_ret.construct(intrinsic, parameters, type_parameters, return_type): compiler_intrinsic
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::compiler_intrinsic(to_ret))
@@ -996,7 +996,7 @@ obj compiler_intrinsic (Object) {
         return intrinsic == intrinsic && parameters == other.parameters && type_parameters == other.type_parameters && return_type == other.return_type
     }
 }
-fun ast_cast_ptr(value: *ast_node, to_type: *type): *ast_node {
+fun _cast(value: *ast_node, to_type: *type): *ast_node {
     var to_ret.construct(value, to_type): cast
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::cast(to_ret))
@@ -1030,7 +1030,7 @@ obj cast (Object) {
         return value == other.value && to_type == other.to_type
     }
 }
-fun ast_value_ptr(string_value: str, value_type: *type): *ast_node {
+fun _value(string_value: str, value_type: *type): *ast_node {
     var to_ret.construct(string_value, value_type): value
     var ptr = new<ast_node>()
     ptr->copy_construct(&ast_node::value(to_ret))

@@ -34,10 +34,10 @@ fun address_of_ensure_variable_lower(name_ast_map: *map<str, pair<*tree<symbol>,
                             var enclosing_block_idx = parent_chain->index_from_top_satisfying(is_code_block)
                             var enclosing_block = parent_chain->from_top(enclosing_block_idx)
                             var before_block_parent = parent_chain->from_top(enclosing_block_idx-1)
-                            var ident = ast_identifier_ptr("for_address_of_temp",
+                            var ident = _ident("for_address_of_temp",
                                             backing.func->function.type->parameter_types[0],
                                             enclosing_block)
-                            var decl = ast_declaration_statement_ptr(ident, addresse)
+                            var decl = _declaration(ident, addresse)
                             add_before_in(decl, before_block_parent, enclosing_block)
                             replace_with_in(addresse, ident, node)
                         }

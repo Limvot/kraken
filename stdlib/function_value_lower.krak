@@ -154,22 +154,22 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
             cleaned->is_raw = true
 
             var new_type_def_name = t.to_string() + "_function_value_struct"
-            var new_type_def = ast_type_def_ptr(new_type_def_name)
+            var new_type_def = _type_def(new_type_def_name)
 
-            var func_ident = ast_identifier_ptr("func", cleaned, new_type_def)
+            var func_ident = _ident("func", cleaned, new_type_def)
             add_to_scope("func", func_ident, new_type_def)
 
             var func_closure_type = cleaned->clone()
             func_closure_type->parameter_types.add(0, type_ptr(base_type::void_return(), 1))
-            var func_closure_ident = ast_identifier_ptr("func_closure", func_closure_type, new_type_def)
+            var func_closure_ident = _ident("func_closure", func_closure_type, new_type_def)
             add_to_scope("func_closure", func_closure_ident, new_type_def)
 
-            var data_ident = ast_identifier_ptr("data", void_ptr, new_type_def)
+            var data_ident = _ident("data", void_ptr, new_type_def)
             add_to_scope("data", data_ident, new_type_def)
 
-            new_type_def->type_def.variables.add(ast_declaration_statement_ptr(func_ident, null<ast_node>()))
-            new_type_def->type_def.variables.add(ast_declaration_statement_ptr(func_closure_ident, null<ast_node>()))
-            new_type_def->type_def.variables.add(ast_declaration_statement_ptr(data_ident, null<ast_node>()))
+            new_type_def->type_def.variables.add(_declaration(func_ident, null<ast_node>()))
+            new_type_def->type_def.variables.add(_declaration(func_closure_ident, null<ast_node>()))
+            new_type_def->type_def.variables.add(_declaration(data_ident, null<ast_node>()))
 
             add_to_scope("~enclosing_scope", name_ast_map->values.first().second, new_type_def)
             add_to_scope(new_type_def_name, new_type_def, name_ast_map->values.first().second)
@@ -179,17 +179,17 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
 
             var lambda_call_type = type_ptr(vec(lambda_struct_type) + t.parameter_types, t.return_type, 0, false, false, true)
             // create parameters
-            var lambda_call_func_param = ast_identifier_ptr("func_struct", lambda_struct_type, null<ast_node>())
+            var lambda_call_func_param = _ident("func_struct", lambda_struct_type, null<ast_node>())
             var lambda_call_parameters = vec(lambda_call_func_param) + cleaned->parameter_types.map(fun(t:*type): *ast_node {
-                return ast_identifier_ptr("pass_through_param", t, null<ast_node>())
+                return _ident("pass_through_param", t, null<ast_node>())
             })
-            var lambda_call_function = ast_function_ptr(str("lambda_call"), lambda_call_type, lambda_call_parameters, false)
+            var lambda_call_function = _function(str("lambda_call"), lambda_call_type, lambda_call_parameters, false)
             // create call body with if, etc
-            var if_statement = ast_if_statement_ptr(access_expression(lambda_call_func_param, "data"))
-            lambda_call_function->function.body_statement = ast_code_block_ptr(if_statement)
-            if_statement->if_statement.then_part = ast_code_block_ptr(ast_return_statement_ptr(ast_function_call_ptr(access_expression(lambda_call_func_param, "func_closure"),
+            var if_statement = _if(access_expression(lambda_call_func_param, "data"))
+            lambda_call_function->function.body_statement = _code_block(if_statement)
+            if_statement->if_statement.then_part = _code_block(_return(_func_call(access_expression(lambda_call_func_param, "func_closure"),
                                                                                 vec(access_expression(lambda_call_func_param, "data")) + lambda_call_parameters.slice(1,-1))))
-            if_statement->if_statement.else_part = ast_code_block_ptr(ast_return_statement_ptr(ast_function_call_ptr(access_expression(lambda_call_func_param, "func"),
+            if_statement->if_statement.else_part = _code_block(_return(_func_call(access_expression(lambda_call_func_param, "func"),
                                                                                 lambda_call_parameters.slice(1,-1))))
 
             lambda_type_to_struct_type_and_call_func[t] = make_pair(lambda_struct_type, lambda_call_function)
@@ -210,13 +210,13 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
         var closure_struct_type: *type
         if (l->function.closed_variables.size()) {
             var new_type_def_name = str("closure_struct_") + closure_id++
-            var new_type_def = ast_type_def_ptr(new_type_def_name)
+            var new_type_def = _type_def(new_type_def_name)
             l->function.closed_variables.for_each(fun(v: *ast_node) {
                 var closed_var_type = v->identifier.type
                 if (lambda_type_to_struct_type_and_call_func.contains_key(*closed_var_type))
                     closed_var_type = lambda_type_to_struct_type_and_call_func[*closed_var_type].first
-                var closed_ident = ast_identifier_ptr(v->identifier.name, closed_var_type->clone_with_increased_indirection(), new_type_def)
-                new_type_def->type_def.variables.add(ast_declaration_statement_ptr(closed_ident, null<ast_node>()))
+                var closed_ident = _ident(v->identifier.name, closed_var_type->clone_with_increased_indirection(), new_type_def)
+                new_type_def->type_def.variables.add(_declaration(closed_ident, null<ast_node>()))
                 add_to_scope(v->identifier.name, closed_ident, new_type_def)
             })
             add_to_scope("~enclosing_scope", name_ast_map->values.first().second, new_type_def)
@@ -227,31 +227,31 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
 
         var return_type = lambda_type_to_struct_type_and_call_func[*l->function.type].first
         var creation_type = type_ptr(vec<*type>(), return_type, 0, false, false, true)
-        lambda_creation_funcs[l] = ast_function_ptr(l->function.name + "_creation", creation_type, vec<*ast_node>(), false);
-        var body = ast_code_block_ptr()
-        var ident = ast_identifier_ptr("to_ret", return_type, body)
-        body->code_block.children.add(ast_declaration_statement_ptr(ident, null<ast_node>()))
-        body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "func"), l))
-        body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "func_closure"), l))
+        lambda_creation_funcs[l] = _function(l->function.name + "_creation", creation_type, vec<*ast_node>(), false);
+        var body = _code_block()
+        var ident = _ident("to_ret", return_type, body)
+        body->code_block.children.add(_declaration(ident, null<ast_node>()))
+        body->code_block.children.add(_assign(access_expression(ident, "func"), l))
+        body->code_block.children.add(_assign(access_expression(ident, "func_closure"), l))
         if (l->function.closed_variables.size()) {
-            var closure_lambda_param = ast_identifier_ptr("closure_data_pass", closure_struct_type, l)
+            var closure_lambda_param = _ident("closure_data_pass", closure_struct_type, l)
             l->function.parameters.add(0, closure_lambda_param)
-            var closure_param = ast_identifier_ptr("closure", closure_struct_type, body)
+            var closure_param = _ident("closure", closure_struct_type, body)
             lambda_creation_funcs[l]->function.parameters.add(closure_param)
-            body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "data"), closure_param))
+            body->code_block.children.add(_assign(access_expression(ident, "data"), closure_param))
             l->function.closed_variables.for_each(fun(v: *ast_node) {
                 // have to make sure to clean here as well
                 var closed_param_type = v->identifier.type
                 if (lambda_type_to_struct_type_and_call_func.contains_key(*closed_param_type))
                     closed_param_type = lambda_type_to_struct_type_and_call_func[*closed_param_type].first
-                var closed_param = ast_identifier_ptr("closed_param", closed_param_type->clone_with_increased_indirection(), l)
+                var closed_param = _ident("closed_param", closed_param_type->clone_with_increased_indirection(), l)
                 lambda_creation_funcs[l]->function.parameters.add(closed_param)
-                body->code_block.children.add(ast_assignment_statement_ptr(access_expression(closure_param, v->identifier.name), closed_param))
+                body->code_block.children.add(_assign(access_expression(closure_param, v->identifier.name), closed_param))
             })
         } else {
-            body->code_block.children.add(ast_assignment_statement_ptr(access_expression(ident, "data"), ast_value_ptr(str("0"), type_ptr(base_type::void_return(), 1))))
+            body->code_block.children.add(_assign(access_expression(ident, "data"), _value(str("0"), type_ptr(base_type::void_return(), 1))))
         }
-        body->code_block.children.add(ast_return_statement_ptr(ident))
+        body->code_block.children.add(_return(ident))
         lambda_creation_funcs[l]->function.body_statement = body
         name_ast_map->values.first().second->translation_unit.children.add(lambda_creation_funcs[l])
     })
@@ -269,8 +269,8 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
         if (p.function->function.closed_variables.size()) {
             // pull closure type off lambda creation func parameter
             var closure_type = get_ast_type(lambda_creation_funcs[p.function]->function.parameters[0])->clone_with_decreased_indirection()
-            var closure_struct_ident = ast_identifier_ptr("closure_struct", closure_type, p.parent_block)
-            p.parent_block->code_block.children.add(0,ast_declaration_statement_ptr(closure_struct_ident, null<ast_node>()))
+            var closure_struct_ident = _ident("closure_struct", closure_type, p.parent_block)
+            p.parent_block->code_block.children.add(0,_declaration(closure_struct_ident, null<ast_node>()))
             lambda_creation_params.add(make_operator_call("&", vec(closure_struct_ident)))
             p.function->function.closed_variables.for_each(fun(v: *ast_node) {
                 var addr_of = make_operator_call("&", vec(v))
@@ -280,7 +280,7 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
                 lambda_creation_params.add(addr_of)
             })
         }
-        var func_call = ast_function_call_ptr(lambda_creation_funcs[p.function], lambda_creation_params)
+        var func_call = _func_call(lambda_creation_funcs[p.function], lambda_creation_params)
         replace_with_in(p.function, func_call, p.parent)
     })
     curr_time = split(curr_time, "\tfunction_value_creation_points.forEach")
