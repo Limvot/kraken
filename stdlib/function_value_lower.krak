@@ -109,6 +109,8 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
             var t = get_ast_type(node)
             if (t) all_types.add(t)
             match(*node) {
+                // gotta get #sizeof<function>
+                ast_node::compiler_intrinsic(c) c.type_parameters.for_each( fun(item: *type) all_types.add(item); )
                 ast_node::identifier(backing) {
                     // see if this identifier use is a closed variable in a closure
                     var enclosing_func = parent_chain->item_from_top_satisfying_or(fun(n: *ast_node): bool return is_function(n);, null<ast_node>())
@@ -146,10 +148,15 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
             return from_vector(t->parameter_types + t->return_type)
         return set<*type>()
     })
-    var all_type_values = all_types.map(fun(t: *type): type return *t;)
+    var all_type_values = all_types.map(fun(t: *type): type {
+        if (t->indirection != 0 || t->is_ref)
+            return *t->clone_with_indirection(0, false)
+        else
+            return *t
+    })
     curr_time = split(curr_time, "\tall types/all type values")
     all_type_values.for_each(fun(t: type) {
-        if (t.is_function() && t.indirection == 0 && !t.is_raw && !lambda_type_to_struct_type_and_call_func.contains_key(t)) {
+        if (t.is_function() && t.indirection == 0 && !t.is_ref && !t.is_raw && !lambda_type_to_struct_type_and_call_func.contains_key(t)) {
             var cleaned = t.clone()
             cleaned->is_raw = true
 
@@ -212,6 +219,7 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
             var new_type_def_name = str("closure_struct_") + closure_id++
             var new_type_def = _type_def(new_type_def_name)
             l->function.closed_variables.for_each(fun(v: *ast_node) {
+                // THIS MIGHT HAVE TO ACCOUNT FOR FUNC REFS
                 var closed_var_type = v->identifier.type
                 if (lambda_type_to_struct_type_and_call_func.contains_key(*closed_var_type))
                     closed_var_type = lambda_type_to_struct_type_and_call_func[*closed_var_type].first
@@ -241,6 +249,7 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
             body->code_block.children.add(_assign(access_expression(ident, "data"), closure_param))
             l->function.closed_variables.for_each(fun(v: *ast_node) {
                 // have to make sure to clean here as well
+                // THIS MIGHT HAVE TO ACCOUNT FOR FUNC REFS
                 var closed_param_type = v->identifier.type
                 if (lambda_type_to_struct_type_and_call_func.contains_key(*closed_param_type))
                     closed_param_type = lambda_type_to_struct_type_and_call_func[*closed_param_type].first
@@ -259,7 +268,10 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
     function_value_call_points.for_each(fun(p: function_parent_block) {
         // parent is the function call
         var function_struct = p.function
-        p.parent->function_call.func = lambda_type_to_struct_type_and_call_func[*get_ast_type(p.function)].second
+        var func_type = get_ast_type(p.function)
+        if (func_type->is_ref)
+            func_type = func_type->clone_without_ref()
+        p.parent->function_call.func = lambda_type_to_struct_type_and_call_func[*func_type].second
         p.parent->function_call.parameters.add(0, function_struct)
     })
     curr_time = split(curr_time, "\tfunction_value_call_points.forEach")
@@ -286,8 +298,18 @@ fun function_value_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>,
     curr_time = split(curr_time, "\tfunction_value_creation_points.forEach")
     lambdas.for_each(fun(l: *ast_node) l->function.type = l->function.type->clone();)
     all_types.for_each(fun(t: *type) {
-        if (lambda_type_to_struct_type_and_call_func.contains_key(*t))
-            *t = *lambda_type_to_struct_type_and_call_func[*t].first
+        var t_nptr = t
+        if (t->indirection != 0 || t->is_ref) {
+            t_nptr = t->clone()
+            t_nptr->indirection = 0
+            t_nptr->is_ref = false
+        }
+        if (lambda_type_to_struct_type_and_call_func.contains_key(*t_nptr)) {
+            if (t_nptr != t)
+                *t = *lambda_type_to_struct_type_and_call_func[*t_nptr].first->clone_with_indirection(t->indirection, t->is_ref)
+            else
+                *t = *lambda_type_to_struct_type_and_call_func[*t_nptr].first
+        }
     })
     curr_time = split(curr_time, "\tlambdas.for_each")
     closed_over_uses.for_each(fun(p: pair<*ast_node, pair<*ast_node, *ast_node>>) {

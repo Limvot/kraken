@@ -198,7 +198,7 @@ obj ast_transformation (Object) {
                 type_ptr(vec<*type>(), node->adt_def.self_type->clone_with_increased_indirection(), 0, false, false, true),
                 vec<*ast_node>(), _ident("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
             make_pair("copy_construct", _function(str("copy_construct"),
-                type_ptr(vec(copy_construct_param->identifier.type), type_ptr(base_type::void_return()), 0, false, false, true),
+                type_ptr(vec(copy_construct_param->identifier.type), node->adt_def.self_type->clone_with_increased_indirection(), 0, false, false, true),
                 vec(copy_construct_param), _ident("this", node->adt_def.self_type->clone_with_indirection(1), node), false, false)),
             make_pair("operator=",      _function(str("operator="),
                 type_ptr(vec(assign_param->identifier.type), type_ptr(base_type::void_return()), 0, false, false, true),

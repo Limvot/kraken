@@ -446,7 +446,7 @@ obj c_generator (Object) {
         return str("impossible type") + indirection
     }
     fun type_decoration(type: *type): str {
-        return cify_name(type_to_c(type))
+        return cify_name(type->to_string())
     }
     fun get_name(node: *ast_node): str {
         var maybe_it = ast_name_map.get_ptr_or_null(node);

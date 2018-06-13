@@ -108,6 +108,7 @@ fun adt_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syn
                                 if_stmt_inner->if_statement.then_part = assign_or_copy_construct_statement(our_option, their_option)
                                 block->code_block.children.add(if_stmt_inner)
                             }
+                            block->code_block.children.add(_return(func_this))
                         } else if (func->function.name == "operator=") {
                             var other = func->function.parameters[0]
                             block->code_block.children.add(make_method_call(func_this, "destruct", vec<*ast_node>()))
