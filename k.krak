@@ -1,0 +1,132 @@
+
+import io:*
+import grammer:*
+import lexer:*
+import parser:*
+import str:*
+import serialize:*
+import os:*
+import vec:*
+import vec_literals:*
+import poset:*
+import util:*
+
+fun main(argc: int, argv: **char):int {
+    // delay construction until we either load it or copy construct it
+    var gram: grammer
+    var base_dir = str("/").join(str(argv[0]).split('/').slice(0,-2))
+    var file_name = base_dir + "/krakenGrammer.kgm"
+    var compiled_name = file_name + str(".comp_new")
+    var compiled_version = 1
+    var file_contents = read_file(file_name)
+    var loaded_and_valid = false
+
+    if (argc <= 1) {
+        println("No input file!\n Call with one argument (the input file), or two arguments (input file and output name)")
+        exit(1)
+    } else if (str(argv[1]) == "-v" || str(argv[1]) == "--version") {
+        println("0.0 pre")
+        exit(0)
+    }
+    var opt_str = str("-O2")
+    var compile_c = true
+    var positional_args = vec<str>()
+    for (var i = 1; i < argc; i++;) {
+        var arg_str = str(argv[i])
+        if (arg_str.length() > 2 && arg_str.slice(0,2) == "-O") {
+            opt_str = arg_str
+        } else if (arg_str == "--no-c-compile") {
+            compile_c = false
+        } else {
+            positional_args.add(arg_str)
+        }
+    }
+
+    if (file_exists(compiled_name)) {
+        var pos = 0
+        var binary = read_file_binary(compiled_name)
+        var saved_version = 0
+        unpack(saved_version, pos) = unserialize<int>(binary, pos)
+        if (saved_version == compiled_version) {
+            var cached_contents = str()
+            unpack(cached_contents, pos) = unserialize<str>(binary, pos)
+            if (cached_contents == file_contents) {
+                loaded_and_valid = true
+                pos = gram.unserialize(binary, pos)
+            } else println("contents different")
+        } else println("version number different")
+    } else {
+        println("cached file does not exist")
+    }
+    if (!loaded_and_valid) {
+        println("Not loaded_and_valid, re-generating and writing out")
+        gram.copy_construct(&load_grammer(file_contents))
+        println("grammer loaded, calculate_first_set")
+        gram.calculate_first_set()
+        println("grammer loaded, calculate_state_automaton")
+        gram.calculate_state_automaton()
+        println("calculated, writing out")
+        write_file_binary(compiled_name, serialize(compiled_version) + serialize(file_contents) + serialize(gram))
+        println("done writing")
+    }
+
+    var lex = lexer(gram.terminals)
+    var parse.construct(&gram, &lex): parser
+
+    var kraken_file_name = positional_args[0]
+    var executable_name = str(".").join(kraken_file_name.split('.').slice(0,-2))
+    if (positional_args.size > 1)
+        executable_name = positional_args[1]
+
+    var pass_poset = poset<pair<str, int>>()
+    var name_ast_map = map<str, *node>()
+    var import_paths =  vec(str(), base_dir + "/stdlib/")
+    var passes = vec(
+        fun(file_name: str): *node {
+            println("Doing thing 1 to " + file_name)
+            var file = str()
+            for (var i = 0; i < import_paths.size; i++;) {
+                if (file_exists(import_paths[i] + file_name)) {
+                    if (file != "")
+                        error("File: " + file_name + ", found in multiple import paths - at least two of [" + str(",").join(import_paths) + "]")
+                    file = read_file(import_paths[i] + file_name)
+                }
+            }
+            if (file == "")
+                error("File: " + file_name + ", not found in any import path - none of [" + str(",").join(import_paths) + "]")
+            printerr(file_name + ", ")
+            var parse_tree = parse.parse_input(file, file_name)
+            return new<node>()->copy_construct(&node::placeholder())
+        },
+        fun(file_name: str): *node {
+            println("Doing thing 2 to " + file_name)
+            return new<node>()->copy_construct(&node::placeholder())
+        }
+    )
+    for (var i = 0; i < passes.size; i++;) {
+        if (i == 0)
+            pass_poset.add_vertex(make_pair(kraken_file_name, i))
+        else
+            pass_poset.add_relationship(make_pair(kraken_file_name, i), make_pair(kraken_file_name, i-1))
+    }
+    while (pass_poset.size() != 0) {
+        var file_pass = pass_poset.pop()
+        name_ast_map[file_pass.first] = passes[file_pass.second](file_pass.first)
+    }
+
+    var kraken_c_output_name = kraken_file_name + ".c"
+    var c_code = str("//don't you wish this was real kraken\n")
+    var c_flags = str("")
+    write_file(kraken_c_output_name, c_code)
+
+    if (compile_c) {
+        var compile_string = "cc -g " + opt_str + " -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -Wno-incompatible-pointer-types -std=c99 " + c_flags + " " + kraken_c_output_name + " -o " + executable_name
+        /*printlnerr(compile_string)*/
+        /*system(compile_string)*/
+    }
+
+    return 0
+}
+adt node {
+    placeholder
+}

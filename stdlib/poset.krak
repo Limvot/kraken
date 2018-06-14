@@ -2,6 +2,7 @@ import vec:*
 import queue:*
 import map:*
 import set:*
+import util:*
 
 fun poset<T>(): poset<T> {
     var to_ret.construct(): poset<T>
@@ -24,6 +25,9 @@ obj poset<T> (Object) {
     fun destruct() {
         adj_matrix.destruct()
     }
+    fun size(): int {
+        return adj_matrix.size()
+    }
     fun add_relationship(first: T, second: T) {
         if (!adj_matrix.contains_key(first))
             add_vertex(first)
@@ -44,6 +48,22 @@ obj poset<T> (Object) {
         })
         return depends_on
     }
+    fun pop(): T {
+        for (var i = 0; i < adj_matrix.keys.size; i++;) {
+            if (adj_matrix.values[i].size() == 0) {
+                var to_ret = adj_matrix.keys[i]
+                for (var j = 0; j < adj_matrix.keys.size; j++;) {
+                    // remove is ok if it doesn't exist
+                    /*if (adj_matrix.values[i].contains(to_ret)) {*/
+                        adj_matrix.values[j].remove(to_ret)
+                    /*}*/
+                }
+                adj_matrix.remove(to_ret)
+                return to_ret
+            }
+        }
+        error("Nothing to pop")
+    }
     fun get_sorted(): vec<T> {
         var sorted = vec<T>()
         var to_do = queue<T>()
@@ -56,7 +76,6 @@ obj poset<T> (Object) {
             sorted.add(current)
             get_depends_on(current).for_each(fun(vert: T) {
                 temp_adj_matrix[vert].remove(current)
-                /*print(vert); print(" now has "); print(temp_adj_matrix[vert].size()); println(" dependencies")*/
                 if (temp_adj_matrix[vert].size() == 0)
                     to_do.push(vert)
             })
