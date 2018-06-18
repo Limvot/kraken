@@ -39,6 +39,9 @@ fun symbol(nameIn: ref str::str, terminalIn: bool, dataIn: ref str::str, positio
     return toRet
 }
 
+fun to_string(s: ref symbol): str::str {
+    return s.to_string()
+}
 obj symbol (Object, Serializable) {
     var data: str::str
     var name: str::str

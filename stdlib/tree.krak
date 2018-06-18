@@ -9,6 +9,11 @@ obj tree<T> (Object) {
         children.construct()
         return this
     }
+    fun construct(dataIn: T, c: ref vec::vec<*tree<T>>): *tree<T> {
+        mem::maybe_copy_construct(&data, &dataIn)
+        children.copy_construct(&c)
+        return this
+    }
     // Some of these don't really make much sense considering this tree is all about
     // heap allocated pointers. Best to have it for saftey, though
     fun copy_construct(old: *tree<T>) {

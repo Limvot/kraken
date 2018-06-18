@@ -10,8 +10,11 @@ import vec:*
 import vec_literals:*
 import poset:*
 import util:*
+import ast:*
+import tree:*
+import symbol:*
 
-fun main(argc: int, argv: **char):int {
+fun main(argc: int, argv: **char): int {
     // delay construction until we either load it or copy construct it
     var gram: grammer
     var base_dir = str("/").join(str(argv[0]).split('/').slice(0,-2))
@@ -79,11 +82,10 @@ fun main(argc: int, argv: **char):int {
         executable_name = positional_args[1]
 
     var pass_poset = poset<pair<str, int>>()
-    var name_ast_map = map<str, *node>()
+    var name_ast_map = map<str, *tree<ast>>()
     var import_paths =  vec(str(), base_dir + "/stdlib/")
     var passes = vec(
-        fun(file_name: str): *node {
-            println("Doing thing 1 to " + file_name)
+        fun(file_name: str): *tree<ast> {
             var file = str()
             for (var i = 0; i < import_paths.size; i++;) {
                 if (file_exists(import_paths[i] + file_name)) {
@@ -96,11 +98,13 @@ fun main(argc: int, argv: **char):int {
                 error("File: " + file_name + ", not found in any import path - none of [" + str(",").join(import_paths) + "]")
             printerr(file_name + ", ")
             var parse_tree = parse.parse_input(file, file_name)
-            return new<node>()->copy_construct(&node::placeholder())
+            return syntax_to_ast(file_name, parse_tree)
         },
-        fun(file_name: str): *node {
+        fun(file_name: str): *tree<ast> {
             println("Doing thing 2 to " + file_name)
-            return new<node>()->copy_construct(&node::placeholder())
+            printlnerr("just gonna ret")
+            print_tree(name_ast_map[file_name], 1)
+            return name_ast_map[file_name]
         }
     )
     for (var i = 0; i < passes.size; i++;) {
@@ -111,8 +115,18 @@ fun main(argc: int, argv: **char):int {
     }
     while (pass_poset.size() != 0) {
         var file_pass = pass_poset.pop()
+        printlnerr("doing pass " + to_string(file_pass.second) + " on " + file_pass.first)
         name_ast_map[file_pass.first] = passes[file_pass.second](file_pass.first)
     }
+
+    println()
+    println()
+    println("Finished with trees:")
+    name_ast_map.for_each(fun(key: str, value: *tree<ast>) {
+        printlnerr(key + ":")
+        print_tree(value, 1)
+        printlnerr("done")
+    })
 
     var kraken_c_output_name = kraken_file_name + ".c"
     var c_code = str("//don't you wish this was real kraken\n")
@@ -127,6 +141,21 @@ fun main(argc: int, argv: **char):int {
 
     return 0
 }
-adt node {
-    placeholder
+
+fun syntax_to_ast(file_name: str, syntax: *tree<symbol>): *tree<ast> {
+    /*return _translation_unit(file_name)*/
+    var result = _translation_unit(file_name)
+    printlnerr("made")
+    print_tree(result, 1)
+    printlnerr("from")
+    print_tree(syntax, 1)
+    return result
+}
+fun print_tree<T>(t: *tree<T>, level: int) {
+    printlnerr("\t" * level + to_string(t->data))
+    for (var i = 0; i < t->children.size; i++;)
+        if (t->children[i])
+            print_tree(t->children[i], level+1)
+        else
+            printlnerr("\t" * level + "null!")
 }

@@ -1,0 +1,209 @@
+import tree:*
+import type:*
+import vec:*
+import set:*
+import util:*
+import str:*
+import mem:*
+
+adt ast {
+    _translation_unit: str,
+    _import: set<str>,
+    _identifier: pair<str, *type>,
+    _binding: pair<str, *tree<ast>>,
+    _type_def: str,
+    _adt_def: str,
+    _function: pair<str, *type>,
+    _template: pair<str, set<str>>,
+    _declaration,
+    _assignment,
+    _block,
+    _if,
+    _match,
+    _case,
+    _while,
+    _for,
+    _return,
+    _break,
+    _continue,
+    _defer,
+    _call,
+    _compiler_intrinsic: pair<str, vec<*type>>,
+    _cast: *type,
+    _value: pair<str, *type>
+}
+fun to_string(a: ref ast): str {
+    match(a) {
+        ast::_translation_unit()    return str("_translation_unit")
+        ast::_import()              return str("_import")
+        ast::_identifier()          return str("_identifier")
+        ast::_binding()             return str("_binding")
+        ast::_type_def()            return str("_type_def")
+        ast::_adt_def()             return str("_adt_def")
+        ast::_function()            return str("_function")
+        ast::_template()            return str("_template")
+        ast::_declaration()         return str("_declaration")
+        ast::_assignment()          return str("_assignment")
+        ast::_block()               return str("_block")
+        ast::_if()                  return str("_if")
+        ast::_match()               return str("_match")
+        ast::_case()                return str("_case")
+        ast::_while()               return str("_while")
+        ast::_for()                 return str("_for")
+        ast::_return()              return str("_return")
+        ast::_break()               return str("_break")
+        ast::_continue()            return str("_continue")
+        ast::_defer()               return str("_defer")
+        ast::_call()                return str("_call")
+        ast::_compiler_intrinsic()  return str("_compiler_intrinsic")
+        ast::_cast()                return str("_cast")
+        ast::_value()               return str("_value")
+    }
+}
+fun _translation_unit(p: str): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_translation_unit(p))
+}
+fun _import(p: set<str>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_import(p))
+}
+fun _type_def(p: str): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_type_def(p))
+}
+fun _adt_def(p: str): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_adt_def(p))
+}
+fun _cast(p: *type): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_cast(p))
+}
+fun _identifier(p1: str, p2: *type): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_identifier(make_pair(p1, p2)))
+}
+fun _binding(p1: str, p2: *tree<ast>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_binding(make_pair(p1, p2)))
+}
+fun _function(p1: str, p2: *type): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_function(make_pair(p1, p2)))
+}
+fun _template(p1: str, p2: set<str>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_template(make_pair(p1, p2)))
+}
+fun _compiler_intrinsic(p1: str, p2: vec<*type>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_compiler_intrinsic(make_pair(p1, p2)))
+}
+fun _value(p1: str, p2: *type): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_value(make_pair(p1, p2)))
+}
+fun _declaration(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_declaration())
+}
+fun _assignment(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_assignment())
+}
+fun _block(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_block())
+}
+fun _if(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_if())
+}
+fun _match(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_match())
+}
+fun _case(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_case())
+}
+fun _while(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_while())
+}
+fun _for(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_for())
+}
+fun _return(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_return())
+}
+fun _break(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_break())
+}
+fun _continue(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_continue())
+}
+fun _defer(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_defer())
+}
+fun _call(): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_call())
+}
+
+
+
+fun _translation_unit(p: str, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_translation_unit(p), c)
+}
+fun _import(p: set<str>, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_import(p), c)
+}
+fun _type_def(p: str, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_type_def(p), c)
+}
+fun _adt_def(p: str, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_adt_def(p), c)
+}
+fun _cast(p: *type, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_cast(p), c)
+}
+fun _identifier(p1: str, p2: *type, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_identifier(make_pair(p1, p2)), c)
+}
+fun _binding(p1: str, p2: *tree<ast>, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_binding(make_pair(p1, p2)), c)
+}
+fun _function(p1: str, p2: *type, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_function(make_pair(p1, p2)), c)
+}
+fun _template(p1: str, p2: set<str>, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_template(make_pair(p1, p2)), c)
+}
+fun _compiler_intrinsic(p1: str, p2: vec<*type>, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_compiler_intrinsic(make_pair(p1, p2)), c)
+}
+fun _value(p1: str, p2: *type, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_value(make_pair(p1, p2)), c)
+}
+fun _declaration(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_declaration(), c)
+}
+fun _assignment(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_assignment(), c)
+}
+fun _block(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_block(), c)
+}
+fun _if(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_if(), c)
+}
+fun _match(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_match(), c)
+}
+fun _case(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_case(), c)
+}
+fun _while(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_while(), c)
+}
+fun _for(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_for(), c)
+}
+fun _return(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_return(), c)
+}
+fun _break(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_break(), c)
+}
+fun _continue(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_continue(), c)
+}
+fun _defer(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_defer(), c)
+}
+fun _call(c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_call(), c)
+}

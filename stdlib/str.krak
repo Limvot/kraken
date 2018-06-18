@@ -88,6 +88,15 @@ fun operator+(first: *char, second: ref str): str {
 fun operator+(first: int, second: ref str): str {
     return to_string(first) + second
 }
+fun operator*(first: *char, second: int): str {
+    return str(first) * second
+}
+fun operator*(first: int, second: *char): str {
+    return str(second) * first
+}
+fun operator*(first: int, second: ref str): str {
+    return second * first
+}
 
 fun str(in:*char):str {
     var out.construct(in):str
@@ -189,6 +198,13 @@ obj str (Object, Serializable, Hashable) {
     fun operator==(other: *char): bool {
         var str.construct(other) : str
         return *this == str
+    }
+
+    fun operator*(n: int): str {
+        var to_ret.construct(): str
+        while (n-- > 0)
+            to_ret += *this
+        return to_ret
     }
 
     fun operator+(c: char): str {
