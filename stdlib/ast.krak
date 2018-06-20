@@ -34,14 +34,14 @@ adt ast {
 }
 fun to_string(a: ref ast): str {
     match(a) {
-        ast::_translation_unit()    return str("_translation_unit")
-        ast::_import()              return str("_import")
-        ast::_identifier()          return str("_identifier")
-        ast::_binding()             return str("_binding")
-        ast::_type_def()            return str("_type_def")
-        ast::_adt_def()             return str("_adt_def")
-        ast::_function()            return str("_function")
-        ast::_template()            return str("_template")
+        ast::_translation_unit(b)   return str("_translation_unit(") + b + ")"
+        ast::_import(b)             return str("_import[") + str(",").join(b.data) + "]"
+        ast::_identifier(b)         return str("_identifier(") + b.first + ")"
+        ast::_binding(b)            return str("_binding(") + b.first + ")"
+        ast::_type_def(b)           return str("_type_def(") + b + ")"
+        ast::_adt_def(b)            return str("_adt_def(") + b + ")"
+        ast::_function(b)           return str("_function(") + b.first + ")"
+        ast::_template(b)           return str("_template(") + b.first + ")"
         ast::_declaration()         return str("_declaration")
         ast::_assignment()          return str("_assignment")
         ast::_block()               return str("_block")
@@ -55,9 +55,9 @@ fun to_string(a: ref ast): str {
         ast::_continue()            return str("_continue")
         ast::_defer()               return str("_defer")
         ast::_call()                return str("_call")
-        ast::_compiler_intrinsic()  return str("_compiler_intrinsic")
-        ast::_cast()                return str("_cast")
-        ast::_value()               return str("_value")
+        ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ")"
+        ast::_cast(b)               return str("_cast")
+        ast::_value(b)              return str("_value(") + b.first + ")"
     }
 }
 fun _translation_unit(p: str): *tree<ast> {

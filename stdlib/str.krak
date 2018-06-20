@@ -291,10 +291,14 @@ obj str (Object, Serializable, Hashable) {
         return out
     }
     fun join(to_join: ref vec::vec<str>): str {
-        var to_ret = to_join.first()
-        for (var i = 1; i < to_join.size; i++;)
-            to_ret += *this + to_join[i]
-        return to_ret
+        if (to_join.size != 0) {
+            var to_ret = to_join.first()
+            for (var i = 1; i < to_join.size; i++;)
+                to_ret += *this + to_join[i]
+            return to_ret
+        } else {
+            return str("")
+        }
     }
     fun for_each(func: fun(char):void) {
         data.for_each(func)

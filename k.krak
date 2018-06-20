@@ -6,6 +6,7 @@ import parser:*
 import str:*
 import serialize:*
 import os:*
+import set:*
 import vec:*
 import vec_literals:*
 import poset:*
@@ -84,7 +85,8 @@ fun main(argc: int, argv: **char): int {
     var pass_poset = poset<pair<str, int>>()
     var name_ast_map = map<str, *tree<ast>>()
     var import_paths =  vec(str(), base_dir + "/stdlib/")
-    var passes = vec(
+    var passes = vec<fun(str): *tree<ast>>()
+    passes = vec(
         fun(file_name: str): *tree<ast> {
             var file = str()
             for (var i = 0; i < import_paths.size; i++;) {
@@ -98,12 +100,28 @@ fun main(argc: int, argv: **char): int {
                 error("File: " + file_name + ", not found in any import path - none of [" + str(",").join(import_paths) + "]")
             printerr(file_name + ", ")
             var parse_tree = parse.parse_input(file, file_name)
+            trim(parse_tree)
             return syntax_to_ast(file_name, parse_tree)
         },
         fun(file_name: str): *tree<ast> {
-            println("Doing thing 2 to " + file_name)
-            printlnerr("just gonna ret")
-            print_tree(name_ast_map[file_name], 1)
+            println("Checking for imports in " + file_name)
+            name_ast_map[file_name]->children.for_each(fun(n: *tree<ast>) {
+                match (n->data) {
+                    ast::_import(b) {
+                        var imported_file_name = n->children[0]->data._identifier.first + ".krak"
+                        for (var i = 0; i < passes.size; i++;) {
+                            if (i == 0)
+                                pass_poset.add_relationship(make_pair(file_name, 2), make_pair(imported_file_name, 0))
+                            else
+                                pass_poset.add_relationship(make_pair(imported_file_name, i), make_pair(imported_file_name, i-1))
+                        }
+                    }
+                }
+            })
+            return name_ast_map[file_name]
+        },
+        fun(file_name: str): *tree<ast> {
+            println("Doing thing 3 to " + file_name)
             return name_ast_map[file_name]
         }
     )
@@ -143,8 +161,88 @@ fun main(argc: int, argv: **char): int {
 }
 
 fun syntax_to_ast(file_name: str, syntax: *tree<symbol>): *tree<ast> {
-    /*return _translation_unit(file_name)*/
-    var result = _translation_unit(file_name)
+    var syntax_to_ast_helper: fun(*tree<symbol>): *tree<ast> = fun(syntax: *tree<symbol>): *tree<ast> {
+        printlnerr("syntax_to_ast " + syntax->data.name)
+        if (syntax->data.name == "import") {
+            return _import(from_vector(syntax->children.slice(2,-1).filter(fun(s:*tree<symbol>):bool {
+                return s->data.name == "identifier" || s->data.data == "*"
+            }).map(fun(s: *tree<symbol>): str {
+                return concat(s)
+            })), vec(syntax_to_ast_helper(syntax->children[1])))
+        } else if (syntax->data.name == "function")
+            return _function(concat(get_node("func_identifier", syntax)), null<type>(),
+                (get_nodes("typed_parameter", syntax) +
+                 get_nodes("statement", syntax)).map(syntax_to_ast_helper))
+        else if (syntax->data.name == "typed_parameter")
+            return _identifier(concat(get_node("identifier", syntax)), null<type>())
+        else if (syntax->data.name == "type_def")
+            return _type_def(concat(get_node("identifier", syntax)),
+                             get_nodes("declaration_statement", syntax).map(syntax_to_ast_helper))
+        else if (syntax->data.name == "adt_def")
+            return _type_def(concat(get_node("identifier", syntax)),
+                             get_nodes("adt_option", syntax).map(fun(s: *tree<symbol>): *tree<ast> {
+                                return _identifier(concat(get_node("identifier", s)), null<type>())
+                             }))
+        else if (syntax->data.name == "statement")
+            return syntax_to_ast_helper(syntax->children[0])
+        else if (syntax->data.name == "code_block")
+            return _block(syntax->children.map(syntax_to_ast_helper))
+        else if (syntax->data.name == "return_statement")
+            return _return(syntax->children.map(syntax_to_ast_helper))
+        else if (syntax->data.name == "defer_statement")
+            return _defer(syntax->children.map(syntax_to_ast_helper))
+        else if (syntax->data.name == "match_statement") {
+            return _match(vec(syntax_to_ast_helper(get_node("boolean_expression", syntax))) +
+                              get_nodes("case_statement", syntax).map(fun(s: *tree<symbol>): *tree<ast> {
+                                    return _case(s->children.map(syntax_to_ast_helper))
+                              }))
+        } else if (syntax->data.name == "declaration_statement") {
+            var children = vec(_identifier(concat(get_node("identifier", syntax)), null<type>()))
+            children += get_nodes("boolean_expression", syntax).map(syntax_to_ast_helper)
+            return _declaration(children)
+        } else if (syntax->data.name == "assignment_statement")
+            return _assignment(vec(_binding(concat(syntax->children[1]), null<tree<ast>>()),
+                                   syntax_to_ast_helper(syntax->children[0]),
+                                   syntax_to_ast_helper(syntax->children[2])))
+        else if (syntax->data.name == "function_call")
+            return _call(syntax->children.map(fun(s: *tree<symbol>): *tree<ast> {
+                                return syntax_to_ast_helper(s->children[0])
+                         }))
+        else if (syntax->data.name == "boolean_expression" ||
+                 syntax->data.name == "and_boolean_expression" ||
+                 syntax->data.name == "bitwise_or" ||
+                 syntax->data.name == "bitwise_xor" ||
+                 syntax->data.name == "bitwise_and" ||
+                 syntax->data.name == "bool_exp" ||
+                 syntax->data.name == "expression" ||
+                 syntax->data.name == "shiftand" ||
+                 syntax->data.name == "term" ||
+                 syntax->data.name == "factor" ||
+                 syntax->data.name == "unarad" ||
+                 syntax->data.name == "access_operation") {
+            if (syntax->children.size == 1) {
+                return syntax_to_ast_helper(syntax->children[0])
+            } else if (syntax->children.size == 2) {
+                if (syntax->children[0]->data.terminal) {
+                    return _call(vec(_binding(concat(syntax->children[0]), null<tree<ast>>()),
+                                     syntax_to_ast_helper(syntax->children[1])))
+                } else {
+                    return _call(vec(_binding(concat(syntax->children[1]), null<tree<ast>>()),
+                                     syntax_to_ast_helper(syntax->children[0])))
+                }
+            } else {
+                return _call(vec(_binding(concat(syntax->children[1]), null<tree<ast>>()),
+                                 syntax_to_ast_helper(syntax->children[0]),
+                                 syntax_to_ast_helper(syntax->children[2])))
+            }
+        } else if (syntax->data.name == "number")
+            return _value(concat(syntax), null<type>())
+        else if (syntax->data.name == "scoped_identifier" || syntax->data.name == "identifier")
+            return _binding(concat(syntax), null<tree<ast>>())
+        else
+            return null<tree<ast>>()
+    }
+    var result = _translation_unit(file_name, syntax->children.map(syntax_to_ast_helper))
     printlnerr("made")
     print_tree(result, 1)
     printlnerr("from")
@@ -157,5 +255,121 @@ fun print_tree<T>(t: *tree<T>, level: int) {
         if (t->children[i])
             print_tree(t->children[i], level+1)
         else
-            printlnerr("\t" * level + "null!")
+            printlnerr("\t" * (level + 1) + "null!")
+}
+fun get_node(lookup: *char, parent: *tree<symbol>): *tree<symbol> {
+    return get_node(str(lookup), parent)
+}
+fun get_node(lookup: str, parent: *tree<symbol>): *tree<symbol> {
+    var results = get_nodes(lookup, parent)
+    if (results.size > 1)
+        error(parent, "get node too many results!")
+    if (results.size)
+        return results[0]
+    return null<tree<symbol>>()
+}
+fun get_nodes(lookup: *char, parent: *tree<symbol>): vec<*tree<symbol>> {
+    return get_nodes(str(lookup), parent)
+}
+fun get_nodes(lookup: str, parent: *tree<symbol>): vec<*tree<symbol>> {
+    return parent->children.filter(fun(node: *tree<symbol>):bool return node->data.name == lookup;)
+}
+fun concat(node: *tree<symbol>): str {
+    var str.construct(): str
+    if (node->data.data != "no_value")
+        str += node->data.data
+    node->children.for_each(fun(child: *tree<symbol>) str += concat(child);)
+    return str
+}
+fun get_first_terminal(source: *tree<symbol>): *tree<symbol> {
+    if (!source)
+        return null<tree<symbol>>()
+    if (source->data.terminal)
+        return source
+    if (source->children.size == 0)
+        return null<tree<symbol>>()
+    return get_first_terminal(source->children.first())
+}
+fun error(source: *tree<symbol>, message: *char) error(source, str(message));
+fun error(source: *tree<symbol>, message: str) {
+    var first = get_first_terminal(source)
+    if (first)
+        error("***error |" + concat(source) + "| *** " + first->data.source + ": " + first->data.position + " " + message)
+    error(message)
+}
+fun trim(parse_tree: *tree<symbol>) {
+    remove_node(symbol("$NULL$", false), parse_tree)
+    remove_node(symbol("WS", false), parse_tree)
+    // the terminals have " around them, which we have to escape
+    remove_node(symbol("\"\\(\"", true), parse_tree)
+    remove_node(symbol("\"\\)\"", true), parse_tree)
+    remove_node(symbol("\"template\"", true), parse_tree)
+    remove_node(symbol("\"return\"", true), parse_tree)
+    remove_node(symbol("\"defer\"", true), parse_tree)
+    remove_node(symbol("\";\"", true), parse_tree)
+    remove_node(symbol("line_end", false), parse_tree)
+    remove_node(symbol("\"{\"", true), parse_tree)
+    remove_node(symbol("\"}\"", true), parse_tree)
+    remove_node(symbol("\"(\"", true), parse_tree)
+    remove_node(symbol("\")\"", true), parse_tree)
+    remove_node(symbol("\"if\"", true), parse_tree)
+    remove_node(symbol("\"while\"", true), parse_tree)
+    remove_node(symbol("\"__if_comp__\"", true), parse_tree)
+    remove_node(symbol("\"comp_simple_passthrough\"", true), parse_tree)
+    /*remove_node(symbol("obj_nonterm", false), parse_tree)*/
+    remove_node(symbol("adt_nonterm", false), parse_tree)
+
+    collapse_node(symbol("case_statement_list", false), parse_tree)
+    collapse_node(symbol("opt_param_assign_list", false), parse_tree)
+    collapse_node(symbol("param_assign_list", false), parse_tree)
+    collapse_node(symbol("opt_typed_parameter_list", false), parse_tree)
+    collapse_node(symbol("opt_parameter_list", false), parse_tree)
+    collapse_node(symbol("intrinsic_parameter_list", false), parse_tree)
+    collapse_node(symbol("identifier_list", false), parse_tree)
+    collapse_node(symbol("adt_option_list", false), parse_tree)
+    collapse_node(symbol("statement_list", false), parse_tree)
+    collapse_node(symbol("parameter_list", false), parse_tree)
+    collapse_node(symbol("typed_parameter_list", false), parse_tree)
+    collapse_node(symbol("unorderd_list_part", false), parse_tree)
+    collapse_node(symbol("if_comp_pred", false), parse_tree)
+    collapse_node(symbol("declaration_block", false), parse_tree)
+    collapse_node(symbol("type_list", false), parse_tree)
+    collapse_node(symbol("opt_type_list", false), parse_tree)
+    collapse_node(symbol("template_param_list", false), parse_tree)
+    collapse_node(symbol("trait_list", false), parse_tree)
+    collapse_node(symbol("dec_type", false), parse_tree)
+}
+fun remove_node(remove: symbol, parse_tree: *tree<symbol>) {
+    var to_process = stack<*tree<symbol>>()
+    to_process.push(parse_tree)
+    while(!to_process.empty()) {
+        var node = to_process.pop()
+        for (var i = 0; i < node->children.size; i++;) {
+            if (!node->children[i] || node->children[i]->data.equal_wo_data(remove)) {
+                node->children.remove(i)
+                i--;
+            } else {
+                to_process.push(node->children[i])
+            }
+        }
+    }
+}
+fun collapse_node(remove: symbol, parse_tree: *tree<symbol>) {
+    var to_process = stack<*tree<symbol>>()
+    to_process.push(parse_tree)
+    while(!to_process.empty()) {
+        var node = to_process.pop()
+        for (var i = 0; i < node->children.size; i++;) {
+            if (node->children[i]->data.equal_wo_data(remove)) {
+                var add_children = node->children[i]->children;
+                // stick child's children between the current children divided
+                // on i, without including i
+                node->children = node->children.slice(0,i) +
+                                    add_children + node->children.slice(i+1,-1)
+                i--;
+            } else {
+                to_process.push(node->children[i])
+            }
+        }
+    }
 }
