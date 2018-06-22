@@ -166,24 +166,34 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>): *tree<ast> {
         if (syntax->data.name == "import") {
             return _import(from_vector(syntax->children.slice(2,-1).filter(fun(s:*tree<symbol>):bool {
                 return s->data.name == "identifier" || s->data.data == "*"
-            }).map(fun(s: *tree<symbol>): str {
-                return concat(s)
-            })), vec(syntax_to_ast_helper(syntax->children[1])))
+            }).map(concat)), vec(syntax_to_ast_helper(syntax->children[1])))
         } else if (syntax->data.name == "function")
             return _function(concat(get_node("func_identifier", syntax)), null<type>(),
                 (get_nodes("typed_parameter", syntax) +
                  get_nodes("statement", syntax)).map(syntax_to_ast_helper))
         else if (syntax->data.name == "typed_parameter")
             return _identifier(concat(get_node("identifier", syntax)), null<type>())
-        else if (syntax->data.name == "type_def")
-            return _type_def(concat(get_node("identifier", syntax)),
+        else if (syntax->data.name == "type_def") {
+            var n = _type_def(concat(get_node("identifier", syntax)),
                              get_nodes("declaration_statement", syntax).map(syntax_to_ast_helper))
-        else if (syntax->data.name == "adt_def")
-            return _type_def(concat(get_node("identifier", syntax)),
+            var template = get_node("template_dec", syntax)
+            if (template == null<tree<symbol>>()) {
+                return n
+            } else {
+                return _template(n->data._type_def, from_vector(get_nodes("template_param", template).map(concat)), vec(n))
+            }
+        } else if (syntax->data.name == "adt_def") {
+            var n = _adt_def(concat(get_node("identifier", syntax)),
                              get_nodes("adt_option", syntax).map(fun(s: *tree<symbol>): *tree<ast> {
                                 return _identifier(concat(get_node("identifier", s)), null<type>())
                              }))
-        else if (syntax->data.name == "statement")
+            var template = get_node("template_dec", syntax)
+            if (template == null<tree<symbol>>()) {
+                return n
+            } else {
+                return _template(n->data._adt_def, from_vector(get_nodes("template_param", template).map(concat)), vec(n))
+            }
+        } else if (syntax->data.name == "statement")
             return syntax_to_ast_helper(syntax->children[0])
         else if (syntax->data.name == "code_block")
             return _block(syntax->children.map(syntax_to_ast_helper))
@@ -205,7 +215,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>): *tree<ast> {
                                    syntax_to_ast_helper(syntax->children[0]),
                                    syntax_to_ast_helper(syntax->children[2])))
         else if (syntax->data.name == "function_call")
-            return _call(syntax->children.map(fun(s: *tree<symbol>): *tree<ast> {
+            return _call(vec(syntax_to_ast_helper(syntax->children[0])) + get_nodes("parameter", syntax).map(fun(s: *tree<symbol>): *tree<ast> {
                                 return syntax_to_ast_helper(s->children[0])
                          }))
         else if (syntax->data.name == "boolean_expression" ||
@@ -223,7 +233,12 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>): *tree<ast> {
             if (syntax->children.size == 1) {
                 return syntax_to_ast_helper(syntax->children[0])
             } else if (syntax->children.size == 2) {
-                if (syntax->children[0]->data.terminal) {
+                var template_inst = get_node("template_inst", syntax)
+                if (template_inst != null<tree<symbol>>()) {
+                    if (syntax->children[0]->data.name != "scoped_identifier")
+                        error(syntax, "Unexpected template instantiation (not on an identifier)")
+                    return _binding(concat(syntax->children[0]) + "<somin>", vec<*type>(), null<tree<ast>>())
+                } else if (syntax->children[0]->data.terminal) {
                     return _call(vec(_binding(concat(syntax->children[0]), null<tree<ast>>()),
                                      syntax_to_ast_helper(syntax->children[1])))
                 } else {

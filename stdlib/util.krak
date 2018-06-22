@@ -70,13 +70,13 @@ fun make_pair<T,U>(first: T, second: U): pair<T,U> {
 }
 
 // little ugly, but it works
-fun unpack<T,U>(first: ref T, second: ref U): unpack_dummy<T,U> {
-    var toRet: unpack_dummy<T,U>
+fun unpack<T,U>(first: ref T, second: ref U): unpack_dummy_pair<T,U> {
+    var toRet: unpack_dummy_pair<T,U>
     toRet.first = &first
     toRet.second = &second
     return toRet
 }
-obj unpack_dummy<T,U> {
+obj unpack_dummy_pair<T,U> {
     var first: *T
     var second: *U
     fun operator=(p: ref pair<T,U>) {
@@ -128,6 +128,83 @@ obj pair<T,U> (Object, Serializable, Hashable) {
     // if not used trick (in this case, changing out U with V)
     fun operator==<V>(other: ref pair<T,V>): bool {
         return first == other.first && second == other.second
+    }
+}
+
+fun make_triple<T,U,V>(first: T, second: U, third: V): triple<T,U,V> {
+    var it.construct(first, second, third): triple<T,U,V>
+    return it
+}
+
+// little ugly, but it works
+fun unpack<T,U,V>(first: ref T, second: ref U, third: ref V): unpack_dummy_triple<T,U,V> {
+    var toRet: unpack_dummy_triple<T,U>
+    toRet.first = &first
+    toRet.second = &second
+    toRet.third = &third
+    return toRet
+}
+obj unpack_dummy_triple<T,U,V> {
+    var first: *T
+    var second: *U
+    var third: *V
+    fun operator=(p: ref triple<T,U,V>) {
+        *first = p.first
+        *second = p.second
+        *third = p.third
+    }
+}
+
+obj triple<T,U,V> (Object, Serializable, Hashable) {
+    var first: T
+    var second: U
+    var third: V
+
+    fun construct(firstIn: ref T, secondIn: ref U, thirdIn: ref V): *triple<T,U,V> {
+        mem::maybe_copy_construct(&first, &firstIn)
+        mem::maybe_copy_construct(&second, &secondIn)
+        mem::maybe_copy_construct(&third, &thirdIn)
+        return this
+    }
+
+    fun construct(): *triple<T,U,V> {
+        mem::maybe_construct(&first)
+        mem::maybe_construct(&second)
+        mem::maybe_construct(&third)
+        return this
+    }
+
+    fun copy_construct(old: *triple<T,U,V>):void {
+        mem::maybe_copy_construct(&first, &old->first)
+        mem::maybe_copy_construct(&second, &old->second)
+        mem::maybe_copy_construct(&third, &old->third)
+    }
+
+    fun destruct():void {
+        mem::maybe_destruct(&first)
+        mem::maybe_destruct(&second)
+        mem::maybe_destruct(&third)
+    }
+    fun serialize(): vec::vec<char> {
+        return serialize::serialize(first) + serialize::serialize(second) + serialize::serialize(third)
+    }
+    fun unserialize(it: ref vec::vec<char>, pos: int): int {
+        // can't use unpack :( (b/c we can't make an already constructed empty one)
+        var first_pair = serialize::unserialize<T>(it, pos)
+        var second_pair = serialize::unserialize<U>(it, first_pair.second)
+        var third_pair = serialize::unserialize<V>(it, second_pair.second)
+        mem::maybe_copy_construct(&first, &first_pair.first)
+        mem::maybe_copy_construct(&second, &second_pair.first)
+        mem::maybe_copy_construct(&third, &third_pair.first)
+        return third_pair.second
+    }
+
+    fun hash():ulong return hash(first) ^ hash(second) ^ hash(third)
+
+    // the old unnecessary template to prevent generation
+    // if not used trick (in this case, changing out V with X)
+    fun operator==<X>(other: ref triple<T,U,X>): bool {
+        return first == other.first && second == other.second && third == other.third
     }
 }
 

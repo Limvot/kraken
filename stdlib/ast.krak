@@ -10,7 +10,7 @@ adt ast {
     _translation_unit: str,
     _import: set<str>,
     _identifier: pair<str, *type>,
-    _binding: pair<str, *tree<ast>>,
+    _binding: triple<str, vec<*type>, *tree<ast>>,
     _type_def: str,
     _adt_def: str,
     _function: pair<str, *type>,
@@ -41,7 +41,7 @@ fun to_string(a: ref ast): str {
         ast::_type_def(b)           return str("_type_def(") + b + ")"
         ast::_adt_def(b)            return str("_adt_def(") + b + ")"
         ast::_function(b)           return str("_function(") + b.first + ")"
-        ast::_template(b)           return str("_template(") + b.first + ")"
+        ast::_template(b)           return str("_template(") + b.first + "[" + str(",").join(b.second.data) + "])"
         ast::_declaration()         return str("_declaration")
         ast::_assignment()          return str("_assignment")
         ast::_block()               return str("_block")
@@ -78,8 +78,11 @@ fun _cast(p: *type): *tree<ast> {
 fun _identifier(p1: str, p2: *type): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_identifier(make_pair(p1, p2)))
 }
-fun _binding(p1: str, p2: *tree<ast>): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_binding(make_pair(p1, p2)))
+fun _binding(p1: str, p3: *tree<ast>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_binding(make_triple(p1, vec<*type>(), p3)))
+}
+fun _binding(p1: str, p2: vec<*type>, p3: *tree<ast>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_binding(make_triple(p1, p2, p3)))
 }
 fun _function(p1: str, p2: *type): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_function(make_pair(p1, p2)))
@@ -153,8 +156,11 @@ fun _cast(p: *type, c: ref vec<*tree<ast>>): *tree<ast> {
 fun _identifier(p1: str, p2: *type, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_identifier(make_pair(p1, p2)), c)
 }
-fun _binding(p1: str, p2: *tree<ast>, c: ref vec<*tree<ast>>): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_binding(make_pair(p1, p2)), c)
+fun _binding(p1: str, p3: *tree<ast>, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_binding(make_triple(p1, vec<*type>(), p3)), c)
+}
+fun _binding(p1: str, p2: vec<*type>, p3: *tree<ast>, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_binding(make_triple(p1, p2, p3)), c)
 }
 fun _function(p1: str, p2: *type, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_function(make_pair(p1, p2)), c)

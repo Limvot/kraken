@@ -289,7 +289,19 @@ obj vec<T> (Object, Serializable) {
             newVec.addEnd(func(data[i]))
         return newVec
     }
+    fun map<U>(func: run(ref T):U):vec<U> {
+        var newVec.construct(size): vec<U>
+        for (var i = 0; i < size; i++;)
+            newVec.addEnd(func(data[i]))
+        return newVec
+    }
     fun map<U>(func: fun(T):U):vec<U> {
+        var newVec.construct(size): vec<U>
+        for (var i = 0; i < size; i++;)
+            newVec.addEnd(func(data[i]))
+        return newVec
+    }
+    fun map<U>(func: run(T):U):vec<U> {
         var newVec.construct(size): vec<U>
         for (var i = 0; i < size; i++;)
             newVec.addEnd(func(data[i]))
