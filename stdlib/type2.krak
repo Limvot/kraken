@@ -2,14 +2,15 @@ import mem:*
 import str:*
 import vec:*
 import util:*
+import tree:*
 import ast:*
 
 adt base_type {
     _unknown,
     _void,
-    _object: *ast,
+    _obj: *tree<ast>,
     // triple<pair<param_types, return_type>, is_variadic, is raw>
-    _function: triple<pair<vec<*type>, *type>, bool, bool>,
+    _fun: triple<pair<vec<*type>, *type>, bool, bool>,
     _template_placeholder,
     _bool,
     _char,
@@ -23,7 +24,9 @@ adt base_type {
     _float,
     _double
 }
-
+fun type(b: base_type, ind: int, ref: bool): *type {
+    return new<type>()->construct(b, ind, ref)
+}
 obj type (Object) {
     var base: base_type
     var indirection: int
@@ -68,12 +71,20 @@ obj type (Object) {
         match (base) {
             base_type::_unknown()               return indr_string + "_unknown"
             base_type::_void()                  return indr_string + "_void"
-            base_type::_object(b) {
-                return indr_string + "_object"
+            base_type::_obj(b) {
+                return indr_string + "_obj(" + to_string(b->data) + ")"
             }
-            base_type::_function(b) {
+            base_type::_fun(b) {
                 // triple<pair<param_types, return_type>, is_variadic, is raw>
-                return indr_string + "_function()"
+                var to_ret = indr_string
+                if (b.second)
+                    to_ret += "_run("
+                else
+                    to_ret += "_fun("
+                to_ret += str(", ").join(b.first.first.map(fun(pt: *type): str return pt->to_string();))
+                if (b.third)
+                    to_ret += " ..."
+                return to_ret + "): " + b.first.second->to_string()
             }
             base_type::_template_placeholder()  return indr_string + "_template_placeholder"
             base_type::_bool()                  return indr_string + "_bool"
@@ -86,7 +97,7 @@ obj type (Object) {
             base_type::_long()                  return indr_string + "_long"
             base_type::_ulong()                 return indr_string + "_ulong"
             base_type::_float()                 return indr_string + "_float"
-            base_type::_double()                 return indr_string + "_double"
+            base_type::_double()                return indr_string + "_double"
         }
         return str("impossible type, indirection:") + indirection
     }
@@ -102,15 +113,15 @@ obj type (Object) {
         }
         return false
     }
-    fun is_object(): bool {
+    fun is_obj(): bool {
         match (base) {
-            base_type::_object() return true
+            base_type::_obj() return true
         }
         return false
     }
-    fun is_function(): bool {
+    fun is_fun(): bool {
         match (base) {
-            base_type::_function() return true
+            base_type::_fun() return true
         }
         return false
     }
