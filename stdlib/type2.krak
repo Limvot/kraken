@@ -1,0 +1,206 @@
+import mem:*
+import str:*
+import vec:*
+import util:*
+import ast:*
+
+adt base_type {
+    _unknown,
+    _void,
+    _object: *ast,
+    // triple<pair<param_types, return_type>, is_variadic, is raw>
+    _function: triple<pair<vec<*type>, *type>, bool, bool>,
+    _template_placeholder,
+    _bool,
+    _char,
+    _uchar,
+    _short,
+    _ushort,
+    _int,
+    _uint,
+    _long,
+    _ulong,
+    _float,
+    _double
+}
+
+obj type (Object) {
+    var base: base_type
+    var indirection: int
+    var is_ref: bool
+    fun construct(): *type {
+        base.copy_construct(&base_type::_unknown())
+        indirection = 0
+        is_ref = false
+        return this
+    }
+    fun construct(base_in: base_type, indirection_in: int, is_ref_in: bool): *type {
+        base.copy_construct(&base_in)
+        indirection = indirection_in
+        is_ref = is_ref_in
+        return this
+    }
+    fun copy_construct(old: *type) {
+        base.copy_construct(&old->base)
+        indirection = old->indirection
+        is_ref = old->is_ref
+    }
+    fun operator=(other: ref type) {
+        destruct()
+        copy_construct(&other)
+    }
+    fun destruct() {
+        base.destruct()
+    }
+    fun operator!=(other: ref type):bool return !equality(other, true);
+    fun operator==(other: ref type):bool return equality(other, true);
+    fun equality(other: *type, care_about_ref: bool):bool return equality(*other, care_about_ref);
+    fun equality(other: ref type, care_about_ref: bool):bool {
+        if (care_about_ref && (is_ref != other.is_ref))
+           return false
+        return base == other.base && indirection == other.indirection
+    }
+    fun to_string(): str {
+        var indr_string = str("")
+        if (is_ref)
+           indr_string += " ref "
+        for (var i = 0; i < indirection; i++;) indr_string += "*"
+        match (base) {
+            base_type::_unknown()               return indr_string + "_unknown"
+            base_type::_void()                  return indr_string + "_void"
+            base_type::_object(b) {
+                return indr_string + "_object"
+            }
+            base_type::_function(b) {
+                // triple<pair<param_types, return_type>, is_variadic, is raw>
+                return indr_string + "_function()"
+            }
+            base_type::_template_placeholder()  return indr_string + "_template_placeholder"
+            base_type::_bool()                  return indr_string + "_bool"
+            base_type::_char()                  return indr_string + "_char"
+            base_type::_uchar()                 return indr_string + "_uchar"
+            base_type::_short()                 return indr_string + "_short"
+            base_type::_ushort()                return indr_string + "_ushort"
+            base_type::_int()                   return indr_string + "_int"
+            base_type::_uint()                  return indr_string + "_uint"
+            base_type::_long()                  return indr_string + "_long"
+            base_type::_ulong()                 return indr_string + "_ulong"
+            base_type::_float()                 return indr_string + "_float"
+            base_type::_double()                 return indr_string + "_double"
+        }
+        return str("impossible type, indirection:") + indirection
+    }
+    fun is_unknown(): bool {
+        match (base) {
+            base_type::_unknown() return true
+        }
+        return false
+    }
+    fun is_void(): bool {
+        match (base) {
+            base_type::_void() return true
+        }
+        return false
+    }
+    fun is_object(): bool {
+        match (base) {
+            base_type::_object() return true
+        }
+        return false
+    }
+    fun is_function(): bool {
+        match (base) {
+            base_type::_function() return true
+        }
+        return false
+    }
+    fun is_template_placeholder(): bool {
+        match (base) {
+            base_type::_template_placeholder() return true
+        }
+        return false
+    }
+    fun is_bool(): bool {
+        match (base) {
+            base_type::_bool() return true
+        }
+        return false
+    }
+    fun is_char(): bool {
+        match (base) {
+            base_type::_char() return true
+        }
+        return false
+    }
+    fun is_uchar(): bool {
+        match (base) {
+            base_type::_uchar() return true
+        }
+        return false
+    }
+    fun is_short(): bool {
+        match (base) {
+            base_type::_short() return true
+        }
+        return false
+    }
+    fun is_ushort(): bool {
+        match (base) {
+            base_type::_ushort() return true
+        }
+        return false
+    }
+    fun is_int(): bool {
+        match (base) {
+            base_type::_int() return true
+        }
+        return false
+    }
+    fun is_uint(): bool {
+        match (base) {
+            base_type::_uint() return true
+        }
+        return false
+    }
+    fun is_long(): bool {
+        match (base) {
+            base_type::_long() return true
+        }
+        return false
+    }
+    fun is_ulong(): bool {
+        match (base) {
+            base_type::_ulong() return true
+        }
+        return false
+    }
+    fun is_float(): bool {
+        match (base) {
+            base_type::_float() return true
+        }
+        return false
+    }
+    fun is_double(): bool {
+        match (base) {
+            base_type::_double() return true
+        }
+        return false
+    }
+    fun is_signed(): bool {
+        match (base) {
+            base_type::_char()      return true
+            base_type::_int()       return true
+            base_type::_long()      return true
+            base_type::_short()     return true
+            base_type::_float()     return true
+            base_type::_double()    return true
+
+            base_type::_uchar()     return false
+            base_type::_ushort()    return false
+            base_type::_uint()      return false
+            base_type::_ulong()     return false
+        }
+        return false
+    }
+}
+

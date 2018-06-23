@@ -48,6 +48,27 @@ obj poset<T> (Object) {
         })
         return depends_on
     }
+    fun top(): T {
+        for (var i = 0; i < adj_matrix.keys.size; i++;) {
+            if (adj_matrix.values[i].size() == 0) {
+                return adj_matrix.keys[i]
+            }
+        }
+        error("Nothing to top")
+    }
+    fun remove(x: ref T) {
+        var dependencies = adj_matrix.get_ptr_or_null(x)
+        if (dependencies == null<set<T>>())
+            error("Trying to remove item from poset that doesn't contain it!")
+        if (dependencies->size() != 0)
+            error("Trying to remove item from poset that still has dependencies on it!")
+
+        for (var j = 0; j < adj_matrix.keys.size; j++;) {
+            // remove is ok if it doesn't exist
+            adj_matrix.values[j].remove(x)
+        }
+        adj_matrix.remove(x)
+    }
     fun pop(): T {
         for (var i = 0; i < adj_matrix.keys.size; i++;) {
             if (adj_matrix.values[i].size() == 0) {

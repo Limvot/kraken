@@ -1,5 +1,5 @@
 import tree:*
-import type:*
+import type2:*
 import vec:*
 import set:*
 import util:*
@@ -8,7 +8,7 @@ import mem:*
 
 adt ast {
     _translation_unit: str,
-    _import: set<str>,
+    _import: pair<*ast, set<str>>,
     _identifier: pair<str, *type>,
     _binding: triple<str, vec<*type>, *tree<ast>>,
     _type_def: str,
@@ -35,9 +35,9 @@ adt ast {
 fun to_string(a: ref ast): str {
     match(a) {
         ast::_translation_unit(b)   return str("_translation_unit(") + b + ")"
-        ast::_import(b)             return str("_import[") + str(",").join(b.data) + "]"
+        ast::_import(b)             return str("_import(") + to_string(*b.first) + ")[" + str(",").join(b.second.data) + "]"
         ast::_identifier(b)         return str("_identifier(") + b.first + ")"
-        ast::_binding(b)            return str("_binding(") + b.first + ")"
+        ast::_binding(b)            return str("_binding(") + b.first + "->" + to_string(b.third) + ")"
         ast::_type_def(b)           return str("_type_def(") + b + ")"
         ast::_adt_def(b)            return str("_adt_def(") + b + ")"
         ast::_function(b)           return str("_function(") + b.first + ")"
@@ -63,8 +63,8 @@ fun to_string(a: ref ast): str {
 fun _translation_unit(p: str): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_translation_unit(p))
 }
-fun _import(p: set<str>): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_import(p))
+fun _import(p1: *ast, p2: set<str>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_import(make_pair(p1,p2)))
 }
 fun _type_def(p: str): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_type_def(p))
@@ -141,8 +141,8 @@ fun _call(): *tree<ast> {
 fun _translation_unit(p: str, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_translation_unit(p), c)
 }
-fun _import(p: set<str>, c: ref vec<*tree<ast>>): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_import(p), c)
+fun _import(p1: *ast, p2: set<str>, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_import(make_pair(p1,p2)), c)
 }
 fun _type_def(p: str, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_type_def(p), c)

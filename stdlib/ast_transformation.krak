@@ -838,14 +838,21 @@ obj ast_transformation (Object) {
             if (!possible_value) match (searching_for) {
                 search_type::function(type_vec) possible_value = find_or_instantiate_template_function(concat_symbol_tree(node->children[0]), null<tree<symbol>>(), scope, type_vec, template_replacements, map<str, *type>());
             }
-            if (!possible_value)
+            if (!possible_value) {
+                var function_error_str = str()
+                match (searching_for) {
+                    search_type::function() {
+                        function_error_str = "(" + searching_for.function.reduce(fun(n:*type, s:str):str {
+                                if (n)
+                                    return s+","+n->to_string()
+                                else
+                                    return s+",null"
+                        }, str()) + ")"
+                    }
+                }
                 error(node, concat_symbol_tree(node) + ": HAS NO POSSIBLE FUNCTION OR FUNCTION TEMPLATE SOLUTIONS\nlooking for: " +
-                    concat_symbol_tree(node->children[0]) + "(" + searching_for.function.reduce(fun(n:*type, s:str):str {
-                        if (n)
-                            return s+","+n->to_string()
-                        else
-                            return s+",null"
-                    }, str()) + ")")
+                    concat_symbol_tree(node->children[0]) + function_error_str)
+            }
             return possible_value
         } else if (node->children.size == 2) {
             var template_inst = get_node("template_inst", node)

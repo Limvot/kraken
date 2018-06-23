@@ -66,7 +66,7 @@ obj map<T,U> (Object, Serializable) {
     fun contains_key(key: ref T): bool {
         return keys.contains(key)
     }
-    fun contains_value(value: ref U): bool {
+    fun contains_value<V>(value: ref V): bool {
         return values.contains(value)
     }
     fun get(key: ref T): ref U {
@@ -86,7 +86,7 @@ obj map<T,U> (Object, Serializable) {
             return get(key)
         return default_val
     }
-    fun reverse_get(value: ref U): ref T {
+    fun reverse_get<V>(value: ref V): ref T {
         /*return values.get(keys.find(key))*/
         var value_loc = values.find(value)
         if (value_loc == -1)
