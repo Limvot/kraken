@@ -87,7 +87,7 @@ fun main(argc: int, argv: **char): int {
     var name_ast_map = map<str, *tree<ast>>()
     var passes = map<str, fun(*tree<ast>): void>()
 
-    // resolves a single import
+    // resolves all reachable imports
     passes[str("import")] = fun(import_binding: *tree<ast>) {
         var file_path = binding_str(import_binding)
         println("Running import resolver for " + file_path)
@@ -102,9 +102,7 @@ fun main(argc: int, argv: **char): int {
         name_ast_map[file_path]->children.for_each(fun(n: *tree<ast>) {
             match (n->data) {
                 ast::_import(b) {
-                    if (!bound(b.first)) {
-                        pass_poset.add_close_dep(make_pair(import_binding, str("import")), make_pair(b.first, str("import")))
-                    }
+                    pass_poset.add_close_dep(make_pair(import_binding, str("import")), make_pair(b.first, str("import")))
                 }
             }
         })
@@ -124,21 +122,21 @@ fun main(argc: int, argv: **char): int {
                 error("type is ref in to_c_type")
             match(t->base) {
                 base_type::_unknown()              error("unknown in to_c_type")
-                base_type::_void()                return "void" + ind
+                base_type::_void()                return "void"           + ind
                 base_type::_obj(b)                 error("ob in to_c_type unimplemented")
                 base_type::_fun(b)                 error("fun in to_c_type unimplemented")
                 base_type::_template_placeholder() error("template_placeholder in to_c_type")
-                base_type::_bool()                return "bool" + ind
-                base_type::_char()                return "char" + ind
-                base_type::_uchar()               return "usigned char" + ind
-                base_type::_short()               return "short" + ind
+                base_type::_bool()                return "bool"           + ind
+                base_type::_char()                return "char"           + ind
+                base_type::_uchar()               return "usigned char"   + ind
+                base_type::_short()               return "short"          + ind
                 base_type::_ushort()              return "unsigned short" + ind
-                base_type::_int()                 return "int" + ind
-                base_type::_uint()                return "unsigned int" + ind
-                base_type::_long()                return "long" + ind
-                base_type::_ulong()               return "unsigned long" + ind
-                base_type::_float()               return "float" + ind
-                base_type::_double()              return "double" + ind
+                base_type::_int()                 return "int"            + ind
+                base_type::_uint()                return "unsigned int"   + ind
+                base_type::_long()                return "long"           + ind
+                base_type::_ulong()               return "unsigned long"  + ind
+                base_type::_float()               return "float"          + ind
+                base_type::_double()              return "double"         + ind
             }
             error("fell through to_c_type")
         }
