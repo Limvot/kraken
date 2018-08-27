@@ -85,10 +85,10 @@ fun main(argc: int, argv: **char): int {
 
     var pass_poset = poset<pair<*tree<ast>, str>>()
     var name_ast_map = map<str, *tree<ast>>()
-    var passes = map<str, fun(*tree<ast>): bool>()
+    var passes = map<str, fun(*tree<ast>): void>()
 
     // resolves a single import
-    passes[str("import_resolver")] = fun(import_binding: *tree<ast>): bool {
+    passes[str("import")] = fun(import_binding: *tree<ast>) {
         var file_path = binding_str(import_binding)
         println("Running import resolver for " + file_path)
         if (!name_ast_map.contains_key(file_path)) {
@@ -99,41 +99,51 @@ fun main(argc: int, argv: **char): int {
         }
         set_bindings(import_binding, name_ast_map[file_path])
 
-        return true
-    }
-
-    // ensures that all imports reachable from this one are resolved
-    passes[str("import_checker")] = fun(import_binding: *tree<ast>): bool {
-        var all_resolved = true
-        var file_path = binding_str(import_binding)
-        println("Running import checker for " + file_path)
         name_ast_map[file_path]->children.for_each(fun(n: *tree<ast>) {
             match (n->data) {
                 ast::_import(b) {
                     if (!bound(b.first)) {
-                        all_resolved = false
-                        pass_poset.add_relationship(make_pair(import_binding, str("import_checker")), make_pair(b.first, str("import_resolver")))
-                        println(to_string(b.first->data) + " is not bound!")
-                    } else {
-                        println(to_string(b.first->data) + " is bound!")
+                        pass_poset.add_close_dep(make_pair(import_binding, str("import")), make_pair(b.first, str("import")))
                     }
                 }
             }
         })
+    }
 
-        return all_resolved
+    //  emit C
+    var C_str = str()
+    passes[str("emit_C")] = fun(import_binding: *tree<ast>) {
+        if !pass_poset.done(make_pair(import_binding, str("import"))) {
+            pass_poset.add_open_dep(make_pair(import_binding, str("emit_C")), make_pair(import_binding, str("import")))
+            return
+        }
+
+        var file_path = binding_str(import_binding)
+        println("Running emit C for " + file_path)
+        var emit_C: fun(*tree<ast>, int): void = fun(t: *tree<ast>, level: int) {
+            match (t->data) {
+                ast::_identifier(b) {
+                    C_str += b.first
+                }
+                ast::_import(b) {
+                    pass_poset.add_close_dep(make_pair(import_binding, str("emit_C")), make_pair(b.first, str("emit_C")))
+                }
+            }
+
+            t->children.for_each(fun(c: *tree<ast>) {
+                emit_C(c, level+1)
+            })
+        }
+        emit_C(name_ast_map[file_path], 0)
     }
 
     var top_binding = make_binding(kraken_file_name)
-    pass_poset.add_relationship(make_pair(top_binding, str("import_checker")), make_pair(top_binding, str("import_resolver")))
+    pass_poset.add_job(make_pair(top_binding, str("emit_C")))
 
-    while (pass_poset.size() != 0) {
-        var file_pass = pass_poset.top()
-        printlnerr("doing pass " + file_pass.second + " on " + to_string(file_pass.first->data))
-        var done = passes[file_pass.second](file_pass.first)
-        if (done)
-            pass_poset.remove(file_pass)
-    }
+    pass_poset.run(fun(file_pass: pair<*tree<ast>, str>) {
+        printlnerr("doing pass new style " + file_pass.second + " on " + to_string(file_pass.first->data))
+        passes[file_pass.second](file_pass.first)
+    })
 
     println()
     println()
@@ -145,9 +155,8 @@ fun main(argc: int, argv: **char): int {
     })
 
     var kraken_c_output_name = kraken_file_name + ".c"
-    var c_code = str("//don't you wish this was real kraken\n")
     var c_flags = str("")
-    write_file(kraken_c_output_name, c_code)
+    write_file(kraken_c_output_name, C_str)
 
     if (compile_c) {
         var compile_string = "cc -g " + opt_str + " -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -Wno-incompatible-pointer-types -std=c99 " + c_flags + " " + kraken_c_output_name + " -o " + executable_name
@@ -326,7 +335,11 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                                     return _case(s->children.map(syntax_to_ast_helper))
                               }))
         } else if (syntax->data.name == "declaration_statement") {
-            var children = vec(_identifier(concat(get_node("identifier", syntax)), parse_type(get_node("type", syntax))))
+            var t = type(base_type::_unknown(), 0, false)
+            var type_syntax = get_node("type", syntax)
+            if type_syntax != null<tree<symbol>>()
+                t = parse_type(type_syntax)
+            var children = vec(_identifier(concat(get_node("identifier", syntax)), t))
             children += get_nodes("boolean_expression", syntax).map(syntax_to_ast_helper)
             return _declaration(children)
         } else if (syntax->data.name == "assignment_statement")
@@ -377,10 +390,6 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             return null<tree<ast>>()
     }
     var result = _translation_unit(file_name, syntax->children.map(syntax_to_ast_helper))
-    printlnerr("made")
-    print_tree(result, 1)
-    printlnerr("from")
-    print_tree(syntax, 1)
     return result
 }
 fun print_tree<T>(t: *tree<T>, level: int) {

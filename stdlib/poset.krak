@@ -10,98 +10,81 @@ fun poset<T>(): poset<T> {
 }
 
 obj poset<T> (Object) {
-    var adj_matrix: map<T, set<T>>
+    var open_deps: map<T, set<T>>
+    var close_deps: map<T, set<T>>
+    var opened: set<T>
+    var closed: set<T>
     fun construct(): *poset<T> {
-        adj_matrix.construct()
+        open_deps.construct()
+        close_deps.construct()
+        opened.construct()
+        closed.construct()
         return this
     }
     fun copy_construct(old: *poset<T>) {
-        adj_matrix.copy_construct(&old->adj_matrix)
+        open_deps.copy_construct(&old->open_deps)
+        close_deps.copy_construct(&old->close_deps)
+        opened.copy_construct(&old->opened)
+        closed.copy_construct(&old->closed)
     }
     fun operator=(other: ref poset<T>) {
         destruct()
         copy_construct(&other)
     }
     fun destruct() {
-        adj_matrix.destruct()
+        open_deps.destruct()
+        close_deps.destruct()
+        opened.destruct()
+        closed.destruct()
     }
     fun size(): int {
-        return adj_matrix.size()
+        return open_deps.size()
     }
-    fun add_relationship(first: T, second: T) {
-        if (!adj_matrix.contains_key(first))
-            add_vertex(first)
-        if (!adj_matrix.contains_key(second))
-            add_vertex(second)
-        adj_matrix[first].add(second)
+    fun add_open_dep(first: T, second: T) {
+        add_job(first)
+        add_job(second)
+        open_deps[first].add(second)
     }
-    fun add_vertex(vertex: T) {
-        if (adj_matrix.contains_key(vertex))
+    fun add_close_dep(first: T, second: T) {
+        add_job(first)
+        add_job(second)
+        close_deps[first].add(second)
+    }
+    fun add_job(vertex: T) {
+        if (open_deps.contains_key(vertex))
             return;
-        adj_matrix.set(vertex, set<T>())
+        open_deps.set(vertex, set<T>())
+        close_deps.set(vertex, set<T>())
     }
-    fun get_depends_on(vertex: T): set<T> {
-        var depends_on = set<T>()
-        adj_matrix.for_each(fun(key: T, value: set<T>) {
-            if (value.contains(vertex))
-                depends_on.add(key)
-        })
-        return depends_on
+    fun done(job: T): bool {
+        return closed.contains(job)
     }
-    fun top(): T {
-        for (var i = 0; i < adj_matrix.keys.size; i++;) {
-            if (adj_matrix.values[i].size() == 0) {
-                return adj_matrix.keys[i]
-            }
-        }
-        error("Nothing to top")
-    }
-    fun remove(x: ref T) {
-        var dependencies = adj_matrix.get_ptr_or_null(x)
-        if (dependencies == null<set<T>>())
-            error("Trying to remove item from poset that doesn't contain it!")
-        if (dependencies->size() != 0)
-            error("Trying to remove item from poset that still has dependencies on it!")
-
-        for (var j = 0; j < adj_matrix.keys.size; j++;) {
-            // remove is ok if it doesn't exist
-            adj_matrix.values[j].remove(x)
-        }
-        adj_matrix.remove(x)
-    }
-    fun pop(): T {
-        for (var i = 0; i < adj_matrix.keys.size; i++;) {
-            if (adj_matrix.values[i].size() == 0) {
-                var to_ret = adj_matrix.keys[i]
-                for (var j = 0; j < adj_matrix.keys.size; j++;) {
-                    // remove is ok if it doesn't exist
-                    /*if (adj_matrix.values[i].contains(to_ret)) {*/
-                        adj_matrix.values[j].remove(to_ret)
-                    /*}*/
+    fun run(f: fun(T): void) {
+        opened = set<T>()
+        closed = set<T>()
+        while closed.size() != size() {
+            // intentionally not refs, as it can change out from under us
+            open_deps.for_each(fun(v: T, ods: set<T>) {
+                if !closed.contains(v) && closed.contains(ods) {
+                    if !opened.contains(v) {
+                        f(v)
+                        if closed.contains(open_deps[v]) {
+                            opened.add(v)
+                        }
+                    }
+                    if closed.contains(open_deps[v]) && closed.contains(close_deps[v]) {
+                        closed.add(v)
+                    }
                 }
-                adj_matrix.remove(to_ret)
-                return to_ret
-            }
-        }
-        error("Nothing to pop")
-    }
-    fun get_sorted(): vec<T> {
-        var sorted = vec<T>()
-        var to_do = queue<T>()
-        // because we're going to destructivly update
-        var temp_adj_matrix = adj_matrix
-        temp_adj_matrix.for_each(fun(key: T, value: set<T>)
-            if (temp_adj_matrix[key].size() == 0) to_do.push(key);)
-        while (!to_do.empty()) {
-            var current = to_do.pop()
-            sorted.add(current)
-            get_depends_on(current).for_each(fun(vert: T) {
-                temp_adj_matrix[vert].remove(current)
-                if (temp_adj_matrix[vert].size() == 0)
-                    to_do.push(vert)
             })
         }
-        return sorted
+    }
+    fun get_sorted(): vec<T> {
+        var to_ret = vec<T>()
+        run(fun(i: T) {
+            to_ret.add(i)
+        })
+        return to_ret
     }
 }
 

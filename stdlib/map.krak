@@ -111,5 +111,9 @@ obj map<T,U> (Object, Serializable) {
         for (var i = 0; i < keys.size; i++;)
             func(keys[i], values[i])
     }
+    fun for_each(func: fun(ref T, ref U):void) {
+        for (var i = 0; i < keys.size; i++;)
+            func(keys[i], values[i])
+    }
 }
 

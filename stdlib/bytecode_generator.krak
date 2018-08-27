@@ -11,7 +11,6 @@ import symbol:*
 import ast_nodes:*
 // for error with syntax tree
 import pass_common:*
-import poset:*
 
 fun type_size(t: *type): ulong
     return type_size_and_alignment(t).first
