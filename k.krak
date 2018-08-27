@@ -118,22 +118,108 @@ fun main(argc: int, argv: **char): int {
             return
         }
 
-        var file_path = binding_str(import_binding)
-        println("Running emit C for " + file_path)
+        var to_c_type = fun(t: *type): str {
+            var ind = str("*") * t->indirection
+            if (t->is_ref)
+                error("type is ref in to_c_type")
+            match(t->base) {
+                base_type::_unknown()              error("unknown in to_c_type")
+                base_type::_void()                return "void" + ind
+                base_type::_obj(b)                 error("ob in to_c_type unimplemented")
+                base_type::_fun(b)                 error("fun in to_c_type unimplemented")
+                base_type::_template_placeholder() error("template_placeholder in to_c_type")
+                base_type::_bool()                return "bool" + ind
+                base_type::_char()                return "char" + ind
+                base_type::_uchar()               return "usigned char" + ind
+                base_type::_short()               return "short" + ind
+                base_type::_ushort()              return "unsigned short" + ind
+                base_type::_int()                 return "int" + ind
+                base_type::_uint()                return "unsigned int" + ind
+                base_type::_long()                return "long" + ind
+                base_type::_ulong()               return "unsigned long" + ind
+                base_type::_float()               return "float" + ind
+                base_type::_double()              return "double" + ind
+            }
+            error("fell through to_c_type")
+        }
+
         var emit_C: fun(*tree<ast>, int): void = fun(t: *tree<ast>, level: int) {
+            var idt = str("\t") * level
             match (t->data) {
-                ast::_identifier(b) {
-                    C_str += b.first
+                ast::_translation_unit(b) {
+                    t->children.for_each(fun(c: *tree<ast>) {
+                        emit_C(c, 0)
+                        C_str += ";\n"
+                    })
                 }
                 ast::_import(b) {
                     pass_poset.add_close_dep(make_pair(import_binding, str("emit_C")), make_pair(b.first, str("emit_C")))
                 }
+                ast::_identifier(b)         { C_str += idt + b.first; }
+                ast::_binding(b)            { error("binding gen unimplemented"); }
+                ast::_type_def(b)           { error("type_def gen unimplemented"); }
+                ast::_adt_def(b)            { error("no adt_def should remain at C emit"); }
+                ast::_function(b)           {
+                    var fun_name = b.first
+                    var fun_type = b.second
+                    var return_type     = fun_type->base._fun.first.second
+                    var parameter_types = fun_type->base._fun.first.first
+                    var is_variadic     = fun_type->base._fun.second
+                    var is_raw          = fun_type->base._fun.third
+                    C_str += to_c_type(return_type) + " " + fun_name + " ("
+                    for (var i = 0; i < parameter_types.size; i++;) {
+                        if (i != 0)
+                            C_str += ", "
+                        C_str += to_c_type(parameter_types[i]) + " "
+                        emit_C(t->children[i], 0)
+                    }
+                    if (is_variadic) {
+                        if (parameter_types.size != 0)
+                            C_str += ", "
+                        C_str += "..."
+                    }
+                    C_str += ") {\n"
+                    for (var i = parameter_types.size; i < t->children.size; i++;) {
+                        emit_C(t->children[i], level+1)
+                        C_str += ";\n"
+                    }
+                    C_str += "}"
+                }
+                ast::_template(b)           { /* template should be ignored */ }
+                ast::_declaration()         { error("declaration gen unimplemented"); }
+                ast::_assignment()          { error("assignment gen unimplemented"); }
+                ast::_block() {
+                    C_str += idt + "{\n"
+                    t->children.for_each(fun(c: *tree<ast>) {
+                        emit_C(c, level+1)
+                        C_str += ";\n"
+                    })
+                    C_str += idt + "}\n"
+                }
+                ast::_if()                  { error("if gen unimplemented"); }
+                ast::_match()               { error("no match should remain at C emit"); }
+                ast::_case()                { error("no case should remain at C emit"); }
+                ast::_while()               { error("while gen unimplemented"); }
+                ast::_for()                 { error("for gen unimplemented"); }
+                ast::_return()              {
+                    C_str += idt + "return"
+                    if (t->children.size == 1) {
+                        C_str += " "
+                        emit_C(t->children[0], 0)
+                    }
+                }
+                ast::_break()               { C_str += idt + "break"; }
+                ast::_continue()            { C_str += idt + "continue"; }
+                ast::_defer()               { error("no defer should remain at C emit"); }
+                ast::_call()                { error("call gen unimplemented"); }
+                ast::_compiler_intrinsic(b) { error("compiler_intrinsic gen unimplemented"); }
+                ast::_cast(b)               { error("cast gen unimplemented"); }
+                ast::_value(b)              { C_str += idt + b.first; }
             }
-
-            t->children.for_each(fun(c: *tree<ast>) {
-                emit_C(c, level+1)
-            })
         }
+
+        var file_path = binding_str(import_binding)
+        println("Running emit C for " + file_path)
         emit_C(name_ast_map[file_path], 0)
     }
 
@@ -155,13 +241,14 @@ fun main(argc: int, argv: **char): int {
     })
 
     var kraken_c_output_name = kraken_file_name + ".c"
-    var c_flags = str("")
+    println(C_str)
     write_file(kraken_c_output_name, C_str)
 
+    var c_flags = str("")
     if (compile_c) {
         var compile_string = "cc -g " + opt_str + " -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast -Wno-incompatible-pointer-types -std=c99 " + c_flags + " " + kraken_c_output_name + " -o " + executable_name
-        /*printlnerr(compile_string)*/
-        /*system(compile_string)*/
+        printlnerr(compile_string)
+        system(compile_string)
     }
 
     return 0
