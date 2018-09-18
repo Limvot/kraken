@@ -103,6 +103,8 @@ fun main(argc: int, argv: **char): int {
                                 var parse_tree = parse.parse_input(read_file(file_path), file_path)
                                 trim(parse_tree)
                                 name_ast_map[file_path] = syntax_to_ast(file_path, parse_tree, import_paths)
+                                printlnerr("syntax_to_ast " + file_path + ":")
+                                print_tree(name_ast_map[file_path], 1)
                             }
                             set_binding(b.first, name_ast_map[file_path])
                         }
@@ -290,7 +292,18 @@ fun main(argc: int, argv: **char): int {
                     })
                     C_str += idt + "}"
                 }
-                ast::_if()                  { error("if gen unimplemented"); }
+                ast::_if()                  {
+                    C_str += idt + "if ("
+                    emit_C(t->children[0], 0)
+                    C_str += ") {\n"
+                    emit_C(t->children[1], level + 1)
+                    C_str += ";\n" + idt + "}"
+                    if t->children.size > 2 {
+                        C_str += " else {\n"
+                        emit_C(t->children[2], level + 1)
+                        C_str += ";\n" + idt + "}"
+                    }
+                }
                 ast::_match()               { error("no match should remain at C emit"); }
                 ast::_case()                { error("no case should remain at C emit"); }
                 ast::_while()               { error("while gen unimplemented"); }
@@ -352,7 +365,7 @@ fun main(argc: int, argv: **char): int {
         printlnerr("doing pass new style " + file_pass.second + " on " + to_string(file_pass.first->data))
         passes[file_pass.second](file_pass.first)
     })
-    C_str = C_declaration_str + "\n" + C_str
+    C_str = "#include <stdbool.h>\n" + C_declaration_str + "\n" + C_str
 
     println()
     println()
@@ -497,6 +510,8 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             return syntax_to_ast_helper(syntax->children[0])
         else if (syntax->data.name == "code_block")
             return _block(syntax->children.map(syntax_to_ast_helper))
+        else if (syntax->data.name == "if_statement")
+            return _if(syntax->children.map(syntax_to_ast_helper))
         else if (syntax->data.name == "return_statement")
             return _return(syntax->children.map(syntax_to_ast_helper))
         else if (syntax->data.name == "defer_statement")
@@ -556,10 +571,14 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             }
         } else if (syntax->data.name == "number")
             return _value(concat(syntax), type(base_type::_int(), 0, false))
+        else if (syntax->data.name == "bool")
+            return _value(concat(syntax), type(base_type::_bool(), 0, false))
         else if (syntax->data.name == "scoped_identifier" || syntax->data.name == "identifier")
             return make_binding(concat(syntax))
-        else
+        else {
+            error(syntax, "Cannot transform")
             return null<tree<ast>>()
+        }
     }
     var result = _translation_unit(file_name, syntax->children.map(syntax_to_ast_helper))
     return result
@@ -628,6 +647,7 @@ fun trim(parse_tree: *tree<symbol>) {
     remove_node(symbol("\"(\"", true), parse_tree)
     remove_node(symbol("\")\"", true), parse_tree)
     remove_node(symbol("\"if\"", true), parse_tree)
+    remove_node(symbol("\"else\"", true), parse_tree)
     remove_node(symbol("\"while\"", true), parse_tree)
     remove_node(symbol("\"__if_comp__\"", true), parse_tree)
     remove_node(symbol("\"comp_simple_passthrough\"", true), parse_tree)
