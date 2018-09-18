@@ -63,20 +63,26 @@ obj poset<T> (Object) {
         opened = set<T>()
         closed = set<T>()
         while closed.size() != size() {
+            var changed = false
             // intentionally not refs, as it can change out from under us
             open_deps.for_each(fun(v: T, ods: set<T>) {
                 if !closed.contains(v) && closed.contains(ods) {
                     if !opened.contains(v) {
+                        changed = true
                         f(v)
                         if closed.contains(open_deps[v]) {
                             opened.add(v)
                         }
                     }
                     if closed.contains(open_deps[v]) && closed.contains(close_deps[v]) {
+                        changed = true
                         closed.add(v)
                     }
                 }
             })
+            if (changed == false) {
+                error("Poset has not changed!")
+            }
         }
     }
     fun get_sorted(): vec<T> {

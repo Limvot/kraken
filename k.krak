@@ -172,7 +172,7 @@ fun main(argc: int, argv: **char): int {
 
     //  emit C
     var C_str = str()
-    var C_func_declaration_str = str()
+    var C_declaration_str = str()
     passes[str("emit_C")] = fun(item: *tree<ast>) {
         if !pass_poset.done(make_pair(item, str("name_type_resolve"))) {
             pass_poset.add_open_dep(make_pair(item, str("emit_C")), make_pair(item, str("name_type_resolve")))
@@ -204,13 +204,13 @@ fun main(argc: int, argv: **char): int {
             error("fell through to_c_type")
         }
 
-        var emit_name = fun(x: *tree<ast>): void {
+        var get_c_name = fun(x: *tree<ast>): str {
             match(x->data) {
-                ast::_identifier(b) { C_str += b.first; return; }
-                ast::_type_def(b)   { C_str += b;       return; }
-                ast::_function(b)   { C_str += b.first; return; }
+                ast::_identifier(b) { return b.first; }
+                ast::_type_def(b)   { return b; }
+                ast::_function(b)   { return b.first; }
             }
-            error("cannot emit_name of thing: " + to_string(x->data))
+            error("cannot get_c_name of thing: " + to_string(x->data))
         }
 
         var emit_C: fun(*tree<ast>, int): void = fun(t: *tree<ast>, level: int) {
@@ -227,7 +227,9 @@ fun main(argc: int, argv: **char): int {
                 ast::_binding(b)            {
                     if (is_top_level_item(b.third))
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(b.third, str("emit_C")))
-                    emit_name(b.third)
+                    else if (is_identifier(b.third) && is_declaration(b.third->parent) && is_top_level_item(b.third->parent))
+                        pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(b.third->parent, str("emit_C")))
+                    C_str += get_c_name(b.third)
                 }
                 ast::_type_def(b)           { error("type_def gen unimplemented"); }
                 ast::_adt_def(b)            { error("no adt_def should remain at C emit"); }
@@ -241,26 +243,26 @@ fun main(argc: int, argv: **char): int {
                     var is_raw          = fun_type->base._fun.third
                     // TODO check is_ext for name mangling
                     C_str                  += to_c_type(return_type) + " " + fun_name + "("
-                    C_func_declaration_str += to_c_type(return_type) + " " + fun_name + "("
+                    C_declaration_str += to_c_type(return_type) + " " + fun_name + "("
                     for (var i = 0; i < parameter_types.size; i++;) {
                         if (i != 0) {
                             C_str                  += ", "
-                            C_func_declaration_str += ", "
+                            C_declaration_str += ", "
                         }
                         C_str                  += to_c_type(parameter_types[i]) + " "
-                        C_func_declaration_str += to_c_type(parameter_types[i])
+                        C_declaration_str += to_c_type(parameter_types[i])
                         emit_C(t->children[i], 0)
                     }
                     if (is_variadic) {
                         if (parameter_types.size != 0) {
                             C_str += ", "
-                            C_func_declaration_str += ", "
+                            C_declaration_str += ", "
                         }
                         C_str                  += "..."
-                        C_func_declaration_str += "..."
+                        C_declaration_str += "..."
                     }
                     C_str                  += ") {\n"
-                    C_func_declaration_str += ");\n"
+                    C_declaration_str += ");\n"
                     for (var i = parameter_types.size; i < t->children.size; i++;) {
                         emit_C(t->children[i], level+1)
                         C_str += ";\n"
@@ -269,11 +271,14 @@ fun main(argc: int, argv: **char): int {
                 }
                 ast::_template(b)           { /* template should be ignored */ }
                 ast::_declaration()         {
-                    C_str += idt + to_c_type(t->children[0]->data._identifier.second) + " "
-                    emit_name(t->children[0])
+                    C_str += idt + to_c_type(t->children[0]->data._identifier.second) + " " + get_c_name(t->children[0])
                     if (t->children.size > 1) {
                         C_str += " = "
                         emit_C(t->children[1], 0)
+                    }
+                    if (is_top_level_item(t)) {
+                        C_str += ";\n"
+                        C_declaration_str += idt + to_c_type(t->children[0]->data._identifier.second) + " " + get_c_name(t->children[0]) + ";\n"
                     }
                 }
                 ast::_assignment()          { error("assignment gen unimplemented"); }
@@ -347,7 +352,7 @@ fun main(argc: int, argv: **char): int {
         printlnerr("doing pass new style " + file_pass.second + " on " + to_string(file_pass.first->data))
         passes[file_pass.second](file_pass.first)
     })
-    C_str = C_func_declaration_str + "\n" + C_str
+    C_str = C_declaration_str + "\n" + C_str
 
     println()
     println()
