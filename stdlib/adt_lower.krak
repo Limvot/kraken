@@ -151,6 +151,8 @@ fun adt_lower(name_ast_map: *map<str, pair<*tree<symbol>,*ast_node>>, ast_to_syn
                     block->code_block.children.add(_assign(holder, make_operator_call("&", vec(value))))
                     backing.cases.for_each(fun(case_stmt: *ast_node) {
                         var option = case_stmt->case_statement.option
+                        if (!get_ast_scope(get_ast_type(value)->type_def)->contains_key(str("flag")))
+                            error("trying to get flag from struct without it - are you matching on not an adt? - ")
                         var flag = get_from_scope(get_ast_type(value)->type_def, "flag")
                         var data = get_from_scope(get_ast_type(value)->type_def, "data")
                         var option_num = -7

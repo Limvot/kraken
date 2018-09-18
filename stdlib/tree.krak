@@ -3,21 +3,28 @@ import vec
 
 obj tree<T> (Object) {
     var data: T
+    var parent: *tree<T>
     var children: vec::vec<*tree<T>>
     fun construct(dataIn: T): *tree<T> {
         mem::maybe_copy_construct(&data, &dataIn)
+        parent = mem::null<tree<T>>()
         children.construct()
         return this
     }
     fun construct(dataIn: T, c: ref vec::vec<*tree<T>>): *tree<T> {
         mem::maybe_copy_construct(&data, &dataIn)
+        parent = mem::null<tree<T>>()
         children.copy_construct(&c)
+        children.for_each(fun(i: *tree<T>) {
+            i->parent = this
+        })
         return this
     }
     // Some of these don't really make much sense considering this tree is all about
     // heap allocated pointers. Best to have it for saftey, though
     fun copy_construct(old: *tree<T>) {
         mem::maybe_copy_construct(&data, &old->data)
+        parent = old->parent
         children.copy_construct(&old->children)
     }
     // ditto
