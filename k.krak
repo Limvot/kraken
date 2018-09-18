@@ -129,8 +129,8 @@ fun main(argc: int, argv: **char): int {
         var try_binding = fun(binding: *tree<ast>, start_scope: *tree<ast>, type_binding: bool) {
             if !bound(binding) {
                 var options = scope_lookup(start_scope, binding->data._binding.first, type_binding)
-                if (options.size != 1)
-                    error("Do not have exactly one option for scope lookup of " + binding->data._binding.first)
+                if (options.size < 1)
+                    error("Could not find any options for scope lookup of " + binding->data._binding.first)
                 set_binding(binding, options[0])
             }
         }
@@ -306,7 +306,7 @@ fun main(argc: int, argv: **char): int {
                     for (var i = 1; i < t->children.size; i++;) {
                         if (i != 1)
                             C_str += ", "
-                        emit_C(t->children[1], level+1)
+                        emit_C(t->children[i], level+1)
                     }
                     C_str += ")"
                 }
@@ -332,7 +332,7 @@ fun main(argc: int, argv: **char): int {
                     true, vec(
                                 _identifier(str("argc"), type(base_type::_int(), 0, false)),
                                 _identifier(str("argv"), type(base_type::_char(), 2, false)),
-                                _return(vec(_call(vec(make_binding("fmain")))))
+                                _return(vec(_call(vec(make_binding("fmain"), make_binding("argc"), make_binding("argv")))))
                               )
                     )
     var top_unit = _translation_unit(str(), vec(
