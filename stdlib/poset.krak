@@ -12,20 +12,17 @@ fun poset<T>(): poset<T> {
 obj poset<T> (Object) {
     var open_deps: map<T, set<T>>
     var close_deps: map<T, set<T>>
-    var opened: set<T>
-    var closed: set<T>
+    var done: set<T>
     fun construct(): *poset<T> {
         open_deps.construct()
         close_deps.construct()
-        opened.construct()
-        closed.construct()
+        done.construct()
         return this
     }
     fun copy_construct(old: *poset<T>) {
         open_deps.copy_construct(&old->open_deps)
         close_deps.copy_construct(&old->close_deps)
-        opened.copy_construct(&old->opened)
-        closed.copy_construct(&old->closed)
+        done.copy_construct(&old->done)
     }
     fun operator=(other: ref poset<T>) {
         destruct()
@@ -34,8 +31,7 @@ obj poset<T> (Object) {
     fun destruct() {
         open_deps.destruct()
         close_deps.destruct()
-        opened.destruct()
-        closed.destruct()
+        done.destruct()
     }
     fun size(): int {
         return open_deps.size()
@@ -44,11 +40,21 @@ obj poset<T> (Object) {
         add_job(first)
         add_job(second)
         open_deps[first].add(second)
+        // also add all of the closed deps of what we depend on
+        close_deps[second].for_each(fun(cd: T) {
+            add_open_dep(first, cd)
+        })
     }
     fun add_close_dep(first: T, second: T) {
         add_job(first)
         add_job(second)
         close_deps[first].add(second)
+        // patch this one in to everything that currently depends on first
+        open_deps.for_each(fun(v: T, ods: set<T>) {
+            if ods.contains(first) {
+                add_open_dep(v, second)
+            }
+        })
     }
     fun add_job(vertex: T) {
         if (open_deps.contains_key(vertex))
@@ -57,26 +63,19 @@ obj poset<T> (Object) {
         close_deps.set(vertex, set<T>())
     }
     fun done(job: T): bool {
-        return closed.contains(job)
+        return done.contains(job)
     }
     fun run(f: fun(T): void) {
-        opened = set<T>()
-        closed = set<T>()
-        while closed.size() != size() {
+        done = set<T>()
+        while done.size() != size() {
             var changed = false
             // intentionally not refs, as it can change out from under us
             open_deps.for_each(fun(v: T, ods: set<T>) {
-                if !closed.contains(v) && closed.contains(ods) {
-                    if !opened.contains(v) {
-                        changed = true
-                        f(v)
-                        if closed.contains(open_deps[v]) {
-                            opened.add(v)
-                        }
-                    }
-                    if closed.contains(open_deps[v]) && closed.contains(close_deps[v]) {
-                        changed = true
-                        closed.add(v)
+                if !done.contains(v) && done.contains(ods) {
+                    changed = true
+                    f(v)
+                    if done.contains(open_deps[v]) {
+                        done.add(v)
                     }
                 }
             })

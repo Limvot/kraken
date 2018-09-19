@@ -231,7 +231,7 @@ fun main(argc: int, argv: **char): int {
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(b.third, str("emit_C")))
                     else if (is_identifier(b.third) && is_declaration(b.third->parent) && is_top_level_item(b.third->parent))
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(b.third->parent, str("emit_C")))
-                    C_str += get_c_name(b.third)
+                    C_str += idt + get_c_name(b.third)
                 }
                 ast::_type_def(b)           { error("type_def gen unimplemented"); }
                 ast::_adt_def(b)            { error("no adt_def should remain at C emit"); }
@@ -324,7 +324,7 @@ fun main(argc: int, argv: **char): int {
                     for (var i = 1; i < t->children.size; i++;) {
                         if (i != 1)
                             C_str += ", "
-                        emit_C(t->children[i], level+1)
+                        emit_C(t->children[i], 0)
                     }
                     C_str += ")"
                 }
