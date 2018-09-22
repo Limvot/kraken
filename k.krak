@@ -95,9 +95,9 @@ fun main(argc: int, argv: **char): int {
             for (var i = 0; i < scope->children.size; i++;) {
                 match(scope->children[i]->data) {
                     ast::_import(b) if b.second.contains(name) || b.second.contains(str("*")) {
-                        if !bound(b.first) {
+                        if !ast_bound(b.first) {
                             // Import / parse file if not already
-                            var file_path = binding_str(b.first)
+                            var file_path = ast_binding_str(b.first)
                             if (!name_ast_map.contains_key(file_path)) {
                                 printerr(file_path + ", ")
                                 var parse_tree = parse.parse_input(read_file(file_path), file_path)
@@ -106,9 +106,9 @@ fun main(argc: int, argv: **char): int {
                                 printlnerr("syntax_to_ast " + file_path + ":")
                                 print_tree(name_ast_map[file_path], 1)
                             }
-                            set_binding(b.first, name_ast_map[file_path])
+                            set_ast_binding(b.first, name_ast_map[file_path])
                         }
-                        to_ret += scope_lookup(get_binding(b.first), name, is_type)
+                        to_ret += scope_lookup(get_ast_binding(b.first), name, is_type)
                     }
                     ast::_type_def(b)   if (is_type && b == name)
                                             to_ret += scope->children[i]
@@ -129,11 +129,11 @@ fun main(argc: int, argv: **char): int {
             return to_ret
         }
         var try_binding = fun(binding: *tree<ast>, start_scope: *tree<ast>, type_binding: bool) {
-            if !bound(binding) {
+            if !ast_bound(binding) {
                 var options = scope_lookup(start_scope, binding->data._binding.first, type_binding)
                 if (options.size < 1)
                     error("Could not find any options for scope lookup of " + binding->data._binding.first)
-                set_binding(binding, options[0])
+                set_ast_binding(binding, options[0])
             }
         }
         var handle_type: fun(*type, *tree<ast>): void = fun(t: *type, n: *tree<ast>) {
@@ -227,11 +227,12 @@ fun main(argc: int, argv: **char): int {
                 ast::_import(b) { }
                 ast::_identifier(b)         { C_str += idt + b.first; }
                 ast::_binding(b)            {
-                    if (is_top_level_item(b.third))
-                        pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(b.third, str("emit_C")))
-                    else if (is_identifier(b.third) && is_declaration(b.third->parent) && is_top_level_item(b.third->parent))
-                        pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(b.third->parent, str("emit_C")))
-                    C_str += idt + get_c_name(b.third)
+                    var bound_to = b.second->bound_to
+                    if (is_top_level_item(bound_to))
+                        pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to, str("emit_C")))
+                    else if (is_identifier(bound_to) && is_declaration(bound_to->parent) && is_top_level_item(bound_to->parent))
+                        pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to->parent, str("emit_C")))
+                    C_str += get_c_name(bound_to)
                 }
                 ast::_type_def(b)           { error("type_def gen unimplemented"); }
                 ast::_adt_def(b)            { error("no adt_def should remain at C emit"); }
@@ -350,11 +351,11 @@ fun main(argc: int, argv: **char): int {
                     true, vec(
                                 _identifier(str("argc"), type(base_type::_int(), 0, false)),
                                 _identifier(str("argv"), type(base_type::_char(), 2, false)),
-                                _return(vec(_call(vec(make_binding("fmain"), make_binding("argc"), make_binding("argv")))))
+                                _return(vec(_call(vec(make_ast_binding("fmain"), make_ast_binding("argc"), make_ast_binding("argv")))))
                               )
                     )
     var top_unit = _translation_unit(str(), vec(
-                       _import(make_binding(kraken_file_name), set(str("*")), vec(
+                       _import(make_ast_binding(kraken_file_name), set(str("*")), vec(
                             _identifier(kraken_file_name, type(base_type::_void(), 0, false))
                        )),
                        real_main
@@ -406,9 +407,9 @@ fun parse_type(syntax: *tree<symbol>): *type {
     if (ident != null<tree<symbol>>()) {
         var template_inst = get_node("template_inst", syntax)
         if (template_inst != null<tree<symbol>>()) {
-            return type(base_type::_obj(make_binding(concat(ident) + "<somin>")), indr, is_ref)
+            return type(base_type::_obj(make_ast_binding(concat(ident) + "<somin>")), indr, is_ref)
         } else {
-            return type(base_type::_obj(make_binding(concat(ident))), indr, is_ref)
+            return type(base_type::_obj(make_ast_binding(concat(ident))), indr, is_ref)
         }
     } else if (func != null<tree<symbol>>()) {
         var param_types = vec<*type>()
@@ -460,7 +461,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
 
     var syntax_to_ast_helper: fun(*tree<symbol>): *tree<ast> = fun(syntax: *tree<symbol>): *tree<ast> {
         if (syntax->data.name == "import") {
-            return _import(make_binding(resolve_import_file(concat(syntax->children[1]) + ".krak")), from_vector(syntax->children.slice(2,-1).filter(fun(s:*tree<symbol>):bool {
+            return _import(make_ast_binding(resolve_import_file(concat(syntax->children[1]) + ".krak")), from_vector(syntax->children.slice(2,-1).filter(fun(s:*tree<symbol>):bool {
                 return s->data.name == "identifier" || s->data.data == "*"
             }).map(concat)), vec(syntax_to_ast_helper(syntax->children[1])))
         } else if (syntax->data.name == "function") {
@@ -530,7 +531,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             children += get_nodes("boolean_expression", syntax).map(syntax_to_ast_helper)
             return _declaration(children)
         } else if (syntax->data.name == "assignment_statement")
-            return _assignment(vec(make_binding(concat(syntax->children[1])),
+            return _assignment(vec(make_ast_binding(concat(syntax->children[1])),
                                    syntax_to_ast_helper(syntax->children[0]),
                                    syntax_to_ast_helper(syntax->children[2])))
         else if (syntax->data.name == "function_call")
@@ -556,16 +557,16 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                 if (template_inst != null<tree<symbol>>()) {
                     if (syntax->children[0]->data.name != "scoped_identifier")
                         error(syntax, "Unexpected template instantiation (not on an identifier)")
-                    return make_binding(concat(syntax->children[0]) + "<somin>")
+                    return make_ast_binding(concat(syntax->children[0]) + "<somin>")
                 } else if (syntax->children[0]->data.terminal) {
-                    return _call(vec(make_binding(concat(syntax->children[0])),
+                    return _call(vec(make_ast_binding(concat(syntax->children[0])),
                                      syntax_to_ast_helper(syntax->children[1])))
                 } else {
-                    return _call(vec(make_binding(concat(syntax->children[1])),
+                    return _call(vec(make_ast_binding(concat(syntax->children[1])),
                                      syntax_to_ast_helper(syntax->children[0])))
                 }
             } else {
-                return _call(vec(make_binding(concat(syntax->children[1])),
+                return _call(vec(make_ast_binding(concat(syntax->children[1])),
                                  syntax_to_ast_helper(syntax->children[0]),
                                  syntax_to_ast_helper(syntax->children[2])))
             }
@@ -574,7 +575,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
         else if (syntax->data.name == "bool")
             return _value(concat(syntax), type(base_type::_bool(), 0, false))
         else if (syntax->data.name == "scoped_identifier" || syntax->data.name == "identifier")
-            return make_binding(concat(syntax))
+            return make_ast_binding(concat(syntax))
         else {
             error(syntax, "Cannot transform")
             return null<tree<ast>>()

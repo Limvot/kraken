@@ -10,7 +10,7 @@ adt ast {
     _translation_unit: str,
     _import: pair<*tree<ast>, set<str>>,
     _identifier: pair<str, *type>,
-    _binding: triple<str, vec<*type>, *tree<ast>>,
+    _binding: pair<str, *binding<tree<ast>>>,
     _type_def: str,
     _adt_def: str,
     _function: triple<str, *type, bool>,
@@ -37,7 +37,7 @@ fun to_string(a: ref ast): str {
         ast::_translation_unit(b)   return str("_translation_unit(") + b + ")"
         ast::_import(b)             return str("_import(") + to_string(b.first->data) + ")[" + str(",").join(b.second.data) + "]"
         ast::_identifier(b)         return str("_identifier(") + b.first + ": " + deref_to_string(b.second) + ")"
-        ast::_binding(b)            return str("_binding(") + b.first + "->" + to_string(b.third) + ")"
+        ast::_binding(b)            return str("_binding(") + b.first + "->" + to_string(b.second->bound_to) + ")"
         ast::_type_def(b)           return str("_type_def(") + b + ")"
         ast::_adt_def(b)            return str("_adt_def(") + b + ")"
         ast::_function(b)           return str("_function(") + b.first + ": " + deref_to_string(b.second) + ", ext?:" + to_string(b.third) + ")"
@@ -78,8 +78,8 @@ fun _cast(p: *type): *tree<ast> {
 fun _identifier(p1: str, p2: *type): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_identifier(make_pair(p1, p2)))
 }
-fun _binding(p1: str, p2: vec<*type>, p3: *tree<ast>): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_binding(make_triple(p1, p2, p3)))
+fun _binding(p1: str, p2: *binding<tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_binding(make_pair(p1, p2)))
 }
 fun _function(p1: str, p2: *type, p3: bool): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_function(make_triple(p1, p2, p3)))
@@ -153,8 +153,8 @@ fun _cast(p: *type, c: ref vec<*tree<ast>>): *tree<ast> {
 fun _identifier(p1: str, p2: *type, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_identifier(make_pair(p1, p2)), c)
 }
-fun _binding(p1: str, p2: vec<*type>, p3: *tree<ast>, c: ref vec<*tree<ast>>): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_binding(make_triple(p1, p2, p3)), c)
+fun _binding(p1: str, p2: *binding<tree<ast>>, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_binding(make_pair(p1, p2)), c)
 }
 fun _function(p1: str, p2: *type, p3: bool, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_function(make_triple(p1, p2, p3)), c)
@@ -237,49 +237,78 @@ fun is_value(i: *tree<ast>): bool { match(i->data) { ast::_value(b) return true;
 
 fun is_top_level_item(i: *tree<ast>): bool { return i->parent != null<tree<ast>>() && is_translation_unit(i->parent); }
 
-var bindings: *vec<*tree<ast>>
-fun make_binding(s: *char): *tree<ast> {
-    return make_binding(str(s))
+
+var bindings: *vec<*void>
+
+fun binding<T>(): *binding<T> {
+    var to_ret = new<binding<T>>()->construct()
+    if (bindings == null<vec<*void>>())
+        bindings = new<vec<*void>>()->construct()
+    bindings->add( (to_ret) cast *void )
+    return to_ret
 }
-fun make_binding(s: str): *tree<ast> {
-    var binding = _binding(s, vec<*type>(), null<tree<ast>>())
-    if (bindings == null<vec<*tree<ast>>>())
-        bindings = new<vec<*tree<ast>>>()->construct()
-    bindings->add(binding)
-    return binding
+
+obj binding<T> (Object) {
+    var bound_to: *T
+    fun construct(): *binding<T> {
+        bound_to = null<T>()
+        return this
+    }
+    fun copy_construct(old: *binding<T>): void {
+        bound_to = old->bound_to
+    }
+    fun destruct() {
+        bound_to = null<T>()
+    }
+    fun bound(): bool {
+        return bound_to != null<T>()
+    }
+    fun set(to: *T) {
+        // don't set null, that will set all unbound ones
+        if (bound_to == null<tree<ast>>()) {
+            bound_to = to
+            return
+        }
+        var from = bound_to
+        for (var i = 0; i < bindings->size; i++;)
+            if ( ((bindings->get(i)) cast *binding<T>)->bound_to == from)
+                ((bindings->get(i)) cast *binding<T>)->bound_to = to
+    }
 }
-fun get_binding(binding: *tree<ast>): *tree<ast> {
+
+
+
+
+fun make_ast_binding(s: *char): *tree<ast> {
+    return make_ast_binding(str(s))
+}
+fun make_ast_binding(s: str): *tree<ast> {
+    return _binding(s, binding<tree<ast>>())
+}
+fun get_ast_binding(binding: *tree<ast>): *tree<ast> {
     match(binding->data) {
         ast::_binding(b) {
-            return b.third
+            return b.second->bound_to
         }
     }
     error("trying to get binding on not a binding")
 }
-fun set_binding(binding: *tree<ast>, to: *tree<ast>) {
+fun set_ast_binding(binding: *tree<ast>, to: *tree<ast>) {
     match(binding->data) {
         ast::_binding(b) {
-            var from = b.third
-            // don't set null, that will set all unbound ones
-            if (from == null<tree<ast>>()) {
-                b.third = to
-                return
-            }
-            for (var i = 0; i < bindings->size; i++;)
-                if (bindings->get(i)->data._binding.third == from)
-                    bindings->get(i)->data._binding.third = to
+            b.second->set(to)
             return
         }
     }
     error("trying to set binding on not a binding")
 }
-fun bound(binding: *tree<ast>): bool {
+fun ast_bound(binding: *tree<ast>): bool {
     match(binding->data) {
-        ast::_binding(b) return b.third != null<tree<ast>>()
+        ast::_binding(b) return b.second->bound()
     }
     error("Trying to check bound for not a binding")
 }
-fun binding_str(binding: *tree<ast>): str {
+fun ast_binding_str(binding: *tree<ast>): str {
     match(binding->data) {
         ast::_binding(b) return b.first
     }
