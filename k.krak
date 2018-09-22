@@ -167,9 +167,28 @@ fun main(argc: int, argv: **char): int {
 
     // resolves all binding possibilities for one top level item
     passes[str("name_type_resolve")] = fun(item: *tree<ast>) {
-        println("Running name type resolver?")
-        // just temp
-        pass_poset.add_close_dep(make_pair(item, str("name_type_resolve")), make_pair(item, str("name_possibility_resolve")))
+        if !pass_poset.done(make_pair(item, str("name_possibility_resolve"))) {
+            pass_poset.add_open_dep(make_pair(item, str("name_type_resolve")), make_pair(item, str("name_possibility_resolve")))
+            return
+        }
+        var unify: fun(*binding<type>, *binding<type>): void = fun(t1: *binding<type>, t2: *binding<type>) {
+            println("trying to unify " + t1->bound_to->to_string() + " and " + t2->bound_to->to_string())
+            if (t1->bound_to->equality(t2->bound_to, false) || t1->bound_to->is_unknown())
+                t1->set(t2->bound_to)
+            else
+                t2->set(t1->bound_to)
+        }
+        var traverse_for_unify: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+            t->children.for_each(traverse_for_unify)
+            match (t->data) {
+                ast::_declaration() if (t->children.size > 1)
+                                        unify(get_type(t->children[0]), get_type(t->children[1]))
+                /*ast::_assignment()*/
+                /*ast::_call()*/
+                /*ast::_return()*/
+            }
+        }
+        traverse_for_unify(item)
     }
 
     //  emit C

@@ -32,6 +32,18 @@ adt ast {
     _cast: *binding<type>,
     _value: pair<str, *binding<type>>
 }
+fun get_type(a: *tree<ast>): *binding<type> {
+    match(a->data) {
+        ast::_identifier(b)         return b.second
+        ast::_binding(b)            return get_type(b.second->bound_to)
+        ast::_function(b)           return b.second
+        /*ast::_call()                return get_type(a->children[0])->bound_to->base->_fun->second*/
+        /*ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ")"*/
+        ast::_cast(b)               return b
+        ast::_value(b)              return b.second
+    }
+    error("Trying to get type of node without one: " + to_string(a->data))
+}
 fun to_string(a: ref ast): str {
     match(a) {
         ast::_translation_unit(b)   return str("_translation_unit(") + b + ")"
@@ -272,7 +284,7 @@ obj binding<T> (Object) {
     }
     fun set(to: *T) {
         // don't set null, that will set all unbound ones
-        if (bound_to == null<tree<ast>>()) {
+        if (bound_to == null<T>()) {
             bound_to = to
             return
         }
