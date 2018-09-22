@@ -9,11 +9,11 @@ import mem:*
 adt ast {
     _translation_unit: str,
     _import: pair<*tree<ast>, set<str>>,
-    _identifier: pair<str, *type>,
+    _identifier: pair<str, *binding<type>>,
     _binding: pair<str, *binding<tree<ast>>>,
     _type_def: str,
     _adt_def: str,
-    _function: triple<str, *type, bool>,
+    _function: triple<str, *binding<type>, bool>,
     _template: pair<str, set<str>>,
     _declaration,
     _assignment,
@@ -28,19 +28,19 @@ adt ast {
     _continue,
     _defer,
     _call,
-    _compiler_intrinsic: pair<str, vec<*type>>,
-    _cast: *type,
-    _value: pair<str, *type>
+    _compiler_intrinsic: pair<str, vec<*binding<type>>>,
+    _cast: *binding<type>,
+    _value: pair<str, *binding<type>>
 }
 fun to_string(a: ref ast): str {
     match(a) {
         ast::_translation_unit(b)   return str("_translation_unit(") + b + ")"
         ast::_import(b)             return str("_import(") + to_string(b.first->data) + ")[" + str(",").join(b.second.data) + "]"
-        ast::_identifier(b)         return str("_identifier(") + b.first + ": " + deref_to_string(b.second) + ")"
+        ast::_identifier(b)         return str("_identifier(") + b.first + ": " + deref_to_string(b.second->bound_to) + ")"
         ast::_binding(b)            return str("_binding(") + b.first + "->" + to_string(b.second->bound_to) + ")"
         ast::_type_def(b)           return str("_type_def(") + b + ")"
         ast::_adt_def(b)            return str("_adt_def(") + b + ")"
-        ast::_function(b)           return str("_function(") + b.first + ": " + deref_to_string(b.second) + ", ext?:" + to_string(b.third) + ")"
+        ast::_function(b)           return str("_function(") + b.first + ": " + deref_to_string(b.second->bound_to) + ", ext?:" + to_string(b.third) + ")"
         ast::_template(b)           return str("_template(") + b.first + "[" + str(",").join(b.second.data) + "])"
         ast::_declaration()         return str("_declaration")
         ast::_assignment()          return str("_assignment")
@@ -57,7 +57,7 @@ fun to_string(a: ref ast): str {
         ast::_call()                return str("_call")
         ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ")"
         ast::_cast(b)               return str("_cast")
-        ast::_value(b)              return str("_value(") + b.first + ": " + deref_to_string(b.second) + ")"
+        ast::_value(b)              return str("_value(") + b.first + ": " + deref_to_string(b.second->bound_to) + ")"
     }
 }
 fun _translation_unit(p: str): *tree<ast> {
@@ -72,25 +72,25 @@ fun _type_def(p: str): *tree<ast> {
 fun _adt_def(p: str): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_adt_def(p))
 }
-fun _cast(p: *type): *tree<ast> {
+fun _cast(p: *binding<type>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_cast(p))
 }
-fun _identifier(p1: str, p2: *type): *tree<ast> {
+fun _identifier(p1: str, p2: *binding<type>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_identifier(make_pair(p1, p2)))
 }
 fun _binding(p1: str, p2: *binding<tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_binding(make_pair(p1, p2)))
 }
-fun _function(p1: str, p2: *type, p3: bool): *tree<ast> {
+fun _function(p1: str, p2: *binding<type>, p3: bool): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_function(make_triple(p1, p2, p3)))
 }
 fun _template(p1: str, p2: set<str>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_template(make_pair(p1, p2)))
 }
-fun _compiler_intrinsic(p1: str, p2: vec<*type>): *tree<ast> {
+fun _compiler_intrinsic(p1: str, p2: vec<*binding<type>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_compiler_intrinsic(make_pair(p1, p2)))
 }
-fun _value(p1: str, p2: *type): *tree<ast> {
+fun _value(p1: str, p2: *binding<type>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_value(make_pair(p1, p2)))
 }
 fun _declaration(): *tree<ast> {
@@ -147,25 +147,25 @@ fun _type_def(p: str, c: ref vec<*tree<ast>>): *tree<ast> {
 fun _adt_def(p: str, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_adt_def(p), c)
 }
-fun _cast(p: *type, c: ref vec<*tree<ast>>): *tree<ast> {
+fun _cast(p: *binding<type>, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_cast(p), c)
 }
-fun _identifier(p1: str, p2: *type, c: ref vec<*tree<ast>>): *tree<ast> {
+fun _identifier(p1: str, p2: *binding<type>, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_identifier(make_pair(p1, p2)), c)
 }
 fun _binding(p1: str, p2: *binding<tree<ast>>, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_binding(make_pair(p1, p2)), c)
 }
-fun _function(p1: str, p2: *type, p3: bool, c: ref vec<*tree<ast>>): *tree<ast> {
+fun _function(p1: str, p2: *binding<type>, p3: bool, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_function(make_triple(p1, p2, p3)), c)
 }
 fun _template(p1: str, p2: set<str>, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_template(make_pair(p1, p2)), c)
 }
-fun _compiler_intrinsic(p1: str, p2: vec<*type>, c: ref vec<*tree<ast>>): *tree<ast> {
+fun _compiler_intrinsic(p1: str, p2: vec<*binding<type>>, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_compiler_intrinsic(make_pair(p1, p2)), c)
 }
-fun _value(p1: str, p2: *type, c: ref vec<*tree<ast>>): *tree<ast> {
+fun _value(p1: str, p2: *binding<type>, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_value(make_pair(p1, p2)), c)
 }
 fun _declaration(c: ref vec<*tree<ast>>): *tree<ast> {
@@ -241,7 +241,10 @@ fun is_top_level_item(i: *tree<ast>): bool { return i->parent != null<tree<ast>>
 var bindings: *vec<*void>
 
 fun binding<T>(): *binding<T> {
-    var to_ret = new<binding<T>>()->construct()
+    return binding(null<T>())
+}
+fun binding<T>(it: *T): *binding<T> {
+    var to_ret = new<binding<T>>()->construct(it)
     if (bindings == null<vec<*void>>())
         bindings = new<vec<*void>>()->construct()
     bindings->add( (to_ret) cast *void )
@@ -252,6 +255,10 @@ obj binding<T> (Object) {
     var bound_to: *T
     fun construct(): *binding<T> {
         bound_to = null<T>()
+        return this
+    }
+    fun construct(it: *T): *binding<T> {
+        bound_to = it
         return this
     }
     fun copy_construct(old: *binding<T>): void {
@@ -273,6 +280,10 @@ obj binding<T> (Object) {
         for (var i = 0; i < bindings->size; i++;)
             if ( ((bindings->get(i)) cast *binding<T>)->bound_to == from)
                 ((bindings->get(i)) cast *binding<T>)->bound_to = to
+    }
+    fun to_string(): str {
+        return "binding(" + to_string(bound_to) + ")"
+        /*return "binding(" + deref_to_string(bound_to) + ")"*/
     }
 }
 

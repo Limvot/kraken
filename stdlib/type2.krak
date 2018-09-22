@@ -10,7 +10,7 @@ adt base_type {
     _void,
     _obj: *tree<ast>,
     // triple<pair<param_types, return_type>, is_variadic, is raw>
-    _fun: triple<pair<vec<*type>, *type>, bool, bool>,
+    _fun: triple<pair<vec<*binding<type>>, *binding<type>>, bool, bool>,
     _template_placeholder,
     _bool,
     _char,
@@ -81,10 +81,10 @@ obj type (Object) {
                     to_ret += "_run("
                 else
                     to_ret += "_fun("
-                to_ret += str(", ").join(b.first.first.map(fun(pt: *type): str return pt->to_string();))
+                to_ret += str(", ").join(b.first.first.map(fun(pt: *binding<type>): str return pt->bound_to->to_string();))
                 if (b.third)
                     to_ret += " ..."
-                return to_ret + "): " + b.first.second->to_string()
+                return to_ret + "): " + b.first.second->bound_to->to_string()
             }
             base_type::_template_placeholder()  return indr_string + "_template_placeholder"
             base_type::_bool()                  return indr_string + "_bool"

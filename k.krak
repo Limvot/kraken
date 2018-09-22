@@ -136,11 +136,11 @@ fun main(argc: int, argv: **char): int {
                 set_ast_binding(binding, options[0])
             }
         }
-        var handle_type: fun(*type, *tree<ast>): void = fun(t: *type, n: *tree<ast>) {
-            match(t->base) {
+        var handle_type: fun(*binding<type>, *tree<ast>): void = fun(t: *binding<type>, n: *tree<ast>) {
+            match(t->bound_to->base) {
                 base_type::_obj(b) try_binding(b, n, true)
                 base_type::_fun(b) {
-                    b.first.first.for_each(fun(it: *type) {
+                    b.first.first.for_each(fun(it: *binding<type>) {
                         handle_type(it, n)
                     })
                     handle_type(b.first.second, n)
@@ -153,8 +153,8 @@ fun main(argc: int, argv: **char): int {
                 ast::_identifier(b)         handle_type(b.second, t)
                 /*_binding: triple<str, vec<*type>, *tree<ast>>,*/
                 ast::_function(b)           handle_type(b.second, t)
-                ast::_compiler_intrinsic(b) b.second.for_each(fun(ty: *type) {
-                    handle_type(ty, t)
+                ast::_compiler_intrinsic(b) b.second.for_each(fun(tb: *binding<type>) {
+                    handle_type(tb, t)
                 })
                 ast::_cast(b)               handle_type(b, t)
                 /*_value: pair<str, *type>*/
@@ -181,7 +181,8 @@ fun main(argc: int, argv: **char): int {
             return
         }
 
-        var to_c_type = fun(t: *type): str {
+        var to_c_type = fun(tb: *binding<type>): str {
+            var t = tb->bound_to
             var ind = str("*") * t->indirection
             if (t->is_ref)
                 error("type is ref in to_c_type")
@@ -238,7 +239,7 @@ fun main(argc: int, argv: **char): int {
                 ast::_adt_def(b)            { error("no adt_def should remain at C emit"); }
                 ast::_function(b)           {
                     var fun_name = b.first
-                    var fun_type = b.second
+                    var fun_type = b.second->bound_to
                     var is_ext   = b.third
                     var return_type     = fun_type->base._fun.first.second
                     var parameter_types = fun_type->base._fun.first.first
@@ -342,21 +343,21 @@ fun main(argc: int, argv: **char): int {
     // starting generation of the entire program
     var real_main = _function(
                     str("main"),
-                    type(base_type::_fun(make_triple(make_pair(vec(
-                                    type(base_type::_int(), 0, false),
-                                    type(base_type::_char(), 2, false)
+                    binding(type(base_type::_fun(make_triple(make_pair(vec(
+                                    binding(type(base_type::_int(), 0, false)),
+                                    binding(type(base_type::_char(), 2, false))
                                 ),
-                            type(base_type::_int(), 0, false)
-                        ), false, false)), 0, false),
+                            binding(type(base_type::_int(), 0, false))
+                        ), false, false)), 0, false)),
                     true, vec(
-                                _identifier(str("argc"), type(base_type::_int(), 0, false)),
-                                _identifier(str("argv"), type(base_type::_char(), 2, false)),
+                                _identifier(str("argc"), binding(type(base_type::_int(), 0, false))),
+                                _identifier(str("argv"), binding(type(base_type::_char(), 2, false))),
                                 _return(vec(_call(vec(make_ast_binding("fmain"), make_ast_binding("argc"), make_ast_binding("argv")))))
                               )
                     )
     var top_unit = _translation_unit(str(), vec(
                        _import(make_ast_binding(kraken_file_name), set(str("*")), vec(
-                            _identifier(kraken_file_name, type(base_type::_void(), 0, false))
+                            _identifier(kraken_file_name, binding(type(base_type::_void(), 0, false)))
                        )),
                        real_main
                    ))
@@ -391,7 +392,7 @@ fun main(argc: int, argv: **char): int {
     return 0
 }
 
-fun parse_type(syntax: *tree<symbol>): *type {
+fun parse_type(syntax: *tree<symbol>): *binding<type> {
     var is_ref = get_node("\"ref\"", syntax) != null<tree<symbol>>()
     var indr = 0
     syntax = get_node("pre_reffed", syntax)
@@ -407,39 +408,39 @@ fun parse_type(syntax: *tree<symbol>): *type {
     if (ident != null<tree<symbol>>()) {
         var template_inst = get_node("template_inst", syntax)
         if (template_inst != null<tree<symbol>>()) {
-            return type(base_type::_obj(make_ast_binding(concat(ident) + "<somin>")), indr, is_ref)
+            return binding(type(base_type::_obj(make_ast_binding(concat(ident) + "<somin>")), indr, is_ref))
         } else {
-            return type(base_type::_obj(make_ast_binding(concat(ident))), indr, is_ref)
+            return binding(type(base_type::_obj(make_ast_binding(concat(ident))), indr, is_ref))
         }
     } else if (func != null<tree<symbol>>()) {
-        var param_types = vec<*type>()
-        var return_type = type(base_type::_void(), 0, false)
+        var param_types = vec<*binding<type>>()
+        var return_type = binding(type(base_type::_void(), 0, false))
         var variadic = false
         var raw = false
-        return type(base_type::_fun(make_triple(make_pair(param_types, return_type),
-                                    variadic, raw)), indr, is_ref)
+        return binding(type(base_type::_fun(make_triple(make_pair(param_types, return_type),
+                                    variadic, raw)), indr, is_ref))
     } else if (first_child_name == "\"void\"") {
-        return type(base_type::_void(), indr, is_ref)
+        return binding(type(base_type::_void(), indr, is_ref))
     } else if (first_child_name == "\"char\"") {
-        return type(base_type::_char(), indr, is_ref)
+        return binding(type(base_type::_char(), indr, is_ref))
     } else if (first_child_name == "\"uchar\"") {
-        return type(base_type::_uchar(), indr, is_ref)
+        return binding(type(base_type::_uchar(), indr, is_ref))
     } else if (first_child_name == "\"short\"") {
-        return type(base_type::_short(), indr, is_ref)
+        return binding(type(base_type::_short(), indr, is_ref))
     } else if (first_child_name == "\"ushort\"") {
-        return type(base_type::_ushort(), indr, is_ref)
+        return binding(type(base_type::_ushort(), indr, is_ref))
     } else if (first_child_name == "\"int\"") {
-        return type(base_type::_int(), indr, is_ref)
+        return binding(type(base_type::_int(), indr, is_ref))
     } else if (first_child_name == "\"uint\"") {
-        return type(base_type::_uint(), indr, is_ref)
+        return binding(type(base_type::_uint(), indr, is_ref))
     } else if (first_child_name == "\"long\"") {
-        return type(base_type::_long(), indr, is_ref)
+        return binding(type(base_type::_long(), indr, is_ref))
     } else if (first_child_name == "\"ulong\"") {
-        return type(base_type::_ulong(), indr, is_ref)
+        return binding(type(base_type::_ulong(), indr, is_ref))
     } else if (first_child_name == "\"float\"") {
-        return type(base_type::_float(), indr, is_ref)
+        return binding(type(base_type::_float(), indr, is_ref))
     } else if (first_child_name == "\"double\"") {
-        return type(base_type::_double(), indr, is_ref)
+        return binding(type(base_type::_double(), indr, is_ref))
     }
     error(syntax, "could not parse type " + first_child_name)
 }
@@ -467,13 +468,13 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
         } else if (syntax->data.name == "function") {
             var parameters  = get_nodes("typed_parameter", syntax).map(syntax_to_ast_helper)
             var body        = syntax_to_ast_helper(get_node("statement", syntax))
-            var return_type = null<type>()
+            var return_type = null<binding<type>>()
             var return_type_node = get_node("typed_return", syntax)
             if (return_type_node != null<tree<symbol>>())
                 return_type = parse_type(get_node("type", return_type_node))
             else
-                return_type = type(base_type::_void(), 0, false)
-            var function_type = type(base_type::_fun(make_triple(make_pair(parameters.map(fun(i: *tree<ast>): *type return i->data._identifier.second;), return_type), false, false)), 0, false)
+                return_type = binding(type(base_type::_void(), 0, false))
+            var function_type = binding(type(base_type::_fun(make_triple(make_pair(parameters.map(fun(i: *tree<ast>): *binding<type> return i->data._identifier.second;), return_type), false, false)), 0, false))
             var n = _function(concat(get_node("func_identifier", syntax)), function_type, false, parameters + body)
             var template = get_node("template_dec", syntax)
             if (template == null<tree<symbol>>()) {
@@ -499,7 +500,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                                 if (option_type != null<tree<symbol>>())
                                     return _identifier(concat(get_node("identifier", s)), parse_type(option_type))
                                 else
-                                    return _identifier(concat(get_node("identifier", s)), type(base_type::_void(), 0, false))
+                                    return _identifier(concat(get_node("identifier", s)), binding(type(base_type::_void(), 0, false)))
                              }))
             var template = get_node("template_dec", syntax)
             if (template == null<tree<symbol>>()) {
@@ -523,7 +524,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                                     return _case(s->children.map(syntax_to_ast_helper))
                               }))
         } else if (syntax->data.name == "declaration_statement") {
-            var t = type(base_type::_unknown(), 0, false)
+            var t = binding(type(base_type::_unknown(), 0, false))
             var type_syntax = get_node("type", syntax)
             if type_syntax != null<tree<symbol>>()
                 t = parse_type(type_syntax)
@@ -571,9 +572,9 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                                  syntax_to_ast_helper(syntax->children[2])))
             }
         } else if (syntax->data.name == "number")
-            return _value(concat(syntax), type(base_type::_int(), 0, false))
+            return _value(concat(syntax), binding(type(base_type::_int(), 0, false)))
         else if (syntax->data.name == "bool")
-            return _value(concat(syntax), type(base_type::_bool(), 0, false))
+            return _value(concat(syntax), binding(type(base_type::_bool(), 0, false)))
         else if (syntax->data.name == "scoped_identifier" || syntax->data.name == "identifier")
             return make_ast_binding(concat(syntax))
         else {
