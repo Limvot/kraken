@@ -37,7 +37,7 @@ fun get_type(a: *tree<ast>): *binding<type> {
         ast::_identifier(b)         return b.second
         ast::_binding(b)            return get_type(b.second->bound_to)
         ast::_function(b)           return b.second
-        /*ast::_call()                return get_type(a->children[0])->bound_to->base->_fun->second*/
+        ast::_call()                return get_type(a->children[0])->bound_to->base._fun.first.second
         /*ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ")"*/
         ast::_cast(b)               return b
         ast::_value(b)              return b.second
@@ -248,6 +248,13 @@ fun is_cast(i: *tree<ast>): bool { match(i->data) { ast::_cast(b) return true; }
 fun is_value(i: *tree<ast>): bool { match(i->data) { ast::_value(b) return true; } return false; }
 
 fun is_top_level_item(i: *tree<ast>): bool { return i->parent != null<tree<ast>>() && is_translation_unit(i->parent); }
+
+fun get_ancestor_satisfying(t: *tree<ast>, p: fun(*tree<ast>): bool): *tree<ast> {
+    t = t->parent
+    while (t != null<tree<ast>>() && !p(t))
+        t = t->parent
+    return t
+}
 
 
 var bindings: *vec<*void>

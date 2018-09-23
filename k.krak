@@ -175,17 +175,28 @@ fun main(argc: int, argv: **char): int {
             println("trying to unify " + t1->bound_to->to_string() + " and " + t2->bound_to->to_string())
             if (t1->bound_to->equality(t2->bound_to, false) || t1->bound_to->is_unknown())
                 t1->set(t2->bound_to)
-            else
+            else if (t2->bound_to->is_unknown())
                 t2->set(t1->bound_to)
+            else
+                error("Doesn't typecheck! Attempted to unify " + t1->bound_to->to_string() + " and " + t2->bound_to->to_string())
         }
         var traverse_for_unify: fun(*tree<ast>): void = fun(t: *tree<ast>) {
             t->children.for_each(traverse_for_unify)
             match (t->data) {
                 ast::_declaration() if (t->children.size > 1)
                                         unify(get_type(t->children[0]), get_type(t->children[1]))
-                /*ast::_assignment()*/
-                /*ast::_call()*/
-                /*ast::_return()*/
+                /*ast::_assignment()   unify(get_type(t->children[0]), get_type(t->children[1]))*/
+                ast::_call() {
+                    var fun_type = get_type(t->children[0])->bound_to
+                    if (!fun_type->is_fun())
+                        error("trying to call not a function type: " + fun_type->to_string())
+                    if (fun_type->base._fun.first.first.size != (t->children.size - 1))
+                        error("trying to call function with type wrong number of params (" + to_string(fun_type->base._fun.first.first.size) + " vs " + to_string(t->children.size - 1) + "): " + fun_type->to_string())
+                    for (var i = 1; i < t->children.size; i++;)
+                        unify(fun_type->base._fun.first.first[i-1], get_type(t->children[i]))
+                }
+                ast::_return() if (t->children.size > 0)
+                                   unify(get_type(get_ancestor_satisfying(t, fun(t: *tree<ast>): bool return is_function(t);))->bound_to->base._fun.first.second, get_type(t->children[0]))
             }
         }
         traverse_for_unify(item)
@@ -590,9 +601,13 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                                  syntax_to_ast_helper(syntax->children[0]),
                                  syntax_to_ast_helper(syntax->children[2])))
             }
-        } else if (syntax->data.name == "number")
-            return _value(concat(syntax), binding(type(base_type::_int(), 0, false)))
-        else if (syntax->data.name == "bool")
+        } else if (syntax->data.name == "number") {
+            var number_string = concat(syntax)
+            if (number_string.contains('.'))
+                return _value(number_string, binding(type(base_type::_double(), 0, false)))
+            else
+                return _value(number_string, binding(type(base_type::_int(), 0, false)))
+        } else if (syntax->data.name == "bool")
             return _value(concat(syntax), binding(type(base_type::_bool(), 0, false)))
         else if (syntax->data.name == "scoped_identifier" || syntax->data.name == "identifier")
             return make_ast_binding(concat(syntax))

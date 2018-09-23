@@ -309,5 +309,8 @@ obj str (Object, Serializable, Hashable) {
     fun for_each(func: fun(char):void) {
         data.for_each(func)
     }
+    fun contains(c: char): bool {
+        return data.contains(c)
+    }
 };
 
