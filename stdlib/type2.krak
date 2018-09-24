@@ -55,10 +55,12 @@ obj type (Object) {
     fun destruct() {
         base.destruct()
     }
-    fun operator!=(other: ref type):bool return !equality(other, true);
-    fun operator==(other: ref type):bool return equality(other, true);
-    fun equality(other: *type, care_about_ref: bool):bool return equality(*other, care_about_ref);
-    fun equality(other: ref type, care_about_ref: bool):bool {
+    fun operator!=(other: ref type):bool return !equality(other, true, false);
+    fun operator==(other: ref type):bool return equality(other, true, false);
+    fun equality(other: *type, care_about_ref: bool, count_unknown_as_equal: bool):bool return equality(*other, care_about_ref, count_unknown_as_equal);
+    fun equality(other: ref type, care_about_ref: bool, count_unknown_as_equal: bool):bool {
+        if (count_unknown_as_equal && (is_unknown() || other.is_unknown()))
+            return true
         if (care_about_ref && (is_ref != other.is_ref))
            return false
         if (indirection != other.indirection)
@@ -67,12 +69,12 @@ obj type (Object) {
             base_type::_fun(b) {
                 if ( !(other.is_fun() && base._fun.second == other.base._fun.second && base._fun.third == other.base._fun.third) )
                     return false
-                if ( !(base._fun.first.second->bound_to->equality(other.base._fun.first.second->bound_to, care_about_ref)) )
+                if ( !(base._fun.first.second->bound_to->equality(other.base._fun.first.second->bound_to, care_about_ref, count_unknown_as_equal)) )
                     return false
                 if ( !(base._fun.first.first.size == other.base._fun.first.first.size) )
                     return false
                 for (var i = 0; i < base._fun.first.first.size; i++;)
-                    if ( !(base._fun.first.first[i]->bound_to->equality(other.base._fun.first.first[i]->bound_to, care_about_ref)) )
+                    if ( !(base._fun.first.first[i]->bound_to->equality(other.base._fun.first.first[i]->bound_to, care_about_ref, count_unknown_as_equal)) )
                         return false
                 return true
             }

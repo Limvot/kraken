@@ -213,7 +213,7 @@ fun main(argc: int, argv: **char): int {
 
         var unify: fun(*binding<type>, *binding<type>): void = fun(t1: *binding<type>, t2: *binding<type>) {
             println("trying to unify " + t1->bound_to->to_string() + " and " + t2->bound_to->to_string())
-            if (t1->bound_to->equality(t2->bound_to, false) || t1->bound_to->is_unknown())
+            if (t1->bound_to->equality(t2->bound_to, false, false) || t1->bound_to->is_unknown())
                 t1->set(t2->bound_to)
             else if (t2->bound_to->is_unknown())
                 t2->set(t1->bound_to)
@@ -247,7 +247,7 @@ fun main(argc: int, argv: **char): int {
             match (t->data) {
                 ast::_binding(b) if (!t->data._binding.second->bound()) {
                     println("Attempting to use our inferenced type " + unbound_types[t]->bound_to->to_string() + " to decide what to bind " + to_string(t->data) + " to form options:")
-                    var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return unbound_types[t]->bound_to->equality(get_type(p)->bound_to, false);)
+                    var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return unbound_types[t]->bound_to->equality(get_type(p)->bound_to, false, true);)
                     multiple_binding_options[t].for_each(fun(p: *tree<ast>) {
                         println("\t" + to_string(p->data) + " of type " + get_type(p)->bound_to->to_string())
                     })
