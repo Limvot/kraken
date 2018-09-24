@@ -87,6 +87,8 @@ fun main(argc: int, argv: **char): int {
     var name_ast_map = map<str, *tree<ast>>()
     var passes = map<str, fun(*tree<ast>): void>()
 
+    var multiple_binding_options = map<*tree<ast>, vec<*tree<ast>>>()
+
     // resolves all binding possibilities for one top level item
     passes[str("name_possibility_resolve")] = fun(item: *tree<ast>) {
         println("Running name possibility resolver?")
@@ -131,9 +133,12 @@ fun main(argc: int, argv: **char): int {
         var try_binding = fun(binding: *tree<ast>, start_scope: *tree<ast>, type_binding: bool) {
             if !ast_bound(binding) {
                 var options = scope_lookup(start_scope, binding->data._binding.first, type_binding)
-                if (options.size < 1)
+                if (options.size == 0)
                     error("Could not find any options for scope lookup of " + binding->data._binding.first)
-                set_ast_binding(binding, options[0])
+                else if (options.size == 1)
+                    set_ast_binding(binding, options[0])
+                else
+                    multiple_binding_options[binding] = options
             }
         }
         var handle_type: fun(*binding<type>, *tree<ast>): void = fun(t: *binding<type>, n: *tree<ast>) {
@@ -171,6 +176,41 @@ fun main(argc: int, argv: **char): int {
             pass_poset.add_open_dep(make_pair(item, str("name_type_resolve")), make_pair(item, str("name_possibility_resolve")))
             return
         }
+        var unbound_types = map<*tree<ast>, *binding<type>>()
+        var get_type: fun(*tree<ast>): *binding<type> = fun(a: *tree<ast>): *binding<type> {
+            match(a->data) {
+                ast::_identifier(b)         return b.second
+                ast::_binding(b)            if (b.second->bound()) {
+                                                return get_type(b.second->bound_to)
+                                            } else if (unbound_types.contains_key(a)) {
+                                                return unbound_types[a]
+                                            } else {
+                                                var new_type = binding(type(base_type::_unknown(), 0, false))
+                                                unbound_types[a] = new_type
+                                                return new_type
+                                            }
+                ast::_function(b)           return b.second
+                ast::_call() {
+                    var t = get_type(a->children[0])
+                    if (t->bound_to->is_fun())
+                        return t->bound_to->base._fun.first.second
+                    if (t->bound_to->is_unknown()) {
+                        var return_type = binding(type(base_type::_unknown(), 0, false))
+                        var parameter_types = vec<*binding<type>>()
+                        for (var i = 1; i < a->children.size; i++;)
+                            parameter_types.add(get_type(a->children[i]))
+                        t->set(type(base_type::_fun(make_triple(make_pair(parameter_types, return_type), false, false)), 0, false))
+                        return return_type
+                    }
+                    error("Trying to get type of call where type of first child is not function, but " + t->bound_to->to_string())
+                }
+                /*ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ")"*/
+                ast::_cast(b)               return b
+                ast::_value(b)              return b.second
+            }
+            error("Trying to get type of node without one: " + to_string(a->data))
+        }
+
         var unify: fun(*binding<type>, *binding<type>): void = fun(t1: *binding<type>, t2: *binding<type>) {
             println("trying to unify " + t1->bound_to->to_string() + " and " + t2->bound_to->to_string())
             if (t1->bound_to->equality(t2->bound_to, false) || t1->bound_to->is_unknown())
@@ -187,6 +227,8 @@ fun main(argc: int, argv: **char): int {
                                         unify(get_type(t->children[0]), get_type(t->children[1]))
                 /*ast::_assignment()   unify(get_type(t->children[0]), get_type(t->children[1]))*/
                 ast::_call() {
+                    // we call get type to make sure if it is unknown it is transformed into a function version
+                    get_type(t)
                     var fun_type = get_type(t->children[0])->bound_to
                     if (!fun_type->is_fun())
                         error("trying to call not a function type: " + fun_type->to_string())
@@ -200,50 +242,82 @@ fun main(argc: int, argv: **char): int {
             }
         }
         traverse_for_unify(item)
+
+        var traverse_for_select: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+            match (t->data) {
+                ast::_binding(b) if (!t->data._binding.second->bound()) {
+                    println("Attempting to use our inferenced type " + unbound_types[t]->bound_to->to_string() + " to decide what to bind " + to_string(t->data) + " to form options:")
+                    var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return unbound_types[t]->bound_to->equality(get_type(p)->bound_to, false);)
+                    multiple_binding_options[t].for_each(fun(p: *tree<ast>) {
+                        println("\t" + to_string(p->data) + " of type " + get_type(p)->bound_to->to_string())
+                    })
+                    if (filtered_options.size == 0)
+                        error("no options remain after filtering overloads by type for " + to_string(t->data))
+                    else if (filtered_options.size > 1)
+                        error("too many options remain after filtering overloads by type for " + to_string(t->data))
+                    else
+                        set_ast_binding(t, filtered_options[0])
+                }
+            }
+            t->children.for_each(traverse_for_select)
+        }
+        traverse_for_select(item)
     }
 
     //  emit C
     var C_str = str()
     var C_declaration_str = str()
+
+    var to_c_type = fun(tb: *binding<type>): str {
+        var t = tb->bound_to
+        var ind = str("*") * t->indirection
+        if (t->is_ref)
+            error("type is ref in to_c_type")
+        match(t->base) {
+            base_type::_unknown()              error("unknown in to_c_type")
+            base_type::_void()                 return "void"           + ind
+            base_type::_obj(b)                 error("ob in to_c_type unimplemented")
+            base_type::_fun(b)                 error("fun in to_c_type unimplemented")
+            base_type::_template_placeholder() error("template_placeholder in to_c_type")
+            base_type::_bool()                 return "bool"           + ind
+            base_type::_char()                 return "char"           + ind
+            base_type::_uchar()                return "usigned char"   + ind
+            base_type::_short()                return "short"          + ind
+            base_type::_ushort()               return "unsigned short" + ind
+            base_type::_int()                  return "int"            + ind
+            base_type::_uint()                 return "unsigned int"   + ind
+            base_type::_long()                 return "long"           + ind
+            base_type::_ulong()                return "unsigned long"  + ind
+            base_type::_float()                return "float"          + ind
+            base_type::_double()               return "double"         + ind
+        }
+        error("fell through to_c_type")
+    }
+    var taken_names = map<*tree<ast>, str>()
+    var id = 0
+    var get_c_name = fun(x: *tree<ast>): str {
+        if (taken_names.contains_key(x))
+            return taken_names[x]
+        var possible = str()
+        match(x->data) {
+            ast::_identifier(b) { possible = b.first; }
+            ast::_type_def(b)   { possible = b; }
+            ast::_function(b)   { possible = b.first; }
+        }
+        if (possible == "")
+            error("cannot get_c_name of thing: " + to_string(x->data))
+        if (taken_names.contains_value(possible)) {
+            possible += id++
+        }
+        taken_names[x] = possible
+        return possible
+    }
+
+
     passes[str("emit_C")] = fun(item: *tree<ast>) {
         if !pass_poset.done(make_pair(item, str("name_type_resolve"))) {
             pass_poset.add_open_dep(make_pair(item, str("emit_C")), make_pair(item, str("name_type_resolve")))
             return
-        }
-
-        var to_c_type = fun(tb: *binding<type>): str {
-            var t = tb->bound_to
-            var ind = str("*") * t->indirection
-            if (t->is_ref)
-                error("type is ref in to_c_type")
-            match(t->base) {
-                base_type::_unknown()              error("unknown in to_c_type")
-                base_type::_void()                 return "void"           + ind
-                base_type::_obj(b)                 error("ob in to_c_type unimplemented")
-                base_type::_fun(b)                 error("fun in to_c_type unimplemented")
-                base_type::_template_placeholder() error("template_placeholder in to_c_type")
-                base_type::_bool()                 return "bool"           + ind
-                base_type::_char()                 return "char"           + ind
-                base_type::_uchar()                return "usigned char"   + ind
-                base_type::_short()                return "short"          + ind
-                base_type::_ushort()               return "unsigned short" + ind
-                base_type::_int()                  return "int"            + ind
-                base_type::_uint()                 return "unsigned int"   + ind
-                base_type::_long()                 return "long"           + ind
-                base_type::_ulong()                return "unsigned long"  + ind
-                base_type::_float()                return "float"          + ind
-                base_type::_double()               return "double"         + ind
-            }
-            error("fell through to_c_type")
-        }
-
-        var get_c_name = fun(x: *tree<ast>): str {
-            match(x->data) {
-                ast::_identifier(b) { return b.first; }
-                ast::_type_def(b)   { return b; }
-                ast::_function(b)   { return b.first; }
-            }
-            error("cannot get_c_name of thing: " + to_string(x->data))
         }
 
         var emit_C: fun(*tree<ast>, int): void = fun(t: *tree<ast>, level: int) {
@@ -263,12 +337,13 @@ fun main(argc: int, argv: **char): int {
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to, str("emit_C")))
                     else if (is_identifier(bound_to) && is_declaration(bound_to->parent) && is_top_level_item(bound_to->parent))
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to->parent, str("emit_C")))
-                    C_str += get_c_name(bound_to)
+                    C_str += idt + get_c_name(bound_to)
                 }
                 ast::_type_def(b)           { error("type_def gen unimplemented"); }
                 ast::_adt_def(b)            { error("no adt_def should remain at C emit"); }
                 ast::_function(b)           {
-                    var fun_name = b.first
+                    /*var fun_name = b.first*/
+                    var fun_name = get_c_name(t)
                     var fun_type = b.second->bound_to
                     var is_ext   = b.third
                     var return_type     = fun_type->base._fun.first.second
@@ -276,7 +351,7 @@ fun main(argc: int, argv: **char): int {
                     var is_variadic     = fun_type->base._fun.second
                     var is_raw          = fun_type->base._fun.third
                     // TODO check is_ext for name mangling
-                    C_str                  += to_c_type(return_type) + " " + fun_name + "("
+                    C_str             += to_c_type(return_type) + " " + fun_name + "("
                     C_declaration_str += to_c_type(return_type) + " " + fun_name + "("
                     for (var i = 0; i < parameter_types.size; i++;) {
                         if (i != 0) {

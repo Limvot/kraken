@@ -61,7 +61,23 @@ obj type (Object) {
     fun equality(other: ref type, care_about_ref: bool):bool {
         if (care_about_ref && (is_ref != other.is_ref))
            return false
-        return base == other.base && indirection == other.indirection
+        if (indirection != other.indirection)
+            return false
+        match(base) {
+            base_type::_fun(b) {
+                if ( !(other.is_fun() && base._fun.second == other.base._fun.second && base._fun.third == other.base._fun.third) )
+                    return false
+                if ( !(base._fun.first.second->bound_to->equality(other.base._fun.first.second->bound_to, care_about_ref)) )
+                    return false
+                if ( !(base._fun.first.first.size == other.base._fun.first.first.size) )
+                    return false
+                for (var i = 0; i < base._fun.first.first.size; i++;)
+                    if ( !(base._fun.first.first[i]->bound_to->equality(other.base._fun.first.first[i]->bound_to, care_about_ref)) )
+                        return false
+                return true
+            }
+        }
+        return base == other.base
     }
     fun to_string(): str {
         var indr_string = str("")
