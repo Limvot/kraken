@@ -88,6 +88,13 @@ fun main(argc: int, argv: **char): int {
     var passes = map<str, fun(*tree<ast>): void>()
 
     var multiple_binding_options = map<*tree<ast>, vec<*tree<ast>>>()
+    var primitive_ops.construct(): map<str, vec<*tree<ast>>>
+    primitive_ops[str("op>")] = vec(_compiler_intrinsic(str(">"), binding(type(base_type::_fun(make_triple(make_pair(vec(
+                                    binding(type(base_type::_int(), 0, false)),
+                                    binding(type(base_type::_int(), 0, false))
+                                ),
+                            binding(type(base_type::_bool(), 0, false))
+                        ), false, false)), 0, false)), vec<*binding<type>>()))
 
     // resolves all binding possibilities for one top level item
     passes[str("name_possibility_resolve")] = fun(item: *tree<ast>) {
@@ -128,6 +135,8 @@ fun main(argc: int, argv: **char): int {
             }
             if (scope->parent != null<tree<ast>>())
                 return to_ret + scope_lookup(scope->parent, name, is_type)
+            else if (primitive_ops.contains_key(name))
+                to_ret += primitive_ops[name]
             return to_ret
         }
         var try_binding = fun(binding: *tree<ast>, start_scope: *tree<ast>, type_binding: bool) {
@@ -158,9 +167,12 @@ fun main(argc: int, argv: **char): int {
                 ast::_identifier(b)         handle_type(b.second, t)
                 /*_binding: triple<str, vec<*type>, *tree<ast>>,*/
                 ast::_function(b)           handle_type(b.second, t)
-                ast::_compiler_intrinsic(b) b.second.for_each(fun(tb: *binding<type>) {
-                    handle_type(tb, t)
-                })
+                ast::_compiler_intrinsic(b) {
+                    /*handle_type(b.second, t)*/
+                    b.third.for_each(fun(tb: *binding<type>) {
+                        handle_type(tb, t)
+                    })
+                }
                 ast::_cast(b)               handle_type(b, t)
                 /*_value: pair<str, *type>*/
                 ast::_binding(b)            try_binding(t, t, false)
@@ -190,6 +202,7 @@ fun main(argc: int, argv: **char): int {
                                                 return new_type
                                             }
                 ast::_function(b)           return b.second
+                ast::_compiler_intrinsic(b) return b.second
                 ast::_call() {
                     var t = get_type(a->children[0])
                     if (t->bound_to->is_fun())
@@ -294,6 +307,72 @@ fun main(argc: int, argv: **char): int {
     }
     var taken_names = map<*tree<ast>, str>()
     var id = 0
+
+    var replacement_map.construct() : map<str, str>
+    replacement_map[str("+")] = str("plus")
+    replacement_map[str("-")] = str("minus")
+    replacement_map[str("*")] = str("star")
+    replacement_map[str("/")] = str("div")
+    replacement_map[str("%")] = str("mod")
+    replacement_map[str("^")] = str("carat")
+    replacement_map[str("&")] = str("amprsd")
+    replacement_map[str("|")] = str("pipe")
+    replacement_map[str("~")] = str("tilde")
+    replacement_map[str("!")] = str("exlmtnpt")
+    replacement_map[str(",")] = str("comma")
+    replacement_map[str("=")] = str("eq")
+    replacement_map[str("++")] = str("dbplus")
+    replacement_map[str("--")] = str("dbminus")
+    replacement_map[str("<<")] = str("dbleft")
+    replacement_map[str(">>")] = str("dbright")
+    replacement_map[str("::")] = str("scopeop")
+    replacement_map[str(":")] = str("colon")
+    replacement_map[str("==")] = str("dbq")
+    replacement_map[str("!=")] = str("notequals")
+    replacement_map[str("&&")] = str("doubleamprsnd")
+    replacement_map[str("||")] = str("doublepipe")
+    replacement_map[str("+=")] = str("plusequals")
+    replacement_map[str("-=")] = str("minusequals")
+    replacement_map[str("/=")] = str("divequals")
+    replacement_map[str("%=")] = str("modequals")
+    replacement_map[str("^=")] = str("caratequals")
+    replacement_map[str("&=")] = str("amprsdequals")
+    replacement_map[str("|=")] = str("pipeequals")
+    replacement_map[str("*=")] = str("starequals")
+    replacement_map[str("<<=")] = str("doublerightequals")
+    replacement_map[str("<")] = str("lt")
+    replacement_map[str(">")] = str("gt")
+    replacement_map[str(">>=")] = str("doubleleftequals")
+    replacement_map[str("(")] = str("openparen")
+    replacement_map[str(")")] = str("closeparen")
+    replacement_map[str("[")] = str("obk")
+    replacement_map[str("]")] = str("cbk")
+    replacement_map[str(" ")] = str("_")
+    replacement_map[str(".")] = str("dot")
+    replacement_map[str("->")] = str("arrow")
+
+    var longest_replacement = 0
+    replacement_map.for_each(fun(key: str, value: str) {
+        if (key.length() > longest_replacement)
+            longest_replacement = key.length()
+    })
+    var cify_name = fun(name: ref str): str {
+        var to_ret = str()
+        for (var i = 0; i < name.length(); i++;) {
+            var replaced = false
+            for (var j = longest_replacement; j > 0; j--;) {
+                if (i + j <= name.length() && replacement_map.contains_key(name.slice(i,i+j))) {
+                   to_ret += replacement_map[name.slice(i,i+j)]
+                   replaced = true
+                   i += j-1;
+                   break
+                }
+            }
+            if (!replaced)
+               to_ret += name[i]
+        }
+        return to_ret
+    }
     var get_c_name = fun(x: *tree<ast>): str {
         if (taken_names.contains_key(x))
             return taken_names[x]
@@ -308,8 +387,8 @@ fun main(argc: int, argv: **char): int {
         if (taken_names.contains_value(possible)) {
             possible += id++
         }
-        taken_names[x] = possible
-        return possible
+        taken_names[x] = cify_name(possible)
+        return taken_names[x]
     }
 
 
@@ -425,14 +504,28 @@ fun main(argc: int, argv: **char): int {
                 ast::_continue()            { C_str += idt + "continue"; }
                 ast::_defer()               { error("no defer should remain at C emit"); }
                 ast::_call()                {
-                    emit_C(t->children[0], level)
-                    C_str += "("
-                    for (var i = 1; i < t->children.size; i++;) {
-                        if (i != 1)
-                            C_str += ", "
-                        emit_C(t->children[i], 0)
+                    if (is_compiler_intrinsic(get_ast_binding(t->children[0]))) {
+                        if (t->children.size == 2) {
+                            C_str += idt + "(" + get_ast_binding(t->children[0])->data._compiler_intrinsic.first + "("
+                            emit_C(t->children[1], 0)
+                            C_str += "))"
+                        } else if (t->children.size == 3) {
+                            C_str += idt + "(("
+                            emit_C(t->children[1], 0)
+                            C_str += ")" + get_ast_binding(t->children[0])->data._compiler_intrinsic.first + "("
+                            emit_C(t->children[2], 0)
+                            C_str += "))"
+                        } else error("Calling primitive intrinsic with not 1 or 2 arguments")
+                    } else {
+                        emit_C(t->children[0], level)
+                        C_str += "("
+                        for (var i = 1; i < t->children.size; i++;) {
+                            if (i != 1)
+                                C_str += ", "
+                            emit_C(t->children[i], 0)
+                        }
+                        C_str += ")"
                     }
-                    C_str += ")"
                 }
                 ast::_compiler_intrinsic(b) { error("compiler_intrinsic gen unimplemented"); }
                 ast::_cast(b)               { error("cast gen unimplemented"); }
@@ -525,6 +618,8 @@ fun parse_type(syntax: *tree<symbol>): *binding<type> {
                                     variadic, raw)), indr, is_ref))
     } else if (first_child_name == "\"void\"") {
         return binding(type(base_type::_void(), indr, is_ref))
+    } else if (first_child_name == "\"bool\"") {
+        return binding(type(base_type::_bool(), indr, is_ref))
     } else if (first_child_name == "\"char\"") {
         return binding(type(base_type::_char(), indr, is_ref))
     } else if (first_child_name == "\"uchar\"") {
@@ -671,7 +766,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                                      syntax_to_ast_helper(syntax->children[0])))
                 }
             } else {
-                return _call(vec(make_ast_binding(concat(syntax->children[1])),
+                return _call(vec(make_ast_binding("op" + concat(syntax->children[1])),
                                  syntax_to_ast_helper(syntax->children[0]),
                                  syntax_to_ast_helper(syntax->children[2])))
             }

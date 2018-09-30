@@ -28,7 +28,7 @@ adt ast {
     _continue,
     _defer,
     _call,
-    _compiler_intrinsic: pair<str, vec<*binding<type>>>,
+    _compiler_intrinsic: triple<str, *binding<type>, vec<*binding<type>>>,
     _cast: *binding<type>,
     _value: pair<str, *binding<type>>
 }
@@ -55,7 +55,7 @@ fun to_string(a: ref ast): str {
         ast::_continue()            return str("_continue")
         ast::_defer()               return str("_defer")
         ast::_call()                return str("_call")
-        ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ")"
+        ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ": " + deref_to_string(b.second->bound_to) + ")"
         ast::_cast(b)               return str("_cast")
         ast::_value(b)              return str("_value(") + b.first + ": " + deref_to_string(b.second->bound_to) + ")"
     }
@@ -87,8 +87,8 @@ fun _function(p1: str, p2: *binding<type>, p3: bool): *tree<ast> {
 fun _template(p1: str, p2: set<str>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_template(make_pair(p1, p2)))
 }
-fun _compiler_intrinsic(p1: str, p2: vec<*binding<type>>): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_compiler_intrinsic(make_pair(p1, p2)))
+fun _compiler_intrinsic(p1: str, p2: *binding<type>, p3: vec<*binding<type>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_compiler_intrinsic(make_triple(p1, p2, p3)))
 }
 fun _value(p1: str, p2: *binding<type>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_value(make_pair(p1, p2)))
@@ -162,8 +162,8 @@ fun _function(p1: str, p2: *binding<type>, p3: bool, c: ref vec<*tree<ast>>): *t
 fun _template(p1: str, p2: set<str>, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_template(make_pair(p1, p2)), c)
 }
-fun _compiler_intrinsic(p1: str, p2: vec<*binding<type>>, c: ref vec<*tree<ast>>): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_compiler_intrinsic(make_pair(p1, p2)), c)
+fun _compiler_intrinsic(p1: str, p2: *binding<type>, p3: vec<*binding<type>>, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_compiler_intrinsic(make_triple(p1, p2, p3)), c)
 }
 fun _value(p1: str, p2: *binding<type>, c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_value(make_pair(p1, p2)), c)
