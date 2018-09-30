@@ -84,6 +84,37 @@ fun vec<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, ei
     return out
 }
 
+fun vec<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T, ninth:T, tenth:T):vec::vec<T> {
+    var out.construct():vec::vec<T>
+    out.add(first)
+    out.add(second)
+    out.add(third)
+    out.add(fourth)
+    out.add(fifth)
+    out.add(sixth)
+    out.add(seventh)
+    out.add(eighth)
+    out.add(ninth)
+    out.add(tenth)
+    return out
+}
+
+fun vec<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T, ninth:T, tenth:T, eleventh:T):vec::vec<T> {
+    var out.construct():vec::vec<T>
+    out.add(first)
+    out.add(second)
+    out.add(third)
+    out.add(fourth)
+    out.add(fifth)
+    out.add(sixth)
+    out.add(seventh)
+    out.add(eighth)
+    out.add(ninth)
+    out.add(tenth)
+    out.add(eleventh)
+    return out
+}
+
 fun vec<T>(first:T, second:T, third:T, fourth:T, fifth:T, sixth:T, seventh:T, eighth:T, ninth:T, tenth:T, eleventh:T, twelveth:T):vec::vec<T> {
     var out.construct():vec::vec<T>
     out.add(first)

@@ -89,12 +89,28 @@ fun main(argc: int, argv: **char): int {
 
     var multiple_binding_options = map<*tree<ast>, vec<*tree<ast>>>()
     var primitive_ops.construct(): map<str, vec<*tree<ast>>>
-    primitive_ops[str("op>")] = vec(_compiler_intrinsic(str(">"), binding(type(base_type::_fun(make_triple(make_pair(vec(
-                                    binding(type(base_type::_int(), 0, false)),
-                                    binding(type(base_type::_int(), 0, false))
+    var number_tower = vec(binding(type(base_type::_char(), 0, false)),
+                           binding(type(base_type::_uchar(), 0, false)),
+                           binding(type(base_type::_short(), 0, false)),
+                           binding(type(base_type::_ushort(), 0, false)),
+                           binding(type(base_type::_int(), 0, false)),
+                           binding(type(base_type::_uint(), 0, false)),
+                           binding(type(base_type::_long(), 0, false)),
+                           binding(type(base_type::_ulong(), 0, false)),
+                           binding(type(base_type::_float(), 0, false)),
+                           binding(type(base_type::_double(), 0, false)))
+    var comparators = vec(str("=="), str("<="), str(">="), str("!="), str("<"), str(">"))
+    for (var i = 0; i < comparators.size; i++;) {
+        primitive_ops["op" + comparators[i]] = vec<*tree<ast>>()
+        for (var j = 0; j < number_tower.size; j++;)
+            for (var k = 0; k < number_tower.size; k++;)
+                primitive_ops["op" + comparators[i]].add(_compiler_intrinsic(comparators[i], binding(type(base_type::_fun(make_triple(make_pair(vec(
+                                    number_tower[j],
+                                    number_tower[k]
                                 ),
                             binding(type(base_type::_bool(), 0, false))
                         ), false, false)), 0, false)), vec<*binding<type>>()))
+    }
 
     // resolves all binding possibilities for one top level item
     passes[str("name_possibility_resolve")] = fun(item: *tree<ast>) {
@@ -266,7 +282,9 @@ fun main(argc: int, argv: **char): int {
                     } else if (filtered_options.size > 1) {
                         println("Attempting to use our inferenced type " + unbound_types[t]->bound_to->to_string() + " to decide what to bind " + to_string(t->data) + " to form options:")
                         multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + get_type(p)->bound_to->to_string()); })
-                        error("too many options remain after filtering overloads by type for " + to_string(t->data))
+                        println("too many options remain after filtering overloads by type for " + to_string(t->data) + ", they were:")
+                        filtered_options.for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + get_type(p)->bound_to->to_string()); })
+                        error("cannot resolve")
                     } else
                         set_ast_binding(t, filtered_options[0])
                 }
