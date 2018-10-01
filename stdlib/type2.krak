@@ -81,6 +81,19 @@ obj type (Object) {
         }
         return base == other.base
     }
+    fun shallow_equality(other: *type):bool {
+        return shallow_equality(*other)
+    }
+    fun shallow_equality(other: ref type):bool {
+        if (indirection != other.indirection)
+            return false
+        match(base) {
+            base_type::_fun(b) {
+                return other.is_fun() && base._fun.third == other.base._fun.third
+            }
+        }
+        return base == other.base
+    }
     fun to_string(): str {
         var indr_string = str("")
         if (is_ref)

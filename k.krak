@@ -111,6 +111,26 @@ fun main(argc: int, argv: **char): int {
                             binding(type(base_type::_bool(), 0, false))
                         ), false, false)), 0, false)), vec<*binding<type>>()))
     }
+    var math = vec(str("+"), str("-"), str("*"), str("/"), str("&"), str("|"),  str("^"))
+    for (var i = 0; i < math.size; i++;) {
+        primitive_ops["op" + math[i]] = vec<*tree<ast>>()
+        for (var j = 0; j < number_tower.size; j++;) {
+            for (var k = 0; k < number_tower.size; k++;) {
+                var return_type = null<binding<type>>()
+                if (j > k) {
+                    return_type = number_tower[j]
+                } else {
+                    return_type = number_tower[k]
+                }
+                primitive_ops["op" + math[i]].add(_compiler_intrinsic(math[i], binding(type(base_type::_fun(make_triple(make_pair(vec(
+                                    number_tower[j],
+                                    number_tower[k]
+                                ),
+                            return_type
+                        ), false, false)), 0, false)), vec<*binding<type>>()))
+            }
+        }
+    }
 
     // resolves all binding possibilities for one top level item
     passes[str("name_possibility_resolve")] = fun(item: *tree<ast>) {
@@ -241,12 +261,22 @@ fun main(argc: int, argv: **char): int {
         }
 
         var unify: fun(*binding<type>, *binding<type>): void = fun(t1: *binding<type>, t2: *binding<type>) {
-            if (t1->bound_to->equality(t2->bound_to, false, false) || t1->bound_to->is_unknown())
+            /*if (t1->bound_to->equality(t2->bound_to, false, false) || t1->bound_to->is_unknown())*/
+            if (t1->bound_to->is_unknown()) {
                 t1->set(t2->bound_to)
-            else if (t2->bound_to->is_unknown())
+            } else if (t2->bound_to->is_unknown()) {
                 t2->set(t1->bound_to)
-            else
-                error("Doesn't typecheck! Attempted to unify " + t1->bound_to->to_string() + " and " + t2->bound_to->to_string())
+            } else {
+                if (t1->bound_to->shallow_equality(t2->bound_to)) {
+                    if (t1->bound_to->is_fun()) {
+                        unify(t1->bound_to->base._fun.first.second, t2->bound_to->base._fun.first.second)
+                        for (var i = 0; i < t1->bound_to->base._fun.first.first.size; i++;)
+                            unify(t1->bound_to->base._fun.first.first[i], t2->bound_to->base._fun.first.first[i])
+                    }
+                } else {
+                    error("Doesn't typecheck! Attempted to unify " + t1->bound_to->to_string() + " and " + t2->bound_to->to_string())
+                }
+            }
         }
         var traverse_for_unify: fun(*tree<ast>): void = fun(t: *tree<ast>) {
             t->children.for_each(traverse_for_unify)
@@ -271,27 +301,51 @@ fun main(argc: int, argv: **char): int {
         }
         traverse_for_unify(item)
 
-        var traverse_for_select: fun(*tree<ast>): void = fun(t: *tree<ast>) {
-            match (t->data) {
-                ast::_binding(b) if (!t->data._binding.second->bound()) {
-                    var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return unbound_types[t]->bound_to->equality(get_type(p)->bound_to, false, true);)
-                    if (filtered_options.size == 0) {
-                        println("Attempting to use our inferenced type " + unbound_types[t]->bound_to->to_string() + " to decide what to bind " + to_string(t->data) + " to from options:")
-                        multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + get_type(p)->bound_to->to_string()); })
-                        error("no options remain after filtering overloads by type for " + to_string(t->data))
-                    } else if (filtered_options.size > 1) {
-                        println("Attempting to use our inferenced type " + unbound_types[t]->bound_to->to_string() + " to decide what to bind " + to_string(t->data) + " to form options:")
-                        multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + get_type(p)->bound_to->to_string()); })
-                        println("too many options remain after filtering overloads by type for " + to_string(t->data) + ", they were:")
-                        filtered_options.for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + get_type(p)->bound_to->to_string()); })
-                        error("cannot resolve")
-                    } else
-                        set_ast_binding(t, filtered_options[0])
+        var more_to_do = true
+        while (more_to_do) {
+            more_to_do = false
+            var work_done = false
+            var traverse_for_select: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+                match (t->data) {
+                    ast::_binding(b) if (!t->data._binding.second->bound()) {
+                        println(to_string(t->data) + " - not bound!")
+                        var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return unbound_types[t]->bound_to->equality(get_type(p)->bound_to, false, true);)
+                        if (filtered_options.size == 0) {
+                            println("Attempting to use our inferenced type " + unbound_types[t]->bound_to->to_string() + " to decide what to bind " + to_string(t->data) + " to from options:")
+                            multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + get_type(p)->bound_to->to_string()); })
+                            error("no options remain after filtering overloads by type for " + to_string(t->data))
+                        } else if (filtered_options.size > 1) {
+                            more_to_do = true
+                        } else {
+                            set_ast_binding(t, filtered_options[0])
+                            unify(unbound_types[t], get_type(filtered_options[0]))
+                            work_done = true
+                            println("wok done! set " + to_string(t->data))
+                        }
+                    }
                 }
+                t->children.for_each(traverse_for_select)
             }
-            t->children.for_each(traverse_for_select)
+            traverse_for_select(item)
+            if (!work_done) {
+                var traverse_for_error: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+                    match (t->data) {
+                        ast::_binding(b) if (!t->data._binding.second->bound()) {
+                            var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return unbound_types[t]->bound_to->equality(get_type(p)->bound_to, false, true);)
+                            if (filtered_options.size > 1) {
+                                println("Attempting to use our inferenced type " + unbound_types[t]->bound_to->to_string() + " to decide what to bind " + to_string(t->data) + " to form options:")
+                                multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + get_type(p)->bound_to->to_string()); })
+                                println("too many options remain after filtering overloads by type for " + to_string(t->data) + ", they were:")
+                                filtered_options.for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + get_type(p)->bound_to->to_string()); })
+                                error("cannot resolve")
+                            }
+                        }
+                    }
+                    t->children.for_each(traverse_for_error)
+                }
+                traverse_for_error(item)
+            }
         }
-        traverse_for_select(item)
     }
 
     //  emit C
@@ -415,6 +469,8 @@ fun main(argc: int, argv: **char): int {
             pass_poset.add_open_dep(make_pair(item, str("emit_C")), make_pair(item, str("name_type_resolve")))
             return
         }
+        println("Emitting C for:")
+        print_tree(item, 1)
 
         var emit_C: fun(*tree<ast>, int): void = fun(t: *tree<ast>, level: int) {
             var idt = str("\t") * level
