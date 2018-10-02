@@ -825,6 +825,10 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             return _return(syntax->children.map(syntax_to_ast_helper))
         else if (syntax->data.name == "defer_statement")
             return _defer(syntax->children.map(syntax_to_ast_helper))
+        else if (syntax->data.name == "break_statement")
+            return _break()
+        else if (syntax->data.name == "continue_statement")
+            return _continue()
         else if (syntax->data.name == "match_statement") {
             return _match(vec(syntax_to_ast_helper(get_node("boolean_expression", syntax))) +
                               get_nodes("case_statement", syntax).map(fun(s: *tree<symbol>): *tree<ast> {
@@ -890,7 +894,6 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             return make_ast_binding(concat(syntax))
         else {
             error(syntax, "Cannot transform")
-            return null<tree<ast>>()
         }
     }
     var result = _translation_unit(file_name, syntax->children.map(syntax_to_ast_helper))
