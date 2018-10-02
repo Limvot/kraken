@@ -16,7 +16,6 @@ adt ast {
     _function: triple<str, *binding<type>, bool>,
     _template: pair<str, set<str>>,
     _declaration,
-    _assignment,
     _block,
     _if,
     _match,
@@ -43,7 +42,6 @@ fun to_string(a: ref ast): str {
         ast::_function(b)           return str("_function(") + b.first + ": " + deref_to_string(b.second->bound_to) + ", ext?:" + to_string(b.third) + ")"
         ast::_template(b)           return str("_template(") + b.first + "[" + str(",").join(b.second.data) + "])"
         ast::_declaration()         return str("_declaration")
-        ast::_assignment()          return str("_assignment")
         ast::_block()               return str("_block")
         ast::_if()                  return str("_if")
         ast::_match()               return str("_match")
@@ -95,9 +93,6 @@ fun _value(p1: str, p2: *binding<type>): *tree<ast> {
 }
 fun _declaration(): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_declaration())
-}
-fun _assignment(): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_assignment())
 }
 fun _block(): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_block())
@@ -171,9 +166,6 @@ fun _value(p1: str, p2: *binding<type>, c: ref vec<*tree<ast>>): *tree<ast> {
 fun _declaration(c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_declaration(), c)
 }
-fun _assignment(c: ref vec<*tree<ast>>): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_assignment(), c)
-}
 fun _block(c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_block(), c)
 }
@@ -219,7 +211,6 @@ fun is_adt_def(i: *tree<ast>): bool { match(i->data) { ast::_adt_def(b) return t
 fun is_function(i: *tree<ast>): bool { match(i->data) { ast::_function(b) return true; } return false; }
 fun is_template(i: *tree<ast>): bool { match(i->data) { ast::_template(b) return true; } return false; }
 fun is_declaration(i: *tree<ast>): bool { match(i->data) { ast::_declaration() return true; } return false; }
-fun is_assignment(i: *tree<ast>): bool { match(i->data) { ast::_assignment() return true; } return false; }
 fun is_block(i: *tree<ast>): bool { match(i->data) { ast::_block() return true; } return false; }
 fun is_if(i: *tree<ast>): bool { match(i->data) { ast::_if() return true; } return false; }
 fun is_match(i: *tree<ast>): bool { match(i->data) { ast::_match() return true; } return false; }

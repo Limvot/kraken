@@ -131,6 +131,23 @@ fun main(argc: int, argv: **char): int {
             }
         }
     }
+    // cute hack for getting plain =
+    math.add(str(""))
+    for (var i = 0; i < math.size; i++;) {
+        primitive_ops["op" + math[i] + "="] = vec<*tree<ast>>()
+        for (var j = 0; j < number_tower.size; j++;) {
+            for (var k = 0; k <= j; k++;) {
+                var return_type = null<binding<type>>()
+                primitive_ops["op" + math[i] + "="].add(_compiler_intrinsic(math[i] + "=", binding(type(base_type::_fun(make_triple(make_pair(vec(
+                                    number_tower[j],
+                                    number_tower[k]
+                                ),
+                            binding(type(base_type::_void(), 0, false))
+                        ), false, false)), 0, false)), vec<*binding<type>>()))
+            }
+        }
+    }
+    math.remove(math.size-1)
 
     // resolves all binding possibilities for one top level item
     passes[str("name_possibility_resolve")] = fun(item: *tree<ast>) {
@@ -253,7 +270,6 @@ fun main(argc: int, argv: **char): int {
                     }
                     error("Trying to get type of call where type of first child is not function, but " + t->bound_to->to_string())
                 }
-                /*ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ")"*/
                 ast::_cast(b)               return b
                 ast::_value(b)              return b.second
             }
@@ -283,7 +299,6 @@ fun main(argc: int, argv: **char): int {
             match (t->data) {
                 ast::_declaration() if (t->children.size > 1)
                                         unify(get_type(t->children[0]), get_type(t->children[1]))
-                /*ast::_assignment()   unify(get_type(t->children[0]), get_type(t->children[1]))*/
                 ast::_call() {
                     // we call get type to make sure if it is unknown it is transformed into a function version
                     get_type(t)
@@ -542,7 +557,6 @@ fun main(argc: int, argv: **char): int {
                         C_declaration_str += idt + to_c_type(t->children[0]->data._identifier.second) + " " + get_c_name(t->children[0]) + ";\n"
                     }
                 }
-                ast::_assignment()          { error("assignment gen unimplemented"); }
                 ast::_block() {
                     C_str += idt + "{\n"
                     t->children.for_each(fun(c: *tree<ast>) {
@@ -805,7 +819,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             children += get_nodes("boolean_expression", syntax).map(syntax_to_ast_helper)
             return _declaration(children)
         } else if (syntax->data.name == "assignment_statement")
-            return _assignment(vec(make_ast_binding(concat(syntax->children[1])),
+            return _call(vec(make_ast_binding("op" + concat(syntax->children[1])),
                                    syntax_to_ast_helper(syntax->children[0]),
                                    syntax_to_ast_helper(syntax->children[2])))
         else if (syntax->data.name == "function_call")
