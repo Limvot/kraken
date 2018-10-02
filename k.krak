@@ -579,8 +579,24 @@ fun main(argc: int, argv: **char): int {
                 }
                 ast::_match()               { error("no match should remain at C emit"); }
                 ast::_case()                { error("no case should remain at C emit"); }
-                ast::_while()               { error("while gen unimplemented"); }
-                ast::_for()                 { error("for gen unimplemented"); }
+                ast::_while()               {
+                    C_str += idt + "while ("
+                    emit_C(t->children[0], 0)
+                    C_str += ") {\n"
+                    emit_C(t->children[1], level + 1)
+                    C_str += ";\n" + idt + "}"
+                }
+                ast::_for()                 {
+                    C_str += idt + "for ("
+                    emit_C(t->children[0], 0)
+                    C_str += ";"
+                    emit_C(t->children[1], 0)
+                    C_str += ";"
+                    emit_C(t->children[2], 0)
+                    C_str += ") {\n"
+                    emit_C(t->children[3], level+1)
+                    C_str += ";\n" + idt + "}"
+                }
                 ast::_return()              {
                     C_str += idt + "return"
                     if (t->children.size == 1) {
@@ -801,6 +817,10 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             return _block(syntax->children.map(syntax_to_ast_helper))
         else if (syntax->data.name == "if_statement")
             return _if(syntax->children.map(syntax_to_ast_helper))
+        else if (syntax->data.name == "for_loop")
+            return _for(syntax->children.map(syntax_to_ast_helper))
+        else if (syntax->data.name == "while_loop")
+            return _while(syntax->children.map(syntax_to_ast_helper))
         else if (syntax->data.name == "return_statement")
             return _return(syntax->children.map(syntax_to_ast_helper))
         else if (syntax->data.name == "defer_statement")
@@ -942,6 +962,7 @@ fun trim(parse_tree: *tree<symbol>) {
     remove_node(symbol("\"if\"", true), parse_tree)
     remove_node(symbol("\"else\"", true), parse_tree)
     remove_node(symbol("\"while\"", true), parse_tree)
+    remove_node(symbol("\"for\"", true), parse_tree)
     remove_node(symbol("\"__if_comp__\"", true), parse_tree)
     remove_node(symbol("\"comp_simple_passthrough\"", true), parse_tree)
     /*remove_node(symbol("obj_nonterm", false), parse_tree)*/
