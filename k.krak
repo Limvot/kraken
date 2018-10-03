@@ -194,9 +194,9 @@ fun main(argc: int, argv: **char): int {
         }
         var try_binding = fun(binding: *tree<ast>, start_scope: *tree<ast>, type_binding: bool) {
             if !ast_bound(binding) {
-                var options = scope_lookup(start_scope, binding->data._binding.first, type_binding)
+                var options = scope_lookup(start_scope, ast_binding_str(binding), type_binding)
                 if (options.size == 0)
-                    error("Could not find any options for scope lookup of " + binding->data._binding.first)
+                    error("Could not find any options for scope lookup of " + ast_binding_str(binding))
                 else if (options.size == 1)
                     set_ast_binding(binding, options[0])
                 else
@@ -245,8 +245,8 @@ fun main(argc: int, argv: **char): int {
         var get_type: fun(*tree<ast>): *binding<type> = fun(a: *tree<ast>): *binding<type> {
             match(a->data) {
                 ast::_identifier(b)         return b.second
-                ast::_binding(b)            if (b.second->bound()) {
-                                                return get_type(b.second->bound_to)
+                ast::_binding(b)            if (ast_bound(a)) {
+                                                return get_type(get_ast_binding(a))
                                             } else if (unbound_types.contains_key(a)) {
                                                 return unbound_types[a]
                                             } else {
@@ -322,7 +322,7 @@ fun main(argc: int, argv: **char): int {
             var work_done = false
             var traverse_for_select: fun(*tree<ast>): void = fun(t: *tree<ast>) {
                 match (t->data) {
-                    ast::_binding(b) if (!t->data._binding.second->bound()) {
+                    ast::_binding(b) if (!ast_bound(t)) {
                         println(to_string(t->data) + " - not bound!")
                         var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return unbound_types[t]->bound_to->equality(get_type(p)->bound_to, false, true);)
                         if (filtered_options.size == 0) {
@@ -345,7 +345,7 @@ fun main(argc: int, argv: **char): int {
             if (!work_done) {
                 var traverse_for_error: fun(*tree<ast>): void = fun(t: *tree<ast>) {
                     match (t->data) {
-                        ast::_binding(b) if (!t->data._binding.second->bound()) {
+                        ast::_binding(b) if (!ast_bound(t)) {
                             var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return unbound_types[t]->bound_to->equality(get_type(p)->bound_to, false, true);)
                             if (filtered_options.size > 1) {
                                 println("Attempting to use our inferenced type " + unbound_types[t]->bound_to->to_string() + " to decide what to bind " + to_string(t->data) + " to form options:")
@@ -499,7 +499,7 @@ fun main(argc: int, argv: **char): int {
                 ast::_import(b) { }
                 ast::_identifier(b)         { C_str += idt + b.first; }
                 ast::_binding(b)            {
-                    var bound_to = b.second->bound_to
+                    var bound_to = get_ast_binding(t)
                     if (is_top_level_item(bound_to))
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to, str("emit_C")))
                     else if (is_identifier(bound_to) && is_declaration(bound_to->parent) && is_top_level_item(bound_to->parent))
@@ -869,7 +869,9 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                 if (template_inst != null<tree<symbol>>()) {
                     if (syntax->children[0]->data.name != "scoped_identifier")
                         error(syntax, "Unexpected template instantiation (not on an identifier)")
-                    return make_ast_binding(concat(syntax->children[0]) + "<somin>")
+                    return make_ast_binding(concat(syntax->children[0]), get_nodes("type", template_inst).map(fun(s: *tree<symbol>): *binding<type> {
+                        return parse_type(s);
+                    }))
                 } else if (syntax->children[0]->data.terminal) {
                     return _call(vec(make_ast_binding(concat(syntax->children[0])),
                                      syntax_to_ast_helper(syntax->children[1])))
