@@ -3,6 +3,7 @@ import util:*;
 import io:*;
 import serialize:*;
 import util:*;
+import map:*;
 
 fun vec<T>():vec<T> {
     var out.construct():vec<T>
@@ -169,7 +170,6 @@ obj vec<T> (Object, Serializable) {
     }
     fun get(index: int): ref T {
         if (index < 0 || index >= size) {
-            println("Vector access out of bounds! Retuning 0th element as sanest option");
             print("Vector tried to access element: ");
             println(index);
             print("Max Index of vec: ");
@@ -315,6 +315,14 @@ obj vec<T> (Object, Serializable) {
                 newVec.addEnd(to_add.get(j))
         }
         return newVec
+    }
+    fun associate<K,V>(func: fun(T):pair<K,V>): map<K,V> {
+        var to_ret = map<K,V>()
+        for (var i = 0; i < size; i++;) {
+            var kv = func(data[i])
+            to_ret[kv.first] = kv.second
+        }
+        return to_ret
     }
     fun find_first_satisfying(func: fun(T):bool): T return filter(func)[0]
     fun filter(func: fun(T):bool):vec<T> {

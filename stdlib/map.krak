@@ -115,5 +115,13 @@ obj map<T,U> (Object, Serializable) {
         for (var i = 0; i < keys.size; i++;)
             func(keys[i], values[i])
     }
+    fun associate<O,N>(func: fun(T,U): util::pair<O,N>): map<O,N> {
+        var to_ret = map<O,N>()
+        for (var i = 0; i < keys.size; i++;) {
+            var nkv = func(keys[i], values[i])
+            to_ret[nkv.first] = nkv.second
+        }
+        return to_ret
+    }
 }
 

@@ -4,14 +4,17 @@ import vec:*
 import util:*
 import tree:*
 import ast:*
+import binding:*
 
-adt base_type {
+adt type {
     _unknown,
     _void,
+    _template_placeholder,
+    _ptr: *binding<type>,
+    _ref: *binding<type>,
     _obj: *tree<ast>,
     // triple<pair<param_types, return_type>, is_variadic, is raw>
     _fun: triple<pair<vec<*binding<type>>, *binding<type>>, bool, bool>,
-    _template_placeholder,
     _bool,
     _char,
     _uchar,
@@ -24,225 +27,224 @@ adt base_type {
     _float,
     _double
 }
-fun type(b: base_type, ind: int, ref: bool): *type {
-    return new<type>()->construct(b, ind, ref)
-}
-obj type (Object) {
-    var base: base_type
-    var indirection: int
-    var is_ref: bool
-    fun construct(): *type {
-        base.copy_construct(&base_type::_unknown())
-        indirection = 0
-        is_ref = false
-        return this
-    }
-    fun construct(base_in: base_type, indirection_in: int, is_ref_in: bool): *type {
-        base.copy_construct(&base_in)
-        indirection = indirection_in
-        is_ref = is_ref_in
-        return this
-    }
-    fun copy_construct(old: *type) {
-        base.copy_construct(&old->base)
-        indirection = old->indirection
-        is_ref = old->is_ref
-    }
-    fun operator=(other: ref type) {
-        destruct()
-        copy_construct(&other)
-    }
-    fun destruct() {
-        base.destruct()
-    }
-    fun operator!=(other: ref type):bool return !equality(other, true, false);
-    fun operator==(other: ref type):bool return equality(other, true, false);
-    fun equality(other: *type, care_about_ref: bool, count_unknown_as_equal: bool):bool return equality(*other, care_about_ref, count_unknown_as_equal);
-    fun equality(other: ref type, care_about_ref: bool, count_unknown_as_equal: bool):bool {
-        if (count_unknown_as_equal && (is_unknown() || other.is_unknown()))
-            return true
-        if (care_about_ref && (is_ref != other.is_ref))
-           return false
-        if (indirection != other.indirection)
-            return false
-        match(base) {
-            base_type::_fun(b) {
-                if ( !(other.is_fun() && base._fun.second == other.base._fun.second && base._fun.third == other.base._fun.third) )
-                    return false
-                if ( !(base._fun.first.second->bound_to->equality(other.base._fun.first.second->bound_to, care_about_ref, count_unknown_as_equal)) )
-                    return false
-                if ( !(base._fun.first.first.size == other.base._fun.first.first.size) )
-                    return false
-                for (var i = 0; i < base._fun.first.first.size; i++;)
-                    if ( !(base._fun.first.first[i]->bound_to->equality(other.base._fun.first.first[i]->bound_to, care_about_ref, count_unknown_as_equal)) )
-                        return false
-                return true
-            }
-        }
-        return base == other.base
-    }
-    fun shallow_equality(other: *type):bool {
-        return shallow_equality(*other)
-    }
-    fun shallow_equality(other: ref type):bool {
-        if (indirection != other.indirection)
-            return false
-        match(base) {
-            base_type::_fun(b) {
-                return other.is_fun() && base._fun.third == other.base._fun.third
-            }
-        }
-        return base == other.base
-    }
-    fun to_string(): str {
-        var indr_string = str("")
-        if (is_ref)
-           indr_string += " ref "
-        for (var i = 0; i < indirection; i++;) indr_string += "*"
-        match (base) {
-            base_type::_unknown()               return indr_string + "_unknown"
-            base_type::_void()                  return indr_string + "_void"
-            base_type::_obj(b) {
-                return indr_string + "_obj(" + to_string(b->data) + ")"
-            }
-            base_type::_fun(b) {
-                // triple<pair<param_types, return_type>, is_variadic, is raw>
-                var to_ret = indr_string
-                if (b.second)
-                    to_ret += "_run("
-                else
-                    to_ret += "_fun("
-                to_ret += str(", ").join(b.first.first.map(fun(pt: *binding<type>): str return pt->bound_to->to_string();))
-                if (b.third)
-                    to_ret += " ..."
-                return to_ret + "): " + b.first.second->bound_to->to_string()
-            }
-            base_type::_template_placeholder()  return indr_string + "_template_placeholder"
-            base_type::_bool()                  return indr_string + "_bool"
-            base_type::_char()                  return indr_string + "_char"
-            base_type::_uchar()                 return indr_string + "_uchar"
-            base_type::_short()                 return indr_string + "_short"
-            base_type::_ushort()                return indr_string + "_ushort"
-            base_type::_int()                   return indr_string + "_int"
-            base_type::_uint()                  return indr_string + "_uint"
-            base_type::_long()                  return indr_string + "_long"
-            base_type::_ulong()                 return indr_string + "_ulong"
-            base_type::_float()                 return indr_string + "_float"
-            base_type::_double()                return indr_string + "_double"
-        }
-        return str("impossible type, indirection:") + indirection
-    }
-    fun is_unknown(): bool {
-        match (base) {
-            base_type::_unknown() return true
-        }
-        return false
-    }
-    fun is_void(): bool {
-        match (base) {
-            base_type::_void() return true
-        }
-        return false
-    }
-    fun is_obj(): bool {
-        match (base) {
-            base_type::_obj() return true
-        }
-        return false
-    }
-    fun is_fun(): bool {
-        match (base) {
-            base_type::_fun() return true
-        }
-        return false
-    }
-    fun is_template_placeholder(): bool {
-        match (base) {
-            base_type::_template_placeholder() return true
-        }
-        return false
-    }
-    fun is_bool(): bool {
-        match (base) {
-            base_type::_bool() return true
-        }
-        return false
-    }
-    fun is_char(): bool {
-        match (base) {
-            base_type::_char() return true
-        }
-        return false
-    }
-    fun is_uchar(): bool {
-        match (base) {
-            base_type::_uchar() return true
-        }
-        return false
-    }
-    fun is_short(): bool {
-        match (base) {
-            base_type::_short() return true
-        }
-        return false
-    }
-    fun is_ushort(): bool {
-        match (base) {
-            base_type::_ushort() return true
-        }
-        return false
-    }
-    fun is_int(): bool {
-        match (base) {
-            base_type::_int() return true
-        }
-        return false
-    }
-    fun is_uint(): bool {
-        match (base) {
-            base_type::_uint() return true
-        }
-        return false
-    }
-    fun is_long(): bool {
-        match (base) {
-            base_type::_long() return true
-        }
-        return false
-    }
-    fun is_ulong(): bool {
-        match (base) {
-            base_type::_ulong() return true
-        }
-        return false
-    }
-    fun is_float(): bool {
-        match (base) {
-            base_type::_float() return true
-        }
-        return false
-    }
-    fun is_double(): bool {
-        match (base) {
-            base_type::_double() return true
-        }
-        return false
-    }
-    fun is_signed(): bool {
-        match (base) {
-            base_type::_char()      return true
-            base_type::_int()       return true
-            base_type::_long()      return true
-            base_type::_short()     return true
-            base_type::_float()     return true
-            base_type::_double()    return true
 
-            base_type::_uchar()     return false
-            base_type::_ushort()    return false
-            base_type::_uint()      return false
-            base_type::_ulong()     return false
+fun unify(t1: *binding<type>, t2: *binding<type>) {
+    if (is_unknown(t1->bound_to)) {
+        t1->set(t2->bound_to)
+    } else if (is_unknown(t2->bound_to)) {
+        t2->set(t1->bound_to)
+    } else {
+        if (shallow_equality(t1->bound_to, t2->bound_to)) {
+            if (is_fun(t1->bound_to)) {
+                unify(t1->bound_to->_fun.first.second, t2->bound_to->_fun.first.second)
+                for (var i = 0; i < t1->bound_to->_fun.first.first.size; i++;)
+                    unify(t1->bound_to->_fun.first.first[i], t2->bound_to->_fun.first.first[i])
+            }
+        } else {
+            error("Doesn't typecheck! Attempted to unify " + to_string(t1->bound_to) + " and " + to_string(t2->bound_to))
         }
-        return false
     }
+}
+
+fun equality(a: *type, b: *type, count_unknown_as_equal: bool): bool {
+    if (count_unknown_as_equal && (is_unknown(a) || is_unknown(b)))
+        return true
+    match(*a) {
+        type::_ptr(p) {
+            if (!is_ptr(b))
+                return false
+            return equality(p->bound_to, b->_ptr->bound_to, count_unknown_as_equal)
+        }
+        type::_ref(r) {
+            if (!is_ref(b))
+                return false
+            return equality(r->bound_to, b->_ref->bound_to, count_unknown_as_equal)
+        }
+        type::_fun(i) {
+            if ( !(is_fun(b) && a->_fun.second == b->_fun.second && a->_fun.third == b->_fun.third) )
+                return false
+            if ( !equality(a->_fun.first.second->bound_to, b->_fun.first.second->bound_to, count_unknown_as_equal) )
+                return false
+            if ( !(a->_fun.first.first.size == b->_fun.first.first.size) )
+                return false
+            for (var i = 0; i < a->_fun.first.first.size; i++;)
+                if ( !equality(a->_fun.first.first[i]->bound_to, b->_fun.first.first[i]->bound_to, count_unknown_as_equal) )
+                    return false
+            return true
+        }
+    }
+    return *a == *b
+}
+fun shallow_equality(a: *type, b: *type):bool {
+    if (is_ptr(a) != is_ptr(b))
+        return false
+    if (is_ptr(a) && is_ptr(b))
+        return shallow_equality(a->_ptr->bound_to, b->_ptr->bound_to)
+    match(*a) {
+        type::_fun(x) {
+            return is_fun(b) && a->_fun.third == b->_fun.third
+        }
+    }
+    return *a == *b
+}
+fun to_string(it: *type): str {
+    match (*it) {
+        type::_unknown()               return str("_unknown")
+        type::_void()                  return str("_void")
+        type::_ptr(p)                  return "*"   + to_string(p)
+        type::_ref(r)                  return "ref" + to_string(r)
+        type::_obj(b) {
+            return "_obj(" + to_string(b->data) + ")"
+        }
+        type::_fun(b) {
+            // triple<pair<param_types, return_type>, is_variadic, is raw>
+            var to_ret = str()
+            if (b.second)
+                to_ret += "_run("
+            else
+                to_ret += "_fun("
+            to_ret += str(", ").join(b.first.first.map(fun(pt: *binding<type>): str return to_string(pt->bound_to);))
+            if (b.third)
+                to_ret += " ..."
+            return to_ret + "): " + to_string(b.first.second->bound_to)
+        }
+        type::_template_placeholder()  return str("_template_placeholder")
+        type::_bool()                  return str("_bool")
+        type::_char()                  return str("_char")
+        type::_uchar()                 return str("_uchar")
+        type::_short()                 return str("_short")
+        type::_ushort()                return str("_ushort")
+        type::_int()                   return str("_int")
+        type::_uint()                  return str("_uint")
+        type::_long()                  return str("_long")
+        type::_ulong()                 return str("_ulong")
+        type::_float()                 return str("_float")
+        type::_double()                return str("_double")
+    }
+    return str("impossible type")
+}
+fun is_unknown(x: *type): bool {
+    match (*x) {
+        type::_unknown() return true
+    }
+    return false
+}
+fun is_void(x: *type): bool {
+    match (*x) {
+        type::_void() return true
+    }
+    return false
+}
+fun is_ptr(x: *type): bool {
+    match (*x) {
+        type::_ptr(p) return true
+    }
+    return false
+}
+fun is_ref(x: *type): bool {
+    match (*x) {
+        type::_ref(r) return true
+    }
+    return false
+}
+fun is_obj(x: *type): bool {
+    match (*x) {
+        type::_obj() return true
+    }
+    return false
+}
+fun is_fun(x: *type): bool {
+    match (*x) {
+        type::_fun(b) return true
+    }
+    return false
+}
+fun is_template_placeholder(x: *type): bool {
+    match (*x) {
+        type::_template_placeholder() return true
+    }
+    return false
+}
+fun is_bool(x: *type): bool {
+    match (*x) {
+        type::_bool() return true
+    }
+    return false
+}
+fun is_char(x: *type): bool {
+    match (*x) {
+        type::_char() return true
+    }
+    return false
+}
+fun is_uchar(x: *type): bool {
+    match (*x) {
+        type::_uchar() return true
+    }
+    return false
+}
+fun is_short(x: *type): bool {
+    match (*x) {
+        type::_short() return true
+    }
+    return false
+}
+fun is_ushort(x: *type): bool {
+    match (*x) {
+        type::_ushort() return true
+    }
+    return false
+}
+fun is_int(x: *type): bool {
+    match (*x) {
+        type::_int() return true
+    }
+    return false
+}
+fun is_uint(x: *type): bool {
+    match (*x) {
+        type::_uint() return true
+    }
+    return false
+}
+fun is_long(x: *type): bool {
+    match (*x) {
+        type::_long() return true
+    }
+    return false
+}
+fun is_ulong(x: *type): bool {
+    match (*x) {
+        type::_ulong() return true
+    }
+    return false
+}
+fun is_float(x: *type): bool {
+    match (*x) {
+        type::_float() return true
+    }
+    return false
+}
+fun is_double(x: *type): bool {
+    match (*x) {
+        type::_double() return true
+    }
+    return false
+}
+fun is_signed(x: *type): bool {
+    match (*x) {
+        type::_char()      return true
+        type::_int()       return true
+        type::_long()      return true
+        type::_short()     return true
+        type::_float()     return true
+        type::_double()    return true
+
+        type::_uchar()     return false
+        type::_ushort()    return false
+        type::_uint()      return false
+        type::_ulong()     return false
+    }
+    return false
 }
 

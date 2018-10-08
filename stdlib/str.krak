@@ -37,11 +37,12 @@ fun to_string(in: ulong): str
 fun to_string<T>(in: *T): str
     return str("ptr:<") + to_string_num((in) cast ulong) + ">"
 
-fun deref_to_string<T>(in: *T): str
-    if (in == mem::null<T>())
-        return str("null")
-    else
-        return in->to_string()
+/*fun deref_to_string<T>(in: *T): str*/
+    /*if (in == mem::null<T>())*/
+        /*return str("null")*/
+    /*else*/
+        /*return to_string(in)*/
+        /*return in->to_string()*/
 
 fun string_to_num<T>(it: str): T {
     var is_negative = false

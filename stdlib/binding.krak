@@ -1,0 +1,66 @@
+import vec:*
+import str:*
+// for decent to string
+// should be fixed by UFCS or decent scoping on template types
+import ast:*
+import type2:*
+
+var bindings: *vec<*void>
+
+fun binding<T>(): *binding<T> {
+    return binding(null<T>())
+}
+fun binding_p<T>(it: T): *binding<T> {
+    var p = new<T>()
+    p->copy_construct(&it)
+    return binding(p)
+}
+fun binding<T>(it: *T): *binding<T> {
+    var to_ret = new<binding<T>>()->construct(it)
+    if (bindings == null<vec<*void>>())
+        bindings = new<vec<*void>>()->construct()
+    bindings->add( (to_ret) cast *void )
+    return to_ret
+}
+
+obj binding<T> (Object) {
+    var bound_to: *T
+    fun construct(): *binding<T> {
+        bound_to = null<T>()
+        return this
+    }
+    fun construct(it: *T): *binding<T> {
+        bound_to = it
+        return this
+    }
+    fun copy_construct(old: *binding<T>): void {
+        bound_to = old->bound_to
+    }
+    fun destruct() {
+        bound_to = null<T>()
+    }
+    fun bound(): bool {
+        return bound_to != null<T>()
+    }
+    fun set(to: T) {
+        var p = new<T>()
+        p->copy_construct(&to)
+        set(p)
+    }
+    fun set(to: *T) {
+        // don't set null, that will set all unbound ones
+        if (bound_to == null<T>()) {
+            bound_to = to
+            return
+        }
+        var from = bound_to
+        for (var i = 0; i < bindings->size; i++;)
+            if ( ((bindings->get(i)) cast *binding<T>)->bound_to == from)
+                ((bindings->get(i)) cast *binding<T>)->bound_to = to
+    }
+    fun to_string(): str {
+        /*return "binding(" + to_string(bound_to) + ")"*/
+        return "binding(" + deref_to_string(bound_to) + ")"
+    }
+}
+

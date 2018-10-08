@@ -1,6 +1,7 @@
 import vec
 import io
 import serialize
+import util
 
 fun set<T>(): set<T> {
     var toRet.construct() : set<T>
@@ -54,6 +55,11 @@ obj set<T> (Object, Serializable) {
     }
     fun size():int {
         return data.size
+    }
+    fun single(): T {
+        if (size() != 1)k
+            util::error("trying to single with size != 1")
+        return data[0]
     }
     fun contains(items: ref set<T>): bool {
         return items.size() == 0 || !items.any_true( fun(item: T): bool return !contains(item); )
