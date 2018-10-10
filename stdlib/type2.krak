@@ -124,8 +124,8 @@ fun to_string(it: *type): str {
     match (*it) {
         type::_unknown()               return str("_unknown")
         type::_void()                  return str("_void")
-        type::_ptr(p)                  return "*"   + to_string(p)
-        type::_ref(r)                  return "ref" + to_string(r)
+        type::_ptr(p)                  return "*"   + to_string(p->bound_to)
+        type::_ref(r)                  return "ref" + to_string(r->bound_to)
         type::_obj(b) {
             return "_obj(" + to_string(b->data) + ")"
         }

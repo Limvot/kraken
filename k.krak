@@ -726,13 +726,13 @@ fun main(argc: int, argv: **char): int {
                     str("main"),
                     binding_p(type::_fun(make_triple(make_pair(vec(
                                     binding_p(type::_int()),
-                                    binding_p(type::_char())
+                                    binding_p(type::_ptr(binding_p(type::_ptr(binding_p(type::_char())))))
                                 ),
                             binding_p(type::_int())
                         ), false, false))),
                     true, vec(
                                 _identifier(str("argc"), binding_p(type::_int())),
-                                _identifier(str("argv"), binding_p(type::_char())),
+                                _identifier(str("argv"), binding_p(type::_ptr(binding_p(type::_ptr(binding_p(type::_char())))))),
                                 _return(vec(_call(vec(make_ast_binding("fmain"), make_ast_binding("argc"), make_ast_binding("argv")))))
                               )
                     )
@@ -775,14 +775,17 @@ fun main(argc: int, argv: **char): int {
 
 fun parse_type(syntax: *tree<symbol>, declared_template_types: ref map<str, *binding<type>>): *binding<type> {
     var is_ref = get_node("\"ref\"", syntax) != null<tree<symbol>>()
-    var indr = 0
     syntax = get_node("pre_reffed", syntax)
+    if (is_ref)
+        return binding_p(type::_ref(parse_type_helper(syntax, declared_template_types)))
+    else
+        return parse_type_helper(syntax, declared_template_types)
+}
+fun parse_type_helper(syntax: *tree<symbol>, declared_template_types: ref map<str, *binding<type>>): *binding<type> {
     var next = get_node("pre_reffed", syntax)
-    while(next != null<tree<symbol>>()) {
-        indr++
-        syntax = next
-        next = get_node("pre_reffed", syntax)
-    }
+    if (next != null<tree<symbol>>())
+        return binding_p(type::_ptr(parse_type_helper(next, declared_template_types)))
+
     var ident = get_node("scoped_identifier", syntax)
     var func = get_node("function_type", syntax)
     var first_child_name = syntax->children[0]->data.name
