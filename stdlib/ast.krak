@@ -274,6 +274,15 @@ fun set_ast_binding(binding: *tree<ast>, to: *tree<ast>) {
     }
     error("trying to set binding on not a binding")
 }
+fun set_single_ast_binding(binding: *tree<ast>, to: *tree<ast>) {
+    match(binding->data) {
+        ast::_binding(b) {
+            b.third->set_single(to)
+            return
+        }
+    }
+    error("trying to set binding on not a binding")
+}
 fun ast_bound(binding: *tree<ast>): bool {
     match(binding->data) {
         ast::_binding(b) return b.third->bound()

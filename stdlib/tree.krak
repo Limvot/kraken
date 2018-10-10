@@ -5,13 +5,13 @@ obj tree<T> (Object) {
     var data: T
     var parent: *tree<T>
     var children: vec::vec<*tree<T>>
-    fun construct(dataIn: T): *tree<T> {
+    fun construct(dataIn: ref T): *tree<T> {
         mem::maybe_copy_construct(&data, &dataIn)
         parent = mem::null<tree<T>>()
         children.construct()
         return this
     }
-    fun construct(dataIn: T, c: ref vec::vec<*tree<T>>): *tree<T> {
+    fun construct(dataIn: ref T, c: ref vec::vec<*tree<T>>): *tree<T> {
         mem::maybe_copy_construct(&data, &dataIn)
         parent = mem::null<tree<T>>()
         children.copy_construct(&c)
@@ -38,6 +38,16 @@ obj tree<T> (Object) {
     fun destruct() {
         mem::maybe_destruct(&data)
         children.destruct()
+    }
+    fun add_child(c: *tree<T>) {
+        children.add(c)
+        c->parent = this
+    }
+    fun clone(): *tree<T> {
+        return mem::new<tree<T>>()->construct(data, children.map(fun(c: *tree<T>): *tree<T> return c->clone();))
+    }
+    fun clone(f: fun(ref T): T): *tree<T> {
+        return mem::new<tree<T>>()->construct(f(data), children.map(fun(c: *tree<T>): *tree<T> return c->clone(f);))
     }
 }
 

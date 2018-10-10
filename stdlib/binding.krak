@@ -58,6 +58,9 @@ obj binding<T> (Object) {
             if ( ((bindings->get(i)) cast *binding<T>)->bound_to == from)
                 ((bindings->get(i)) cast *binding<T>)->bound_to = to
     }
+    fun set_single(to: *T) {
+        bound_to = to
+    }
     fun to_string(): str {
         /*return "binding(" + to_string(bound_to) + ")"*/
         return "binding(" + deref_to_string(bound_to) + ")"

@@ -236,41 +236,6 @@ fun main(argc: int, argv: **char): int {
         traverse_for_bindings(item)
     }
 
-    var inst_temp_type: fun(*binding<type>, map<*binding<type>, *binding<type>>): *binding<type> = fun(t: *binding<type>, replacements: ref map<*binding<type>, *binding<type>>): *binding<type> {
-        println("Insting type!")
-
-        match (*t->bound_to) {
-            type::_unknown() error("Unknown in temp type")
-            type::_ptr(p) {
-                var cp = inst_temp_type(p, replacements)
-                if (cp == p)
-                    return t
-                else
-                    return binding_p(type::_ptr(cp))
-            }
-            type::_ref(r) {
-                var cr = inst_temp_type(r, replacements)
-                if (cr == r)
-                    return t
-                else
-                    return binding_p(type::_ref(cr))
-            }
-            type::_fun(b) {
-                // triple<pair<param_types, return_type>, is_variadic, is raw>
-                var rt = inst_temp_type(b.first.second, replacements)
-                var pts = b.first.first.map(fun(pt: *binding<type>): *binding<type> return inst_temp_type(pt, replacements);)
-                if (rt != b.first.second)
-                    return binding_p(type::_fun(make_triple(make_pair(pts, rt), b.second, b.third)))
-                for (var i = 0; i < pts.size; i++;)
-                    if (pts[i] != b.first.first[i])
-                        return binding_p(type::_fun(make_triple(make_pair(pts, rt), b.second, b.third)))
-                return t
-            }
-            type::_template_placeholder()  return replacements[t]
-        }
-        return t
-    }
-
     var binding_types = map<*tree<ast>, *binding<type>>()
     var get_type: fun(*tree<ast>): *binding<type> = fun(a: *tree<ast>): *binding<type> {
         match(a->data) {
@@ -319,6 +284,8 @@ fun main(argc: int, argv: **char): int {
             pass_poset.add_open_dep(make_pair(item, str("name_type_resolve")), make_pair(item, str("name_possibility_resolve")))
             return
         }
+        println("name_type resolve for:")
+        print_tree(item, 1)
 
         var traverse_for_unify: fun(*tree<ast>): void = fun(t: *tree<ast>) {
             t->children.for_each(traverse_for_unify)
@@ -523,11 +490,11 @@ fun main(argc: int, argv: **char): int {
                     })
                 }
                 ast::_import(b) { }
-                ast::_identifier(b)         { C_str += idt + b.first; }
+                ast::_identifier(b)         { C_str += idt + get_c_name(t); }
                 ast::_binding(b)            {
                     var bound_to = get_ast_binding(t)
                     if (is_top_level_item(bound_to)) {
-                        if (is_template(bound_to) {
+                        if (is_template(bound_to)) {
                             if (!instantiated_map.contains_key(bound_to))
                                 instantiated_map[bound_to] = set<pair<*binding<type>, *tree<ast>>>()
                             var binding_type = get_type(t)
@@ -539,22 +506,43 @@ fun main(argc: int, argv: **char): int {
                             unify(binding_type, inst_temp_type(get_type(bound_to->children[0]), inst_map))
 
                             // shouldn't cache by binding, but by all insted
-                            var already_inst = instantiated_map[bound_to].filter(fun(p: pair<*binding<type>, *tree<ast>>): bool return equality(binding_type, p.first, false);)
+                            var already_inst = instantiated_map[bound_to].filter(fun(p: pair<*binding<type>, *tree<ast>>): bool return equality(binding_type->bound_to, p.first->bound_to, false);)
                             if (already_inst.size() > 1) {
                                 error("already inst > 1, should be impossible")
                             } else if (already_inst.size() == 1) {
-                                pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(already_inst.single(), str("emit_C")))
+                                pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(already_inst.single().second, str("emit_C")))
+                                set_single_ast_binding(t, already_inst.single().second)
                             } else {
-                                var inst_copy = copy_ast(bound_to->children[0], TYPE_INSTING_LAMBDA?)
+                                println("Copying tree to instantiate template!")
+                                var inst_copy = bound_to->children[0]->clone(fun(a: ref ast): ast {
+                                    match (a) {
+                                        ast::_identifier(b)         return ast::_identifier(make_pair(b.first, inst_temp_type(b.second, inst_map)))
+                                        ast::_binding(b)            return ast::_binding(make_triple(b.first,
+                                                                                                     b.second.map(fun(bd: *binding<type>): *binding<type> return inst_temp_type(bd, inst_map);),
+                                                                                                     binding<tree<ast>>()))
+                                        ast::_function(b)           return ast::_function(make_triple(b.first, inst_temp_type(b.second, inst_map), b.third))
+                                        ast::_compiler_intrinsic(b) return ast::_compiler_intrinsic(make_triple(
+                                                                                                            b.first,
+                                                                                                            inst_temp_type(b.second, inst_map),
+                                                                                                            b.third.map(fun(bd: *binding<type>): *binding<type> return inst_temp_type(bd, inst_map);)))
+                                        ast::_cast(b)               return ast::ast::_cast(inst_temp_type(b, inst_map))
+                                        ast::_value(b)              return ast::_value(make_pair(b.first, inst_temp_type(b.second, inst_map)))
+                                        /*_template: pair<str, map<str, *binding<type>>>,*/
+                                    }
+                                    return a
+                                })
                                 // add inst copy as a child of template?
+                                bound_to->add_child(inst_copy)
 
-
-                                // unify copy'd types with inst types
-
+                                println("inst from:")
+                                print_tree(bound_to->children[0], 1)
+                                println("inst to:")
+                                print_tree(inst_copy, 1)
 
                                 // save it in our insted map so we don't instantate more than once per types
                                 instantiated_map[bound_to].add(make_pair(binding_type, inst_copy))
                                 pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(inst_copy, str("emit_C")))
+                                set_single_ast_binding(t, inst_copy)
                             }
                         } else {
                             pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to, str("emit_C")))
@@ -563,7 +551,8 @@ fun main(argc: int, argv: **char): int {
                     } else if (is_identifier(bound_to) && is_declaration(bound_to->parent) && is_top_level_item(bound_to->parent)) {
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to->parent, str("emit_C")))
                     }
-                    C_str += idt + get_c_name(bound_to)
+                    // bound_to might have changed from binding
+                    C_str += idt + get_c_name(get_ast_binding(t))
                 }
                 ast::_type_def(b)           { error("type_def gen unimplemented"); }
                 ast::_adt_def(b)            { error("no adt_def should remain at C emit"); }

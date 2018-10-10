@@ -57,7 +57,7 @@ obj set<T> (Object, Serializable) {
         return data.size
     }
     fun single(): T {
-        if (size() != 1)k
+        if (size() != 1)
             util::error("trying to single with size != 1")
         return data[0]
     }

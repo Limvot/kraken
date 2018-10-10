@@ -46,6 +46,39 @@ fun unify(t1: *binding<type>, t2: *binding<type>) {
     }
 }
 
+fun inst_temp_type(t: *binding<type>, replacements: ref map<*binding<type>, *binding<type>>): *binding<type> {
+    match (*t->bound_to) {
+        type::_unknown() error("Unknown in temp type")
+        type::_ptr(p) {
+            var cp = inst_temp_type(p, replacements)
+            if (cp == p)
+                return t
+            else
+                return binding_p(type::_ptr(cp))
+        }
+        type::_ref(r) {
+            var cr = inst_temp_type(r, replacements)
+            if (cr == r)
+                return t
+            else
+                return binding_p(type::_ref(cr))
+        }
+        type::_fun(b) {
+            // triple<pair<param_types, return_type>, is_variadic, is raw>
+            var rt = inst_temp_type(b.first.second, replacements)
+            var pts = b.first.first.map(fun(pt: *binding<type>): *binding<type> return inst_temp_type(pt, replacements);)
+            if (rt != b.first.second)
+                return binding_p(type::_fun(make_triple(make_pair(pts, rt), b.second, b.third)))
+            for (var i = 0; i < pts.size; i++;)
+                if (pts[i] != b.first.first[i])
+                    return binding_p(type::_fun(make_triple(make_pair(pts, rt), b.second, b.third)))
+            return t
+        }
+        type::_template_placeholder()  return replacements[t]
+    }
+    return t
+}
+
 fun equality(a: *type, b: *type, count_unknown_as_equal: bool): bool {
     if (count_unknown_as_equal && (is_unknown(a) || is_unknown(b)))
         return true
