@@ -363,6 +363,7 @@ fun main(argc: int, argv: **char): int {
     var to_c_type: fun(*binding<type>): str = fun(tb: *binding<type>): str {
         match(*tb->bound_to) {
             type::_unknown()              error("unknown in to_c_type")
+            /*type::_unknown()              return str("unknown")*/
             type::_ptr(p)                 return to_c_type(p) + "*"
             type::_ref()                  error("ref in to_c_type")
             type::_void()                 return str("void")
@@ -510,6 +511,10 @@ fun main(argc: int, argv: **char): int {
                             if (already_inst.size() > 1) {
                                 error("already inst > 1, should be impossible")
                             } else if (already_inst.size() == 1) {
+                                println("alreay instantiated template, using (made from):")
+                                print_tree(bound_to->children[0], 1)
+                                println("cached to:")
+                                print_tree(already_inst.single().second, 1)
                                 pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(already_inst.single().second, str("emit_C")))
                                 set_single_ast_binding(t, already_inst.single().second)
                             } else {
@@ -680,7 +685,11 @@ fun main(argc: int, argv: **char): int {
                     }
                 }
                 ast::_compiler_intrinsic(b) { error("compiler_intrinsic gen unimplemented"); }
-                ast::_cast(b)               { error("cast gen unimplemented"); }
+                ast::_cast(b)               {
+                    C_str += idt + "((" + to_c_type(b) + ")"
+                    emit_C(t->children[0], 0)
+                    C_str += ")"
+                }
                 ast::_value(b)              { C_str += idt + b.first; }
             }
         }
@@ -950,6 +959,8 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                                  syntax_to_ast_helper(syntax->children[0], declared_template_types),
                                  syntax_to_ast_helper(syntax->children[2], declared_template_types)))
             }
+        } else if (syntax->data.name == "cast_expression") {
+            return _cast(parse_type(get_node("type", syntax), declared_template_types), vec(syntax_to_ast_helper(syntax->children[0], declared_template_types)))
         } else if (syntax->data.name == "number") {
             var number_string = concat(syntax)
             if (number_string.contains('.'))
