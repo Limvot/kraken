@@ -473,26 +473,14 @@ fun main(argc: int, argv: **char): int {
     // has to be set<pair> instead of map<> as we need to use type's "equality"
     // function instead of type's adt's operator==
     var instantiated_map = map<*tree<ast>, set<pair<*binding<type>, *tree<ast>>>>()
-    passes[str("emit_C")] = fun(item: *tree<ast>) {
+    passes[str("depend_and_template_resolve")] = fun(item: *tree<ast>) {
         if !pass_poset.done(make_pair(item, str("name_type_resolve"))) {
-            pass_poset.add_open_dep(make_pair(item, str("emit_C")), make_pair(item, str("name_type_resolve")))
+            pass_poset.add_open_dep(make_pair(item, str("depend_and_template_resolve")), make_pair(item, str("name_type_resolve")))
             return
         }
-        println("Emitting C for:")
-        print_tree(item, 1)
-
-        var emit_C: fun(*tree<ast>, int): void = fun(t: *tree<ast>, level: int) {
-            var idt = str("\t") * level
+        var resolve: fun(*tree<ast>): void = fun(t: *tree<ast>) {
             match (t->data) {
-                ast::_translation_unit(b) {
-                    t->children.for_each(fun(c: *tree<ast>) {
-                        emit_C(c, 0)
-                        C_str += ";\n"
-                    })
-                }
-                ast::_import(b) { }
-                ast::_identifier(b)         { C_str += idt + get_c_name(t); }
-                ast::_binding(b)            {
+                ast::_binding(b) {
                     var bound_to = get_ast_binding(t)
                     if (is_top_level_item(bound_to)) {
                         if (is_template(bound_to)) {
@@ -501,9 +489,17 @@ fun main(argc: int, argv: **char): int {
                             var binding_type = get_type(t)
 
                             // grab inst types out of binding, or regen again from unify? Cache from first unify?
-                            // regenning from unify
-                            var inst_map = bound_to->data._template.second.associate(fun(k: str, v: *binding<type>): pair<*binding<type>, *binding<type>>
-                                                                                        return make_pair(v, binding_p(type::_unknown()));)
+                            var inst_map = map<*binding<type>, *binding<type>>()
+                            if (b.second.size > 0) {
+                                for (var i = 0; i < b.second.size; i++;) {
+                                    inst_map[bound_to->data._template.second.values[i]] = b.second[i]
+                                }
+                            } else {
+                                // regenning from unify
+                                inst_map = bound_to->data._template.second.associate(fun(k: str, v: *binding<type>): pair<*binding<type>, *binding<type>>
+                                                                                            return make_pair(v, binding_p(type::_unknown()));)
+                            }
+                            // unify in both cases - we need it in the explicit case to make sure our explicit types propegate back
                             unify(binding_type, inst_temp_type(get_type(bound_to->children[0]), inst_map))
 
                             // shouldn't cache by binding, but by all insted
@@ -557,6 +553,33 @@ fun main(argc: int, argv: **char): int {
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to->parent, str("emit_C")))
                     }
                     // bound_to might have changed from binding
+                }
+            }
+            t->children.for_each(resolve)
+        }
+        resolve(item)
+    }
+
+    passes[str("emit_C")] = fun(item: *tree<ast>) {
+        if !pass_poset.done(make_pair(item, str("depend_and_template_resolve"))) {
+            pass_poset.add_open_dep(make_pair(item, str("emit_C")), make_pair(item, str("depend_and_template_resolve")))
+            return
+        }
+        println("Emitting C for:")
+        print_tree(item, 1)
+
+        var emit_C: fun(*tree<ast>, int): void = fun(t: *tree<ast>, level: int) {
+            var idt = str("\t") * level
+            match (t->data) {
+                ast::_translation_unit(b) {
+                    t->children.for_each(fun(c: *tree<ast>) {
+                        emit_C(c, 0)
+                        C_str += ";\n"
+                    })
+                }
+                ast::_import(b) { }
+                ast::_identifier(b)         { C_str += idt + get_c_name(t); }
+                ast::_binding(b)            {
                     C_str += idt + get_c_name(get_ast_binding(t))
                 }
                 ast::_type_def(b)           { error("type_def gen unimplemented"); }

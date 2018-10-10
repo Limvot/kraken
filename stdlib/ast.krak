@@ -15,6 +15,7 @@ adt ast {
     _type_def: str,
     _adt_def: str,
     _function: triple<str, *binding<type>, bool>,
+    // needs to be a map that retains order
     _template: pair<str, map<str, *binding<type>>>,
     _declaration,
     _block,
