@@ -39,6 +39,8 @@ fun unify(t1: *binding<type>, t2: *binding<type>) {
                 unify(t1->bound_to->_fun.first.second, t2->bound_to->_fun.first.second)
                 for (var i = 0; i < t1->bound_to->_fun.first.first.size; i++;)
                     unify(t1->bound_to->_fun.first.first[i], t2->bound_to->_fun.first.first[i])
+            } else if (is_ptr(t1->bound_to)) {
+                unify(t1->bound_to->_ptr, t2->bound_to->_ptr)
             }
         } else {
             error("Doesn't typecheck! Attempted to unify " + to_string(t1->bound_to) + " and " + to_string(t2->bound_to))
@@ -112,7 +114,7 @@ fun shallow_equality(a: *type, b: *type):bool {
     if (is_ptr(a) != is_ptr(b))
         return false
     if (is_ptr(a) && is_ptr(b))
-        return shallow_equality(a->_ptr->bound_to, b->_ptr->bound_to)
+        return true
     match(*a) {
         type::_fun(x) {
             return is_fun(b) && a->_fun.third == b->_fun.third

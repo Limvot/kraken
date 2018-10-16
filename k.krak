@@ -90,6 +90,7 @@ fun main(argc: int, argv: **char): int {
 
     var multiple_binding_options = map<*tree<ast>, vec<*tree<ast>>>()
     var primitive_ops.construct(): map<str, vec<*tree<ast>>>
+
     var number_tower = vec(binding_p(type::_char()),
                            binding_p(type::_uchar()),
                            binding_p(type::_short()),
@@ -149,6 +150,21 @@ fun main(argc: int, argv: **char): int {
         }
     }
     math.remove(math.size-1)
+
+    // address of
+    var template_type = binding_p(type::_template_placeholder())
+    primitive_ops[str("op&")].add(_template(str("&"), map(str("T"), template_type), vec(_compiler_intrinsic(str("&"), binding_p(type::_fun(make_triple(make_pair(vec(
+                                    template_type
+                                ),
+                            binding_p(type::_ptr(template_type))
+                        ), false, false))), vec<*binding<type>>()))))
+    // dereference
+    var template_type = binding_p(type::_template_placeholder())
+    primitive_ops[str("op*")].add(_template(str("*"), map(str("T"), template_type), vec(_compiler_intrinsic(str("*"), binding_p(type::_fun(make_triple(make_pair(vec(
+                                    binding_p(type::_ptr(template_type))
+                                ),
+                            template_type
+                        ), false, false))), vec<*binding<type>>()))))
 
     // resolves all binding possibilities for one top level item
     passes[str("name_possibility_resolve")] = fun(item: *tree<ast>) {
@@ -707,7 +723,7 @@ fun main(argc: int, argv: **char): int {
                         C_str += ")"
                     }
                 }
-                ast::_compiler_intrinsic(b) { error("compiler_intrinsic gen unimplemented"); }
+                ast::_compiler_intrinsic(b) { /* this can happen cuz of templated primitive ops and is_top_level_item includes parentless stuff...*/ }
                 ast::_cast(b)               {
                     C_str += idt + "((" + to_c_type(b) + ")"
                     emit_C(t->children[0], 0)
@@ -974,10 +990,10 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                         return parse_type(s, declared_template_types);
                     }))
                 } else if (syntax->children[0]->data.terminal) {
-                    return _call(vec(make_ast_binding(concat(syntax->children[0])),
+                    return _call(vec(make_ast_binding("op" + concat(syntax->children[0])),
                                      syntax_to_ast_helper(syntax->children[1], declared_template_types)))
                 } else {
-                    return _call(vec(make_ast_binding(concat(syntax->children[1])),
+                    return _call(vec(make_ast_binding("op" + concat(syntax->children[1])),
                                      syntax_to_ast_helper(syntax->children[0], declared_template_types)))
                 }
             } else {

@@ -232,7 +232,7 @@ fun is_compiler_intrinsic(i: *tree<ast>): bool { match(i->data) { ast::_compiler
 fun is_cast(i: *tree<ast>): bool { match(i->data) { ast::_cast(b) return true; } return false; }
 fun is_value(i: *tree<ast>): bool { match(i->data) { ast::_value(b) return true; } return false; }
 
-fun is_top_level_item(i: *tree<ast>): bool { return i->parent != null<tree<ast>>() && is_translation_unit(i->parent); }
+fun is_top_level_item(i: *tree<ast>): bool { return i->parent == null<tree<ast>>() || is_translation_unit(i->parent); }
 
 fun get_ancestor_satisfying(t: *tree<ast>, p: fun(*tree<ast>): bool): *tree<ast> {
     t = t->parent
