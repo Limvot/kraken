@@ -166,6 +166,30 @@ fun main(argc: int, argv: **char): int {
                             template_type
                         ), false, false))), vec<*binding<type>>()))))
 
+    for (var i = 0; i < number_tower.size - 2; i++;) {
+        var template_type = binding_p(type::_template_placeholder())
+        primitive_ops[str("op+")].add(_template(str("+"), map(str("T"), template_type), vec(_compiler_intrinsic(str("+"), binding_p(type::_fun(make_triple(make_pair(vec(
+                                        number_tower[i],
+                                        binding_p(type::_ptr(template_type))
+                                    ),
+                                binding_p(type::_ptr(template_type))
+                            ), false, false))), vec<*binding<type>>()))))
+        primitive_ops[str("op+")].add(_template(str("+"), map(str("T"), template_type), vec(_compiler_intrinsic(str("+"), binding_p(type::_fun(make_triple(make_pair(vec(
+                                        binding_p(type::_ptr(template_type)),
+                                        number_tower[i]
+                                    ),
+                                binding_p(type::_ptr(template_type))
+                            ), false, false))), vec<*binding<type>>()))))
+
+        // note only ptr-1, not 1-ptr to match C...
+        primitive_ops[str("op-")].add(_template(str("-"), map(str("T"), template_type), vec(_compiler_intrinsic(str("-"), binding_p(type::_fun(make_triple(make_pair(vec(
+                                        binding_p(type::_ptr(template_type)),
+                                        number_tower[i]
+                                    ),
+                                binding_p(type::_ptr(template_type))
+                            ), false, false))), vec<*binding<type>>()))))
+    }
+
     // resolves all binding possibilities for one top level item
     passes[str("name_possibility_resolve")] = fun(item: *tree<ast>) {
         println("Running name possibility resolver?")
