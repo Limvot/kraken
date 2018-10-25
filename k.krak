@@ -396,34 +396,7 @@ fun main(argc: int, argv: **char): int {
         }
     }
 
-    //  emit C
-    var C_str = str()
-    var C_declaration_str = str()
 
-    var to_c_type: fun(*binding<type>): str = fun(tb: *binding<type>): str {
-        match(*tb->bound_to) {
-            type::_unknown()              error("unknown in to_c_type")
-            /*type::_unknown()              return str("unknown")*/
-            type::_ptr(p)                 return to_c_type(p) + "*"
-            type::_ref()                  error("ref in to_c_type")
-            type::_void()                 return str("void")
-            type::_obj(b)                 error("obj in to_c_type unimplemented")
-            type::_fun(b)                 error("fun in to_c_type unimplemented")
-            type::_template_placeholder() error("template_placeholder in to_c_type")
-            type::_bool()                 return str("bool")
-            type::_char()                 return str("char")
-            type::_uchar()                return str("usigned char")
-            type::_short()                return str("short")
-            type::_ushort()               return str("unsigned short")
-            type::_int()                  return str("int")
-            type::_uint()                 return str("unsigned int")
-            type::_long()                 return str("long")
-            type::_ulong()                return str("unsigned long")
-            type::_float()                return str("float")
-            type::_double()               return str("double")
-        }
-        error("fell through to_c_type")
-    }
     var taken_names = map<*tree<ast>, str>()
     var id = 0
 
@@ -510,6 +483,31 @@ fun main(argc: int, argv: **char): int {
         return taken_names[x]
     }
 
+    var to_c_type: fun(*binding<type>): str = fun(tb: *binding<type>): str {
+        match(*tb->bound_to) {
+            type::_unknown()              error("unknown in to_c_type")
+            /*type::_unknown()              return str("unknown")*/
+            type::_ptr(p)                 return to_c_type(p) + "*"
+            type::_ref()                  error("ref in to_c_type")
+            type::_void()                 return str("void")
+            type::_obj(b)                 return get_c_name(get_ast_binding(b))
+            type::_fun(b)                 error("fun in to_c_type unimplemented")
+            type::_template_placeholder() error("template_placeholder in to_c_type")
+            type::_bool()                 return str("bool")
+            type::_char()                 return str("char")
+            type::_uchar()                return str("usigned char")
+            type::_short()                return str("short")
+            type::_ushort()               return str("unsigned short")
+            type::_int()                  return str("int")
+            type::_uint()                 return str("unsigned int")
+            type::_long()                 return str("long")
+            type::_ulong()                return str("unsigned long")
+            type::_float()                return str("float")
+            type::_double()               return str("double")
+        }
+        error("fell through to_c_type")
+    }
+
     // has to be set<pair> instead of map<> as we need to use type's "equality"
     // function instead of type's adt's operator==
     var instantiated_map = map<*tree<ast>, set<pair<*binding<type>, *tree<ast>>>>()
@@ -519,6 +517,19 @@ fun main(argc: int, argv: **char): int {
             return
         }
         var resolve: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+            var resolve_type: fun(*binding<type>): void = fun(t: *binding<type>) {
+                match (*t->bound_to) {
+                    type::_unknown() error("unknown in resolve_type")
+                    type::_template_placeholder() error("template_placeholder in resolve_type")
+                    type::_ptr(p) resolve_type(p)
+                    type::_ref(p) resolve_type(p)
+                    type::_obj(o) pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(get_ast_binding(o), str("emit_C")))
+                    type::_fun(t) {
+                        t.first.first.for_each(resolve_type)
+                        resolve_type(t.first.second)
+                    }
+                }
+            }
             match (t->data) {
                 ast::_binding(b) {
                     var bound_to = get_ast_binding(t)
@@ -593,12 +604,29 @@ fun main(argc: int, argv: **char): int {
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to->parent, str("emit_C")))
                     }
                     // bound_to might have changed from binding
+
+                    resolve_type(get_type(t))
                 }
+                ast::_identifier(p) resolve_type(get_type(t))
+                ast::_function(p) resolve_type(get_type(t))
+                ast::_compiler_intrinsic(p) {
+                    resolve_type(p.second)
+                    p.third.for_each(resolve_type)
+                }
+                ast::_cast(p) resolve_type(p)
             }
+
+
             t->children.for_each(resolve)
         }
         resolve(item)
     }
+
+    //  emit C
+    var C_str = str()
+    var C_type_forward_declaration_str = str()
+    var C_type_declaration_str = str()
+    var C_declaration_str = str()
 
     passes[str("emit_C")] = fun(item: *tree<ast>) {
         if !pass_poset.done(make_pair(item, str("depend_and_template_resolve"))) {
@@ -622,7 +650,14 @@ fun main(argc: int, argv: **char): int {
                 ast::_binding(b)            {
                     C_str += idt + get_c_name(get_ast_binding(t))
                 }
-                ast::_type_def(b)           { error("type_def gen unimplemented"); }
+                ast::_type_def(b) {
+                    C_type_forward_declaration_str += "typedef struct " + get_c_name(t) + " " + get_c_name(t) + ";\n"
+                    C_type_declaration_str += "struct " + get_c_name(t) + "{\n"
+                    t->children.for_each(fun(c: *tree<ast>) {
+                        C_type_declaration_str += "\t" + to_c_type(c->children[0]->data._identifier.second) + " " + get_c_name(c->children[0]) + ";\n"
+                    })
+                    C_type_declaration_str += "};\n"
+                }
                 ast::_adt_def(b)            { error("no adt_def should remain at C emit"); }
                 ast::_function(b)           {
                     /*var fun_name = b.first*/
@@ -788,7 +823,7 @@ fun main(argc: int, argv: **char): int {
         printlnerr("doing pass new style " + file_pass.second + " on " + to_string(file_pass.first->data))
         passes[file_pass.second](file_pass.first)
     })
-    C_str = "#include <stdbool.h>\n" + C_declaration_str + "\n" + C_str
+    C_str = "#include <stdbool.h>\n" + C_type_forward_declaration_str + "\n" + C_type_declaration_str + "\n" + C_declaration_str + "\n" + C_str
 
     println()
     println()
