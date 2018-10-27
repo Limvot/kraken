@@ -119,6 +119,9 @@ fun shallow_equality(a: *type, b: *type):bool {
         type::_fun(x) {
             return is_fun(b) && a->_fun.third == b->_fun.third
         }
+        type::_obj(x) {
+            return is_obj(b) && get_ast_binding(x) == get_ast_binding(b->_obj)
+        }
     }
     return *a == *b
 }

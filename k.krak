@@ -16,6 +16,11 @@ import tree:*
 import symbol:*
 import binding:*
 
+adt OptionVecAst {
+    Some: vec<*tree<ast>>,
+    None
+}
+
 fun main(argc: int, argv: **char): int {
     // delay construction until we either load it or copy construct it
     var gram: grammer
@@ -190,10 +195,40 @@ fun main(argc: int, argv: **char): int {
                             ), false, false))), vec<*binding<type>>()))))
     }
 
+    passes[str("translation_unit_generative")] = fun(item: *tree<ast>) {
+        println("Running translation_unit_generative")
+        if !is_translation_unit(item) {
+            error("Running translation_unit_generative on not a translation unit");
+        }
+        for (var i = 0; i < item->children.size; i++;) {
+            var child = item->children[i]
+            if is_type_def(child)
+            match (child->data) {
+                ast::_type_def(name) {
+                    println("Found a type_def! - " + name)
+                    for (var j = 0; j < child->children.size; j++;) {
+                        var grandchild = child->children[j];
+                        if is_declaration(grandchild) {
+                            var ident = grandchild->children[0]
+                            var type_def_binding = make_ast_binding(name)
+                            set_ast_binding(type_def_binding, child)
+                            item->add_child(_compiler_intrinsic(ident->data._identifier.first, binding_p(type::_fun(make_triple(make_pair(vec(
+                                        binding_p(type::_obj(type_def_binding))
+                                    ),
+                                ident->data._identifier.second
+                            ), false, false))), vec<*binding<type>>()))
+                            println("adding compiler intrinsic to do " + name + "." + ident->data._identifier.first)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // resolves all binding possibilities for one top level item
     passes[str("name_possibility_resolve")] = fun(item: *tree<ast>) {
         println("Running name possibility resolver?")
-        var scope_lookup: fun(*tree<ast>, str, bool): vec<*tree<ast>> = fun(scope: *tree<ast>, name: str, is_type: bool): vec<*tree<ast>> {
+        var scope_lookup: fun(*tree<ast>, str, bool): OptionVecAst = fun(scope: *tree<ast>, name: str, is_type: bool): OptionVecAst {
             var to_ret = vec<*tree<ast>>()
             for (var i = 0; i < scope->children.size; i++;) {
                 match(scope->children[i]->data) {
@@ -211,37 +246,57 @@ fun main(argc: int, argv: **char): int {
                             }
                             set_ast_binding(b.first, name_ast_map[file_path])
                         }
-                        to_ret += scope_lookup(get_ast_binding(b.first), name, is_type)
+                        var other_top_level = get_ast_binding(b.first)
+                        if !pass_poset.done(make_pair(other_top_level, str("translation_unit_generative"))) {
+                            pass_poset.add_open_dep(make_pair(item, str("name_possibility_resolve")), make_pair(other_top_level, str("translation_unit_generative")))
+                            return OptionVecAst::None()
+                        }
+                        match (scope_lookup(other_top_level, name, is_type)) {
+                            OptionVecAst::None() return OptionVecAst::None()
+                            OptionVecAst::Some(v) {
+                                to_ret += v
+                            }
+                        }
                     }
-                    ast::_type_def(b)   if (is_type && b == name)
-                                            to_ret += scope->children[i]
-                    ast::_adt_def(b)    if (is_type && b == name)
-                                            to_ret += scope->children[i]
-                    ast::_function(b)   if (!is_type && b.first == name)
-                                            to_ret += scope->children[i]
-                    ast::_template(b)   if (!is_type && b.first == name)
-                                            to_ret += scope->children[i]
-                    ast::_identifier(b) if (!is_type && b.first == name)
-                                            to_ret += scope->children[i]
-                    ast::_declaration() if (!is_type && scope->children[i]->children[0]->data._identifier.first == name)
-                                            to_ret += scope->children[i]->children[0]
+                    ast::_type_def(b)           if (is_type && b == name)
+                                                    to_ret += scope->children[i]
+                    ast::_adt_def(b)            if (is_type && b == name)
+                                                    to_ret += scope->children[i]
+                    ast::_function(b)           if (!is_type && b.first == name)
+                                                    to_ret += scope->children[i]
+                    ast::_compiler_intrinsic(b) if (!is_type && b.first == name)
+                                                    to_ret += scope->children[i]
+                    ast::_template(b)           if (!is_type && b.first == name)
+                                                    to_ret += scope->children[i]
+                    ast::_identifier(b)         if (!is_type && b.first == name)
+                                                    to_ret += scope->children[i]
+                    ast::_declaration()         if (!is_type && scope->children[i]->children[0]->data._identifier.first == name)
+                                                    to_ret += scope->children[i]->children[0]
                 }
             }
-            if (scope->parent != null<tree<ast>>())
-                return to_ret + scope_lookup(scope->parent, name, is_type)
+            if (scope->parent != null<tree<ast>>()) {
+                match (scope_lookup(scope->parent, name, is_type)) {
+                    OptionVecAst::None() return OptionVecAst::None()
+                    OptionVecAst::Some(v) return OptionVecAst::Some(to_ret + v)
+                }
+            }
             else if (primitive_ops.contains_key(name))
                 to_ret += primitive_ops[name]
-            return to_ret
+            return OptionVecAst::Some(to_ret)
         }
         var try_binding = fun(binding: *tree<ast>, start_scope: *tree<ast>, type_binding: bool) {
-            if !ast_bound(binding) {
-                var options = scope_lookup(start_scope, ast_binding_str(binding), type_binding)
-                if (options.size == 0)
-                    error("Could not find any options for scope lookup of " + ast_binding_str(binding))
-                else if (options.size == 1)
-                    set_ast_binding(binding, options[0])
-                else
-                    multiple_binding_options[binding] = options
+            if !ast_bound(binding) && !multiple_binding_options.contains_key(binding) {
+                match (scope_lookup(start_scope, ast_binding_str(binding), type_binding)) {
+                    OptionVecAst::None() return;
+                    OptionVecAst::Some(options) {
+                        if (options.size == 0)
+                            error("Could not find any options for scope lookup of " + ast_binding_str(binding))
+                        else if (options.size == 1)
+                            set_ast_binding(binding, options[0])
+                        else
+                            multiple_binding_options[binding] = options
+                    }
+                }
             }
         }
         var handle_type: fun(*binding<type>, *tree<ast>): void = fun(t: *binding<type>, n: *tree<ast>) {
@@ -761,9 +816,16 @@ fun main(argc: int, argv: **char): int {
                 ast::_call()                {
                     if (is_compiler_intrinsic(get_ast_binding(t->children[0]))) {
                         if (t->children.size == 2) {
-                            C_str += idt + "(" + get_ast_binding(t->children[0])->data._compiler_intrinsic.first + "("
-                            emit_C(t->children[1], 0)
-                            C_str += "))"
+                            var intrinsic_name = get_ast_binding(t->children[0])->data._compiler_intrinsic.first
+                            if (intrinsic_name == "&" || intrinsic_name == "*") {
+                                C_str += idt + "(" + intrinsic_name + "("
+                                emit_C(t->children[1], 0)
+                                C_str += "))"
+                            } else {
+                                C_str += "("
+                                emit_C(t->children[1], 0)
+                                C_str += ")." + intrinsic_name
+                            }
                         } else if (t->children.size == 3) {
                             C_str += idt + "(("
                             emit_C(t->children[1], 0)
@@ -1036,8 +1098,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                  syntax->data.name == "shiftand" ||
                  syntax->data.name == "term" ||
                  syntax->data.name == "factor" ||
-                 syntax->data.name == "unarad" ||
-                 syntax->data.name == "access_operation") {
+                 syntax->data.name == "unarad") {
             if (syntax->children.size == 1) {
                 return syntax_to_ast_helper(syntax->children[0], declared_template_types)
             } else if (syntax->children.size == 2) {
@@ -1060,6 +1121,10 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                                  syntax_to_ast_helper(syntax->children[0], declared_template_types),
                                  syntax_to_ast_helper(syntax->children[2], declared_template_types)))
             }
+        } else if (syntax->data.name == "access_operation") {
+                // somehow note / do the crazier scope lookup
+                // also handle . vs ->
+                return _call(vec(make_ast_binding(concat(syntax->children[2])), syntax_to_ast_helper(syntax->children[0], declared_template_types)))
         } else if (syntax->data.name == "cast_expression") {
             return _cast(parse_type(get_node("type", syntax), declared_template_types), vec(syntax_to_ast_helper(syntax->children[0], declared_template_types)))
         } else if (syntax->data.name == "number") {
