@@ -95,7 +95,7 @@ adt_def = adt_nonterm WS identifier WS "{" WS adt_option_list WS "}" | adt_nonte
 adt_option_list = adt_option | adt_option WS "," WS adt_option_list ;
 adt_option = identifier | identifier WS dec_type ;
 
-if_statement = "if" WS boolean_expression WS statement | "if" WS "\(" WS boolean_expression WS "\)" WS statement WS "else" WS statement ;
+if_statement = "if" WS boolean_expression WS statement | "if" WS boolean_expression WS statement WS "else" WS statement ;
 
 match_statement = "match" WS "\(" WS boolean_expression WS "\)" WS "{" WS case_statement_list WS "}" ;
 case_statement_list = case_statement WS case_statement_list | case_statement ;

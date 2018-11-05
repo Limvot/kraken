@@ -266,7 +266,9 @@ fun main(argc: int, argv: **char): int {
                                                     to_ret += scope->children[i]
                     ast::_compiler_intrinsic(b) if (!is_type && b.first == name)
                                                     to_ret += scope->children[i]
-                    ast::_template(b)           if (!is_type && b.first == name)
+                    ast::_template(b)           if (((!is_type && is_function(scope->children[i]->children[0]))
+                                                  || ( is_type && is_type_def(scope->children[i]->children[0]))
+                                                  || ( is_type && is_adt_def( scope->children[i]->children[0]))) && b.first == name)
                                                     to_ret += scope->children[i]
                     ast::_identifier(b)         if (!is_type && b.first == name)
                                                     to_ret += scope->children[i]
@@ -578,7 +580,10 @@ fun main(argc: int, argv: **char): int {
                     type::_template_placeholder() error("template_placeholder in resolve_type")
                     type::_ptr(p) resolve_type(p)
                     type::_ref(p) resolve_type(p)
-                    type::_obj(o) pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(get_ast_binding(o), str("emit_C")))
+                    type::_obj(o) {
+                        resolve(o)
+                        pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(get_ast_binding(o), str("emit_C")))
+                    }
                     type::_fun(t) {
                         t.first.first.for_each(resolve_type)
                         resolve_type(t.first.second)
@@ -592,7 +597,6 @@ fun main(argc: int, argv: **char): int {
                         if (is_template(bound_to)) {
                             if (!instantiated_map.contains_key(bound_to))
                                 instantiated_map[bound_to] = set<pair<*binding<type>, *tree<ast>>>()
-                            var binding_type = get_type(t)
 
                             // grab inst types out of binding, or regen again from unify? Cache from first unify?
                             var inst_map = map<*binding<type>, *binding<type>>()
@@ -605,8 +609,16 @@ fun main(argc: int, argv: **char): int {
                                 inst_map = bound_to->data._template.second.associate(fun(k: str, v: *binding<type>): pair<*binding<type>, *binding<type>>
                                                                                             return make_pair(v, binding_p(type::_unknown()));)
                             }
-                            // unify in both cases - we need it in the explicit case to make sure our explicit types propegate back
-                            unify(binding_type, inst_temp_type(get_type(bound_to->children[0]), inst_map))
+
+                            // but not in the case where this is a templated type instead of a function - that doesn't make any sense
+                            var binding_type = null<binding<type>>()
+                            if is_function(bound_to->children[0]) {
+                                // unify in both cases - we need it in the explicit case to make sure our explicit types propegate back
+                                binding_type = get_type(t)
+                                unify(binding_type, inst_temp_type(get_type(bound_to->children[0]), inst_map))
+                            } else {
+                                binding_type = binding_p(type::_obj(t))
+                            }
 
                             // shouldn't cache by binding, but by all insted
                             var already_inst = instantiated_map[bound_to].filter(fun(p: pair<*binding<type>, *tree<ast>>): bool return equality(binding_type->bound_to, p.first->bound_to, false);)
@@ -621,6 +633,10 @@ fun main(argc: int, argv: **char): int {
                                 set_single_ast_binding(t, already_inst.single().second)
                             } else {
                                 println("Copying tree to instantiate template!")
+                                println("using inst map:")
+                                inst_map.for_each(fun(k: *binding<type>, v: *binding<type>) {
+                                    println("\t" + to_string(k->bound_to) + " -> " + to_string(v->bound_to))
+                                })
                                 var inst_copy = bound_to->children[0]->clone(fun(a: ref ast): ast {
                                     match (a) {
                                         ast::_identifier(b)         return ast::_identifier(make_pair(b.first, inst_temp_type(b.second, inst_map)))
@@ -659,8 +675,9 @@ fun main(argc: int, argv: **char): int {
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to->parent, str("emit_C")))
                     }
                     // bound_to might have changed from binding
-
-                    resolve_type(get_type(t))
+                    if !is_type_def(get_ast_binding(t)) {
+                        resolve_type(get_type(t))
+                    }
                 }
                 ast::_identifier(p) resolve_type(get_type(t))
                 ast::_function(p) resolve_type(get_type(t))
@@ -930,7 +947,8 @@ fun parse_type_helper(syntax: *tree<symbol>, declared_template_types: ref map<st
         var ident_str = concat(ident)
         var template_inst = get_node("template_inst", syntax)
         if (template_inst != null<tree<symbol>>()) {
-            return binding_p(type::_obj(make_ast_binding(ident_str + "<somin>")))
+            var inst_with = get_nodes("type", template_inst).map(fun(s: *tree<symbol>): *binding<type> { return parse_type(s, declared_template_types); })
+            return binding_p(type::_obj(make_ast_binding(ident_str, inst_with)))
         } else {
             if (declared_template_types.contains_key(ident_str))
                 return declared_template_types[ident_str]
@@ -1024,30 +1042,53 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
         } else if (syntax->data.name == "typed_parameter")
             return _identifier(concat(get_node("identifier", syntax)), parse_type(get_node("type", syntax), declared_template_types))
         else if (syntax->data.name == "type_def") {
-            var n = _type_def(concat(get_node("identifier", syntax)),
-                             get_nodes("declaration_statement", syntax).map(fun(x: *tree<symbol>): *tree<ast> return syntax_to_ast_helper(x, declared_template_types);))
+
             var template = get_node("template_dec", syntax)
-            if (template == null<tree<symbol>>()) {
-                return n
+            var new_template_type_map = map<str, *binding<type>>()
+            var with_added_declared_template_types = declared_template_types
+            if (template != null<tree<symbol>>()) {
+                get_nodes("template_param", template).for_each(fun(p: *tree<symbol>) {
+                    var key = concat(p)
+                    var value = binding_p(type::_template_placeholder())
+                    new_template_type_map[key] = value
+                    with_added_declared_template_types[key] = value
+                })
+            }
+
+            var n = _type_def(concat(get_node("identifier", syntax)),
+                             get_nodes("declaration_statement", syntax).map(fun(x: *tree<symbol>): *tree<ast> return syntax_to_ast_helper(x, with_added_declared_template_types);))
+
+            if (new_template_type_map.size() > 0) {
+                return _template(n->data._type_def, new_template_type_map, vec(n))
             } else {
-                /*return _template(n->data._type_def, from_vector(get_nodes("template_param", template).map(concat)), vec(n))*/
-                error("implement me")
+                return n
             }
         } else if (syntax->data.name == "adt_def") {
+
+            var template = get_node("template_dec", syntax)
+            var new_template_type_map = map<str, *binding<type>>()
+            var with_added_declared_template_types = declared_template_types
+            if (template != null<tree<symbol>>()) {
+                get_nodes("template_param", template).for_each(fun(p: *tree<symbol>) {
+                    var key = concat(p)
+                    var value = binding_p(type::_template_placeholder())
+                    new_template_type_map[key] = value
+                    with_added_declared_template_types[key] = value
+                })
+            }
+
             var n = _adt_def(concat(get_node("identifier", syntax)),
                              get_nodes("adt_option", syntax).map(fun(s: *tree<symbol>): *tree<ast> {
                                 var option_type = get_node("type", s)
                                 if (option_type != null<tree<symbol>>())
-                                    return _identifier(concat(get_node("identifier", s)), parse_type(option_type, declared_template_types))
+                                    return _identifier(concat(get_node("identifier", s)), parse_type(option_type, with_added_declared_template_types))
                                 else
                                     return _identifier(concat(get_node("identifier", s)), binding_p(type::_void()))
                              }))
-            var template = get_node("template_dec", syntax)
-            if (template == null<tree<symbol>>()) {
-                return n
+            if (new_template_type_map.size() > 0) {
+                return _template(n->data._adt_def, new_template_type_map, vec(n))
             } else {
-                /*return _template(n->data._adt_def, from_vector(get_nodes("template_param", template).map(concat)), vec(n))*/
-                error("implement me")
+                return n
             }
         } else if (syntax->data.name == "statement")
             return syntax_to_ast_helper(syntax->children[0], declared_template_types)
