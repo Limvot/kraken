@@ -202,7 +202,6 @@ fun main(argc: int, argv: **char): int {
         }
         for (var i = 0; i < item->children.size; i++;) {
             var child = item->children[i]
-            if is_type_def(child)
             match (child->data) {
                 ast::_type_def(name) {
                     println("Found a type_def! - " + name)
@@ -210,25 +209,64 @@ fun main(argc: int, argv: **char): int {
                         var grandchild = child->children[j];
                         if is_declaration(grandchild) {
                             var ident = grandchild->children[0]
+                            var ident_name = ident->data._identifier.first
+                            var ident_type = ident->data._identifier.second
                             var type_def_binding = make_ast_binding(name)
                             set_ast_binding(type_def_binding, child)
-                            item->add_child(_compiler_intrinsic(ident->data._identifier.first, binding_p(type::_fun(make_triple(make_pair(vec(
+                            item->add_child(_compiler_intrinsic(ident_name, binding_p(type::_fun(make_triple(make_pair(vec(
                                         binding_p(type::_obj(type_def_binding))
                                     ),
-                                ident->data._identifier.second
+                                ident_type
                             ), false, false))), vec<*binding<type>>()))
-                            println("adding compiler intrinsic to do " + name + "." + ident->data._identifier.first)
+                            println("adding compiler intrinsic to do " + name + "." + ident_name)
+                        }
+                    }
+                }
+                ast::_template(name_map_pair) {
+                    if is_type_def(child->children[0]) {
+                        var name = child->children[0]->data._type_def
+                        println("Found a templated type_def! - " + name)
+                        for (var j = 0; j < child->children[0]->children.size; j++;) {
+                            var great_grandchild = child->children[0]->children[j];
+                            if is_declaration(great_grandchild) {
+                                var ident = great_grandchild->children[0]
+                                var ident_name = ident->data._identifier.first
+
+                                // inst type?
+                                var ident_type = ident->data._identifier.second
+
+
+                                // the map retains the order
+                                var new_template_type_map = name_map_pair.second.associate(fun(n: str, t: *binding<type>): pair<str, *binding<type>> return make_pair(n, binding_p(type::_template_placeholder()));)
+                                var new_ident_type = inst_temp_type(ident_type, name_map_pair.second.associate(fun(n: str, t: *binding<type>): pair<*binding<type>, *binding<type>>
+                                                                                    return make_pair(t, new_template_type_map[n]);))
+
+                                var type_def_binding = make_ast_binding(name, new_template_type_map.values)
+                                // do we need to set the binding to the template?
+                                /*set_ast_binding(type_def_binding, child)*/
+
+                                item->add_child(_template(ident_name, new_template_type_map, vec(_compiler_intrinsic(ident_name, binding_p(type::_fun(make_triple(make_pair(vec(
+                                            binding_p(type::_obj(type_def_binding))
+                                        ),
+                                    ident_type
+                                ), false, false))), vec<*binding<type>>()))))
+                                println("adding compiler intrinsic to do " + name + "." + ident_name)
+                            }
                         }
                     }
                 }
             }
         }
+
+        println("post generative")
+        print_tree(item, 1)
     }
 
     // resolves all binding possibilities for one top level item
     passes[str("name_possibility_resolve")] = fun(item: *tree<ast>) {
         println("Running name possibility resolver?")
         var scope_lookup: fun(*tree<ast>, str, bool): OptionVecAst = fun(scope: *tree<ast>, name: str, is_type: bool): OptionVecAst {
+            /*println("doing a scope lookup for " + name + " starting from " + to_string(scope->data))*/
             var to_ret = vec<*tree<ast>>()
             for (var i = 0; i < scope->children.size; i++;) {
                 match(scope->children[i]->data) {
@@ -267,6 +305,7 @@ fun main(argc: int, argv: **char): int {
                     ast::_compiler_intrinsic(b) if (!is_type && b.first == name)
                                                     to_ret += scope->children[i]
                     ast::_template(b)           if (((!is_type && is_function(scope->children[i]->children[0]))
+                                                  || (!is_type && is_compiler_intrinsic(scope->children[i]->children[0]))
                                                   || ( is_type && is_type_def(scope->children[i]->children[0]))
                                                   || ( is_type && is_adt_def( scope->children[i]->children[0]))) && b.first == name)
                                                     to_ret += scope->children[i]
@@ -319,7 +358,7 @@ fun main(argc: int, argv: **char): int {
                 /*_binding: triple<str, vec<*type>, *tree<ast>>,*/
                 ast::_function(b)           handle_type(b.second, t)
                 ast::_compiler_intrinsic(b) {
-                    /*handle_type(b.second, t)*/
+                    handle_type(b.second, t)
                     b.third.for_each(fun(tb: *binding<type>) {
                         handle_type(tb, t)
                     })
@@ -352,6 +391,10 @@ fun main(argc: int, argv: **char): int {
                                         }
             ast::_function(b)           return b.second
             ast::_template(b)           {
+                println("insting temp type in get_type with map")
+                b.second.for_each(fun(k: str, v: *binding<type>) {
+                    println("\t" + k + ": " + to_string(v->bound_to))
+                })
                 return inst_temp_type(get_type(a->children[0]), b.second.associate(fun(k: str, v: *binding<type>): pair<*binding<type>, *binding<type>> return make_pair(v, binding_p(type::_unknown()));))
             }
             ast::_compiler_intrinsic(b) return b.second
@@ -375,7 +418,7 @@ fun main(argc: int, argv: **char): int {
         error("Trying to get type of node without one: " + to_string(a->data))
     }
 
-    // resolves all binding possibilities for one top level item
+    // resolves all binding possibilities to a single one for one top level item
     passes[str("name_type_resolve")] = fun(item: *tree<ast>) {
         if !pass_poset.done(make_pair(item, str("name_possibility_resolve"))) {
             pass_poset.add_open_dep(make_pair(item, str("name_type_resolve")), make_pair(item, str("name_possibility_resolve")))
@@ -390,13 +433,17 @@ fun main(argc: int, argv: **char): int {
                 ast::_declaration() if (t->children.size > 1)
                                         unify(get_type(t->children[0]), get_type(t->children[1]))
                 ast::_call() {
+                    println("traverse_for_unify call - " + to_string(t->data))
                     // we call get type to make sure if it is unknown it is transformed into a function version
                     get_type(t)
+                    println("\tpast first get_type")
                     var fun_type = get_type(t->children[0])->bound_to
+                    println("\tpast second get_type")
                     if (!is_fun(fun_type))
                         error("trying to call not a function type: " + to_string(fun_type))
                     if (fun_type->_fun.first.first.size != (t->children.size - 1))
                         error("trying to call function with type wrong number of params (" + to_string(fun_type->_fun.first.first.size) + " vs " + to_string(t->children.size - 1) + "): " + to_string(fun_type))
+                    println("\titerating through children, matching their type with the param type")
                     for (var i = 1; i < t->children.size; i++;)
                         unify(fun_type->_fun.first.first[i-1], get_type(t->children[i]))
                 }
@@ -527,7 +574,8 @@ fun main(argc: int, argv: **char): int {
             return taken_names[x]
         var possible = str()
         match(x->data) {
-            ast::_identifier(b) { possible = b.first; }
+            /*ast::_identifier(b) { possible = b.first; }*/
+            ast::_identifier(b) { return b.first; }
             ast::_type_def(b)   { possible = b; }
             ast::_function(b)   { possible = b.first; }
         }
@@ -612,7 +660,7 @@ fun main(argc: int, argv: **char): int {
 
                             // but not in the case where this is a templated type instead of a function - that doesn't make any sense
                             var binding_type = null<binding<type>>()
-                            if is_function(bound_to->children[0]) {
+                            if is_function(bound_to->children[0]) || is_compiler_intrinsic(bound_to->children[0]) {
                                 // unify in both cases - we need it in the explicit case to make sure our explicit types propegate back
                                 binding_type = get_type(t)
                                 unify(binding_type, inst_temp_type(get_type(bound_to->children[0]), inst_map))
@@ -675,9 +723,9 @@ fun main(argc: int, argv: **char): int {
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to->parent, str("emit_C")))
                     }
                     // bound_to might have changed from binding
-                    if !is_type_def(get_ast_binding(t)) {
-                        resolve_type(get_type(t))
-                    }
+                    /*if !is_type_def(get_ast_binding(t)) {*/
+                        /*resolve_type(get_type(t))*/
+                    /*}*/
                 }
                 ast::_identifier(p) resolve_type(get_type(t))
                 ast::_function(p) resolve_type(get_type(t))

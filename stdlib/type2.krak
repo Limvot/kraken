@@ -29,6 +29,7 @@ adt type {
 }
 
 fun unify(t1: *binding<type>, t2: *binding<type>) {
+    println("attempting to unify " + to_string(t1->bound_to) + " and " + to_string(t2->bound_to))
     if (is_unknown(t1->bound_to)) {
         t1->set(t2->bound_to)
     } else if (is_unknown(t2->bound_to)) {
@@ -41,16 +42,45 @@ fun unify(t1: *binding<type>, t2: *binding<type>) {
                     unify(t1->bound_to->_fun.first.first[i], t2->bound_to->_fun.first.first[i])
             } else if (is_ptr(t1->bound_to)) {
                 unify(t1->bound_to->_ptr, t2->bound_to->_ptr)
+            } else if (is_obj(t1->bound_to)) {
+                for (var i = 0; i < t1->bound_to->_obj->data._binding.second.size; i++;) {
+                    unify(t1->bound_to->_obj->data._binding.second[i], t2->bound_to->_obj->data._binding.second[i])
+                }
             }
         } else {
             error("Doesn't typecheck! Attempted to unify " + to_string(t1->bound_to) + " and " + to_string(t2->bound_to))
         }
     }
 }
+fun shallow_equality(a: *type, b: *type):bool {
+    if (is_ptr(a) != is_ptr(b))
+        return false
+    if (is_ptr(a) && is_ptr(b))
+        return true
+    match(*a) {
+        type::_fun(x) {
+            return is_fun(b) && a->_fun.third == b->_fun.third
+        }
+        type::_obj(x) {
+            return is_obj(b) && (get_ast_binding(x) == get_ast_binding(b->_obj) || ((!ast_bound(x) || !ast_bound(b->_obj))
+                                                                                    && x->data._binding.second.size == b->_obj->data._binding.second.size
+                                                                                    && x->data._binding.first == b->_obj->data._binding.first))
+        }
+    }
+    return *a == *b
+}
 
 fun inst_temp_type(t: *binding<type>, replacements: ref map<*binding<type>, *binding<type>>): *binding<type> {
+    println("inst_temp_type " + to_string(t->bound_to))
     match (*t->bound_to) {
         type::_unknown() error("Unknown in temp type")
+        type::_obj(o) {
+            var binding_types = o->data._binding.second.map(fun(b: *binding<type>): *binding<type> return inst_temp_type(b, replacements);)
+            for (var i = 0; i < o->data._binding.second.size; i++;) {
+                if (o->data._binding.second[i] != binding_types[i])
+                    return binding_p(type::_obj(_binding(o->data._binding.first, binding_types, o->data._binding.third)))
+            }
+        }
         type::_ptr(p) {
             var cp = inst_temp_type(p, replacements)
             if (cp == p)
@@ -82,9 +112,23 @@ fun inst_temp_type(t: *binding<type>, replacements: ref map<*binding<type>, *bin
 }
 
 fun equality(a: *type, b: *type, count_unknown_as_equal: bool): bool {
+    println("equality of  " + to_string(a) + " and " + to_string(b))
     if (count_unknown_as_equal && (is_unknown(a) || is_unknown(b)))
         return true
     match(*a) {
+        type::_obj(x) {
+            if (!is_obj(b))
+                return false
+            if (get_ast_binding(x) == get_ast_binding(b->_obj))
+                return true
+            if (!count_unknown_as_equal || (ast_bound(x) && ast_bound(b->_obj)) || x->data._binding.first != b->_obj->data._binding.first ||  x->data._binding.second.size != b->_obj->data._binding.second.size)
+                return false
+            for (var i = 0; i < x->data._binding.second.size; i++;) {
+                if (!equality(x->data._binding.second[i]->bound_to, b->_obj->data._binding.second[i]->bound_to, count_unknown_as_equal))
+                    return false
+            }
+            return true
+        }
         type::_ptr(p) {
             if (!is_ptr(b))
                 return false
@@ -106,21 +150,6 @@ fun equality(a: *type, b: *type, count_unknown_as_equal: bool): bool {
                 if ( !equality(a->_fun.first.first[i]->bound_to, b->_fun.first.first[i]->bound_to, count_unknown_as_equal) )
                     return false
             return true
-        }
-    }
-    return *a == *b
-}
-fun shallow_equality(a: *type, b: *type):bool {
-    if (is_ptr(a) != is_ptr(b))
-        return false
-    if (is_ptr(a) && is_ptr(b))
-        return true
-    match(*a) {
-        type::_fun(x) {
-            return is_fun(b) && a->_fun.third == b->_fun.third
-        }
-        type::_obj(x) {
-            return is_obj(b) && get_ast_binding(x) == get_ast_binding(b->_obj)
         }
     }
     return *a == *b
