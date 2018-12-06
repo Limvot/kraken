@@ -206,6 +206,23 @@ obj str (Object, Serializable, Hashable) {
         var str.construct(other) : str
         return *this == str
     }
+    fun operator<=(other: ref str): bool {
+        var l = 0
+        var r = 0
+        while (l < length() || r < other.length()) {
+            if l == length() {
+                return true
+            } else if r == other.length() {
+                return false
+            } else if (*this)[l] < other[r] {
+                return true
+            } else if (*this)[l] > other[r] {
+                return false
+            }
+            l++
+            r++
+        }
+    }
 
     fun operator*(n: int): str {
         var to_ret.construct(): str

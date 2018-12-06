@@ -357,5 +357,28 @@ obj vec<T> (Object, Serializable) {
             initial = func(data[i], initial)
         return initial
     }
+    fun sorted<U>(less_than: run(ref U, ref U): bool): vec<T> {
+        if size < 2 {
+            return *this
+        } else {
+            var left  = slice(0, size/2).sorted(less_than)
+            var right = slice(size/2, -1).sorted(less_than)
+            var to_ret.construct(size): vec<T>
+            var l = 0
+            var r = 0
+            while (l < left.size || r < right.size) {
+                if l == left.size {
+                    to_ret.add(right[r++])
+                } else if r == right.size {
+                    to_ret.add(left[l++])
+                } else if less_than(left[l], right[r]) {
+                    to_ret.add(left[l++])
+                } else {
+                    to_ret.add(right[r++])
+                }
+            }
+            return to_ret
+        }
+    }
 };
 
