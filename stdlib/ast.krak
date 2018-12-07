@@ -250,6 +250,14 @@ fun make_ast_binding(s: str): *tree<ast> {
 fun make_ast_binding(s: str, v: vec<*binding<type>>): *tree<ast> {
     return _binding(s, v, binding<tree<ast>>())
 }
+fun clone_ast_binding(binding: *tree<ast>): *tree<ast> {
+    match(binding->data) {
+        ast::_binding(b) {
+            return _binding(b.first, b.second, binding(b.third->bound_to))
+        }
+    }
+    error("trying to get binding on not a binding")
+}
 fun get_ast_binding_inst_types(binding: *tree<ast>): ref vec<*binding<type>> {
     match(binding->data) {
         ast::_binding(b) {

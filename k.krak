@@ -232,13 +232,9 @@ fun main(argc: int, argv: **char): int {
                                 var ident = great_grandchild->children[0]
                                 var ident_name = ident->data._identifier.first
 
-                                // inst type?
-                                var ident_type = ident->data._identifier.second
-
-
                                 // the map retains the order
                                 var new_template_type_map = name_map_pair.second.associate(fun(n: str, t: *binding<type>): pair<str, *binding<type>> return make_pair(n, binding_p(type::_template_placeholder()));)
-                                var new_ident_type = inst_temp_type(ident_type, name_map_pair.second.associate(fun(n: str, t: *binding<type>): pair<*binding<type>, *binding<type>>
+                                var new_ident_type = inst_temp_type(ident->data._identifier.second, name_map_pair.second.associate(fun(n: str, t: *binding<type>): pair<*binding<type>, *binding<type>>
                                                                                     return make_pair(t, new_template_type_map[n]);))
 
                                 var type_def_binding = make_ast_binding(name, new_template_type_map.values)
@@ -248,7 +244,7 @@ fun main(argc: int, argv: **char): int {
                                 item->add_child(_template(ident_name, new_template_type_map, vec(_compiler_intrinsic(ident_name, binding_p(type::_fun(make_triple(make_pair(vec(
                                             binding_p(type::_obj(type_def_binding))
                                         ),
-                                    ident_type
+                                    new_ident_type
                                 ), false, false))), vec<*binding<type>>()))))
                                 println("adding compiler intrinsic to do " + name + "." + ident_name)
                             }
@@ -391,10 +387,6 @@ fun main(argc: int, argv: **char): int {
                                         }
             ast::_function(b)           return b.second
             ast::_template(b)           {
-                println("insting temp type in get_type with map")
-                b.second.for_each(fun(k: str, v: *binding<type>) {
-                    println("\t" + k + ": " + to_string(v->bound_to))
-                })
                 return inst_temp_type(get_type(a->children[0]), b.second.associate(fun(k: str, v: *binding<type>): pair<*binding<type>, *binding<type>> return make_pair(v, binding_p(type::_unknown()));))
             }
             ast::_compiler_intrinsic(b) return b.second
@@ -643,8 +635,9 @@ fun main(argc: int, argv: **char): int {
                     var bound_to = get_ast_binding(t)
                     if (is_top_level_item(bound_to)) {
                         if (is_template(bound_to)) {
-                            if (!instantiated_map.contains_key(bound_to))
+                            if (!instantiated_map.contains_key(bound_to)) {
                                 instantiated_map[bound_to] = set<pair<*binding<type>, *tree<ast>>>()
+                            }
 
                             // grab inst types out of binding, or regen again from unify? Cache from first unify?
                             var inst_map = map<*binding<type>, *binding<type>>()
@@ -680,7 +673,7 @@ fun main(argc: int, argv: **char): int {
                                 pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(already_inst.single().second, str("emit_C")))
                                 set_single_ast_binding(t, already_inst.single().second)
                             } else {
-                                println("Copying tree to instantiate template!")
+                                println("Copying tree to instantiate template!" + to_string(bound_to->data))
                                 println("using inst map:")
                                 inst_map.for_each(fun(k: *binding<type>, v: *binding<type>) {
                                     println("\t" + to_string(k->bound_to) + " -> " + to_string(v->bound_to))
@@ -711,7 +704,7 @@ fun main(argc: int, argv: **char): int {
                                 print_tree(inst_copy, 1)
 
                                 // save it in our insted map so we don't instantate more than once per types
-                                instantiated_map[bound_to].add(make_pair(binding_type, inst_copy))
+                                instantiated_map[bound_to].add(make_pair(binding_p(type::_obj(clone_ast_binding(t))), inst_copy))
                                 pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(inst_copy, str("emit_C")))
                                 set_single_ast_binding(t, inst_copy)
                             }
@@ -723,9 +716,6 @@ fun main(argc: int, argv: **char): int {
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to->parent, str("emit_C")))
                     }
                     // bound_to might have changed from binding
-                    /*if !is_type_def(get_ast_binding(t)) {*/
-                        /*resolve_type(get_type(t))*/
-                    /*}*/
                 }
                 ast::_identifier(p) resolve_type(get_type(t))
                 ast::_function(p) resolve_type(get_type(t))

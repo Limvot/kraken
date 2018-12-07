@@ -71,7 +71,6 @@ fun shallow_equality(a: *type, b: *type):bool {
 }
 
 fun inst_temp_type(t: *binding<type>, replacements: ref map<*binding<type>, *binding<type>>): *binding<type> {
-    println("inst_temp_type " + to_string(t->bound_to))
     match (*t->bound_to) {
         type::_unknown() error("Unknown in temp type")
         type::_obj(o) {
