@@ -258,116 +258,6 @@ fun main(argc: int, argv: **char): int {
         print_tree(item, 1)
     }
 
-    // resolves all binding possibilities for one top level item
-    passes[str("name_possibility_resolve")] = fun(item: *tree<ast>) {
-        println("Running name possibility resolver?")
-        var scope_lookup: fun(*tree<ast>, str, bool): OptionVecAst = fun(scope: *tree<ast>, name: str, is_type: bool): OptionVecAst {
-            /*println("doing a scope lookup for " + name + " starting from " + to_string(scope->data))*/
-            var to_ret = vec<*tree<ast>>()
-            for (var i = 0; i < scope->children.size; i++;) {
-                match(scope->children[i]->data) {
-                    ast::_import(b) if b.second.contains(name) || b.second.contains(str("*")) {
-                        if !ast_bound(b.first) {
-                            // Import / parse file if not already
-                            var file_path = ast_binding_str(b.first)
-                            if (!name_ast_map.contains_key(file_path)) {
-                                printerr(file_path + ", ")
-                                var parse_tree = parse.parse_input(read_file(file_path), file_path)
-                                trim(parse_tree)
-                                name_ast_map[file_path] = syntax_to_ast(file_path, parse_tree, import_paths)
-                                printlnerr("syntax_to_ast " + file_path + ":")
-                                print_tree(name_ast_map[file_path], 1)
-                            }
-                            set_ast_binding(b.first, name_ast_map[file_path])
-                        }
-                        var other_top_level = get_ast_binding(b.first)
-                        if !pass_poset.done(make_pair(other_top_level, str("translation_unit_generative"))) {
-                            pass_poset.add_open_dep(make_pair(item, str("name_possibility_resolve")), make_pair(other_top_level, str("translation_unit_generative")))
-                            return OptionVecAst::None()
-                        }
-                        match (scope_lookup(other_top_level, name, is_type)) {
-                            OptionVecAst::None() return OptionVecAst::None()
-                            OptionVecAst::Some(v) {
-                                to_ret += v
-                            }
-                        }
-                    }
-                    ast::_type_def(b)           if (is_type && b == name)
-                                                    to_ret += scope->children[i]
-                    ast::_adt_def(b)            if (is_type && b == name)
-                                                    to_ret += scope->children[i]
-                    ast::_function(b)           if (!is_type && b.first == name)
-                                                    to_ret += scope->children[i]
-                    ast::_compiler_intrinsic(b) if (!is_type && b.first == name)
-                                                    to_ret += scope->children[i]
-                    ast::_template(b)           if (((!is_type && is_function(scope->children[i]->children[0]))
-                                                  || (!is_type && is_compiler_intrinsic(scope->children[i]->children[0]))
-                                                  || ( is_type && is_type_def(scope->children[i]->children[0]))
-                                                  || ( is_type && is_adt_def( scope->children[i]->children[0]))) && b.first == name)
-                                                    to_ret += scope->children[i]
-                    ast::_identifier(b)         if (!is_type && b.first == name)
-                                                    to_ret += scope->children[i]
-                    ast::_declaration()         if (!is_type && scope->children[i]->children[0]->data._identifier.first == name)
-                                                    to_ret += scope->children[i]->children[0]
-                }
-            }
-            if (scope->parent != null<tree<ast>>()) {
-                match (scope_lookup(scope->parent, name, is_type)) {
-                    OptionVecAst::None() return OptionVecAst::None()
-                    OptionVecAst::Some(v) return OptionVecAst::Some(to_ret + v)
-                }
-            }
-            else if (primitive_ops.contains_key(name))
-                to_ret += primitive_ops[name]
-            return OptionVecAst::Some(to_ret)
-        }
-        var try_binding = fun(binding: *tree<ast>, start_scope: *tree<ast>, type_binding: bool) {
-            if !ast_bound(binding) && !multiple_binding_options.contains_key(binding) {
-                match (scope_lookup(start_scope, ast_binding_str(binding), type_binding)) {
-                    OptionVecAst::None() return;
-                    OptionVecAst::Some(options) {
-                        if (options.size == 0)
-                            error("Could not find any options for scope lookup of " + ast_binding_str(binding))
-                        else if (options.size == 1)
-                            set_ast_binding(binding, options[0])
-                        else
-                            multiple_binding_options[binding] = options
-                    }
-                }
-            }
-        }
-        var handle_type: fun(*binding<type>, *tree<ast>): void = fun(t: *binding<type>, n: *tree<ast>) {
-            match(*t->bound_to) {
-                type::_obj(b) try_binding(b, n, true)
-                type::_fun(b) {
-                    b.first.first.for_each(fun(it: *binding<type>) {
-                        handle_type(it, n)
-                    })
-                    handle_type(b.first.second, n)
-                }
-            }
-        }
-        var traverse_for_bindings: fun(*tree<ast>): void = fun(t: *tree<ast>) {
-            match (t->data) {
-                // TODO: Handle type binding lookup
-                ast::_identifier(b)         handle_type(b.second, t)
-                /*_binding: triple<str, vec<*type>, *tree<ast>>,*/
-                ast::_function(b)           handle_type(b.second, t)
-                ast::_compiler_intrinsic(b) {
-                    handle_type(b.second, t)
-                    b.third.for_each(fun(tb: *binding<type>) {
-                        handle_type(tb, t)
-                    })
-                }
-                ast::_cast(b)               handle_type(b, t)
-                /*_value: pair<str, *type>*/
-                ast::_binding(b)            try_binding(t, t, false)
-            }
-            t->children.for_each(traverse_for_bindings)
-        }
-        traverse_for_bindings(item)
-    }
-
     var binding_types = map<*tree<ast>, *binding<type>>()
     var get_type: fun(*tree<ast>): *binding<type> = fun(a: *tree<ast>): *binding<type> {
         match(a->data) {
@@ -412,12 +302,99 @@ fun main(argc: int, argv: **char): int {
 
     // resolves all binding possibilities to a single one for one top level item
     passes[str("name_type_resolve")] = fun(item: *tree<ast>) {
-        if !pass_poset.done(make_pair(item, str("name_possibility_resolve"))) {
-            pass_poset.add_open_dep(make_pair(item, str("name_type_resolve")), make_pair(item, str("name_possibility_resolve")))
-            return
-        }
         println("name_type resolve for:")
         print_tree(item, 1)
+
+        var scope_lookup: fun(*tree<ast>, str, bool): OptionVecAst = fun(scope: *tree<ast>, name: str, is_type: bool): OptionVecAst {
+            /*println("doing a scope lookup for " + name + " starting from " + to_string(scope->data))*/
+            var to_ret = vec<*tree<ast>>()
+            for (var i = 0; i < scope->children.size; i++;) {
+                match(scope->children[i]->data) {
+                    ast::_import(b) if b.second.contains(name) || b.second.contains(str("*")) {
+                        if !ast_bound(b.first) {
+                            // Import / parse file if not already
+                            var file_path = ast_binding_str(b.first)
+                            if (!name_ast_map.contains_key(file_path)) {
+                                printerr(file_path + ", ")
+                                var parse_tree = parse.parse_input(read_file(file_path), file_path)
+                                trim(parse_tree)
+                                name_ast_map[file_path] = syntax_to_ast(file_path, parse_tree, import_paths)
+                                printlnerr("syntax_to_ast " + file_path + ":")
+                                print_tree(name_ast_map[file_path], 1)
+                            }
+                            set_ast_binding(b.first, name_ast_map[file_path])
+                        }
+                        var other_top_level = get_ast_binding(b.first)
+                        if !pass_poset.done(make_pair(other_top_level, str("translation_unit_generative"))) {
+                            pass_poset.add_open_dep(make_pair(item, str("name_type_resolve")), make_pair(other_top_level, str("translation_unit_generative")))
+                            return OptionVecAst::None()
+                        }
+                        match (scope_lookup(other_top_level, name, is_type)) {
+                            OptionVecAst::None() return OptionVecAst::None()
+                            OptionVecAst::Some(v) {
+                                to_ret += v
+                            }
+                        }
+                    }
+                    ast::_type_def(b)           if (is_type && b == name)
+                                                    to_ret += scope->children[i]
+                    ast::_adt_def(b)            if (is_type && b == name)
+                                                    to_ret += scope->children[i]
+                    ast::_function(b)           if (!is_type && b.first == name)
+                                                    to_ret += scope->children[i]
+                    ast::_compiler_intrinsic(b) if (!is_type && b.first == name)
+                                                    to_ret += scope->children[i]
+                    ast::_template(b)           if (((!is_type && is_function(scope->children[i]->children[0]))
+                                                  || (!is_type && is_compiler_intrinsic(scope->children[i]->children[0]))
+                                                  || ( is_type && is_type_def(scope->children[i]->children[0]))
+                                                  || ( is_type && is_adt_def( scope->children[i]->children[0]))) && b.first == name)
+                                                    to_ret += scope->children[i]
+                    ast::_identifier(b)         if (!is_type && b.first == name)
+                                                    to_ret += scope->children[i]
+                    ast::_declaration()         if (!is_type && scope->children[i]->children[0]->data._identifier.first == name)
+                                                    to_ret += scope->children[i]->children[0]
+                }
+            }
+            if (scope->parent != null<tree<ast>>()) {
+                match (scope_lookup(scope->parent, name, is_type)) {
+                    OptionVecAst::None() return OptionVecAst::None()
+                    OptionVecAst::Some(v) return OptionVecAst::Some(to_ret + v)
+                }
+            }
+            else if (primitive_ops.contains_key(name))
+                to_ret += primitive_ops[name]
+            return OptionVecAst::Some(to_ret)
+        }
+        var try_to_find_binding_possibilities = fun(binding: *tree<ast>, start_scope: *tree<ast>, type_binding: bool) {
+            if !ast_bound(binding) && !multiple_binding_options.contains_key(binding) {
+                match (scope_lookup(start_scope, ast_binding_str(binding), type_binding)) {
+                    OptionVecAst::None() {
+                        println("OptionVecAst::None for " + ast_binding_str(binding) + " lookup, returning")
+                        return;
+                    }
+                    OptionVecAst::Some(options) {
+                        println("OptionVecAst::Some for " + ast_binding_str(binding) + " lookup, continuing!")
+                        if (options.size == 0)
+                            error("Could not find any options for scope lookup of " + ast_binding_str(binding))
+                        else if (options.size == 1)
+                            set_ast_binding(binding, options[0])
+                        else
+                            multiple_binding_options[binding] = options
+                    }
+                }
+            }
+        }
+        var handle_type_binding_possibilities: fun(*binding<type>, *tree<ast>): void = fun(t: *binding<type>, n: *tree<ast>) {
+            match(*t->bound_to) {
+                type::_obj(b) try_to_find_binding_possibilities(b, n, true)
+                type::_fun(b) {
+                    b.first.first.for_each(fun(it: *binding<type>) {
+                        handle_type_binding_possibilities(it, n)
+                    })
+                    handle_type_binding_possibilities(b.first.second, n)
+                }
+            }
+        }
 
         var traverse_for_unify: fun(*tree<ast>): void = fun(t: *tree<ast>) {
             t->children.for_each(traverse_for_unify)
@@ -449,28 +426,59 @@ fun main(argc: int, argv: **char): int {
         while (more_to_do) {
             more_to_do = false
             var work_done = false
-            var traverse_for_select: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+            var traverse_for_select: fun(*tree<ast>): bool = fun(t: *tree<ast>): bool {
                 match (t->data) {
+
+                    ast::_identifier(b)         handle_type_binding_possibilities(b.second, t)
+                    /*_binding: triple<str, vec<*type>, *tree<ast>>,*/
+                    ast::_function(b)           handle_type_binding_possibilities(b.second, t)
+                    ast::_compiler_intrinsic(b) {
+                        handle_type_binding_possibilities(b.second, t)
+                        b.third.for_each(fun(tb: *binding<type>) {
+                            handle_type_binding_possibilities(tb, t)
+                        })
+                    }
+                    ast::_cast(b)               handle_type_binding_possibilities(b, t)
+
                     ast::_binding(b) if (!ast_bound(t)) {
                         println(to_string(t->data) + " - not bound!")
-                        var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return equality(binding_types[t]->bound_to, get_type(p)->bound_to, true);)
-                        if (filtered_options.size == 0) {
-                            println("Attempting to use our inferenced type " + to_string(binding_types[t]->bound_to) + " to decide what to bind " + to_string(t->data) + " to from options:")
-                            multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p)->bound_to)); })
-                            error("no options remain after filtering overloads by type for " + to_string(t->data))
-                        } else if (filtered_options.size > 1) {
-                            more_to_do = true
+                        if !multiple_binding_options.contains_key(t) {
+                            try_to_find_binding_possibilities(t, t, false)
+                        }
+                        if ast_bound(t) {
+                            unify(binding_types[t], get_type(get_ast_binding(t)))
                         } else {
-                            set_ast_binding(t, filtered_options[0])
-                            unify(binding_types[t], get_type(filtered_options[0]))
-                            work_done = true
-                            println("wok done! set " + to_string(t->data))
+                            if !multiple_binding_options.contains_key(t) {
+                                println(" must have added a pass! going around the horn again... before")
+                                return false;
+                            }
+                            var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return equality(binding_types[t]->bound_to, get_type(p)->bound_to, true);)
+                            if (filtered_options.size == 0) {
+                                println("Attempting to use our inferenced type " + to_string(binding_types[t]->bound_to) + " to decide what to bind " + to_string(t->data) + " to from options:")
+                                multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p)->bound_to)); })
+                                error("no options remain after filtering overloads by type for " + to_string(t->data))
+                            } else if (filtered_options.size > 1) {
+                                more_to_do = true
+                            } else {
+                                set_ast_binding(t, filtered_options[0])
+                                unify(binding_types[t], get_type(filtered_options[0]))
+                                work_done = true
+                                println("wok done! set " + to_string(t->data))
+                            }
                         }
                     }
                 }
-                t->children.for_each(traverse_for_select)
+                for (var i = 0; i < t->children.size; i++;) {
+                    if !traverse_for_select(t->children[i]) {
+                        return false
+                    }
+                }
+                return true
             }
-            traverse_for_select(item)
+            // early bail if we need more passes
+            if !traverse_for_select(item) {
+                return
+            }
             if (!work_done) {
                 var traverse_for_error: fun(*tree<ast>): void = fun(t: *tree<ast>) {
                     match (t->data) {
