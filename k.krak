@@ -1166,15 +1166,29 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             var children = vec(_identifier(concat(get_node("identifier", syntax)), t))
             children += get_nodes("boolean_expression", syntax).map(fun(x: *tree<symbol>): *tree<ast> return syntax_to_ast_helper(x, declared_template_types);)
             return _declaration(children)
-        } else if (syntax->data.name == "assignment_statement")
+        } else if (syntax->data.name == "assignment_statement") {
             return _call(vec(make_ast_binding("op" + concat(syntax->children[1])),
                                    syntax_to_ast_helper(syntax->children[0], declared_template_types),
                                    syntax_to_ast_helper(syntax->children[2], declared_template_types)))
-        else if (syntax->data.name == "function_call")
-            return _call(vec(syntax_to_ast_helper(syntax->children[0], declared_template_types)) + get_nodes("parameter", syntax).map(fun(s: *tree<symbol>): *tree<ast> {
-                                return syntax_to_ast_helper(s->children[0], declared_template_types)
-                         }))
-        else if (syntax->data.name == "boolean_expression" ||
+        } else if (syntax->data.name == "function_call") {
+            // if method, pull out
+            if syntax->children[0]->data.name == "unarad" && syntax->children[0]->children[0]->data.name == "access_operation" {
+                println("doing a method call!")
+                return _call(vec(syntax_to_ast_helper(syntax->children[0]->children[0]->children[2], declared_template_types)) + syntax_to_ast_helper(syntax->children[0]->children[0]->children[0], declared_template_types) + get_nodes("parameter", syntax).map(fun(s: *tree<symbol>): *tree<ast> {
+                                    return syntax_to_ast_helper(s->children[0], declared_template_types)
+                             }))
+            } else {
+                println("NOT doing a method call! - is " + syntax->children[0]->data.name + " not unrad, or")
+                println(syntax->children[0]->children[0]->data.name + " not access_operation")
+                return _call(vec(syntax_to_ast_helper(syntax->children[0], declared_template_types)) + get_nodes("parameter", syntax).map(fun(s: *tree<symbol>): *tree<ast> {
+                                    return syntax_to_ast_helper(s->children[0], declared_template_types)
+                             }))
+            }
+        } else if (syntax->data.name == "access_operation") {
+                // somehow note / do the crazier scope lookup
+                // also handle . vs ->
+                return _call(vec(make_ast_binding(concat(syntax->children[2])), syntax_to_ast_helper(syntax->children[0], declared_template_types)))
+        } else if (syntax->data.name == "boolean_expression" ||
                  syntax->data.name == "and_boolean_expression" ||
                  syntax->data.name == "bitwise_or" ||
                  syntax->data.name == "bitwise_xor" ||
@@ -1207,10 +1221,6 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                                  syntax_to_ast_helper(syntax->children[0], declared_template_types),
                                  syntax_to_ast_helper(syntax->children[2], declared_template_types)))
             }
-        } else if (syntax->data.name == "access_operation") {
-                // somehow note / do the crazier scope lookup
-                // also handle . vs ->
-                return _call(vec(make_ast_binding(concat(syntax->children[2])), syntax_to_ast_helper(syntax->children[0], declared_template_types)))
         } else if (syntax->data.name == "cast_expression") {
             return _cast(parse_type(get_node("type", syntax), declared_template_types), vec(syntax_to_ast_helper(syntax->children[0], declared_template_types)))
         } else if (syntax->data.name == "number") {
