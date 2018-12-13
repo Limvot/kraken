@@ -884,7 +884,7 @@ fun main(argc: int, argv: **char): int {
                                 emit_C(t->children[1], 0)
                                 C_str += "))"
                             } else {
-                                C_str += "("
+                                C_str += idt + "("
                                 emit_C(t->children[1], 0)
                                 C_str += ")." + intrinsic_name
                             }
