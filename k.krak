@@ -662,6 +662,7 @@ fun main(argc: int, argv: **char): int {
                             }
 
                             // shouldn't cache by binding, but by all insted
+                            println("checking for prior instantiations of " + to_string(bound_to->data))
                             var already_inst = instantiated_map[bound_to].filter(fun(p: pair<*binding<type>, *tree<ast>>): bool return equality(binding_type->bound_to, p.first->bound_to, false);)
                             if (already_inst.size() > 1) {
                                 error("already inst > 1, should be impossible")
@@ -704,7 +705,13 @@ fun main(argc: int, argv: **char): int {
                                 print_tree(inst_copy, 1)
 
                                 // save it in our insted map so we don't instantate more than once per types
-                                instantiated_map[bound_to].add(make_pair(binding_p(type::_obj(clone_ast_binding(t))), inst_copy))
+                                if is_function(bound_to->children[0]) || is_compiler_intrinsic(bound_to->children[0]) {
+                                    var binding_type2 = get_type(clone_ast_binding(t))
+                                    unify(binding_type2, inst_temp_type(get_type(bound_to->children[0]), inst_map))
+                                    instantiated_map[bound_to].add(make_pair(binding_type2, inst_copy))
+                                } else {
+                                    instantiated_map[bound_to].add(make_pair(binding_p(type::_obj(clone_ast_binding(t))), inst_copy))
+                                }
                                 pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(inst_copy, str("emit_C")))
                                 set_single_ast_binding(t, inst_copy)
                             }
