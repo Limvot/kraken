@@ -28,7 +28,7 @@ adt ast {
     _break,
     _continue,
     _defer,
-    _call,
+    _call: bool,
     _compiler_intrinsic: triple<str, *binding<type>, vec<*binding<type>>>,
     _cast: *binding<type>,
     _value: pair<str, *binding<type>>
@@ -64,7 +64,7 @@ fun to_string(a: ref ast): str {
         ast::_break()               return str("_break")
         ast::_continue()            return str("_continue")
         ast::_defer()               return str("_defer")
-        ast::_call()                return str("_call")
+        ast::_call(b)               return "_call(add_scope: " + to_string(b) + ")"
         ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ": " + deref_to_string(b.second->bound_to) + ")"
         ast::_cast(b)               return str("_cast")
         ast::_value(b)              return str("_value(") + b.first + ": " + deref_to_string(b.second->bound_to) + ")"
@@ -136,8 +136,8 @@ fun _continue(): *tree<ast> {
 fun _defer(): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_defer())
 }
-fun _call(): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_call())
+fun _call(add_scope: bool): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_call(add_scope))
 }
 
 
@@ -202,8 +202,8 @@ fun _return(c: ref vec<*tree<ast>>): *tree<ast> {
 fun _defer(c: ref vec<*tree<ast>>): *tree<ast> {
     return new<tree<ast>>()->construct(ast::_defer(), c)
 }
-fun _call(c: ref vec<*tree<ast>>): *tree<ast> {
-    return new<tree<ast>>()->construct(ast::_call(), c)
+fun _call(add_scope: bool, c: ref vec<*tree<ast>>): *tree<ast> {
+    return new<tree<ast>>()->construct(ast::_call(add_scope), c)
 }
 
 
@@ -227,7 +227,7 @@ fun is_return(i: *tree<ast>): bool { match(i->data) { ast::_return() return true
 fun is_break(i: *tree<ast>): bool { match(i->data) { ast::_break() return true; } return false; }
 fun is_continue(i: *tree<ast>): bool { match(i->data) { ast::_continue() return true; } return false; }
 fun is_defer(i: *tree<ast>): bool { match(i->data) { ast::_defer() return true; } return false; }
-fun is_call(i: *tree<ast>): bool { match(i->data) { ast::_call() return true; } return false; }
+fun is_call(i: *tree<ast>): bool { match(i->data) { ast::_call(b) return true; } return false; }
 fun is_compiler_intrinsic(i: *tree<ast>): bool { match(i->data) { ast::_compiler_intrinsic(b) return true; } return false; }
 fun is_cast(i: *tree<ast>): bool { match(i->data) { ast::_cast(b) return true; } return false; }
 fun is_value(i: *tree<ast>): bool { match(i->data) { ast::_value(b) return true; } return false; }

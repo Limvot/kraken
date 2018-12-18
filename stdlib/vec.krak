@@ -217,6 +217,10 @@ obj vec<T> (Object, Serializable) {
         for (var i = 0; i < dataIn.size; i++;)
             addEnd(dataIn[i]);
     }
+    fun add_all_unique<U>(dataIn: ref vec<U>): void {
+        for (var i = 0; i < dataIn.size; i++;)
+            add_unique(dataIn[i]);
+    }
     // same darn trick
     fun add_unique<U>(dataIn: ref U): void {
         if (!contains(dataIn))
