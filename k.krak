@@ -507,19 +507,30 @@ fun main(argc: int, argv: **char): int {
                             work_done = true
                             println("wok done! set " + to_string(t->data))
                         } else {
-                            var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return equality(binding_types[t]->bound_to, get_type(p)->bound_to, true);)
-                            if (filtered_options.size == 0) {
-                                println("Attempting to use our inferenced type " + to_string(binding_types[t]->bound_to) + " to decide what to bind " + to_string(t->data) + " to from options:")
-                                multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p)->bound_to)); })
-                                error("no options remain after filtering overloads by type for " + to_string(t->data))
-                            } else if (filtered_options.size > 1) {
-                                println("inferenced type " + to_string(binding_types[t]->bound_to) + " HAD MULTIPLE OPTIONS AFTER FILTER for "  + to_string(t) + ", that is "+ to_string(t->data))
-                                more_to_do = true
-                            } else {
-                                set_ast_binding(t, filtered_options[0])
-                                unify(binding_types[t], get_type(filtered_options[0]))
+                            // isn't function, by shadowing we just take the first
+                            if !is_fun(binding_types[t]->bound_to) {
+                                if (!multiple_binding_options[t].size > 0)
+                                    error("No possible options for " + to_string(t->data))
+                                var it = multiple_binding_options[t][0]
+                                set_ast_binding(t, it)
+                                unify(binding_types[t], get_type(it))
                                 work_done = true
-                                println("wok done! set " + to_string(t->data))
+                            } else {
+                                // function type, so we have to get interesting
+                                var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return equality(binding_types[t]->bound_to, get_type(p)->bound_to, true);)
+                                if (filtered_options.size == 0) {
+                                    println("Attempting to use our inferenced type " + to_string(binding_types[t]->bound_to) + " to decide what to bind " + to_string(t->data) + " to from options:")
+                                    multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p)->bound_to)); })
+                                    error("no options remain after filtering overloads by type for " + to_string(t->data))
+                                } else if (filtered_options.size > 1) {
+                                    println("inferenced type " + to_string(binding_types[t]->bound_to) + " HAD MULTIPLE OPTIONS AFTER FILTER for "  + to_string(t) + ", that is "+ to_string(t->data))
+                                    more_to_do = true
+                                } else {
+                                    set_ast_binding(t, filtered_options[0])
+                                    unify(binding_types[t], get_type(filtered_options[0]))
+                                    work_done = true
+                                    println("wok done! set " + to_string(t->data))
+                                }
                             }
                         }
                     }
