@@ -332,37 +332,37 @@ fun main(argc: int, argv: **char): int {
                         match (scope_lookup(other_top_level, name, is_type)) {
                             OptionVecAst::None() return OptionVecAst::None()
                             OptionVecAst::Some(v) {
-                                to_ret += v
+                                to_ret.add_all_unique(v)
                             }
                         }
                     }
                     ast::_type_def(b)           if (is_type && b == name)
-                                                    to_ret += scope->children[i]
+                                                    to_ret.add_unique(scope->children[i])
                     ast::_adt_def(b)            if (is_type && b == name)
-                                                    to_ret += scope->children[i]
+                                                    to_ret.add_unique(scope->children[i])
                     ast::_function(b)           if (!is_type && b.first == name)
-                                                    to_ret += scope->children[i]
+                                                    to_ret.add_unique(scope->children[i])
                     ast::_compiler_intrinsic(b) if (!is_type && b.first == name)
-                                                    to_ret += scope->children[i]
+                                                    to_ret.add_unique(scope->children[i])
                     ast::_template(b)           if (((!is_type && is_function(scope->children[i]->children[0]))
                                                   || (!is_type && is_compiler_intrinsic(scope->children[i]->children[0]))
                                                   || ( is_type && is_type_def(scope->children[i]->children[0]))
                                                   || ( is_type && is_adt_def( scope->children[i]->children[0]))) && b.first == name)
-                                                    to_ret += scope->children[i]
+                                                    to_ret.add_unique(scope->children[i])
                     ast::_identifier(b)         if (!is_type && b.first == name)
-                                                    to_ret += scope->children[i]
+                                                    to_ret.add_unique(scope->children[i])
                     ast::_declaration()         if (!is_type && scope->children[i]->children[0]->data._identifier.first == name)
-                                                    to_ret += scope->children[i]->children[0]
+                                                    to_ret.add_unique(scope->children[i]->children[0])
                 }
             }
             if (scope->parent != null<tree<ast>>()) {
                 match (scope_lookup(scope->parent, name, is_type)) {
                     OptionVecAst::None() return OptionVecAst::None()
-                    OptionVecAst::Some(v) return OptionVecAst::Some(to_ret + v)
+                    OptionVecAst::Some(v) to_ret.add_all_unique(v)
                 }
             }
             else if (primitive_ops.contains_key(name))
-                to_ret += primitive_ops[name]
+                to_ret.add_all_unique(primitive_ops[name])
             return OptionVecAst::Some(to_ret)
         }
         var try_to_find_binding_possibilities = fun(binding: *tree<ast>, start_scope: *tree<ast>, additional_scope: *tree<ast>, type_binding: bool): bool {
