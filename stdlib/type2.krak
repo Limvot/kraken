@@ -11,10 +11,9 @@ adt type {
     _void,
     _template_placeholder,
     _ptr: *binding<type>,
-    _ref: *binding<type>,
     _obj: *tree<ast>,
-    // triple<pair<param_types, return_type>, is_variadic, is raw>
-    _fun: triple<pair<vec<*binding<type>>, *binding<type>>, bool, bool>,
+    // triple<pair<vec<pair<is_ref, param_type>>, pair<is_ref, return_type>>, is_variadic, is raw>
+    _fun: triple<pair<vec<pair<bool, *binding<type>>>, pair<bool, *binding<type>>>, bool, bool>,
     _bool,
     _char,
     _uchar,
@@ -37,9 +36,9 @@ fun unify(t1: *binding<type>, t2: *binding<type>) {
     } else {
         if (shallow_equality(t1->bound_to, t2->bound_to)) {
             if (is_fun(t1->bound_to)) {
-                unify(t1->bound_to->_fun.first.second, t2->bound_to->_fun.first.second)
+                unify(t1->bound_to->_fun.first.second.second, t2->bound_to->_fun.first.second.second)
                 for (var i = 0; i < t1->bound_to->_fun.first.first.size; i++;)
-                    unify(t1->bound_to->_fun.first.first[i], t2->bound_to->_fun.first.first[i])
+                    unify(t1->bound_to->_fun.first.first[i].second, t2->bound_to->_fun.first.first[i].second)
             } else if (is_ptr(t1->bound_to)) {
                 unify(t1->bound_to->_ptr, t2->bound_to->_ptr)
             } else if (is_obj(t1->bound_to)) {
@@ -87,21 +86,14 @@ fun inst_temp_type(t: *binding<type>, replacements: ref map<*binding<type>, *bin
             else
                 return binding_p(type::_ptr(cp))
         }
-        type::_ref(r) {
-            var cr = inst_temp_type(r, replacements)
-            if (cr == r)
-                return t
-            else
-                return binding_p(type::_ref(cr))
-        }
         type::_fun(b) {
             // triple<pair<param_types, return_type>, is_variadic, is raw>
-            var rt = inst_temp_type(b.first.second, replacements)
-            var pts = b.first.first.map(fun(pt: *binding<type>): *binding<type> return inst_temp_type(pt, replacements);)
-            if (rt != b.first.second)
+            var rt = make_pair(b.first.second.first, inst_temp_type(b.first.second.second, replacements))
+            var pts = b.first.first.map(fun(pt: pair<bool, *binding<type>>): pair<bool, *binding<type>> return make_pair(pt.first, inst_temp_type(pt.second, replacements));)
+            if (rt.second != b.first.second.second)
                 return binding_p(type::_fun(make_triple(make_pair(pts, rt), b.second, b.third)))
             for (var i = 0; i < pts.size; i++;)
-                if (pts[i] != b.first.first[i])
+                if (pts[i].second != b.first.first[i].second)
                     return binding_p(type::_fun(make_triple(make_pair(pts, rt), b.second, b.third)))
             return t
         }
@@ -133,20 +125,15 @@ fun equality(a: *type, b: *type, count_unknown_as_equal: bool): bool {
                 return false
             return equality(p->bound_to, b->_ptr->bound_to, count_unknown_as_equal)
         }
-        type::_ref(r) {
-            if (!is_ref(b))
-                return false
-            return equality(r->bound_to, b->_ref->bound_to, count_unknown_as_equal)
-        }
         type::_fun(i) {
             if ( !(is_fun(b) && a->_fun.second == b->_fun.second && a->_fun.third == b->_fun.third) )
                 return false
-            if ( !equality(a->_fun.first.second->bound_to, b->_fun.first.second->bound_to, count_unknown_as_equal) )
+            if ( !equality(a->_fun.first.second.second->bound_to, b->_fun.first.second.second->bound_to, count_unknown_as_equal) )
                 return false
             if ( !(a->_fun.first.first.size == b->_fun.first.first.size) )
                 return false
             for (var i = 0; i < a->_fun.first.first.size; i++;)
-                if ( !equality(a->_fun.first.first[i]->bound_to, b->_fun.first.first[i]->bound_to, count_unknown_as_equal) )
+                if ( !equality(a->_fun.first.first[i].second->bound_to, b->_fun.first.first[i].second->bound_to, count_unknown_as_equal) )
                     return false
             return true
         }
@@ -158,7 +145,6 @@ fun to_string(it: *type): str {
         type::_unknown()               return str("_unknown")
         type::_void()                  return str("_void")
         type::_ptr(p)                  return "*"   + to_string(p->bound_to)
-        type::_ref(r)                  return "ref" + to_string(r->bound_to)
         type::_obj(b) {
             return "_obj(" + to_string(b->data) + ")"
         }
@@ -169,10 +155,10 @@ fun to_string(it: *type): str {
                 to_ret += "_run("
             else
                 to_ret += "_fun("
-            to_ret += str(", ").join(b.first.first.map(fun(pt: *binding<type>): str return to_string(pt->bound_to);))
+            to_ret += str(", ").join(b.first.first.map(fun(pt: pair<bool, *binding<type>>): str return to_string(pt.first) +  to_string(pt.second->bound_to);))
             if (b.third)
                 to_ret += " ..."
-            return to_ret + "): " + to_string(b.first.second->bound_to)
+            return to_ret + "): " + to_string(b.first.second.first) + to_string(b.first.second.second->bound_to)
         }
         type::_template_placeholder()  return str("_template_placeholder")
         type::_bool()                  return str("_bool")
@@ -204,12 +190,6 @@ fun is_void(x: *type): bool {
 fun is_ptr(x: *type): bool {
     match (*x) {
         type::_ptr(p) return true
-    }
-    return false
-}
-fun is_ref(x: *type): bool {
-    match (*x) {
-        type::_ref(r) return true
     }
     return false
 }
