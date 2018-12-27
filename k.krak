@@ -195,6 +195,69 @@ fun main(argc: int, argv: **char): int {
                             ), false, false))), vec<*binding<type>>()))))
     }
 
+    var scope_lookup: fun(*tree<ast>, str, bool, *tree<ast>, str, str): OptionVecAst = fun(scope: *tree<ast>, name: str, is_type: bool, item: *tree<ast>, pass: str, pass_dep_on: str): OptionVecAst {
+        /*println("doing a scope lookup for " + name + " starting from " + to_string(scope->data))*/
+        var to_ret = vec<*tree<ast>>()
+        for (var i = 0; i < scope->children.size; i++;) {
+            match(scope->children[i]->data) {
+                ast::_import(b) if b.second.contains(name) || b.second.contains(str("*")) {
+                    if !ast_bound(b.first) {
+                        // Import / parse file if not already
+                        var file_path = ast_binding_str(b.first)
+                        if (!name_ast_map.contains_key(file_path)) {
+                            printerr(file_path + ", ")
+                            var parse_tree = parse.parse_input(read_file(file_path), file_path)
+                            trim(parse_tree)
+                            name_ast_map[file_path] = syntax_to_ast(file_path, parse_tree, import_paths)
+                            printlnerr("syntax_to_ast " + file_path + ":")
+                            print_tree(name_ast_map[file_path], 1)
+                        }
+                        set_ast_binding(b.first, name_ast_map[file_path])
+                    }
+                    var other_top_level = get_ast_binding(b.first)
+                    if item != null<tree<ast>>() {
+                        if !pass_poset.done(make_pair(other_top_level, str("translation_unit_top_type_resolve"))) {
+                            pass_poset.add_open_dep(make_pair(item, pass), make_pair(other_top_level, pass_dep_on))
+                            return OptionVecAst::None()
+                        }
+                    }
+                    match (scope_lookup(other_top_level, name, is_type, item, pass, pass_dep_on)) {
+                        OptionVecAst::None() return OptionVecAst::None()
+                        OptionVecAst::Some(v) {
+                            to_ret.add_all_unique(v)
+                        }
+                    }
+                }
+                ast::_type_def(b)           if (is_type && b == name)
+                                                to_ret.add_unique(scope->children[i])
+                ast::_adt_def(b)            if (is_type && b == name)
+                                                to_ret.add_unique(scope->children[i])
+                ast::_function(b)           if (!is_type && b.first == name)
+                                                to_ret.add_unique(scope->children[i])
+                ast::_compiler_intrinsic(b) if (!is_type && b.first == name)
+                                                to_ret.add_unique(scope->children[i])
+                ast::_template(b)           if (((!is_type && is_function(scope->children[i]->children[0]))
+                                              || (!is_type && is_compiler_intrinsic(scope->children[i]->children[0]))
+                                              || ( is_type && is_type_def(scope->children[i]->children[0]))
+                                              || ( is_type && is_adt_def( scope->children[i]->children[0]))) && b.first == name)
+                                                to_ret.add_unique(scope->children[i])
+                ast::_identifier(b)         if (!is_type && b.first == name)
+                                                to_ret.add_unique(scope->children[i])
+                ast::_declaration()         if (!is_type && scope->children[i]->children[0]->data._identifier.first == name)
+                                                to_ret.add_unique(scope->children[i]->children[0])
+            }
+        }
+        if (scope->parent != null<tree<ast>>()) {
+            match (scope_lookup(scope->parent, name, is_type, item, pass, pass_dep_on)) {
+                OptionVecAst::None() return OptionVecAst::None()
+                OptionVecAst::Some(v) to_ret.add_all_unique(v)
+            }
+        }
+        else if (primitive_ops.contains_key(name))
+            to_ret.add_all_unique(primitive_ops[name])
+        return OptionVecAst::Some(to_ret)
+    }
+
     passes[str("translation_unit_generative")] = fun(item: *tree<ast>) {
         println("Running translation_unit_generative")
         if !is_translation_unit(item) {
@@ -300,75 +363,79 @@ fun main(argc: int, argv: **char): int {
         error("Trying to get type of node without one: " + to_string(a->data))
     }
 
+    passes[str("translation_unit_top_type_resolve")] = fun(item: *tree<ast>) {
+        println("Running translation_unit_top_type_resolve")
+        if !is_translation_unit(item) {
+            error("Running translation_unit_top_type_resolve on not a translation unit");
+        }
+        if !pass_poset.done(make_pair(item, str("translation_unit_generative"))) {
+            pass_poset.add_open_dep(make_pair(item, str("translation_unit_top_type_resolve")), make_pair(item, str("translation_unit_generative")))
+            return
+        }
+        var quick_bind = fun(binding: *tree<ast>, start_scope: *tree<ast>, additional_scope: *tree<ast>, type_binding: bool): bool {
+            if !ast_bound(binding) {
+                match (scope_lookup(start_scope, ast_binding_str(binding), type_binding, item, str("translation_unit_top_type_resolve"), str("translation_unit_generative"))) {
+                    OptionVecAst::None() {
+                        return false;
+                    }
+                    OptionVecAst::Some(options) {
+                        if (options.size < 1) {
+                            error("couldn't find any possibilities for " + ast_binding_str(binding))
+                        }
+                        println(ast_binding_str(binding) + " resolving at top level to " + to_string(options[0]->data))
+                        set_ast_binding(binding, options[0])
+                    }
+                }
+            }
+            return true;
+        }
+        var quick_bind_type: fun(*binding<type>, *tree<ast>): bool = fun(t: *binding<type>, n: *tree<ast>): bool {
+            match(*t->bound_to) {
+                type::_obj(b) return quick_bind(b, n, null<tree<ast>>(), true)
+                type::_ptr(p) return quick_bind_type(p, n)
+                type::_ref(p) return quick_bind_type(p, n)
+                type::_fun(b) {
+                    for (var i = 0; i < b.first.first.size; i++;)
+                        if (!quick_bind_type(b.first.first[i], n))
+                            return false
+                    return quick_bind_type(b.first.second, n)
+                }
+            }
+            return true
+        }
+        for (var i = 0; i < item->children.size; i++;) {
+            var child = item->children[i]
+            match (child->data) {
+                ast::_template(name_map_pair) {
+                    if is_function(child->children[0]) {
+                        quick_bind_type(get_type(child->children[0]), item)
+                    }
+                }
+                ast::_declaration() {
+                    quick_bind_type(get_type(child->children[0]), item)
+                }
+                ast::_function(name_type_ext) {
+                    quick_bind_type(get_type(child), item)
+                }
+                ast::_compiler_intrinsic(name_type_ext) {
+                    quick_bind_type(get_type(child), item)
+                }
+            }
+        }
+
+        println("post translation_unit_top_type_resolve")
+        print_tree(item, 1)
+    }
+
     // resolves all binding possibilities to a single one for one top level item
     passes[str("name_type_resolve")] = fun(item: *tree<ast>) {
         println("name_type resolve for:")
         print_tree(item, 1)
 
-        var scope_lookup: fun(*tree<ast>, str, bool): OptionVecAst = fun(scope: *tree<ast>, name: str, is_type: bool): OptionVecAst {
-            /*println("doing a scope lookup for " + name + " starting from " + to_string(scope->data))*/
-            var to_ret = vec<*tree<ast>>()
-            for (var i = 0; i < scope->children.size; i++;) {
-                match(scope->children[i]->data) {
-                    ast::_import(b) if b.second.contains(name) || b.second.contains(str("*")) {
-                        if !ast_bound(b.first) {
-                            // Import / parse file if not already
-                            var file_path = ast_binding_str(b.first)
-                            if (!name_ast_map.contains_key(file_path)) {
-                                printerr(file_path + ", ")
-                                var parse_tree = parse.parse_input(read_file(file_path), file_path)
-                                trim(parse_tree)
-                                name_ast_map[file_path] = syntax_to_ast(file_path, parse_tree, import_paths)
-                                printlnerr("syntax_to_ast " + file_path + ":")
-                                print_tree(name_ast_map[file_path], 1)
-                            }
-                            set_ast_binding(b.first, name_ast_map[file_path])
-                        }
-                        var other_top_level = get_ast_binding(b.first)
-                        if !pass_poset.done(make_pair(other_top_level, str("translation_unit_generative"))) {
-                            pass_poset.add_open_dep(make_pair(item, str("name_type_resolve")), make_pair(other_top_level, str("translation_unit_generative")))
-                            return OptionVecAst::None()
-                        }
-                        match (scope_lookup(other_top_level, name, is_type)) {
-                            OptionVecAst::None() return OptionVecAst::None()
-                            OptionVecAst::Some(v) {
-                                to_ret.add_all_unique(v)
-                            }
-                        }
-                    }
-                    ast::_type_def(b)           if (is_type && b == name)
-                                                    to_ret.add_unique(scope->children[i])
-                    ast::_adt_def(b)            if (is_type && b == name)
-                                                    to_ret.add_unique(scope->children[i])
-                    ast::_function(b)           if (!is_type && b.first == name)
-                                                    to_ret.add_unique(scope->children[i])
-                    ast::_compiler_intrinsic(b) if (!is_type && b.first == name)
-                                                    to_ret.add_unique(scope->children[i])
-                    ast::_template(b)           if (((!is_type && is_function(scope->children[i]->children[0]))
-                                                  || (!is_type && is_compiler_intrinsic(scope->children[i]->children[0]))
-                                                  || ( is_type && is_type_def(scope->children[i]->children[0]))
-                                                  || ( is_type && is_adt_def( scope->children[i]->children[0]))) && b.first == name)
-                                                    to_ret.add_unique(scope->children[i])
-                    ast::_identifier(b)         if (!is_type && b.first == name)
-                                                    to_ret.add_unique(scope->children[i])
-                    ast::_declaration()         if (!is_type && scope->children[i]->children[0]->data._identifier.first == name)
-                                                    to_ret.add_unique(scope->children[i]->children[0])
-                }
-            }
-            if (scope->parent != null<tree<ast>>()) {
-                match (scope_lookup(scope->parent, name, is_type)) {
-                    OptionVecAst::None() return OptionVecAst::None()
-                    OptionVecAst::Some(v) to_ret.add_all_unique(v)
-                }
-            }
-            else if (primitive_ops.contains_key(name))
-                to_ret.add_all_unique(primitive_ops[name])
-            return OptionVecAst::Some(to_ret)
-        }
         var try_to_find_binding_possibilities = fun(binding: *tree<ast>, start_scope: *tree<ast>, additional_scope: *tree<ast>, type_binding: bool): bool {
             if !ast_bound(binding) && !multiple_binding_options.contains_key(binding) {
                 var all_options = vec<*tree<ast>>()
-                match (scope_lookup(start_scope, ast_binding_str(binding), type_binding)) {
+                match (scope_lookup(start_scope, ast_binding_str(binding), type_binding, item, str("name_type_resolve"), str("translation_unit_top_type_resolve"))) {
                     OptionVecAst::None() {
                         println("OptionVecAst::None for " + ast_binding_str(binding) + " lookup, returning")
                         return false;
@@ -380,7 +447,7 @@ fun main(argc: int, argv: **char): int {
                 }
                 if additional_scope != null<tree<ast>>() {
                     println("Additionally looking at scope " + to_string(additional_scope->data) + " for try_to_find_binding_possibilities " + ast_binding_str(binding))
-                    match (scope_lookup(additional_scope, ast_binding_str(binding), type_binding)) {
+                    match (scope_lookup(additional_scope, ast_binding_str(binding), type_binding, item, str("name_type_resolve"), str("translation_unit_top_type_resolve"))) {
                         OptionVecAst::None() {
                             println("OptionVecAst::None for " + ast_binding_str(binding) + " lookup, returning")
                             return false;
@@ -402,22 +469,22 @@ fun main(argc: int, argv: **char): int {
                         println("\t" + to_string(all_options[i]->data))
                     multiple_binding_options[binding] = all_options
                 }
-                return true;
             }
+            return true;
         }
         var handle_type_binding_possibilities: fun(*binding<type>, *tree<ast>): bool = fun(t: *binding<type>, n: *tree<ast>): bool {
             match(*t->bound_to) {
                 type::_obj(b) return try_to_find_binding_possibilities(b, n, null<tree<ast>>(), true)
+                type::_ptr(p) return handle_type_binding_possibilities(p, n)
+                type::_ref(p) return handle_type_binding_possibilities(p, n)
                 type::_fun(b) {
-                    /*b.first.first.for_each(fun(it: *binding<type>) {*/
-                        /*handle_type_binding_possibilities(it, n)*/
-                    /*})*/
                     for (var i = 0; i < b.first.first.size; i++;)
                         if (!handle_type_binding_possibilities(b.first.first[i], n))
                             return false
                     return handle_type_binding_possibilities(b.first.second, n)
                 }
             }
+            return true
         }
 
         var traverse_for_unify: fun(*tree<ast>): void = fun(t: *tree<ast>) {
@@ -470,7 +537,7 @@ fun main(argc: int, argv: **char): int {
                         /*})*/
                     }
                     ast::_cast(b)               if (!handle_type_binding_possibilities(b, t))
-                                                    return false
+                                                    return false;
                     ast::_call(add_scope) {
                         println("call of " + to_string(t->children[0]) + ", that is " + to_string(t->children[0]->data) + " has type " + to_string(get_type(t)->bound_to) + ", and the function has type " + to_string(get_type(t->children[0])->bound_to))
                         /*get_type(t)*/
@@ -544,6 +611,7 @@ fun main(argc: int, argv: **char): int {
             }
             // early bail if we need more passes
             if !traverse_for_select(item) {
+                println("bailing early b/c select")
                 return
             }
             if (!work_done) {
@@ -566,6 +634,8 @@ fun main(argc: int, argv: **char): int {
                 traverse_for_error(item)
             }
         }
+        println("tree after pass (might have added a dependency though)")
+        print_tree(item, 1)
     }
 
 
@@ -689,6 +759,10 @@ fun main(argc: int, argv: **char): int {
             pass_poset.add_open_dep(make_pair(item, str("depend_and_template_resolve")), make_pair(item, str("name_type_resolve")))
             return
         }
+
+        println("what we've got at template resolve time")
+        print_tree(item, 1)
+
         var resolve: fun(*tree<ast>): void = fun(t: *tree<ast>) {
             var resolve_type: fun(*binding<type>): void = fun(t: *binding<type>) {
                 match (*t->bound_to) {
