@@ -892,7 +892,8 @@ fun main(argc: int, argv: **char): int {
     //  emit C
     var C_str = str()
     var C_type_forward_declaration_str = str()
-    var C_type_declaration_str = str()
+    var C_type_declaration_str_map = map<*tree<ast>, str>()
+    var C_type_declaration_poset = poset<*tree<ast>>()
     var C_declaration_str = str()
 
     passes[str("emit_C")] = fun(item: *tree<ast>) {
@@ -919,11 +920,15 @@ fun main(argc: int, argv: **char): int {
                 }
                 ast::_type_def(b) {
                     C_type_forward_declaration_str += "typedef struct " + get_c_name(t) + " " + get_c_name(t) + ";\n"
-                    C_type_declaration_str += "struct " + get_c_name(t) + "{\n"
+                    C_type_declaration_str_map[t] = "struct " + get_c_name(t) + "{\n"
+                    C_type_declaration_poset.add_job(t)
                     t->children.for_each(fun(c: *tree<ast>) {
-                        C_type_declaration_str += "\t" + to_c_type(c->children[0]->data._identifier.second) + " " + get_c_name(c->children[0]) + ";\n"
+                        C_type_declaration_str_map[t] += "\t" + to_c_type(c->children[0]->data._identifier.second) + " " + get_c_name(c->children[0]) + ";\n"
+                        if is_obj(c->children[0]->data._identifier.second->bound_to) {
+                            C_type_declaration_poset.add_open_dep(t, get_ast_binding(c->children[0]->data._identifier.second->bound_to->_obj))
+                        }
                     })
-                    C_type_declaration_str += "};\n"
+                    C_type_declaration_str_map[t] += "};\n"
                 }
                 ast::_adt_def(b)            { error("no adt_def should remain at C emit"); }
                 ast::_function(b)           {
@@ -1097,7 +1102,9 @@ fun main(argc: int, argv: **char): int {
         printlnerr("doing pass new style " + file_pass.second + " on " + to_string(file_pass.first->data))
         passes[file_pass.second](file_pass.first)
     })
-    C_str = "#include <stdbool.h>\n" + C_type_forward_declaration_str + "\n" + C_type_declaration_str + "\n" + C_declaration_str + "\n" + C_str
+    C_str = "#include <stdbool.h>\n" + C_type_forward_declaration_str + "\n" +
+            str("\n").join(C_type_declaration_poset.get_sorted().map(fun(type_dec: *tree<ast>):str { return C_type_declaration_str_map[type_dec]; })) +
+            "\n" + C_declaration_str + "\n" + C_str
 
     println()
     println()
