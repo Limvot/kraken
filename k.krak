@@ -885,6 +885,50 @@ fun main(argc: int, argv: **char): int {
         resolve(item)
     }
 
+    passes[str("ref_lower")] = fun(item: *tree<ast>) {
+        println("Running ref_lower")
+        if !pass_poset.done(make_pair(item, str("depend_and_template_resolve"))) {
+            pass_poset.add_open_dep(make_pair(item, str("ref_lower")), make_pair(item, str("depend_and_template_resolve")))
+            return
+        }
+        var traverse_for_ref: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+            t->children.for_each(traverse_for_ref)
+            match (t->data) {
+                ast::_call(add_scope) {
+                    println("traverse_for_ref call - " + to_string(t->data))
+                    // we call get type to make sure if it is unknown it is transformed into a function version
+                    var fun_type = get_type(t->children[0])->bound_to
+                    for (var i = 1; i < t->children.size; i++;) {
+                        var param_is_ref = fun_type->_fun.first.first[i-1].first
+                    }
+                }
+                ast::_binding(b) {
+                    var bound_to = get_ast_binding(t)
+                    if is_identifier(bound_to) && is_function(bound_to->parent) {
+                        var parent_function = bound_to->parent
+                        var parent_function_type = get_type(parent_function)
+                        for (var i = 0; i < parent_function->children.size - 1; i++;) {
+                            if parent_function->children[i] == bound_to {
+                                if parent_function_type->bound_to->_fun.first.first[i].first {
+                                }
+                                break
+                            }
+                        }
+                    }
+                }
+                ast::_return() {
+                    if (t->children.size > 0) {
+                        var ret_is_ref = get_type(get_ancestor_satisfying(t, fun(t: *tree<ast>): bool return is_function(t);))->bound_to->_fun.first.second.first
+                    }
+                }
+            }
+        }
+        traverse_for_ref(item)
+
+        println("post ref_lower")
+        print_tree(item, 1)
+    }
+
     //  emit C
     var C_str = str()
     var C_type_forward_declaration_str = str()
@@ -893,8 +937,8 @@ fun main(argc: int, argv: **char): int {
     var C_declaration_str = str()
 
     passes[str("emit_C")] = fun(item: *tree<ast>) {
-        if !pass_poset.done(make_pair(item, str("depend_and_template_resolve"))) {
-            pass_poset.add_open_dep(make_pair(item, str("emit_C")), make_pair(item, str("depend_and_template_resolve")))
+        if !pass_poset.done(make_pair(item, str("ref_lower"))) {
+            pass_poset.add_open_dep(make_pair(item, str("emit_C")), make_pair(item, str("ref_lower")))
             return
         }
         println("Emitting C for:")
