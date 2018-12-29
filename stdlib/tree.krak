@@ -43,6 +43,14 @@ obj tree<T> (Object) {
         children.add(c)
         c->parent = this
     }
+    fun set_child(i: int, c: *tree<T>) {
+        children[i] = c
+        c->parent = this
+    }
+    fun replace_child(old_c: *tree<T>, new_c: *tree<T>) {
+        children[children.find(old_c)] = new_c
+        new_c->parent = this
+    }
     fun clone(): *tree<T> {
         return mem::new<tree<T>>()->construct(data, children.map(fun(c: *tree<T>): *tree<T> return c->clone();))
     }

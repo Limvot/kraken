@@ -112,10 +112,10 @@ fun main(argc: int, argv: **char): int {
         for (var j = 0; j < number_tower.size; j++;)
             for (var k = 0; k < number_tower.size; k++;)
                 primitive_ops["op" + comparators[i]].add(_compiler_intrinsic(comparators[i], binding_p(type::_fun(make_triple(make_pair(vec(
-                                    make_pair(false, number_tower[j]),
-                                    make_pair(false, number_tower[k])
+                                    make_pair(ref_type::_notref(), number_tower[j]),
+                                    make_pair(ref_type::_notref(), number_tower[k])
                                 ),
-                            make_pair(false, binding_p(type::_bool()))
+                            make_pair(ref_type::_notref(), binding_p(type::_bool()))
                         ), false, false))), vec<*binding<type>>()))
     }
     var math = vec(str("+"), str("-"), str("*"), str("/"), str("&"), str("|"),  str("^"))
@@ -130,10 +130,10 @@ fun main(argc: int, argv: **char): int {
                     return_type = number_tower[k]
                 }
                 primitive_ops["op" + math[i]].add(_compiler_intrinsic(math[i], binding_p(type::_fun(make_triple(make_pair(vec(
-                                    make_pair(false, number_tower[j]),
-                                    make_pair(false, number_tower[k])
+                                    make_pair(ref_type::_notref(), number_tower[j]),
+                                    make_pair(ref_type::_notref(), number_tower[k])
                                 ),
-                            make_pair(false, return_type)
+                            make_pair(ref_type::_notref(), return_type)
                         ), false, false))), vec<*binding<type>>()))
             }
         }
@@ -146,10 +146,10 @@ fun main(argc: int, argv: **char): int {
             for (var k = 0; k <= j; k++;) {
                 var return_type = null<binding<type>>()
                 primitive_ops["op" + math[i] + "="].add(_compiler_intrinsic(math[i] + "=", binding_p(type::_fun(make_triple(make_pair(vec(
-                                    make_pair(false, number_tower[j]),
-                                    make_pair(false, number_tower[k])
+                                    make_pair(ref_type::_notref(), number_tower[j]),
+                                    make_pair(ref_type::_notref(), number_tower[k])
                                 ),
-                            make_pair(false, binding_p(type::_void()))
+                            make_pair(ref_type::_notref(), binding_p(type::_void()))
                         ), false, false))), vec<*binding<type>>()))
             }
         }
@@ -159,39 +159,39 @@ fun main(argc: int, argv: **char): int {
     // address of
     var template_type = binding_p(type::_template_placeholder())
     primitive_ops[str("op&")].add(_template(str("&"), map(str("T"), template_type), vec(_compiler_intrinsic(str("&"), binding_p(type::_fun(make_triple(make_pair(vec(
-                                    make_pair(false, template_type)
+                                    make_pair(ref_type::_notref(), template_type)
                                 ),
-                            make_pair(false, binding_p(type::_ptr(template_type)))
+                            make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
                         ), false, false))), vec<*binding<type>>()))))
     // dereference
     var template_type = binding_p(type::_template_placeholder())
     primitive_ops[str("op*")].add(_template(str("*"), map(str("T"), template_type), vec(_compiler_intrinsic(str("*"), binding_p(type::_fun(make_triple(make_pair(vec(
-                                    make_pair(false, binding_p(type::_ptr(template_type)))
+                                    make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
                                 ),
-                            make_pair(false, template_type)
+                            make_pair(ref_type::_notref(), template_type)
                         ), false, false))), vec<*binding<type>>()))))
 
     for (var i = 0; i < number_tower.size - 2; i++;) {
         var template_type = binding_p(type::_template_placeholder())
         primitive_ops[str("op+")].add(_template(str("+"), map(str("T"), template_type), vec(_compiler_intrinsic(str("+"), binding_p(type::_fun(make_triple(make_pair(vec(
-                                        make_pair(false, number_tower[i]),
-                                        make_pair(false, binding_p(type::_ptr(template_type)))
+                                        make_pair(ref_type::_notref(), number_tower[i]),
+                                        make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
                                     ),
-                                make_pair(false, binding_p(type::_ptr(template_type)))
+                                make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
                             ), false, false))), vec<*binding<type>>()))))
         primitive_ops[str("op+")].add(_template(str("+"), map(str("T"), template_type), vec(_compiler_intrinsic(str("+"), binding_p(type::_fun(make_triple(make_pair(vec(
-                                        make_pair(false, binding_p(type::_ptr(template_type))),
-                                        make_pair(false, number_tower[i])
+                                        make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type))),
+                                        make_pair(ref_type::_notref(), number_tower[i])
                                     ),
-                                make_pair(false, binding_p(type::_ptr(template_type)))
+                                make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
                             ), false, false))), vec<*binding<type>>()))))
 
         // note only ptr-1, not 1-ptr to match C...
         primitive_ops[str("op-")].add(_template(str("-"), map(str("T"), template_type), vec(_compiler_intrinsic(str("-"), binding_p(type::_fun(make_triple(make_pair(vec(
-                                        make_pair(false, binding_p(type::_ptr(template_type))),
-                                        make_pair(false, number_tower[i])
+                                        make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type))),
+                                        make_pair(ref_type::_notref(), number_tower[i])
                                     ),
-                                make_pair(false, binding_p(type::_ptr(template_type)))
+                                make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
                             ), false, false))), vec<*binding<type>>()))))
     }
 
@@ -277,9 +277,9 @@ fun main(argc: int, argv: **char): int {
                             var type_def_binding = make_ast_binding(name)
                             set_ast_binding(type_def_binding, child)
                             item->add_child(_compiler_intrinsic(ident_name, binding_p(type::_fun(make_triple(make_pair(vec(
-                                        make_pair(false, binding_p(type::_obj(type_def_binding)))
+                                        make_pair(ref_type::_notref(), binding_p(type::_obj(type_def_binding)))
                                     ),
-                                make_pair(false, ident_type)
+                                make_pair(ref_type::_notref(), ident_type)
                             ), false, false))), vec<*binding<type>>()))
                             println("adding compiler intrinsic to do " + name + "." + ident_name)
                         }
@@ -305,9 +305,9 @@ fun main(argc: int, argv: **char): int {
                                 /*set_ast_binding(type_def_binding, child)*/
 
                                 item->add_child(_template(ident_name, new_template_type_map, vec(_compiler_intrinsic(ident_name, binding_p(type::_fun(make_triple(make_pair(vec(
-                                            make_pair(false, binding_p(type::_obj(type_def_binding)))
+                                            make_pair(ref_type::_notref(), binding_p(type::_obj(type_def_binding)))
                                         ),
-                                    make_pair(false, new_ident_type)
+                                    make_pair(ref_type::_notref(), new_ident_type)
                                 ), false, false))), vec<*binding<type>>()))))
                                 println("adding compiler intrinsic to do " + name + "." + ident_name)
                             }
@@ -348,10 +348,10 @@ fun main(argc: int, argv: **char): int {
                 if (is_fun(t->bound_to))
                     return t->bound_to->_fun.first.second.second
                 if (is_unknown(t->bound_to)) {
-                    var return_type = make_pair(false, binding_p(type::_unknown()))
-                    var parameter_types = vec<pair<bool, *binding<type>>>()
+                    var return_type = make_pair(ref_type::_unknown(), binding_p(type::_unknown()))
+                    var parameter_types = vec<pair<ref_type, *binding<type>>>()
                     for (var i = 1; i < a->children.size; i++;)
-                        parameter_types.add(make_pair(false, get_type(a->children[i])))
+                        parameter_types.add(make_pair(ref_type::_unknown(), get_type(a->children[i])))
                     t->set(type::_fun(make_triple(make_pair(parameter_types, return_type), false, false)))
                     return return_type.second
                 }
@@ -488,6 +488,8 @@ fun main(argc: int, argv: **char): int {
         var traverse_for_unify: fun(*tree<ast>): void = fun(t: *tree<ast>) {
             t->children.for_each(traverse_for_unify)
             match (t->data) {
+                // even if we have nothing to unify it with, we call get_type on all bindings so that it gets put in the binding map
+                ast::_binding(b) get_type(t)
                 ast::_declaration() if (t->children.size > 1)
                                         unify(get_type(t->children[0]), get_type(t->children[1]))
                 ast::_call(add_scope) {
@@ -748,12 +750,90 @@ fun main(argc: int, argv: **char): int {
         error("fell through to_c_type")
     }
 
+    passes[str("ref_lower")] = fun(item: *tree<ast>) {
+        println("Running ref_lower")
+        if !pass_poset.done(make_pair(item, str("name_type_resolve"))) {
+            pass_poset.add_open_dep(make_pair(item, str("ref_lower")), make_pair(item, str("name_type_resolve")))
+            return
+        }
+        var parameter_update_map = map<*tree<ast>, *tree<ast>>()
+        var traverse_for_ref: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+            match (t->data) {
+                ast::_function(name_type_ext) {
+                    var fun_type = get_type(t)
+                    for (var i = 0; i < fun_type->bound_to->_fun.first.first.size; i++;) {
+                        if fun_type->bound_to->_fun.first.first[i].first == ref_type::_ref() {
+                            var old_param = t->children[i]
+                            println("function definition has refs - " + old_param->data._identifier.first)
+                            var new_param = _identifier(old_param->data._identifier.first, binding_p(type::_ptr(old_param->data._identifier.second)))
+                            parameter_update_map[old_param] = new_param
+                            t->set_child(i, new_param)
+                        }
+                    }
+                }
+                ast::_call(add_scope) {
+                    println("traverse_for_ref call - " + to_string(t->data))
+                    // we call get type to make sure if it is unknown it is transformed into a function version
+                    var fun_type = get_type(t->children[0])->bound_to
+                    println("\t checking " + to_string(t->children[0]->data) + " for reffed params: " + to_string(fun_type))
+                    for (var i = 1; i < t->children.size; i++;) {
+                        if fun_type->_fun.first.first[i-1].first == ref_type::_ref() {
+                            println(str("\t\tparam ") + i + " is reffed")
+                            var addr_of_binding = make_ast_binding("op&")
+                            set_single_ast_binding(addr_of_binding, primitive_ops[str("op&")].last())
+                            unify(get_type(addr_of_binding)->bound_to->_fun.first.first[0].second, get_type(t->children[i]))
+                            t->set_child(i, _call(false, vec(addr_of_binding, t->children[i])))
+                        }
+                    }
+                    if fun_type->_fun.first.second.first == ref_type::_ref() {
+                        println("call's return is reffed!")
+                        var addr_of_binding = make_ast_binding("op*")
+                        set_single_ast_binding(addr_of_binding, primitive_ops[str("op*")].last())
+                        unify(get_type(addr_of_binding)->bound_to->_fun.first.first[0].second, binding_p(type::_ptr(fun_type->_fun.first.second.second)))
+                        // BUG IN kraken compiler, or weird part of kraken itself - evaluation order isn't guarenteed, so evaling a param could change lhs
+                        /*t->parent->replace_child(t, _call(false, vec(addr_of_binding, t)))*/
+                        var parent = t->parent
+                        parent->replace_child(t, _call(false, vec(addr_of_binding, t)))
+                    }
+                }
+                ast::_binding(b) {
+                    var bound_to = get_ast_binding(t)
+                    if parameter_update_map.contains_key(bound_to) {
+                        println("param binding is reffed")
+                        var new_param = parameter_update_map[bound_to]
+                        var addr_of_binding = make_ast_binding("op*")
+                        set_single_ast_binding(addr_of_binding, primitive_ops[str("op*")].last())
+                        unify(get_type(addr_of_binding)->bound_to->_fun.first.first[0].second, get_type(new_param))
+                        t->parent->replace_child(t, _call(false, vec(addr_of_binding, new_param)))
+                    }
+                }
+                ast::_return() {
+                    if (t->children.size > 0) {
+                        var ret_is_ref = get_type(get_ancestor_satisfying(t, fun(t: *tree<ast>): bool return is_function(t);))->bound_to->_fun.first.second.first == ref_type::_ref()
+                        if ret_is_ref {
+                            println("return is reffed")
+                            var addr_of_binding = make_ast_binding("op&")
+                            set_single_ast_binding(addr_of_binding, primitive_ops[str("op&")].last())
+                            unify(get_type(addr_of_binding)->bound_to->_fun.first.first[0].second, get_type(t->children[0]))
+                            t->set_child(0, _call(false, vec(addr_of_binding, t->children[0])))
+                        }
+                    }
+                }
+            }
+            t->children.for_each(traverse_for_ref)
+        }
+        traverse_for_ref(item)
+
+        println("post ref_lower")
+        print_tree(item, 1)
+    }
+
     // has to be set<pair> instead of map<> as we need to use type's "equality"
     // function instead of type's adt's operator==
     var instantiated_map = map<*tree<ast>, set<pair<*binding<type>, *tree<ast>>>>()
     passes[str("depend_and_template_resolve")] = fun(item: *tree<ast>) {
-        if !pass_poset.done(make_pair(item, str("name_type_resolve"))) {
-            pass_poset.add_open_dep(make_pair(item, str("depend_and_template_resolve")), make_pair(item, str("name_type_resolve")))
+        if !pass_poset.done(make_pair(item, str("ref_lower"))) {
+            pass_poset.add_open_dep(make_pair(item, str("depend_and_template_resolve")), make_pair(item, str("ref_lower")))
             return
         }
 
@@ -771,7 +851,7 @@ fun main(argc: int, argv: **char): int {
                         pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(get_ast_binding(o), str("emit_C")))
                     }
                     type::_fun(t) {
-                        t.first.first.for_each(fun(p: pair<bool, *binding<type>>): void { resolve_type(p.second); })
+                        t.first.first.for_each(fun(p: pair<ref_type, *binding<type>>): void { resolve_type(p.second); })
                         resolve_type(t.first.second.second)
                     }
                 }
@@ -885,50 +965,6 @@ fun main(argc: int, argv: **char): int {
         resolve(item)
     }
 
-    passes[str("ref_lower")] = fun(item: *tree<ast>) {
-        println("Running ref_lower")
-        if !pass_poset.done(make_pair(item, str("depend_and_template_resolve"))) {
-            pass_poset.add_open_dep(make_pair(item, str("ref_lower")), make_pair(item, str("depend_and_template_resolve")))
-            return
-        }
-        var traverse_for_ref: fun(*tree<ast>): void = fun(t: *tree<ast>) {
-            t->children.for_each(traverse_for_ref)
-            match (t->data) {
-                ast::_call(add_scope) {
-                    println("traverse_for_ref call - " + to_string(t->data))
-                    // we call get type to make sure if it is unknown it is transformed into a function version
-                    var fun_type = get_type(t->children[0])->bound_to
-                    for (var i = 1; i < t->children.size; i++;) {
-                        var param_is_ref = fun_type->_fun.first.first[i-1].first
-                    }
-                }
-                ast::_binding(b) {
-                    var bound_to = get_ast_binding(t)
-                    if is_identifier(bound_to) && is_function(bound_to->parent) {
-                        var parent_function = bound_to->parent
-                        var parent_function_type = get_type(parent_function)
-                        for (var i = 0; i < parent_function->children.size - 1; i++;) {
-                            if parent_function->children[i] == bound_to {
-                                if parent_function_type->bound_to->_fun.first.first[i].first {
-                                }
-                                break
-                            }
-                        }
-                    }
-                }
-                ast::_return() {
-                    if (t->children.size > 0) {
-                        var ret_is_ref = get_type(get_ancestor_satisfying(t, fun(t: *tree<ast>): bool return is_function(t);))->bound_to->_fun.first.second.first
-                    }
-                }
-            }
-        }
-        traverse_for_ref(item)
-
-        println("post ref_lower")
-        print_tree(item, 1)
-    }
-
     //  emit C
     var C_str = str()
     var C_type_forward_declaration_str = str()
@@ -937,8 +973,8 @@ fun main(argc: int, argv: **char): int {
     var C_declaration_str = str()
 
     passes[str("emit_C")] = fun(item: *tree<ast>) {
-        if !pass_poset.done(make_pair(item, str("ref_lower"))) {
-            pass_poset.add_open_dep(make_pair(item, str("emit_C")), make_pair(item, str("ref_lower")))
+        if !pass_poset.done(make_pair(item, str("depend_and_template_resolve"))) {
+            pass_poset.add_open_dep(make_pair(item, str("emit_C")), make_pair(item, str("depend_and_template_resolve")))
             return
         }
         println("Emitting C for:")
@@ -976,20 +1012,32 @@ fun main(argc: int, argv: **char): int {
                     var fun_name = get_c_name(t)
                     var fun_type = b.second->bound_to
                     var is_ext   = b.third
-                    var return_type     = fun_type->_fun.first.second.second
+                    var return_type     = fun_type->_fun.first.second
                     var parameter_types = fun_type->_fun.first.first
                     var is_variadic     = fun_type->_fun.second
                     var is_raw          = fun_type->_fun.third
                     // TODO check is_ext for name mangling
-                    C_str             += to_c_type(return_type) + " " + fun_name + "("
-                    C_declaration_str += to_c_type(return_type) + " " + fun_name + "("
+                    // TODO ideally, we wouldn't worry about refs here, but until we have
+                    //      per pass trees / bindings and stuff, we can't change the functions
+                    //      type to remove ref and add ptr (though we do change the parameters type,
+                    //      as that all happens inside the function)
+                    var beginning_str = to_c_type(return_type.second)
+                    if (return_type.first == ref_type::_ref())
+                        beginning_str += "*"
+                    beginning_str +=  " " + fun_name + "("
+                    C_str             += beginning_str
+                    C_declaration_str += beginning_str
                     for (var i = 0; i < parameter_types.size; i++;) {
                         if (i != 0) {
                             C_str                  += ", "
                             C_declaration_str += ", "
                         }
-                        C_str                  += to_c_type(parameter_types[i].second) + " "
-                        C_declaration_str += to_c_type(parameter_types[i].second)
+                        // TODO ditto about ref stuff above
+                        var parameter_type_str = to_c_type(parameter_types[i].second)
+                        if (parameter_types[i].first == ref_type::_ref())
+                            parameter_type_str += "*"
+                        C_str             += parameter_type_str + " "
+                        C_declaration_str += parameter_type_str
                         emit_C(t->children[i], 0)
                     }
                     if (is_variadic) {
@@ -1119,10 +1167,10 @@ fun main(argc: int, argv: **char): int {
     var real_main = _function(
                     str("main"),
                     binding_p(type::_fun(make_triple(make_pair(vec(
-                                    make_pair(false, binding_p(type::_int())),
-                                    make_pair(false, binding_p(type::_ptr(binding_p(type::_ptr(binding_p(type::_char()))))))
+                                    make_pair(ref_type::_notref(), binding_p(type::_int())),
+                                    make_pair(ref_type::_notref(), binding_p(type::_ptr(binding_p(type::_ptr(binding_p(type::_char()))))))
                                 ),
-                            make_pair(false, binding_p(type::_int()))
+                            make_pair(ref_type::_notref(), binding_p(type::_int()))
                         ), false, false))),
                     true, vec(
                                 _identifier(str("argc"), binding_p(type::_int())),
@@ -1195,8 +1243,8 @@ fun parse_type_helper(syntax: *tree<symbol>, declared_template_types: ref map<st
         }
     } else if (func != null<tree<symbol>>()) {
         error("function type parsing not implemented")
-        var param_types = vec<pair<bool, *binding<type>>>()
-        var return_type = make_pair(false, binding_p(type::_void()))
+        var param_types = vec<pair<ref_type, *binding<type>>>()
+        var return_type = make_pair(ref_type::_notref(), binding_p(type::_void()))
         var variadic = false
         var raw = false
         return binding_p(type::_fun(make_triple(make_pair(param_types, return_type), variadic, raw)))
@@ -1262,17 +1310,27 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                 })
             }
 
-            var parameters  = get_nodes("typed_parameter", syntax).map(fun(x: *tree<symbol>): pair<bool, *tree<ast>> return make_pair(get_node("\"ref\"", get_node("type", x)) != null<tree<symbol>>(),
-                                                                                                                                      syntax_to_ast_helper(x, with_added_declared_template_types));)
+            var parameters  = get_nodes("typed_parameter", syntax).map(fun(x: *tree<symbol>): pair<ref_type, *tree<ast>> {
+                if get_node("\"ref\"", get_node("type", x)) != null<tree<symbol>>() {
+                    return make_pair(ref_type::_ref(), syntax_to_ast_helper(x, with_added_declared_template_types))
+                } else {
+                    return make_pair(ref_type::_notref(), syntax_to_ast_helper(x, with_added_declared_template_types))
+                }
+            })
             var body        = syntax_to_ast_helper(get_node("statement", syntax), with_added_declared_template_types)
-            var return_type = make_pair(false, null<binding<type>>())
+            var return_type = make_pair(ref_type::_unknown(), null<binding<type>>())
             var return_type_node = get_node("typed_return", syntax)
-            if (return_type_node != null<tree<symbol>>())
-                return_type = make_pair(get_node("\"ref\"", get_node("type", return_type_node)) != null<tree<symbol>>(), parse_type(get_node("type", return_type_node), with_added_declared_template_types))
-            else
-                return_type = make_pair(false, binding_p(type::_void()))
-            var function_type = binding_p(type::_fun(make_triple(make_pair(parameters.map(fun(i: pair<bool, *tree<ast>>): pair<bool, *binding<type>> return make_pair(i.first, i.second->data._identifier.second);), return_type), false, false)))
-            var n = _function(concat(get_node("func_identifier", syntax)), function_type, false, parameters.map(fun(i: pair<bool, *tree<ast>>): *tree<ast> return i.second;) + body)
+            if return_type_node != null<tree<symbol>>() {
+                if get_node("\"ref\"", get_node("type", return_type_node)) != null<tree<symbol>>() {
+                    return_type = make_pair(ref_type::_ref(), parse_type(get_node("type", return_type_node), with_added_declared_template_types))
+                } else {
+                    return_type = make_pair(ref_type::_notref(), parse_type(get_node("type", return_type_node), with_added_declared_template_types))
+                }
+            } else {
+                return_type = make_pair(ref_type::_notref(), binding_p(type::_void()))
+            }
+            var function_type = binding_p(type::_fun(make_triple(make_pair(parameters.map(fun(i: pair<ref_type, *tree<ast>>): pair<ref_type, *binding<type>> return make_pair(i.first, i.second->data._identifier.second);), return_type), false, false)))
+            var n = _function(concat(get_node("func_identifier", syntax)), function_type, false, parameters.map(fun(i: pair<ref_type, *tree<ast>>): *tree<ast> return i.second;) + body)
             if (new_template_type_map.size() > 0) {
                 return _template(n->data._function.first, new_template_type_map, vec(n))
             } else {
