@@ -1155,7 +1155,24 @@ fun main(argc: int, argv: **char): int {
                     emit_C(t->children[0], 0)
                     C_str += ")"
                 }
-                ast::_value(b)              { C_str += idt + b.first; }
+                ast::_value(b) {
+                    if is_ptr(b.second->bound_to) && is_char(b.second->bound_to->_ptr->bound_to) {
+                        C_str += "\""
+                        b.first.for_each(fun(c: char) {
+                            if (c == '\n')
+                                C_str += "\\n"
+                            else if (c == '\\')
+                                C_str += "\\\\"
+                            else if (c == '"')
+                                C_str += "\\\""
+                            else
+                                C_str += c
+                        })
+                        C_str += "\""
+                    } else {
+                        C_str += idt + b.first;
+                    }
+                }
             }
         }
 
@@ -1482,6 +1499,33 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                 return _value(number_string, binding_p(type::_double()))
             else
                 return _value(number_string, binding_p(type::_int()))
+        } else if (syntax->data.name == "string") {
+            var value_str = concat(syntax)
+            var start = 1
+            var end = value_str.length() -1
+            if (value_str.length() > 3 && value_str[1] == '"' && value_str[2] == '"') {
+                value_str = value_str.slice(3,-4)
+            } else {
+                var new_str.construct(end-start): str
+                var escaped = false
+                for (var i = 1; i < value_str.length()-1; i++;) {
+                    if (escaped) {
+                        escaped = false
+                        if (value_str[i] == 'n')
+                            new_str += '\n'
+                        else if (value_str[i] == 't')
+                            new_str += '\t'
+                        else
+                            new_str += value_str[i]
+                    } else if (value_str[i] == '\\') {
+                        escaped = true
+                    } else {
+                        new_str += value_str[i]
+                    }
+                }
+                value_str = new_str
+            }
+            return _value(value_str, binding_p(type::_ptr(binding_p(type::_char()))))
         } else if (syntax->data.name == "bool")
             return _value(concat(syntax), binding_p(type::_bool()))
         else if (syntax->data.name == "scoped_identifier" || syntax->data.name == "identifier")
