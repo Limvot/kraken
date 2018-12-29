@@ -1016,6 +1016,7 @@ fun main(argc: int, argv: **char): int {
                     var parameter_types = fun_type->_fun.first.first
                     var is_variadic     = fun_type->_fun.second
                     var is_raw          = fun_type->_fun.third
+                    var is_just_dec     = parameter_types.size == t->children.size
                     // TODO check is_ext for name mangling
                     // TODO ideally, we wouldn't worry about refs here, but until we have
                     //      per pass trees / bindings and stuff, we can't change the functions
@@ -1025,36 +1026,45 @@ fun main(argc: int, argv: **char): int {
                     if (return_type.first == ref_type::_ref())
                         beginning_str += "*"
                     beginning_str +=  " " + fun_name + "("
-                    C_str             += beginning_str
+                    if (!is_just_dec)
+                        C_str += beginning_str
                     C_declaration_str += beginning_str
                     for (var i = 0; i < parameter_types.size; i++;) {
                         if (i != 0) {
-                            C_str                  += ", "
+                            if (!is_just_dec)
+                                C_str += ", "
                             C_declaration_str += ", "
                         }
                         // TODO ditto about ref stuff above
                         var parameter_type_str = to_c_type(parameter_types[i].second)
                         if (parameter_types[i].first == ref_type::_ref())
                             parameter_type_str += "*"
-                        C_str             += parameter_type_str + " "
+                        if (!is_just_dec)
+                            C_str         += parameter_type_str + " "
                         C_declaration_str += parameter_type_str
-                        emit_C(t->children[i], 0)
+                        if (!is_just_dec)
+                            emit_C(t->children[i], 0)
                     }
                     if (is_variadic) {
                         if (parameter_types.size != 0) {
-                            C_str += ", "
+                            if (!is_just_dec)
+                                C_str += ", "
                             C_declaration_str += ", "
                         }
-                        C_str                  += "..."
+                        if (!is_just_dec)
+                            C_str += "..."
                         C_declaration_str += "..."
                     }
-                    C_str                  += ") {\n"
+                    if (!is_just_dec)
+                        C_str += ") {\n"
                     C_declaration_str += ");\n"
-                    for (var i = parameter_types.size; i < t->children.size; i++;) {
-                        emit_C(t->children[i], level+1)
-                        C_str += ";\n"
+                    if !is_just_dec {
+                        for (var i = parameter_types.size; i < t->children.size; i++;) {
+                            emit_C(t->children[i], level+1)
+                            C_str += ";\n"
+                        }
+                        C_str += "}\n"
                     }
-                    C_str += "}\n"
                 }
                 ast::_template(b)           { /* template should be ignored */ }
                 ast::_declaration()         {
@@ -1334,7 +1344,6 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                     return make_pair(ref_type::_notref(), syntax_to_ast_helper(x, with_added_declared_template_types))
                 }
             })
-            var body        = syntax_to_ast_helper(get_node("statement", syntax), with_added_declared_template_types)
             var return_type = make_pair(ref_type::_unknown(), null<binding<type>>())
             var return_type_node = get_node("typed_return", syntax)
             if return_type_node != null<tree<symbol>>() {
@@ -1346,8 +1355,19 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             } else {
                 return_type = make_pair(ref_type::_notref(), binding_p(type::_void()))
             }
-            var function_type = binding_p(type::_fun(make_triple(make_pair(parameters.map(fun(i: pair<ref_type, *tree<ast>>): pair<ref_type, *binding<type>> return make_pair(i.first, i.second->data._identifier.second);), return_type), false, false)))
-            var n = _function(concat(get_node("func_identifier", syntax)), function_type, false, parameters.map(fun(i: pair<ref_type, *tree<ast>>): *tree<ast> return i.second;) + body)
+            var function_type = binding_p(type::_fun(make_triple(
+                                                                    make_pair(parameters.map(fun(i: pair<ref_type, *tree<ast>>): pair<ref_type, *binding<type>> return make_pair(i.first, i.second->data._identifier.second);),
+                                                                              return_type),
+                                                                    get_node("\"...\"", syntax) != null<tree<symbol>>(),
+                                                                    false /*get_node("\"run\"", syntax) != null<tree<symbol>>()*/)))
+            var body_syntax = get_node("statement", syntax)
+            var body = vec<*tree<ast>>()
+            if body_syntax != null<tree<symbol>>() {
+                body = vec(syntax_to_ast_helper(body_syntax, with_added_declared_template_types))
+            }
+            var n = _function(concat(get_node("func_identifier", syntax)),
+                              function_type, get_node("\"ext\"", syntax) != null<tree<symbol>>(),
+                              parameters.map(fun(i: pair<ref_type, *tree<ast>>): *tree<ast> return i.second;) + body)
             if (new_template_type_map.size() > 0) {
                 return _template(n->data._function.first, new_template_type_map, vec(n))
             } else {

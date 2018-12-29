@@ -55,7 +55,8 @@ fun unify(t1: *binding<type>, t2: *binding<type>) {
                     t1->bound_to->_fun.first.second.first = t2->bound_to->_fun.first.second.first
                 if (t2->bound_to->_fun.first.second.first == ref_type::_unknown())
                     t2->bound_to->_fun.first.second.first = t1->bound_to->_fun.first.second.first
-                for (var i = 0; i < t1->bound_to->_fun.first.first.size; i++;) {
+                // might be veradic...
+                for (var i = 0; i < t1->bound_to->_fun.first.first.size && i < t2->bound_to->_fun.first.first.size; i++;) {
                     unify(t1->bound_to->_fun.first.first[i].second, t2->bound_to->_fun.first.first[i].second)
                     if (t1->bound_to->_fun.first.first[i].first == ref_type::_unknown())
                         t1->bound_to->_fun.first.first[i].first = t2->bound_to->_fun.first.first[i].first
