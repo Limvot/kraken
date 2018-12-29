@@ -323,13 +323,40 @@ fun main(argc: int, argv: **char): int {
 
     var binding_types = map<*tree<ast>, *binding<type>>()
     var get_type: fun(*tree<ast>): *binding<type> = fun(a: *tree<ast>): *binding<type> {
+        var get_template_type: fun(*tree<ast>, vec<*binding<type>>): *binding<type> = fun(a: *tree<ast>, inst_with: vec<*binding<type>>): *binding<type> {
+            var i = 0
+            return inst_temp_type(get_type(a->children[0]), a->data._template.second.associate(fun(k: str, v: *binding<type>): pair<*binding<type>, *binding<type>> {
+                if (i < inst_with.size)
+                    return make_pair(v, inst_with[i])
+                else
+                    return make_pair(v, binding_p(type::_unknown()))
+            }))
+        }
         match(a->data) {
             ast::_identifier(b)         return b.second
             ast::_binding(b)            if (binding_types.contains_key(a)) {
+                                            if ast_bound(a) && has_unknown(binding_types[a]) {
+                                                var t = null<binding<type>>()
+                                                var bound_to = get_ast_binding(a)
+                                                if (is_template(bound_to)) {
+                                                    t = get_template_type(bound_to, b.second)
+                                                    unify(binding_types[a], t)
+                                                } else {
+                                                    t = get_type(bound_to)
+                                                    unify(binding_types[a], t)
+                                                }
+                                            }
                                             return binding_types[a]
                                         } else {
                                             if (ast_bound(a)) {
-                                                var t = get_type(get_ast_binding(a))
+                                                var t = null<binding<type>>()
+                                                var bound_to = get_ast_binding(a)
+                                                if (is_template(bound_to)) {
+                                                    t = get_template_type(bound_to, b.second)
+                                                } else {
+                                                    t = get_type(bound_to)
+                                                }
+                                                /*var t = get_type(get_ast_binding(a))*/
                                                 binding_types[a] = t
                                                 return t
                                             } else {
@@ -339,9 +366,7 @@ fun main(argc: int, argv: **char): int {
                                             }
                                         }
             ast::_function(b)           return b.second
-            ast::_template(b)           {
-                return inst_temp_type(get_type(a->children[0]), b.second.associate(fun(k: str, v: *binding<type>): pair<*binding<type>, *binding<type>> return make_pair(v, binding_p(type::_unknown()));))
-            }
+            ast::_template(b)           return get_template_type(a, vec<*binding<type>>())
             ast::_compiler_intrinsic(b) return b.second
             ast::_call(add_scope) {
                 var t = get_type(a->children[0])
@@ -623,6 +648,8 @@ fun main(argc: int, argv: **char): int {
                             if (filtered_options.size > 1) {
                                 println("Attempting to use our inferenced type " + to_string(binding_types[t]->bound_to) + " to decide what to bind " + to_string(t->data) + " to form options:")
                                 multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p)->bound_to)); })
+                                println("current state of this:")
+                                print_tree(item, 1)
                                 println("too many options remain after filtering overloads by type for " + to_string(t->data) + ", they were:")
                                 filtered_options.for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p)->bound_to)); })
                                 error("cannot resolve")
@@ -1159,7 +1186,13 @@ fun main(argc: int, argv: **char): int {
                         C_str += ")"
                     }
                 }
-                ast::_compiler_intrinsic(b) { /* this can happen cuz of templated primitive ops and is_top_level_item includes parentless stuff...*/ }
+                ast::_compiler_intrinsic(b) {
+                    if b.first == "sizeof" {
+                        C_str += "sizeof(" + to_c_type(b.third[0]) + ")"
+                    } else {
+                        /* this can happen cuz of templated primitive ops and is_top_level_item includes parentless stuff...*/
+                    }
+                }
                 ast::_cast(b)               {
                     C_str += idt + "((" + to_c_type(b) + ")"
                     emit_C(t->children[0], 0)
@@ -1513,6 +1546,12 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             }
         } else if (syntax->data.name == "cast_expression") {
             return _cast(parse_type(get_node("type", syntax), declared_template_types), vec(syntax_to_ast_helper(syntax->children[0], declared_template_types)))
+        } else if (syntax->data.name == "compiler_intrinsic") {
+            var name = concat(get_node("identifier", syntax))
+            if name != "sizeof" {
+                error("unknown compiler intrinsic " + name)
+            }
+            return _compiler_intrinsic(name, binding_p(type::_ulong()), vec(parse_type(get_node("type", syntax), declared_template_types)))
         } else if (syntax->data.name == "number") {
             var number_string = concat(syntax)
             if (number_string.contains('.'))

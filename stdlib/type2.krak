@@ -40,6 +40,16 @@ adt type {
     _double
 }
 
+fun has_unknown(t: *binding<type>): bool {
+    match (*t->bound_to) {
+        type::_unknown()    return true
+        type::_ptr(p)       return has_unknown(p)
+        type::_obj(o)       return o->data._binding.second.any_true(fun(inner_t: *binding<type>): bool return has_unknown(inner_t);)
+        type::_fun(f)       return has_unknown(f.first.second.second) || f.first.first.any_true(fun(p: pair<ref_type, *binding<type>>): bool return has_unknown(p.second);)
+    }
+    return false
+}
+
 fun unify(t1: *binding<type>, t2: *binding<type>) {
     println("attempting to unify " + to_string(t1->bound_to) + " and " + to_string(t2->bound_to))
     if (is_unknown(t1->bound_to)) {
