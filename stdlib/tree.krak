@@ -43,6 +43,12 @@ obj tree<T> (Object) {
         children.add(c)
         c->parent = this
     }
+    fun add_children(c: vec::vec<*tree<T>>) {
+        for (var i = 0; i < c.size; i++;) {
+            children.add(c[i])
+            c[i]->parent = this
+        }
+    }
     fun set_child(i: int, c: *tree<T>) {
         children[i] = c
         c->parent = this
@@ -50,6 +56,9 @@ obj tree<T> (Object) {
     fun replace_child(old_c: *tree<T>, new_c: *tree<T>) {
         children[children.find(old_c)] = new_c
         new_c->parent = this
+    }
+    fun remove_child(old_c: *tree<T>) {
+        children.remove(children.find(old_c))
     }
     fun clone(): *tree<T> {
         return mem::new<tree<T>>()->construct(data, children.map(fun(c: *tree<T>): *tree<T> return c->clone();))

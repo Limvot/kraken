@@ -6,6 +6,7 @@ import str:*
 import serialize:*
 import os:*
 import set:*
+import stack:*
 import vec:*
 import vec_literals:*
 import poset:*
@@ -356,7 +357,6 @@ fun main(argc: int, argv: **char): int {
                                                 } else {
                                                     t = get_type(bound_to)
                                                 }
-                                                /*var t = get_type(get_ast_binding(a))*/
                                                 binding_types[a] = t
                                                 return t
                                             } else {
@@ -992,6 +992,79 @@ fun main(argc: int, argv: **char): int {
         resolve(item)
     }
 
+    passes[str("defer_lower")] = fun(item: *tree<ast>) {
+        if !pass_poset.done(make_pair(item, str("depend_and_template_resolve"))) {
+            pass_poset.add_open_dep(make_pair(item, str("defer_lower")), make_pair(item, str("depend_and_template_resolve")))
+            return
+        }
+        var defer_triple_stack = stack<stack<stack<*tree<ast>>>>()
+        var loop_stack = stack(-1)
+        var traverse_for_defer: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+            match (t->data) {
+                ast::_defer() {
+                    if (is_block(t->parent)) {
+                        t->parent->remove_child(t)
+                        defer_triple_stack.top().top().push(t->children[0])
+                    } else {
+                        t->parent->replace_child(t, t->children[0])
+                    }
+                    traverse_for_defer(t->children[0])
+                    return;
+                }
+                ast::_function(name_type_ext) {
+                    defer_triple_stack.push(stack<stack<*tree<ast>>>())
+                    t->children.clone().for_each(traverse_for_defer)
+                    defer_triple_stack.pop()
+                    return;
+                }
+                ast::_block() {
+                    defer_triple_stack.top().push(stack<*tree<ast>>())
+                    t->children.clone().for_each(traverse_for_defer)
+                    t->children.add_all(defer_triple_stack.top().pop().reverse_vector())
+                    return;
+                }
+                ast::_for() {
+                    loop_stack.push(defer_triple_stack.top().size())
+                    t->children.clone().for_each(traverse_for_defer)
+                    loop_stack.pop()
+                    return;
+                }
+                ast::_while() {
+                    loop_stack.push(defer_triple_stack.top().size())
+                    t->children.clone().for_each(traverse_for_defer)
+                    loop_stack.pop()
+                    return;
+                }
+                ast::_return() {
+                    t->children.clone().for_each(traverse_for_defer)
+                    var our_idx = t->parent->children.find(t)
+                    for (var i = 0; i < defer_triple_stack.top().size(); i++;) {
+                        defer_triple_stack.top().from_top(i).reverse_vector().for_each(fun(c: *tree<ast>) {
+                            t->parent->children.add(our_idx, c)
+                        })
+                    }
+                    return;
+                }
+                ast::_break() {
+                    var block = _block()
+                    t->parent->replace_child(t, block)
+                    for (var i = 0; i < defer_triple_stack.top().size() - loop_stack.top(); i++;)
+                        block->add_children(defer_triple_stack.top().from_top(i).reverse_vector())
+                    block->add_child(t)
+                    return;
+                }
+                ast::_continue() {
+                    return;
+                }
+            }
+            t->children.clone().for_each(traverse_for_defer)
+        }
+        traverse_for_defer(item)
+
+        println("post defer_lower")
+        print_tree(item, 1)
+    }
+
     //  emit C
     var C_str = str()
     var C_type_forward_declaration_str = str()
@@ -1000,8 +1073,8 @@ fun main(argc: int, argv: **char): int {
     var C_declaration_str = str()
 
     passes[str("emit_C")] = fun(item: *tree<ast>) {
-        if !pass_poset.done(make_pair(item, str("depend_and_template_resolve"))) {
-            pass_poset.add_open_dep(make_pair(item, str("emit_C")), make_pair(item, str("depend_and_template_resolve")))
+        if !pass_poset.done(make_pair(item, str("defer_lower"))) {
+            pass_poset.add_open_dep(make_pair(item, str("emit_C")), make_pair(item, str("defer_lower")))
             return
         }
         println("Emitting C for:")
