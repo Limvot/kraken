@@ -47,11 +47,11 @@ fun to_string(a: ref ast): str {
     match(a) {
         ast::_translation_unit(b)   return str("_translation_unit(") + b + ")"
         ast::_import(b)             return str("_import(") + to_string(b.first->data) + ")[" + str(",").join(b.second.data) + "]"
-        ast::_identifier(b)         return str("_identifier(") + b.first + ": " + deref_to_string(b.second->bound_to) + ")"
-        ast::_binding(b)            return str("_binding(") + b.first + "[" + str(",").join(b.second.map(fun(x:*binding<type>): str { return deref_to_string(x->bound_to); })) + "]" + "->" + deref_to_string(b.third->bound_to, fun(t: *tree<ast>): str return to_string(t->data);) + ")"
+        ast::_identifier(b)         return str("_identifier(") + b.first + ": " + "pre_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::post_ref())) + ")"
+        ast::_binding(b)            return str("_binding(") + b.first + "[" + str(",").join(b.second.map(fun(x:*binding<type>): str { return "pre_ref:" + deref_to_string(x->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + deref_to_string(x->get_bound_to(binding_epoch::post_ref())); })) + "]" + "-> pre_ref:" + deref_to_string(b.third->get_bound_to(binding_epoch::pre_ref()), fun(t: *tree<ast>): str return to_string(t->data);) + " /post_ref:" + deref_to_string(b.third->get_bound_to(binding_epoch::post_ref()), fun(t: *tree<ast>): str return to_string(t->data);)+ ")"
         ast::_type_def(b)           return str("_type_def(") + b + ")"
         ast::_adt_def(b)            return str("_adt_def(") + b + ")"
-        ast::_function(b)           return str("_function(") + b.first + ": " + deref_to_string(b.second->bound_to) + ", ext?:" + to_string(b.third) + ")"
+        ast::_function(b)           return str("_function(") + b.first + ": " + "pre_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::post_ref())) + ", ext?:" + to_string(b.third) + ")"
         ast::_template(b)           return str("_template(") + b.first + "[" + str(",").join(b.second.keys) + "])"
         ast::_declaration()         return str("_declaration")
         ast::_block()               return str("_block")
@@ -65,9 +65,9 @@ fun to_string(a: ref ast): str {
         ast::_continue()            return str("_continue")
         ast::_defer()               return str("_defer")
         ast::_call(b)               return "_call(add_scope: " + to_string(b) + ")"
-        ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ": " + deref_to_string(b.second->bound_to) + ")"
+        ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ": " + "pre_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::post_ref())) + ")"
         ast::_cast(b)               return str("_cast")
-        ast::_value(b)              return str("_value(") + b.first + ": " + deref_to_string(b.second->bound_to) + ")"
+        ast::_value(b)              return str("_value(") + b.first + ": " + "pre_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::post_ref())) + ")"
     }
 }
 fun _translation_unit(p: str): *tree<ast> {
@@ -253,7 +253,7 @@ fun make_ast_binding(s: str, v: vec<*binding<type>>): *tree<ast> {
 fun clone_ast_binding(binding: *tree<ast>): *tree<ast> {
     match(binding->data) {
         ast::_binding(b) {
-            return _binding(b.first, b.second, binding(b.third->bound_to))
+            return _binding(b.first, b.second, b.third)
         }
     }
     error("trying to get binding on not a binding")
@@ -266,27 +266,27 @@ fun get_ast_binding_inst_types(binding: *tree<ast>): ref vec<*binding<type>> {
     }
     error("trying to get binding on not a binding")
 }
-fun get_ast_binding(binding: *tree<ast>): *tree<ast> {
+fun get_ast_binding(binding: *tree<ast>, epoch: binding_epoch): *tree<ast> {
     match(binding->data) {
         ast::_binding(b) {
-            return b.third->bound_to
+            return b.third->get_bound_to(epoch)
         }
     }
     error("trying to get binding on not a binding")
 }
-fun set_ast_binding(binding: *tree<ast>, to: *tree<ast>) {
+fun set_ast_binding(binding: *tree<ast>, to: *tree<ast>, epoch: binding_epoch) {
     match(binding->data) {
         ast::_binding(b) {
-            b.third->set(to)
+            b.third->set(to, epoch)
             return
         }
     }
     error("trying to set binding on not a binding")
 }
-fun set_single_ast_binding(binding: *tree<ast>, to: *tree<ast>) {
+fun set_single_ast_binding(binding: *tree<ast>, to: *tree<ast>, epoch: binding_epoch) {
     match(binding->data) {
         ast::_binding(b) {
-            b.third->set_single(to)
+            b.third->set_single(to, epoch)
             return
         }
     }

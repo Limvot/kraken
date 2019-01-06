@@ -97,16 +97,16 @@ fun main(argc: int, argv: **char): int {
     var multiple_binding_options = map<*tree<ast>, vec<*tree<ast>>>()
     var primitive_ops.construct(): map<str, vec<*tree<ast>>>
 
-    var number_tower = vec(binding_p(type::_char()),
-                           binding_p(type::_uchar()),
-                           binding_p(type::_short()),
-                           binding_p(type::_ushort()),
-                           binding_p(type::_int()),
-                           binding_p(type::_uint()),
-                           binding_p(type::_long()),
-                           binding_p(type::_ulong()),
-                           binding_p(type::_float()),
-                           binding_p(type::_double()))
+    var number_tower = vec(binding_p(type::_char(), binding_epoch::pre_ref()),
+                           binding_p(type::_uchar(), binding_epoch::pre_ref()),
+                           binding_p(type::_short(), binding_epoch::pre_ref()),
+                           binding_p(type::_ushort(), binding_epoch::pre_ref()),
+                           binding_p(type::_int(), binding_epoch::pre_ref()),
+                           binding_p(type::_uint(), binding_epoch::pre_ref()),
+                           binding_p(type::_long(), binding_epoch::pre_ref()),
+                           binding_p(type::_ulong(), binding_epoch::pre_ref()),
+                           binding_p(type::_float(), binding_epoch::pre_ref()),
+                           binding_p(type::_double(), binding_epoch::pre_ref()))
     var comparators = vec(str("=="), str("<="), str(">="), str("!="), str("<"), str(">"))
     for (var i = 0; i < comparators.size; i++;) {
         primitive_ops["op" + comparators[i]] = vec<*tree<ast>>()
@@ -116,8 +116,8 @@ fun main(argc: int, argv: **char): int {
                                     make_pair(ref_type::_notref(), number_tower[j]),
                                     make_pair(ref_type::_notref(), number_tower[k])
                                 ),
-                            make_pair(ref_type::_notref(), binding_p(type::_bool()))
-                        ), false, false))), vec<*binding<type>>()))
+                            make_pair(ref_type::_notref(), binding_p(type::_bool(), binding_epoch::pre_ref()))
+                        ), false, false)), binding_epoch::pre_ref()), vec<*binding<type>>()))
     }
     var math = vec(str("+"), str("-"), str("*"), str("/"), str("&"), str("|"),  str("^"))
     for (var i = 0; i < math.size; i++;) {
@@ -135,7 +135,7 @@ fun main(argc: int, argv: **char): int {
                                     make_pair(ref_type::_notref(), number_tower[k])
                                 ),
                             make_pair(ref_type::_notref(), return_type)
-                        ), false, false))), vec<*binding<type>>()))
+                        ), false, false)), binding_epoch::pre_ref()), vec<*binding<type>>()))
             }
         }
     }
@@ -150,50 +150,50 @@ fun main(argc: int, argv: **char): int {
                                     make_pair(ref_type::_notref(), number_tower[j]),
                                     make_pair(ref_type::_notref(), number_tower[k])
                                 ),
-                            make_pair(ref_type::_notref(), binding_p(type::_void()))
-                        ), false, false))), vec<*binding<type>>()))
+                            make_pair(ref_type::_notref(), binding_p(type::_void(), binding_epoch::pre_ref()))
+                        ), false, false)), binding_epoch::pre_ref()), vec<*binding<type>>()))
             }
         }
     }
     math.remove(math.size-1)
 
     // address of
-    var template_type = binding_p(type::_template_placeholder())
+    var template_type = binding_p(type::_template_placeholder(), binding_epoch::pre_ref())
     primitive_ops[str("op&")].add(_template(str("&"), map(str("T"), template_type), vec(_compiler_intrinsic(str("&"), binding_p(type::_fun(make_triple(make_pair(vec(
                                     make_pair(ref_type::_notref(), template_type)
                                 ),
-                            make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
-                        ), false, false))), vec<*binding<type>>()))))
+                            make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type), binding_epoch::pre_ref()))
+                        ), false, false)), binding_epoch::pre_ref()), vec<*binding<type>>()))))
     // dereference
-    var template_type = binding_p(type::_template_placeholder())
+    var template_type = binding_p(type::_template_placeholder(), binding_epoch::pre_ref())
     primitive_ops[str("op*")].add(_template(str("*"), map(str("T"), template_type), vec(_compiler_intrinsic(str("*"), binding_p(type::_fun(make_triple(make_pair(vec(
-                                    make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
+                                    make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type), binding_epoch::pre_ref()))
                                 ),
                             make_pair(ref_type::_notref(), template_type)
-                        ), false, false))), vec<*binding<type>>()))))
+                        ), false, false)), binding_epoch::pre_ref()), vec<*binding<type>>()))))
 
     for (var i = 0; i < number_tower.size - 2; i++;) {
-        var template_type = binding_p(type::_template_placeholder())
+        var template_type = binding_p(type::_template_placeholder(), binding_epoch::pre_ref())
         primitive_ops[str("op+")].add(_template(str("+"), map(str("T"), template_type), vec(_compiler_intrinsic(str("+"), binding_p(type::_fun(make_triple(make_pair(vec(
                                         make_pair(ref_type::_notref(), number_tower[i]),
-                                        make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
+                                        make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type), binding_epoch::pre_ref()))
                                     ),
-                                make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
-                            ), false, false))), vec<*binding<type>>()))))
+                                make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type), binding_epoch::pre_ref()))
+                            ), false, false)), binding_epoch::pre_ref()), vec<*binding<type>>()))))
         primitive_ops[str("op+")].add(_template(str("+"), map(str("T"), template_type), vec(_compiler_intrinsic(str("+"), binding_p(type::_fun(make_triple(make_pair(vec(
-                                        make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type))),
+                                        make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type), binding_epoch::pre_ref())),
                                         make_pair(ref_type::_notref(), number_tower[i])
                                     ),
-                                make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
-                            ), false, false))), vec<*binding<type>>()))))
+                                make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type), binding_epoch::pre_ref()))
+                            ), false, false)), binding_epoch::pre_ref()), vec<*binding<type>>()))))
 
         // note only ptr-1, not 1-ptr to match C...
         primitive_ops[str("op-")].add(_template(str("-"), map(str("T"), template_type), vec(_compiler_intrinsic(str("-"), binding_p(type::_fun(make_triple(make_pair(vec(
-                                        make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type))),
+                                        make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type), binding_epoch::pre_ref())),
                                         make_pair(ref_type::_notref(), number_tower[i])
                                     ),
-                                make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type)))
-                            ), false, false))), vec<*binding<type>>()))))
+                                make_pair(ref_type::_notref(), binding_p(type::_ptr(template_type), binding_epoch::pre_ref()))
+                            ), false, false)), binding_epoch::pre_ref()), vec<*binding<type>>()))))
     }
 
     var scope_lookup: fun(*tree<ast>, str, bool, *tree<ast>, str, str): OptionVecAst = fun(scope: *tree<ast>, name: str, is_type: bool, item: *tree<ast>, pass: str, pass_dep_on: str): OptionVecAst {
@@ -213,9 +213,9 @@ fun main(argc: int, argv: **char): int {
                             printlnerr("syntax_to_ast " + file_path + ":")
                             print_tree(name_ast_map[file_path], 1)
                         }
-                        set_ast_binding(b.first, name_ast_map[file_path])
+                        set_ast_binding(b.first, name_ast_map[file_path], binding_epoch::pre_ref())
                     }
-                    var other_top_level = get_ast_binding(b.first)
+                    var other_top_level = get_ast_binding(b.first, binding_epoch::pre_ref())
                     if item != null<tree<ast>>() {
                         if !pass_poset.done(make_pair(other_top_level, str("translation_unit_top_type_resolve"))) {
                             pass_poset.add_open_dep(make_pair(item, pass), make_pair(other_top_level, pass_dep_on))
@@ -276,12 +276,12 @@ fun main(argc: int, argv: **char): int {
                             var ident_name = ident->data._identifier.first
                             var ident_type = ident->data._identifier.second
                             var type_def_binding = make_ast_binding(name)
-                            set_ast_binding(type_def_binding, child)
+                            set_ast_binding(type_def_binding, child, binding_epoch::pre_ref())
                             item->add_child(_compiler_intrinsic(ident_name, binding_p(type::_fun(make_triple(make_pair(vec(
-                                        make_pair(ref_type::_notref(), binding_p(type::_obj(type_def_binding)))
+                                        make_pair(ref_type::_notref(), binding_p(type::_obj(type_def_binding), binding_epoch::pre_ref()))
                                     ),
                                 make_pair(ref_type::_notref(), ident_type)
-                            ), false, false))), vec<*binding<type>>()))
+                            ), false, false)), binding_epoch::pre_ref()), vec<*binding<type>>()))
                             println("adding compiler intrinsic to do " + name + "." + ident_name)
                         }
                     }
@@ -297,19 +297,19 @@ fun main(argc: int, argv: **char): int {
                                 var ident_name = ident->data._identifier.first
 
                                 // the map retains the order
-                                var new_template_type_map = name_map_pair.second.associate(fun(n: str, t: *binding<type>): pair<str, *binding<type>> return make_pair(n, binding_p(type::_template_placeholder()));)
+                                var new_template_type_map = name_map_pair.second.associate(fun(n: str, t: *binding<type>): pair<str, *binding<type>> return make_pair(n, binding_p(type::_template_placeholder(), binding_epoch::pre_ref()));)
                                 var new_ident_type = inst_temp_type(ident->data._identifier.second, name_map_pair.second.associate(fun(n: str, t: *binding<type>): pair<*binding<type>, *binding<type>>
-                                                                                    return make_pair(t, new_template_type_map[n]);))
+                                                                                    return make_pair(t, new_template_type_map[n]);), binding_epoch::pre_ref())
 
                                 var type_def_binding = make_ast_binding(name, new_template_type_map.values)
                                 // do we need to set the binding to the template?
                                 /*set_ast_binding(type_def_binding, child)*/
 
                                 item->add_child(_template(ident_name, new_template_type_map, vec(_compiler_intrinsic(ident_name, binding_p(type::_fun(make_triple(make_pair(vec(
-                                            make_pair(ref_type::_notref(), binding_p(type::_obj(type_def_binding)))
+                                            make_pair(ref_type::_notref(), binding_p(type::_obj(type_def_binding), binding_epoch::pre_ref()))
                                         ),
                                     make_pair(ref_type::_notref(), new_ident_type)
-                                ), false, false))), vec<*binding<type>>()))))
+                                ), false, false)), binding_epoch::pre_ref()), vec<*binding<type>>()))))
                                 println("adding compiler intrinsic to do " + name + "." + ident_name)
                             }
                         }
@@ -323,44 +323,44 @@ fun main(argc: int, argv: **char): int {
     }
 
     var binding_types = map<*tree<ast>, *binding<type>>()
-    var get_type: fun(*tree<ast>): *binding<type> = fun(a: *tree<ast>): *binding<type> {
+    var get_type: fun(*tree<ast>, binding_epoch): *binding<type> = fun(a: *tree<ast>, epoch: binding_epoch): *binding<type> {
         var get_template_type: fun(*tree<ast>, vec<*binding<type>>): *binding<type> = fun(a: *tree<ast>, inst_with: vec<*binding<type>>): *binding<type> {
             var i = 0
-            return inst_temp_type(get_type(a->children[0]), a->data._template.second.associate(fun(k: str, v: *binding<type>): pair<*binding<type>, *binding<type>> {
+            return inst_temp_type(get_type(a->children[0], binding_epoch::pre_ref()), a->data._template.second.associate(fun(k: str, v: *binding<type>): pair<*binding<type>, *binding<type>> {
                 if (i < inst_with.size)
                     return make_pair(v, inst_with[i])
                 else
-                    return make_pair(v, binding_p(type::_unknown()))
-            }))
+                    return make_pair(v, binding_p(type::_unknown(), epoch))
+            }), binding_epoch::pre_ref())
         }
         match(a->data) {
             ast::_identifier(b)         return b.second
             ast::_binding(b)            if (binding_types.contains_key(a)) {
-                                            if ast_bound(a) && has_unknown(binding_types[a]) {
+                                            if ast_bound(a) && has_unknown(binding_types[a], epoch) {
                                                 var t = null<binding<type>>()
-                                                var bound_to = get_ast_binding(a)
+                                                var bound_to = get_ast_binding(a, epoch)
                                                 if (is_template(bound_to)) {
                                                     t = get_template_type(bound_to, b.second)
-                                                    unify(binding_types[a], t)
+                                                    unify(binding_types[a], t, epoch)
                                                 } else {
-                                                    t = get_type(bound_to)
-                                                    unify(binding_types[a], t)
+                                                    t = get_type(bound_to, epoch)
+                                                    unify(binding_types[a], t, epoch)
                                                 }
                                             }
                                             return binding_types[a]
                                         } else {
                                             if (ast_bound(a)) {
                                                 var t = null<binding<type>>()
-                                                var bound_to = get_ast_binding(a)
+                                                var bound_to = get_ast_binding(a, epoch)
                                                 if (is_template(bound_to)) {
                                                     t = get_template_type(bound_to, b.second)
                                                 } else {
-                                                    t = get_type(bound_to)
+                                                    t = get_type(bound_to, epoch)
                                                 }
                                                 binding_types[a] = t
                                                 return t
                                             } else {
-                                                var new_type = binding_p(type::_unknown())
+                                                var new_type = binding_p(type::_unknown(), epoch)
                                                 binding_types[a] = new_type
                                                 return new_type
                                             }
@@ -369,18 +369,18 @@ fun main(argc: int, argv: **char): int {
             ast::_template(b)           return get_template_type(a, vec<*binding<type>>())
             ast::_compiler_intrinsic(b) return b.second
             ast::_call(add_scope) {
-                var t = get_type(a->children[0])
-                if (is_fun(t->bound_to))
-                    return t->bound_to->_fun.first.second.second
-                if (is_unknown(t->bound_to)) {
-                    var return_type = make_pair(ref_type::_unknown(), binding_p(type::_unknown()))
+                var t = get_type(a->children[0], epoch)
+                if (is_fun(t->get_bound_to(epoch)))
+                    return t->get_bound_to(epoch)->_fun.first.second.second
+                if (is_unknown(t->get_bound_to(epoch))) {
+                    var return_type = make_pair(ref_type::_unknown(), binding_p(type::_unknown(), epoch))
                     var parameter_types = vec<pair<ref_type, *binding<type>>>()
                     for (var i = 1; i < a->children.size; i++;)
-                        parameter_types.add(make_pair(ref_type::_unknown(), get_type(a->children[i])))
-                    t->set(type::_fun(make_triple(make_pair(parameter_types, return_type), false, false)))
+                        parameter_types.add(make_pair(ref_type::_unknown(), get_type(a->children[i], epoch)))
+                    t->set(type::_fun(make_triple(make_pair(parameter_types, return_type), false, false)), epoch)
                     return return_type.second
                 }
-                error("Trying to get type of call where type of first child is not function, but " + to_string(t->bound_to))
+                error("Trying to get type of call where type of first child is not function, but " + to_string(t->get_bound_to(epoch)))
             }
             ast::_cast(b)               return b
             ast::_value(b)              return b.second
@@ -408,14 +408,14 @@ fun main(argc: int, argv: **char): int {
                             error("couldn't find any possibilities for " + ast_binding_str(binding))
                         }
                         println(ast_binding_str(binding) + " resolving at top level to " + to_string(options[0]->data))
-                        set_ast_binding(binding, options[0])
+                        set_ast_binding(binding, options[0], binding_epoch::pre_ref())
                     }
                 }
             }
             return true;
         }
         var quick_bind_type: fun(*binding<type>, *tree<ast>): bool = fun(t: *binding<type>, n: *tree<ast>): bool {
-            match(*t->bound_to) {
+            match(*t->get_bound_to(binding_epoch::pre_ref())) {
                 type::_obj(b) return quick_bind(b, n, null<tree<ast>>(), true)
                 type::_ptr(p) return quick_bind_type(p, n)
                 type::_fun(b) {
@@ -432,17 +432,17 @@ fun main(argc: int, argv: **char): int {
             match (child->data) {
                 ast::_template(name_map_pair) {
                     if is_function(child->children[0]) {
-                        quick_bind_type(get_type(child->children[0]), item)
+                        quick_bind_type(get_type(child->children[0], binding_epoch::pre_ref()), item)
                     }
                 }
                 ast::_declaration() {
-                    quick_bind_type(get_type(child->children[0]), item)
+                    quick_bind_type(get_type(child->children[0], binding_epoch::pre_ref()), item)
                 }
                 ast::_function(name_type_ext) {
-                    quick_bind_type(get_type(child), item)
+                    quick_bind_type(get_type(child, binding_epoch::pre_ref()), item)
                 }
                 ast::_compiler_intrinsic(name_type_ext) {
-                    quick_bind_type(get_type(child), item)
+                    quick_bind_type(get_type(child, binding_epoch::pre_ref()), item)
                 }
             }
         }
@@ -486,7 +486,7 @@ fun main(argc: int, argv: **char): int {
                     error("Could not find any options for scope lookup of " + ast_binding_str(binding))
                 } else if (all_options.size == 1) {
                     println(ast_binding_str(binding) + " resolved to a single!")
-                    set_ast_binding(binding, all_options[0])
+                    set_ast_binding(binding, all_options[0], binding_epoch::pre_ref())
                 } else {
                     println(ast_binding_str(binding) + " found to have " + all_options.size + " options!")
                     for (var i = 0; i < all_options.size; i++;)
@@ -497,7 +497,7 @@ fun main(argc: int, argv: **char): int {
             return true;
         }
         var handle_type_binding_possibilities: fun(*binding<type>, *tree<ast>): bool = fun(t: *binding<type>, n: *tree<ast>): bool {
-            match(*t->bound_to) {
+            match(*t->get_bound_to(binding_epoch::pre_ref())) {
                 type::_obj(b) return try_to_find_binding_possibilities(b, n, null<tree<ast>>(), true)
                 type::_ptr(p) return handle_type_binding_possibilities(p, n)
                 type::_fun(b) {
@@ -514,15 +514,15 @@ fun main(argc: int, argv: **char): int {
             t->children.for_each(traverse_for_unify)
             match (t->data) {
                 // even if we have nothing to unify it with, we call get_type on all bindings so that it gets put in the binding map
-                ast::_binding(b) get_type(t)
+                ast::_binding(b) get_type(t, binding_epoch::pre_ref())
                 ast::_declaration() if (t->children.size > 1)
-                                        unify(get_type(t->children[0]), get_type(t->children[1]))
+                                        unify(get_type(t->children[0], binding_epoch::pre_ref()), get_type(t->children[1], binding_epoch::pre_ref()), binding_epoch::pre_ref())
                 ast::_call(add_scope) {
                     println("traverse_for_unify call - " + to_string(t->data))
                     // we call get type to make sure if it is unknown it is transformed into a function version
-                    get_type(t)
+                    get_type(t, binding_epoch::pre_ref())
                     println("\tpast first get_type")
-                    var fun_type = get_type(t->children[0])->bound_to
+                    var fun_type = get_type(t->children[0], binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref())
                     println("\tpast second get_type")
                     if (!is_fun(fun_type))
                         error("trying to call not a function type: " + to_string(fun_type))
@@ -530,10 +530,10 @@ fun main(argc: int, argv: **char): int {
                         error("trying to call function with type wrong number of params (" + to_string(fun_type->_fun.first.first.size) + " vs " + to_string(t->children.size - 1) + "): " + to_string(fun_type))
                     println("\titerating through children, matching their type with the param type")
                     for (var i = 1; i < t->children.size; i++;)
-                        unify(fun_type->_fun.first.first[i-1].second, get_type(t->children[i]))
+                        unify(fun_type->_fun.first.first[i-1].second, get_type(t->children[i], binding_epoch::pre_ref()), binding_epoch::pre_ref())
                 }
                 ast::_return() if (t->children.size > 0)
-                                   unify(get_type(get_ancestor_satisfying(t, fun(t: *tree<ast>): bool return is_function(t);))->bound_to->_fun.first.second.second, get_type(t->children[0]))
+                                   unify(get_type(get_ancestor_satisfying(t, fun(t: *tree<ast>): bool return is_function(t);), binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref())->_fun.first.second.second, get_type(t->children[0], binding_epoch::pre_ref()), binding_epoch::pre_ref())
             }
         }
         traverse_for_unify(item)
@@ -564,13 +564,13 @@ fun main(argc: int, argv: **char): int {
                     ast::_cast(b)               if (!handle_type_binding_possibilities(b, t))
                                                     return false;
                     ast::_call(add_scope) {
-                        println("call of " + to_string(t->children[0]) + ", that is " + to_string(t->children[0]->data) + " has type " + to_string(get_type(t)->bound_to) + ", and the function has type " + to_string(get_type(t->children[0])->bound_to))
+                        println("call of " + to_string(t->children[0]) + ", that is " + to_string(t->children[0]->data) + " has type " + to_string(get_type(t, binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref())) + ", and the function has type " + to_string(get_type(t->children[0], binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref())))
                         /*get_type(t)*/
                         if add_scope && is_binding(t->children[0]) && !ast_bound(t->children[0]) && !multiple_binding_options.contains_key(t->children[0]) {
-                            var first_param_type = get_type(t->children[1])
-                            if !is_unknown(first_param_type->bound_to) && (!is_obj(first_param_type->bound_to) || ast_bound(first_param_type->bound_to->_obj)) {
-                                if is_obj(first_param_type->bound_to) {
-                                    if (!try_to_find_binding_possibilities(t->children[0], t->children[0], get_ast_binding(first_param_type->bound_to->_obj)->parent, false))
+                            var first_param_type = get_type(t->children[1], binding_epoch::pre_ref())
+                            if !is_unknown(first_param_type->get_bound_to(binding_epoch::pre_ref())) && (!is_obj(first_param_type->get_bound_to(binding_epoch::pre_ref())) || ast_bound(first_param_type->get_bound_to(binding_epoch::pre_ref())->_obj)) {
+                                if is_obj(first_param_type->get_bound_to(binding_epoch::pre_ref())) {
+                                    if (!try_to_find_binding_possibilities(t->children[0], t->children[0], get_ast_binding(first_param_type->get_bound_to(binding_epoch::pre_ref())->_obj, binding_epoch::pre_ref())->parent, false))
                                         return false;
                                 } else {
                                     if (!try_to_find_binding_possibilities(t->children[0], t->children[0], null<tree<ast>>(), false))
@@ -579,7 +579,7 @@ fun main(argc: int, argv: **char): int {
                                 work_done = true
                                 println("wok done! generic add posibilities (or down to one) for " + to_string(t->children[0]->data))
                                 if ast_bound(t->children[0]) {
-                                    unify(binding_types[t->children[0]], get_type(get_ast_binding(t->children[0])))
+                                    unify(binding_types[t->children[0]], get_type(get_ast_binding(t->children[0], binding_epoch::pre_ref()), binding_epoch::pre_ref()), binding_epoch::pre_ref())
                                 }
                             } else {
                                 children_start_index = 1
@@ -595,31 +595,32 @@ fun main(argc: int, argv: **char): int {
                                 return false
                         }
                         if ast_bound(t) {
-                            unify(binding_types[t], get_type(get_ast_binding(t)))
+                            unify(binding_types[t], get_type(get_ast_binding(t, binding_epoch::pre_ref()), binding_epoch::pre_ref()), binding_epoch::pre_ref())
                             work_done = true
                             println("wok done! set " + to_string(t->data))
                         } else {
                             // isn't function, by shadowing we just take the first
-                            if !is_fun(binding_types[t]->bound_to) {
+                            if !is_fun(binding_types[t]->get_bound_to(binding_epoch::pre_ref())) {
                                 if (!multiple_binding_options[t].size > 0)
                                     error("No possible options for " + to_string(t->data))
                                 var it = multiple_binding_options[t][0]
-                                set_ast_binding(t, it)
-                                unify(binding_types[t], get_type(it))
+                                set_ast_binding(t, it, binding_epoch::pre_ref())
+                                unify(binding_types[t], get_type(it, binding_epoch::pre_ref()), binding_epoch::pre_ref())
                                 work_done = true
                             } else {
                                 // function type, so we have to get interesting
-                                var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return equality(binding_types[t]->bound_to, get_type(p)->bound_to, true);)
+                                var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return equality(binding_types[t]->get_bound_to(binding_epoch::pre_ref()),
+                                                                                                                                   get_type(p, binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref()), true, binding_epoch::pre_ref());)
                                 if (filtered_options.size == 0) {
-                                    println("Attempting to use our inferenced type " + to_string(binding_types[t]->bound_to) + " to decide what to bind " + to_string(t->data) + " to from options:")
-                                    multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p)->bound_to)); })
+                                    println("Attempting to use our inferenced type " + to_string(binding_types[t]->get_bound_to(binding_epoch::pre_ref())) + " to decide what to bind " + to_string(t->data) + " to from options:")
+                                    multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p, binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref()))); })
                                     error("no options remain after filtering overloads by type for " + to_string(t->data))
                                 } else if (filtered_options.size > 1) {
-                                    println("inferenced type " + to_string(binding_types[t]->bound_to) + " HAD MULTIPLE OPTIONS AFTER FILTER for "  + to_string(t) + ", that is "+ to_string(t->data))
+                                    println("inferenced type " + to_string(binding_types[t]->get_bound_to(binding_epoch::pre_ref())) + " HAD MULTIPLE OPTIONS AFTER FILTER for "  + to_string(t) + ", that is "+ to_string(t->data))
                                     more_to_do = true
                                 } else {
-                                    set_ast_binding(t, filtered_options[0])
-                                    unify(binding_types[t], get_type(filtered_options[0]))
+                                    set_ast_binding(t, filtered_options[0], binding_epoch::pre_ref())
+                                    unify(binding_types[t], get_type(filtered_options[0], binding_epoch::pre_ref()), binding_epoch::pre_ref())
                                     work_done = true
                                     println("wok done! set " + to_string(t->data))
                                 }
@@ -644,14 +645,14 @@ fun main(argc: int, argv: **char): int {
                     match (t->data) {
                         ast::_binding(b) if (!ast_bound(t)) {
                             println("Trying to error out because we made no progress")
-                            var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return equality(binding_types[t]->bound_to, get_type(p)->bound_to, true);)
+                            var filtered_options = multiple_binding_options[t].filter(fun(p: *tree<ast>): bool return equality(binding_types[t]->get_bound_to(binding_epoch::pre_ref()), get_type(p, binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref()), true, binding_epoch::pre_ref());)
                             if (filtered_options.size > 1) {
-                                println("Attempting to use our inferenced type " + to_string(binding_types[t]->bound_to) + " to decide what to bind " + to_string(t->data) + " to form options:")
-                                multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p)->bound_to)); })
+                                println("Attempting to use our inferenced type " + to_string(binding_types[t]->get_bound_to(binding_epoch::pre_ref())) + " to decide what to bind " + to_string(t->data) + " to form options:")
+                                multiple_binding_options[t].for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p, binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref()))); })
                                 println("current state of this:")
                                 print_tree(item, 1)
                                 println("too many options remain after filtering overloads by type for " + to_string(t->data) + ", they were:")
-                                filtered_options.for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p)->bound_to)); })
+                                filtered_options.for_each(fun(p: *tree<ast>) { println("\t" + to_string(p->data) + " of type " + to_string(get_type(p, binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref()))); })
                                 error("cannot resolve")
                             }
                         }
@@ -665,6 +666,295 @@ fun main(argc: int, argv: **char): int {
         print_tree(item, 1)
     }
 
+
+
+    passes[str("ref_lower")] = fun(item: *tree<ast>) {
+        println("Running ref_lower")
+        if !pass_poset.done(make_pair(item, str("name_type_resolve"))) {
+            pass_poset.add_open_dep(make_pair(item, str("ref_lower")), make_pair(item, str("name_type_resolve")))
+            return
+        }
+        var parameter_update_map = map<*tree<ast>, *tree<ast>>()
+        var traverse_for_ref: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+            match (t->data) {
+                ast::_function(name_type_ext) {
+                    var fun_type = get_type(t, binding_epoch::pre_ref())
+                    for (var i = 0; i < fun_type->get_bound_to(binding_epoch::pre_ref())->_fun.first.first.size; i++;) {
+                        if fun_type->get_bound_to(binding_epoch::pre_ref())->_fun.first.first[i].first == ref_type::_ref() {
+                            var old_param = t->children[i]
+                            println("function definition has refs - " + old_param->data._identifier.first)
+                            var new_param = _identifier(old_param->data._identifier.first, binding_p(type::_ptr(old_param->data._identifier.second), binding_epoch::pre_ref()))
+                            parameter_update_map[old_param] = new_param
+                            t->set_child(i, new_param)
+                        }
+                    }
+                }
+                ast::_call(add_scope) {
+                    println("traverse_for_ref call - " + to_string(t->data))
+                    // we call get type to make sure if it is unknown it is transformed into a function version
+                    var fun_type = get_type(t->children[0], binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref())
+                    println("\t checking " + to_string(t->children[0]->data) + " for reffed params: " + to_string(fun_type))
+                    for (var i = 1; i < t->children.size; i++;) {
+                        if fun_type->_fun.first.first[i-1].first == ref_type::_ref() {
+                            println(str("\t\tparam ") + i + " is reffed")
+                            var addr_of_binding = make_ast_binding("op&")
+                            set_single_ast_binding(addr_of_binding, primitive_ops[str("op&")].last(), binding_epoch::pre_ref())
+                            unify(get_type(addr_of_binding, binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref())->_fun.first.first[0].second, get_type(t->children[i], binding_epoch::pre_ref()), binding_epoch::pre_ref())
+                            t->set_child(i, _call(false, vec(addr_of_binding, t->children[i])))
+                        }
+                    }
+                    if fun_type->_fun.first.second.first == ref_type::_ref() {
+                        println("call's return is reffed!")
+                        var addr_of_binding = make_ast_binding("op*")
+                        set_single_ast_binding(addr_of_binding, primitive_ops[str("op*")].last(), binding_epoch::pre_ref())
+                        unify(get_type(addr_of_binding, binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref())->_fun.first.first[0].second, binding_p(type::_ptr(fun_type->_fun.first.second.second), binding_epoch::pre_ref()), binding_epoch::pre_ref())
+                        // BUG IN kraken compiler, or weird part of kraken itself - evaluation order isn't guarenteed, so evaling a param could change lhs
+                        /*t->parent->replace_child(t, _call(false, vec(addr_of_binding, t)))*/
+                        var parent = t->parent
+                        parent->replace_child(t, _call(false, vec(addr_of_binding, t)))
+                    }
+                }
+                ast::_binding(b) {
+                    var bound_to = get_ast_binding(t, binding_epoch::pre_ref())
+                    if parameter_update_map.contains_key(bound_to) {
+                        println("param binding is reffed")
+                        var new_param = parameter_update_map[bound_to]
+                        var addr_of_binding = make_ast_binding("op*")
+                        set_single_ast_binding(addr_of_binding, primitive_ops[str("op*")].last(), binding_epoch::pre_ref())
+                        unify(get_type(addr_of_binding, binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref())->_fun.first.first[0].second, get_type(new_param, binding_epoch::pre_ref()), binding_epoch::pre_ref())
+                        t->parent->replace_child(t, _call(false, vec(addr_of_binding, new_param)))
+                    }
+                }
+                ast::_return() {
+                    if (t->children.size > 0) {
+                        var ret_is_ref = get_type(get_ancestor_satisfying(t, fun(t: *tree<ast>): bool return is_function(t);), binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref())->_fun.first.second.first == ref_type::_ref()
+                        if ret_is_ref {
+                            println("return is reffed")
+                            var addr_of_binding = make_ast_binding("op&")
+                            set_single_ast_binding(addr_of_binding, primitive_ops[str("op&")].last(), binding_epoch::pre_ref())
+                            unify(get_type(addr_of_binding, binding_epoch::pre_ref())->get_bound_to(binding_epoch::pre_ref())->_fun.first.first[0].second, get_type(t->children[0], binding_epoch::pre_ref()), binding_epoch::pre_ref())
+                            t->set_child(0, _call(false, vec(addr_of_binding, t->children[0])))
+                        }
+                    }
+                }
+            }
+            t->children.for_each(traverse_for_ref)
+        }
+        traverse_for_ref(item)
+
+        println("post ref_lower")
+        print_tree(item, 1)
+    }
+
+    // has to be set<pair> instead of map<> as we need to use type's "equality"
+    // function instead of type's adt's operator==
+    var instantiated_map = map<*tree<ast>, set<pair<*binding<type>, *tree<ast>>>>()
+    passes[str("depend_and_template_resolve")] = fun(item: *tree<ast>) {
+        if !pass_poset.done(make_pair(item, str("ref_lower"))) {
+            pass_poset.add_open_dep(make_pair(item, str("depend_and_template_resolve")), make_pair(item, str("ref_lower")))
+            return
+        }
+
+        println("what we've got at template resolve time")
+        print_tree(item, 1)
+
+        var resolve: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+            var resolve_type: fun(*binding<type>): void = fun(t: *binding<type>) {
+                match (*t->get_bound_to(binding_epoch::pre_ref())) {
+                    type::_unknown() error("unknown in resolve_type")
+                    type::_template_placeholder() error("template_placeholder in resolve_type")
+                    type::_ptr(p) resolve_type(p)
+                    type::_obj(o) {
+                        resolve(o)
+                        pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(get_ast_binding(o, binding_epoch::pre_ref()), str("emit_C")))
+                    }
+                    type::_fun(t) {
+                        t.first.first.for_each(fun(p: pair<ref_type, *binding<type>>): void { resolve_type(p.second); })
+                        resolve_type(t.first.second.second)
+                    }
+                }
+            }
+            match (t->data) {
+                ast::_binding(b) {
+                    var bound_to = get_ast_binding(t, binding_epoch::pre_ref())
+                    if (is_top_level_item(bound_to)) {
+                        if (is_template(bound_to)) {
+                            if (!instantiated_map.contains_key(bound_to)) {
+                                instantiated_map[bound_to] = set<pair<*binding<type>, *tree<ast>>>()
+                            }
+
+                            // grab inst types out of binding, or regen again from unify? Cache from first unify?
+                            var inst_map = map<*binding<type>, *binding<type>>()
+                            if (b.second.size > 0) {
+                                for (var i = 0; i < b.second.size; i++;) {
+                                    inst_map[bound_to->data._template.second.values[i]] = b.second[i]
+                                }
+                            } else {
+                                // regenning from unify
+                                inst_map = bound_to->data._template.second.associate(fun(k: str, v: *binding<type>): pair<*binding<type>, *binding<type>>
+                                                                                            return make_pair(v, binding_p(type::_unknown(), binding_epoch::pre_ref()));)
+                            }
+
+                            // but not in the case where this is a templated type instead of a function - that doesn't make any sense
+                            var binding_type = null<binding<type>>()
+                            if is_function(bound_to->children[0]) || is_compiler_intrinsic(bound_to->children[0]) {
+                                // unify in both cases - we need it in the explicit case to make sure our explicit types propegate back
+                                binding_type = get_type(t, binding_epoch::pre_ref())
+                                unify(binding_type, inst_temp_type(get_type(bound_to->children[0], binding_epoch::pre_ref()), inst_map, binding_epoch::pre_ref()), binding_epoch::pre_ref())
+                            } else {
+                                binding_type = binding_p(type::_obj(t), binding_epoch::pre_ref())
+                            }
+
+                            // shouldn't cache by binding, but by all insted
+                            println("checking for prior instantiations of " + to_string(bound_to->data))
+                            var already_inst = instantiated_map[bound_to].filter(fun(p: pair<*binding<type>, *tree<ast>>): bool return equality(binding_type->get_bound_to(binding_epoch::pre_ref()), p.first->get_bound_to(binding_epoch::pre_ref()), false, binding_epoch::pre_ref());)
+                            if (already_inst.size() > 1) {
+                                error("already inst > 1, should be impossible")
+                            } else if (already_inst.size() == 1) {
+                                println("alreay instantiated template, using (made from):")
+                                print_tree(bound_to->children[0], 1)
+                                println("cached to:")
+                                print_tree(already_inst.single().second, 1)
+                                pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(already_inst.single().second, str("emit_C")))
+                                set_single_ast_binding(t, already_inst.single().second, binding_epoch::pre_ref())
+                            } else {
+                                println("Copying tree to instantiate template!" + to_string(bound_to->data))
+                                println("using inst map:")
+                                inst_map.for_each(fun(k: *binding<type>, v: *binding<type>) {
+                                    println("\t" + to_string(k->get_bound_to(binding_epoch::pre_ref())) + " -> " + to_string(v->get_bound_to(binding_epoch::pre_ref())))
+                                })
+                                var inst_copy = bound_to->children[0]->clone(fun(a: ref ast): ast {
+                                    match (a) {
+                                        ast::_identifier(b)         return ast::_identifier(make_pair(b.first, inst_temp_type(b.second, inst_map, binding_epoch::pre_ref())))
+                                        ast::_binding(b)            return ast::_binding(make_triple(b.first,
+                                                                                                     b.second.map(fun(bd: *binding<type>): *binding<type> return inst_temp_type(bd, inst_map, binding_epoch::pre_ref());),
+                                                                                                     binding<tree<ast>>()))
+                                        ast::_function(b)           return ast::_function(make_triple(b.first, inst_temp_type(b.second, inst_map, binding_epoch::pre_ref()), b.third))
+                                        ast::_compiler_intrinsic(b) return ast::_compiler_intrinsic(make_triple(
+                                                                                                            b.first,
+                                                                                                            inst_temp_type(b.second, inst_map, binding_epoch::pre_ref()),
+                                                                                                            b.third.map(fun(bd: *binding<type>): *binding<type> return inst_temp_type(bd, inst_map, binding_epoch::pre_ref());)))
+                                        ast::_cast(b)               return ast::ast::_cast(inst_temp_type(b, inst_map, binding_epoch::pre_ref()))
+                                        ast::_value(b)              return ast::_value(make_pair(b.first, inst_temp_type(b.second, inst_map, binding_epoch::pre_ref())))
+                                        /*_template: pair<str, map<str, *binding<type>>>,*/
+                                    }
+                                    return a
+                                })
+                                // add inst copy as a child of template?
+                                bound_to->add_child(inst_copy)
+
+                                println("inst from:")
+                                print_tree(bound_to->children[0], 1)
+                                println("inst to:")
+                                print_tree(inst_copy, 1)
+
+                                // save it in our insted map so we don't instantate more than once per types
+                                if is_function(bound_to->children[0]) || is_compiler_intrinsic(bound_to->children[0]) {
+                                    var binding_type2 = get_type(clone_ast_binding(t), binding_epoch::pre_ref())
+                                    unify(binding_type2, inst_temp_type(get_type(bound_to->children[0], binding_epoch::pre_ref()), inst_map, binding_epoch::pre_ref()), binding_epoch::pre_ref())
+                                    instantiated_map[bound_to].add(make_pair(binding_type2, inst_copy))
+                                } else {
+                                    instantiated_map[bound_to].add(make_pair(binding_p(type::_obj(clone_ast_binding(t)), binding_epoch::pre_ref()), inst_copy))
+                                }
+                                pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(inst_copy, str("emit_C")))
+                                set_single_ast_binding(t, inst_copy, binding_epoch::pre_ref())
+                            }
+                        } else {
+                            pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to, str("emit_C")))
+                        }
+                    // top level var dec
+                    } else if (is_identifier(bound_to) && is_declaration(bound_to->parent) && is_top_level_item(bound_to->parent)) {
+                        pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to->parent, str("emit_C")))
+                    }
+                    // bound_to might have changed from binding
+                }
+                ast::_identifier(p) resolve_type(get_type(t, binding_epoch::pre_ref()))
+                ast::_function(p) resolve_type(get_type(t, binding_epoch::pre_ref()))
+                ast::_compiler_intrinsic(p) {
+                    resolve_type(p.second)
+                    p.third.for_each(resolve_type)
+                }
+                ast::_cast(p) resolve_type(p)
+            }
+
+
+            t->children.for_each(resolve)
+        }
+        resolve(item)
+    }
+
+    passes[str("defer_lower")] = fun(item: *tree<ast>) {
+        if !pass_poset.done(make_pair(item, str("depend_and_template_resolve"))) {
+            pass_poset.add_open_dep(make_pair(item, str("defer_lower")), make_pair(item, str("depend_and_template_resolve")))
+            return
+        }
+        var defer_triple_stack = stack<stack<stack<*tree<ast>>>>()
+        var loop_stack = stack(-1)
+        var traverse_for_defer: fun(*tree<ast>): void = fun(t: *tree<ast>) {
+            match (t->data) {
+                ast::_defer() {
+                    if (is_block(t->parent)) {
+                        t->parent->remove_child(t)
+                        defer_triple_stack.top().top().push(t->children[0])
+                    } else {
+                        t->parent->replace_child(t, t->children[0])
+                    }
+                    traverse_for_defer(t->children[0])
+                    return;
+                }
+                ast::_function(name_type_ext) {
+                    defer_triple_stack.push(stack<stack<*tree<ast>>>())
+                    t->children.clone().for_each(traverse_for_defer)
+                    defer_triple_stack.pop()
+                    return;
+                }
+                ast::_block() {
+                    defer_triple_stack.top().push(stack<*tree<ast>>())
+                    t->children.clone().for_each(traverse_for_defer)
+                    t->children.add_all(defer_triple_stack.top().pop().reverse_vector())
+                    return;
+                }
+                ast::_for() {
+                    loop_stack.push(defer_triple_stack.top().size())
+                    t->children.clone().for_each(traverse_for_defer)
+                    loop_stack.pop()
+                    return;
+                }
+                ast::_while() {
+                    loop_stack.push(defer_triple_stack.top().size())
+                    t->children.clone().for_each(traverse_for_defer)
+                    loop_stack.pop()
+                    return;
+                }
+                ast::_return() {
+                    t->children.clone().for_each(traverse_for_defer)
+                    var our_idx = t->parent->children.find(t)
+                    for (var i = 0; i < defer_triple_stack.top().size(); i++;) {
+                        defer_triple_stack.top().from_top(i).reverse_vector().for_each(fun(c: *tree<ast>) {
+                            t->parent->children.add(our_idx, c)
+                        })
+                    }
+                    return;
+                }
+                ast::_break() {
+                    var block = _block()
+                    t->parent->replace_child(t, block)
+                    for (var i = 0; i < defer_triple_stack.top().size() - loop_stack.top(); i++;)
+                        block->add_children(defer_triple_stack.top().from_top(i).reverse_vector())
+                    block->add_child(t)
+                    return;
+                }
+                ast::_continue() {
+                    return;
+                }
+            }
+            t->children.clone().for_each(traverse_for_defer)
+        }
+        traverse_for_defer(item)
+
+        println("post defer_lower")
+        print_tree(item, 1)
+    }
 
     var taken_names = map<*tree<ast>, str>()
     var id = 0
@@ -754,12 +1044,12 @@ fun main(argc: int, argv: **char): int {
     }
 
     var to_c_type: fun(*binding<type>): str = fun(tb: *binding<type>): str {
-        match(*tb->bound_to) {
+        match(*tb->get_bound_to(binding_epoch::post_ref())) {
             type::_unknown()              error("unknown in to_c_type")
             /*type::_unknown()              return str("unknown")*/
             type::_ptr(p)                 return to_c_type(p) + "*"
             type::_void()                 return str("void")
-            type::_obj(b)                 return get_c_name(get_ast_binding(b))
+            type::_obj(b)                 return get_c_name(get_ast_binding(b, binding_epoch::post_ref()))
             type::_fun(b)                 error("fun in to_c_type unimplemented")
             type::_template_placeholder() error("template_placeholder in to_c_type")
             type::_bool()                 return str("bool")
@@ -776,295 +1066,6 @@ fun main(argc: int, argv: **char): int {
         }
         error("fell through to_c_type")
     }
-
-    passes[str("ref_lower")] = fun(item: *tree<ast>) {
-        println("Running ref_lower")
-        if !pass_poset.done(make_pair(item, str("name_type_resolve"))) {
-            pass_poset.add_open_dep(make_pair(item, str("ref_lower")), make_pair(item, str("name_type_resolve")))
-            return
-        }
-        var parameter_update_map = map<*tree<ast>, *tree<ast>>()
-        var traverse_for_ref: fun(*tree<ast>): void = fun(t: *tree<ast>) {
-            match (t->data) {
-                ast::_function(name_type_ext) {
-                    var fun_type = get_type(t)
-                    for (var i = 0; i < fun_type->bound_to->_fun.first.first.size; i++;) {
-                        if fun_type->bound_to->_fun.first.first[i].first == ref_type::_ref() {
-                            var old_param = t->children[i]
-                            println("function definition has refs - " + old_param->data._identifier.first)
-                            var new_param = _identifier(old_param->data._identifier.first, binding_p(type::_ptr(old_param->data._identifier.second)))
-                            parameter_update_map[old_param] = new_param
-                            t->set_child(i, new_param)
-                        }
-                    }
-                }
-                ast::_call(add_scope) {
-                    println("traverse_for_ref call - " + to_string(t->data))
-                    // we call get type to make sure if it is unknown it is transformed into a function version
-                    var fun_type = get_type(t->children[0])->bound_to
-                    println("\t checking " + to_string(t->children[0]->data) + " for reffed params: " + to_string(fun_type))
-                    for (var i = 1; i < t->children.size; i++;) {
-                        if fun_type->_fun.first.first[i-1].first == ref_type::_ref() {
-                            println(str("\t\tparam ") + i + " is reffed")
-                            var addr_of_binding = make_ast_binding("op&")
-                            set_single_ast_binding(addr_of_binding, primitive_ops[str("op&")].last())
-                            unify(get_type(addr_of_binding)->bound_to->_fun.first.first[0].second, get_type(t->children[i]))
-                            t->set_child(i, _call(false, vec(addr_of_binding, t->children[i])))
-                        }
-                    }
-                    if fun_type->_fun.first.second.first == ref_type::_ref() {
-                        println("call's return is reffed!")
-                        var addr_of_binding = make_ast_binding("op*")
-                        set_single_ast_binding(addr_of_binding, primitive_ops[str("op*")].last())
-                        unify(get_type(addr_of_binding)->bound_to->_fun.first.first[0].second, binding_p(type::_ptr(fun_type->_fun.first.second.second)))
-                        // BUG IN kraken compiler, or weird part of kraken itself - evaluation order isn't guarenteed, so evaling a param could change lhs
-                        /*t->parent->replace_child(t, _call(false, vec(addr_of_binding, t)))*/
-                        var parent = t->parent
-                        parent->replace_child(t, _call(false, vec(addr_of_binding, t)))
-                    }
-                }
-                ast::_binding(b) {
-                    var bound_to = get_ast_binding(t)
-                    if parameter_update_map.contains_key(bound_to) {
-                        println("param binding is reffed")
-                        var new_param = parameter_update_map[bound_to]
-                        var addr_of_binding = make_ast_binding("op*")
-                        set_single_ast_binding(addr_of_binding, primitive_ops[str("op*")].last())
-                        unify(get_type(addr_of_binding)->bound_to->_fun.first.first[0].second, get_type(new_param))
-                        t->parent->replace_child(t, _call(false, vec(addr_of_binding, new_param)))
-                    }
-                }
-                ast::_return() {
-                    if (t->children.size > 0) {
-                        var ret_is_ref = get_type(get_ancestor_satisfying(t, fun(t: *tree<ast>): bool return is_function(t);))->bound_to->_fun.first.second.first == ref_type::_ref()
-                        if ret_is_ref {
-                            println("return is reffed")
-                            var addr_of_binding = make_ast_binding("op&")
-                            set_single_ast_binding(addr_of_binding, primitive_ops[str("op&")].last())
-                            unify(get_type(addr_of_binding)->bound_to->_fun.first.first[0].second, get_type(t->children[0]))
-                            t->set_child(0, _call(false, vec(addr_of_binding, t->children[0])))
-                        }
-                    }
-                }
-            }
-            t->children.for_each(traverse_for_ref)
-        }
-        traverse_for_ref(item)
-
-        println("post ref_lower")
-        print_tree(item, 1)
-    }
-
-    // has to be set<pair> instead of map<> as we need to use type's "equality"
-    // function instead of type's adt's operator==
-    var instantiated_map = map<*tree<ast>, set<pair<*binding<type>, *tree<ast>>>>()
-    passes[str("depend_and_template_resolve")] = fun(item: *tree<ast>) {
-        if !pass_poset.done(make_pair(item, str("ref_lower"))) {
-            pass_poset.add_open_dep(make_pair(item, str("depend_and_template_resolve")), make_pair(item, str("ref_lower")))
-            return
-        }
-
-        println("what we've got at template resolve time")
-        print_tree(item, 1)
-
-        var resolve: fun(*tree<ast>): void = fun(t: *tree<ast>) {
-            var resolve_type: fun(*binding<type>): void = fun(t: *binding<type>) {
-                match (*t->bound_to) {
-                    type::_unknown() error("unknown in resolve_type")
-                    type::_template_placeholder() error("template_placeholder in resolve_type")
-                    type::_ptr(p) resolve_type(p)
-                    type::_obj(o) {
-                        resolve(o)
-                        pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(get_ast_binding(o), str("emit_C")))
-                    }
-                    type::_fun(t) {
-                        t.first.first.for_each(fun(p: pair<ref_type, *binding<type>>): void { resolve_type(p.second); })
-                        resolve_type(t.first.second.second)
-                    }
-                }
-            }
-            match (t->data) {
-                ast::_binding(b) {
-                    var bound_to = get_ast_binding(t)
-                    if (is_top_level_item(bound_to)) {
-                        if (is_template(bound_to)) {
-                            if (!instantiated_map.contains_key(bound_to)) {
-                                instantiated_map[bound_to] = set<pair<*binding<type>, *tree<ast>>>()
-                            }
-
-                            // grab inst types out of binding, or regen again from unify? Cache from first unify?
-                            var inst_map = map<*binding<type>, *binding<type>>()
-                            if (b.second.size > 0) {
-                                for (var i = 0; i < b.second.size; i++;) {
-                                    inst_map[bound_to->data._template.second.values[i]] = b.second[i]
-                                }
-                            } else {
-                                // regenning from unify
-                                inst_map = bound_to->data._template.second.associate(fun(k: str, v: *binding<type>): pair<*binding<type>, *binding<type>>
-                                                                                            return make_pair(v, binding_p(type::_unknown()));)
-                            }
-
-                            // but not in the case where this is a templated type instead of a function - that doesn't make any sense
-                            var binding_type = null<binding<type>>()
-                            if is_function(bound_to->children[0]) || is_compiler_intrinsic(bound_to->children[0]) {
-                                // unify in both cases - we need it in the explicit case to make sure our explicit types propegate back
-                                binding_type = get_type(t)
-                                unify(binding_type, inst_temp_type(get_type(bound_to->children[0]), inst_map))
-                            } else {
-                                binding_type = binding_p(type::_obj(t))
-                            }
-
-                            // shouldn't cache by binding, but by all insted
-                            println("checking for prior instantiations of " + to_string(bound_to->data))
-                            var already_inst = instantiated_map[bound_to].filter(fun(p: pair<*binding<type>, *tree<ast>>): bool return equality(binding_type->bound_to, p.first->bound_to, false);)
-                            if (already_inst.size() > 1) {
-                                error("already inst > 1, should be impossible")
-                            } else if (already_inst.size() == 1) {
-                                println("alreay instantiated template, using (made from):")
-                                print_tree(bound_to->children[0], 1)
-                                println("cached to:")
-                                print_tree(already_inst.single().second, 1)
-                                pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(already_inst.single().second, str("emit_C")))
-                                set_single_ast_binding(t, already_inst.single().second)
-                            } else {
-                                println("Copying tree to instantiate template!" + to_string(bound_to->data))
-                                println("using inst map:")
-                                inst_map.for_each(fun(k: *binding<type>, v: *binding<type>) {
-                                    println("\t" + to_string(k->bound_to) + " -> " + to_string(v->bound_to))
-                                })
-                                var inst_copy = bound_to->children[0]->clone(fun(a: ref ast): ast {
-                                    match (a) {
-                                        ast::_identifier(b)         return ast::_identifier(make_pair(b.first, inst_temp_type(b.second, inst_map)))
-                                        ast::_binding(b)            return ast::_binding(make_triple(b.first,
-                                                                                                     b.second.map(fun(bd: *binding<type>): *binding<type> return inst_temp_type(bd, inst_map);),
-                                                                                                     binding<tree<ast>>()))
-                                        ast::_function(b)           return ast::_function(make_triple(b.first, inst_temp_type(b.second, inst_map), b.third))
-                                        ast::_compiler_intrinsic(b) return ast::_compiler_intrinsic(make_triple(
-                                                                                                            b.first,
-                                                                                                            inst_temp_type(b.second, inst_map),
-                                                                                                            b.third.map(fun(bd: *binding<type>): *binding<type> return inst_temp_type(bd, inst_map);)))
-                                        ast::_cast(b)               return ast::ast::_cast(inst_temp_type(b, inst_map))
-                                        ast::_value(b)              return ast::_value(make_pair(b.first, inst_temp_type(b.second, inst_map)))
-                                        /*_template: pair<str, map<str, *binding<type>>>,*/
-                                    }
-                                    return a
-                                })
-                                // add inst copy as a child of template?
-                                bound_to->add_child(inst_copy)
-
-                                println("inst from:")
-                                print_tree(bound_to->children[0], 1)
-                                println("inst to:")
-                                print_tree(inst_copy, 1)
-
-                                // save it in our insted map so we don't instantate more than once per types
-                                if is_function(bound_to->children[0]) || is_compiler_intrinsic(bound_to->children[0]) {
-                                    var binding_type2 = get_type(clone_ast_binding(t))
-                                    unify(binding_type2, inst_temp_type(get_type(bound_to->children[0]), inst_map))
-                                    instantiated_map[bound_to].add(make_pair(binding_type2, inst_copy))
-                                } else {
-                                    instantiated_map[bound_to].add(make_pair(binding_p(type::_obj(clone_ast_binding(t))), inst_copy))
-                                }
-                                pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(inst_copy, str("emit_C")))
-                                set_single_ast_binding(t, inst_copy)
-                            }
-                        } else {
-                            pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to, str("emit_C")))
-                        }
-                    // top level var dec
-                    } else if (is_identifier(bound_to) && is_declaration(bound_to->parent) && is_top_level_item(bound_to->parent)) {
-                        pass_poset.add_close_dep(make_pair(item, str("emit_C")), make_pair(bound_to->parent, str("emit_C")))
-                    }
-                    // bound_to might have changed from binding
-                }
-                ast::_identifier(p) resolve_type(get_type(t))
-                ast::_function(p) resolve_type(get_type(t))
-                ast::_compiler_intrinsic(p) {
-                    resolve_type(p.second)
-                    p.third.for_each(resolve_type)
-                }
-                ast::_cast(p) resolve_type(p)
-            }
-
-
-            t->children.for_each(resolve)
-        }
-        resolve(item)
-    }
-
-    passes[str("defer_lower")] = fun(item: *tree<ast>) {
-        if !pass_poset.done(make_pair(item, str("depend_and_template_resolve"))) {
-            pass_poset.add_open_dep(make_pair(item, str("defer_lower")), make_pair(item, str("depend_and_template_resolve")))
-            return
-        }
-        var defer_triple_stack = stack<stack<stack<*tree<ast>>>>()
-        var loop_stack = stack(-1)
-        var traverse_for_defer: fun(*tree<ast>): void = fun(t: *tree<ast>) {
-            match (t->data) {
-                ast::_defer() {
-                    if (is_block(t->parent)) {
-                        t->parent->remove_child(t)
-                        defer_triple_stack.top().top().push(t->children[0])
-                    } else {
-                        t->parent->replace_child(t, t->children[0])
-                    }
-                    traverse_for_defer(t->children[0])
-                    return;
-                }
-                ast::_function(name_type_ext) {
-                    defer_triple_stack.push(stack<stack<*tree<ast>>>())
-                    t->children.clone().for_each(traverse_for_defer)
-                    defer_triple_stack.pop()
-                    return;
-                }
-                ast::_block() {
-                    defer_triple_stack.top().push(stack<*tree<ast>>())
-                    t->children.clone().for_each(traverse_for_defer)
-                    t->children.add_all(defer_triple_stack.top().pop().reverse_vector())
-                    return;
-                }
-                ast::_for() {
-                    loop_stack.push(defer_triple_stack.top().size())
-                    t->children.clone().for_each(traverse_for_defer)
-                    loop_stack.pop()
-                    return;
-                }
-                ast::_while() {
-                    loop_stack.push(defer_triple_stack.top().size())
-                    t->children.clone().for_each(traverse_for_defer)
-                    loop_stack.pop()
-                    return;
-                }
-                ast::_return() {
-                    t->children.clone().for_each(traverse_for_defer)
-                    var our_idx = t->parent->children.find(t)
-                    for (var i = 0; i < defer_triple_stack.top().size(); i++;) {
-                        defer_triple_stack.top().from_top(i).reverse_vector().for_each(fun(c: *tree<ast>) {
-                            t->parent->children.add(our_idx, c)
-                        })
-                    }
-                    return;
-                }
-                ast::_break() {
-                    var block = _block()
-                    t->parent->replace_child(t, block)
-                    for (var i = 0; i < defer_triple_stack.top().size() - loop_stack.top(); i++;)
-                        block->add_children(defer_triple_stack.top().from_top(i).reverse_vector())
-                    block->add_child(t)
-                    return;
-                }
-                ast::_continue() {
-                    return;
-                }
-            }
-            t->children.clone().for_each(traverse_for_defer)
-        }
-        traverse_for_defer(item)
-
-        println("post defer_lower")
-        print_tree(item, 1)
-    }
-
     //  emit C
     var C_str = str()
     var C_type_forward_declaration_str = str()
@@ -1092,7 +1093,7 @@ fun main(argc: int, argv: **char): int {
                 ast::_import(b) { }
                 ast::_identifier(b)         { C_str += idt + get_c_name(t); }
                 ast::_binding(b)            {
-                    C_str += idt + get_c_name(get_ast_binding(t))
+                    C_str += idt + get_c_name(get_ast_binding(t, binding_epoch::pre_ref()))
                 }
                 ast::_type_def(b) {
                     C_type_forward_declaration_str += "typedef struct " + get_c_name(t) + " " + get_c_name(t) + ";\n"
@@ -1100,8 +1101,8 @@ fun main(argc: int, argv: **char): int {
                     C_type_declaration_poset.add_job(t)
                     t->children.for_each(fun(c: *tree<ast>) {
                         C_type_declaration_str_map[t] += "\t" + to_c_type(c->children[0]->data._identifier.second) + " " + get_c_name(c->children[0]) + ";\n"
-                        if is_obj(c->children[0]->data._identifier.second->bound_to) {
-                            C_type_declaration_poset.add_open_dep(t, get_ast_binding(c->children[0]->data._identifier.second->bound_to->_obj))
+                        if is_obj(c->children[0]->data._identifier.second->get_bound_to(binding_epoch::pre_ref())) {
+                            C_type_declaration_poset.add_open_dep(t, get_ast_binding(c->children[0]->data._identifier.second->get_bound_to(binding_epoch::post_ref())->_obj, binding_epoch::post_ref()))
                         }
                     })
                     C_type_declaration_str_map[t] += "};\n"
@@ -1110,7 +1111,7 @@ fun main(argc: int, argv: **char): int {
                 ast::_function(b)           {
                     /*var fun_name = b.first*/
                     var fun_name = get_c_name(t)
-                    var fun_type = b.second->bound_to
+                    var fun_type = b.second->get_bound_to(binding_epoch::post_ref())
                     var is_ext   = b.third
                     var return_type     = fun_type->_fun.first.second
                     var parameter_types = fun_type->_fun.first.first
@@ -1229,9 +1230,9 @@ fun main(argc: int, argv: **char): int {
                 ast::_continue()            { C_str += idt + "continue"; }
                 ast::_defer()               { error("no defer should remain at C emit"); }
                 ast::_call(add_scope)       {
-                    if (is_compiler_intrinsic(get_ast_binding(t->children[0]))) {
+                    if (is_compiler_intrinsic(get_ast_binding(t->children[0], binding_epoch::post_ref()))) {
                         if (t->children.size == 2) {
-                            var intrinsic_name = get_ast_binding(t->children[0])->data._compiler_intrinsic.first
+                            var intrinsic_name = get_ast_binding(t->children[0], binding_epoch::post_ref())->data._compiler_intrinsic.first
                             if (intrinsic_name == "&" || intrinsic_name == "*") {
                                 C_str += idt + "(" + intrinsic_name + "("
                                 emit_C(t->children[1], 0)
@@ -1244,7 +1245,7 @@ fun main(argc: int, argv: **char): int {
                         } else if (t->children.size == 3) {
                             C_str += idt + "(("
                             emit_C(t->children[1], 0)
-                            C_str += ")" + get_ast_binding(t->children[0])->data._compiler_intrinsic.first + "("
+                            C_str += ")" + get_ast_binding(t->children[0], binding_epoch::post_ref())->data._compiler_intrinsic.first + "("
                             emit_C(t->children[2], 0)
                             C_str += "))"
                         } else error("Calling primitive intrinsic with not 1 or 2 arguments")
@@ -1272,7 +1273,7 @@ fun main(argc: int, argv: **char): int {
                     C_str += ")"
                 }
                 ast::_value(b) {
-                    if is_ptr(b.second->bound_to) && is_char(b.second->bound_to->_ptr->bound_to) {
+                    if is_ptr(b.second->get_bound_to(binding_epoch::post_ref())) && is_char(b.second->get_bound_to(binding_epoch::post_ref())->_ptr->get_bound_to(binding_epoch::post_ref())) {
                         C_str += "\""
                         b.first.for_each(fun(c: char) {
                             if (c == '\n')
@@ -1300,20 +1301,20 @@ fun main(argc: int, argv: **char): int {
     var real_main = _function(
                     str("main"),
                     binding_p(type::_fun(make_triple(make_pair(vec(
-                                    make_pair(ref_type::_notref(), binding_p(type::_int())),
-                                    make_pair(ref_type::_notref(), binding_p(type::_ptr(binding_p(type::_ptr(binding_p(type::_char()))))))
+                                    make_pair(ref_type::_notref(), binding_p(type::_int(), binding_epoch::pre_ref())),
+                                    make_pair(ref_type::_notref(), binding_p(type::_ptr(binding_p(type::_ptr(binding_p(type::_char(), binding_epoch::pre_ref())), binding_epoch::pre_ref())), binding_epoch::pre_ref()))
                                 ),
-                            make_pair(ref_type::_notref(), binding_p(type::_int()))
-                        ), false, false))),
+                            make_pair(ref_type::_notref(), binding_p(type::_int(), binding_epoch::pre_ref()))
+                        ), false, false)), binding_epoch::pre_ref()),
                     true, vec(
-                                _identifier(str("argc"), binding_p(type::_int())),
-                                _identifier(str("argv"), binding_p(type::_ptr(binding_p(type::_ptr(binding_p(type::_char())))))),
+                                _identifier(str("argc"), binding_p(type::_int(), binding_epoch::pre_ref())),
+                                _identifier(str("argv"), binding_p(type::_ptr(binding_p(type::_ptr(binding_p(type::_char(), binding_epoch::pre_ref())), binding_epoch::pre_ref())), binding_epoch::pre_ref())),
                                 _return(vec(_call(false, vec(make_ast_binding("fmain"), make_ast_binding("argc"), make_ast_binding("argv")))))
                               )
                     )
     var top_unit = _translation_unit(str(), vec(
                        _import(make_ast_binding(kraken_file_name), set(str("*")), vec(
-                            _identifier(kraken_file_name, binding_p(type::_void()))
+                            _identifier(kraken_file_name, binding_p(type::_void(), binding_epoch::pre_ref()))
                        )),
                        real_main
                    ))
@@ -1357,7 +1358,7 @@ fun parse_type(syntax: *tree<symbol>, declared_template_types: ref map<str, *bin
 fun parse_type_helper(syntax: *tree<symbol>, declared_template_types: ref map<str, *binding<type>>): *binding<type> {
     var next = get_node("pre_reffed", syntax)
     if (next != null<tree<symbol>>())
-        return binding_p(type::_ptr(parse_type_helper(next, declared_template_types)))
+        return binding_p(type::_ptr(parse_type_helper(next, declared_template_types)), binding_epoch::pre_ref())
 
     var ident = get_node("scoped_identifier", syntax)
     var func = get_node("function_type", syntax)
@@ -1367,44 +1368,44 @@ fun parse_type_helper(syntax: *tree<symbol>, declared_template_types: ref map<st
         var template_inst = get_node("template_inst", syntax)
         if (template_inst != null<tree<symbol>>()) {
             var inst_with = get_nodes("type", template_inst).map(fun(s: *tree<symbol>): *binding<type> { return parse_type_helper(s, declared_template_types); })
-            return binding_p(type::_obj(make_ast_binding(ident_str, inst_with)))
+            return binding_p(type::_obj(make_ast_binding(ident_str, inst_with)), binding_epoch::pre_ref())
         } else {
             if (declared_template_types.contains_key(ident_str))
                 return declared_template_types[ident_str]
             else
-                return binding_p(type::_obj(make_ast_binding(ident_str)))
+                return binding_p(type::_obj(make_ast_binding(ident_str)), binding_epoch::pre_ref())
         }
     } else if (func != null<tree<symbol>>()) {
         error("function type parsing not implemented")
         var param_types = vec<pair<ref_type, *binding<type>>>()
-        var return_type = make_pair(ref_type::_notref(), binding_p(type::_void()))
+        var return_type = make_pair(ref_type::_notref(), binding_p(type::_void(), binding_epoch::pre_ref()))
         var variadic = false
         var raw = false
-        return binding_p(type::_fun(make_triple(make_pair(param_types, return_type), variadic, raw)))
+        return binding_p(type::_fun(make_triple(make_pair(param_types, return_type), variadic, raw)), binding_epoch::pre_ref())
     } else if (first_child_name == "\"void\"") {
-        return binding_p(type::_void())
+        return binding_p(type::_void(), binding_epoch::pre_ref())
     } else if (first_child_name == "\"bool\"") {
-        return binding_p(type::_bool())
+        return binding_p(type::_bool(), binding_epoch::pre_ref())
     } else if (first_child_name == "\"char\"") {
-        return binding_p(type::_char())
+        return binding_p(type::_char(), binding_epoch::pre_ref())
     } else if (first_child_name == "\"uchar\"") {
-        return binding_p(type::_uchar())
+        return binding_p(type::_uchar(), binding_epoch::pre_ref())
     } else if (first_child_name == "\"short\"") {
-        return binding_p(type::_short())
+        return binding_p(type::_short(), binding_epoch::pre_ref())
     } else if (first_child_name == "\"ushort\"") {
-        return binding_p(type::_ushort())
+        return binding_p(type::_ushort(), binding_epoch::pre_ref())
     } else if (first_child_name == "\"int\"") {
-        return binding_p(type::_int())
+        return binding_p(type::_int(), binding_epoch::pre_ref())
     } else if (first_child_name == "\"uint\"") {
-        return binding_p(type::_uint())
+        return binding_p(type::_uint(), binding_epoch::pre_ref())
     } else if (first_child_name == "\"long\"") {
-        return binding_p(type::_long())
+        return binding_p(type::_long(), binding_epoch::pre_ref())
     } else if (first_child_name == "\"ulong\"") {
-        return binding_p(type::_ulong())
+        return binding_p(type::_ulong(), binding_epoch::pre_ref())
     } else if (first_child_name == "\"float\"") {
-        return binding_p(type::_float())
+        return binding_p(type::_float(), binding_epoch::pre_ref())
     } else if (first_child_name == "\"double\"") {
-        return binding_p(type::_double())
+        return binding_p(type::_double(), binding_epoch::pre_ref())
     }
     error(syntax, "could not parse type " + first_child_name)
 }
@@ -1437,7 +1438,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             if (template != null<tree<symbol>>()) {
                 get_nodes("template_param", template).for_each(fun(p: *tree<symbol>) {
                     var key = concat(p)
-                    var value = binding_p(type::_template_placeholder())
+                    var value = binding_p(type::_template_placeholder(), binding_epoch::pre_ref())
                     new_template_type_map[key] = value
                     with_added_declared_template_types[key] = value
                 })
@@ -1459,13 +1460,13 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                     return_type = make_pair(ref_type::_notref(), parse_type(get_node("type", return_type_node), with_added_declared_template_types))
                 }
             } else {
-                return_type = make_pair(ref_type::_notref(), binding_p(type::_void()))
+                return_type = make_pair(ref_type::_notref(), binding_p(type::_void(), binding_epoch::pre_ref()))
             }
             var function_type = binding_p(type::_fun(make_triple(
                                                                     make_pair(parameters.map(fun(i: pair<ref_type, *tree<ast>>): pair<ref_type, *binding<type>> return make_pair(i.first, i.second->data._identifier.second);),
                                                                               return_type),
                                                                     get_node("\"...\"", syntax) != null<tree<symbol>>(),
-                                                                    false /*get_node("\"run\"", syntax) != null<tree<symbol>>()*/)))
+                                                                    false /*get_node("\"run\"", syntax) != null<tree<symbol>>()*/)), binding_epoch::pre_ref())
             var body_syntax = get_node("statement", syntax)
             var body = vec<*tree<ast>>()
             if body_syntax != null<tree<symbol>>() {
@@ -1489,7 +1490,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             if (template != null<tree<symbol>>()) {
                 get_nodes("template_param", template).for_each(fun(p: *tree<symbol>) {
                     var key = concat(p)
-                    var value = binding_p(type::_template_placeholder())
+                    var value = binding_p(type::_template_placeholder(), binding_epoch::pre_ref())
                     new_template_type_map[key] = value
                     with_added_declared_template_types[key] = value
                 })
@@ -1511,7 +1512,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             if (template != null<tree<symbol>>()) {
                 get_nodes("template_param", template).for_each(fun(p: *tree<symbol>) {
                     var key = concat(p)
-                    var value = binding_p(type::_template_placeholder())
+                    var value = binding_p(type::_template_placeholder(), binding_epoch::pre_ref())
                     new_template_type_map[key] = value
                     with_added_declared_template_types[key] = value
                 })
@@ -1523,7 +1524,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                                 if (option_type != null<tree<symbol>>())
                                     return _identifier(concat(get_node("identifier", s)), parse_type(option_type, with_added_declared_template_types))
                                 else
-                                    return _identifier(concat(get_node("identifier", s)), binding_p(type::_void()))
+                                    return _identifier(concat(get_node("identifier", s)), binding_p(type::_void(), binding_epoch::pre_ref()))
                              }))
             if (new_template_type_map.size() > 0) {
                 return _template(n->data._adt_def, new_template_type_map, vec(n))
@@ -1554,7 +1555,7 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                                     return _case(s->children.map(fun(x: *tree<symbol>): *tree<ast> return syntax_to_ast_helper(x, declared_template_types);))
                               }))
         } else if (syntax->data.name == "declaration_statement") {
-            var t = binding_p(type::_unknown())
+            var t = binding_p(type::_unknown(), binding_epoch::pre_ref())
             var type_syntax = get_node("type", syntax)
             if type_syntax != null<tree<symbol>>()
                 t = parse_type(type_syntax, declared_template_types)
@@ -1624,13 +1625,13 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
             if name != "sizeof" {
                 error("unknown compiler intrinsic " + name)
             }
-            return _compiler_intrinsic(name, binding_p(type::_ulong()), vec(parse_type(get_node("type", syntax), declared_template_types)))
+            return _compiler_intrinsic(name, binding_p(type::_ulong(), binding_epoch::pre_ref()), vec(parse_type(get_node("type", syntax), declared_template_types)))
         } else if (syntax->data.name == "number") {
             var number_string = concat(syntax)
             if (number_string.contains('.'))
-                return _value(number_string, binding_p(type::_double()))
+                return _value(number_string, binding_p(type::_double(), binding_epoch::pre_ref()))
             else
-                return _value(number_string, binding_p(type::_int()))
+                return _value(number_string, binding_p(type::_int(), binding_epoch::pre_ref()))
         } else if (syntax->data.name == "string") {
             var value_str = concat(syntax)
             var start = 1
@@ -1657,9 +1658,9 @@ fun syntax_to_ast(file_name: str, syntax: *tree<symbol>, import_paths: ref vec<s
                 }
                 value_str = new_str
             }
-            return _value(value_str, binding_p(type::_ptr(binding_p(type::_char()))))
+            return _value(value_str, binding_p(type::_ptr(binding_p(type::_char(), binding_epoch::pre_ref())), binding_epoch::pre_ref()))
         } else if (syntax->data.name == "bool")
-            return _value(concat(syntax), binding_p(type::_bool()))
+            return _value(concat(syntax), binding_p(type::_bool(), binding_epoch::pre_ref()))
         else if (syntax->data.name == "scoped_identifier" || syntax->data.name == "identifier")
             return make_ast_binding(concat(syntax))
         else {

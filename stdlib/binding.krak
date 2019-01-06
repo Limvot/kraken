@@ -5,18 +5,24 @@ import str:*
 import ast:*
 import type2:*
 
+adt binding_epoch {
+    pre_ref,
+    post_ref,
+    all
+}
+
 var bindings: *vec<*void>
 
 fun binding<T>(): *binding<T> {
-    return binding(null<T>())
+    return binding(null<T>(), binding_epoch::all())
 }
-fun binding_p<T>(it: T): *binding<T> {
+fun binding_p<T>(it: T, epoch: binding_epoch): *binding<T> {
     var p = new<T>()
     p->copy_construct(&it)
-    return binding(p)
+    return binding(p, epoch)
 }
-fun binding<T>(it: *T): *binding<T> {
-    var to_ret = new<binding<T>>()->construct(it)
+fun binding<T>(it: *T, epoch: binding_epoch): *binding<T> {
+    var to_ret = new<binding<T>>()->construct(it, epoch)
     if (bindings == null<vec<*void>>())
         bindings = new<vec<*void>>()->construct()
     bindings->add( (to_ret) cast *void )
@@ -24,46 +30,75 @@ fun binding<T>(it: *T): *binding<T> {
 }
 
 obj binding<T> (Object) {
-    var bound_to: *T
+    var bound_to_pre_ref: *T
+    var bound_to_post_ref: *T
     fun construct(): *binding<T> {
-        bound_to = null<T>()
+        bound_to_pre_ref = null<T>()
+        bound_to_post_ref = null<T>()
         return this
     }
-    fun construct(it: *T): *binding<T> {
-        bound_to = it
+    fun construct(it: *T, epoch: binding_epoch): *binding<T> {
+        set_single(it, epoch)
         return this
     }
     fun copy_construct(old: *binding<T>): void {
-        bound_to = old->bound_to
+        bound_to_pre_ref = old->bound_to_pre_ref
+        bound_to_post_ref = old->bound_to_post_ref
     }
     fun destruct() {
-        bound_to = null<T>()
+        bound_to_pre_ref = null<T>()
+        bound_to_post_ref = null<T>()
     }
-    fun bound(): bool {
-        return bound_to != null<T>()
+    fun bound(epoch: binding_epoch): bool {
+        return bound_to_pre_ref != null<T>() || bound_to_post_ref != null<T>()
     }
-    fun set(to: T) {
+    fun set(to: T, epoch: binding_epoch) {
         var p = new<T>()
         p->copy_construct(&to)
-        set(p)
+        set(p, epoch)
     }
-    fun set(to: *T) {
-        // don't set null, that will set all unbound ones
-        if (bound_to == null<T>()) {
-            bound_to = to
-            return
+    fun set(to: *T, epoch: binding_epoch) {
+        var pre_ref_from = bound_to_pre_ref
+        var post_ref_from = bound_to_post_ref
+        if epoch == binding_epoch::pre_ref() || epoch == binding_epoch::all() {
+            bound_to_pre_ref = to
+            // don't set null, that will set all unbound ones
+            if pre_ref_from != null<T>() {
+                for (var i = 0; i < bindings->size; i++;)
+                    if ( ((bindings->get(i)) cast *binding<T>)->bound_to_pre_ref == pre_ref_from)
+                        ((bindings->get(i)) cast *binding<T>)->bound_to_pre_ref = to
+            }
         }
-        var from = bound_to
-        for (var i = 0; i < bindings->size; i++;)
-            if ( ((bindings->get(i)) cast *binding<T>)->bound_to == from)
-                ((bindings->get(i)) cast *binding<T>)->bound_to = to
+        if epoch == binding_epoch::post_ref() || epoch == binding_epoch::all() {
+            bound_to_post_ref = to
+            // don't set null, that will set all unbound ones
+            if post_ref_from != null<T>() {
+                for (var i = 0; i < bindings->size; i++;)
+                    if ( ((bindings->get(i)) cast *binding<T>)->bound_to_post_ref == post_ref_from)
+                        ((bindings->get(i)) cast *binding<T>)->bound_to_post_ref = to
+            }
+        }
     }
-    fun set_single(to: *T) {
-        bound_to = to
+    fun set_single(to: *T, epoch: binding_epoch) {
+        match (epoch) {
+            binding_epoch::pre_ref()  { bound_to_pre_ref = to; }
+            binding_epoch::post_ref() { bound_to_post_ref = to; }
+            binding_epoch::all()      { bound_to_pre_ref = to; bound_to_post_ref = to; }
+        }
+    }
+    fun bound(): bool {
+        return bound_to_pre_ref != null<T>() || bound_to_post_ref != null<T>()
+    }
+    fun get_bound_to(epoch: binding_epoch): *T {
+        match (epoch) {
+            binding_epoch::pre_ref()  { return bound_to_pre_ref; }
+            binding_epoch::post_ref() if bound_to_post_ref != null<T>() { return bound_to_post_ref; } else { return bound_to_pre_ref; }
+            binding_epoch::all()      { error("trying to get_bound_to for all, which doesn't make any sense"); }
+        }
     }
     fun to_string(): str {
         /*return "binding(" + to_string(bound_to) + ")"*/
-        return "binding(" + deref_to_string(bound_to) + ")"
+        return "binding(pre_ref:" + deref_to_string(bound_to_pre_ref) + "/post_ref:" + deref_to_string(bound_to_post_ref) + ")"
     }
 }
 
