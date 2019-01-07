@@ -38,6 +38,8 @@ obj binding<T> (Object) {
         return this
     }
     fun construct(it: *T, epoch: binding_epoch): *binding<T> {
+        bound_to_pre_ref = null<T>()
+        bound_to_post_ref = null<T>()
         set_single(it, epoch)
         return this
     }
