@@ -43,15 +43,33 @@ fun deref_to_string<T>(in: *T, ts: fun(*T): str): str
         return str("null")
     else
         return ts(in)
+fun binding_deref_to_string<T>(b: *binding<T>): str {
+    var pre = b->get_bound_to(binding_epoch::pre_ref())
+    var post = b->get_bound_to(binding_epoch::post_ref())
+    if pre == post {
+        return deref_to_string(pre)
+    } else {
+        return "pre_ref:" + deref_to_string(pre) + "/post_ref:" + deref_to_string(post)
+    }
+}
+fun binding_deref_to_string<T>(b: *binding<T>, ts: fun(*T): str): str {
+    var pre = b->get_bound_to(binding_epoch::pre_ref())
+    var post = b->get_bound_to(binding_epoch::post_ref())
+    if pre == post {
+        return deref_to_string(pre, ts)
+    } else {
+        return "pre_ref:" + deref_to_string(pre, ts) + "/post_ref:" + deref_to_string(post, ts)
+    }
+}
 fun to_string(a: ref ast): str {
     match(a) {
         ast::_translation_unit(b)   return str("_translation_unit(") + b + ")"
         ast::_import(b)             return str("_import(") + to_string(b.first->data) + ")[" + str(",").join(b.second.data) + "]"
-        ast::_identifier(b)         return str("_identifier(") + b.first + ": " + "pre_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::post_ref())) + ")"
-        ast::_binding(b)            return str("_binding(") + b.first + "[" + str(",").join(b.second.map(fun(x:*binding<type>): str { return "pre_ref:" + deref_to_string(x->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + deref_to_string(x->get_bound_to(binding_epoch::post_ref())); })) + "]" + "-> pre_ref:" + deref_to_string(b.third->get_bound_to(binding_epoch::pre_ref()), fun(t: *tree<ast>): str return to_string(t->data);) + " /post_ref:" + deref_to_string(b.third->get_bound_to(binding_epoch::post_ref()), fun(t: *tree<ast>): str return to_string(t->data);)+ ")"
+        ast::_identifier(b)         return str("_identifier(") + b.first + ": " + binding_deref_to_string(b.second) + ")"
+        ast::_binding(b)            return str("_binding(") + b.first + "[" + str(",").join(b.second.map(fun(x:*binding<type>): str { return binding_deref_to_string(x); })) + "]" + "-> " + binding_deref_to_string(b.third, fun(t: *tree<ast>): str return to_string(t->data);) + ")"
         ast::_type_def(b)           return str("_type_def(") + b + ")"
         ast::_adt_def(b)            return str("_adt_def(") + b + ")"
-        ast::_function(b)           return str("_function(") + b.first + ": " + "pre_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::post_ref())) + ", ext?:" + to_string(b.third) + ")"
+        ast::_function(b)           return str("_function(") + b.first + ": " + binding_deref_to_string(b.second) + ", ext?:" + to_string(b.third) + ")"
         ast::_template(b)           return str("_template(") + b.first + "[" + str(",").join(b.second.keys) + "])"
         ast::_declaration()         return str("_declaration")
         ast::_block()               return str("_block")
@@ -65,9 +83,9 @@ fun to_string(a: ref ast): str {
         ast::_continue()            return str("_continue")
         ast::_defer()               return str("_defer")
         ast::_call(b)               return "_call(add_scope: " + to_string(b) + ")"
-        ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ": " + "pre_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::post_ref())) + ")"
+        ast::_compiler_intrinsic(b) return str("_compiler_intrinsic(") + b.first + ": " + binding_deref_to_string(b.second) + ")"
         ast::_cast(b)               return str("_cast")
-        ast::_value(b)              return str("_value(") + b.first + ": " + "pre_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + deref_to_string(b.second->get_bound_to(binding_epoch::post_ref())) + ")"
+        ast::_value(b)              return str("_value(") + b.first + ": " + binding_deref_to_string(b.second) + ")"
     }
 }
 fun _translation_unit(p: str): *tree<ast> {

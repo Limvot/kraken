@@ -103,32 +103,32 @@ fun shallow_equality(a: *type, b: *type, epoch: binding_epoch):bool {
     return *a == *b
 }
 
-fun inst_temp_type(t: *binding<type>, replacements: ref map<*binding<type>, *binding<type>>, epoch: binding_epoch): *binding<type> {
-    match (*t->get_bound_to(epoch)) {
+fun inst_temp_type(t: *binding<type>, replacements: ref map<*binding<type>, *binding<type>>, read_epoch: binding_epoch, write_epoch: binding_epoch): *binding<type> {
+    match (*t->get_bound_to(read_epoch)) {
         type::_unknown() error("Unknown in temp type")
         type::_obj(o) {
-            var binding_types = o->data._binding.second.map(fun(b: *binding<type>): *binding<type> return inst_temp_type(b, replacements, epoch);)
+            var binding_types = o->data._binding.second.map(fun(b: *binding<type>): *binding<type> return inst_temp_type(b, replacements, read_epoch, write_epoch);)
             for (var i = 0; i < o->data._binding.second.size; i++;) {
                 if (o->data._binding.second[i] != binding_types[i])
-                    return binding_p(type::_obj(_binding(o->data._binding.first, binding_types, o->data._binding.third)), epoch)
+                    return binding_p(type::_obj(_binding(o->data._binding.first, binding_types, o->data._binding.third)), write_epoch)
             }
         }
         type::_ptr(p) {
-            var cp = inst_temp_type(p, replacements, epoch)
+            var cp = inst_temp_type(p, replacements, read_epoch, write_epoch)
             if (cp == p)
                 return t
             else
-                return binding_p(type::_ptr(cp), epoch)
+                return binding_p(type::_ptr(cp), write_epoch)
         }
         type::_fun(b) {
             // triple<pair<param_types, return_type>, is_variadic, is raw>
-            var rt = make_pair(b.first.second.first, inst_temp_type(b.first.second.second, replacements, epoch))
-            var pts = b.first.first.map(fun(pt: pair<ref_type, *binding<type>>): pair<ref_type, *binding<type>> return make_pair(pt.first, inst_temp_type(pt.second, replacements, epoch));)
+            var rt = make_pair(b.first.second.first, inst_temp_type(b.first.second.second, replacements, read_epoch, write_epoch))
+            var pts = b.first.first.map(fun(pt: pair<ref_type, *binding<type>>): pair<ref_type, *binding<type>> return make_pair(pt.first, inst_temp_type(pt.second, replacements, read_epoch, write_epoch));)
             if (rt.second != b.first.second.second)
-                return binding_p(type::_fun(make_triple(make_pair(pts, rt), b.second, b.third)), epoch)
+                return binding_p(type::_fun(make_triple(make_pair(pts, rt), b.second, b.third)), write_epoch)
             for (var i = 0; i < pts.size; i++;)
                 if (pts[i].second != b.first.first[i].second)
-                    return binding_p(type::_fun(make_triple(make_pair(pts, rt), b.second, b.third)), epoch)
+                    return binding_p(type::_fun(make_triple(make_pair(pts, rt), b.second, b.third)), write_epoch)
             return t
         }
         type::_template_placeholder()  return replacements[t]
@@ -174,11 +174,16 @@ fun equality(a: *type, b: *type, count_unknown_as_equal: bool, epoch: binding_ep
     }
     return *a == *b
 }
+fun deref_to_string<T>(in: *T): str
+    if (in == mem::null<T>())
+        return str("null")
+    else
+        return to_string(in)
 fun to_string(it: *type): str {
     match (*it) {
         type::_unknown()               return str("_unknown")
         type::_void()                  return str("_void")
-        type::_ptr(p)                  return "* pre_ref:" + to_string(p->get_bound_to(binding_epoch::pre_ref())) + "/post_ref" + to_string(p->get_bound_to(binding_epoch::post_ref()))
+        type::_ptr(p)                  return "*(pre_ref:" + deref_to_string(p->get_bound_to(binding_epoch::pre_ref())) + "/post_ref" + deref_to_string(p->get_bound_to(binding_epoch::post_ref())) + ")"
         type::_obj(b) {
             return "_obj(" + to_string(b->data) + ")"
         }
@@ -189,10 +194,10 @@ fun to_string(it: *type): str {
                 to_ret += "_run("
             else
                 to_ret += "_fun("
-            to_ret += str(", ").join(b.first.first.map(fun(pt: pair<ref_type, *binding<type>>): str return to_string(pt.first) + "pre_ref:" + to_string(pt.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref" + to_string(pt.second->get_bound_to(binding_epoch::post_ref()));))
+            to_ret += str(", ").join(b.first.first.map(fun(pt: pair<ref_type, *binding<type>>): str return to_string(pt.first) + "(pre_ref:" + deref_to_string(pt.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref" + deref_to_string(pt.second->get_bound_to(binding_epoch::post_ref())) + ")";))
             if (b.third)
                 to_ret += " ..."
-            return to_ret + "): " + to_string(b.first.second.first) + "* pre_ref:" + to_string(b.first.second.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + to_string(b.first.second.second->get_bound_to(binding_epoch::post_ref()))
+            return to_ret + "): " + to_string(b.first.second.first) + ": (pre_ref:" + deref_to_string(b.first.second.second->get_bound_to(binding_epoch::pre_ref())) + "/post_ref:" + deref_to_string(b.first.second.second->get_bound_to(binding_epoch::post_ref())) + ")"
         }
         type::_template_placeholder()  return str("_template_placeholder")
         type::_bool()                  return str("_bool")

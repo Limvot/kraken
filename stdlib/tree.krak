@@ -1,5 +1,7 @@
 import mem
 import vec
+import io:*
+import str:*
 
 obj tree<T> (Object) {
     var data: T

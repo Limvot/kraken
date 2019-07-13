@@ -81,6 +81,11 @@ obj binding<T> (Object) {
             }
         }
     }
+    fun set_single(to: T, epoch: binding_epoch) {
+        var p = new<T>()
+        p->copy_construct(&to)
+        set_single(p, epoch)
+    }
     fun set_single(to: *T, epoch: binding_epoch) {
         match (epoch) {
             binding_epoch::pre_ref()  { bound_to_pre_ref = to; }

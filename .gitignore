@@ -8,6 +8,9 @@ stats
 *.swn
 *.swo
 *.swl
+*.swi
+*.swj
+*.swk
 *.png
 *krakout*
 kraklist.txt
