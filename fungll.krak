@@ -1,0 +1,240 @@
+// nonterminals are negative, terminals are positive
+obj Grammer (Object) {
+    var nonterminals: vec<vec<int>>
+    var terminals: vec<char>
+    fun construct(): *Grammer {
+        nonterminals.construct()
+        terminals.construct()
+        return this
+    }
+    fun copy_construct(old: *Grammer): void {
+        nonterminals.copy_construct(&old->nonterminals)
+        terminals.copy_construct(&old->terminals)
+    }
+    fun destruct(): void {
+        nonterminals.destruct()
+        terminals.destruct()
+    }
+    fun operator=(other:ref Grammer):void {
+        destruct()
+        copy_construct(&other)
+    }
+    fun add_new_nonterminal(rule: ref vec<int>): int {
+        nonterminals.add(vec(rule))
+        return -1*nonterminal.size
+    }
+    fun add_to_nonterminal(nonterminal: int, rule: ref vec<int>) {
+        nonterminals[(-1*nonterminal)-1].add(rule)
+    }
+    fun add_terminal(c: char): int {
+        terminals.add(rule)
+        return terminals.size
+    }
+    fun get_nonterminal_rules(nonterminal: int): ref vec<int> {
+        return nonterminals[(-1*nonterminal)-1]
+    }
+    fun get_terminal(terminal: int): char {
+        return terminals[terminal-1]
+    }
+}
+obj Pending (Object) {
+    var nonterminal: int
+    var rule_idx: int
+    var idx_into_rule: int
+    var left: int
+    fun construct(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int): *Pending {
+        this->nonterminal = nonterminal;
+        this->rule_idx = rule_idx;
+        this->idx_into_rule = idx_into_rule;
+        this->left = left;
+        return this
+    }
+    fun copy_construct(old: *Pending): void {
+        this->nonterminal = old->nonterminal;
+        this->rule_idx = old->rule_idx;
+        this->idx_into_rule = old->idx_into_rule;
+        this->left = old->left;
+    }
+    fun destruct(): void { }
+    fun operator=(other:ref Pending):void {
+        destruct()
+        copy_construct(&other)
+    }
+}
+fun pending(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int): Pending {
+    var to_ret.construct(nonterminal, rule_idx, idx_into_rule, left): Pending
+    return to_ret
+}
+obj Descriptor (Object) {
+    var nonterminal: int
+    var rule_idx: int
+    var idx_into_rule: int
+    var left: int
+    var pivot: int
+    fun construct(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int, pivot: int): *Descriptor {
+        this->nonterminal = nonterminal;
+        this->rule_idx = rule_idx;
+        this->idx_into_rule = idx_into_rule;
+        this->left = left;
+        this->pivot = pivot;
+        return this
+    }
+    fun copy_construct(old: *Descriptor): void {
+        this->nonterminal = old->nonterminal;
+        this->rule_idx = old->rule_idx;
+        this->idx_into_rule = old->idx_into_rule;
+        this->left = old->left;
+        this->pivot = old->pivot;
+    }
+    fun destruct(): void { }
+    fun operator=(other:ref Descriptor):void {
+        destruct()
+        copy_construct(&other)
+    }
+}
+fun descriptor(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int, pivot: int): Descriptor {
+    var to_ret.construct(nonterminal, rule_idx, idx_into_rule, left, pivot): Descriptor
+    return to_ret
+}
+obj BS (Object) {
+    var nonterminal: int
+    var rule_idx: int
+    var idx_into_rule: int
+    var left: int
+    var pivot: int
+    var right: int
+    fun construct(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int, pivot: int, right: int): *BS {
+        this->nonterminal = nonterminal;
+        this->rule_idx = rule_idx;
+        this->idx_into_rule = idx_into_rule;
+        this->left = left;
+        this->pivot = pivot;
+        this->right = right;
+        return this
+    }
+    fun copy_construct(old: *BS): void {
+        this->nonterminal = old->nonterminal;
+        this->rule_idx = old->rule_idx;
+        this->idx_into_rule = old->idx_into_rule;
+        this->left = old->left;
+        this->pivot = old->pivot;
+        this->right = old->right;
+    }
+    fun destruct(): void { }
+    fun operator=(other:ref BS):void {
+        destruct()
+        copy_construct(&other)
+    }
+}
+fun bs(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int, pivot: int, right: int): BS {
+    var to_ret.construct(nonterminal, rule_idx, idx_into_rule, left, pivot, right): BS
+    return to_ret
+}
+/*fun complete_parser_for(grammer: ref Grammer, start_symbol, input: ref str): set<BS> {*/
+    /*return fungll(grammer, input, start_symbol).second*/
+/*}*/
+/*fun fungll(grammer: ref Grammer, input: ref str, start_symbol: int): set<BS> {*/
+/*fun fungll(grammer: ref Grammer, input: ref str): <, set<BS>> {*/
+fun fungll(grammer: ref Grammer, input: ref str): set<BS> {
+    /*loop(grammer, input, decend(grammer, 0 [>start_symbol<], 0), set(), set(), set(), set())*/
+    loop(grammer, input, decend(grammer, 0 /*start_symbol*/, 0), set(), map(), set(), set())
+}
+fun descend(grammer: ref Grammer, symbol: int, l: int): set<Descriptor> {
+    /*grammer.get_nonterminal_rules(symbol).map(fun(rhs): descriptor { <X::=.rhs,l,l> })*/
+    grammer.get_nonterminal_rules(symbol).map(fun(rhs): Descriptor { return descriptor(symbol, rhs, 0, l, l); })
+}
+fun loop(grammer: ref Grammer, input: ref str, R: set<Descriptor>, U: set<Descriptor>, G, P, Y: set<BS>): set<BS> {
+    /*if R.size() == 0 {*/
+        /*return <U,Y>*/
+    /*} else {*/
+        /*var d = R.pop()*/
+        /*var <<R',Y'>,G',P'> = process(grammer, input, d, G, P)*/
+        /*var U_with_d = U.union(set(d));*/
+        /*var R'' = (R.union(R') - U_with_d*/
+        /*return loop(grammer, input, R'', U_with_d, G.union(G'), P.union(P'), Y.union(Y'))*/
+    /*}*/
+    while R.size() != 0 {
+        var d = R.pop()
+        var <<Rp,Yp>,Gp,Pp> = process(grammer, input, d, G, P)
+        var U_with_d = U.union(set(d));
+        var nextR = (R.union(Rp) - U_with_d
+        R = nextR
+        U = U_with_d
+        G += Gp
+        P += Pp
+        Y += Yp
+    }
+    return Y
+}
+/*fun process(grammer: ref Grammer, input: ref str, <X:=a.b,l,k>, G, P): {*/
+fun process(grammer: ref Grammer, input: ref str, discript: Descriptor, G, P): {
+    /*if is_e(b) {*/
+    if descript.idx_into_rule == grammer.get_nonterminal_rules(discript.nonterminal)[descript.rule_idx].size {
+        /*return process_e(<X::=a.,l,k>, G, P)*/
+        return process_e(descript, G, P)
+    } else {
+        /*return process_symbol(grammer, input, <X::=a.sb',l,k>, G, P) // b=sb'*/
+        return process_symbol(grammer, input, descript, G, P)
+    }
+}
+/*fun process_e(<X::=a.,l,k>, G, P) {*/
+fun process_e(descript: Descriptor, G, P) {
+    var nonterminal: int
+    var rule_idx: int
+    var left: int
+    var pivot: int
+    var X = descript.nonterminal
+    var l = descript.left;
+    /*var K = { <g,l'> | <<X,l>,<g,l'>> in G }*/
+    var K = G.get(<X,l>)
+    var <R,Y> = ascend(l,K,k)
+    /*var Y' = { <X::=.,l,l,l> | is_e(a) }*/
+    if grammer.get_nonterminal_rules(X)[descript.rule_idx].size == 0 {
+        Y.add(bs(X,descript.rule_idx, 0, l, l, l))
+    }
+    /*return <<R,Y.union(Y')>,set(),set(<<X,l>,k>)>*/
+    return <<R,Y>,set(),set(<<X,l>,k>)>
+}
+/*fun process_symbol(grammer: ref Grammer, input: ref str, <X::=a.sb',l,k>, G, P) {*/
+fun process_symbol(grammer: ref Grammer, input: ref str, descript: Descriptor, G, P) {
+    var s = grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx][descript.idx_into_rule]
+    var k = descript.pivot
+    /*R = { r | <<s,k>,r> in P }*/
+    R = P.get(<s,k>)
+    /*G' = {<<s,k>, <X::=as.b',l>>}*/
+    Gp = map(<s,k>, pending(descript.nonterminal, descript.rule_idx, descript.idx_into_rule, descript.left)
+    if grammer.is_terminal(s) {
+        /*return <match(input,<X::=a.sb',l,k>),set(),set()>*/
+        return <match(input,descript),set(),set()>
+    } else if R.size() == 0 { // s in N
+        /*return <<descend(grammer,s,k), set()>, G', set()>*/
+        return <<descend(grammer,s,k), set()>, Gp, set()>
+    } else { // s in N and R != set()
+        /*return <skip(k,<X::=as.b',l> R), G', set()>*/
+        return <skip(k,pending(descript.nonterminal, descript.rule_idx, descript.idx_into_rule, descript.left), R), Gp, set()>
+    }
+}
+/*fun match(input: ref str, <X::=a.sb',l,k>): <discriptor_set, set<BS>> {*/
+fun match(input: ref str, descript: Descriptor): <discriptor_set, set<BS>> {
+    if input[k] == grammer.get_terminal(s) {
+        /*return <set(X::=as.b',l,k+1>), set(<X::=as.b',l,k,k+1)>*/
+        return <set(descriptor(descript.nonterminal, descript.rule_idx, descript.idx_into_rule+1, descript.left, descript.pivot+1)), set(bs(descript.nonterminal, descript.rule_idx, descript.idx_into_rule+1, descript.left, descript.pivot, descript.pivot+1))>
+    } else {
+        return <set(), set()>
+    }
+}
+fun skip(k:int,c,R) { return nmatch(k, set(c), R); }
+fun ascend(k:int, K, r) { return nmatch(k,K,set(r)); }
+fun nmatch(k:int, K, R) {
+    /*var R = { <g,l,r> | <g,l> in K, r in R }*/
+    /*var Y = { <g,l,k,r> | <g,l> in K, r in R }*/
+    var R = set()
+    var Y = set()
+    for pending in K {
+        for r in R {
+            R.push(descriptor(pending.nonterminal, pending.rule_idx, pending.idx_into_rule, pending.left, r)
+            Y.push(bs(pending.nonterminal, pending.rule_idx, pending.idx_into_rule, pending.left, k, r)
+        }
+    }
+    return <R,Y>
+}
