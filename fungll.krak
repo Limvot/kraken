@@ -151,7 +151,7 @@ obj BS (Object) {
         copy_construct(&other)
     }
     fun to_string(): str {
-        return str() + nonterminal + " " + rule_idx + " " + idx_into_rule + " " + left + " " + pivot + " " + right
+        return str("nonterminal:") + nonterminal + " rule_idx:" + rule_idx + " idx_into_rule:" + idx_into_rule + " l:" + left + " p:" + pivot + " r:" + right
     }
     fun operator==(rhs: ref BS): bool {
         return nonterminal == rhs.nonterminal && rule_idx == rhs.rule_idx && idx_into_rule == rhs.idx_into_rule && left == rhs.left && pivot == rhs.pivot && right == rhs.right
@@ -168,7 +168,7 @@ fun bs(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int, pivot: in
 /*fun fungll(grammer: ref Grammer, input: ref str): <, set<BS>> {*/
 fun fungll(grammer: ref Grammer, input: ref str): set<BS> {
     /*loop(grammer, input, descend(grammer, 0 [>start_symbol<], 0), set(), set(), set(), set())*/
-    loop(grammer, input, descend(grammer, 0 /*start_symbol*/, 0), set<Descriptor>(), map<pair<int, int>, set<Pending>>(), map<pair<int,int>, set<int>>(), set<BS>())
+    return loop(grammer, input, descend(grammer, -1 /*start_symbol*/, 0), set<Descriptor>(), map<pair<int, int>, set<Pending>>(), map<pair<int,int>, set<int>>(), set<BS>())
 }
 fun descend(grammer: ref Grammer, symbol: int, l: int): set<Descriptor> {
     /*grammer.get_nonterminal_rules(symbol).map(fun(rhs): descriptor { <X::=.rhs,l,l> })*/
@@ -259,9 +259,9 @@ fun process_symbol(grammer: ref Grammer, input: ref str, descript: Descriptor, G
     var s = grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx][descript.idx_into_rule]
     var k = descript.pivot
     /*R = { r | <<s,k>,r> in P }*/
-    var R = P.get(make_pair(s,k))
+    var R = P.get_with_default(make_pair(s,k), set<int>())
     /*G' = {<<s,k>, <X::=as.b',l>>}*/
-    var Gp = map(make_pair(s,k), set(pending(descript.nonterminal, descript.rule_idx, descript.idx_into_rule, descript.left)))
+    var Gp = map(make_pair(s,k), set(pending(descript.nonterminal, descript.rule_idx, descript.idx_into_rule+1, descript.left)))
     if grammer.is_terminal(s) {
         /*return <match(input,<X::=a.sb',l,k>),set(),set()>*/
         /*return make_triple(match(input,descript), map<pair<int,int>, vec<Pending>>(), map<pair<int,int>, set<int>>())*/
@@ -271,13 +271,13 @@ fun process_symbol(grammer: ref Grammer, input: ref str, descript: Descriptor, G
         return make_triple(make_pair(descend(grammer,s,k), set<BS>()), Gp, map<pair<int,int>, set<int>>())
     } else { // s in N and R != set()
         /*return <skip(k,<X::=as.b',l> R), G', set()>*/
-        return make_triple(skip(k,pending(descript.nonterminal, descript.rule_idx, descript.idx_into_rule, descript.left), R), Gp, map<pair<int,int>, set<int>>())
+        return make_triple(skip(k,pending(descript.nonterminal, descript.rule_idx, descript.idx_into_rule+1, descript.left), R), Gp, map<pair<int,int>, set<int>>())
     }
 }
 /*fun match(input: ref str, <X::=a.sb',l,k>): <discriptor_set, set<BS>> {*/
 fun matc(grammer: ref Grammer, input: ref str, descript: Descriptor): pair<set<Descriptor>, set<BS>> {
     /*if input[k] == grammer.get_terminal(s) {*/
-    if input[descript.pivot] == grammer.get_terminal(descript.idx_into_rule) {
+    if descript.pivot < input.length() && input[descript.pivot] == grammer.get_terminal(grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx][descript.idx_into_rule]) {
         /*return <set(X::=as.b',l,k+1>), set(<X::=as.b',l,k,k+1)>*/
         return make_pair(set(descriptor(descript.nonterminal, descript.rule_idx, descript.idx_into_rule+1, descript.left, descript.pivot+1)), set(bs(descript.nonterminal, descript.rule_idx, descript.idx_into_rule+1, descript.left, descript.pivot, descript.pivot+1)))
     } else {
@@ -319,6 +319,7 @@ fun main(argc: int, argv: **char): int {
     grammer.add_to_nonterminal(E, vec(E,E,E))
 
     var BSR = fungll(grammer, str("1"))
+    println(str("length of BSR is: ") + BSR.size())
     for (var i = 0; i < BSR.data.size; i++;) {
         var BS = BSR.data[i]
         println(str() + i + ": " + BSR.data[i].to_string())
