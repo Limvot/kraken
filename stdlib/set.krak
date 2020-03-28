@@ -83,6 +83,12 @@ obj set<T> (Object, Serializable) {
         to_ret.add(items)
         return to_ret
     }
+    fun operator-(items: ref set<T>): set<T> {
+        var to_ret.copy_construct(this): set<T>
+        for (var i = 0; i < items.data.size; i++;)
+            to_ret.remove(items.data[i])
+        return to_ret
+    }
     fun add(item: ref T) {
         if (!contains(item))
             data.add(item)
@@ -141,6 +147,16 @@ obj set<T> (Object, Serializable) {
                 add(func(data[i]))
         }
 
+    }
+    fun pop(): T {
+        var to_ret = data.last()
+        data.remove(data.size-1)
+        return to_ret
+    }
+    fun union(other: set<T>): set<T> {
+        for (var i = 0; i < data.size; i++;)
+            other.add(data[i])
+        return other
     }
 }
 

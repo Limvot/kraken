@@ -4,22 +4,26 @@ import map:*
 import set:*
 import util:*
 import str:*
+import regex:*
 
 // nonterminals are negative, terminals are positive
 obj Grammer (Object) {
     var nonterminals: vec<vec<vec<int>>>
     var nonterminal_names: vec<str>
-    var terminals: vec<char>
+    var terminals: vec<regex>
+    var start_symbol: int
     fun construct(): *Grammer {
         nonterminals.construct()
         nonterminal_names.construct()
         terminals.construct()
+        start_symbol = 0
         return this
     }
     fun copy_construct(old: *Grammer): void {
         nonterminals.copy_construct(&old->nonterminals)
         nonterminal_names.copy_construct(&old->nonterminal_names)
         terminals.copy_construct(&old->terminals)
+        start_symbol = old->start_symbol
     }
     fun destruct(): void {
         nonterminals.destruct()
@@ -41,18 +45,21 @@ obj Grammer (Object) {
     fun add_to_nonterminal(nonterminal: int, rule: ref vec<int>) {
         nonterminals[(-1*nonterminal)-1].add(rule)
     }
-    fun add_terminal(c: char): int {
-        terminals.add(c)
+    fun add_terminal(c: *char): int {
+        terminals.add(regex(c))
         return terminals.size
     }
     fun get_nonterminal_rules(nonterminal: int): ref vec<vec<int>> {
         return nonterminals[(-1*nonterminal)-1]
     }
-    fun get_terminal(terminal: int): char {
-        return terminals[terminal-1]
+    fun match_terminal(terminal: int, input: ref str, start: int): int {
+        return terminals[terminal-1].long_match(input.getBackingMemory(), start, input.length())
     }
     fun is_terminal(x: int): bool {
         return x > 0
+    }
+    fun set_start_symbol(x: int) {
+        start_symbol = x
     }
     fun to_string(it: BS): str {
         var rule_str = str()
@@ -61,16 +68,19 @@ obj Grammer (Object) {
                 rule_str += "*"
             }
             var erminal = nonterminals[(-1*it.nonterminal)-1][it.rule_idx][i]
-            if erminal < 0 {
-                rule_str += nonterminal_names[(-1*erminal)-1]
-            } else {
-                rule_str += terminals[erminal-1]
-            }
+            rule_str += to_string(erminal)
         }
         if it.idx_into_rule == nonterminals[(-1*it.nonterminal)-1][it.rule_idx].size {
             rule_str += "*"
         }
         return str("<") + nonterminal_names[(-1*it.nonterminal)-1] + " ::= " + rule_str + ", "  + it.left + ", " + it.pivot + ", " + it.right + ">"
+    }
+    fun to_string(erminal: int): str {
+        if erminal < 0 {
+            return nonterminal_names[(-1*erminal)-1]
+        } else {
+            return terminals[erminal-1].regexString
+        }
     }
 }
 obj Pending (Object) {
@@ -188,15 +198,11 @@ fun bs(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int, pivot: in
     return to_ret
 }
 fun fungll(grammer: ref Grammer, input: ref str): set<BS> {
-    return loop(grammer, input, descend(grammer, -1 /*start_symbol*/, 0), set<Descriptor>(), map<pair<int, int>, set<Pending>>(), map<pair<int,int>, set<int>>(), set<BS>())
-}
-fun descend(grammer: ref Grammer, symbol: int, l: int): set<Descriptor> {
-    var to_ret = set<Descriptor>()
-    for (var rhs = 0; rhs < grammer.get_nonterminal_rules(symbol).size; rhs++;)
-        to_ret.add(descriptor(symbol, rhs, 0, l, l))
-    return to_ret
-}
-fun loop(grammer: ref Grammer, input: ref str, R: set<Descriptor>, U: set<Descriptor>, G: map<pair<int, int>, set<Pending>>, P: map<pair<int,int>, set<int>>, Y: set<BS>): set<BS> {
+    var R = descend(grammer, grammer.start_symbol, 0)
+    var U = set<Descriptor>()
+    var G = map<pair<int, int>, set<Pending>>()
+    var P = map<pair<int,int>, set<int>>()
+    var Y = set<BS>()
     while R.size() != 0 {
         var d = R.pop()
         var it = process(grammer, input, d, G, P)
@@ -227,7 +233,13 @@ fun loop(grammer: ref Grammer, input: ref str, R: set<Descriptor>, U: set<Descri
     }
     return Y
 }
-fun process(grammer: ref Grammer, input: ref str, descript: Descriptor, G: map<pair<int, int>, set<Pending>>, P: map<pair<int,int>, set<int>>): triple<pair<set<Descriptor>, set<BS>>, map<pair<int, int>, set<Pending>>, map<pair<int,int>, set<int>>> {
+fun descend(grammer: ref Grammer, symbol: int, l: int): set<Descriptor> {
+    var to_ret = set<Descriptor>()
+    for (var rhs = 0; rhs < grammer.get_nonterminal_rules(symbol).size; rhs++;)
+        to_ret.add(descriptor(symbol, rhs, 0, l, l))
+    return to_ret
+}
+fun process(grammer: ref Grammer, input: ref str, descript: Descriptor, G: ref map<pair<int, int>, set<Pending>>, P: ref map<pair<int,int>, set<int>>): triple<pair<set<Descriptor>, set<BS>>, map<pair<int, int>, set<Pending>>, map<pair<int,int>, set<int>>> {
     // if at end / end is emptystr
     if descript.idx_into_rule == grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx].size {
         return process_e(grammer, descript, G, P)
@@ -243,7 +255,7 @@ fun process_e(grammer: ref Grammer, descript: Descriptor, G: ref map<pair<int, i
     var X = descript.nonterminal
     var l = descript.left;
     var k = descript.pivot;
-    var K = G.get(make_pair(X,l))
+    var K = G.get_with_default(make_pair(X,l), set<Pending>())
     var it = ascend(l,K,k)
     var R = it.first
     var Y = it.second
@@ -266,8 +278,11 @@ fun process_symbol(grammer: ref Grammer, input: ref str, descript: Descriptor, G
     }
 }
 fun matc(grammer: ref Grammer, input: ref str, descript: Descriptor): pair<set<Descriptor>, set<BS>> {
-    if descript.pivot < input.length() && input[descript.pivot] == grammer.get_terminal(grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx][descript.idx_into_rule]) {
-        return make_pair(set(descriptor(descript.nonterminal, descript.rule_idx, descript.idx_into_rule+1, descript.left, descript.pivot+1)), set(bs(descript.nonterminal, descript.rule_idx, descript.idx_into_rule+1, descript.left, descript.pivot, descript.pivot+1)))
+    /*println("trying to match " + grammer.to_string(grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx][descript.idx_into_rule]))*/
+    var match_length = grammer.match_terminal(grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx][descript.idx_into_rule], input, descript.pivot)
+    if match_length > 0 {
+        /*println("matched " + grammer.to_string(grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx][descript.idx_into_rule]))*/
+        return make_pair(set(descriptor(descript.nonterminal, descript.rule_idx, descript.idx_into_rule+1, descript.left, descript.pivot+match_length)), set(bs(descript.nonterminal, descript.rule_idx, descript.idx_into_rule+1, descript.left, descript.pivot, descript.pivot+match_length)))
     } else {
         return make_pair(set<Descriptor>(), set<BS>())
     }
@@ -287,20 +302,19 @@ fun nmatch(k:int, K: ref set<Pending>, R: ref set<int>): pair<set<Descriptor>, s
     }
     return make_pair(Rp,Y)
 }
-fun main(argc: int, argv: **char): int {
-    var grammer.construct(): Grammer
-    var one = grammer.add_terminal('1')
-    var E = grammer.add_new_nonterminal("E", vec<int>())
-    grammer.add_to_nonterminal(E, vec(one))
-    grammer.add_to_nonterminal(E, vec(E,E,E))
+/*fun main(argc: int, argv: **char): int {*/
+    /*var grammer.construct(): Grammer*/
+    /*var one = grammer.add_terminal("12")*/
+    /*var E = grammer.add_new_nonterminal("E", vec<int>())*/
+    /*grammer.add_to_nonterminal(E, vec(one))*/
+    /*grammer.add_to_nonterminal(E, vec(E,E,E))*/
 
-    var BSR = fungll(grammer, str("1"))
-    println(str("length of BSR is: ") + BSR.size())
-    for (var i = 0; i < BSR.data.size; i++;) {
-        var BS = BSR.data[i]
-        /*println(str() + i + ": " + grammer.to_string(BSR.data[i]) + "\t\t" + BSR.data[i].to_string())*/
-        println(str() + i + ": " + grammer.to_string(BSR.data[i]))
-    }
+    /*var BSR = fungll(grammer, str("1212"))*/
+    /*println(str("length of BSR is: ") + BSR.size())*/
+    /*for (var i = 0; i < BSR.data.size; i++;) {*/
+        /*var BS = BSR.data[i]*/
+        /*println(str() + i + ": " + grammer.to_string(BSR.data[i]))*/
+    /*}*/
 
-    return 0
-}
+    /*return 0*/
+/*}*/
