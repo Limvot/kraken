@@ -7,122 +7,6 @@ import map:*
 
 import fungll:*
 
-fun tokenize(s: str): vec<str> {
-    var to_ret = vec<str>()
-    for (var i = 0; i < s.length(); i++;) {
-        if (s[i] == ' ' || s[i] == '\t' || s[i] == ',' || s[i] == '\n') {
-            i++
-            while (i < s.length() && (s[i] == ' ' || s[i] == '\t' || s[i] == ',' || s[i] == '\n')) {
-                i++;
-            }
-            i--
-        } else if (i+1 < s.length() && s[i] == '~' && s[i+1] == '@') {
-            to_ret.add(str("~@"))
-            i++
-        } else if ( s[i] == '[' || s[i] == ']' || s[i] == '{' || s[i] == '}' || s[i] == '(' || s[i] == ')' || s[i] == '\'' || s[i] == '`' || s[i] == '~' || s[i] == '^' || s[i] == '@') { // '
-            to_ret.add(str(s[i]))
-        } else if (s[i] == ';') {
-            var next_tok = str(s[i])
-            i++
-            while (i < s.length() && (s[i] != '\n')) {
-                next_tok += s[i]
-                i++
-            }
-            i--
-        } else if (s[i] == '"') {
-            var str_start = i
-            var next_tok = str(s[i])
-            i++
-            while (i < s.length()) {
-                next_tok += s[i]
-                if s[i] == '"' {
-                    var backslash_count = 0
-                    while ((i-backslash_count)-1 > str_start && s[(i-backslash_count)-1] == '\\') {
-                        backslash_count++
-                    }
-                    // even number of backslashes
-                    if (backslash_count & 1) == 0 {
-                        break
-                    }
-                }
-                i++
-            }
-            to_ret.add(next_tok)
-        } else {
-            var next_tok = str(s[i])
-            i++
-            while (i < s.length() && !( s[i] == ' ' || s[i] == '\t' || s[i] == ',' || s[i] == '\n' || s[i] == '[' || s[i] == ']' || s[i] == '{' || s[i] == '}' || s[i] == '(' || s[i] == ')' || s[i] == '\'' || s[i] == '`' || s[i] == '~' || s[i] == '^' || s[i] == '@' || s[i] == ';')) { // '
-                next_tok += s[i]
-                i++
-            }
-            to_ret.add(next_tok)
-            i--
-        }
-    }
-    return to_ret
-}
-
-
-fun read_form(tokens: *vec<str>, i: *int): MalResult {
-    if ((*tokens)[*i] == "(" || (*tokens)[*i] == "[") {
-        return read_list(tokens, i, (*tokens)[*i] == "[")
-    } else if ((*tokens)[*i] == "{") {
-        return read_dict(tokens, i)
-    } else if ((*tokens)[*i] == "@") {
-        (*i)++;
-        var inner = read_form(tokens, i)
-        if (is_err(inner)) {
-            return inner
-        }
-        return MalResult::Ok(MalValue::List(vec(MalValue::Symbol(str("deref")), get_value(inner))))
-    } else if ((*tokens)[*i] == "'") {
-        (*i)++;
-        var inner = read_form(tokens, i)
-        if (is_err(inner)) {
-            return inner
-        }
-        return MalResult::Ok(MalValue::List(vec(MalValue::Symbol(str("quote")), get_value(inner))))
-    } else if ((*tokens)[*i] == "`") {
-        (*i)++;
-        var inner = read_form(tokens, i)
-        if (is_err(inner)) {
-            return inner
-        }
-        return MalResult::Ok(MalValue::List(vec(MalValue::Symbol(str("quasiquote")), get_value(inner))))
-    } else if ((*tokens)[*i] == "~") {
-        (*i)++;
-        var inner = read_form(tokens, i)
-        if (is_err(inner)) {
-            return inner
-        }
-        return MalResult::Ok(MalValue::List(vec(MalValue::Symbol(str("unquote")), get_value(inner))))
-    } else if ((*tokens)[*i] == "~@") {
-        (*i)++;
-        var inner = read_form(tokens, i)
-        if (is_err(inner)) {
-            return inner
-        }
-        return MalResult::Ok(MalValue::List(vec(MalValue::Symbol(str("splice-unquote")), get_value(inner))))
-    } else {
-        return read_atom(tokens, i)
-    }
-}
-fun read_dict(tokens: *vec<str>, i: *int): MalResult {
-    (*i)++;
-    var values = vec<MalValue>()
-    while (*i < tokens->size && (*tokens)[*i] != "}") {
-        var result = read_form(tokens, i)
-        if (is_err(result)) {
-            return result
-        }
-        values.add(get_value(result))
-    }
-    if (*i == tokens->size) {
-        return MalResult::Err(MalValue::String(str("unbalanced {")))
-    }
-    (*i)++;
-    return create_map(values)
-}
 fun create_map(values: vec<MalValue>): MalResult {
     var to_ret = map<MalValue,MalValue>()
     if values.size & 1 == 1 {
@@ -155,82 +39,7 @@ fun get_map(m: MalValue): map<MalValue, MalValue> {
     }
     error("can't get_map not a map")
 }
-fun read_list(tokens: *vec<str>, i: *int, is_vec: bool): MalResult {
-    var to_ret = vec<MalValue>()
-    (*i)++;
-    while (*i < tokens->size && ((!is_vec &&(*tokens)[*i] != ")") || (is_vec &&(*tokens)[*i] != "]"))) {
-        var result = read_form(tokens, i)
-        if (is_err(result)) {
-            return result
-        }
-        to_ret.add(get_value(result))
-    }
-    if (*i == tokens->size) {
-        if is_vec {
-            return MalResult::Err(MalValue::String(str("unbalanced [")))
-        } else {
-            return MalResult::Err(MalValue::String(str("unbalanced (")))
-        }
-    }
-    (*i)++;
-    if is_vec {
-        return MalResult::Ok(MalValue::Vector(to_ret))
-    } else {
-        return MalResult::Ok(MalValue::List(to_ret))
-    }
-}
-fun read_atom(tokens: *vec<str>, i: *int): MalResult {
-    var all_num = true
-    var token = (*tokens)[*i]
-    (*i)++
-    for (var j = 0; j < token.length(); j++;) {
-        all_num = all_num && ((j == 0 && token[j] == '-' && token.length() > 1) || token[j] >= '0' && token[j] <= '9')
-    }
-    if (all_num) {
-        return MalResult::Ok(MalValue::Int(string_to_num<int>(token)))
-    } else if (token == "true") {
-        return MalResult::Ok(MalValue::True())
-    } else if (token == "false") {
-        return MalResult::Ok(MalValue::False())
-    } else if (token == "nil") {
-        return MalResult::Ok(MalValue::Nil())
-    } else if (token[0] == '"') {
-        var to_ret = str()
-        if token.length() == 1 || token[token.length()-1] != '"' {
-            return MalResult::Err(MalValue::String(str("unbalanced \""))) //"
-        }
-        for (var i = 1; i < token.length()-1; i++;) {
-            if token[i] == '\\' {
-                if i == token.length()-2 {
-                    return MalResult::Err(MalValue::String(str("unbalanced \""))) //"
-                }
-                if token[i+1] == 'n' {
-                    to_ret += '\n'
-                } else if token[i+1] == '\\' || token[i+1] == '"' {
-                    to_ret += token[i+1]
-                } else {
-                    return MalResult::Err(MalValue::String(str("bad string escape")))
-                }
-                // skip
-                i++
-            } else {
-                to_ret += token[i]
-            }
-        }
-        return MalResult::Ok(MalValue::String(to_ret))
-    } else if (token[0] == ':') {
-        return MalResult::Ok(MalValue::Keyword(token.slice(1,-1)))
-    } else {
-        return MalResult::Ok(MalValue::Symbol(token))
-    }
-}
 fun read_str(grammer: ref Grammer<MalResult>, s: str): MalResult {
-    var tokens = tokenize(s)
-
-    var normal_to_ret = MalResult::Ok(MalValue::Nil())
-    var new_to_ret = MalResult::Ok(MalValue::Nil())
-
-
     var BSR = fungll(grammer, s)
     var success = false
     for (var i = 0; i < BSR.data.size; i++;) {
@@ -238,13 +47,7 @@ fun read_str(grammer: ref Grammer<MalResult>, s: str): MalResult {
         success = success || (BSR.data[i].nonterminal == grammer.start_symbol && BSR.data[i].right == s.length())
     }
     if success {
-        /*println("parsed: " + s)*/
-        /*println(str("length of BSR is: ") + BSR.size())*/
-        /*for (var i = 0; i < BSR.data.size; i++;) {*/
-            /*var BS = BSR.data[i]*/
-            /*println(str() + i + ": " + grammer.to_string(BSR.data[i]))*/
-        /*}*/
-        new_to_ret = grammer.eval_BSR(s, BSR)
+        return grammer.eval_BSR(s, BSR)
     } else {
         println("trying to parse: " + s)
         println(str("length of BSR is: ") + BSR.size())
@@ -255,33 +58,6 @@ fun read_str(grammer: ref Grammer<MalResult>, s: str): MalResult {
         println("Parse failed")
         error("faileD")
     }
-    // comment, print nothing
-    if tokens.size == 0 {
-        normal_to_ret = MalResult::Err(MalValue::String(str("")))
-    } else {
-        var i = 0
-        normal_to_ret = read_form(&tokens, &i)
-    }
-
-    /*var readably = false*/
-    var readably = true
-    if is_err(normal_to_ret) {
-        println("normal Was error")
-        println(pr_str(get_err(normal_to_ret), readably))
-    } else {
-        println("normal Was value")
-        println(pr_str(get_value(normal_to_ret), readably))
-    }
-    if is_err(new_to_ret) {
-        println("new Was error")
-        println(pr_str(get_err(new_to_ret), readably))
-    } else {
-        println("new Was value")
-        println(pr_str(get_value(new_to_ret), readably))
-    }
-
-    /*return normal_to_ret*/
-    return new_to_ret
 }
 adt MalValue {
     Nil,
