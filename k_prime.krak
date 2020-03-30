@@ -940,9 +940,6 @@ fun main(argc: int, argv: **char): int {
     grammer.add_to_nonterminal(optional_WS, vec(WS), ret_nil_sym)
 
     var atom = grammer.add_new_nonterminal("atom", vec(grammer.add_terminal("-?[0-9]+", fun(input: ref str, l: int, r: int): MalResult { return MalResult::Ok(MalValue::Int(string_to_num<int>(input.slice(l,r)))); })), ret_0_sym)
-    grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("true", fun(input: ref str, l: int, r: int): MalResult { return MalResult::Ok(MalValue::True()); })), ret_0_sym)
-    grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("false", fun(input: ref str, l: int, r: int): MalResult { return MalResult::Ok(MalValue::False()); })), ret_0_sym)
-    grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("nil", fun(input: ref str, l: int, r: int): MalResult { return MalResult::Ok(MalValue::Nil()); })), ret_0_sym)
     grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("\"([#-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\\*)|(\\0)|
 |[ -!]|(\\\\\"))*\"", fun(input: ref str, l: int, r: int): MalResult {
         var to_ret = str()
@@ -965,7 +962,18 @@ fun main(argc: int, argv: **char): int {
         return MalResult::Ok(MalValue::String(to_ret));
     })), fun(x: ref vec<MalResult>): MalResult { return x[0]; }) //"
     /*grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|'|<|>)*", fun(input: ref str, l: int, r: int): MalResult { return MalResult::Ok(MalValue::Symbol(input.slice(l,r))); })), ret_0_sym)*/
-    grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("([a-z]|[A-Z]|_|\\*|\\?|\\+|-|!|=|&|<|>)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>)*", fun(input: ref str, l: int, r: int): MalResult { return MalResult::Ok(MalValue::Symbol(input.slice(l,r))); })), ret_0_sym)
+    grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("([a-z]|[A-Z]|_|\\*|\\?|\\+|-|!|=|&|<|>)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>)*", fun(input: ref str, l: int, r: int): MalResult {
+        var s = input.slice(l,r)
+        if s == "true" {
+            return MalResult::Ok(MalValue::True());
+        } else if s == "false" {
+            return MalResult::Ok(MalValue::False());
+        } else if s == "nil" {
+            return MalResult::Ok(MalValue::Nil());
+        } else {
+            return MalResult::Ok(MalValue::Symbol(input.slice(l,r)));
+        }
+    })), ret_0_sym)
     grammer.add_to_nonterminal(atom, vec(grammer.add_terminal(":([a-z]|[A-Z]|_)([a-z]|[A-Z]|_|[0-9])*", fun(input: ref str, l: int, r: int): MalResult { return MalResult::Ok(MalValue::Keyword(input.slice(l,r))); })), ret_0_sym)
 
     var form = grammer.add_new_nonterminal("form", vec(atom), ret_0_sym)
