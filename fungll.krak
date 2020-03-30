@@ -51,8 +51,13 @@ obj Grammer<T,K> (Object) {
         nonterminal_funs.add(vec(make_pair(d,f)))
         return -1*nonterminals.size
     }
-    fun add_to_nonterminal(nonterminal: ref str, rule: ref vec<int>, d: K, f: fun(ref K,ref vec<T>): T) {
-        add_to_nonterminal(-1*(nonterminal_names.find(nonterminal)+1), rule, d, f)
+    fun add_to_or_create_nonterminal(name: ref str, rule: ref vec<int>, d: K, f: fun(ref K,ref vec<T>): T) {
+        var idx = nonterminal_names.find(name)
+        if idx >= 0 {
+            add_to_nonterminal(-1*(idx+1), rule, d, f)
+        } else {
+            add_new_nonterminal(name, rule, d, f)
+        }
     }
     fun add_to_nonterminal(nonterminal: int, rule: ref vec<int>, d: K, f: fun(ref K,ref vec<T>): T) {
         nonterminals[(-1*nonterminal)-1].add(rule)
@@ -111,6 +116,12 @@ obj Grammer<T,K> (Object) {
             }
         }
         if top == -1 {
+            println("Could not find top for input:")
+            println(input)
+            println(str("of length ") + input.length())
+            for (var i = 0; i < BSR.data.size; i++;) {
+                println(str() + i + ": " + to_string(BSR.data[i]))
+            }
             error("Could not find top")
         }
         return eval_BSR(input, BSR, top)
@@ -271,8 +282,14 @@ fun bs(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int, pivot: in
     var to_ret.construct(nonterminal, rule_idx, idx_into_rule, left, pivot, right): BS
     return to_ret
 }
-fun fungll<T,K>(grammer: ref Grammer<T,K>, input: ref str): set<BS> {
-    var R = descend(grammer, grammer.start_symbol, 0)
+/*fun fungll<T,K>(grammer: ref Grammer<T,K>, start_symbol: *char, input: ref str): set<BS> {*/
+    /*return fungll(grammer, str(start_symbol), input)*/
+/*}*/
+/*fun fungll<T,K>(grammer: ref Grammer<T,K>, start_symbol: str, input: ref str): set<BS> {*/
+    /*return fungll(grammer, -1*(grammer.nonterminal_funs.find(start_symbol)+1), input)*/
+/*}*/
+fun fungll<T,K>(grammer: ref Grammer<T,K>, start_symbol: int, input: ref str): set<BS> {
+    var R = descend(grammer, start_symbol, 0)
     var U = set<Descriptor>()
     var G = map<pair<int, int>, set<Pending>>()
     var P = map<pair<int,int>, set<int>>()
