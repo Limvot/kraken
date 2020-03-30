@@ -7,12 +7,12 @@ import str:*
 import regex:*
 
 // nonterminals are negative, terminals are positive
-obj Grammer<T> (Object) {
+obj Grammer<T,K> (Object) {
     var nonterminals: vec<vec<vec<int>>>
     var nonterminal_names: vec<str>
-    var nonterminal_funs: vec<vec<fun(ref vec<T>): T>>
+    var nonterminal_funs: vec<vec<pair<K,fun(ref K, ref vec<T>): T>>>
     var terminals: vec<regex>
-    var terminal_funs: vec<fun(ref str,int,int): T>
+    var terminal_funs: vec<pair<K,fun(ref K,ref str,int,int): T>>
     var start_symbol: int
     fun construct(): *Grammer {
         nonterminals.construct()
@@ -42,22 +42,28 @@ obj Grammer<T> (Object) {
         destruct()
         copy_construct(&other)
     }
-    fun add_new_nonterminal(name: *char, rule: ref vec<int>, f: fun(ref vec<T>): T): int {
-        return add_new_nonterminal(str(name), rule, f)
+    fun add_new_nonterminal(name: *char, rule: ref vec<int>, d: K, f: fun(ref K,ref vec<T>): T): int {
+        return add_new_nonterminal(str(name), rule, d, f)
     }
-    fun add_new_nonterminal(name: ref str, rule: ref vec<int>, f: fun(ref vec<T>): T): int {
+    fun add_new_nonterminal(name: ref str, rule: ref vec<int>, d: K, f: fun(ref K,ref vec<T>): T): int {
         nonterminals.add(vec(rule))
         nonterminal_names.add(name)
-        nonterminal_funs.add(vec(f))
+        nonterminal_funs.add(vec(make_pair(d,f)))
         return -1*nonterminals.size
     }
-    fun add_to_nonterminal(nonterminal: int, rule: ref vec<int>, f: fun(ref vec<T>): T) {
-        nonterminals[(-1*nonterminal)-1].add(rule)
-        nonterminal_funs[(-1*nonterminal)-1].add(f)
+    fun add_to_nonterminal(nonterminal: ref str, rule: ref vec<int>, d: K, f: fun(ref K,ref vec<T>): T) {
+        add_to_nonterminal(-1*(nonterminal_names.find(nonterminal)+1), rule, d, f)
     }
-    fun add_terminal(c: *char, f: fun(ref str,int,int): T): int {
+    fun add_to_nonterminal(nonterminal: int, rule: ref vec<int>, d: K, f: fun(ref K,ref vec<T>): T) {
+        nonterminals[(-1*nonterminal)-1].add(rule)
+        nonterminal_funs[(-1*nonterminal)-1].add(make_pair(d,f))
+    }
+    fun add_terminal(c: *char, d: K, f: fun(ref K,ref str,int,int): T): int {
+        return add_terminal(str(c), d, f)
+    }
+    fun add_terminal(c: ref str, d: K, f: fun(ref K,ref str,int,int): T): int {
         terminals.add(regex(c))
-        terminal_funs.add(f)
+        terminal_funs.add(make_pair(d,f))
         return terminals.size
     }
     fun get_nonterminal_rules(nonterminal: int): ref vec<vec<int>> {
@@ -119,7 +125,7 @@ obj Grammer<T> (Object) {
         for (var i = bs.idx_into_rule-1; i >= 0; i--;) {
             var erminal = nonterminals[nonterminal][bs.rule_idx][i]
             if is_terminal(erminal) {
-                var right_value = terminal_funs[erminal-1](input, bs.pivot, bs.right)
+                var right_value = terminal_funs[erminal-1].second(terminal_funs[erminal-1].first, input, bs.pivot, bs.right)
                 params.add(right_value)
             } else {
                 /*var right = find_comp(erminal, bs.pivot, bs.right)*/
@@ -147,7 +153,7 @@ obj Grammer<T> (Object) {
                 bs = BSR.data[new_bs_idx]
             }
         }
-        var to_ret = nonterminal_funs[nonterminal][bs.rule_idx](params.reverse())
+        var to_ret = nonterminal_funs[nonterminal][bs.rule_idx].second(nonterminal_funs[nonterminal][bs.rule_idx].first, params.reverse())
         return to_ret
     }
 }
@@ -265,7 +271,7 @@ fun bs(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int, pivot: in
     var to_ret.construct(nonterminal, rule_idx, idx_into_rule, left, pivot, right): BS
     return to_ret
 }
-fun fungll<T>(grammer: ref Grammer<T>, input: ref str): set<BS> {
+fun fungll<T,K>(grammer: ref Grammer<T,K>, input: ref str): set<BS> {
     var R = descend(grammer, grammer.start_symbol, 0)
     var U = set<Descriptor>()
     var G = map<pair<int, int>, set<Pending>>()
@@ -301,13 +307,13 @@ fun fungll<T>(grammer: ref Grammer<T>, input: ref str): set<BS> {
     }
     return Y
 }
-fun descend<T>(grammer: ref Grammer<T>, symbol: int, l: int): set<Descriptor> {
+fun descend<T,K>(grammer: ref Grammer<T,K>, symbol: int, l: int): set<Descriptor> {
     var to_ret = set<Descriptor>()
     for (var rhs = 0; rhs < grammer.get_nonterminal_rules(symbol).size; rhs++;)
         to_ret.add(descriptor(symbol, rhs, 0, l, l))
     return to_ret
 }
-fun process<T>(grammer: ref Grammer<T>, input: ref str, descript: Descriptor, G: ref map<pair<int, int>, set<Pending>>, P: ref map<pair<int,int>, set<int>>): triple<pair<set<Descriptor>, set<BS>>, map<pair<int, int>, set<Pending>>, map<pair<int,int>, set<int>>> {
+fun process<T,K>(grammer: ref Grammer<T,K>, input: ref str, descript: Descriptor, G: ref map<pair<int, int>, set<Pending>>, P: ref map<pair<int,int>, set<int>>): triple<pair<set<Descriptor>, set<BS>>, map<pair<int, int>, set<Pending>>, map<pair<int,int>, set<int>>> {
     // if at end / end is emptystr
     if descript.idx_into_rule == grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx].size {
         return process_e(grammer, descript, G, P)
@@ -315,7 +321,7 @@ fun process<T>(grammer: ref Grammer<T>, input: ref str, descript: Descriptor, G:
         return process_symbol(grammer, input, descript, G, P)
     }
 }
-fun process_e<T>(grammer: ref Grammer<T>, descript: Descriptor, G: ref map<pair<int, int>, set<Pending>>, P: ref map<pair<int,int>, set<int>>): triple<pair<set<Descriptor>, set<BS>>, map<pair<int, int>, set<Pending>>, map<pair<int,int>, set<int>>> {
+fun process_e<T,K>(grammer: ref Grammer<T,K>, descript: Descriptor, G: ref map<pair<int, int>, set<Pending>>, P: ref map<pair<int,int>, set<int>>): triple<pair<set<Descriptor>, set<BS>>, map<pair<int, int>, set<Pending>>, map<pair<int,int>, set<int>>> {
     var nonterminal: int
     var rule_idx: int
     var left: int
@@ -332,7 +338,7 @@ fun process_e<T>(grammer: ref Grammer<T>, descript: Descriptor, G: ref map<pair<
     }
     return make_triple(make_pair(R,Y), map<pair<int, int>, set<Pending>>(), map(make_pair(X,l), set(k)))
 }
-fun process_symbol<T>(grammer: ref Grammer<T>, input: ref str, descript: Descriptor, G: ref map<pair<int, int>, set<Pending>>, P: ref map<pair<int,int>, set<int>>): triple<pair<set<Descriptor>, set<BS>>, map<pair<int, int>, set<Pending>>, map<pair<int,int>, set<int>>> {
+fun process_symbol<T,K>(grammer: ref Grammer<T,K>, input: ref str, descript: Descriptor, G: ref map<pair<int, int>, set<Pending>>, P: ref map<pair<int,int>, set<int>>): triple<pair<set<Descriptor>, set<BS>>, map<pair<int, int>, set<Pending>>, map<pair<int,int>, set<int>>> {
     var s = grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx][descript.idx_into_rule]
     var k = descript.pivot
     var R = P.get_with_default(make_pair(s,k), set<int>())
@@ -345,7 +351,7 @@ fun process_symbol<T>(grammer: ref Grammer<T>, input: ref str, descript: Descrip
         return make_triple(skip(k,pending(descript.nonterminal, descript.rule_idx, descript.idx_into_rule+1, descript.left), R), Gp, map<pair<int,int>, set<int>>())
     }
 }
-fun matc<T>(grammer: ref Grammer<T>, input: ref str, descript: Descriptor): pair<set<Descriptor>, set<BS>> {
+fun matc<T,K>(grammer: ref Grammer<T,K>, input: ref str, descript: Descriptor): pair<set<Descriptor>, set<BS>> {
     /*println("trying to match " + grammer.to_string(grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx][descript.idx_into_rule]))*/
     var match_length = grammer.match_terminal(grammer.get_nonterminal_rules(descript.nonterminal)[descript.rule_idx][descript.idx_into_rule], input, descript.pivot)
     if match_length > 0 {
