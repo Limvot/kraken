@@ -968,6 +968,7 @@ fun main(argc: int, argv: **char): int {
                 to_ret += input[i]
             }
         }
+        /*return MalResult::Ok(MalValue::String(input.slice(l+1,r-1)));*/
         return MalResult::Ok(MalValue::String(to_ret));
     })), MalValue::Nil(), ret_0_sym) //"
     grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("-|(([a-z]|[A-Z]|_|\\*|\\?|\\+|!|=|&|<|>)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>)*)", MalValue::Nil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult {
@@ -1566,10 +1567,26 @@ fun main(argc: int, argv: **char): int {
             var i = 0
             var current_ret = MalResult::Ok(MalValue::Nil())
             /*println(str("eval-read-string length is ") + input.length())*/
+            if i < input.length() {
+                // initial handle whitespace
+                var BSR = fungll(grammer, optional_WS, input.slice(i, -1))
+                var longest = -1
+                for (var j = 0; j < BSR.data.size; j++;) {
+                    if BSR.data[j].nonterminal == optional_WS && BSR.data[j].left == 0 {
+                        if BSR.data[j].right > longest {
+                            longest = BSR.data[j].right
+                        }
+                    }
+                }
+                if longest > 0 {
+                    i += longest
+                }
+                /*println(str("after skip whitespace i is ") + i + "input is " + input.slice(i, -1))*/
+            }
             while i < input.length() {
                 var r = read_str(grammer, input.slice(i, -1))
                 i += r.first
-                /*println(str("new i is ") + i)*/
+                /*println(str("after read_str i is ") + i + " input is " + input.slice(i, -1))*/
                 if is_err(r.second) {
                     return r.second
                 }
@@ -1577,19 +1594,20 @@ fun main(argc: int, argv: **char): int {
                 if is_err(current_ret) {
                     return current_ret
                 }
-                /*println("cutting through WS")*/
+                // handle whitespace again
                 var BSR = fungll(grammer, optional_WS, input.slice(i, -1))
                 var longest = -1
                 for (var j = 0; j < BSR.data.size; j++;) {
                     if BSR.data[j].nonterminal == optional_WS && BSR.data[j].left == 0 {
-                        longest = BSR.data[j].right
+                        if BSR.data[j].right > longest {
+                            longest = BSR.data[j].right
+                        }
                     }
-                    /*println(str() + j + ": " + grammer.to_string(BSR.data[j]))*/
                 }
                 if longest > 0 {
                     i += longest
                 }
-                /*println(str("new i post WS is ") + i)*/
+                /*println(str("after skip whitespace i is ") + i + "input is " + input.slice(i, -1))*/
             }
             return current_ret
         }
