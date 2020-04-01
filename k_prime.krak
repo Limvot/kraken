@@ -971,7 +971,7 @@ fun main(argc: int, argv: **char): int {
         /*return MalResult::Ok(MalValue::String(input.slice(l+1,r-1)));*/
         return MalResult::Ok(MalValue::String(to_ret));
     })), MalValue::Nil(), ret_0_sym) //"
-    grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("-|(([a-z]|[A-Z]|_|\\*|\\?|\\+|!|=|&|<|>)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>)*)", MalValue::Nil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult {
+    grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>)*)", MalValue::Nil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult {
         var s = input.slice(l,r)
         if s == "true" {
             return MalResult::Ok(MalValue::True());
