@@ -43,7 +43,7 @@ fun read_str(grammer: ref Grammer<MalResult,MalValue>, s: str): pair<int, MalRes
     var BSR = fungll(grammer, grammer.start_symbol, s)
     var longest = -1
     for (var i = 0; i < BSR.data.size; i++;) {
-        if BSR.data[i].nonterminal == grammer.start_symbol && BSR.data[i].left == 0 {
+        if BSR.data[i].nonterminal == grammer.start_symbol && BSR.data[i].left == 0 && BSR.data[i].idx_into_rule == grammer.nonterminals[(-1*BSR.data[i].nonterminal)-1][BSR.data[i].rule_idx].size {
             longest = BSR.data[i].right
         }
     }
