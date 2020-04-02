@@ -986,7 +986,10 @@ fun main(argc: int, argv: **char): int {
     grammer.add_to_nonterminal(atom, vec(grammer.add_terminal(":([a-z]|[A-Z]|_)([a-z]|[A-Z]|_|[0-9])*", MalValue::Nil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult { return MalResult::Ok(MalValue::Keyword(input.slice(l,r))); })), MalValue::Nil(), ret_0_sym)
 
     var form = grammer.add_new_nonterminal("form", vec(atom), MalValue::Nil(), ret_0_sym)
-    var space_forms = grammer.add_new_nonterminal("space_forms", vec(form), MalValue::Nil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
+    var space_forms = grammer.add_new_nonterminal("space_forms", vec<int>(), MalValue::Nil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
+        return MalResult::Ok(MalValue::List(vec<MalValue>()))
+    })
+    grammer.add_to_nonterminal(space_forms, vec(form), MalValue::Nil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
         if is_err(x[0]) {
             return x[0]
         }
@@ -1018,7 +1021,10 @@ fun main(argc: int, argv: **char): int {
         return MalResult::Ok(MalValue::Vector(get_list(get_value(x[2]))))
    })
 
-    var doubled_space_forms = grammer.add_new_nonterminal("doubled_space_forms", vec(form, WS, form), MalValue::Nil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
+    var doubled_space_forms = grammer.add_new_nonterminal("doubled_space_forms", vec<int>(), MalValue::Nil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
+        return MalResult::Ok(MalValue::List(vec<MalValue>()))
+   })
+    grammer.add_to_nonterminal(doubled_space_forms, vec(form, WS, form), MalValue::Nil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
         if is_err(x[0]) {
             return x[0]
         }
@@ -1488,9 +1494,6 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Ok(MalValue::String(entered))
         }
     }));
-    env->set(str("time-ms"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
-        return MalResult::Err(MalValue::String(str("not implemented")))
-    }));
     env->set(str("meta"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
         return MalResult::Err(MalValue::String(str("not implemented")))
     }));
@@ -1623,7 +1626,6 @@ fun main(argc: int, argv: **char): int {
     rep(grammer, env, str("(add_grammer_rule :atom [\"@\" :form] (fn* (xs) `(deref ~(nth xs 1))))"))
 
     rep(grammer, env, str("(def! not (fn* (a) (if a false true)))"))
-    /*rep(grammer, env, str("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \" \\nnil)\")))))"))*/
     rep(grammer, env, str("(def! load-file (fn* (f) (eval-read-string (slurp f))))"))
     rep(grammer, env, str("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))"))
     rep(grammer, env, str("(def! nil? (fn* (a) (= nil a)))"))
