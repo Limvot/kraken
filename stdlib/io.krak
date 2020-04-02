@@ -18,7 +18,10 @@ fun get_line(line_size: int): str::str
     return get_line(line_size, stdin)
 fun get_line(line_size: int, file: *void): str::str {
     var buff = new<char>(line_size)
-    fgets(buff, line_size, file)
+    if fgets(buff, line_size, file) == null<char>() {
+        delete(buff)
+        return str::str("***EOF***")
+    }
     var to_ret = str::str(buff)
     delete(buff)
     return to_ret.slice(0,-2) // remove '\n'
