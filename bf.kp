@@ -10,11 +10,11 @@
 (add_grammer_rule :bfs_list [] (fn* [xs] xs))
 (add_grammer_rule :bfs_list [:non_empty_bfs_list] (fn* [xs] (nth xs 0)))
 (add_grammer_rule :bfs_atom ["\\[" :bfs_list "]"] (fn* [xs] 
-                `(let* (f (fn* [f]
+                `(let* (f (fn* []
                                 (if (= 0 (nth (deref arr) (deref ptr)))
                                     nil
-                                    (do ,(nth xs 1) (f f)))))
-                       (f f))))
+                                    (do ,(nth xs 1) (f)))))
+                       (f))))
 (add_grammer_rule :bfs [:bfs_list] (fn* [xs] (nth xs 0)))
 (def! with_update (fn* [arr idx val]
                    (if
