@@ -28,7 +28,7 @@
 
 (add_grammer_rule :bfs [:bfs_list] (fn* [xs] (nth xs 0)))
 
-(add_grammer_rule :form ["bf{" :bfs "}"]
+(add_grammer_rule :form ["bf" :optional_WS "{" :optional_WS :bfs :optional_WS "}"]
                         (fn* [xs]
                            `(fn* [input]
                              (let* (
@@ -45,6 +45,6 @@
                                                              _ (swap! inptr (fn* [old] (+ old 1))))
                                                            (swap! arr (fn* [old] (with_update old (deref ptr) h)))))
                                     out      (fn* [] (swap! output (fn* [old] (cons (nth (deref arr) (deref ptr)) old)))))
-                                (do ,(nth xs 1) (deref output))))))
+                                (do ,(nth xs 4) (deref output))))))
 
-(println (bf{,>+++[<.>-]} [1337]))
+(println (bf { ,>+++[<.>-] } [1337]))
