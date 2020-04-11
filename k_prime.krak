@@ -540,7 +540,7 @@ fun function_call(f: MalValue, params: vec<MalValue>): MalResult {
             return EVAL(call_pair.first, get_value(call_pair.second))
         }
     }
-    return MalResult::Err(MalValue::String(str("trying to apply not a function")))
+    return MalResult::Err(MalValue::String(str("trying to apply not a function: ") + pr_str(f ,true)))
 }
 
 adt MalResult {
@@ -899,7 +899,7 @@ fun EVAL(env: *Env, ast: MalValue): MalResult {
                             continue
                         }
                     }
-                    return MalResult::Err(MalValue::String(str("trying to call not a function")))
+                    return MalResult::Err(MalValue::String(str("trying to call not a function:") + pr_str(to_call[0], true)))
                 }
             }
         }
@@ -1005,6 +1005,9 @@ fun main(argc: int, argv: **char): int {
         return MalResult::Ok(MalValue::List(vec(get_value(x[0])) + get_list(get_value(x[2]))))
     })
 
+    grammer.add_to_nonterminal(form, vec(grammer.add_terminal("\\(", MalValue::Nil(), ret_nil_term),
+                                                       optional_WS,
+                                                       grammer.add_terminal("\\)", MalValue::Nil(), ret_nil_term)), MalValue::Nil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult { return MalResult::Ok(MalValue::Vector(vec<MalValue>())); })
     grammer.add_to_nonterminal(form, vec(grammer.add_terminal("\\(", MalValue::Nil(), ret_nil_term),
                                                        optional_WS,
                                                        space_forms,
@@ -1593,6 +1596,7 @@ fun main(argc: int, argv: **char): int {
                 if is_err(r.second) {
                     return r.second
                 }
+                /*println("here '" + pr_str(get_value(r.second), true) + "'")*/
                 current_ret = EVAL(env, get_value(r.second))
                 if is_err(current_ret) {
                     return current_ret

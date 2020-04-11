@@ -1,0 +1,54 @@
+; Now we have native BF support
+(add_grammer_rule :bfs_atom ["<"]   (fn* [xs] (list 'left)))
+(add_grammer_rule :bfs_atom [">"]   (fn* [xs] (list 'right)))
+(add_grammer_rule :bfs_atom ["\\+"] (fn* [xs] (list 'plus)))
+(add_grammer_rule :bfs_atom ["-"]   (fn* [xs] (list 'minus)))
+(add_grammer_rule :bfs_atom [","]   (fn* [xs] (list 'in)))
+(add_grammer_rule :bfs_atom ["."]   (fn* [xs] (list 'out)))
+(add_grammer_rule :non_empty_bfs_list [:bfs_atom] (fn* [xs] (list (nth xs 0))))
+(add_grammer_rule :non_empty_bfs_list [:bfs_atom :optional_WS :non_empty_bfs_list] (fn* [xs] (cons (nth xs 0) (nth xs 2))))
+(add_grammer_rule :bfs_list [] (fn* [xs] xs))
+(add_grammer_rule :bfs_list [:non_empty_bfs_list] (fn* [xs] (nth xs 0)))
+(add_grammer_rule :bfs_atom ["\\[" :bfs_list "]"] (fn* [xs] 
+                `(let* (f (fn* [f]
+                                (if (= 0 (nth (deref arr) (deref ptr)))
+                                    nil
+                                    (do ,(nth xs 1) (f f)))))
+                       (f f))))
+(add_grammer_rule :bfs [:bfs_list] (fn* [xs] (nth xs 0)))
+(def! with_update (fn* [arr idx val]
+                   (if
+                    (= idx 0)
+                    (cons val (rest arr))
+                    (cons (first arr) (with_update (rest arr) (- idx 1) val))
+                   )
+                  )
+)
+(add_grammer_rule :form ["bf{" :bfs "}"]
+                        (fn* [xs]
+                           `(fn* [input]
+                             (let* (
+                                    ;arr      (atom [0 0 0 0 0])
+                                    arr      (atom (vector 0 0 0 0 0))
+                                    output   (atom [])
+                                    ptr      (atom 0)
+                                    inptr    (atom 0)
+                                    left     (fn* [] (swap! ptr (fn* [old] (- old 1))))
+                                    right    (fn* [] (swap! ptr (fn* [old] (+ old 1))))
+                                    plus     (fn* [] (swap! arr (fn* [old] (with_update old (deref ptr) (+ (nth (deref arr) (deref ptr)) 1)))))
+                                    minus    (fn* [] (swap! arr (fn* [old] (with_update old (deref ptr) (- (nth (deref arr) (deref ptr)) 1)))))
+                                    in       (fn* [] (let* (
+                                                            h (nth input (deref inptr))
+                                                            _ (swap! inptr (fn* [old] (+ old 1)))
+                                                           )
+                                                           (swap! arr (fn* [old] (with_update old (deref ptr) h)))
+                                                     )
+                                             )
+                                    out      (fn* [] (swap! output (fn* [old] (cons (nth (deref arr) (deref ptr)) old))))
+                                )
+                                (do ,(nth xs 1) (deref output))
+                               )
+                              )
+                           )
+ )
+(println (bf{,>+++[<.>-]} [1337]))
