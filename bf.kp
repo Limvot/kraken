@@ -47,3 +47,6 @@
                                 (do ,(nth xs 4) (deref output))))))
 
 (println (bf { ,>+++[<.>-] } [1337]))
+
+(def! main (fn* [argv] 2))
+;(def! main (fn* [] (+ 13 1)))
