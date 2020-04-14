@@ -51,5 +51,6 @@
 ;(def! main (fn* [argv] 2))
 ;(def! main (fn* [] (let* (a 13 b 12 c 11) b)))
 ;(def! main (fn* [] (do 13 12 11)))
-(def! main (fn* [] (if false 1 2)))
+;(def! main (fn* [] (if false 1 2)))
 ;(def! main (fn* [] (+ 13 1)))
+(def! main (fn* [] (- 13 -1)))

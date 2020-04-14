@@ -1394,7 +1394,48 @@ fun main(argc: int, argv: **char): int {
             println("Starting compile!")
             match (get_value(main)) {
                 MalValue::Function(f) {
-                    var main_s = str("#include <stddef.h>\nint main(int argc, char** argv) {\n")
+                    var main_s = str("#include <stddef.h>\n")
+                    main_s += "typedef struct {\n"
+                    main_s += "size_t (*func)(size_t*,size_t,size_t*);\n"
+                    main_s += "size_t* data;\n"
+                    main_s += "} closure;\n"
+                    main_s += "size_t _plus_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += " return (size_t)(((((ptrdiff_t)args[0]) >> 3) + (((ptrdiff_t)args[1]) >> 3)) << 3);\n"
+                    main_s += "}\n"
+                    main_s += "closure *_plus = &(closure){ _plus_impl, NULL};\n"
+                    main_s += "size_t _minus_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += " return (size_t)(((((ptrdiff_t)args[0]) >> 3) - (((ptrdiff_t)args[1]) >> 3)) << 3);\n"
+                    main_s += "}\n"
+                    main_s += "closure *_minus = &(closure){ _minus_impl, NULL};\n"
+                    main_s += "size_t _mult_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += " return (size_t)(((((ptrdiff_t)args[0]) >> 3) * (((ptrdiff_t)args[1]) >> 3)) << 3);\n"
+                    main_s += "}\n"
+                    main_s += "closure *_mult = &(closure){ _mult_impl, NULL};\n"
+                    main_s += "size_t _div_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += " return (size_t)(((((ptrdiff_t)args[0]) >> 3) / (((ptrdiff_t)args[1]) >> 3)) << 3);\n"
+                    main_s += "}\n"
+                    main_s += "closure *_div = &(closure){ _div_impl, NULL};\n"
+                    main_s += "size_t _eq_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "if (args[0] == args[1]) { return 0x9F; } else { return 0x1F; }\n"
+                    main_s += "}\n"
+                    main_s += "closure *_eq = &(closure){ _eq_impl, NULL};\n"
+                    main_s += "size_t _lt_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "if (args[0] < args[1]) { return 0x9F; } else { return 0x1F; }\n"
+                    main_s += "}\n"
+                    main_s += "closure *_lt = &(closure){ _lt_impl, NULL};\n"
+                    main_s += "size_t _lte_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "if (args[0] <= args[1]) { return 0x9F; } else { return 0x1F; }\n"
+                    main_s += "}\n"
+                    main_s += "closure *_lte = &(closure){ _lte_impl, NULL};\n"
+                    main_s += "size_t _gt_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "if (args[0] > args[1]) { return 0x9F; } else { return 0x1F; }\n"
+                    main_s += "}\n"
+                    main_s += "closure *_gt = &(closure){ _gt_impl, NULL};\n"
+                    main_s += "size_t _gte_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "if (args[0] >= args[1]) { return 0x9F; } else { return 0x1F; }\n"
+                    main_s += "}\n"
+                    main_s += "closure *_gte = &(closure){ _gte_impl, NULL};\n"
+                    main_s += "int main(int argc, char** argv) {\n"
                     var inner_main = compile(&main_s, env, *f.body)
                     main_s += "return (" + inner_main + ")>>3;\n}\n"
                     write_file(str(argv[1]) + ".c", main_s)
@@ -1444,7 +1485,27 @@ fun compile_value(defs: *str, env: *Env, ast: MalValue): str {
         /*}*/
         MalValue::Symbol(s) {
             /*return env->get(s)*/
-            return s
+            if (s == "+") {
+                return str("_plus")
+            } else if (s == "-") {
+                return str("_minus")
+            } else if (s == "*") {
+                return str("_mult")
+            } else if (s == "/") {
+                return str("_div")
+            } else if (s == "=") {
+                return str("_eq")
+            } else if (s == "<") {
+                return str("_lt")
+            } else if (s == "<=") {
+                return str("_lte")
+            } else if (s == ">") {
+                return str("_gt")
+            } else if (s == ">=") {
+                return str("_gte")
+            } else {
+                return s
+            }
         }
         MalValue::Int(i) {
             return to_string(i<<3)
@@ -1604,12 +1665,15 @@ fun compile(defs: *str, env: *Env, ast: MalValue): str {
                     /*return A*/
                 /*}*/
             } else {
-                error("Compiling function calls not implemented")
                 var to_call = vec<str>()
                 for (var i = 0; i < l.size; i++;) {
                     to_call.add(compile_value(defs, env, l[i]))
                 }
-                return to_call[0] + "(" + str(", ").join(to_call.slice(1,-1)) + ")"
+                var func_name = new_tmp()
+                *defs +=  "closure* " + func_name + " = (closure*)" + to_call[0] + ";\n"
+                var params_name = new_tmp()
+                *defs += "size_t " + params_name + "[] = {"+str(", ").join(to_call.slice(1,-1))+"};\n"
+                return func_name + "->func(" + func_name + "->data, " + to_string(l.size-1) + ", " + params_name + ")"
             }
         }
     }
