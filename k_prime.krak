@@ -1394,47 +1394,60 @@ fun main(argc: int, argv: **char): int {
             println("Starting compile!")
             match (get_value(main)) {
                 MalValue::Function(f) {
-                    var main_s = str("#include <stddef.h>\n")
+                    var main_s = str("#include <stdlib.h>\n#include <stdio.h>\n#include <stddef.h>\n")
+                    main_s += "void error(char* message) {fprintf(stderr, \"%s\", message); exit(1);}\n"
+                    main_s += "void check_num_params(size_t a, size_t b, char* function) { if (a!=b) {fprintf(stderr, \"%s: expected num params to be %d\\n\", function, b); exit(1);}}\n"
+                    main_s += "void check_int(size_t p, char* function) { if ((p&0x7)!=0) {fprintf(stderr, \"%s: expected param to be int\\n\", function); exit(1);}}\n"
+                    main_s += "void check_function(size_t p, char* message) { if ((p&0x7)!=0x6) {fprintf(stderr, \"%s: expected a function\\n\", message); exit(1);}}\n"
                     main_s += "typedef struct {\n"
                     main_s += "size_t (*func)(size_t*,size_t,size_t*);\n"
                     main_s += "size_t* data;\n"
                     main_s += "} closure;\n"
                     main_s += "size_t _plus_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "check_num_params(num, 2, \"+\"); check_int(args[0], \"+\"); check_int(args[1], \"+\");"
                     main_s += " return (size_t)(((((ptrdiff_t)args[0]) >> 3) + (((ptrdiff_t)args[1]) >> 3)) << 3);\n"
                     main_s += "}\n"
-                    main_s += "closure *_plus = &(closure){ _plus_impl, NULL};\n"
+                    main_s += "closure _plus_closure = { _plus_impl, NULL};\n"
                     main_s += "size_t _minus_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "check_num_params(num, 2, \"-\"); check_int(args[0], \"-\"); check_int(args[1], \"-\");"
                     main_s += " return (size_t)(((((ptrdiff_t)args[0]) >> 3) - (((ptrdiff_t)args[1]) >> 3)) << 3);\n"
                     main_s += "}\n"
-                    main_s += "closure *_minus = &(closure){ _minus_impl, NULL};\n"
+                    main_s += "closure _minus_closure =(closure){ _minus_impl, NULL};\n"
                     main_s += "size_t _mult_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "check_num_params(num, 2, \"*\"); check_int(args[0], \"*\"); check_int(args[1], \"*\");"
                     main_s += " return (size_t)(((((ptrdiff_t)args[0]) >> 3) * (((ptrdiff_t)args[1]) >> 3)) << 3);\n"
                     main_s += "}\n"
-                    main_s += "closure *_mult = &(closure){ _mult_impl, NULL};\n"
+                    main_s += "closure _mult_closure = (closure){ _mult_impl, NULL};\n"
                     main_s += "size_t _div_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "check_num_params(num, 2, \"/\"); check_int(args[0], \"/\"); check_int(args[1], \"/\");"
                     main_s += " return (size_t)(((((ptrdiff_t)args[0]) >> 3) / (((ptrdiff_t)args[1]) >> 3)) << 3);\n"
                     main_s += "}\n"
-                    main_s += "closure *_div = &(closure){ _div_impl, NULL};\n"
+                    main_s += "closure _div_closure = (closure){ _div_impl, NULL};\n"
                     main_s += "size_t _eq_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "check_num_params(num, 2, \"=\");"
                     main_s += "if (args[0] == args[1]) { return 0x9F; } else { return 0x1F; }\n"
                     main_s += "}\n"
-                    main_s += "closure *_eq = &(closure){ _eq_impl, NULL};\n"
+                    main_s += "closure _eq_closure = (closure){ _eq_impl, NULL};\n"
                     main_s += "size_t _lt_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "check_num_params(num, 2, \"<\"); check_int(args[0], \"<\"); check_int(args[1], \"<\");"
                     main_s += "if (args[0] < args[1]) { return 0x9F; } else { return 0x1F; }\n"
                     main_s += "}\n"
-                    main_s += "closure *_lt = &(closure){ _lt_impl, NULL};\n"
+                    main_s += "closure _lt_closure = (closure){ _lt_impl, NULL};\n"
                     main_s += "size_t _lte_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "check_num_params(num, 2, \"<=\"); check_int(args[0], \"<=\"); check_int(args[1], \"<=\");"
                     main_s += "if (args[0] <= args[1]) { return 0x9F; } else { return 0x1F; }\n"
                     main_s += "}\n"
-                    main_s += "closure *_lte = &(closure){ _lte_impl, NULL};\n"
+                    main_s += "closure _lte_closure = (closure){ _lte_impl, NULL};\n"
                     main_s += "size_t _gt_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "check_num_params(num, 2, \">\"); check_int(args[0], \">\"); check_int(args[1], \">\");"
                     main_s += "if (args[0] > args[1]) { return 0x9F; } else { return 0x1F; }\n"
                     main_s += "}\n"
-                    main_s += "closure *_gt = &(closure){ _gt_impl, NULL};\n"
+                    main_s += "closure _gt_closure = (closure){ _gt_impl, NULL};\n"
                     main_s += "size_t _gte_impl(size_t* _, size_t num, size_t* args) {\n"
+                    main_s += "check_num_params(num, 2, \">=\"); check_int(args[0], \">=\"); check_int(args[1], \">=\");"
                     main_s += "if (args[0] >= args[1]) { return 0x9F; } else { return 0x1F; }\n"
                     main_s += "}\n"
-                    main_s += "closure *_gte = &(closure){ _gte_impl, NULL};\n"
+                    main_s += "closure _gte_closure = (closure){ _gte_impl, NULL};\n"
                     main_s += "int main(int argc, char** argv) {\n"
                     var inner_main = compile(&main_s, env, *f.body)
                     main_s += "return (" + inner_main + ")>>3;\n}\n"
@@ -1486,23 +1499,23 @@ fun compile_value(defs: *str, env: *Env, ast: MalValue): str {
         MalValue::Symbol(s) {
             /*return env->get(s)*/
             if (s == "+") {
-                return str("_plus")
+                return str("((((size_t)&_plus_closure)<<3)|0x6)")
             } else if (s == "-") {
-                return str("_minus")
+                return str("((((size_t)&_minus_closure)<<3)|0x6)")
             } else if (s == "*") {
-                return str("_mult")
+                return str("((((size_t)&_mult_closure)<<3)|0x6)")
             } else if (s == "/") {
-                return str("_div")
+                return str("((((size_t)&_div_closure)<<3)|0x6)")
             } else if (s == "=") {
-                return str("_eq")
+                return str("((((size_t)&_eq_closure)<<3)|0x6)")
             } else if (s == "<") {
-                return str("_lt")
+                return str("((((size_t)&_lt_closure)<<3)|0x6)")
             } else if (s == "<=") {
-                return str("_lte")
+                return str("((((size_t)&_lte_closure)<<3)|0x6)")
             } else if (s == ">") {
-                return str("_gt")
+                return str("((((size_t)&_gt_closure)<<3)|0x6)")
             } else if (s == ">=") {
-                return str("_gte")
+                return str("((((size_t)&_gte_closure)<<3)|0x6)")
             } else {
                 return s
             }
@@ -1520,7 +1533,6 @@ fun compile_value(defs: *str, env: *Env, ast: MalValue): str {
             return str("0x1F")
         }
     }
-    /*return MalResult::Ok(ast)*/
     error("could not compile value: " + pr_str(ast, true))
 }
 var tmp_idx: int = 0
@@ -1630,23 +1642,14 @@ fun compile(defs: *str, env: *Env, ast: MalValue): str {
                 if l.size == 1 {
                     error("compile quote with no arguments")
                 }
-                /*return MalResult::Ok(l[1])*/
                 return compile_value(defs, env, l[1])
             } else if (is_symbol(l[0], "quasiquote")) {
                 if l.size == 1 {
                     error("compile quasiquote with no arguments")
-                    /*return MalResult::Err(MalValue::String(str("quasiquote with no arguments")))*/
                 }
                 return compile(defs, env, quasiquote(l[1]))
-                /*var tmp = quasiquote(l[1])*/
-                /*ast = tmp*/
-                /*continue*/
             } else if (is_symbol(l[0], "macroexpand")) {
                 error("macroexpand doesn't make sense while compiling")
-                /*if l.size == 1 {*/
-                    /*return MalResult::Err(MalValue::String(str("macroexpand with no arguments")))*/
-                /*}*/
-                /*return macroexpand(l[1], env)*/
             } else if (is_symbol(l[0], "try*")) {
                 error("compile try* unimplemented")
                 /*if l.size != 2 && (l.size != 3 || !is_list(l[2])) {*/
@@ -1670,7 +1673,9 @@ fun compile(defs: *str, env: *Env, ast: MalValue): str {
                     to_call.add(compile_value(defs, env, l[i]))
                 }
                 var func_name = new_tmp()
-                *defs +=  "closure* " + func_name + " = (closure*)" + to_call[0] + ";\n"
+                *defs += "size_t " + func_name + "_r = " + to_call[0] + ";\n"
+                *defs += "check_function(" + func_name + "_r, \"trying to call\");";
+                *defs +=  "closure* " + func_name + " = (closure*)(" + func_name + "_r>>3);\n"
                 var params_name = new_tmp()
                 *defs += "size_t " + params_name + "[] = {"+str(", ").join(to_call.slice(1,-1))+"};\n"
                 return func_name + "->func(" + func_name + "->data, " + to_string(l.size-1) + ", " + params_name + ")"
