@@ -1449,6 +1449,15 @@ fun compile_value(defs: *str, env: *Env, ast: MalValue): str {
         MalValue::Int(i) {
             return to_string(i<<3)
         }
+        MalValue::Nil() {
+            return str("0x2F")
+        }
+        MalValue::True() {
+            return str("0x9F")
+        }
+        MalValue::False() {
+            return str("0x1F")
+        }
     }
     /*return MalResult::Ok(ast)*/
     error("could not compile value: " + pr_str(ast, true))
@@ -1519,11 +1528,11 @@ fun compile(defs: *str, env: *Env, ast: MalValue): str {
                 }
                 var cond = compile(defs, env, l[1])
                 var tmp_name = new_tmp()
-                *defs += "size_t " + tmp_name + "; if (" + cond + ") {\n"
+                *defs += "size_t " + tmp_name + "; if (" + cond + " != 0x1F) {\n"
                 var then = compile(defs, env, l[2])
                 *defs += tmp_name + " = " + then + ";\n} else {\n"
                 var else_ = compile(defs, env, l[3])
-                *defs += tmp_name + " = " + else_ + ";\n}"
+                *defs += tmp_name + " = " + else_ + ";\n}\n"
                 return tmp_name
             } else if (is_symbol(l[0], "fn*")) {
                 error("compile fn* unimplemented")
