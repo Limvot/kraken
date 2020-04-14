@@ -48,5 +48,6 @@
 
 (println (bf { ,>+++[<.>-] } [1337]))
 
-(def! main (fn* [argv] 2))
+;(def! main (fn* [argv] 2))
+(def! main (fn* [] (let* (a 13 b 12 c 11) b)))
 ;(def! main (fn* [] (+ 13 1)))
