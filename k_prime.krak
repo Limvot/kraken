@@ -1609,11 +1609,43 @@ fun compile(top_decs: *str, top_defs: *str, defs: *str, env: *Env, ast: MalValue
                 *defs += tmp_name + " = " + else_ + ";\n}\n"
                 return tmp_name
             } else if (is_symbol(l[0], "fn*")) {
+                if l.size != 3 {
+                    error("fn* needs 2 children")
+                }
+                if (!is_list_or_vec(l[1])) {
+                    error("fn* without list of parameters")
+                }
+                var parameters = get_list_or_vec(l[1])
+                var parameters_str = str()
+                var num_params = 0
+                var is_variadic = false
+                for (var i = 0; i < parameters.size; i++;) {
+                    if (!is_symbol(parameters[i])) {
+                        error("fn* parameter name not symbol")
+                    }
+                    var symbol_text = get_symbol_text(parameters[i])
+                    if symbol_text == "&" {
+                        if i != parameters.size - 2 {
+                            error("fn* has wrong number of arguments after &")
+                        }
+                        if (!is_symbol(parameters[i+1])) {
+                            error("fn* parameter name not symbol")
+                        }
+                        is_variadic = true
+                        i++
+                        symbol_text = get_symbol_text(parameters[i])
+                        error("compiling varadiac not implemented yet")
+                        /*parameters_str += "size_t " + symbol_text + " = args[" + i + "];\n" */
+                    } else {
+                        parameters_str += "size_t " + symbol_text + " = args[" + i + "];\n"
+                    }
+                }
 
                 var fun_name = "fun_" + new_tmp()
                 *top_decs += "size_t " + fun_name + "(size_t*, size_t, size_t*);\n"
                 var function = "size_t " + fun_name + "(size_t* _, size_t num, size_t* args) {\n"
-                /*var inner_value = compile(top_decs, top_defs, &function, f.env, *f.body)*/
+                function += str("check_num_params(num, ") + parameters.size + ", \"lambda\");\n"
+                function += parameters_str
                 var inner_value = compile(top_decs, top_defs, &function, env, l[2])
                 function += "return " + inner_value + ";\n}\n"
                 *top_defs += function
@@ -1621,37 +1653,6 @@ fun compile(top_decs: *str, top_defs: *str, defs: *str, env: *Env, ast: MalValue
                 *defs += fun_name + "_closure->func = " + fun_name + ";\n"
                 *defs += fun_name + "_closure->data = NULL;\n"
                 return "((((size_t)"+fun_name+"_closure)<<3)|0x6)"
-
-                error("compile fn* unimplemented")
-                /*if l.size != 3 {*/
-                    /*return MalResult::Err(MalValue::String(str("fn* needs 2 children")))*/
-                /*}*/
-                /*if (!is_list_or_vec(l[1])) {*/
-                    /*return MalResult::Err(MalValue::String(str("fn* without list of parameters")))*/
-                /*}*/
-                /*var parameters = get_list_or_vec(l[1])*/
-                /*var parameters_str = vec<str>()*/
-                /*var is_variadic = false*/
-                /*for (var i = 0; i < parameters.size; i++;) {*/
-                    /*if (!is_symbol(parameters[i])) {*/
-                        /*return MalResult::Err(MalValue::String(str("fn* parameter name not symbol")))*/
-                    /*}*/
-                    /*var symbol_text = get_symbol_text(parameters[i])*/
-                    /*if symbol_text == "&" {*/
-                        /*if i != parameters.size - 2 {*/
-                            /*return MalResult::Err(MalValue::String(str("fn* has wrong number of arguments after &")))*/
-                        /*}*/
-                        /*if (!is_symbol(parameters[i+1])) {*/
-                            /*return MalResult::Err(MalValue::String(str("fn* parameter name not symbol")))*/
-                        /*}*/
-                        /*is_variadic = true*/
-                        /*i++*/
-                        /*symbol_text = get_symbol_text(parameters[i])*/
-                    /*}*/
-                    /*parameters_str.add(symbol_text)*/
-                /*}*/
-                /*var to_ret.construct(env, parameters_str, is_variadic, false, l[2]): MalFunction*/
-                /*return MalResult::Ok(MalValue::Function(to_ret))*/
             } else if (is_symbol(l[0], "quote")) {
                 if l.size == 1 {
                     error("compile quote with no arguments")
@@ -1688,7 +1689,7 @@ fun compile(top_decs: *str, top_defs: *str, defs: *str, env: *Env, ast: MalValue
                 }
                 var func_name = new_tmp()
                 *defs += "size_t " + func_name + "_r = " + to_call[0] + ";\n"
-                *defs += "check_function(" + func_name + "_r, \"trying to call\");";
+                *defs += "check_function(" + func_name + "_r, \"trying to call\");\n";
                 *defs +=  "closure* " + func_name + " = (closure*)(" + func_name + "_r>>3);\n"
                 var params_name = new_tmp()
                 *defs += "size_t " + params_name + "_params[] = {"+str(", ").join(to_call.slice(1,-1))+"};\n"
