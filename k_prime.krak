@@ -1450,7 +1450,9 @@ fun main(argc: int, argv: **char): int {
                     top_defs += "closure _gte_closure = (closure){ _gte_impl, NULL};\n"
                     var main_s = str("int main(int argc, char** argv) {\n")
                     var inner_main = compile(&top_decs, &top_defs, &main_s, f.env, *f.body)
-                    main_s += "return (" + inner_main + ")>>3;\n}\n"
+                    main_s += "size_t main_to_ret = " + inner_main + ";\n"
+                    main_s += "check_int(main_to_ret, \"main return\");\n"
+                    main_s += "return (main_to_ret)>>3;\n}\n"
                     write_file(str(argv[1]) + ".c", top_decs + top_defs + main_s)
                     println("Finished compile")
                     return 0
