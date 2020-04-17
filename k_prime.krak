@@ -354,6 +354,9 @@ obj Env (Object) {
     fun set(key: str, val: MalValue) {
         data.set(key, val)
     }
+    fun remove(key: str) {
+        data.remove(key)
+    }
     fun find(key: str): *Env {
         if (data.contains_key(key)) {
             return this
@@ -1449,7 +1452,9 @@ fun main(argc: int, argv: **char): int {
                     top_defs += "}\n"
                     top_defs += "closure _gte_closure = (closure){ _gte_impl, NULL};\n"
                     var main_s = str("int main(int argc, char** argv) {\n")
-                    var inner_main = compile(&top_decs, &top_defs, &main_s, f.env, *f.body)
+                    var main_body = str()
+                    var inner_main = compile(&top_decs, &top_defs, &main_s, &main_body, f.env, *f.body)
+                    main_s += main_body;
                     main_s += "size_t main_to_ret = " + inner_main + ";\n"
                     main_s += "check_int(main_to_ret, \"main return\");\n"
                     main_s += "return (main_to_ret)>>3;\n}\n"
@@ -1478,7 +1483,7 @@ fun new_tmp(): str {
     tmp_idx += 1
     return str("x") + tmp_idx
 }
-fun compile_value(top_decs: *str, top_defs: *str, defs: *str, env: *Env, ast: MalValue): str {
+fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *Env, ast: MalValue): str {
     match (ast) {
         MalValue::List(l) {
             error("could not compile list: " + pr_str(ast, true))
@@ -1525,6 +1530,16 @@ fun compile_value(top_decs: *str, top_defs: *str, defs: *str, env: *Env, ast: Ma
             } else if (s == ">=") {
                 return str("((((size_t)&_gte_closure)<<3)|0x6)")
             } else {
+                var e = env->find(s);
+                if e != null<Env>() && e->outer == null<Env>() {
+                    println(s + " found in outer-est scope!")
+                    var x = str()
+                    var value = compile(top_decs, top_defs, main_init, &x, e, get_value(e->get(s)))
+                    *top_defs += "size_t " + s + ";\n"
+                    *main_init += x
+                    *main_init += s + " = " + value + ";\n"
+                    e->remove(s)
+                }
                 return s
             }
         }
@@ -1540,22 +1555,41 @@ fun compile_value(top_decs: *str, top_defs: *str, defs: *str, env: *Env, ast: Ma
         MalValue::False() {
             return str("0x1F")
         }
+        MalValue::Function(f) {
+            var parameters_str = str()
+            for (var i = 0; i < f.parameters.size; i++;) {
+                parameters_str += "size_t " + f.parameters[i] + " = args[" + i + "];\n"
+            }
+
+            var fun_name = "fun_" + new_tmp()
+            *top_decs += "size_t " + fun_name + "(size_t*, size_t, size_t*);\n"
+            var function = "size_t " + fun_name + "(size_t* _, size_t num, size_t* args) {\n"
+            function += str("check_num_params(num, ") + f.parameters.size + ", \"lambda\");\n"
+            function += parameters_str
+            var inner_value = compile(top_decs, top_defs, main_init, &function, env, *f.body)
+            function += "return " + inner_value + ";\n}\n"
+            *top_defs += function
+            *defs += "closure* " + fun_name + "_closure = malloc(sizeof(closure));\n"
+            *defs += fun_name + "_closure->func = " + fun_name + ";\n"
+            *defs += fun_name + "_closure->data = NULL;\n"
+            return "((((size_t)"+fun_name+"_closure)<<3)|0x6)"
+        }
     }
     error("could not compile value: " + pr_str(ast, true))
 }
-fun compile(top_decs: *str, top_defs: *str, defs: *str, env: *Env, ast: MalValue): str {
+fun compile(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *Env, ast: MalValue): str {
     var expanded = macroexpand(ast, env)
     if (is_err(expanded)) {
         error("compile error in macroexpand: " + pr_str(get_err(expanded), true))
     }
     ast = get_value(expanded)
     if !is_list(ast) {
-        return compile_value(top_decs, top_defs, defs, env, ast)
+        return compile_value(top_decs, top_defs, main_init, defs, env, ast)
     }
     match (ast) {
         MalValue::List(l) {
             if (l.size == 0) {
-                return compile_value(top_decs, top_defs, defs, env, ast)
+                return compile_value(top_decs, top_defs, main_init, defs, env, ast)
             } else if (is_symbol(l[0], "def!")) {
                 if (l.size != 3) {
                     error("def! without exaclty key and value")
@@ -1564,7 +1598,7 @@ fun compile(top_decs: *str, top_defs: *str, defs: *str, env: *Env, ast: MalValue
                     error("def! not on symbol")
                 }
                 var to_set_name = get_symbol_text(l[1])
-                var to_set_value = compile(top_decs, top_defs, defs, env, l[2])
+                var to_set_value = compile(top_decs, top_defs, main_init, defs, env, l[2])
                 *defs += "size_t " + to_set_name + " = " + to_set_value + ";\n"
                 return to_set_name
             } else if (is_symbol(l[0], "defmacro!")) {
@@ -1587,84 +1621,42 @@ fun compile(top_decs: *str, top_defs: *str, defs: *str, env: *Env, ast: MalValue
                     if (!is_symbol(bindings[i])) {
                         error("let* var name not symbol")
                     }
-                    var to_set_value = compile(top_decs, top_defs, defs, new_env, bindings[i+1])
+                    var to_set_value = compile(top_decs, top_defs, main_init, defs, new_env, bindings[i+1])
                     *defs += "size_t " + get_symbol_text(bindings[i]) + " = " + to_set_value + ";\n"
                 }
-                *defs += let_val + " = " + compile(top_decs, top_defs, defs, new_env, l[2]) + ";\n}\n"
+                *defs += let_val + " = " + compile(top_decs, top_defs, main_init, defs, new_env, l[2]) + ";\n}\n"
                 return let_val
             } else if (is_symbol(l[0], "do")) {
                 for (var i = 1; i < l.size-1; i++;) {
-                    var _ = compile(top_decs, top_defs, defs, env, l[i])
+                    var _ = compile(top_decs, top_defs, main_init, defs, env, l[i])
                     *defs += ";\n"
                 }
-                return compile(top_decs, top_defs, defs, env, l[l.size-1])
+                return compile(top_decs, top_defs, main_init, defs, env, l[l.size-1])
             } else if (is_symbol(l[0], "if")) {
                 if l.size != 3 && l.size != 4 {
                     error("if needs 2 or 3 children")
                 }
-                var cond = compile(top_decs, top_defs, defs, env, l[1])
+                var cond = compile(top_decs, top_defs, main_init, defs, env, l[1])
                 var tmp_name = new_tmp()
                 *defs += "size_t " + tmp_name + "; if (" + cond + " != 0x1F) {\n"
-                var then = compile(top_decs, top_defs, defs, env, l[2])
+                var then = compile(top_decs, top_defs, main_init, defs, env, l[2])
                 *defs += tmp_name + " = " + then + ";\n} else {\n"
-                var else_ = compile(top_decs, top_defs, defs, env, l[3])
+                var else_ = compile(top_decs, top_defs, main_init, defs, env, l[3])
                 *defs += tmp_name + " = " + else_ + ";\n}\n"
                 return tmp_name
             } else if (is_symbol(l[0], "fn*")) {
-                if l.size != 3 {
-                    error("fn* needs 2 children")
-                }
-                if (!is_list_or_vec(l[1])) {
-                    error("fn* without list of parameters")
-                }
-                var parameters = get_list_or_vec(l[1])
-                var parameters_str = str()
-                var num_params = 0
-                var is_variadic = false
-                for (var i = 0; i < parameters.size; i++;) {
-                    if (!is_symbol(parameters[i])) {
-                        error("fn* parameter name not symbol")
-                    }
-                    var symbol_text = get_symbol_text(parameters[i])
-                    if symbol_text == "&" {
-                        if i != parameters.size - 2 {
-                            error("fn* has wrong number of arguments after &")
-                        }
-                        if (!is_symbol(parameters[i+1])) {
-                            error("fn* parameter name not symbol")
-                        }
-                        is_variadic = true
-                        i++
-                        symbol_text = get_symbol_text(parameters[i])
-                        error("compiling varadiac not implemented yet")
-                        /*parameters_str += "size_t " + symbol_text + " = args[" + i + "];\n" */
-                    } else {
-                        parameters_str += "size_t " + symbol_text + " = args[" + i + "];\n"
-                    }
-                }
-
-                var fun_name = "fun_" + new_tmp()
-                *top_decs += "size_t " + fun_name + "(size_t*, size_t, size_t*);\n"
-                var function = "size_t " + fun_name + "(size_t* _, size_t num, size_t* args) {\n"
-                function += str("check_num_params(num, ") + parameters.size + ", \"lambda\");\n"
-                function += parameters_str
-                var inner_value = compile(top_decs, top_defs, &function, env, l[2])
-                function += "return " + inner_value + ";\n}\n"
-                *top_defs += function
-                *defs += "closure* " + fun_name + "_closure = malloc(sizeof(closure));\n"
-                *defs += fun_name + "_closure->func = " + fun_name + ";\n"
-                *defs += fun_name + "_closure->data = NULL;\n"
-                return "((((size_t)"+fun_name+"_closure)<<3)|0x6)"
+                var f = EVAL(env, ast)
+                return compile_value(top_decs, top_defs, main_init, defs, env, get_value(f))
             } else if (is_symbol(l[0], "quote")) {
                 if l.size == 1 {
                     error("compile quote with no arguments")
                 }
-                return compile_value(top_decs, top_defs, defs, env, l[1])
+                return compile_value(top_decs, top_defs, main_init, defs, env, l[1])
             } else if (is_symbol(l[0], "quasiquote")) {
                 if l.size == 1 {
                     error("compile quasiquote with no arguments")
                 }
-                return compile(top_decs, top_defs, defs, env, quasiquote(l[1]))
+                return compile(top_decs, top_defs, main_init, defs, env, quasiquote(l[1]))
             } else if (is_symbol(l[0], "macroexpand")) {
                 error("macroexpand doesn't make sense while compiling")
             } else if (is_symbol(l[0], "try*")) {
@@ -1687,7 +1679,7 @@ fun compile(top_decs: *str, top_defs: *str, defs: *str, env: *Env, ast: MalValue
             } else {
                 var to_call = vec<str>()
                 for (var i = 0; i < l.size; i++;) {
-                    to_call.add(compile(top_decs, top_defs, defs, env, l[i]))
+                    to_call.add(compile(top_decs, top_defs, main_init, defs, env, l[i]))
                 }
                 var func_name = new_tmp()
                 *defs += "size_t " + func_name + "_r = " + to_call[0] + ";\n"
@@ -1699,5 +1691,5 @@ fun compile(top_decs: *str, top_defs: *str, defs: *str, env: *Env, ast: MalValue
             }
         }
     }
-    return compile_value(top_decs, top_defs, defs, env, ast)
+    return compile_value(top_decs, top_defs, main_init, defs, env, ast)
 }
