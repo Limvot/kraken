@@ -1451,6 +1451,30 @@ fun main(argc: int, argv: **char): int {
                     top_defs += "if (args[0] >= args[1]) { return 0x9F; } else { return 0x1F; }\n"
                     top_defs += "}\n"
                     top_defs += "closure _gte_closure = (closure){ _gte_impl, NULL};\n"
+                    top_defs += "size_t _print_impl(size_t* _, size_t num, size_t* args) {\n"
+                    top_defs += "for (int _idx = 0; _idx < num; _idx++) {\n"
+                    top_defs += "if      ((args[_idx] & 0xFF) == 0x2F) printf(\"nil\");\n"
+                    top_defs += "else if ((args[_idx] & 0xFF) == 0x9F) printf(\"true\");\n"
+                    top_defs += "else if ((args[_idx] & 0xFF) == 0x1F) printf(\"false\");\n"
+                    top_defs += "else if ((args[_idx] & 0xFF) == 0x0F) printf(\"Char?\");\n"
+                    top_defs += "else if ((args[_idx] & 0x07) == 0x06) printf(\"function\");\n"
+                    top_defs += "else if ((args[_idx] & 0x07) == 0x05) printf(\"Symbol?\");\n"
+                    top_defs += "else if ((args[_idx] & 0x07) == 0x04) printf(\"Atom?\");\n"
+                    top_defs += "else if ((args[_idx] & 0x07) == 0x03) printf(\"String?\");\n"
+                    top_defs += "else if ((args[_idx] & 0x07) == 0x02) printf(\"Vector?\");\n"
+                    top_defs += "else if ((args[_idx] & 0x07) == 0x01) printf(\"List?\");\n"
+                    top_defs += "else if ((args[_idx] & 0x07) == 0x00) printf(\"%d\", args[_idx]>>3);\n"
+                    top_defs += "else printf(\"can't print\");\n" //'
+                    top_defs += "}\n"
+                    top_defs += "return 0x2F;\n"
+                    top_defs += "}\n"
+                    top_defs += "closure _print_closure = (closure){ _print_impl, NULL};\n"
+                    top_defs += "size_t _println_impl(size_t* _, size_t num, size_t* args) {\n"
+                    top_defs += "_print_impl(_, num, args);\n"
+                    top_defs += "printf(\"\\n\");\n"
+                    top_defs += "return 0x2F;\n"
+                    top_defs += "}\n"
+                    top_defs += "closure _println_closure = (closure){ _println_impl, NULL};\n"
                     var main_s = str("int main(int argc, char** argv) {\n")
                     var main_body = str()
                     var inner_main = compile(&top_decs, &top_defs, &main_s, &main_body, f.env, *f.body)
@@ -1529,16 +1553,21 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 return str("((((size_t)&_gt_closure)<<3)|0x6)")
             } else if (s == ">=") {
                 return str("((((size_t)&_gte_closure)<<3)|0x6)")
+            } else if (s == "print") {
+                return str("((((size_t)&_print_closure)<<3)|0x6)")
+            } else if (s == "println") {
+                return str("((((size_t)&_println_closure)<<3)|0x6)")
             } else {
                 var e = env->find(s);
                 if e != null<Env>() && e->outer == null<Env>() {
                     println(s + " found in outer-est scope!")
+                    var v = e->get(s)
+                    e->remove(s)
                     var x = str()
-                    var value = compile(top_decs, top_defs, main_init, &x, e, get_value(e->get(s)))
-                    *top_defs += "size_t " + s + ";\n"
+                    var value = compile(top_decs, top_defs, main_init, &x, e, get_value(v))
+                    *top_decs += "size_t " + s + ";\n"
                     *main_init += x
                     *main_init += s + " = " + value + ";\n"
-                    e->remove(s)
                 }
                 return s
             }
@@ -1628,8 +1657,8 @@ fun compile(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *E
                 return let_val
             } else if (is_symbol(l[0], "do")) {
                 for (var i = 1; i < l.size-1; i++;) {
-                    var _ = compile(top_decs, top_defs, main_init, defs, env, l[i])
-                    *defs += ";\n"
+                    var value_possible_side_effect = compile(top_decs, top_defs, main_init, defs, env, l[i])
+                    *defs += value_possible_side_effect + ";\n"
                 }
                 return compile(top_decs, top_defs, main_init, defs, env, l[l.size-1])
             } else if (is_symbol(l[0], "if")) {

@@ -66,5 +66,10 @@
 ;(def! other (fn* [a b c] (- (+ a b) c)))
 ;(def! main (fn* [] (other 13 1 4)))
 
-(def! other 12)
-(def! main (fn* [] (+ other 4)))
+;(def! other 12)
+;(def! main (fn* [] (+ other 4)))
+
+(def! fact (fn* [n] (if (<= n 1) 1 (* (fact (- n 1)) n))))
+(def! main (fn* [] (let* (to_ret (fact 5))
+                         (do (println to_ret)
+                             to_ret))))
