@@ -72,5 +72,17 @@
 ;(def! fact (fn* [n] (if (<= n 1) 1 (* (fact (- n 1)) n))))
 ;(def! main (fn* [] (let* (to_ret (fact 5)) (do (println to_ret) to_ret))))
 
-(def! ret_with_call (fn* [n] (fn* [x] (+ n x))))
-(def! main (fn* [] ((ret_with_call 3) 5)))
+;(def! ret_with_call (fn* [n] (fn* [x] (+ n x))))
+;(def! main (fn* [] ((ret_with_call 3) 5)))
+
+(def! test (fn* [] (let* (
+                        ;(l (list 3 4 5))
+                        a 5
+                        l '(a 4 5)
+                        ;l (vector 3 4 5)
+                        ;l [a 4 5]
+                        )
+                        (nth l 0))))
+(def! main (fn* [] (let* (it (test)) (do (println it) it))))
+
+

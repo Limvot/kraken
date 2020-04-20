@@ -1492,6 +1492,53 @@ fun main(argc: int, argv: **char): int {
                     return 0x2F;
                     }
                     closure _println_closure = (closure){ _println_impl, NULL};
+
+                    size_t _list_impl(size_t* _, size_t num, size_t* args) {
+                        size_t to_ret = 0x2F;
+                        for (int i = num-1; i >= 0; i--) {
+                            size_t *node = malloc(sizeof(size_t)*2);
+                            node[0] = args[i];
+                            node[1] = to_ret;
+                            to_ret = ((((size_t)node)<<3)|0x1);
+                        }
+                        return to_ret;
+                    }
+                    closure _list_closure = (closure){ _list_impl, NULL};
+
+                    size_t _vector_impl(size_t* _, size_t num, size_t* args) {
+                        size_t *vec = malloc(sizeof(size_t)*(num + 1));
+                        vec[0] = num;
+                        for (int i = 0; i < num; i++)
+                            vec[i+1] = args[i];
+                        return ((((size_t)vec)<<3)|0x2);
+                    }
+                    closure _vector_closure = (closure){ _vector_impl, NULL};
+
+                    size_t _nth_impl(size_t* _, size_t num, size_t* args) {
+                        check_num_params(num, 2, "nth");
+                        check_int(args[1], "nth");
+                        if          ((args[0] & 0x7) == 0x1) {
+                            size_t *node = (size_t*)(args[0]>>3);
+                            for (int i = 0; i < (args[1]>>3); i++) {
+                                if ((node[1] & 0x7) != 0x1) {
+                                    error("nth idx out of range\n");
+                                }
+                                node = (size_t*)(node[1]>>3);
+                            }
+                            return node[0];
+                        } else if   ((args[0] & 0x7) == 0x2) {
+                            size_t* vec = (size_t*)(args[0]>>3);
+                            if (((ptrdiff_t)(args[1]>>3)) < 0 || (args[1]>>3) >= vec[0]) {
+                                error("nth idx out of range\n");
+                            }
+                            return vec[(args[1]>>3)+1];
+                        } else {
+                            error("Passed not a list or vector to nth\n");
+                        }
+                        return 0x2F;
+                    }
+                    closure _nth_closure = (closure){ _nth_impl, NULL};
+
                     """ //"
                     var main_s = str("int main(int argc, char** argv) {\n")
                     var main_body = str()
@@ -1582,7 +1629,11 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
             error("Can't get clsoure_vars for " + pr_str(ast, true))
         }
         MalValue::Vector(l) {
-            error("Can't get clsoure_vars for " + pr_str(ast, true))
+            var to_ret = set<str>()
+            for (var i = 0; i < l.size; i++;) {
+                to_ret += find_closed_vars(defined, env, l[i])
+            }
+            return to_ret
         }
         MalValue::Symbol(s) {
             if !defined.contains(s) {
@@ -1626,31 +1677,26 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
 fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *Env, ast: MalValue): str {
     match (ast) {
         MalValue::List(l) {
-            error("could not compile list: " + pr_str(ast, true))
-            /*var to_ret = vec<MalValue>()*/
-            /*for (var i = 0; i < l.size; i++;) {*/
-                /*var mid = EVAL(env, l[i])*/
-                /*if is_err(mid) {*/
-                    /*return mid*/
-                /*}*/
-                /*to_ret.add(get_value(mid))*/
-            /*}*/
-            /*return MalResult::Ok(MalValue::List(to_ret))*/
+            var call_str = str("_list_impl(NULL, ") + l.size + ", (size_t[]){ "
+            for (var i = 0; i < l.size; i++;) {
+                if i != 0 {
+                    call_str += ", "
+                }
+                call_str += compile(top_decs, top_defs, main_init, defs, env, l[i])
+            }
+            return call_str + "})"
         }
         MalValue::Vector(l) {
-            error("could not compile vector: " + pr_str(ast, true))
-            /*var to_ret = vec<MalValue>()*/
-            /*for (var i = 0; i < l.size; i++;) {*/
-                /*var mid = EVAL(env, l[i])*/
-                /*if is_err(mid) {*/
-                    /*return mid*/
-                /*}*/
-                /*to_ret.add(get_value(mid))*/
-            /*}*/
-            /*return MalResult::Ok(MalValue::Vector(to_ret))*/
+            var call_str = str("_vector_impl(NULL, ") + l.size + ", (size_t[]){ "
+            for (var i = 0; i < l.size; i++;) {
+                if i != 0 {
+                    call_str += ", "
+                }
+                call_str += compile(top_decs, top_defs, main_init, defs, env, l[i])
+            }
+            return call_str + "})"
         }
         MalValue::Symbol(s) {
-            /*return env->get(s)*/
             if (s == "+") {
                 return str("((((size_t)&_plus_closure)<<3)|0x6)")
             } else if (s == "-") {
@@ -1673,6 +1719,12 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 return str("((((size_t)&_print_closure)<<3)|0x6)")
             } else if (s == "println") {
                 return str("((((size_t)&_println_closure)<<3)|0x6)")
+            } else if (s == "list") {
+                return str("((((size_t)&_list_closure)<<3)|0x6)")
+            } else if (s == "vector") {
+                return str("((((size_t)&_vector_closure)<<3)|0x6)")
+            } else if (s == "nth") {
+                return str("((((size_t)&_nth_closure)<<3)|0x6)")
             } else {
                 var e = env->find(s);
                 if e != null<Env>() && e->outer == null<Env>() {
@@ -1711,7 +1763,6 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 function += "size_t " + f.parameters[i] + " = args[" + i + "];\n"
                 new_env->set(f.parameters[i], MalValue::Nil())
             }
-            /*var closed_vars = find_closed_vars(from_vector(f.parameters), env, *f.body)*/
             var closed_vars = find_closed_vars(set<str>(), new_env, ast)
             for (var i = 0; i < closed_vars.data.size; i++;) {
                 function += "size_t " + closed_vars.data[i] + " = closed_vars[" + i + "];\n"
