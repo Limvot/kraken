@@ -78,9 +78,11 @@
 (def! test (fn* [] (let* (
                         ;(l (list 3 4 5))
                         a 5
-                        l '(a 4 5)
+                        ;l '(a 4 5)
                         ;l (vector 3 4 5)
                         ;l [a 4 5]
+                        l '[3 4 5]
+                        ;l '[a 4 5]
                         )
                         (nth l 0))))
 (def! main (fn* [] (let* (it (test)) (do (println it) it))))

@@ -1674,7 +1674,7 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
     }
     error("Can't get clsoure_vars for " + pr_str(ast, true))
 }
-fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *Env, ast: MalValue): str {
+fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *Env, ast: MalValue, quoted: bool): str {
     match (ast) {
         MalValue::List(l) {
             var call_str = str("_list_impl(NULL, ") + l.size + ", (size_t[]){ "
@@ -1682,7 +1682,11 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 if i != 0 {
                     call_str += ", "
                 }
-                call_str += compile(top_decs, top_defs, main_init, defs, env, l[i])
+                if quoted {
+                    call_str += compile_value(top_decs, top_defs, main_init, defs, env, l[i], true)
+                } else {
+                    call_str += compile(top_decs, top_defs, main_init, defs, env, l[i])
+                }
             }
             return call_str + "})"
         }
@@ -1692,11 +1696,18 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 if i != 0 {
                     call_str += ", "
                 }
-                call_str += compile(top_decs, top_defs, main_init, defs, env, l[i])
+                if quoted {
+                    call_str += compile_value(top_decs, top_defs, main_init, defs, env, l[i], true)
+                } else {
+                    call_str += compile(top_decs, top_defs, main_init, defs, env, l[i])
+                }
             }
             return call_str + "})"
         }
         MalValue::Symbol(s) {
+            if quoted {
+                error("cannot compile symbols yet")
+            }
             if (s == "+") {
                 return str("((((size_t)&_plus_closure)<<3)|0x6)")
             } else if (s == "-") {
@@ -1753,6 +1764,9 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
             return str("0x1F")
         }
         MalValue::Function(f) {
+            if quoted {
+                error("cannot compile quoted function - does this even make sense?")
+            }
 
             var fun_name = "fun_" + new_tmp()
             *top_decs += "size_t " + fun_name + "(size_t*, size_t, size_t*);\n"
@@ -1794,12 +1808,12 @@ fun compile(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *E
     }
     ast = get_value(expanded)
     if !is_list(ast) {
-        return compile_value(top_decs, top_defs, main_init, defs, env, ast)
+        return compile_value(top_decs, top_defs, main_init, defs, env, ast, false)
     }
     match (ast) {
         MalValue::List(l) {
             if (l.size == 0) {
-                return compile_value(top_decs, top_defs, main_init, defs, env, ast)
+                return compile_value(top_decs, top_defs, main_init, defs, env, ast, false)
             } else if (is_symbol(l[0], "def!")) {
                 if (l.size != 3) {
                     error("def! without exaclty key and value")
@@ -1860,12 +1874,12 @@ fun compile(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *E
                 return tmp_name
             } else if (is_symbol(l[0], "fn*")) {
                 var f = EVAL(env, ast)
-                return compile_value(top_decs, top_defs, main_init, defs, env, get_value(f))
+                return compile_value(top_decs, top_defs, main_init, defs, env, get_value(f), false)
             } else if (is_symbol(l[0], "quote")) {
                 if l.size == 1 {
                     error("compile quote with no arguments")
                 }
-                return compile_value(top_decs, top_defs, main_init, defs, env, l[1])
+                return compile_value(top_decs, top_defs, main_init, defs, env, l[1], true)
             } else if (is_symbol(l[0], "quasiquote")) {
                 if l.size == 1 {
                     error("compile quasiquote with no arguments")
@@ -1905,5 +1919,5 @@ fun compile(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *E
             }
         }
     }
-    return compile_value(top_decs, top_defs, main_init, defs, env, ast)
+    return compile_value(top_decs, top_defs, main_init, defs, env, ast, false)
 }
