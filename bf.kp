@@ -100,13 +100,25 @@
 ;                                           (println (deref it))
 ;                                           (deref it)
 ;                                       ))))
-(def! my_atom (atom 5))
-(def! main (fn* [] (do
-                        (println my_atom)
-                        (println (deref my_atom))
-                        (reset! my_atom 1337)
-                        (println my_atom)
-                        (println (deref my_atom))
+;(def! my_atom (atom 5))
+;(def! main (fn* [] (do
+;                       (println my_atom)
+;                       (println (deref my_atom))
+;                       (reset! my_atom 1337)
+;                       (println my_atom)
+;                       (println (deref my_atom))
+;                       7)))
+
+
+;(def! inner (fn* [x] (do (throw (+ x 1)) (+ x 2))))
+(def! inner (fn* [x] (do (println 7) (+ x 2))))
+;(def! main (fn* [] (do (println (try*
+;                                (inner 7)
+;                                (catch* exp (+ exp 10))))
+;                        7)))
+(def! main (fn* [] (do (println (try*
+                                (inner 7)))
                         7)))
+
 
 

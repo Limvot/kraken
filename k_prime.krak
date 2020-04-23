@@ -1414,8 +1414,11 @@ fun main(argc: int, argv: **char): int {
             println("Starting compile!")
             match (get_value(main)) {
                 MalValue::Function(f) {
-                    var top_decs = str("#include <stdlib.h>\n#include <stdio.h>\n#include <stddef.h>\n#include <string.h>\n")
-                    top_decs += """void error(char* message) {fprintf(stderr, "%s", message); exit(1);}
+                    var top_decs = str("#include <stdlib.h>\n#include <stdio.h>\n#include <stddef.h>\n#include <string.h>\n#include <setjmp.h>\n")
+                    top_decs += """
+                    jmp_buf *current_exception_handler;
+                    size_t current_exception_value;
+                    void error(char* message) {fprintf(stderr, "%s", message); exit(1);}
                     void check_num_params(size_t a, size_t b, char* function) { if (a!=b) {fprintf(stderr, "%s: expected num params to be %d\n", function, b); exit(1);}}
                     void check_int(size_t p, char* function) { if ((p&0x7)!=0) {fprintf(stderr, "%s: expected param to be int\n", function); exit(1);}}
                     void check_function(size_t p, char* message) { if ((p&0x7)!=0x6) {fprintf(stderr, "%s: expected a function\n", message); exit(1);}}
@@ -1586,6 +1589,13 @@ fun main(argc: int, argv: **char): int {
                         }
                     }
                     closure _reset_closure = (closure){ _reset_impl, NULL};
+
+                    size_t _throw_impl(size_t* _, size_t num, size_t* args) {
+                        check_num_params(num, 1, "throw");
+                        current_exception_value = args[0];
+                        longjmp(*current_exception_handler, 1);
+                    }
+                    closure _throw_closure = (closure){ _throw_impl, NULL};
 
                     """ //"
                     var main_s = str("int main(int argc, char** argv) {\n")
@@ -1810,6 +1820,8 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 return str("((((size_t)&_deref_closure)<<3)|0x6)")
             } else if (s == "reset!") {
                 return str("((((size_t)&_reset_closure)<<3)|0x6)")
+            } else if (s == "throw") {
+                return str("((((size_t)&_throw_closure)<<3)|0x6)")
             } else {
                 var e = env->find(s);
                 if e != null<Env>() && e->outer == null<Env>() {
@@ -1964,22 +1976,31 @@ fun compile(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *E
             } else if (is_symbol(l[0], "macroexpand")) {
                 error("macroexpand doesn't make sense while compiling")
             } else if (is_symbol(l[0], "try*")) {
-                error("compile try* unimplemented")
-                /*if l.size != 2 && (l.size != 3 || !is_list(l[2])) {*/
-                    /*return MalResult::Err(MalValue::String(str("try* wrong arguments")))*/
-                /*}*/
-                /*var A = EVAL(env, l[1])*/
-                /*if l.size == 3 && is_err(A) {*/
-                    /*var catch = get_list(l[2])*/
-                    /*if catch.size != 3 || !is_symbol(catch[0], "catch*") || !is_symbol(catch[1]) {*/
-                        /*return MalResult::Err(MalValue::String(str("catch* block malformed")))*/
-                    /*}*/
-                    /*var new_env = new<Env>()->construct(env)*/
-                    /*env->set(get_symbol_text(catch[1]), get_err(A))*/
-                    /*return EVAL(new_env, catch[2])*/
-                /*} else {*/
-                    /*return A*/
-                /*}*/
+                var tmp_name = new_tmp()
+                var tmp_exception_name = new_tmp()
+                var tmp_new_exception_name = new_tmp()
+                *defs += "size_t " + tmp_name + " = 0;\n"
+                *defs += "jmp_buf *" + tmp_exception_name + " = current_exception_handler;\n"
+                *defs += "jmp_buf " + tmp_new_exception_name + ";\n"
+                *defs += "current_exception_handler = &" + tmp_new_exception_name + ";\n"
+                *defs += "if (!setjmp(*current_exception_handler)) {\n"
+                *defs += tmp_name + " = " + compile(top_decs, top_defs, main_init, defs, env, l[1]) + ";\n"
+                *defs += "} else {\n"
+                if l.size == 3 {
+                    var catch = get_list(l[2])
+                    if catch.size != 3 || !is_symbol(catch[0], "catch*") || !is_symbol(catch[1]) {
+                        error("catch* block malformed")
+                    }
+                    var new_env = new<Env>()->construct(env)
+                    new_env->set(get_symbol_text(catch[1]), MalValue::Nil())
+                    *defs += "size_t " + get_symbol_text(catch[1]) + " = current_exception_value;\n"
+                    *defs += tmp_name + " = " + compile(top_decs, top_defs, main_init, defs, new_env, catch[2]) + ";\n"
+                } else {
+                    *defs += tmp_name + " = current_exception_value;\n";
+                }
+                *defs += "}\n"
+                *defs += "current_exception_handler = " + tmp_exception_name + ";\n"
+                return tmp_name
             } else {
                 var to_call = vec<str>()
                 for (var i = 0; i < l.size; i++;) {
