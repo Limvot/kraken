@@ -85,6 +85,10 @@
                         ;l '[a 4 5]
                         )
                         (nth l 0))))
-(def! main (fn* [] (let* (it (test)) (do (println it) it))))
+;(def! main (fn* [] (let* (it (test)) (do (println it) it))))
+;(def! main (fn* [] (let* (it "asdf") (do (println it) 0))))
+;(def! main (fn* [] (let* (it 'sym_baby) (do (println it) 0))))
+;(def! main (fn* [] (let* (it [1 2 3]) (do (println it) 0))))
+(def! main (fn* [] (let* (it '(1 2 3)) (do (println it) 0))))
 
 

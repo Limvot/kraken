@@ -1003,37 +1003,6 @@ fun main(argc: int, argv: **char): int {
         }
         return MalResult::Ok(MalValue::Int(to_ret))
     }));
-    env->set(str("prn"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
-        if params.size == 0 {
-            return MalResult::Err(MalValue::String(str("Called prn with 0 parameters")))
-        }
-        println(pr_str(params[0], true))
-        return MalResult::Ok(MalValue::Nil())
-    }));
-    env->set(str("list"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
-        return MalResult::Ok(MalValue::List(params))
-    }));
-    env->set(str("list?"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
-        if params.size > 0 && (is_list(params[0]) || is_nil(params[0])) {
-            return MalResult::Ok(MalValue::True())
-        } else {
-            return MalResult::Ok(MalValue::False())
-        }
-    }));
-    env->set(str("empty?"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
-        if params.size == 0 || !is_list_or_vec(params[0]) {
-            return MalResult::Err(MalValue::String(str("first parameter of empty? is not a list")))
-        } else {
-            return MalResult::Ok(bool_to_MalValue(get_list_or_vec(params[0]).size == 0))
-        }
-    }));
-    env->set(str("count"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
-        if params.size == 0 || !is_list_or_vec(params[0]) {
-            return MalResult::Err(MalValue::String(str("first parameter of count is not a list")))
-        } else {
-            return MalResult::Ok(MalValue::Int(get_list_or_vec(params[0]).size))
-        }
-    }));
     env->set(str("="), make_builtin_function(fun(params: vec<MalValue>): MalResult {
         if params.size != 2 {
             return MalResult::Err(MalValue::String(str("= with not two parameters")))
@@ -1069,11 +1038,18 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Ok(bool_to_MalValue(get_int(params[0]) >= get_int(params[1])))
         }
     }));
-    env->set(str("pr-str"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
-        return MalResult::Ok(MalValue::String(print_wrapper(params, " ", true)))
-    }));
     env->set(str("str"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
         return MalResult::Ok(MalValue::String(print_wrapper(params, "", false)))
+    }));
+    env->set(str("prn"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+        if params.size == 0 {
+            return MalResult::Err(MalValue::String(str("Called prn with 0 parameters")))
+        }
+        println(pr_str(params[0], true))
+        return MalResult::Ok(MalValue::Nil())
+    }));
+    env->set(str("pr-str"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+        return MalResult::Ok(MalValue::String(print_wrapper(params, " ", true)))
     }));
     env->set(str("prn"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
         println(print_wrapper(params, " ", true))
@@ -1082,6 +1058,30 @@ fun main(argc: int, argv: **char): int {
     env->set(str("println"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
         println(print_wrapper(params, " ", false))
         return MalResult::Ok(MalValue::Nil())
+    }));
+    env->set(str("list"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+        return MalResult::Ok(MalValue::List(params))
+    }));
+    env->set(str("list?"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+        if params.size > 0 && (is_list(params[0]) || is_nil(params[0])) {
+            return MalResult::Ok(MalValue::True())
+        } else {
+            return MalResult::Ok(MalValue::False())
+        }
+    }));
+    env->set(str("empty?"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+        if params.size == 0 || !is_list_or_vec(params[0]) {
+            return MalResult::Err(MalValue::String(str("first parameter of empty? is not a list")))
+        } else {
+            return MalResult::Ok(bool_to_MalValue(get_list_or_vec(params[0]).size == 0))
+        }
+    }));
+    env->set(str("count"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+        if params.size == 0 || !is_list_or_vec(params[0]) {
+            return MalResult::Err(MalValue::String(str("first parameter of count is not a list")))
+        } else {
+            return MalResult::Ok(MalValue::Int(get_list_or_vec(params[0]).size))
+        }
     }));
     env->set(str("read-string"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
         if params.size != 1 || !is_string(params[0]) {
@@ -1414,7 +1414,7 @@ fun main(argc: int, argv: **char): int {
             println("Starting compile!")
             match (get_value(main)) {
                 MalValue::Function(f) {
-                    var top_decs = str("#include <stdlib.h>\n#include <stdio.h>\n#include <stddef.h>\n")
+                    var top_decs = str("#include <stdlib.h>\n#include <stdio.h>\n#include <stddef.h>\n#include <string.h>\n")
                     top_decs += """void error(char* message) {fprintf(stderr, "%s", message); exit(1);}
                     void check_num_params(size_t a, size_t b, char* function) { if (a!=b) {fprintf(stderr, "%s: expected num params to be %d\n", function, b); exit(1);}}
                     void check_int(size_t p, char* function) { if ((p&0x7)!=0) {fprintf(stderr, "%s: expected param to be int\n", function); exit(1);}}
@@ -1475,12 +1475,28 @@ fun main(argc: int, argv: **char): int {
                     else if ((args[_idx] & 0xFF) == 0x1F) printf("false");
                     else if ((args[_idx] & 0xFF) == 0x0F) printf("Char?");
                     else if ((args[_idx] & 0x07) == 0x06) printf("function");
-                    else if ((args[_idx] & 0x07) == 0x05) printf("Symbol?");
+                    else if ((args[_idx] & 0x07) == 0x05) printf("'%s", ((char*)(args[_idx]>>3))+sizeof(size_t));
                     else if ((args[_idx] & 0x07) == 0x04) printf("Atom?");
-                    else if ((args[_idx] & 0x07) == 0x03) printf("String?");
-                    else if ((args[_idx] & 0x07) == 0x02) printf("Vector?");
-                    else if ((args[_idx] & 0x07) == 0x01) printf("List?");
-                    else if ((args[_idx] & 0x07) == 0x00) printf("%d", args[_idx]>>3);
+                    else if ((args[_idx] & 0x07) == 0x03) printf("%s", ((char*)(args[_idx]>>3))+sizeof(size_t));
+                    else if ((args[_idx] & 0x07) == 0x02) {
+                        printf("[ ");
+                        size_t* vec = (size_t*)(args[_idx]>>3);
+                        for (int i = 0; i < vec[0]; i++) {
+                            _print_impl(NULL, 1, vec+i+1);
+                            printf(" ");
+                        }
+                        printf("]");
+                    } else if ((args[_idx] & 0x07) == 0x01) {
+                        printf("( ");
+                        size_t *node = (size_t*)(args[_idx]>>3);
+                        while ((node[1] & 0x7) == 0x1) {
+                            _print_impl(NULL, 1, node);
+                            printf(" ");
+                            node = (size_t*)(node[1]>>3);
+                        }
+                        _print_impl(NULL, 1, node);
+                        printf(" )");
+                    } else if ((args[_idx] & 0x07) == 0x00) printf("%d", args[_idx]>>3);
                     else printf("can't print");
                     }
                     return 0x2F;
@@ -1676,37 +1692,57 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
 }
 fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *Env, ast: MalValue, quoted: bool): str {
     match (ast) {
-        MalValue::List(l) {
-            var call_str = str("_list_impl(NULL, ") + l.size + ", (size_t[]){ "
-            for (var i = 0; i < l.size; i++;) {
-                if i != 0 {
-                    call_str += ", "
-                }
-                if quoted {
-                    call_str += compile_value(top_decs, top_defs, main_init, defs, env, l[i], true)
-                } else {
-                    call_str += compile(top_decs, top_defs, main_init, defs, env, l[i])
-                }
-            }
-            return call_str + "})"
+        MalValue::Nil() {
+            return str("0x2F")
         }
-        MalValue::Vector(l) {
-            var call_str = str("_vector_impl(NULL, ") + l.size + ", (size_t[]){ "
-            for (var i = 0; i < l.size; i++;) {
-                if i != 0 {
-                    call_str += ", "
-                }
-                if quoted {
-                    call_str += compile_value(top_decs, top_defs, main_init, defs, env, l[i], true)
-                } else {
-                    call_str += compile(top_decs, top_defs, main_init, defs, env, l[i])
-                }
+        MalValue::True() {
+            return str("0x9F")
+        }
+        MalValue::False() {
+            return str("0x1F")
+        }
+        MalValue::Function(f) {
+            if quoted {
+                error("cannot compile quoted function - does this even make sense?")
             }
-            return call_str + "})"
+
+            var fun_name = "fun_" + new_tmp()
+            *top_decs += "size_t " + fun_name + "(size_t*, size_t, size_t*);\n"
+            var function = "size_t " + fun_name + "(size_t* closed_vars, size_t num, size_t* args) {\n"
+            function += str("check_num_params(num, ") + f.parameters.size + ", \"lambda\");\n"
+            var new_env = new<Env>()->construct(env)
+            for (var i = 0; i < f.parameters.size; i++;) {
+                function += "size_t " + f.parameters[i] + " = args[" + i + "];\n"
+                new_env->set(f.parameters[i], MalValue::Nil())
+            }
+            var closed_vars = find_closed_vars(set<str>(), new_env, ast)
+            for (var i = 0; i < closed_vars.data.size; i++;) {
+                function += "size_t " + closed_vars.data[i] + " = closed_vars[" + i + "];\n"
+            }
+            var inner_value = compile(top_decs, top_defs, main_init, &function, new_env, *f.body)
+            function += "return " + inner_value + ";\n}\n"
+            *top_defs += function
+            *defs += "closure* " + fun_name + "_closure = malloc(sizeof(closure));\n"
+            *defs += fun_name + "_closure->func = " + fun_name + ";\n"
+
+
+            if closed_vars.data.size > 0 {
+                *defs += fun_name + "_closure->data = malloc(sizeof(size_t)*" + closed_vars.data.size + ");\n"
+                for (var i = 0; i < closed_vars.data.size; i++;) {
+                    *defs += fun_name + "_closure->data[" + i + "] = " + closed_vars.data[i] + ";\n"
+                }
+            } else {
+                *defs += fun_name + "_closure->data = NULL;\n"
+            }
+            return "((((size_t)"+fun_name+"_closure)<<3)|0x6)"
         }
         MalValue::Symbol(s) {
             if quoted {
-                error("cannot compile symbols yet")
+                var val_name = "sym_" + new_tmp()
+                *defs += "size_t *" + val_name + " = malloc(sizeof(size_t)+sizeof(char)*" + (s.length()+1) +");\n"
+                *defs += "*" + val_name + " = " + s.length() + ";\n"
+                *defs += "strcpy(((char*)(" + val_name + "+1)), \"" + s + "\");\n"
+                return "((((size_t)" + val_name + ")<<3)|0x5)"
             }
             if (s == "+") {
                 return str("((((size_t)&_plus_closure)<<3)|0x6)")
@@ -1751,52 +1787,44 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 return s
             }
         }
+        // Atom
+        MalValue::String(s) {
+            var val_name = "str_" + new_tmp()
+            *defs += "size_t *" + val_name + " = malloc(sizeof(size_t)+sizeof(char)*" + (s.length()+1) +");\n"
+            *defs += "*" + val_name + " = " + s.length() + ";\n"
+            *defs += "strcpy(((char*)(" + val_name + "+1)), \"" + s + "\");\n"
+            return "((((size_t)" + val_name + ")<<3)|0x3)"
+        }
+        MalValue::Vector(l) {
+            var call_str = str("_vector_impl(NULL, ") + l.size + ", (size_t[]){ "
+            for (var i = 0; i < l.size; i++;) {
+                if i != 0 {
+                    call_str += ", "
+                }
+                if quoted {
+                    call_str += compile_value(top_decs, top_defs, main_init, defs, env, l[i], true)
+                } else {
+                    call_str += compile(top_decs, top_defs, main_init, defs, env, l[i])
+                }
+            }
+            return call_str + "})"
+        }
+        MalValue::List(l) {
+            var call_str = str("_list_impl(NULL, ") + l.size + ", (size_t[]){ "
+            for (var i = 0; i < l.size; i++;) {
+                if i != 0 {
+                    call_str += ", "
+                }
+                if quoted {
+                    call_str += compile_value(top_decs, top_defs, main_init, defs, env, l[i], true)
+                } else {
+                    call_str += compile(top_decs, top_defs, main_init, defs, env, l[i])
+                }
+            }
+            return call_str + "})"
+        }
         MalValue::Int(i) {
             return to_string(i<<3)
-        }
-        MalValue::Nil() {
-            return str("0x2F")
-        }
-        MalValue::True() {
-            return str("0x9F")
-        }
-        MalValue::False() {
-            return str("0x1F")
-        }
-        MalValue::Function(f) {
-            if quoted {
-                error("cannot compile quoted function - does this even make sense?")
-            }
-
-            var fun_name = "fun_" + new_tmp()
-            *top_decs += "size_t " + fun_name + "(size_t*, size_t, size_t*);\n"
-            var function = "size_t " + fun_name + "(size_t* closed_vars, size_t num, size_t* args) {\n"
-            function += str("check_num_params(num, ") + f.parameters.size + ", \"lambda\");\n"
-            var new_env = new<Env>()->construct(env)
-            for (var i = 0; i < f.parameters.size; i++;) {
-                function += "size_t " + f.parameters[i] + " = args[" + i + "];\n"
-                new_env->set(f.parameters[i], MalValue::Nil())
-            }
-            var closed_vars = find_closed_vars(set<str>(), new_env, ast)
-            for (var i = 0; i < closed_vars.data.size; i++;) {
-                function += "size_t " + closed_vars.data[i] + " = closed_vars[" + i + "];\n"
-            }
-            var inner_value = compile(top_decs, top_defs, main_init, &function, new_env, *f.body)
-            function += "return " + inner_value + ";\n}\n"
-            *top_defs += function
-            *defs += "closure* " + fun_name + "_closure = malloc(sizeof(closure));\n"
-            *defs += fun_name + "_closure->func = " + fun_name + ";\n"
-
-
-            if closed_vars.data.size > 0 {
-                *defs += fun_name + "_closure->data = malloc(sizeof(size_t)*" + closed_vars.data.size + ");\n"
-                for (var i = 0; i < closed_vars.data.size; i++;) {
-                    *defs += fun_name + "_closure->data[" + i + "] = " + closed_vars.data[i] + ";\n"
-                }
-            } else {
-                *defs += fun_name + "_closure->data = NULL;\n"
-            }
-            return "((((size_t)"+fun_name+"_closure)<<3)|0x6)"
         }
     }
     error("could not compile value: " + pr_str(ast, true))
