@@ -1476,8 +1476,11 @@ fun main(argc: int, argv: **char): int {
                     else if ((args[_idx] & 0xFF) == 0x0F) printf("Char?");
                     else if ((args[_idx] & 0x07) == 0x06) printf("function");
                     else if ((args[_idx] & 0x07) == 0x05) printf("'%s", ((char*)(args[_idx]>>3))+sizeof(size_t));
-                    else if ((args[_idx] & 0x07) == 0x04) printf("Atom?");
-                    else if ((args[_idx] & 0x07) == 0x03) printf("%s", ((char*)(args[_idx]>>3))+sizeof(size_t));
+                    else if ((args[_idx] & 0x07) == 0x04) {
+                        printf("(atom ");
+                        _print_impl(NULL, 1, ((size_t*)(args[0]>>3)));
+                        printf(")");
+                    } else if ((args[_idx] & 0x07) == 0x03) printf("%s", ((char*)(args[_idx]>>3))+sizeof(size_t));
                     else if ((args[_idx] & 0x07) == 0x02) {
                         printf("[ ");
                         size_t* vec = (size_t*)(args[_idx]>>3);
@@ -1554,6 +1557,35 @@ fun main(argc: int, argv: **char): int {
                         return 0x2F;
                     }
                     closure _nth_closure = (closure){ _nth_impl, NULL};
+
+                    size_t _atom_impl(size_t* _, size_t num, size_t* args) {
+                        check_num_params(num, 1, "atom");
+                        size_t* atom = malloc(sizeof(size_t));
+                        *atom = args[0];
+                        return (((size_t)atom)<<3)|0x4;
+                    }
+                    closure _atom_closure = (closure){ _atom_impl, NULL};
+
+                    size_t _deref_impl(size_t* _, size_t num, size_t* args) {
+                        check_num_params(num, 1, "atom");
+                        if ((args[0] & 0x7) == 0x4) {
+                            return *((size_t*)(args[0]>>3));
+                        } else {
+                            error("deref not an atom");
+                        }
+                    }
+                    closure _deref_closure = (closure){ _deref_impl, NULL};
+
+                    size_t _reset_impl(size_t* _, size_t num, size_t* args) {
+                        check_num_params(num, 2, "reset");
+                        if ((args[0] & 0x7) == 0x4) {
+                            *((size_t*)(args[0]>>3)) = args[1];
+                            return args[1];
+                        } else {
+                            error("reset 0 not an atom");
+                        }
+                    }
+                    closure _reset_closure = (closure){ _reset_impl, NULL};
 
                     """ //"
                     var main_s = str("int main(int argc, char** argv) {\n")
@@ -1772,6 +1804,12 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 return str("((((size_t)&_vector_closure)<<3)|0x6)")
             } else if (s == "nth") {
                 return str("((((size_t)&_nth_closure)<<3)|0x6)")
+            } else if (s == "atom") {
+                return str("((((size_t)&_atom_closure)<<3)|0x6)")
+            } else if (s == "deref") {
+                return str("((((size_t)&_deref_closure)<<3)|0x6)")
+            } else if (s == "reset!") {
+                return str("((((size_t)&_reset_closure)<<3)|0x6)")
             } else {
                 var e = env->find(s);
                 if e != null<Env>() && e->outer == null<Env>() {
@@ -1788,6 +1826,16 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
             }
         }
         // Atom
+        MalValue::Atom(a) {
+            var val_name = "atom_" + new_tmp()
+            var x = str()
+            var value = compile(top_decs, top_defs, main_init, &x, env, *a)
+            *top_decs += "size_t " + val_name + ";\n"
+            *main_init += x
+            *main_init += val_name + " = (((size_t)malloc(sizeof(size_t)))<<3)|0x4;\n"
+            *main_init += "*((size_t*)(" + val_name + ">>3)) = " + value + ";\n"
+            return val_name
+        }
         MalValue::String(s) {
             var val_name = "str_" + new_tmp()
             *defs += "size_t *" + val_name + " = malloc(sizeof(size_t)+sizeof(char)*" + (s.length()+1) +");\n"

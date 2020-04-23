@@ -89,6 +89,24 @@
 ;(def! main (fn* [] (let* (it "asdf") (do (println it) 0))))
 ;(def! main (fn* [] (let* (it 'sym_baby) (do (println it) 0))))
 ;(def! main (fn* [] (let* (it [1 2 3]) (do (println it) 0))))
-(def! main (fn* [] (let* (it '(1 2 3)) (do (println it) 0))))
+;(def! main (fn* [] (let* (it '(1 2 3)) (do (println it) 0))))
+;(def! my_str "asdf")
+;(def! main (fn* [] (do (println my_str) 0)))
+
+;(def! main (fn* [] (let* (it (atom 7)) (do
+;                                           (println it)
+;                                           (println (deref it))
+;                                           (reset! it 8)
+;                                           (println (deref it))
+;                                           (deref it)
+;                                       ))))
+(def! my_atom (atom 5))
+(def! main (fn* [] (do
+                        (println my_atom)
+                        (println (deref my_atom))
+                        (reset! my_atom 1337)
+                        (println my_atom)
+                        (println (deref my_atom))
+                        7)))
 
 
