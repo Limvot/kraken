@@ -1683,9 +1683,6 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
             }
             println("end list")
         }
-        MalValue::List(l) {
-            error("Can't get clsoure_vars for " + pr_str(ast, true))
-        }
         MalValue::Vector(l) {
             var to_ret = set<str>()
             for (var i = 0; i < l.size; i++;) {
@@ -1718,6 +1715,9 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
         MalValue::False() {
             return set<str>()
         }
+        MalValue::String(s) {
+            return set<str>()
+        }
         MalValue::Function(f) {
             var new_env = new<Env>()->construct(env)
             for (var i = 0; i < f.parameters.size; i++;) {
@@ -1730,7 +1730,7 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
             return to_ret
         }
     }
-    error("Can't get clsoure_vars for " + pr_str(ast, true))
+    error("Can't get closure_vars for " + pr_str(ast, true))
 }
 fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *Env, ast: MalValue, quoted: bool): str {
     match (ast) {
