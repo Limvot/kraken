@@ -2,17 +2,107 @@
 <html lang="en-us">
 <meta charset="UTF-8">
     <head>
+		<style>
+			body{
+				margin:1em auto;
+				padding:0 .62em;
+				font:1.2em/1.62 sans-serif;
+			}
+			h1,h2,h3 {
+				line-height:1.2;
+			}
+			@media print{
+				body{
+					max-width:none
+				}
+			}
+		</style>
     </head>
     <body>
-        Code: <br>
-<textarea id="code" cols=80 rows=10>
-(println (+ 1 2))
-; Comment! For this script, the final value is returned
-(/ 8 2)
+	    <header> <h3>Nathan Braswell's Current Programming Language / Compiler Research</h3> </header>
+	    <h4> Current idea:</h4>
+	    <ul>
+		    <li> Minimal, close to the metal Scheme (operate on words & bytes) as AST / core language
+			    <li> Full Context-free (and eventually, context sensitive) reader macros using FUN-GLL (<a title="fun-gll paper" href="https://www.sciencedirect.com/science/article/pii/S2590118420300058">paper</a>)
+	 	    <li> Implement Type Systems as Macros (<a title="type systems as macros paper 1" href="http://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf">paper, up to System Fomega</a>) (<a title="type systems as macros paper 2" href="https://www.ccs.neu.edu/home/stchang/pubs/cbtb-popl2020.pdf">second paper, up to dependent types</a>)
+		    <li> Use above macros to create richer language and embed entire other programming languages for flawless interop/FFI (C, Go, Lua, JS, etc)
+	            <li> Regionalized Value State Dependence Graph as backend-IR, enabling simpler implementations of powerful optimizations (<a title="RSVDG paper" href="https://arxiv.org/pdf/1912.05036.pdf">RSVDG paper</a>)
+	    </ul>
+	    <h4> Status:</h4>
+	    <p> Currently, I am bootstrapping this new core Lisp out of my prior compiler for my programming language, Kraken. I have implemented the first version of the FUN-GLL algorithm and have working context-free reader macros. I'll have enough to self-host this core soon, and will then use the more efficent core Lisp implementation to implement the Type Systems as Macros paper and add a type system to the new language.
+	    <p> Below is an example of using the live grammer modification / context-free reader macros to embed the BF language into the core Lisp. The core Lisp implementation has been compiled to WebAssembly and should be able to run in your browser. Feel free to make edits and play around below.
+	    <br>
+	    <h4>Code:</h4>
+<textarea id="code" cols=130 rows=30>
+; Of course
+(println "Hello World")
+; Just print 3
+(println "Math works:" (+ 1 2))
+
+; Use the power of GLL reader macros to implement
+; BF support
+
+; Utility until we get stdlib & datastructures figured out
+(def! with_update (fn* [arr idx val]
+                   (if  (= idx 0)
+                        (cons val (rest arr))
+                        (cons (first arr) (with_update (rest arr) (- idx 1) val)))))
+
+; Define our tokens as BF atoms
+(add_grammer_rule 'bfs_atom ["<"]   (fn* [xs] (list 'left)))
+(add_grammer_rule 'bfs_atom [">"]   (fn* [xs] (list 'right)))
+(add_grammer_rule 'bfs_atom ["\\+"] (fn* [xs] (list 'plus)))
+(add_grammer_rule 'bfs_atom ["-"]   (fn* [xs] (list 'minus)))
+(add_grammer_rule 'bfs_atom [","]   (fn* [xs] (list 'in)))
+(add_grammer_rule 'bfs_atom ["."]   (fn* [xs] (list 'out)))
+
+; Define strings of BF atoms
+(add_grammer_rule 'non_empty_bfs_list ['bfs_atom] (fn* [xs] (list (nth xs 0))))
+(add_grammer_rule 'non_empty_bfs_list ['bfs_atom 'optional_WS 'non_empty_bfs_list] (fn* [xs] (cons (nth xs 0) (nth xs 2))))
+(add_grammer_rule 'bfs_list [] (fn* [xs] xs))
+(add_grammer_rule 'bfs_list ['non_empty_bfs_list] (fn* [xs] (nth xs 0)))
+
+; Add loop as an atom
+(add_grammer_rule 'bfs_atom ["\\[" 'bfs_list "]"] (fn* [xs]
+                `(let* (f (fn* []
+                                (if (= 0 (nth (deref arr) (deref ptr)))
+                                    nil
+                                    (do ,(nth xs 1) (f)))))
+                       (f))))
+
+; Top level BFS rule
+(add_grammer_rule 'bfs ['bfs_list] (fn* [xs] (nth xs 0)))
+
+; For now, stick BFS rule inside an unambigious BFS block
+; and add compilation/implementation
+; Note that this compilation into the underlying Lisp
+; happens at macro evaluation time. If this code were
+; to be compiled to C, it would be compiled all the way
+; to C code with no trace of the original BF code.
+(add_grammer_rule 'form ["bf" 'optional_WS "{" 'optional_WS 'bfs 'optional_WS "}"]
+                        (fn* [xs]
+                           `(fn* [input]
+                             (let* (
+                                    arr      (atom (vector 0 0 0 0 0))
+                                    output   (atom [])
+                                    ptr      (atom 0)
+                                    inptr    (atom 0)
+                                    left     (fn* [] (swap! ptr (fn* [old] (- old 1))))
+                                    right    (fn* [] (swap! ptr (fn* [old] (+ old 1))))
+                                    plus     (fn* [] (swap! arr (fn* [old] (with_update old (deref ptr) (+ (nth (deref arr) (deref ptr)) 1)))))
+                                    minus    (fn* [] (swap! arr (fn* [old] (with_update old (deref ptr) (- (nth (deref arr) (deref ptr)) 1)))))
+                                    in       (fn* [] (let* ( h (nth input (deref inptr))
+                                                             _ (swap! inptr (fn* [old] (+ old 1))))
+                                                           (swap! arr (fn* [old] (with_update old (deref ptr) h)))))
+                                    out      (fn* [] (swap! output (fn* [old] (cons (nth (deref arr) (deref ptr)) old)))))
+                                (do ,(nth xs 4) (deref output))))))
+
+; Let's try it out! This BF program prints the input 3 times
+(println (bf { ,>+++[<.>-] } [1337]))
 </textarea>
         <button onclick="executeKraken()">Run</button> <br>
-        Output: <br>
-        <textarea id="output" cols=80 rows=10>Output will appear here</textarea>
+	<h4>Output: </h4>
+        <textarea id="output" cols=130 rows=10>Output will appear here</textarea>
         <script>
             var Module = {
                 noInitialRun: true,
