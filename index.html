@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en-us">
+<meta charset="UTF-8">
+    <head>
+    </head>
+    <body>
+        Code: <br>
+<textarea id="code" cols=80 rows=10>
+(println (+ 1 2))
+; Comment! For this script, the final value is returned
+(/ 8 2)
+</textarea>
+        <button onclick="executeKraken()">Run</button> <br>
+        Output: <br>
+        <textarea id="output" cols=80 rows=10>Output will appear here</textarea>
+        <script>
+            var Module = {
+                noInitialRun: true,
+                onRuntimeInitialized: () => {
+                },
+                print: txt => {
+                    document.getElementById("output").value += txt + "\n";
+                },
+                printErr: txt => {
+                    document.getElementById("output").value += "STDERR:[" + txt + "]\n";
+                }
+            };
+            function executeKraken() {
+                document.getElementById("output").value = "";
+                let code = document.getElementById("code").value;
+                console.log("gonna execute", code);
+                Module.callMain(["-C", code]);
+            }
+        </script>
+        <script type="text/javascript" src="k_prime.js"></script>
+    </body>
+</html>
