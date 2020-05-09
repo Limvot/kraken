@@ -1,81 +1,31 @@
-; Now we have native BF support
+;(def! main (fn* (argv) 2))
+;(def! main (fn* () (let* (a 13 b 12 c 11) b)))
+;(def! main (fn* () (do 13 12 11)))
+;(def! main (fn* () (if false 1 2)))
+;(def! main (fn* () (+ 13 1)))
+;(def! main (fn* () (- 13 -1)))
+;(def! main (fn* () (- 13 -1)))
+;(def! main (fn* () (+ 13 -)))
+;(def! main (fn* () (+ 13 1 2)))
+;(def! main (fn* () (cond false 1 false 2 true 3 true 4 false 5)))
+;(def! main (fn* () ((fn* () (+ (+ 1 2) 3)) 13 1 2)))
+;(def! main (fn* () (((fn* () (fn* () 1))))))
+;(def! main (fn* () ((fn* (a b c) (- (+ a b) c)) 13 1 4)))
+;(def! main (fn* () (fn* () 1)))
 
-(def! with_update (fn* [arr idx val]
-                   (if  (= idx 0)
-                        (cons val (rest arr))
-                        (cons (first arr) (with_update (rest arr) (- idx 1) val)))))
-
-(add_grammer_rule 'bfs_atom ["<"]   (fn* [xs] (list 'left)))
-(add_grammer_rule 'bfs_atom [">"]   (fn* [xs] (list 'right)))
-(add_grammer_rule 'bfs_atom ["\\+"] (fn* [xs] (list 'plus)))
-(add_grammer_rule 'bfs_atom ["-"]   (fn* [xs] (list 'minus)))
-(add_grammer_rule 'bfs_atom [","]   (fn* [xs] (list 'in)))
-(add_grammer_rule 'bfs_atom ["."]   (fn* [xs] (list 'out)))
-
-(add_grammer_rule 'non_empty_bfs_list ['bfs_atom] (fn* [xs] (list (nth xs 0))))
-(add_grammer_rule 'non_empty_bfs_list ['bfs_atom 'optional_WS 'non_empty_bfs_list] (fn* [xs] (cons (nth xs 0) (nth xs 2))))
-
-(add_grammer_rule 'bfs_list [] (fn* [xs] xs))
-(add_grammer_rule 'bfs_list ['non_empty_bfs_list] (fn* [xs] (nth xs 0)))
-
-(add_grammer_rule 'bfs_atom ["\\[" 'bfs_list "]"] (fn* [xs]
-                `(let* (f (fn* []
-                                (if (= 0 (nth (deref arr) (deref ptr)))
-                                    nil
-                                    (do ,(nth xs 1) (f)))))
-                       (f))))
-
-(add_grammer_rule 'bfs ['bfs_list] (fn* [xs] (nth xs 0)))
-
-(add_grammer_rule 'form ["bf" 'optional_WS "{" 'optional_WS 'bfs 'optional_WS "}"]
-                        (fn* [xs]
-                           `(fn* [input]
-                             (let* (
-                                    ;arr      (atom [0 0 0 0 0])
-                                    arr      (atom (vector 0 0 0 0 0))
-                                    output   (atom [])
-                                    ptr      (atom 0)
-                                    inptr    (atom 0)
-                                    left     (fn* [] (swap! ptr (fn* [old] (- old 1))))
-                                    right    (fn* [] (swap! ptr (fn* [old] (+ old 1))))
-                                    plus     (fn* [] (swap! arr (fn* [old] (with_update old (deref ptr) (+ (nth (deref arr) (deref ptr)) 1)))))
-                                    minus    (fn* [] (swap! arr (fn* [old] (with_update old (deref ptr) (- (nth (deref arr) (deref ptr)) 1)))))
-                                    in       (fn* [] (let* ( h (nth input (deref inptr))
-                                                             _ (swap! inptr (fn* [old] (+ old 1))))
-                                                           (swap! arr (fn* [old] (with_update old (deref ptr) h)))))
-                                    out      (fn* [] (swap! output (fn* [old] (cons (nth (deref arr) (deref ptr)) old)))))
-                                (do ,(nth xs 4) (deref output))))))
-
-(println (bf { ,>+++[<.>-] } [1337]))
-
-;(def! main (fn* [argv] 2))
-;(def! main (fn* [] (let* (a 13 b 12 c 11) b)))
-;(def! main (fn* [] (do 13 12 11)))
-;(def! main (fn* [] (if false 1 2)))
-;(def! main (fn* [] (+ 13 1)))
-;(def! main (fn* [] (- 13 -1)))
-;(def! main (fn* [] (- 13 -1)))
-;(def! main (fn* [] (+ 13 -)))
-;(def! main (fn* [] (+ 13 1 2)))
-;(def! main (fn* [] (cond false 1 false 2 true 3 true 4 false 5)))
-;(def! main (fn* [] ((fn* [] (+ (+ 1 2) 3)) 13 1 2)))
-;(def! main (fn* [] (((fn* [] (fn* [] 1))))))
-;(def! main (fn* [] ((fn* [a b c] (- (+ a b) c)) 13 1 4)))
-;(def! main (fn* [] (fn* [] 1)))
-
-;(def! other (fn* [a b c] (- (+ a b) c)))
-;(def! main (fn* [] (other 13 1 4)))
+;(def! other (fn* (a b c) (- (+ a b) c)))
+;(def! main (fn* () (other 13 1 4)))
 
 ;(def! other 12)
-;(def! main (fn* [] (+ other 4)))
+;(def! main (fn* () (+ other 4)))
 
-;(def! fact (fn* [n] (if (<= n 1) 1 (* (fact (- n 1)) n))))
-;(def! main (fn* [] (let* (to_ret (fact 5)) (do (println to_ret) to_ret))))
+;(def! fact (fn* (n) (if (<= n 1) 1 (* (fact (- n 1)) n))))
+;(def! main (fn* () (let* (to_ret (fact 5)) (do (println to_ret) to_ret))))
 
-;(def! ret_with_call (fn* [n] (fn* [x] (+ n x))))
-;(def! main (fn* [] ((ret_with_call 3) 5)))
+;(def! ret_with_call (fn* (n) (fn* (x) (+ n x))))
+;(def! main (fn* () ((ret_with_call 3) 5)))
 
-(def! test (fn* [] (let* (
+(def! test (fn* () (let* (
                         ;(l (list 3 4 5))
                         a 5
                         ;l '(a 4 5)
@@ -85,15 +35,15 @@
                         ;l '[a 4 5]
                         )
                         (nth l 0))))
-;(def! main (fn* [] (let* (it (test)) (do (println it) it))))
-;(def! main (fn* [] (let* (it "asdf") (do (println it) 0))))
-;(def! main (fn* [] (let* (it 'sym_baby) (do (println it) 0))))
-;(def! main (fn* [] (let* (it [1 2 3]) (do (println it) 0))))
-;(def! main (fn* [] (let* (it '(1 2 3)) (do (println it) 0))))
+;(def! main (fn* () (let* (it (test)) (do (println it) it))))
+;(def! main (fn* () (let* (it "asdf") (do (println it) 0))))
+;(def! main (fn* () (let* (it 'sym_baby) (do (println it) 0))))
+;(def! main (fn* () (let* (it [1 2 3]) (do (println it) 0))))
+;(def! main (fn* () (let* (it '(1 2 3)) (do (println it) 0))))
 ;(def! my_str "asdf")
-;(def! main (fn* [] (do (println my_str) 0)))
+;(def! main (fn* () (do (println my_str) 0)))
 
-;(def! main (fn* [] (let* (it (atom 7)) (do
+;(def! main (fn* () (let* (it (atom 7)) (do
 ;                                           (println it)
 ;                                           (println (deref it))
 ;                                           (reset! it 8)
@@ -101,7 +51,7 @@
 ;                                           (deref it)
 ;                                       ))))
 ;(def! my_atom (atom 5))
-;(def! main (fn* [] (do
+;(def! main (fn* () (do
 ;                       (println my_atom)
 ;                       (println (deref my_atom))
 ;                       (reset! my_atom 1337)
@@ -110,22 +60,22 @@
 ;                       7)))
 
 
-;(def! inner (fn* [x] (do (throw (+ x 1)) (+ x 2))))
-;(def! inner (fn* [x] (do (println 7) (+ x 2))))
-;(def! main (fn* [] (do (println (try*
+;(def! inner (fn* (x) (do (throw (+ x 1)) (+ x 2))))
+;(def! inner (fn* (x) (do (println 7) (+ x 2))))
+;(def! main (fn* () (do (println (try*
 ;                                (inner 7)
 ;                                (catch* exp (+ exp 10))))
 ;                        7)))
-;(def! main (fn* [] (do (println (try*
+;(def! main (fn* () (do (println (try*
 ;                                (inner 7)))
 ;                        7)))
 
 
-(def! main (fn* [] (let* ( a 7
+(def! main (fn* () (let* ( a 7
                            b "hello" )
                            (do
                             (try*
-                                ((fn* [] (do (println b) (println "world") a)))
+                                ((fn* () (do (println b) (println "world") a)))
                                 )))))
 
 
