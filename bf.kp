@@ -72,10 +72,11 @@
 
 
 (def! main (fn* () (let* ( a 7
-                           b "hello" )
+                           b [1]
+                           c (with-meta b "yolo") )
                            (do
                             (try*
-                                ((fn* () (do (println b) (println "world") a)))
+                                ((fn* () (do (println b) (println c) (println (meta c)) (println "world") a)))
                                 )))))
 
 
