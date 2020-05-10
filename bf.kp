@@ -73,6 +73,18 @@
 (def! to_be_saved (with-meta [1] [2]))
 (def! to_be_saved_s "asdfasdf")
 
+(let* ( a [0]
+        b (with-meta a (fn* () (set-nth! b 0 (+ 1 (nth b 0))))))
+    (do
+        (println "testing meta stuff!")
+        (println b)
+        ((meta b))
+        (println b)
+        ((meta b))
+        (println b)))
+
+(def! our_obj (with-meta [0] (fn* () (set-nth! our_obj 0 (+ 1 (nth our_obj 0))))))
+
 (def! main (fn* () (let* ( a 7
                            b [1]
                            c (with-meta b "yolo") )
@@ -88,6 +100,12 @@
                                             (println to_be_saved)
                                             (println (meta to_be_saved))
                                             (println to_be_saved_s)
+                                            (println "Here in main testing our_obj")
+                                            (println our_obj)
+                                            ((meta our_obj))
+                                            (println our_obj)
+                                            ((meta our_obj))
+                                            (println our_obj)
                                             a)))
                                 )))))
 (do
@@ -95,11 +113,6 @@
     (main)
     (println "done interp-main")
     nil)
-
-
-
-
-
 
 
 

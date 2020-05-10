@@ -1594,8 +1594,10 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
         MalValue_int::Symbol(s) {
             if !defined.contains(s) {
                 var scope = env->find(s)
+                // null scope should mean top level var
                 if scope == null<Env>() {
-                    error("Can't find " + s + " in env when trying to find closed_vars\n" + env->to_string())
+                    /*error("Can't find " + s + " in env when trying to find closed_vars\n" + env->to_string())*/
+                    return set<str>()
                 }
                 // don't do for top level vars
                 if scope->outer != null<Env>() {
@@ -1645,9 +1647,9 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
             return str("0x1F")
         }
         MalValue_int::Function(f) {
-            if quoted {
-                error("cannot compile quoted function - does this even make sense?")
-            }
+            /*if quoted {*/
+                /*error("cannot compile quoted function - does this even make sense?")*/
+            /*}*/
 
             var fun_name = "fun_" + new_tmp()
             *top_decs += "size_t " + fun_name + "(size_t*, size_t, size_t*);\n"
