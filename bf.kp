@@ -76,8 +76,20 @@
                            c (with-meta b "yolo") )
                            (do
                             (try*
-                                ((fn* () (do (println b) (println c) (println (meta c)) (println "world") a)))
+                                ((fn* () (do
+                                            (println b)
+                                            (set-nth! b 0 2)
+                                            (println b)
+                                            (println c)
+                                            (println (meta c))
+                                            (println "world")
+                                            a)))
                                 )))))
+(do
+    (println "interp-main")
+    (main)
+    (println "done interp-main")
+    nil)
 
 
 

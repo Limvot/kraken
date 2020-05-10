@@ -5,6 +5,7 @@ import vec:*
 import vec_literals:*
 import util:*
 import map:*
+import rc:*
 
 import fungll:*
 
@@ -110,6 +111,14 @@ obj MalValue (Object) {
            MalValue_int::Nil()      { match (other.internal) { MalValue_int::Nil() { return true; } } }
         }
         return false
+    }
+    fun deep_clone(): MalValue {
+        match (internal) {
+            MalValue_int::Vector(v) {
+                return malVector(v.get())
+            }
+        }
+        return *this
     }
     fun is_vector(): bool {
         match (internal) {
@@ -488,14 +497,14 @@ fun get_value(r: MalResult): MalValue {
 fun pr_str(v: MalValue, print_readably: bool): str {
     match (v.internal) {
         MalValue_int::Vector(l) {
-            var to_ret = str("[")
+            var to_ret = str("( ")
             for (var i = 0; i < l.get().size; i++;) {
                 if (i != 0) {
                     to_ret += " "
                 }
                 to_ret += pr_str(l.get()[i], print_readably)
             }
-            return to_ret + "]"
+            return to_ret + " )"
         }
         MalValue_int::Int(i) {
             return to_string(i)
@@ -1063,6 +1072,19 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Ok(list.get()[idx])
         }
     }));
+    env->set(str("set-nth!"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+        if params.size != 3 || !params[0].is_vector() || !params[1].is_int() {
+            return MalResult::Err(malString(str("set-nth! called with wrong number or type of params")))
+        } else {
+            var list = params[0].get_vector_rc()
+            var idx = params[1].get_int()
+            if idx >= list.get().size {
+                return MalResult::Err(malString(str("set-nth! idx out of range")))
+            }
+            list.get()[idx] = params[2];
+            return MalResult::Ok(malNil())
+        }
+    }));
     env->set(str("first"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
         if params.size != 1 || !params[0].is_vector() {
             return MalResult::Err(malString(str("first called with wrong number or type of params") + pr_str(params[0], true)))
@@ -1177,8 +1199,9 @@ fun main(argc: int, argv: **char): int {
         } else {
             var new_meta = new<MalValue>()
             new_meta->copy_construct(&params[1])
-            params[0].meta = new_meta
-            return MalResult::Ok(params[0])
+            var new_value = params[0].deep_clone();
+            new_value.meta = new_meta
+            return MalResult::Ok(new_value)
         }
     }));
     env->set(str("fn?"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
@@ -1437,6 +1460,22 @@ fun main(argc: int, argv: **char): int {
                     }
                     closure _nth_closure = (closure){ _nth_impl, NULL};
 
+                    size_t _set_nth_impl(size_t* _, size_t num, size_t* args) {
+                        check_num_params(num, 3, "set-nth!");
+                        check_int(args[1], "set-nth!");
+                        if   ((args[0] & 0x7) == 0x2) {
+                            size_t* vec = (size_t*)(args[0]>>3);
+                            if (((ptrdiff_t)(args[1]>>3)) < 0 || (args[1]>>3) >= vec[1]) {
+                                error("nth idx out of range\n");
+                            }
+                            vec[(args[1]>>3)+2] = args[2];
+                            return 0x2F;
+                        } else {
+                            error("Passed not a vector to set-nth!\n");
+                        }
+                    }
+                    closure _set_nth_closure = (closure){ _set_nth_impl, NULL};
+
                     size_t _with_meta_impl(size_t* _, size_t num, size_t* args) {
                         check_num_params(num, 2, "with-meta");
                         check_vector(args[0], "with-meta");
@@ -1674,6 +1713,8 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 return str("((((size_t)&_vector_closure)<<3)|0x6)")
             } else if (s == "nth") {
                 return str("((((size_t)&_nth_closure)<<3)|0x6)")
+            } else if (s == "set-nth!") {
+                return str("((((size_t)&_set_nth_closure)<<3)|0x6)")
             } else if (s == "throw") {
                 return str("((((size_t)&_throw_closure)<<3)|0x6)")
             } else if (s == "with-meta") {
