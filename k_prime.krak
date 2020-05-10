@@ -17,7 +17,7 @@ adt MalValue_int {
     Symbol: str,                            //        00 1 0
     Int: int,                               //           0 0
 
-    Vector: vec<MalValue>,                  //<10sizebits> 1
+    Vector: rc<vec<MalValue>>,              //<10sizebits> 1
     // same encoding, but encodes 0-length null ptr
     Nil                                     // 00000000000 1
 }
@@ -48,7 +48,8 @@ fun malInt(i: int): MalValue {
     return nmMV(MalValue_int::Int(i))
 }
 fun malVector(v: ref vec<MalValue>): MalValue {
-    return nmMV(MalValue_int::Vector(v))
+    var rcd.construct(v): rc<vec<MalValue>>
+    return nmMV(MalValue_int::Vector(rcd))
 }
 fun malNil(): MalValue {
     return nmMV(MalValue_int::Nil())
@@ -75,19 +76,24 @@ obj MalValue (Object) {
             meta = null<MalValue>()
         }
     }
+    fun operator=(other: ref MalValue): void {
+        destruct()
+        copy_construct(&other)
+    }
     fun destruct(): void {
         if meta != null<MalValue>()
             delete(meta)
+        internal.destruct()
     }
     fun equals(other: ref MalValue): bool {
         match (internal) {
            MalValue_int::Vector(d) { match (other.internal) {
                 MalValue_int::Vector(db) {
-                    if d.size != db.size {
+                    if d.get().size != db.get().size {
                         return false
                     }
-                    for (var i = 0; i < d.size; i++;) {
-                        if !d[i].equals(db[i]) {
+                    for (var i = 0; i < d.get().size; i++;) {
+                        if !d.get()[i].equals(db.get()[i]) {
                             return false
                         }
                     }
@@ -110,22 +116,19 @@ obj MalValue (Object) {
             MalValue_int::Vector(v) {
                 return true
             }
-            MalValue_int::Nil() {
-                return true
-            }
+            /*MalValue_int::Nil() {*/
+                /*return true*/
+            /*}*/
         }
         return false
     }
-    fun get_vector(): vec<MalValue> {
+    fun get_vector_rc(): rc<vec<MalValue>> {
         match (internal) {
             MalValue_int::Vector(v) {
                 return v
             }
-            MalValue_int::Nil() {
-                return vec<MalValue>()
-            }
         }
-        error("Tried to get vec on not a vec or nil: " + pr_str(*this, true))
+        error("Tried to get vec on not a vec" + pr_str(*this, true))
     }
     fun is_symbol(): bool {
         match (internal) {
@@ -203,7 +206,7 @@ obj MalValue (Object) {
         return true
     }
     fun is_pair(): bool {
-        return is_vector() && get_vector().size > 0
+        return is_vector() && get_vector_rc().get().size > 0
     }
 }
 
@@ -232,11 +235,11 @@ fun is_macro_call(ast: MalValue, env: *Env): bool {
     if !ast.is_vector() {
         return false
     }
-    var l = ast.get_vector()
-    if l.size == 0 || !l[0].is_symbol() {
+    var l = ast.get_vector_rc()
+    if l.get().size == 0 || !l.get()[0].is_symbol() {
         return false
     }
-    var res = env->get(l[0].get_symbol_text())
+    var res = env->get(l.get()[0].get_symbol_text())
     if is_err(res) {
         return false
     }
@@ -251,11 +254,11 @@ fun is_macro_call(ast: MalValue, env: *Env): bool {
 
 fun macroexpand(ast: MalValue, env: *Env): MalResult {
     while is_macro_call(ast, env) {
-        var l = ast.get_vector()
-        var v = get_value(env->get(l[0].get_symbol_text()))
+        var l = ast.get_vector_rc()
+        var v = get_value(env->get(l.get()[0].get_symbol_text()))
         match (v.internal) {
             MalValue_int::Function(f) {
-                var params = l.slice(1,-1)
+                var params = l.get().slice(1,-1)
                 if (!f.is_variadic && f.parameters.size != params.size) || (f.is_variadic && f.parameters.size > params.size + 1) {
                     return MalResult::Err(malString(str("macro called with the wrong number of parameters")))
                 }
@@ -283,14 +286,14 @@ fun quasiquote(ast: MalValue): MalValue {
     if !ast.is_pair() {
         return malVector(vec(malSymbol(str("quote")), ast))
     } else {
-        var ast_list = ast.get_vector()
-        if ast_list[0].is_symbol("unquote") {
-            return ast_list[1]
+        var ast_list = ast.get_vector_rc()
+        if ast_list.get()[0].is_symbol("unquote") {
+            return ast_list.get()[1]
         } else {
-            if ast_list[0].is_pair() && ast_list[0].get_vector()[0].is_symbol("splice-unquote") {
-                return malVector(vec(malSymbol(str("concat")), ast_list[0].get_vector()[1], quasiquote(malVector(ast_list.slice(1,-1)))))
+            if ast_list.get()[0].is_pair() && ast_list.get()[0].get_vector_rc().get()[0].is_symbol("splice-unquote") {
+                return malVector(vec(malSymbol(str("concat")), ast_list.get()[0].get_vector_rc().get()[1], quasiquote(malVector(ast_list.get().slice(1,-1)))))
             } else {
-                return malVector(vec(malSymbol(str("cons")), quasiquote(ast_list[0]), quasiquote(malVector(ast_list.slice(1,-1)))))
+                return malVector(vec(malSymbol(str("cons")), quasiquote(ast_list.get()[0]), quasiquote(malVector(ast_list.get().slice(1,-1)))))
             }
         }
     }
@@ -421,7 +424,7 @@ obj MalFunction (Object) {
         return env == other.env && parameters == other.parameters && is_variadic == other.is_variadic && is_macro == other.is_macro && body->equals(*other.body)
     }
     // no call b/c need to do in EVAL for TCO
-    fun prep_call(params: vec<MalValue>): pair<*Env, MalResult> {
+    fun prep_call(params: ref vec<MalValue>): pair<*Env, MalResult> {
         // tco
         if (!is_variadic && parameters.size != params.size) || (is_variadic && parameters.size > params.size + 1) {
             return make_pair(null<Env>(), MalResult::Err(malString(str("function called with the wrong number of parameters: ") + params.size + " but expecting " + parameters.size + ": [ " + str(",").join(parameters) + "], was: " + pr_str(malVector(params), true) + ", function body is " + pr_str(*body, true))))
@@ -438,7 +441,7 @@ obj MalFunction (Object) {
     }
 }
 
-fun function_call(f: MalValue, params: vec<MalValue>): MalResult {
+fun function_call(f: MalValue, params: ref vec<MalValue>): MalResult {
     match (f.internal) {
         MalValue_int::BuiltinFunction(f) {
             return f.call(params)
@@ -486,11 +489,11 @@ fun pr_str(v: MalValue, print_readably: bool): str {
     match (v.internal) {
         MalValue_int::Vector(l) {
             var to_ret = str("[")
-            for (var i = 0; i < l.size; i++;) {
+            for (var i = 0; i < l.get().size; i++;) {
                 if (i != 0) {
                     to_ret += " "
                 }
-                to_ret += pr_str(l[i], print_readably)
+                to_ret += pr_str(l.get()[i], print_readably)
             }
             return to_ret + "]"
         }
@@ -559,8 +562,8 @@ fun eval_ast(env: *Env, ast: MalValue): MalResult {
     match (ast.internal) {
         MalValue_int::Vector(l) {
             var to_ret = vec<MalValue>()
-            for (var i = 0; i < l.size; i++;) {
-                var mid = EVAL(env, l[i])
+            for (var i = 0; i < l.get().size; i++;) {
+                var mid = EVAL(env, l.get()[i])
                 if is_err(mid) {
                     return mid
                 }
@@ -588,32 +591,32 @@ fun EVAL(env: *Env, ast: MalValue): MalResult {
         }
         match (ast.internal) {
             MalValue_int::Vector(l) {
-                if (l.size == 0) {
+                if (l.get().size == 0) {
                     return MalResult::Ok(ast)
-                } else if (l[0].is_symbol("def!")) {
-                    if (l.size != 3) {
+                } else if (l.get()[0].is_symbol("def!")) {
+                    if (l.get().size != 3) {
                         return MalResult::Err(malString(str("def! without exaclty key and value")))
                     }
-                    if (!l[1].is_symbol()) {
+                    if (!l.get()[1].is_symbol()) {
                         return MalResult::Err(malString(str("def! not on symbol")))
                     }
                     if env->outer != null<Env>() {
                         return MalResult::Err(malString(str("def! not at top level")))
                     }
-                    var value = EVAL(env, l[2])
+                    var value = EVAL(env, l.get()[2])
                     if (is_err(value)) {
                         return value
                     }
-                    env->set(l[1].get_symbol_text(), get_value(value))
+                    env->set(l.get()[1].get_symbol_text(), get_value(value))
                     return value
-                } else if (l[0].is_symbol("defmacro!")) {
-                    if (l.size != 3) {
+                } else if (l.get()[0].is_symbol("defmacro!")) {
+                    if (l.get().size != 3) {
                         return MalResult::Err(malString(str("defmacro! without exaclty key and value")))
                     }
-                    if (!l[1].is_symbol()) {
+                    if (!l.get()[1].is_symbol()) {
                         return MalResult::Err(malString(str("defmacro! not on symbol")))
                     }
-                    var value = EVAL(env, l[2])
+                    var value = EVAL(env, l.get()[2])
                     if (is_err(value)) {
                         return value
                     }
@@ -621,128 +624,128 @@ fun EVAL(env: *Env, ast: MalValue): MalResult {
                     match (v.internal) {
                         MalValue_int::Function(f) {
                             f.is_macro = true
-                            env->set(l[1].get_symbol_text(), nmMV(MalValue_int::Function(f)))
+                            env->set(l.get()[1].get_symbol_text(), nmMV(MalValue_int::Function(f)))
                             return value
                         }
                     }
                     return MalResult::Err(malString(str("defmacro! on not a function")))
-                } else if (l[0].is_symbol("let*")) {
-                    if (l.size != 3) {
+                } else if (l.get()[0].is_symbol("let*")) {
+                    if (l.get().size != 3) {
                         return MalResult::Err(malString(str("let* without list of bindings & end value")))
                     }
-                    if (!l[1].is_vector()) {
+                    if (!l.get()[1].is_vector()) {
                         return MalResult::Err(malString(str("let* without list of bindings")))
                     }
-                    var bindings = l[1].get_vector()
-                    if (bindings.size & 1 != 0) {
+                    var bindings = l.get()[1].get_vector_rc()
+                    if (bindings.get().size & 1 != 0) {
                         return MalResult::Err(malString(str("let* list of bindings has odd number of entries")))
                     }
                     var new_env = new<Env>()->construct(env)
-                    for (var i = 0; i < bindings.size; i+=2;) {
-                        if (!bindings[i].is_symbol()) {
+                    for (var i = 0; i < bindings.get().size; i+=2;) {
+                        if (!bindings.get()[i].is_symbol()) {
                             return MalResult::Err(malString(str("let* var name not symbol")))
                         }
-                        var to_set_value = EVAL(new_env, bindings[i+1])
+                        var to_set_value = EVAL(new_env, bindings.get()[i+1])
                         if (is_err(to_set_value)) {
                             return to_set_value
                         }
-                        new_env->set(bindings[i].get_symbol_text(), get_value(to_set_value))
+                        new_env->set(bindings.get()[i].get_symbol_text(), get_value(to_set_value))
                     }
                     // tco
                     env = new_env
-                    var tmp = l[2]
+                    var tmp = l.get()[2]
                     ast = tmp
                     continue
-                } else if (l[0].is_symbol("do")) {
-                    for (var i = 1; i < l.size-1; i++;) {
-                        var mid = EVAL(env, l[i])
+                } else if (l.get()[0].is_symbol("do")) {
+                    for (var i = 1; i < l.get().size-1; i++;) {
+                        var mid = EVAL(env, l.get()[i])
                         if is_err(mid) {
                             return mid
                         }
                     }
                     // tco
-                    var tmp = l[l.size-1]
+                    var tmp = l.get()[l.get().size-1]
                     ast = tmp
                     continue
-                } else if (l[0].is_symbol("if")) {
-                    if l.size != 3 && l.size != 4 {
+                } else if (l.get()[0].is_symbol("if")) {
+                    if l.get().size != 3 && l.get().size != 4 {
                         return MalResult::Err(malString(str("if needs 2 or 3 children")))
                     }
-                    var cond = EVAL(env, l[1])
+                    var cond = EVAL(env, l.get()[1])
                     if is_err(cond) {
                         return cond
                     }
                     // tco
                     if get_value(cond).is_truthy() {
-                        var tmp = l[2]
+                        var tmp = l.get()[2]
                         ast = tmp
-                    } else if l.size == 4 {
-                        var tmp = l[3]
+                    } else if l.get().size == 4 {
+                        var tmp = l.get()[3]
                         ast = tmp
                     } else {
                         return MalResult::Ok(malNil())
                     }
                     continue
-                } else if (l[0].is_symbol("fn*")) {
-                    if l.size != 3 {
+                } else if (l.get()[0].is_symbol("fn*")) {
+                    if l.get().size != 3 {
                         return MalResult::Err(malString(str("fn* needs 2 children")))
                     }
-                    if (!l[1].is_vector()) {
+                    if (!l.get()[1].is_vector()) {
                         return MalResult::Err(malString(str("fn* without list of parameters")))
                     }
-                    var parameters = l[1].get_vector()
+                    var parameters = l.get()[1].get_vector_rc()
                     var parameters_str = vec<str>()
                     var is_variadic = false
-                    for (var i = 0; i < parameters.size; i++;) {
-                        if (!parameters[i].is_symbol()) {
+                    for (var i = 0; i < parameters.get().size; i++;) {
+                        if (!parameters.get()[i].is_symbol()) {
                             return MalResult::Err(malString(str("fn* parameter name not symbol")))
                         }
-                        var symbol_text = parameters[i].get_symbol_text()
+                        var symbol_text = parameters.get()[i].get_symbol_text()
                         if symbol_text == "&" {
-                            if i != parameters.size - 2 {
+                            if i != parameters.get().size - 2 {
                                 return MalResult::Err(malString(str("fn* has wrong number of arguments after &")))
                             }
-                            if (!parameters[i+1].is_symbol()) {
+                            if (!parameters.get()[i+1].is_symbol()) {
                                 return MalResult::Err(malString(str("fn* parameter name not symbol")))
                             }
                             is_variadic = true
                             i++
-                            symbol_text = parameters[i].get_symbol_text()
+                            symbol_text = parameters.get()[i].get_symbol_text()
                         }
                         parameters_str.add(symbol_text)
                     }
-                    var to_ret.construct(env, parameters_str, is_variadic, false, l[2]): MalFunction
+                    var to_ret.construct(env, parameters_str, is_variadic, false, l.get()[2]): MalFunction
                     return MalResult::Ok(nmMV(MalValue_int::Function(to_ret)))
-                } else if (l[0].is_symbol("quote")) {
-                    if l.size == 1 {
+                } else if (l.get()[0].is_symbol("quote")) {
+                    if l.get().size == 1 {
                         return MalResult::Err(malString(str("quote with no arguments")))
                     }
-                    return MalResult::Ok(l[1])
-                } else if (l[0].is_symbol("quasiquote")) {
-                    if l.size == 1 {
+                    return MalResult::Ok(l.get()[1])
+                } else if (l.get()[0].is_symbol("quasiquote")) {
+                    if l.get().size == 1 {
                         return MalResult::Err(malString(str("quasiquote with no arguments")))
                     }
-                    var tmp = quasiquote(l[1])
+                    var tmp = quasiquote(l.get()[1])
                     ast = tmp
                     continue
-                } else if (l[0].is_symbol("macroexpand")) {
-                    if l.size == 1 {
+                } else if (l.get()[0].is_symbol("macroexpand")) {
+                    if l.get().size == 1 {
                         return MalResult::Err(malString(str("macroexpand with no arguments")))
                     }
-                    return macroexpand(l[1], env)
-                } else if (l[0].is_symbol("try*")) {
-                    if l.size != 2 && (l.size != 3 || !l[2].is_vector()) {
+                    return macroexpand(l.get()[1], env)
+                } else if (l.get()[0].is_symbol("try*")) {
+                    if l.get().size != 2 && (l.get().size != 3 || !l.get()[2].is_vector()) {
                         return MalResult::Err(malString(str("try* wrong arguments")))
                     }
-                    var A = EVAL(env, l[1])
-                    if l.size == 3 && is_err(A) {
-                        var catch = l[2].get_vector()
-                        if catch.size != 3 || !catch[0].is_symbol("catch*") || !catch[1].is_symbol() {
+                    var A = EVAL(env, l.get()[1])
+                    if l.get().size == 3 && is_err(A) {
+                        var catch = l.get()[2].get_vector_rc()
+                        if catch.get().size != 3 || !catch.get()[0].is_symbol("catch*") || !catch.get()[1].is_symbol() {
                             return MalResult::Err(malString(str("catch* block malformed")))
                         }
                         var new_env = new<Env>()->construct(env)
-                        env->set(catch[1].get_symbol_text(), get_err(A))
-                        return EVAL(new_env, catch[2])
+                        env->set(catch.get()[1].get_symbol_text(), get_err(A))
+                        return EVAL(new_env, catch.get()[2])
                     } else {
                         return A
                     }
@@ -751,14 +754,14 @@ fun EVAL(env: *Env, ast: MalValue): MalResult {
                     if is_err(mid) {
                         return mid
                     }
-                    var to_call = get_value(mid).get_vector()
-                    match (to_call[0].internal) {
+                    var to_call = get_value(mid).get_vector_rc()
+                    match (to_call.get()[0].internal) {
                         MalValue_int::BuiltinFunction(f) {
-                            return f.call(to_call.slice(1,-1))
+                            return f.call(to_call.get().slice(1,-1))
                         }
                         MalValue_int::Function(f) {
-                            var params = to_call.slice(1,-1)
-                            var call_pair = f.prep_call(to_call.slice(1, -1))
+                            var params = to_call.get().slice(1,-1)
+                            var call_pair = f.prep_call(to_call.get().slice(1, -1))
                             if is_err(call_pair.second) {
                                 return call_pair.second
                             }
@@ -767,7 +770,7 @@ fun EVAL(env: *Env, ast: MalValue): MalResult {
                             continue
                         }
                     }
-                    return MalResult::Err(malString(str("trying to call not a function:") + pr_str(to_call[0], true)))
+                    return MalResult::Err(malString(str("trying to call not a function:") + pr_str(to_call.get()[0], true)))
                 }
             }
         }
@@ -788,7 +791,7 @@ fun rep(grammer: ref Grammer<MalResult, MalValue>, env: *Env, a: str): str {
         }
     }
 }
-fun print_wrapper(params: vec<MalValue>, sep: *char, print_readably: bool): str {
+fun print_wrapper(params: ref vec<MalValue>, sep: *char, print_readably: bool): str {
     var to_ret = str()
     for (var i = 0; i < params.size; i++;) {
         to_ret += pr_str(params[i], print_readably)
@@ -864,7 +867,7 @@ fun main(argc: int, argv: **char): int {
         if is_err(x[2]) {
             return x[2]
         }
-        return MalResult::Ok(malVector(vec(get_value(x[0])) + get_value(x[2]).get_vector()))
+        return MalResult::Ok(malVector(vec(get_value(x[0])) + get_value(x[2]).get_vector_rc().get()))
     })
 
     grammer.add_to_nonterminal(form, vec(grammer.add_terminal("\\(", malNil(), ret_nil_term),
@@ -1000,14 +1003,14 @@ fun main(argc: int, argv: **char): int {
         if params.size == 0 || !params[0].is_vector() {
             return MalResult::Err(malString(str("first parameter of empty? is not a list")))
         } else {
-            return MalResult::Ok(bool_to_MalValue(params[0].get_vector().size == 0))
+            return MalResult::Ok(bool_to_MalValue(params[0].get_vector_rc().get().size == 0))
         }
     }));
     env->set(str("count"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
         if params.size == 0 || !params[0].is_vector() {
             return MalResult::Err(malString(str("first parameter of count is not a list")))
         } else {
-            return MalResult::Ok(malInt(params[0].get_vector().size))
+            return MalResult::Ok(malInt(params[0].get_vector_rc().get().size))
         }
     }));
     env->set(str("read-string"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
@@ -1035,7 +1038,7 @@ fun main(argc: int, argv: **char): int {
         if params.size != 2 || !params[1].is_vector() {
             return MalResult::Err(malString(str("cons called with wrong number of params or second not an list/vec")))
         } else {
-            return MalResult::Ok(malVector(vec(params[0]) + params[1].get_vector()))
+            return MalResult::Ok(malVector(vec(params[0]) + params[1].get_vector_rc().get()))
         }
     }));
     env->set(str("concat"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
@@ -1044,7 +1047,7 @@ fun main(argc: int, argv: **char): int {
             if !params[i].is_vector() {
                 return MalResult::Err(malString(str("concat called with not an list")))
             }
-            to_ret += params[i].get_vector()
+            to_ret += params[i].get_vector_rc().get()
         }
         return MalResult::Ok(malVector(to_ret))
     }));
@@ -1052,34 +1055,34 @@ fun main(argc: int, argv: **char): int {
         if params.size != 2 || !params[0].is_vector() || !params[1].is_int() {
             return MalResult::Err(malString(str("nth called with wrong number or type of params")))
         } else {
-            var list = params[0].get_vector()
+            var list = params[0].get_vector_rc()
             var idx = params[1].get_int()
-            if idx >= list.size {
+            if idx >= list.get().size {
                 return MalResult::Err(malString(str("nth idx out of range")))
             }
-            return MalResult::Ok(list[idx])
+            return MalResult::Ok(list.get()[idx])
         }
     }));
     env->set(str("first"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
         if params.size != 1 || !params[0].is_vector() {
             return MalResult::Err(malString(str("first called with wrong number or type of params") + pr_str(params[0], true)))
         } else {
-            var list = params[0].get_vector()
-            if list.size == 0 {
+            var list = params[0].get_vector_rc()
+            if list.get().size == 0 {
                 return MalResult::Ok(malNil())
             }
-            return MalResult::Ok(list[0])
+            return MalResult::Ok(list.get()[0])
         }
     }));
     env->set(str("rest"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
         if params.size != 1 || !params[0].is_vector() {
             return MalResult::Err(malString(str("rest called with wrong number or type of params")))
         } else {
-            var list = params[0].get_vector()
-            if list.size == 0 {
+            var list = params[0].get_vector_rc()
+            if list.get().size == 0 {
                 return MalResult::Ok(malVector(vec<MalValue>()))
             }
-            return MalResult::Ok(malVector(list.slice(1,-1)))
+            return MalResult::Ok(malVector(list.get().slice(1,-1)))
         }
     }));
     env->set(str("throw"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
@@ -1093,7 +1096,7 @@ fun main(argc: int, argv: **char): int {
         if params.size < 2 || !params[params.size-1].is_vector() {
             return MalResult::Err(malString(str("apply called with wrong number or type of params")))
         } else {
-        var inner_params = params.slice(1,-2) + params[params.size-1].get_vector()
+        var inner_params = params.slice(1,-2) + params[params.size-1].get_vector_rc().get()
         return function_call(params[0], inner_params)
         }
     }));
@@ -1101,10 +1104,10 @@ fun main(argc: int, argv: **char): int {
         if params.size != 2 || !params[1].is_vector() {
             return MalResult::Err(malString(str("map called with wrong number or type of params")))
         } else {
-            var l = params[1].get_vector()
+            var l = params[1].get_vector_rc()
             var to_ret = vec<MalValue>()
-            for (var i = 0; i < l.size; i++;) {
-                var mid = function_call(params[0], vec(l[i]))
+            for (var i = 0; i < l.get().size; i++;) {
+                var mid = function_call(params[0], vec(l.get()[i]))
                 if is_err(mid) {
                     return mid
                 }
@@ -1199,7 +1202,7 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Err(malString(str("add_grammer_rule called with wrong number or type of params")))
         } else {
             var nonterminal_str = params[0].get_symbol_text()
-            var rule = params[1].get_vector()
+            var rule = params[1].get_vector_rc().get()
             var int_rule = vec<int>()
             for (var i = 0; i < rule.size; i++;) {
                 if rule[i].is_int() {
@@ -1500,50 +1503,50 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
     match (ast.internal) {
         MalValue_int::Vector(l) {
             println("Find closed vars list")
-            if (l.size == 0) {
+            if (l.get().size == 0) {
                 return set<str>()
-            } else if (l[0].is_symbol("def!")) {
+            } else if (l.get()[0].is_symbol("def!")) {
                 println("Find closed vars in def!")
-                defined.add(l[1].get_symbol_text())
+                defined.add(l.get()[1].get_symbol_text())
                 /*return find_closed_vars(defined, env, l[2])*/
-                var to_ret = find_closed_vars(defined, env, l[2])
+                var to_ret = find_closed_vars(defined, env, l.get()[2])
                 println("end Find closed vars in def!")
                 return to_ret
-            } else if (l[0].is_symbol("let*")) {
-                var bindings = l[1].get_vector()
+            } else if (l.get()[0].is_symbol("let*")) {
+                var bindings = l.get()[1].get_vector_rc()
                 var to_ret = set<str>()
                 var new_env = new<Env>()->construct(env)
-                for (var i = 0; i < bindings.size; i+=2;) {
-                    defined.add(bindings[i].get_symbol_text())
-                    new_env->set(bindings[i].get_symbol_text(), malNil())
-                    to_ret += find_closed_vars(defined, new_env, bindings[i+1])
+                for (var i = 0; i < bindings.get().size; i+=2;) {
+                    defined.add(bindings.get()[i].get_symbol_text())
+                    new_env->set(bindings.get()[i].get_symbol_text(), malNil())
+                    to_ret += find_closed_vars(defined, new_env, bindings.get()[i+1])
                 }
-                return to_ret + find_closed_vars(defined, new_env, l[2])
-            } else if l[0].is_symbol("do") || l[0].is_symbol("if") {
+                return to_ret + find_closed_vars(defined, new_env, l.get()[2])
+            } else if l.get()[0].is_symbol("do") || l.get()[0].is_symbol("if") {
                 var to_ret = set<str>()
-                for (var i = 1; i < l.size; i++;) {
-                    to_ret += find_closed_vars(defined, env, l[i])
+                for (var i = 1; i < l.get().size; i++;) {
+                    to_ret += find_closed_vars(defined, env, l.get()[i])
                 }
                 return to_ret
-            } else if (l[0].is_symbol("fn*")) {
+            } else if (l.get()[0].is_symbol("fn*")) {
                 println("Find closed vars fn*")
                 var f = EVAL(env, ast)
                 /*return find_closed_vars(defined, env, get_value(f))*/
                 var to_ret =  find_closed_vars(defined, env, get_value(f))
                 println("end find closed vars fn*")
                 return to_ret
-            } else if (l[0].is_symbol("quote")) {
+            } else if (l.get()[0].is_symbol("quote")) {
                 return set<str>()
-            } else if (l[0].is_symbol("quasiquote")) {
-                return find_closed_vars(defined, env, quasiquote(l[1]))
-            } else if (l[0].is_symbol("macroexpand")) {
+            } else if (l.get()[0].is_symbol("quasiquote")) {
+                return find_closed_vars(defined, env, quasiquote(l.get()[1]))
+            } else if (l.get()[0].is_symbol("macroexpand")) {
                 error("macroexpand doesn't make sense while finding closed vars")
-            } else if (l[0].is_symbol("try*")) {
+            } else if (l.get()[0].is_symbol("try*")) {
                 error("finding closed vars in try* unimplemented")
             } else {
                 var to_ret = set<str>()
-                for (var i = 0; i < l.size; i++;) {
-                    to_ret += find_closed_vars(defined, env, l[i])
+                for (var i = 0; i < l.get().size; i++;) {
+                    to_ret += find_closed_vars(defined, env, l.get()[i])
                 }
                 return to_ret
             }
@@ -1700,15 +1703,15 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
             return "((((size_t)" + val_name + ")<<3)|0x3)"
         }
         MalValue_int::Vector(l) {
-            var call_str = str("_vector_impl(NULL, ") + l.size + ", (size_t[]){ "
-            for (var i = 0; i < l.size; i++;) {
+            var call_str = str("_vector_impl(NULL, ") + l.get().size + ", (size_t[]){ "
+            for (var i = 0; i < l.get().size; i++;) {
                 if i != 0 {
                     call_str += ", "
                 }
                 if quoted {
-                    call_str += compile_value(top_decs, top_defs, main_init, defs, env, l[i], true)
+                    call_str += compile_value(top_decs, top_defs, main_init, defs, env, l.get()[i], true)
                 } else {
-                    call_str += compile(top_decs, top_defs, main_init, defs, env, l[i])
+                    call_str += compile(top_decs, top_defs, main_init, defs, env, l.get()[i])
                 }
             }
             return call_str + "})"
@@ -1730,82 +1733,82 @@ fun compile(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *E
     }
     match (ast.internal) {
         MalValue_int::Vector(l) {
-            if (l.size == 0) {
+            if (l.get().size == 0) {
                 return compile_value(top_decs, top_defs, main_init, defs, env, ast, false)
-            } else if (l[0].is_symbol("def!")) {
-                if (l.size != 3) {
+            } else if (l.get()[0].is_symbol("def!")) {
+                if (l.get().size != 3) {
                     error("def! without exaclty key and value")
                 }
-                if (!l[1].is_symbol()) {
+                if (!l.get()[1].is_symbol()) {
                     error("def! not on symbol")
                 }
                 if env->outer != null<Env>() {
                     error("def! not at top level")
                 }
-                var to_set_name = l[1].get_symbol_text()
-                var to_set_value = compile(top_decs, top_defs, main_init, defs, env, l[2])
+                var to_set_name = l.get()[1].get_symbol_text()
+                var to_set_value = compile(top_decs, top_defs, main_init, defs, env, l.get()[2])
                 *defs += "size_t " + to_set_name + " = " + to_set_value + ";\n"
                 return to_set_name
-            } else if (l[0].is_symbol("defmacro!")) {
+            } else if (l.get()[0].is_symbol("defmacro!")) {
                 error("defmacro! doesn't make sense in compiled code")
-            } else if (l[0].is_symbol("let*")) {
-                if (l.size != 3) {
+            } else if (l.get()[0].is_symbol("let*")) {
+                if (l.get().size != 3) {
                     error("let* without list of bindings & end value")
                 }
-                if (!l[1].is_vector()) {
+                if (!l.get()[1].is_vector()) {
                     error("let* without list of bindings")
                 }
-                var bindings = l[1].get_vector()
-                if (bindings.size & 1 != 0) {
+                var bindings = l.get()[1].get_vector_rc()
+                if (bindings.get().size & 1 != 0) {
                     error("let* list of bindings has odd number of entries")
                 }
                 var let_val = new_tmp()
                 *defs += "size_t " + let_val + ";\n{\n"
                 var new_env = new<Env>()->construct(env)
-                for (var i = 0; i < bindings.size; i+=2;) {
-                    if (!bindings[i].is_symbol()) {
+                for (var i = 0; i < bindings.get().size; i+=2;) {
+                    if (!bindings.get()[i].is_symbol()) {
                         error("let* var name not symbol")
                     }
-                    var to_set_value = compile(top_decs, top_defs, main_init, defs, new_env, bindings[i+1])
-                    *defs += "size_t " + bindings[i].get_symbol_text() + " = " + to_set_value + ";\n"
-                    new_env->set(bindings[i].get_symbol_text(), malNil())
+                    var to_set_value = compile(top_decs, top_defs, main_init, defs, new_env, bindings.get()[i+1])
+                    *defs += "size_t " + bindings.get()[i].get_symbol_text() + " = " + to_set_value + ";\n"
+                    new_env->set(bindings.get()[i].get_symbol_text(), malNil())
                 }
-                *defs += let_val + " = " + compile(top_decs, top_defs, main_init, defs, new_env, l[2]) + ";\n}\n"
+                *defs += let_val + " = " + compile(top_decs, top_defs, main_init, defs, new_env, l.get()[2]) + ";\n}\n"
                 return let_val
-            } else if (l[0].is_symbol("do")) {
-                for (var i = 1; i < l.size-1; i++;) {
-                    var value_possible_side_effect = compile(top_decs, top_defs, main_init, defs, env, l[i])
+            } else if (l.get()[0].is_symbol("do")) {
+                for (var i = 1; i < l.get().size-1; i++;) {
+                    var value_possible_side_effect = compile(top_decs, top_defs, main_init, defs, env, l.get()[i])
                     *defs += value_possible_side_effect + ";\n"
                 }
-                return compile(top_decs, top_defs, main_init, defs, env, l[l.size-1])
-            } else if (l[0].is_symbol("if")) {
-                if l.size != 3 && l.size != 4 {
+                return compile(top_decs, top_defs, main_init, defs, env, l.get()[l.get().size-1])
+            } else if (l.get()[0].is_symbol("if")) {
+                if l.get().size != 3 && l.get().size != 4 {
                     error("if needs 2 or 3 children")
                 }
-                var cond = compile(top_decs, top_defs, main_init, defs, env, l[1])
+                var cond = compile(top_decs, top_defs, main_init, defs, env, l.get()[1])
                 var tmp_name = new_tmp()
                 *defs += "size_t " + tmp_name + "; if (" + cond + " != 0x1F) {\n"
-                var then = compile(top_decs, top_defs, main_init, defs, env, l[2])
+                var then = compile(top_decs, top_defs, main_init, defs, env, l.get()[2])
                 *defs += tmp_name + " = " + then + ";\n} else {\n"
-                var else_ = compile(top_decs, top_defs, main_init, defs, env, l[3])
+                var else_ = compile(top_decs, top_defs, main_init, defs, env, l.get()[3])
                 *defs += tmp_name + " = " + else_ + ";\n}\n"
                 return tmp_name
-            } else if (l[0].is_symbol("fn*")) {
+            } else if (l.get()[0].is_symbol("fn*")) {
                 var f = EVAL(env, ast)
                 return compile_value(top_decs, top_defs, main_init, defs, env, get_value(f), false)
-            } else if (l[0].is_symbol("quote")) {
-                if l.size == 1 {
+            } else if (l.get()[0].is_symbol("quote")) {
+                if l.get().size == 1 {
                     error("compile quote with no arguments")
                 }
-                return compile_value(top_decs, top_defs, main_init, defs, env, l[1], true)
-            } else if (l[0].is_symbol("quasiquote")) {
-                if l.size == 1 {
+                return compile_value(top_decs, top_defs, main_init, defs, env, l.get()[1], true)
+            } else if (l.get()[0].is_symbol("quasiquote")) {
+                if l.get().size == 1 {
                     error("compile quasiquote with no arguments")
                 }
-                return compile(top_decs, top_defs, main_init, defs, env, quasiquote(l[1]))
-            } else if (l[0].is_symbol("macroexpand")) {
+                return compile(top_decs, top_defs, main_init, defs, env, quasiquote(l.get()[1]))
+            } else if (l.get()[0].is_symbol("macroexpand")) {
                 error("macroexpand doesn't make sense while compiling")
-            } else if (l[0].is_symbol("try*")) {
+            } else if (l.get()[0].is_symbol("try*")) {
                 var tmp_name = new_tmp()
                 var tmp_exception_name = new_tmp()
                 var tmp_new_exception_name = new_tmp()
@@ -1814,17 +1817,17 @@ fun compile(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *E
                 *defs += "jmp_buf " + tmp_new_exception_name + ";\n"
                 *defs += "current_exception_handler = &" + tmp_new_exception_name + ";\n"
                 *defs += "if (!setjmp(*current_exception_handler)) {\n"
-                *defs += tmp_name + " = " + compile(top_decs, top_defs, main_init, defs, env, l[1]) + ";\n"
+                *defs += tmp_name + " = " + compile(top_decs, top_defs, main_init, defs, env, l.get()[1]) + ";\n"
                 *defs += "} else {\n"
-                if l.size == 3 {
-                    var catch = l[2].get_vector()
-                    if catch.size != 3 || !catch[0].is_symbol("catch*") || !catch[1].is_symbol() {
+                if l.get().size == 3 {
+                    var catch = l.get()[2].get_vector_rc()
+                    if catch.get().size != 3 || !catch.get()[0].is_symbol("catch*") || !catch.get()[1].is_symbol() {
                         error("catch* block malformed")
                     }
                     var new_env = new<Env>()->construct(env)
-                    new_env->set(catch[1].get_symbol_text(), malNil())
-                    *defs += "size_t " + catch[1].get_symbol_text() + " = current_exception_value;\n"
-                    *defs += tmp_name + " = " + compile(top_decs, top_defs, main_init, defs, new_env, catch[2]) + ";\n"
+                    new_env->set(catch.get()[1].get_symbol_text(), malNil())
+                    *defs += "size_t " + catch.get()[1].get_symbol_text() + " = current_exception_value;\n"
+                    *defs += tmp_name + " = " + compile(top_decs, top_defs, main_init, defs, new_env, catch.get()[2]) + ";\n"
                 } else {
                     *defs += tmp_name + " = current_exception_value;\n";
                 }
@@ -1833,8 +1836,8 @@ fun compile(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *E
                 return tmp_name
             } else {
                 var to_call = vec<str>()
-                for (var i = 0; i < l.size; i++;) {
-                    to_call.add(compile(top_decs, top_defs, main_init, defs, env, l[i]))
+                for (var i = 0; i < l.get().size; i++;) {
+                    to_call.add(compile(top_decs, top_defs, main_init, defs, env, l.get()[i]))
                 }
                 var func_name = new_tmp()
                 *defs += "size_t " + func_name + "_r = " + to_call[0] + ";\n"
@@ -1842,7 +1845,7 @@ fun compile(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *E
                 *defs +=  "closure* " + func_name + " = (closure*)(" + func_name + "_r>>3);\n"
                 var params_name = new_tmp()
                 *defs += "size_t " + params_name + "_params[] = {"+str(", ").join(to_call.slice(1,-1))+"};\n"
-                return func_name + "->func(" + func_name + "->data, " + to_string(l.size-1) + ", " + params_name + "_params)"
+                return func_name + "->func(" + func_name + "->data, " + to_string(l.get().size-1) + ", " + params_name + "_params)"
             }
         }
     }
