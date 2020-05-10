@@ -1728,7 +1728,8 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                     var v = e->get(s)
                     e->remove(s)
                     var x = str()
-                    var value = compile(top_decs, top_defs, main_init, &x, e, get_value(v))
+                    /*var value = compile(top_decs, top_defs, main_init, &x, e, get_value(v))*/
+                    var value = compile_value(top_decs, top_defs, main_init, &x, e, get_value(v), true)
                     *top_decs += "size_t " + s + ";\n"
                     *main_init += x
                     *main_init += s + " = " + value + ";\n"
@@ -1755,7 +1756,16 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                     call_str += compile(top_decs, top_defs, main_init, defs, env, l.get()[i])
                 }
             }
-            return call_str + "})"
+            call_str += "})"
+            if ast.meta != null<MalValue>() {
+                var meta_value = compile_value(top_decs, top_defs, main_init, defs, env, *ast.meta, true)
+                var for_meta = "for_meta_" + new_tmp()
+                *defs += "size_t " + for_meta + " = " + call_str + ";\n"
+                *defs += "((size_t*)(" + for_meta + ">>3))[0] = " + meta_value + ";\n"
+                return for_meta
+            } else {
+                return call_str
+            }
         }
         MalValue_int::Int(i) {
             return to_string(i<<3)

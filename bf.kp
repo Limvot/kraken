@@ -70,6 +70,8 @@
 ;                                (inner 7)))
 ;                        7)))
 
+(def! to_be_saved (with-meta [1] [2]))
+(def! to_be_saved_s "asdfasdf")
 
 (def! main (fn* () (let* ( a 7
                            b [1]
@@ -83,6 +85,9 @@
                                             (println c)
                                             (println (meta c))
                                             (println "world")
+                                            (println to_be_saved)
+                                            (println (meta to_be_saved))
+                                            (println to_be_saved_s)
                                             a)))
                                 )))))
 (do
