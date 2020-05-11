@@ -370,15 +370,19 @@ obj Env (Object) {
     }
 }
 obj MalBuiltinFunction (Object) {
+    var name: str
     var fp: fun(vec<MalValue>): MalResult
-    fun construct(fp: fun(vec<MalValue>): MalResult): *MalBuiltinFunction {
+    fun construct(name: ref str, fp: fun(vec<MalValue>): MalResult): *MalBuiltinFunction {
+        this->name.copy_construct(&name)
         this->fp = fp
         return this
     }
     fun copy_construct(old: *MalBuiltinFunction): void {
         this->fp = old->fp
+        this->name.copy_construct(&old->name)
     }
     fun destruct(): void {
+        this->name.destruct()
     }
     fun operator=(other:ref MalBuiltinFunction):void {
         destruct()
@@ -391,8 +395,8 @@ obj MalBuiltinFunction (Object) {
         return fp(params)
     }
 }
-fun make_builtin_function(f: fun(vec<MalValue>): MalResult): MalValue {
-    var to_ret.construct(f): MalBuiltinFunction
+fun make_builtin_function(name: str, f: fun(vec<MalValue>): MalResult): MalValue {
+    var to_ret.construct(name, f): MalBuiltinFunction
     return nmMV(MalValue_int::BuiltinFunction(to_ret))
 }
 obj MalFunction (Object) {
@@ -892,7 +896,7 @@ fun main(argc: int, argv: **char): int {
 
 
     var env = new<Env>()->construct()
-    env->set(str("+"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("+"), make_builtin_function(str("+"), fun(params: vec<MalValue>): MalResult {
         var to_ret = 0
         for (var i = 0; i < params.size; i++;) {
             match (params[i].internal) {
@@ -905,7 +909,7 @@ fun main(argc: int, argv: **char): int {
         }
         return MalResult::Ok(malInt(to_ret))
     }));
-    env->set(str("-"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("-"), make_builtin_function(str("-"), fun(params: vec<MalValue>): MalResult {
         var to_ret = 0
         for (var i = 0; i < params.size; i++;) {
             match (params[i].internal) {
@@ -922,7 +926,7 @@ fun main(argc: int, argv: **char): int {
         }
         return MalResult::Ok(malInt(to_ret))
     }));
-    env->set(str("*"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("*"), make_builtin_function(str("*"), fun(params: vec<MalValue>): MalResult {
         var to_ret = 1
         for (var i = 0; i < params.size; i++;) {
             match (params[i].internal) {
@@ -935,7 +939,7 @@ fun main(argc: int, argv: **char): int {
         }
         return MalResult::Ok(malInt(to_ret))
     }));
-    env->set(str("/"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("/"), make_builtin_function(str("/"), fun(params: vec<MalValue>): MalResult {
         var to_ret = 1
         for (var i = 0; i < params.size; i++;) {
             match (params[i].internal) {
@@ -952,105 +956,105 @@ fun main(argc: int, argv: **char): int {
         }
         return MalResult::Ok(malInt(to_ret))
     }));
-    env->set(str("="), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("="), make_builtin_function(str("="), fun(params: vec<MalValue>): MalResult {
         if params.size != 2 {
             return MalResult::Err(malString(str("= with not two parameters")))
         } else {
             return MalResult::Ok(bool_to_MalValue(params[0].equals(params[1])))
         }
     }));
-    env->set(str("<"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("<"), make_builtin_function(str("<"), fun(params: vec<MalValue>): MalResult {
         if params.size != 2 || !params[0].is_int() || !params[1].is_int() {
             return MalResult::Err(malString(str("< with not two numbers")))
         } else {
             return MalResult::Ok(bool_to_MalValue(params[0].get_int() < params[1].get_int()))
         }
     }));
-    env->set(str("<="), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("<="), make_builtin_function(str("<="), fun(params: vec<MalValue>): MalResult {
         if params.size != 2 || !params[0].is_int() || !params[1].is_int() {
             return MalResult::Err(malString(str("<= with not two numbers")))
         } else {
             return MalResult::Ok(bool_to_MalValue(params[0].get_int() <= params[1].get_int()))
         }
     }));
-    env->set(str(">"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str(">"), make_builtin_function(str(">"), fun(params: vec<MalValue>): MalResult {
         if params.size != 2 || !params[0].is_int() || !params[1].is_int() {
             return MalResult::Err(malString(str("> with not two numbers")))
         } else {
             return MalResult::Ok(bool_to_MalValue(params[0].get_int() > params[1].get_int()))
         }
     }));
-    env->set(str(">="), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str(">="), make_builtin_function(str(">="), fun(params: vec<MalValue>): MalResult {
         if params.size != 2 || !params[0].is_int() || !params[1].is_int() {
             return MalResult::Err(malString(str(">= with not two numbers")))
         } else {
             return MalResult::Ok(bool_to_MalValue(params[0].get_int() >= params[1].get_int()))
         }
     }));
-    env->set(str("str"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("str"), make_builtin_function(str("str"), fun(params: vec<MalValue>): MalResult {
         return MalResult::Ok(malString(print_wrapper(params, "", false)))
     }));
-    env->set(str("prn"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("prn"), make_builtin_function(str("prn"), fun(params: vec<MalValue>): MalResult {
         if params.size == 0 {
             return MalResult::Err(malString(str("Called prn with 0 parameters")))
         }
         println(pr_str(params[0], true))
         return MalResult::Ok(malNil())
     }));
-    env->set(str("pr-str"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("pr-str"), make_builtin_function(str("pr-str"), fun(params: vec<MalValue>): MalResult {
         return MalResult::Ok(malString(print_wrapper(params, " ", true)))
     }));
-    env->set(str("prn"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("prn"), make_builtin_function(str("prn"), fun(params: vec<MalValue>): MalResult {
         println(print_wrapper(params, " ", true))
         return MalResult::Ok(malNil())
     }));
-    env->set(str("println"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("println"), make_builtin_function(str("println"), fun(params: vec<MalValue>): MalResult {
         println(print_wrapper(params, " ", false))
         return MalResult::Ok(malNil())
     }));
-    env->set(str("empty?"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("empty?"), make_builtin_function(str("empty?"), fun(params: vec<MalValue>): MalResult {
         if params.size == 0 || !params[0].is_vector() {
             return MalResult::Err(malString(str("first parameter of empty? is not a list")))
         } else {
             return MalResult::Ok(bool_to_MalValue(params[0].get_vector_rc().get().size == 0))
         }
     }));
-    env->set(str("count"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("count"), make_builtin_function(str("count"), fun(params: vec<MalValue>): MalResult {
         if params.size == 0 || !params[0].is_vector() {
             return MalResult::Err(malString(str("first parameter of count is not a list")))
         } else {
             return MalResult::Ok(malInt(params[0].get_vector_rc().get().size))
         }
     }));
-    env->set(str("read-string"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("read-string"), make_builtin_function(str("read-string"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 || !params[0].is_string() {
             return MalResult::Err(malString(str("read-string with not a single string")))
         } else {
             return READ(grammer, params[0].get_string())
         }
     }));
-    env->set(str("slurp"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("slurp"), make_builtin_function(str("slurp"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 || !params[0].is_string() {
             return MalResult::Err(malString(str("slurp with not a single string")))
         } else {
             return MalResult::Ok(malString(read_file(params[0].get_string())))
         }
     }));
-    env->set(str("eval"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("eval"), make_builtin_function(str("eval"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 {
             return MalResult::Err(malString(str("eval with wrong number of params")))
         } else {
             return EVAL(env, params[0])
         }
     }));
-    env->set(str("cons"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("cons"), make_builtin_function(str("cons"), fun(params: vec<MalValue>): MalResult {
         if params.size != 2 || !params[1].is_vector() {
             return MalResult::Err(malString(str("cons called with wrong number of params or second not an list/vec")))
         } else {
             return MalResult::Ok(malVector(vec(params[0]) + params[1].get_vector_rc().get()))
         }
     }));
-    env->set(str("concat"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("concat"), make_builtin_function(str("concat"), fun(params: vec<MalValue>): MalResult {
         var to_ret = vec<MalValue>()
         for (var i = 0; i < params.size; i++;) {
             if !params[i].is_vector() {
@@ -1060,7 +1064,7 @@ fun main(argc: int, argv: **char): int {
         }
         return MalResult::Ok(malVector(to_ret))
     }));
-    env->set(str("nth"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("nth"), make_builtin_function(str("nth"), fun(params: vec<MalValue>): MalResult {
         if params.size != 2 || !params[0].is_vector() || !params[1].is_int() {
             return MalResult::Err(malString(str("nth called with wrong number or type of params")))
         } else {
@@ -1072,7 +1076,7 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Ok(list.get()[idx])
         }
     }));
-    env->set(str("set-nth!"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("set-nth!"), make_builtin_function(str("set-nth!"), fun(params: vec<MalValue>): MalResult {
         if params.size != 3 || !params[0].is_vector() || !params[1].is_int() {
             return MalResult::Err(malString(str("set-nth! called with wrong number or type of params")))
         } else {
@@ -1085,7 +1089,7 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Ok(malNil())
         }
     }));
-    env->set(str("first"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("first"), make_builtin_function(str("first"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 || !params[0].is_vector() {
             return MalResult::Err(malString(str("first called with wrong number or type of params") + pr_str(params[0], true)))
         } else {
@@ -1096,7 +1100,7 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Ok(list.get()[0])
         }
     }));
-    env->set(str("rest"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("rest"), make_builtin_function(str("rest"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 || !params[0].is_vector() {
             return MalResult::Err(malString(str("rest called with wrong number or type of params")))
         } else {
@@ -1107,14 +1111,14 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Ok(malVector(list.get().slice(1,-1)))
         }
     }));
-    env->set(str("throw"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("throw"), make_builtin_function(str("throw"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 {
             return MalResult::Err(malString(str("throw called with wrong number or type of params")))
         } else {
             return MalResult::Err(params[0])
         }
     }));
-    env->set(str("apply"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("apply"), make_builtin_function(str("apply"), fun(params: vec<MalValue>): MalResult {
         if params.size < 2 || !params[params.size-1].is_vector() {
             return MalResult::Err(malString(str("apply called with wrong number or type of params")))
         } else {
@@ -1122,7 +1126,7 @@ fun main(argc: int, argv: **char): int {
         return function_call(params[0], inner_params)
         }
     }));
-    env->set(str("map"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("map"), make_builtin_function(str("map"), fun(params: vec<MalValue>): MalResult {
         if params.size != 2 || !params[1].is_vector() {
             return MalResult::Err(malString(str("map called with wrong number or type of params")))
         } else {
@@ -1138,31 +1142,31 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Ok(malVector(to_ret))
         }
     }));
-    env->set(str("symbol?"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("symbol?"), make_builtin_function(str("symbol?"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 {
             return MalResult::Err(malString(str("symbol? called with wrong number of params")))
         } else {
             return MalResult::Ok(bool_to_MalValue(params[0].is_symbol()))
         }
     }));
-    env->set(str("symbol"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("symbol"), make_builtin_function(str("symbol"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 || !params[0].is_string() {
             return MalResult::Err(malString(str("symbol called with wrong number or type of params")))
         } else {
             return MalResult::Ok(malSymbol(params[0].get_string()))
         }
     }));
-    env->set(str("vector"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("vector"), make_builtin_function(str("vector"), fun(params: vec<MalValue>): MalResult {
         return MalResult::Ok(malVector(params))
     }));
-    env->set(str("vector?"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("vector?"), make_builtin_function(str("vector?"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 {
             return MalResult::Err(malString(str("vector? called with wrong number of params")))
         } else {
             return MalResult::Ok(bool_to_MalValue(params[0].is_vector()))
         }
     }));
-    env->set(str("sequential?"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("sequential?"), make_builtin_function(str("sequential?"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 {
             return MalResult::Err(malString(str("sequential? called with wrong number of params")))
         } else if params[0].is_nil() {
@@ -1171,7 +1175,7 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Ok(bool_to_MalValue(params[0].is_vector()))
         }
     }));
-    env->set(str("readline"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("readline"), make_builtin_function(str("readline"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 || !params[0].is_string() {
             return MalResult::Err(malString(str("readline called with wrong number or type of params")))
         } else {
@@ -1182,7 +1186,7 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Ok(malString(entered))
         }
     }));
-    env->set(str("meta"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("meta"), make_builtin_function(str("meta"), fun(params: vec<MalValue>): MalResult {
         if params.size != 1 {
             return MalResult::Err(malString(str("meta called with not one argument")))
         } else {
@@ -1193,7 +1197,7 @@ fun main(argc: int, argv: **char): int {
             }
         }
     }));
-    env->set(str("with-meta"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("with-meta"), make_builtin_function(str("with-meta"), fun(params: vec<MalValue>): MalResult {
         if params.size != 2 {
             return MalResult::Err(malString(str("with-meta called with not two arguments")))
         } else {
@@ -1204,14 +1208,14 @@ fun main(argc: int, argv: **char): int {
             return MalResult::Ok(new_value)
         }
     }));
-    env->set(str("fn?"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("fn?"), make_builtin_function(str("fn?"), fun(params: vec<MalValue>): MalResult {
         return MalResult::Err(malString(str("not implemented")))
     }));
-    env->set(str("string?"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("string?"), make_builtin_function(str("string?"), fun(params: vec<MalValue>): MalResult {
         return MalResult::Err(malString(str("not implemented")))
     }));
     // self-modifying grammer
-    env->set(str("add_terminal"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("add_terminal"), make_builtin_function(str("add_terminal"), fun(params: vec<MalValue>): MalResult {
         if params.size != 2 || !params[0].is_string() {
             return MalResult::Err(malString(str("add_terminal called with wrong number or type of params")))
         } else {
@@ -1220,7 +1224,7 @@ fun main(argc: int, argv: **char): int {
             })))
         }
     }));
-    env->set(str("add_grammer_rule"), make_builtin_function(fun(params: vec<MalValue>): MalResult {
+    env->set(str("add_grammer_rule"), make_builtin_function(str("add_grammer_rule"), fun(params: vec<MalValue>): MalResult {
         if params.size != 3 || !params[0].is_symbol() || !params[1].is_vector() {
             return MalResult::Err(malString(str("add_grammer_rule called with wrong number or type of params")))
         } else {
@@ -1306,7 +1310,7 @@ fun main(argc: int, argv: **char): int {
             return current_ret
         }
     }
-    env->set(str("eval-read-string"), make_builtin_function(ERS));
+    env->set(str("eval-read-string"), make_builtin_function(str("eval-read-string"), ERS));
     // reader macros
     /*rep(grammer, env, str("(add_grammer_rule (quote atom) [\"'\" (quote form)] (fn* (xs) (quasiquote (quote (unquote (nth xs 1))))))")) //'*/
     rep(grammer, env, str("(add_grammer_rule (quote atom) (vector \"'\" (quote form)) (fn* (xs) (quasiquote (quote (unquote (nth xs 1))))))")) //'
@@ -1315,15 +1319,15 @@ fun main(argc: int, argv: **char): int {
     rep(grammer, env, str("(add_grammer_rule 'form (vector \"\\\\[\" 'optional_WS 'space_forms 'optional_WS \"\\\\]\") (fn* (xs) (quasiquote (vector (splice-unquote (nth xs 2))))))")) //'
     // now we can use ' for the rest
     rep(grammer, env, str("(add_grammer_rule 'atom [\"`\" 'form] (fn* (xs) (quasiquote (quasiquote (unquote (nth xs 1))))))"))
-    rep(grammer, env, str("(add_grammer_rule 'atom [\"~\" 'form] (fn* (xs) (list (quote unquote) (nth xs 1))))"))
+    rep(grammer, env, str("(add_grammer_rule 'atom [\"~\" 'form] (fn* (xs) (vector (quote unquote) (nth xs 1))))"))
     // the standard appears to be for splice-unquote to be <symbol-for-unqoute><symbol-for-deref>, but unquote deref is a reasonable
     // sequence of characters and causes ambigious parses! So I chose the other common unquote symbol to be splice-unquote
-    rep(grammer, env, str("(add_grammer_rule 'atom [\",\" 'form] (fn* (xs) (list (quote splice-unquote) (nth xs 1))))"))
+    rep(grammer, env, str("(add_grammer_rule 'atom [\",\" 'form] (fn* (xs) (vector (quote splice-unquote) (nth xs 1))))"))
     rep(grammer, env, str("(add_grammer_rule 'atom [\"@\" 'form] (fn* (xs) `(deref ~(nth xs 1))))")) //"
 
     rep(grammer, env, str("(def! not (fn* (a) (if a false true)))"))
     rep(grammer, env, str("(def! load-file (fn* (f) (eval-read-string (slurp f))))"))
-    rep(grammer, env, str("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))"))
+    rep(grammer, env, str("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (vector 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))"))
     rep(grammer, env, str("(def! nil? (fn* (a) (= nil a)))"))
     var params = vec<MalValue>()
     if argc == 3 && str(argv[1]) == "-C" {
@@ -1339,7 +1343,11 @@ fun main(argc: int, argv: **char): int {
             params.add(malString(str(argv[i])))
         }
         env->set(str("*ARGV*"), malVector(params))
-        println(rep(grammer, env, str("(load-file \"") + argv[1] + "\")"))
+        var eval_result_str = rep(grammer, env, str("(load-file \"") + argv[1] + "\")")
+        println(eval_result_str)
+        if eval_result_str.slice(0,11) == "Exception: " {
+            error("aborting compile")
+        }
         // check for compile
         var main = env->get(str("main"))
         if !is_err(main) {
@@ -1475,6 +1483,39 @@ fun main(argc: int, argv: **char): int {
                         }
                     }
                     closure _set_nth_closure = (closure){ _set_nth_impl, NULL};
+
+                    size_t _cons_impl(size_t* _, size_t num, size_t* args) {
+                        check_num_params(num, 2, "cons");
+                        check_vector(args[1], "cons");
+                        size_t* old_vec = (size_t*)(args[1]>>3);
+                        size_t new_size = old_vec[1] + 1;
+                        size_t *vec = malloc(sizeof(size_t)*(new_size + 2));
+                        vec[0] = 0x2F;
+                        vec[1] = new_size;
+                        vec[2] = args[0];
+                        for (int i = 0; i < old_vec[1]; i++)
+                            vec[i+3] = old_vec[i+2];
+                        return ((((size_t)vec)<<3)|0x2);
+                    }
+                    closure _cons_closure = (closure){ _cons_impl, NULL};
+
+                    size_t _concat_impl(size_t* _, size_t num, size_t* args) {
+                        check_num_params(num, 2, "concat");
+                        check_vector(args[0], "concat");
+                        check_vector(args[1], "concat");
+                        size_t* vec1 = (size_t*)(args[0]>>3);
+                        size_t* vec2 = (size_t*)(args[1]>>3);
+                        size_t new_size = vec1[1] + vec2[1];
+                        size_t *vec = malloc(sizeof(size_t)*(new_size + 2));
+                        vec[0] = 0x2F;
+                        vec[1] = new_size;
+                        for (int i = 0; i < vec1[1]; i++)
+                            vec[i+2] = vec1[i+2];
+                        for (int i = 0; i < vec2[1]; i++)
+                            vec[vec1[1]+i+2] = vec1[i+2];
+                        return ((((size_t)vec)<<3)|0x2);
+                    }
+                    closure _concat_closure = (closure){ _concat_impl, NULL};
 
                     size_t _with_meta_impl(size_t* _, size_t num, size_t* args) {
                         check_num_params(num, 2, "with-meta");
@@ -1635,6 +1676,27 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
     }
     error("Can't get closure_vars for " + pr_str(ast, true))
 }
+fun c_legal(s: ref str): str {
+    var to_ret = str()
+    for (var i = 0; i < s.length(); i++;) {
+        if s[i] == '!' {
+            to_ret += "_bang_"
+        } else if s[i] == '-' {
+            to_ret += "_dash_"
+        } else if s[i] == '+' {
+            to_ret += "_plus_"
+        } else if s[i] == '*' {
+            to_ret += "_star_"
+        } else if s[i] == '/' {
+            to_ret += "_div_"
+        } else if s[i] == '=' {
+            to_ret += "_eq_"
+        } else {
+            to_ret += s[i]
+        }
+    }
+    return to_ret
+}
 fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *Env, ast: MalValue, quoted: bool): str {
     match (ast.internal) {
         MalValue_int::Nil() {
@@ -1646,11 +1708,49 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
         MalValue_int::False() {
             return str("0x1F")
         }
+        MalValue_int::BuiltinFunction(f) {
+            if (f.name == "+") {
+                return str("((((size_t)&_plus_closure)<<3)|0x6)")
+            } else if (f.name == "-") {
+                return str("((((size_t)&_minus_closure)<<3)|0x6)")
+            } else if (f.name == "*") {
+                return str("((((size_t)&_mult_closure)<<3)|0x6)")
+            } else if (f.name == "/") {
+                return str("((((size_t)&_div_closure)<<3)|0x6)")
+            } else if (f.name == "=") {
+                return str("((((size_t)&_eq_closure)<<3)|0x6)")
+            } else if (f.name == "<") {
+                return str("((((size_t)&_lt_closure)<<3)|0x6)")
+            } else if (f.name == "<=") {
+                return str("((((size_t)&_lte_closure)<<3)|0x6)")
+            } else if (f.name == ">") {
+                return str("((((size_t)&_gt_closure)<<3)|0x6)")
+            } else if (f.name == ">=") {
+                return str("((((size_t)&_gte_closure)<<3)|0x6)")
+            } else if (f.name == "print") {
+                return str("((((size_t)&_print_closure)<<3)|0x6)")
+            } else if (f.name == "println") {
+                return str("((((size_t)&_println_closure)<<3)|0x6)")
+            } else if (f.name == "vector") {
+                return str("((((size_t)&_vector_closure)<<3)|0x6)")
+            } else if (f.name == "nth") {
+                return str("((((size_t)&_nth_closure)<<3)|0x6)")
+            } else if (f.name == "set-nth!") {
+                return str("((((size_t)&_set_nth_closure)<<3)|0x6)")
+            } else if (f.name == "throw") {
+                return str("((((size_t)&_throw_closure)<<3)|0x6)")
+            } else if (f.name == "with-meta") {
+                return str("((((size_t)&_with_meta_closure)<<3)|0x6)")
+            } else if (f.name == "meta") {
+                return str("((((size_t)&_meta_closure)<<3)|0x6)")
+            } else if (f.name == "cons") {
+                return str("((((size_t)&_cons_closure)<<3)|0x6)")
+            } else if (f.name == "concat") {
+                return str("((((size_t)&_concat_closure)<<3)|0x6)")
+            }
+            error("cannot yet compile builtin function: " + f.name)
+        }
         MalValue_int::Function(f) {
-            /*if quoted {*/
-                /*error("cannot compile quoted function - does this even make sense?")*/
-            /*}*/
-
             var fun_name = "fun_" + new_tmp()
             *top_decs += "size_t " + fun_name + "(size_t*, size_t, size_t*);\n"
             var function = "size_t " + fun_name + "(size_t* closed_vars, size_t num, size_t* args) {\n"
@@ -1688,55 +1788,20 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 *defs += "*" + val_name + " = " + s.length() + ";\n"
                 *defs += "strcpy(((char*)(" + val_name + "+1)), \"" + s + "\");\n"
                 return "((((size_t)" + val_name + ")<<3)|0x5)"
-            }
-            if (s == "+") {
-                return str("((((size_t)&_plus_closure)<<3)|0x6)")
-            } else if (s == "-") {
-                return str("((((size_t)&_minus_closure)<<3)|0x6)")
-            } else if (s == "*") {
-                return str("((((size_t)&_mult_closure)<<3)|0x6)")
-            } else if (s == "/") {
-                return str("((((size_t)&_div_closure)<<3)|0x6)")
-            } else if (s == "=") {
-                return str("((((size_t)&_eq_closure)<<3)|0x6)")
-            } else if (s == "<") {
-                return str("((((size_t)&_lt_closure)<<3)|0x6)")
-            } else if (s == "<=") {
-                return str("((((size_t)&_lte_closure)<<3)|0x6)")
-            } else if (s == ">") {
-                return str("((((size_t)&_gt_closure)<<3)|0x6)")
-            } else if (s == ">=") {
-                return str("((((size_t)&_gte_closure)<<3)|0x6)")
-            } else if (s == "print") {
-                return str("((((size_t)&_print_closure)<<3)|0x6)")
-            } else if (s == "println") {
-                return str("((((size_t)&_println_closure)<<3)|0x6)")
-            } else if (s == "vector") {
-                return str("((((size_t)&_vector_closure)<<3)|0x6)")
-            } else if (s == "nth") {
-                return str("((((size_t)&_nth_closure)<<3)|0x6)")
-            } else if (s == "set-nth!") {
-                return str("((((size_t)&_set_nth_closure)<<3)|0x6)")
-            } else if (s == "throw") {
-                return str("((((size_t)&_throw_closure)<<3)|0x6)")
-            } else if (s == "with-meta") {
-                return str("((((size_t)&_with_meta_closure)<<3)|0x6)")
-            } else if (s == "meta") {
-                return str("((((size_t)&_meta_closure)<<3)|0x6)")
             } else {
+                var c_legal_s = c_legal(s)
                 var e = env->find(s);
                 if e != null<Env>() && e->outer == null<Env>() {
                     println(s + " found in outer-est scope!")
                     var v = e->get(s)
                     e->remove(s)
                     var x = str()
-                    /*var value = compile(top_decs, top_defs, main_init, &x, e, get_value(v))*/
                     var value = compile_value(top_decs, top_defs, main_init, &x, e, get_value(v), true)
-                    *top_decs += "size_t " + s + ";\n"
+                    *top_decs += "size_t " + c_legal_s + ";\n"
                     *main_init += x
-                    *main_init += s + " = " + value + ";\n"
+                    *main_init += c_legal_s + " = " + value + ";\n"
                 }
-                return s
+                return c_legal_s
             }
         }
         MalValue_int::String(s) {

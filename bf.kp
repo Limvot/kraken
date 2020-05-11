@@ -83,6 +83,58 @@
         ((meta b))
         (println b)))
 
+
+
+; Use the power of GLL reader macros to implement
+; BF support
+
+; Define our tokens as BF atoms
+; Ugly b/c using 1-length vectors as atoms
+(add_grammer_rule 'bfs_atom ["<"]   (fn* (xs) '(set-nth! cursor 0 (- (nth cursor 0) 1))))
+(add_grammer_rule 'bfs_atom [">"]   (fn* (xs) '(set-nth! cursor 0 (+ (nth cursor 0) 1))))
+(add_grammer_rule 'bfs_atom ["\\+"] (fn* (xs) '(set-nth! tape (nth cursor 0) (+ (nth tape (nth cursor 0)) 1))))
+(add_grammer_rule 'bfs_atom ["-"]   (fn* (xs) '(set-nth! tape (nth cursor 0) (- (nth tape (nth cursor 0)) 1))))
+(add_grammer_rule 'bfs_atom [","]   (fn* (xs) '(let* (value (nth input (nth inptr 0))) (do (set-nth! inptr 0 (+ 1 (nth inptr 0))) (do (set-nth! tape (nth cursor 0) value))))))
+(add_grammer_rule 'bfs_atom ["."]   (fn* (xs) '(set-nth! output 0 (cons (nth tape (nth cursor 0)) (nth output 0)))))
+
+; Define strings of BF atoms
+(add_grammer_rule 'non_empty_bfs_list ['bfs_atom] (fn* (xs) (vector (nth xs 0))))
+(add_grammer_rule 'non_empty_bfs_list ['bfs_atom 'optional_WS 'non_empty_bfs_list] (fn* (xs) (cons (nth xs 0) (nth xs 2))))
+(add_grammer_rule 'bfs_list [] (fn* (xs) xs))
+(add_grammer_rule 'bfs_list ['non_empty_bfs_list] (fn* (xs) (nth xs 0)))
+
+; Add loop as an atom
+(add_grammer_rule 'bfs_atom ["\\[" 'bfs_list "]"] (fn* (xs)
+                `(let* (f (fn* (f)
+                                (if (= 0 (nth tape (nth cursor 0)))
+                                    nil
+                                    (do ,(nth xs 1) (f f)))))
+                       (f f))))
+
+; Top level BFS rule
+(add_grammer_rule 'bfs ['bfs_list] (fn* (xs) (nth xs 0)))
+
+; For now, stick BFS rule inside an unambigious BFS block
+; and add compilation/implementation
+; Note that this compilation into the underlying Lisp
+; happens at macro evaluation time. If this code were
+; to be compiled to C, it would be compiled all the way
+; to C code with no trace of the original BF code.
+(add_grammer_rule 'form ["bf" 'optional_WS "{" 'optional_WS 'bfs 'optional_WS "}"]
+                        (fn* (xs)
+                           `(fn* (input)
+                             (let* (
+                                    tape   (vector 0 0 0 0 0)
+                                    cursor (vector 0)
+                                    inptr  (vector 0)
+                                    output (vector (vector))
+                                    )
+                                (do ,(nth xs 4) (nth output 0))))))
+
+; Let's try it out! This BF program prints the input 3 times
+;(println (bf { ,>+++[<.>-] } [1337]))
+;(println "BF: " (bf { ++-. } [1337]))
+
 (def! our_obj (with-meta [0] (fn* () (set-nth! our_obj 0 (+ 1 (nth our_obj 0))))))
 
 (def! main (fn* () (let* ( a 7
@@ -106,6 +158,7 @@
                                             (println our_obj)
                                             ((meta our_obj))
                                             (println our_obj)
+                                            (println (bf { ,>+++[<.>-] } [1337]))
                                             a)))
                                 )))))
 (do
@@ -113,6 +166,3 @@
     (main)
     (println "done interp-main")
     nil)
-
-
-
