@@ -1360,6 +1360,7 @@ fun main(argc: int, argv: **char): int {
                     size_t current_exception_value;
                     void error(char* message) {fprintf(stderr, "%s", message); exit(1);}
                     void check_num_params(size_t a, size_t b, char* function) { if (a!=b) {fprintf(stderr, "%s: expected num params to be %d\n", function, b); exit(1);}}
+                    void check_num_params_at_least(size_t a, size_t b, char* function) { if (a!=b) {fprintf(stderr, "%s: expected num params to be at least %d\n", function, b); exit(1);}}
                     void check_int(size_t p, char* function) { if ((p&0x7)!=0) {fprintf(stderr, "%s: expected param to be int\n", function); exit(1);}}
                     void check_vector(size_t p, char* function) { if ((p&0x7)!=0x2) {fprintf(stderr, "%s: expected param to be vector\n", function); exit(1);}}
                     void check_function(size_t p, char* message) { if ((p&0x7)!=0x6) {fprintf(stderr, "%s: expected a function\n", message); exit(1);}}
@@ -1388,8 +1389,32 @@ fun main(argc: int, argv: **char): int {
                     }
                     closure _div_closure = (closure){ _div_impl, NULL};
                     size_t _eq_impl(size_t* _, size_t num, size_t* args) {
-                    check_num_params(num, 2, "=");
-                    if (args[0] == args[1]) { return 0x9F; } else { return 0x1F; }
+                        check_num_params(num, 2, "=");
+                        if (args[0] == args[1]) {
+                            return 0x9F;
+                        } else if ((args[0]&0x7) != (args[1]&0x7)) {
+                            return 0x1F;
+                        } else if ((args[0]&0x3) == 0x05) {
+                            // string compare
+                            char* str1 = (char*)(((size_t*)(args[0]>>3))+1);
+                            char* str2 = (char*)(((size_t*)(args[1]>>3))+1);
+                            if (strcmp(str1,str2) == 0) {
+                                return 0x9F;
+                            } else {
+                                return 0x1F;
+                            }
+                        } else if ((args[0]&0x7) == 0x05) {
+                            // symbol compare
+                            char* sym1 = (char*)(((size_t*)(args[0]>>3))+1);
+                            char* sym2 = (char*)(((size_t*)(args[1]>>3))+1);
+                            if (strcmp(sym1,sym2) == 0) {
+                                return 0x9F;
+                            } else {
+                                return 0x1F;
+                            }
+                        } else {
+                            return 0x1F;
+                        }
                     }
                     closure _eq_closure = (closure){ _eq_impl, NULL};
                     size_t _lt_impl(size_t* _, size_t num, size_t* args) {
@@ -1546,6 +1571,35 @@ fun main(argc: int, argv: **char): int {
                     }
                     closure _throw_closure = (closure){ _throw_impl, NULL};
 
+                    size_t _apply_impl(size_t* _, size_t num, size_t* args) {
+                        if (num < 2) {fprintf(stderr, "apply: expected num params to be >= 2\n"); exit(1);}
+                        check_function(args[0], "apply");
+                        check_vector(args[num-1], "apply");
+
+                        closure* func = (closure*)(args[0]>>3);
+                        size_t* args_vec = (size_t*)(args[num-1]>>3);
+                        size_t num_params = (num-2) + args_vec[1];
+                        size_t* params = malloc(sizeof(size_t)*num_params);
+                        for (int i = 0; i < (num-2); i++) {
+                            params[i] = args[i+1];
+                        }
+                        for (int i = 0; i < args_vec[1]; i++) {
+                            params[(num-2)+i] = args_vec[i+2];
+                        }
+                        size_t to_ret = func->func(func->data, num_params, params);
+                        free(params);
+                        return to_ret;
+                    }
+                    closure _apply_closure = (closure){ _apply_impl, NULL};
+
+                    size_t _count_impl(size_t* _, size_t num, size_t* args) {
+                        check_num_params(num, 1, "count");
+                        check_vector(args[0], "count");
+                        size_t* args_vec = (size_t*)(args[0]>>3);
+                        return (args_vec[1] << 3);
+                    }
+                    closure _count_closure = (closure){ _count_impl, NULL};
+
                     """ //"
                     var main_s = str("int main(int argc, char** argv) {\n")
                     var main_body = str()
@@ -1691,6 +1745,10 @@ fun c_legal(s: ref str): str {
             to_ret += "_div_"
         } else if s[i] == '=' {
             to_ret += "_eq_"
+        } else if s[i] == '>' {
+            to_ret += "_gt_"
+        } else if s[i] == '<' {
+            to_ret += "_lt_"
         } else {
             to_ret += s[i]
         }
@@ -1747,6 +1805,10 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 return str("((((size_t)&_cons_closure)<<3)|0x6)")
             } else if (f.name == "concat") {
                 return str("((((size_t)&_concat_closure)<<3)|0x6)")
+            } else if (f.name == "apply") {
+                return str("((((size_t)&_apply_closure)<<3)|0x6)")
+            } else if (f.name == "count") {
+                return str("((((size_t)&_count_closure)<<3)|0x6)")
             }
             error("cannot yet compile builtin function: " + f.name)
         }
@@ -1754,10 +1816,24 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
             var fun_name = "fun_" + new_tmp()
             *top_decs += "size_t " + fun_name + "(size_t*, size_t, size_t*);\n"
             var function = "size_t " + fun_name + "(size_t* closed_vars, size_t num, size_t* args) {\n"
-            function += str("check_num_params(num, ") + f.parameters.size + ", \"lambda\");\n"
+            if f.is_variadic {
+                function += str("check_num_params_at_least(num, ") + (f.parameters.size-1) + ", \"lambda\");\n"
+            } else {
+                function += str("check_num_params(num, ") + f.parameters.size + ", \"lambda\");\n"
+            }
             var new_env = new<Env>()->construct(env)
             for (var i = 0; i < f.parameters.size; i++;) {
-                function += "size_t " + f.parameters[i] + " = args[" + i + "];\n"
+                if f.is_variadic && i == f.parameters.size-1 {
+                    function += "size_t* " + f.parameters[i] + "_raw = malloc(sizeof(size_t)*(2+(num-" + (f.parameters.size-1) + ")));\n"
+                    function += f.parameters[i] + "_raw[0] = 0x2F;\n"
+                    function += f.parameters[i] + "_raw[1] = (num-" + (f.parameters.size-1) + ");\n"
+                    function += str() + "for (int i = 0; i < (num-" + (f.parameters.size-1) + "); i++) {\n"
+                    function += f.parameters[i] + "_raw[i] = args[i+" + (f.parameters.size-1) + "];\n"
+                    function += "}\n"
+                    function += "size_t " + f.parameters[i] + " = ((((size_t)" + f.parameters[i] + "_raw)<<3)|0x2);\n"
+                } else {
+                    function += "size_t " + f.parameters[i] + " = args[" + i + "];\n"
+                }
                 new_env->set(f.parameters[i], malNil())
             }
             var closed_vars = find_closed_vars(set<str>(), new_env, ast)

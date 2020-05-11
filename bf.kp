@@ -137,6 +137,19 @@
 
 (def! our_obj (with-meta [0] (fn* () (set-nth! our_obj 0 (+ 1 (nth our_obj 0))))))
 
+(def! get-value-helper (fn* (dict key idx) (if (>= idx (count dict)) nil (if (= key (nth dict idx)) (nth dict (+ idx 1)) (get-value-helper dict key (+ idx 2))))))
+(def! get-value (fn* (dict key) (get-value-helper dict key 0)))
+(def! method-call (fn* (object method & arguments) (let* (method_fn (get-value (meta object) method))
+                                                            (if (= method_fn nil)
+                                                                (println "no method " method)
+                                                                (apply method_fn object arguments)))))
+
+(def! actual_obj (with-meta [0] [
+                                'inc (fn* (o) (set-nth! o 0 (+ (nth o 0) 1)))
+                                'dec (fn* (o) (set-nth! o 0 (- (nth o 0) 1)))
+                                'get (fn* (o) (nth o 0))
+                                ]))
+
 (def! main (fn* () (let* ( a 7
                            b [1]
                            c (with-meta b "yolo") )
@@ -159,6 +172,14 @@
                                             ((meta our_obj))
                                             (println our_obj)
                                             (println (bf { ,>+++[<.>-] } [1337]))
+                                            (println "actual_obj" actual_obj)
+                                            (method-call actual_obj 'inc)
+                                            (println "actual_obj" actual_obj)
+                                            (println (method-call actual_obj 'get))
+                                            (println "actual_obj" actual_obj)
+                                            (method-call actual_obj 'dec)
+                                            (method-call actual_obj 'dec)
+                                            (println "actual_obj" actual_obj)
                                             a)))
                                 )))))
 (do
