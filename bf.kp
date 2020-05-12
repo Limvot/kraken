@@ -11,18 +11,15 @@
 (add_grammer_rule 'bfs_atom ["."]   (fn* (xs) '(set-nth! output 0 (cons (nth tape (nth cursor 0)) (nth output 0)))))
 
 ; Define strings of BF atoms
-(add_grammer_rule 'bfs_list ['bfs_atom +] (fn* (xs) (nth xs 0)))
+(add_grammer_rule 'bfs ['bfs_atom +] (fn* (xs) (nth xs 0)))
 
 ; Add loop as an atom
-(add_grammer_rule 'bfs_atom ["\\[" 'bfs_list "]"] (fn* (xs)
+(add_grammer_rule 'bfs_atom ["\\[" 'bfs "]"] (fn* (xs)
                 `(let* (f (fn* (f)
                                 (if (= 0 (nth tape (nth cursor 0)))
                                     nil
                                     (do ,(nth xs 1) (f f)))))
                        (f f))))
-
-; Top level BFS rule
-(add_grammer_rule 'bfs ['bfs_list] (fn* (xs) (nth xs 0)))
 
 ; For now, stick BFS rule inside an unambigious BFS block
 ; and add compilation/implementation
