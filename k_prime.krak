@@ -1312,9 +1312,7 @@ fun main(argc: int, argv: **char): int {
     }
     env->set(str("eval-read-string"), make_builtin_function(str("eval-read-string"), ERS));
     // reader macros
-    /*rep(grammer, env, str("(add_grammer_rule (quote atom) [\"'\" (quote form)] (fn* (xs) (quasiquote (quote (unquote (nth xs 1))))))")) //'*/
     rep(grammer, env, str("(add_grammer_rule (quote atom) (vector \"'\" (quote form)) (fn* (xs) (quasiquote (quote (unquote (nth xs 1))))))")) //'
-    /*rep(grammer, env, str("(add_grammer_rule 'form (vector \"\\\\[\\\\]\") (fn* (xs) '(vector)))")) //'*/
     rep(grammer, env, str("(add_grammer_rule 'form (vector \"\\\\[\" 'optional_WS \"\\\\]\") (fn* (xs) '(vector)))")) //'
     rep(grammer, env, str("(add_grammer_rule 'form (vector \"\\\\[\" 'optional_WS 'space_forms 'optional_WS \"\\\\]\") (fn* (xs) (quasiquote (vector (splice-unquote (nth xs 2))))))")) //'
     // now we can use ' for the rest
@@ -1360,7 +1358,7 @@ fun main(argc: int, argv: **char): int {
                     size_t current_exception_value;
                     void error(char* message) {fprintf(stderr, "%s", message); exit(1);}
                     void check_num_params(size_t a, size_t b, char* function) { if (a!=b) {fprintf(stderr, "%s: expected num params to be %d\n", function, b); exit(1);}}
-                    void check_num_params_at_least(size_t a, size_t b, char* function) { if (a!=b) {fprintf(stderr, "%s: expected num params to be at least %d\n", function, b); exit(1);}}
+                    void check_num_params_at_least(size_t a, size_t b, char* function) { if (a<b) {fprintf(stderr, "%s: expected num params to be at least %d\n", function, b); exit(1);}}
                     void check_int(size_t p, char* function) { if ((p&0x7)!=0) {fprintf(stderr, "%s: expected param to be int\n", function); exit(1);}}
                     void check_vector(size_t p, char* function) { if ((p&0x7)!=0x2) {fprintf(stderr, "%s: expected param to be vector\n", function); exit(1);}}
                     void check_function(size_t p, char* message) { if ((p&0x7)!=0x6) {fprintf(stderr, "%s: expected a function\n", message); exit(1);}}
@@ -1636,15 +1634,15 @@ fun new_tmp(): str {
 fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
     match (ast.internal) {
         MalValue_int::Vector(l) {
-            println("Find closed vars list")
+            /*println("Find closed vars list")*/
             if (l.get().size == 0) {
                 return set<str>()
             } else if (l.get()[0].is_symbol("def!")) {
-                println("Find closed vars in def!")
+                /*println("Find closed vars in def!")*/
                 defined.add(l.get()[1].get_symbol_text())
                 /*return find_closed_vars(defined, env, l[2])*/
                 var to_ret = find_closed_vars(defined, env, l.get()[2])
-                println("end Find closed vars in def!")
+                /*println("end Find closed vars in def!")*/
                 return to_ret
             } else if (l.get()[0].is_symbol("let*")) {
                 var bindings = l.get()[1].get_vector_rc()
@@ -1663,11 +1661,11 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
                 }
                 return to_ret
             } else if (l.get()[0].is_symbol("fn*")) {
-                println("Find closed vars fn*")
+                /*println("Find closed vars fn*")*/
                 var f = EVAL(env, ast)
                 /*return find_closed_vars(defined, env, get_value(f))*/
                 var to_ret =  find_closed_vars(defined, env, get_value(f))
-                println("end find closed vars fn*")
+                /*println("end find closed vars fn*")*/
                 return to_ret
             } else if (l.get()[0].is_symbol("quote")) {
                 return set<str>()
@@ -1684,7 +1682,7 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
                 }
                 return to_ret
             }
-            println("end list")
+            /*println("end list")*/
         }
         MalValue_int::Symbol(s) {
             if !defined.contains(s) {
@@ -1721,10 +1719,10 @@ fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
             for (var i = 0; i < f.parameters.size; i++;) {
                 new_env->set(f.parameters[i], malNil())
             }
-            println("Find closed vars going inside function:\n" + new_env->to_string())
+            /*println("Find closed vars going inside function:\n" + new_env->to_string())*/
             /*return find_closed_vars(defined.union(from_vector(f.parameters)), new_env, *f.body)*/
             var to_ret = find_closed_vars(defined.union(from_vector(f.parameters)), new_env, *f.body)
-            println("coming out of function")
+            /*println("coming out of function")*/
             return to_ret
         }
     }
@@ -1828,7 +1826,7 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                     function += f.parameters[i] + "_raw[0] = 0x2F;\n"
                     function += f.parameters[i] + "_raw[1] = (num-" + (f.parameters.size-1) + ");\n"
                     function += str() + "for (int i = 0; i < (num-" + (f.parameters.size-1) + "); i++) {\n"
-                    function += f.parameters[i] + "_raw[i] = args[i+" + (f.parameters.size-1) + "];\n"
+                    function += f.parameters[i] + "_raw[i+2] = args[i+" + (f.parameters.size-1) + "];\n"
                     function += "}\n"
                     function += "size_t " + f.parameters[i] + " = ((((size_t)" + f.parameters[i] + "_raw)<<3)|0x2);\n"
                 } else {
@@ -1868,7 +1866,7 @@ fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, e
                 var c_legal_s = c_legal(s)
                 var e = env->find(s);
                 if e != null<Env>() && e->outer == null<Env>() {
-                    println(s + " found in outer-est scope!")
+                    /*println(s + " found in outer-est scope!")*/
                     var v = e->get(s)
                     e->remove(s)
                     var x = str()

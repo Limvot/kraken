@@ -143,10 +143,12 @@
                                                             (if (= method_fn nil)
                                                                 (println "no method " method)
                                                                 (apply method_fn object arguments)))))
-
+; method call syntax
+(add_grammer_rule 'form [ 'form "\\." 'atom 'optional_WS  "\\(" 'optional_WS 'space_forms 'optional_WS "\\)" ] (fn* (xs) `(method-call ~(nth xs 0) '~(nth xs 2) ,(nth xs 6))))
 (def! actual_obj (with-meta [0] [
                                 'inc (fn* (o) (set-nth! o 0 (+ (nth o 0) 1)))
                                 'dec (fn* (o) (set-nth! o 0 (- (nth o 0) 1)))
+                                'set (fn* (o n) (set-nth! o 0 n))
                                 'get (fn* (o) (nth o 0))
                                 ]))
 
@@ -175,11 +177,21 @@
                                             (println "actual_obj" actual_obj)
                                             (method-call actual_obj 'inc)
                                             (println "actual_obj" actual_obj)
-                                            (println (method-call actual_obj 'get))
+                                            (println "with get: " (method-call actual_obj 'get))
                                             (println "actual_obj" actual_obj)
                                             (method-call actual_obj 'dec)
                                             (method-call actual_obj 'dec)
                                             (println "actual_obj" actual_obj)
+                                            (println "setting old style 654")
+                                            (method-call actual_obj 'set 654)
+                                            (println "actual_obj" actual_obj)
+                                            (println "Ok, doing with new method call syntax")
+                                            actual_obj.inc()
+                                            (println "actual_obj" actual_obj)
+                                            (println "setting new style 1337")
+                                            actual_obj.set(1337)
+                                            (println "actual_obj" actual_obj)
+                                            (println "with get " actual_obj.get())
                                             a)))
                                 )))))
 (do
