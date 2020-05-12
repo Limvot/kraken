@@ -13,7 +13,9 @@
 (add_grammer_rule 'bfs_atom [">"]   (fn* (_) '(set-atom! cursor (+ @cursor 1))))
 (add_grammer_rule 'bfs_atom ["\\+"] (fn* (_) '(set-nth! tape @cursor (+ (nth tape @cursor) 1))))
 (add_grammer_rule 'bfs_atom ["-"]   (fn* (_) '(set-nth! tape @cursor (- (nth tape @cursor) 1))))
-(add_grammer_rule 'bfs_atom [","]   (fn* (_) '(let* (value (nth input @inptr)) (do (set-atom! inptr (+ 1 @inptr)) (do (set-nth! tape @cursor value))))))
+(add_grammer_rule 'bfs_atom [","]   (fn* (_) '(let* (value (nth input @inptr))
+                                                    (do (set-atom! inptr (+ 1 @inptr))
+                                                        (set-nth! tape @cursor value)))))
 (add_grammer_rule 'bfs_atom ["."]   (fn* (_) '(set-atom! output (cons (nth tape @cursor) @output))))
 
 ; Define strings of BF atoms
