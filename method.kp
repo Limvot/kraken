@@ -8,7 +8,7 @@
                                                                 (println "no method " method)
                                                                 (apply method_fn object arguments)))))
 ; method call syntax
-(add_grammer_rule 'form [ 'form "\\." 'atom 'optional_WS  "\\(" 'optional_WS 'space_forms 'optional_WS "\\)" ] (fn* (xs) `(method-call ~(nth xs 0) '~(nth xs 2) ,(nth xs 6))))
+(add_grammer_rule 'form [ 'form "\\." 'atom 'optional_WS  "\\(" 'optional_WS 'space_forms 'optional_WS "\\)" ] (fn* (o _ m _ _ _ p _ _) `(method-call ~o '~m ,p)))
 (def! actual_obj (with-meta [0] [
                                 'inc (fn* (o) (set-nth! o 0 (+ (nth o 0) 1)))
                                 'dec (fn* (o) (set-nth! o 0 (- (nth o 0) 1)))

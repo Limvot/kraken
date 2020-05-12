@@ -1301,7 +1301,7 @@ fun main(argc: int, argv: **char): int {
                     }
                     params.add(get_value(x[i]))
                 }
-                return function_call(f, vec(malVector(params)))
+                return function_call(f, params)
             })
             return MalResult::Ok(malNil())
         }
@@ -1357,16 +1357,16 @@ fun main(argc: int, argv: **char): int {
     }
     env->set(str("eval-read-string"), make_builtin_function(str("eval-read-string"), ERS));
     // reader macros
-    rep(grammer, env, str("(add_grammer_rule (quote atom) (vector \"'\" (quote form)) (fn* (xs) (quasiquote (quote (unquote (nth xs 1))))))")) //'
-    rep(grammer, env, str("(add_grammer_rule 'form (vector \"\\\\[\" 'optional_WS \"\\\\]\") (fn* (xs) '(vector)))")) //'
-    rep(grammer, env, str("(add_grammer_rule 'form (vector \"\\\\[\" 'optional_WS 'space_forms 'optional_WS \"\\\\]\") (fn* (xs) (quasiquote (vector (splice-unquote (nth xs 2))))))")) //'
+    rep(grammer, env, str("(add_grammer_rule (quote atom) (vector \"'\" (quote form)) (fn* (_ x) (quasiquote (quote (unquote x)))))")) //'
+    rep(grammer, env, str("(add_grammer_rule 'form (vector \"\\\\[\" 'optional_WS \"\\\\]\") (fn* (& _) '(vector)))")) //'
+    rep(grammer, env, str("(add_grammer_rule 'form (vector \"\\\\[\" 'optional_WS 'space_forms 'optional_WS \"\\\\]\") (fn* (_ _ x _ _) (quasiquote (vector (splice-unquote x)))))")) //'
     // now we can use ' for the rest
-    rep(grammer, env, str("(add_grammer_rule 'atom [\"`\" 'form] (fn* (xs) (quasiquote (quasiquote (unquote (nth xs 1))))))"))
-    rep(grammer, env, str("(add_grammer_rule 'atom [\"~\" 'form] (fn* (xs) (vector (quote unquote) (nth xs 1))))"))
+    rep(grammer, env, str("(add_grammer_rule 'atom [\"`\" 'form] (fn* (_ x) (quasiquote (quasiquote (unquote x)))))"))
+    rep(grammer, env, str("(add_grammer_rule 'atom [\"~\" 'form] (fn* (_ x) (vector (quote unquote) x)))"))
     // the standard appears to be for splice-unquote to be <symbol-for-unqoute><symbol-for-deref>, but unquote deref is a reasonable
     // sequence of characters and causes ambigious parses! So I chose the other common unquote symbol to be splice-unquote
-    rep(grammer, env, str("(add_grammer_rule 'atom [\",\" 'form] (fn* (xs) (vector (quote splice-unquote) (nth xs 1))))"))
-    rep(grammer, env, str("(add_grammer_rule 'atom [\"@\" 'form] (fn* (xs) `(deref ~(nth xs 1))))")) //"
+    rep(grammer, env, str("(add_grammer_rule 'atom [\",\" 'form] (fn* (_ x) (vector (quote splice-unquote) x)))"))
+    rep(grammer, env, str("(add_grammer_rule 'atom [\"@\" 'form] (fn* (_ x) `(deref ~x)))")) //"
 
     rep(grammer, env, str("(def! not (fn* (a) (if a false true)))"))
     rep(grammer, env, str("(def! load-file (fn* (f) (eval-read-string (slurp f))))"))
