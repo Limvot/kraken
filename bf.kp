@@ -1,90 +1,3 @@
-;(def! main (fn* (argv) 2))
-;(def! main (fn* () (let* (a 13 b 12 c 11) b)))
-;(def! main (fn* () (do 13 12 11)))
-;(def! main (fn* () (if false 1 2)))
-;(def! main (fn* () (+ 13 1)))
-;(def! main (fn* () (- 13 -1)))
-;(def! main (fn* () (- 13 -1)))
-;(def! main (fn* () (+ 13 -)))
-;(def! main (fn* () (+ 13 1 2)))
-;(def! main (fn* () (cond false 1 false 2 true 3 true 4 false 5)))
-;(def! main (fn* () ((fn* () (+ (+ 1 2) 3)) 13 1 2)))
-;(def! main (fn* () (((fn* () (fn* () 1))))))
-;(def! main (fn* () ((fn* (a b c) (- (+ a b) c)) 13 1 4)))
-;(def! main (fn* () (fn* () 1)))
-
-;(def! other (fn* (a b c) (- (+ a b) c)))
-;(def! main (fn* () (other 13 1 4)))
-
-;(def! other 12)
-;(def! main (fn* () (+ other 4)))
-
-;(def! fact (fn* (n) (if (<= n 1) 1 (* (fact (- n 1)) n))))
-;(def! main (fn* () (let* (to_ret (fact 5)) (do (println to_ret) to_ret))))
-
-;(def! ret_with_call (fn* (n) (fn* (x) (+ n x))))
-;(def! main (fn* () ((ret_with_call 3) 5)))
-
-(def! test (fn* () (let* (
-                        ;(l (list 3 4 5))
-                        a 5
-                        ;l '(a 4 5)
-                        ;l (vector 3 4 5)
-                        ;l [a 4 5]
-                        l '[3 4 5]
-                        ;l '[a 4 5]
-                        )
-                        (nth l 0))))
-;(def! main (fn* () (let* (it (test)) (do (println it) it))))
-;(def! main (fn* () (let* (it "asdf") (do (println it) 0))))
-;(def! main (fn* () (let* (it 'sym_baby) (do (println it) 0))))
-;(def! main (fn* () (let* (it [1 2 3]) (do (println it) 0))))
-;(def! main (fn* () (let* (it '(1 2 3)) (do (println it) 0))))
-;(def! my_str "asdf")
-;(def! main (fn* () (do (println my_str) 0)))
-
-;(def! main (fn* () (let* (it (atom 7)) (do
-;                                           (println it)
-;                                           (println (deref it))
-;                                           (reset! it 8)
-;                                           (println (deref it))
-;                                           (deref it)
-;                                       ))))
-;(def! my_atom (atom 5))
-;(def! main (fn* () (do
-;                       (println my_atom)
-;                       (println (deref my_atom))
-;                       (reset! my_atom 1337)
-;                       (println my_atom)
-;                       (println (deref my_atom))
-;                       7)))
-
-
-;(def! inner (fn* (x) (do (throw (+ x 1)) (+ x 2))))
-;(def! inner (fn* (x) (do (println 7) (+ x 2))))
-;(def! main (fn* () (do (println (try*
-;                                (inner 7)
-;                                (catch* exp (+ exp 10))))
-;                        7)))
-;(def! main (fn* () (do (println (try*
-;                                (inner 7)))
-;                        7)))
-
-(def! to_be_saved (with-meta [1] [2]))
-(def! to_be_saved_s "asdfasdf")
-
-(let* ( a [0]
-        b (with-meta a (fn* () (set-nth! b 0 (+ 1 (nth b 0))))))
-    (do
-        (println "testing meta stuff!")
-        (println b)
-        ((meta b))
-        (println b)
-        ((meta b))
-        (println b)))
-
-
-
 ; Use the power of GLL reader macros to implement
 ; BF support
 
@@ -98,10 +11,7 @@
 (add_grammer_rule 'bfs_atom ["."]   (fn* (xs) '(set-nth! output 0 (cons (nth tape (nth cursor 0)) (nth output 0)))))
 
 ; Define strings of BF atoms
-(add_grammer_rule 'non_empty_bfs_list ['bfs_atom] (fn* (xs) (vector (nth xs 0))))
-(add_grammer_rule 'non_empty_bfs_list ['bfs_atom 'optional_WS 'non_empty_bfs_list] (fn* (xs) (cons (nth xs 0) (nth xs 2))))
-(add_grammer_rule 'bfs_list [] (fn* (xs) xs))
-(add_grammer_rule 'bfs_list ['non_empty_bfs_list] (fn* (xs) (nth xs 0)))
+(add_grammer_rule 'bfs_list ['bfs_atom +] (fn* (xs) (nth xs 0)))
 
 ; Add loop as an atom
 (add_grammer_rule 'bfs_atom ["\\[" 'bfs_list "]"] (fn* (xs)
@@ -129,73 +39,9 @@
                                     inptr  (vector 0)
                                     output (vector (vector))
                                     )
-                                (do ,(nth xs 4) (nth output 0))))))
+                                (do (println "beginning bfs") ,(nth xs 4) (nth output 0))))))
 
 ; Let's try it out! This BF program prints the input 3 times
-;(println (bf { ,>+++[<.>-] } [1337]))
-;(println "BF: " (bf { ++-. } [1337]))
-
-(def! our_obj (with-meta [0] (fn* () (set-nth! our_obj 0 (+ 1 (nth our_obj 0))))))
-
-(def! get-value-helper (fn* (dict key idx) (if (>= idx (count dict)) nil (if (= key (nth dict idx)) (nth dict (+ idx 1)) (get-value-helper dict key (+ idx 2))))))
-(def! get-value (fn* (dict key) (get-value-helper dict key 0)))
-(def! method-call (fn* (object method & arguments) (let* (method_fn (get-value (meta object) method))
-                                                            (if (= method_fn nil)
-                                                                (println "no method " method)
-                                                                (apply method_fn object arguments)))))
-; method call syntax
-(add_grammer_rule 'form [ 'form "\\." 'atom 'optional_WS  "\\(" 'optional_WS 'space_forms 'optional_WS "\\)" ] (fn* (xs) `(method-call ~(nth xs 0) '~(nth xs 2) ,(nth xs 6))))
-(def! actual_obj (with-meta [0] [
-                                'inc (fn* (o) (set-nth! o 0 (+ (nth o 0) 1)))
-                                'dec (fn* (o) (set-nth! o 0 (- (nth o 0) 1)))
-                                'set (fn* (o n) (set-nth! o 0 n))
-                                'get (fn* (o) (nth o 0))
-                                ]))
-
-(def! main (fn* () (let* ( a 7
-                           b [1]
-                           c (with-meta b "yolo") )
-                           (do
-                            (try*
-                                ((fn* () (do
-                                            (println b)
-                                            (set-nth! b 0 2)
-                                            (println b)
-                                            (println c)
-                                            (println (meta c))
-                                            (println "world")
-                                            (println to_be_saved)
-                                            (println (meta to_be_saved))
-                                            (println to_be_saved_s)
-                                            (println "Here in main testing our_obj")
-                                            (println our_obj)
-                                            ((meta our_obj))
-                                            (println our_obj)
-                                            ((meta our_obj))
-                                            (println our_obj)
-                                            (println (bf { ,>+++[<.>-] } [1337]))
-                                            (println "actual_obj" actual_obj)
-                                            (method-call actual_obj 'inc)
-                                            (println "actual_obj" actual_obj)
-                                            (println "with get: " (method-call actual_obj 'get))
-                                            (println "actual_obj" actual_obj)
-                                            (method-call actual_obj 'dec)
-                                            (method-call actual_obj 'dec)
-                                            (println "actual_obj" actual_obj)
-                                            (println "setting old style 654")
-                                            (method-call actual_obj 'set 654)
-                                            (println "actual_obj" actual_obj)
-                                            (println "Ok, doing with new method call syntax")
-                                            actual_obj.inc()
-                                            (println "actual_obj" actual_obj)
-                                            (println "setting new style 1337")
-                                            actual_obj.set(1337)
-                                            (println "actual_obj" actual_obj)
-                                            (println "with get " actual_obj.get())
-                                            a)))
-                                )))))
-(do
-    (println "interp-main")
-    (main)
-    (println "done interp-main")
-    nil)
+(println (bf { ,>+++[<.>-] } [1337]))
+; we can also have it compile into our main program
+(def! main (fn* () (do (println "BF: " (bf { ,>+++[<.>-] } [1337])) 0)))

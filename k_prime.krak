@@ -120,6 +120,17 @@ obj MalValue (Object) {
         }
         return *this
     }
+    fun is_function(): bool {
+        match (internal) {
+            MalValue_int::Function(f) {
+                return true
+            }
+            MalValue_int::BuiltinFunction(f) {
+                return true
+            }
+        }
+        return false
+    }
     fun is_vector(): bool {
         match (internal) {
             MalValue_int::Vector(v) {
@@ -488,7 +499,8 @@ fun get_err(r: MalResult): MalValue {
             return e
         }
     }
-    return malString(str("not error"))
+    /*return malSymbol(str("get-err-not-error"))*/
+    error("get-err-not-error")
 }
 fun get_value(r: MalResult): MalValue {
     match (r) {
@@ -496,7 +508,8 @@ fun get_value(r: MalResult): MalValue {
             return v
         }
     }
-    return malSymbol(str("error"))
+    /*return malSymbol(str("get-value-is-error"))*/
+    error("get-value-is-error")
 }
 fun pr_str(v: MalValue, print_readably: bool): str {
     match (v.internal) {
@@ -1246,6 +1259,37 @@ fun main(argc: int, argv: **char): int {
                         return MalResult::Ok(malString(input.slice(l,r)))
                     }))
                 } else {
+                    match (rule[i].internal) {
+                        MalValue_int::BuiltinFunction(f) {
+                            if f.name == "+" || f.name == "*" {
+                                if int_rule.size == 0 {
+                                    return MalResult::Err(malString(str("add_grammer_rule has + or * in first position, with nothing to repeat")))
+                                }
+                                var current = int_rule.last()
+                                var sub_rule_names = nonterminal_str + "_" + new_tmp()
+                                var new = grammer.add_to_or_create_nonterminal(sub_rule_names + "_one_or_more", vec(current), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                    if is_err(x[0]) { return x[0]; }
+                                    return MalResult::Ok(malVector(vec(get_value(x[0]))))
+                                })
+                                grammer.add_to_nonterminal(new, vec(current, new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                    if is_err(x[0]) { return x[0]; }
+                                    if is_err(x[1]) { return x[1]; }
+                                    return MalResult::Ok(malVector(vec(get_value(x[0])) + get_value(x[1]).get_vector_rc().get()))
+                                })
+                                if f.name == "*" {
+                                    new = grammer.add_to_or_create_nonterminal(sub_rule_names + "_zero_or_more", vec(new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                        if is_err(x[0]) { return x[0]; }
+                                        return MalResult::Ok(get_value(x[0]))
+                                    })
+                                    grammer.add_to_nonterminal(new, vec<int>(), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                        return MalResult::Ok(malVector(vec<MalValue>()))
+                                    })
+                                }
+                                int_rule.last() = new
+                                continue
+                            }
+                        }
+                    }
                     return MalResult::Err(malString(str("add_grammer_rule called with not symbol, int, or string in rule")))
                 }
             }
@@ -1259,6 +1303,7 @@ fun main(argc: int, argv: **char): int {
                 }
                 return function_call(f, vec(malVector(params)))
             })
+            return MalResult::Ok(malNil())
         }
     }));
     var ERS = fun(params: vec<MalValue>): MalResult {
@@ -1343,7 +1388,7 @@ fun main(argc: int, argv: **char): int {
         env->set(str("*ARGV*"), malVector(params))
         var eval_result_str = rep(grammer, env, str("(load-file \"") + argv[1] + "\")")
         println(eval_result_str)
-        if eval_result_str.slice(0,11) == "Exception: " {
+        if eval_result_str.length() >= 11 && eval_result_str.slice(0,11) == "Exception: " {
             error("aborting compile")
         }
         // check for compile

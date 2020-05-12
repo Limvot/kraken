@@ -51,12 +51,13 @@ obj Grammer<T,K> (Object) {
         nonterminal_funs.add(vec(make_pair(d,f)))
         return -1*nonterminals.size
     }
-    fun add_to_or_create_nonterminal(name: ref str, rule: ref vec<int>, d: K, f: fun(ref K,ref vec<T>): T) {
+    fun add_to_or_create_nonterminal(name: ref str, rule: ref vec<int>, d: K, f: fun(ref K,ref vec<T>): T): int {
         var idx = nonterminal_names.find(name)
         if idx >= 0 {
             add_to_nonterminal(-1*(idx+1), rule, d, f)
+            return -1*(idx+1)
         } else {
-            add_new_nonterminal(name, rule, d, f)
+            return add_new_nonterminal(name, rule, d, f)
         }
     }
     fun add_to_nonterminal(nonterminal: int, rule: ref vec<int>, d: K, f: fun(ref K,ref vec<T>): T) {
