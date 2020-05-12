@@ -1,22 +1,27 @@
 ; Use the power of GLL reader macros to implement
 ; BF support
 
+; Add atoms as length 1 vectors
+(def! make-atom (fn* (x) [x]))
+(def! set-atom! (fn* (x y) (set-nth! x 0 y)))
+(def! get-atom (fn* (x) (nth x 0)))
+
 ; Define our tokens as BF atoms
 ; Ugly b/c using 1-length vectors as atoms
-(add_grammer_rule 'bfs_atom ["<"]   (fn* (xs) '(set-nth! cursor 0 (- (nth cursor 0) 1))))
-(add_grammer_rule 'bfs_atom [">"]   (fn* (xs) '(set-nth! cursor 0 (+ (nth cursor 0) 1))))
-(add_grammer_rule 'bfs_atom ["\\+"] (fn* (xs) '(set-nth! tape (nth cursor 0) (+ (nth tape (nth cursor 0)) 1))))
-(add_grammer_rule 'bfs_atom ["-"]   (fn* (xs) '(set-nth! tape (nth cursor 0) (- (nth tape (nth cursor 0)) 1))))
-(add_grammer_rule 'bfs_atom [","]   (fn* (xs) '(let* (value (nth input (nth inptr 0))) (do (set-nth! inptr 0 (+ 1 (nth inptr 0))) (do (set-nth! tape (nth cursor 0) value))))))
-(add_grammer_rule 'bfs_atom ["."]   (fn* (xs) '(set-nth! output 0 (cons (nth tape (nth cursor 0)) (nth output 0)))))
+(add_grammer_rule 'bfs_atom ["<"]   (fn* (xs) '(set-atom! cursor (- (get-atom cursor) 1))))
+(add_grammer_rule 'bfs_atom [">"]   (fn* (xs) '(set-atom! cursor (+ (get-atom cursor) 1))))
+(add_grammer_rule 'bfs_atom ["\\+"] (fn* (xs) '(set-nth! tape (get-atom cursor) (+ (nth tape (get-atom cursor)) 1))))
+(add_grammer_rule 'bfs_atom ["-"]   (fn* (xs) '(set-nth! tape (get-atom cursor) (- (nth tape (get-atom cursor)) 1))))
+(add_grammer_rule 'bfs_atom [","]   (fn* (xs) '(let* (value (nth input (get-atom inptr))) (do (set-atom! inptr (+ 1 (get-atom inptr))) (do (set-nth! tape (get-atom cursor) value))))))
+(add_grammer_rule 'bfs_atom ["."]   (fn* (xs) '(set-atom! output (cons (nth tape (get-atom cursor)) (get-atom output)))))
 
 ; Define strings of BF atoms
-(add_grammer_rule 'bfs ['bfs_atom +] (fn* (xs) (nth xs 0)))
+(add_grammer_rule 'bfs ['bfs_atom *] (fn* (xs) (nth xs 0)))
 
 ; Add loop as an atom
 (add_grammer_rule 'bfs_atom ["\\[" 'bfs "]"] (fn* (xs)
                 `(let* (f (fn* (f)
-                                (if (= 0 (nth tape (nth cursor 0)))
+                                (if (= 0 (nth tape (get-atom cursor)))
                                     nil
                                     (do ,(nth xs 1) (f f)))))
                        (f f))))
@@ -32,9 +37,9 @@
                            `(fn* (input)
                              (let* (
                                     tape   (vector 0 0 0 0 0)
-                                    cursor (vector 0)
-                                    inptr  (vector 0)
-                                    output (vector (vector))
+                                    cursor (make-atom 0)
+                                    inptr  (make-atom 0)
+                                    output (make-atom (vector))
                                     )
                                 (do (println "beginning bfs") ,(nth xs 4) (nth output 0))))))
 
