@@ -55,7 +55,7 @@
 	 	    <li> Implement Type Systems as Macros (<a title="type systems as macros paper 1" href="http://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf">paper, up to System Fω</a>) (<a title="type systems as macros paper 2" href="https://www.ccs.neu.edu/home/stchang/pubs/cbtb-popl2020.pdf">second paper, up to dependent types</a>)
 		    <li> Use above macros to create richer language and embed entire other programming languages (syntax, semantics, and type system) for flawless interop/FFI (C, Go, Lua, JS, etc)
             <li> File is interpreted, and then if "main" exists it is compiled, spidering backwards to referenced functions and data (Allows interpreted code to do metaprogramming, dependency resolution, generate code, etc, which is then compiled)
-            <li> Regionalized Value State Dependence Graph as backend-IR, enabling simpler implementations of powerful optimizations (<a title="RSVDG paper" href="https://arxiv.org/pdf/1912.05036.pdf">RSVDG paper</a>) so that embedded languages have good preformance when compiled with little code
+            <li> Regionalized Value State Dependence Graph as backend-IR, enabling simpler implementations of powerful optimizations (<a title="RSVDG paper" href="https://arxiv.org/pdf/1912.05036.pdf">RSVDG paper</a>) so that embedded languages have good performance when compiled with little code
 	    </ul>
         <a name="about"/>
 	    <h3> About:</h3>
@@ -77,7 +77,7 @@ Note that the current implementation is inefficent, and sometimes has problems r
         <a name="method_example"/>
         <h4>Method Example:</h4>
         Let's use our meta system (attaching objects to other objects) to implement basic objects/methods.
-        We will attach a vector of alternating symbols / functions (to make this example simple, since maps aren't built in) to our data as the meta, then look up methods on it when we preform a call. The add_grammer_rule function modifies the grammer/parser currently being used to parse the file and operates as a super-powerful reader macro. We use it in this code to add a rule that transforms <pre><code>a.b(c, d)</code></pre> into <pre><code>(method-call a 'b c d)</code></pre> where method-call is the function that looks up the symbol 'b on the meta object attached to a and calls it with the rest of the parameters.
+        We will attach a vector of alternating symbols / functions (to make this example simple, since maps aren't built in) to our data as the meta, then look up methods on it when we perform a call. The add_grammer_rule function modifies the grammer/parser currently being used to parse the file and operates as a super-powerful reader macro. We use it in this code to add a rule that transforms <pre><code>a.b(c, d)</code></pre> into <pre><code>(method-call a 'b c d)</code></pre> where method-call is the function that looks up the symbol 'b on the meta object attached to a and calls it with the rest of the parameters.
         <br>
         <button onclick="executeKraken(method_editor.getValue(), 'method_output')"><b>Run</b></button>
         <br>
