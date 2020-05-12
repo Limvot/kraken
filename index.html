@@ -28,6 +28,8 @@
             #method_output { height: 7em; width: 70em; }
             #bf_editor { height: 62em; width: 70em; }
             #bf_output { height: 7em; width: 70em; }
+            #fib_editor { height: 8em; width: 70em; }
+            #fib_output { height: 7em; width: 70em; }
 		</style>
     </head>
     <body>
@@ -42,6 +44,7 @@
             <li><a href="#method_example">Example: Implementing Methods</a>
             <li><a href="#bf_example">Example: Embedding BF</a>
             <li><a href="#benchmarks">Performance Benchmarks</a>
+            <li><a href="#fib_example">Example: Fibonacci</a>
             <li><a href="#next_steps">Next Steps</a>
         </ul>
         <a name="concept"/>
@@ -179,7 +182,7 @@ Note that the current implementation is inefficent, and sometimes has problems r
         <textarea id="bf_output">Output will appear here</textarea>
         <a name="benchmarks"/>
         <h3>Performance Benchmarks</h3>
-        <p>Performance is quite poor, as almost no work has gone into it as of yet.
+        <p>Performance is quite poor (for the interpreter mainly, the C compiler seems to be smart enough to make even the very inefficent generated C code fast), as almost no work has gone into it as of yet.
         We are currently focusing on the FUN-GLL macros and creating a more fully-featured language on top of the core Lisp using them. We will focus more on performance with the implemenation of the functional persistant datastructures and the self-hosting rewrite, and performance will be the main focus of the RVSDG IR part of the project.
         <p> Even so, it is worth keeping a rough estimate of performance in mind. For this, we have compiled a very basic benchmark below, with more benchmark programs (sorting, etc) to be included as the language gets developed:
         <br>
@@ -201,6 +204,20 @@ Note that the current implementation is inefficent, and sometimes has problems r
                 </tr>
             </tbody>
         </table>
+        <br>
+        Here is the core Lisp code run / compiled by the two above tests, which you can run in your web browser. The hand-written C code is an exact translation of this into ideomatic C.
+        <br><i>Note: N is lowered in the web demo so WebAssembly doesn't run out of memory.</i>
+        <a name="fib_example"/>
+	    <h4>Fibonacci:</h4>
+        <button onclick="executeKraken(fib_editor.getValue(), 'fib_output')"><b>Run</b></button> <br>
+<div id="fib_editor">(def! fib (fn* (n) (cond (= 0 n) 0
+                         (= 1 n) 1
+                         true    (+ (fib (- n 1)) (fib (- n 2))))))
+(let* (n 16)
+    (println "Fib(" n "): " (fib n)))
+</div>
+        <h4>Output:</h4>
+        <textarea id="fib_output">Output will appear here</textarea>
         <a name="next_steps"/>
         <h3>Next Steps</h3>
         <ul>
@@ -225,7 +242,8 @@ Note that the current implementation is inefficent, and sometimes has problems r
             var hello_editor = ace.edit("hello_editor")
             var method_editor = ace.edit("method_editor")
             var bf_editor = ace.edit("bf_editor")
-            for (let editor of [hello_editor, method_editor, bf_editor]) {
+            var fib_editor = ace.edit("fib_editor")
+            for (let editor of [hello_editor, method_editor, bf_editor, fib_editor]) {
                 editor.session.setMode("ace/mode/clojure")
                 editor.setOption("displayIndentGuides", false)
                 editor.setShowPrintMargin(false)
