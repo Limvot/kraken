@@ -2,267 +2,122 @@
 <html lang="en-us">
 <meta charset="UTF-8">
     <head>
-	 	<style>
-            h1, h2 ,h3 { line-height:1.2; }
-			body {
-                max-width: 45em;
-				margin: 1em auto;
-				padding: 0 .62em;
-				font: 1.2em/1.62 sans-serif;
+		<style>
+			body{
+				margin:1em auto;
+				padding:0 .62em;
+				font:1.2em/1.62 sans-serif;
 			}
-
-            th { text-align: center; }
-            th, td { padding: 0.5em; }
-            table, td {
-                border: 1px solid #333;
-                text-align: right;
-            }
-            thead, tfoot {
-                background-color: #000;
-                color: #fff;
-            }
-
-            #hello_editor { height: 7em; width: 70em; }
-            #hello_output { height: 7em; width: 70em; }
-            #method_editor { height: 53em; width: 70em; }
-            #method_output { height: 7em; width: 70em; }
-            #bf_editor { height: 62em; width: 70em; }
-            #bf_output { height: 7em; width: 70em; }
-            #fib_editor { height: 8em; width: 70em; }
-            #fib_output { height: 7em; width: 70em; }
+			h1,h2,h3 {
+				line-height:1.2;
+			}
+			@media print{
+				body{
+					max-width:none
+				}
+			}
 		</style>
     </head>
     <body>
-	    <header><h2>Nathan Braswell's Current Programming Language / Compiler Research</h2></header>
-        Repository: <a title="Kraken on GitHub" href="https://github.com/limvot/kraken">https://github.com/limvot/kraken</a>
-        <br> <br>
-        <b>Table of Contents:</b> <i>If you're impatient, jump to the code examples!</i>
-        <ul>
-            <li><a href="#concept">Concept</a>
-            <li><a href="#about">About</a>
-            <li><a href="#hello_example">Example: Hello World</a>
-            <li><a href="#method_example">Example: Implementing Methods</a>
-            <li><a href="#bf_example">Example: Embedding BF</a>
-            <li><a href="#benchmarks">Performance Benchmarks</a>
-            <li><a href="#fib_example">Example: Fibonacci</a>
-            <li><a href="#next_steps">Next Steps</a>
-        </ul>
-        <a name="concept"/>
-	    <h3>Concept:</h3>
+	    <header> <h3>Nathan Braswell's Current Programming Language / Compiler Research</h3> </header>
+	    <h4> Current idea:</h4>
 	    <ul>
-		    <li> Minimal, close to the metal Scheme (operate on words, bytes, vectors) as AST / core language
-            <li> Full Context-free (and eventually, context sensitive) reader macros using FUN-GLL (<a title="fun-gll paper" href="https://www.sciencedirect.com/science/article/pii/S2590118420300058">FUN-GLL paper</a>) to extend language's syntax dynamically
-	 	    <li> Implement Type Systems as Macros (<a title="type systems as macros paper 1" href="http://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf">paper, up to System Fω</a>) (<a title="type systems as macros paper 2" href="https://www.ccs.neu.edu/home/stchang/pubs/cbtb-popl2020.pdf">second paper, up to dependent types</a>)
-		    <li> Use above macros to create richer language and embed entire other programming languages (syntax, semantics, and type system) for flawless interop/FFI (C, Go, Lua, JS, etc)
-            <li> File is interpreted, and then if "main" exists it is compiled, spidering backwards to referenced functions and data (Allows interpreted code to do metaprogramming, dependency resolution, generate code, etc, which is then compiled)
-            <li> Regionalized Value State Dependence Graph as backend-IR, enabling simpler implementations of powerful optimizations (<a title="RSVDG paper" href="https://arxiv.org/pdf/1912.05036.pdf">RSVDG paper</a>) so that embedded languages have good performance when compiled with little code
+		    <li> Minimal, close to the metal Scheme (operate on words & bytes) as AST / core language
+			    <li> Full Context-free (and eventually, context sensitive) reader macros using FUN-GLL (<a title="fun-gll paper" href="https://www.sciencedirect.com/science/article/pii/S2590118420300058">paper</a>)
+	 	    <li> Implement Type Systems as Macros (<a title="type systems as macros paper 1" href="http://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf">paper, up to System Fomega</a>) (<a title="type systems as macros paper 2" href="https://www.ccs.neu.edu/home/stchang/pubs/cbtb-popl2020.pdf">second paper, up to dependent types</a>)
+		    <li> Use above macros to create richer language and embed entire other programming languages for flawless interop/FFI (C, Go, Lua, JS, etc)
+	            <li> Regionalized Value State Dependence Graph as backend-IR, enabling simpler implementations of powerful optimizations (<a title="RSVDG paper" href="https://arxiv.org/pdf/1912.05036.pdf">RSVDG paper</a>)
 	    </ul>
-        <a name="about"/>
-	    <h3> About:</h3>
+	    <h4> Status:</h4>
 	    <p> Currently, I am bootstrapping this new core Lisp out of my prior compiler for my programming language, Kraken. I have implemented the first version of the FUN-GLL algorithm and have working context-free reader macros. I'll have enough to self-host this core soon, and will then use the more efficent core Lisp implementation to implement the Type Systems as Macros paper and add a type system to the new language.
-        <p> The general flow is that the input file is executed with the core Lisp interpreter, and if there is a "main" symbol defined the compiler emits C for that function & all other functions & data that it references. In this way the language supports very powerful meta-programming at compile time, including adding syntax to the language, arbitrary computation, and importing other files, and then compiles into a static executable. The current compiling backend emits C.
-	    <p> Below are a few examples of using the live grammer modification / context-free reader macros to implement basic methods as well as embed the BF language into the core Lisp. The core Lisp implementation has been compiled to WebAssembly and should be able to run in your browser. Feel free to make edits and play around below.
+	    <p> Below is an example of using the live grammer modification / context-free reader macros to embed the BF language into the core Lisp. The core Lisp implementation has been compiled to WebAssembly and should be able to run in your browser. Feel free to make edits and play around below.
 	    <br>
-Note that the current implementation is inefficent, and sometimes has problems running in phone web browsers.
-        <a name="hello_example"/>
-	    <h4>Runnable Example Code:</h4>
-        <button onclick="executeKraken(hello_editor.getValue(), 'hello_output')"><b>Run</b></button> <br>
-<div id="hello_editor">; Of course
+	    <h4>Code:</h4>
+<textarea id="code" cols=130 rows=30>
+; Of course
 (println "Hello World")
 ; Just print 3
 (println "Math works:" (+ 1 2))
-</div>
-        <h4>Output:</h4>
-        <textarea id="hello_output">Output will appear here</textarea>
-        <a name="method_example"/>
-        <h4>Method Example:</h4>
-        Let's use our meta system (attaching objects to other objects) to implement basic objects/methods.
-        We will attach a vector of alternating symbols / functions (to make this example simple, since maps aren't built in) to our data as the meta, then look up methods on it when we perform a call. The add_grammer_rule function modifies the grammer/parser currently being used to parse the file and operates as a super-powerful reader macro. We use it in this code to add a rule that transforms <pre><code>a.b(c, d)</code></pre> into <pre><code>(method-call a 'b c d)</code></pre> where method-call is the function that looks up the symbol 'b on the meta object attached to a and calls it with the rest of the parameters.
-        <br>
-        <button onclick="executeKraken(method_editor.getValue(), 'method_output')"><b>Run</b></button>
-        <br>
-<div id="method_editor">; First quick lookup function, since maps are not built in
-(def! get-value-helper (fn* (dict key idx) (if (>= idx (count dict))
-                                                nil
-                                                (if (= key (nth dict idx))
-                                                    (nth dict (+ idx 1))
-                                                    (get-value-helper dict key (+ idx 2))))))
-(def! get-value (fn* (dict key) (get-value-helper dict key 0)))
 
-; Our actual method call function
-(def! method-call (fn* (object method & arguments) (let* (method_fn (get-value (meta object) method))
-                                                            (if (= method_fn nil)
-                                                                (println "no method " method)
-                                                                (apply method_fn object arguments)))))
-; Some nice syntatic sugar for method calls
-(add_grammer_rule 'form ['form "\\." 'atom 'optional_WS "\\(" 'optional_WS 'space_forms 'optional_WS "\\)"]
-                            (fn* (o _ m _ _ _ p _ _) `(method-call ~o '~m ,p)))
+; Use the power of GLL reader macros to implement
+; BF support
 
-; Ok, let's create our object by hand for this example
-(def! actual_obj (with-meta [0] [
-                                'inc (fn* (o) (set-nth! o 0 (+ (nth o 0) 1)))
-                                'dec (fn* (o) (set-nth! o 0 (- (nth o 0) 1)))
-                                'set (fn* (o n) (set-nth! o 0 n))
-                                'get (fn* (o) (nth o 0))
-                                ]))
-(do
-    ; Use our new sugar
-    actual_obj.set(1337)
-    actual_obj.inc()
-    (println "get: " actual_obj.get())
-    actual_obj.dec()
-    (println "get: " actual_obj.get())
+; Utility until we get stdlib & datastructures figured out
+(def! with_update (fn* [arr idx val]
+                   (if  (= idx 0)
+                        (cons val (rest arr))
+                        (cons (first arr) (with_update (rest arr) (- idx 1) val)))))
 
-    ; Use methods directly
-    (method-call actual_obj 'set 654)
-    (method-call actual_obj 'inc)
-    (println "get: " (method-call actual_obj 'get))
-    (method-call actual_obj 'dec)
-    (method-call actual_obj 'dec)
-    (println "get: " (method-call actual_obj 'get))
-
-    nil)
-</div>
-        <h4>Output: </h4>
-        <textarea id="method_output">Output will appear here</textarea>
-        <a name="bf_example"/>
-        <h4>More Complicated Example: BF as an embedded language</h4>
-        <button onclick="executeKraken(bf_editor.getValue(), 'bf_output')"><b>Run</b></button> <br>
-<div id="bf_editor">; We don't have atoms built in, mutable vectors
-; are our base building block. In order to make the
-; following BF implementation nice, let's add atoms!
-; They will be implmented as length 1 vectors with nice syntax for deref
-(def! make-atom (fn* (x) [x]))
-(def! set-atom! (fn* (x y) (set-nth! x 0 y)))
-(def! get-atom (fn* (x) (nth x 0)))
-(add_grammer_rule 'form ["@" 'form] (fn* (_ x) `(get-atom ~x)))
-
-; Now begin by defining our BF syntax & semantics
 ; Define our tokens as BF atoms
-(add_grammer_rule 'bfs_atom ["<"]   (fn* (_) '(set-atom! cursor (- @cursor 1))))
-(add_grammer_rule 'bfs_atom [">"]   (fn* (_) '(set-atom! cursor (+ @cursor 1))))
-(add_grammer_rule 'bfs_atom ["\\+"] (fn* (_) '(set-nth! tape @cursor (+ (nth tape @cursor) 1))))
-(add_grammer_rule 'bfs_atom ["-"]   (fn* (_) '(set-nth! tape @cursor (- (nth tape @cursor) 1))))
-(add_grammer_rule 'bfs_atom [","]   (fn* (_) '(let* (value (nth input @inptr))
-                                                    (do (set-atom! inptr (+ 1 @inptr))
-                                                        (set-nth! tape @cursor value)))))
-(add_grammer_rule 'bfs_atom ["."]   (fn* (_) '(set-atom! output (cons (nth tape @cursor) @output))))
+(add_grammer_rule 'bfs_atom ["<"]   (fn* [xs] (list 'left)))
+(add_grammer_rule 'bfs_atom [">"]   (fn* [xs] (list 'right)))
+(add_grammer_rule 'bfs_atom ["\\+"] (fn* [xs] (list 'plus)))
+(add_grammer_rule 'bfs_atom ["-"]   (fn* [xs] (list 'minus)))
+(add_grammer_rule 'bfs_atom [","]   (fn* [xs] (list 'in)))
+(add_grammer_rule 'bfs_atom ["."]   (fn* [xs] (list 'out)))
 
 ; Define strings of BF atoms
-(add_grammer_rule 'bfs ['bfs_atom *] (fn* (x) x))
+(add_grammer_rule 'non_empty_bfs_list ['bfs_atom] (fn* [xs] (list (nth xs 0))))
+(add_grammer_rule 'non_empty_bfs_list ['bfs_atom 'optional_WS 'non_empty_bfs_list] (fn* [xs] (cons (nth xs 0) (nth xs 2))))
+(add_grammer_rule 'bfs_list [] (fn* [xs] xs))
+(add_grammer_rule 'bfs_list ['non_empty_bfs_list] (fn* [xs] (nth xs 0)))
 
 ; Add loop as an atom
-; (note that closure cannot yet close over itself by value, so we pass it in)
-(add_grammer_rule 'bfs_atom ["\\[" 'bfs "]"] (fn* (_ x _)
-                `(let* (f (fn* (f)
-                                (if (= 0 (nth tape @cursor))
+(add_grammer_rule 'bfs_atom ["\\[" 'bfs_list "]"] (fn* [xs]
+                `(let* (f (fn* []
+                                (if (= 0 (nth (deref arr) (deref ptr)))
                                     nil
-                                    (do ,x (f f)))))
-                       (f f))))
+                                    (do ,(nth xs 1) (f)))))
+                       (f))))
+
+; Top level BFS rule
+(add_grammer_rule 'bfs ['bfs_list] (fn* [xs] (nth xs 0)))
 
 ; For now, stick BFS rule inside an unambigious BFS block
-; Also add setup code
+; and add compilation/implementation
+; Note that this compilation into the underlying Lisp
+; happens at macro evaluation time. If this code were
+; to be compiled to C, it would be compiled all the way
+; to C code with no trace of the original BF code.
 (add_grammer_rule 'form ["bf" 'optional_WS "{" 'optional_WS 'bfs 'optional_WS "}"]
-                        (fn* (_ _ _ _ x _ _)
-                           `(fn* (input)
+                        (fn* [xs]
+                           `(fn* [input]
                              (let* (
-                                    tape   (vector 0 0 0 0 0)
-                                    cursor (make-atom 0)
-                                    inptr  (make-atom 0)
-                                    output (make-atom (vector))
-                                    )
-                                (do (println "beginning bfs") ,x (nth output 0))))))
+                                    arr      (atom (vector 0 0 0 0 0))
+                                    output   (atom [])
+                                    ptr      (atom 0)
+                                    inptr    (atom 0)
+                                    left     (fn* [] (swap! ptr (fn* [old] (- old 1))))
+                                    right    (fn* [] (swap! ptr (fn* [old] (+ old 1))))
+                                    plus     (fn* [] (swap! arr (fn* [old] (with_update old (deref ptr) (+ (nth (deref arr) (deref ptr)) 1)))))
+                                    minus    (fn* [] (swap! arr (fn* [old] (with_update old (deref ptr) (- (nth (deref arr) (deref ptr)) 1)))))
+                                    in       (fn* [] (let* ( h (nth input (deref inptr))
+                                                             _ (swap! inptr (fn* [old] (+ old 1))))
+                                                           (swap! arr (fn* [old] (with_update old (deref ptr) h)))))
+                                    out      (fn* [] (swap! output (fn* [old] (cons (nth (deref arr) (deref ptr)) old)))))
+                                (do ,(nth xs 4) (deref output))))))
 
 ; Let's try it out! This BF program prints the input 3 times
 (println (bf { ,>+++[<.>-] } [1337]))
-; we can also have it compile into our main program (if this wasn't the web version)
-(def! main (fn* () (do (println "BF: " (bf { ,>+++[<.>-] } [1337])) 0)))
-</div>
-        <h4>Output: </h4>
-        <textarea id="bf_output">Output will appear here</textarea>
-        <a name="benchmarks"/>
-        <h3>Performance Benchmarks</h3>
-        <p>Performance is quite poor (for the interpreter mainly, the C compiler seems to be smart enough to make even the very inefficent generated C code fast), as almost no work has gone into it as of yet.
-        We are currently focusing on the FUN-GLL macros and creating a more fully-featured language on top of the core Lisp using them. We will focus more on performance with the implemenation of the functional persistant datastructures and the self-hosting rewrite, and performance will be the main focus of the RVSDG IR part of the project.
-        <p> Even so, it is worth keeping a rough estimate of performance in mind. For this, we have compiled a very basic benchmark below, with more benchmark programs (sorting, etc) to be included as the language gets developed:
-        <br>
-        <table>
-            <thead>
-                <tr>
-                    <th></th>
-                    <th>Core Lisp Interpreter</th>
-                    <th>Core Lisp Compiled to C</th>
-                    <th>Hand-written C</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><b>Fibonacci(27)</b></td>
-                    <td>51.505s</td>
-                    <td>0.007s</td>
-                    <td>0.002s</td>
-                </tr>
-            </tbody>
-        </table>
-        <br>
-        Here is the core Lisp code run / compiled by the two above tests, which you can run in your web browser. The hand-written C code is an exact translation of this into ideomatic C.
-        <br><i>Note: N is lowered in the web demo so WebAssembly doesn't run out of memory.</i>
-        <a name="fib_example"/>
-	    <h4>Fibonacci:</h4>
-        <button onclick="executeKraken(fib_editor.getValue(), 'fib_output')"><b>Run</b></button> <br>
-<div id="fib_editor">(def! fib (fn* (n) (cond (= 0 n) 0
-                         (= 1 n) 1
-                         true    (+ (fib (- n 1)) (fib (- n 2))))))
-(let* (n 16)
-    (println "Fib(" n "): " (fib n)))
-</div>
-        <h4>Output:</h4>
-        <textarea id="fib_output">Output will appear here</textarea>
-        <a name="next_steps"/>
-        <h3>Next Steps</h3>
-        <ul>
-            <li> Implement simple garbage collector for compiled code (currently C)
-            <li> Implement persistant functional data structures
-                <ul>
-                    <li> Hash Array-Mapped Trie (HAMT) / Relaxed Radix Balance Tree (RRB-Tree)
-                    <li> Hash Map based on the above
-                        <li> Hash Set based on the above
-                </ul>
-            <li> Prototype Type Systems as Macros, may require macro system rewrite/upgrade
-            <li> Sketch out Kraken language on top of core Lisp, includes basic Hindley-Milner type system implemented with Macros and above data structures
-            <li> Re-self-host using functional approach in above Kraken language
-            <li> Use Type System Macros to implement automatic transiant creation on HAMT/RBB-Tree as an optimization
-            <li> Implement RVSDG IR and develop best bang-for-buck optimizations using it
-        </ul>
-
-
-        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.11/ace.min.js"></script>
+</textarea>
+        <button onclick="executeKraken()">Run</button> <br>
+	<h4>Output: </h4>
+        <textarea id="output" cols=130 rows=10>Output will appear here</textarea>
         <script>
-            ace.config.set('basePath', 'https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.11/')
-            var hello_editor = ace.edit("hello_editor")
-            var method_editor = ace.edit("method_editor")
-            var bf_editor = ace.edit("bf_editor")
-            var fib_editor = ace.edit("fib_editor")
-            for (let editor of [hello_editor, method_editor, bf_editor, fib_editor]) {
-                editor.session.setMode("ace/mode/clojure")
-                editor.setOption("displayIndentGuides", false)
-                editor.setShowPrintMargin(false)
-            }
-            var output_name = ""
             var Module = {
                 noInitialRun: true,
                 onRuntimeInitialized: () => {
                 },
                 print: txt => {
-                    document.getElementById(output_name).value += txt + "\n";
+                    document.getElementById("output").value += txt + "\n";
                 },
                 printErr: txt => {
-                    document.getElementById(output_name).value += "STDERR:[" + txt + "]\n";
+                    document.getElementById("output").value += "STDERR:[" + txt + "]\n";
                 }
             };
-            function executeKraken(code, new_output_name) {
-                output_name = new_output_name
-                document.getElementById(new_output_name).value = "running...\n";
+            function executeKraken() {
+                document.getElementById("output").value = "";
+                let code = document.getElementById("code").value;
                 console.log("gonna execute", code);
                 Module.callMain(["-C", code]);
             }

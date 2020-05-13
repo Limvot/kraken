@@ -230,21 +230,21 @@ obj MalValue (Object) {
     }
 }
 
-fun read_str(grammer: ref Grammer<MalResult,MalValue>, s: str): pair<int, MalResult> {
-    var BSR = fungll(grammer, grammer.start_symbol, s)
+fun read_str(grammar: ref Grammer<MalResult,MalValue>, s: str): pair<int, MalResult> {
+    var BSR = fungll(grammar, grammar.start_symbol, s)
     var longest = -1
     for (var i = 0; i < BSR.data.size; i++;) {
-        if BSR.data[i].nonterminal == grammer.start_symbol && BSR.data[i].left == 0 && BSR.data[i].idx_into_rule == grammer.nonterminals[(-1*BSR.data[i].nonterminal)-1][BSR.data[i].rule_idx].size {
+        if BSR.data[i].nonterminal == grammar.start_symbol && BSR.data[i].left == 0 && BSR.data[i].idx_into_rule == grammar.nonterminals[(-1*BSR.data[i].nonterminal)-1][BSR.data[i].rule_idx].size {
             longest = BSR.data[i].right
         }
     }
     if longest >= 0 {
-        return make_pair(longest, grammer.eval_BSR(s.slice(0, longest), BSR))
+        return make_pair(longest, grammar.eval_BSR(s.slice(0, longest), BSR))
     } else {
         println("trying to parse: " + s)
         println(str("length of BSR is: ") + BSR.size())
         for (var i = 0; i < BSR.data.size; i++;) {
-            println(str() + i + ": " + grammer.to_string(BSR.data[i]))
+            println(str() + i + ": " + grammar.to_string(BSR.data[i]))
         }
         println("Parse failed")
         return make_pair(-1, MalResult::Err(malString(str("failed to parse"))))
@@ -571,8 +571,8 @@ fun pr_str(v: MalValue, print_readably: bool): str {
     error("can't print")
 }
 
-fun READ(grammer: ref Grammer<MalResult, MalValue>, s: str): MalResult {
-    var to_ret = read_str(grammer, s)
+fun READ(grammar: ref Grammer<MalResult, MalValue>, s: str): MalResult {
+    var to_ret = read_str(grammar, s)
     if to_ret.first != s.length() {
         if is_err(to_ret.second) {
             return to_ret.second
@@ -804,8 +804,8 @@ fun EVAL(env: *Env, ast: MalValue): MalResult {
     }
 }
 
-fun rep(grammer: ref Grammer<MalResult, MalValue>, env: *Env, a: str): str {
-    var read = READ(grammer, a)
+fun rep(grammar: ref Grammer<MalResult, MalValue>, env: *Env, a: str): str {
+    var read = READ(grammar, a)
     if is_err(read) {
         return pr_str(get_err(read), true)
     } else {
@@ -830,20 +830,20 @@ fun print_wrapper(params: ref vec<MalValue>, sep: *char, print_readably: bool): 
 
 fun main(argc: int, argv: **char): int {
 
-    var grammer.construct(): Grammer<MalResult, MalValue>
+    var grammar.construct(): Grammer<MalResult, MalValue>
 
     var ret_nil_term: fun(ref MalValue, ref str, int, int): MalResult = fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult { return MalResult::Ok(malNil()); }
     var ret_nil_sym: fun(ref MalValue, ref vec<MalResult>): MalResult = fun(_: ref MalValue, x: ref vec<MalResult>): MalResult { return MalResult::Ok(malNil()); }
     var ret_0_sym: fun(ref MalValue, ref vec<MalResult>): MalResult = fun(_: ref MalValue, x: ref vec<MalResult>): MalResult { return x[0]; }
 
-    var WS = grammer.add_new_nonterminal("WS", vec(grammer.add_terminal("( |	|
+    var WS = grammar.add_new_nonterminal("WS", vec(grammar.add_terminal("( |	|
 |(;[ -~]*
 ))+", malNil(), ret_nil_term)), malNil(), ret_nil_sym)
-    var optional_WS = grammer.add_new_nonterminal("optional_WS", vec<int>(), malNil(), ret_nil_sym)
-    grammer.add_to_nonterminal(optional_WS, vec(WS), malNil(), ret_nil_sym)
+    var optional_WS = grammar.add_new_nonterminal("optional_WS", vec<int>(), malNil(), ret_nil_sym)
+    grammar.add_to_nonterminal(optional_WS, vec(WS), malNil(), ret_nil_sym)
 
-    var atom = grammer.add_new_nonterminal("atom", vec(grammer.add_terminal("-?[0-9]+", malNil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult { return MalResult::Ok(malInt(string_to_num<int>(input.slice(l,r)))); })), malNil(), ret_0_sym)
-    grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("\"([#-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\\*)|(\\0)|
+    var atom = grammar.add_new_nonterminal("atom", vec(grammar.add_terminal("-?[0-9]+", malNil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult { return MalResult::Ok(malInt(string_to_num<int>(input.slice(l,r)))); })), malNil(), ret_0_sym)
+    grammar.add_to_nonterminal(atom, vec(grammar.add_terminal("\"([#-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\\*)|(\\0)|
 |[ -!]|(\\\\\"))*\"", malNil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult { //"
         var to_ret = str()
         for (var i = l+1; i < r-1; i++;) {
@@ -863,7 +863,7 @@ fun main(argc: int, argv: **char): int {
         }
         return MalResult::Ok(malString(to_ret));
     })), malNil(), ret_0_sym)
-    grammer.add_to_nonterminal(atom, vec(grammer.add_terminal("-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>)*)", malNil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult {
+    grammar.add_to_nonterminal(atom, vec(grammar.add_terminal("-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>)*)", malNil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult {
         var s = input.slice(l,r)
         if s == "true" {
             return MalResult::Ok(malTrue());
@@ -876,17 +876,17 @@ fun main(argc: int, argv: **char): int {
         }
     })), malNil(), ret_0_sym)
 
-    var form = grammer.add_new_nonterminal("form", vec(atom), malNil(), ret_0_sym)
-    var space_forms = grammer.add_new_nonterminal("space_forms", vec<int>(), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
+    var form = grammar.add_new_nonterminal("form", vec(atom), malNil(), ret_0_sym)
+    var space_forms = grammar.add_new_nonterminal("space_forms", vec<int>(), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
         return MalResult::Ok(malVector(vec<MalValue>()))
     })
-    grammer.add_to_nonterminal(space_forms, vec(form), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
+    grammar.add_to_nonterminal(space_forms, vec(form), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
         if is_err(x[0]) {
             return x[0]
         }
         return MalResult::Ok(malVector(vec(get_value(x[0]))))
     })
-    grammer.add_to_nonterminal(space_forms, vec(form, WS, space_forms), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
+    grammar.add_to_nonterminal(space_forms, vec(form, WS, space_forms), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
         if is_err(x[0]) {
             return x[0]
         }
@@ -896,16 +896,16 @@ fun main(argc: int, argv: **char): int {
         return MalResult::Ok(malVector(vec(get_value(x[0])) + get_value(x[2]).get_vector_rc().get()))
     })
 
-    grammer.add_to_nonterminal(form, vec(grammer.add_terminal("\\(", malNil(), ret_nil_term),
+    grammar.add_to_nonterminal(form, vec(grammar.add_terminal("\\(", malNil(), ret_nil_term),
                                                        optional_WS,
-                                                       grammer.add_terminal("\\)", malNil(), ret_nil_term)), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult { return MalResult::Ok(malVector(vec<MalValue>())); })
-    grammer.add_to_nonterminal(form, vec(grammer.add_terminal("\\(", malNil(), ret_nil_term),
+                                                       grammar.add_terminal("\\)", malNil(), ret_nil_term)), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult { return MalResult::Ok(malVector(vec<MalValue>())); })
+    grammar.add_to_nonterminal(form, vec(grammar.add_terminal("\\(", malNil(), ret_nil_term),
                                                        optional_WS,
                                                        space_forms,
                                                        optional_WS,
-                                                       grammer.add_terminal("\\)", malNil(), ret_nil_term)), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult { return x[2]; })
+                                                       grammar.add_terminal("\\)", malNil(), ret_nil_term)), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult { return x[2]; })
 
-    grammer.set_start_symbol(form)
+    grammar.set_start_symbol(form)
 
 
     var env = new<Env>()->construct()
@@ -1043,7 +1043,7 @@ fun main(argc: int, argv: **char): int {
         if params.size != 1 || !params[0].is_string() {
             return MalResult::Err(malString(str("read-string with not a single string")))
         } else {
-            return READ(grammer, params[0].get_string())
+            return READ(grammar, params[0].get_string())
         }
     }));
     env->set(str("slurp"), make_builtin_function(str("slurp"), fun(params: vec<MalValue>): MalResult {
@@ -1227,19 +1227,19 @@ fun main(argc: int, argv: **char): int {
     env->set(str("string?"), make_builtin_function(str("string?"), fun(params: vec<MalValue>): MalResult {
         return MalResult::Err(malString(str("not implemented")))
     }));
-    // self-modifying grammer
+    // self-modifying grammar
     env->set(str("add_terminal"), make_builtin_function(str("add_terminal"), fun(params: vec<MalValue>): MalResult {
         if params.size != 2 || !params[0].is_string() {
             return MalResult::Err(malString(str("add_terminal called with wrong number or type of params")))
         } else {
-            return MalResult::Ok(malInt(grammer.add_terminal(params[0].get_string(), params[1], fun(f: ref MalValue, input: ref str, l: int, r: int): MalResult {
+            return MalResult::Ok(malInt(grammar.add_terminal(params[0].get_string(), params[1], fun(f: ref MalValue, input: ref str, l: int, r: int): MalResult {
                 return function_call(f, vec(malString(input.slice(l,r))))
             })))
         }
     }));
-    env->set(str("add_grammer_rule"), make_builtin_function(str("add_grammer_rule"), fun(params: vec<MalValue>): MalResult {
+    env->set(str("add_grammar_rule"), make_builtin_function(str("add_grammar_rule"), fun(params: vec<MalValue>): MalResult {
         if params.size != 3 || !params[0].is_symbol() || !params[1].is_vector() {
-            return MalResult::Err(malString(str("add_grammer_rule called with wrong number or type of params")))
+            return MalResult::Err(malString(str("add_grammar_rule called with wrong number or type of params")))
         } else {
             var nonterminal_str = params[0].get_symbol_text()
             var rule = params[1].get_vector_rc().get()
@@ -1248,14 +1248,14 @@ fun main(argc: int, argv: **char): int {
                 if rule[i].is_int() {
                     int_rule.add(rule[i].get_int())
                 } else if rule[i].is_symbol() {
-                    var sub_nonterminal_idx = grammer.nonterminal_names.find(rule[i].get_symbol_text())
+                    var sub_nonterminal_idx = grammar.nonterminal_names.find(rule[i].get_symbol_text())
                     if sub_nonterminal_idx == -1 {
                         return MalResult::Err(malString(str("Couldn't find nonterminal: ") + rule[i].get_symbol_text()))
                     }
                     var sub_nonterminal = -1*(sub_nonterminal_idx+1)
                     int_rule.add(sub_nonterminal)
                 } else if rule[i].is_string() {
-                    int_rule.add(grammer.add_terminal(rule[i].get_string(), malNil(), fun(f: ref MalValue, input: ref str, l: int, r: int): MalResult {
+                    int_rule.add(grammar.add_terminal(rule[i].get_string(), malNil(), fun(f: ref MalValue, input: ref str, l: int, r: int): MalResult {
                         return MalResult::Ok(malString(input.slice(l,r)))
                     }))
                 } else {
@@ -1263,25 +1263,25 @@ fun main(argc: int, argv: **char): int {
                         MalValue_int::BuiltinFunction(f) {
                             if f.name == "+" || f.name == "*" {
                                 if int_rule.size == 0 {
-                                    return MalResult::Err(malString(str("add_grammer_rule has + or * in first position, with nothing to repeat")))
+                                    return MalResult::Err(malString(str("add_grammar_rule has + or * in first position, with nothing to repeat")))
                                 }
                                 var current = int_rule.last()
                                 var sub_rule_names = nonterminal_str + "_" + new_tmp()
-                                var new = grammer.add_to_or_create_nonterminal(sub_rule_names + "_one_or_more", vec(current), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                var new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_one_or_more", vec(current), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
                                     if is_err(x[0]) { return x[0]; }
                                     return MalResult::Ok(malVector(vec(get_value(x[0]))))
                                 })
-                                grammer.add_to_nonterminal(new, vec(current, new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                grammar.add_to_nonterminal(new, vec(current, new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
                                     if is_err(x[0]) { return x[0]; }
                                     if is_err(x[1]) { return x[1]; }
                                     return MalResult::Ok(malVector(vec(get_value(x[0])) + get_value(x[1]).get_vector_rc().get()))
                                 })
                                 if f.name == "*" {
-                                    new = grammer.add_to_or_create_nonterminal(sub_rule_names + "_zero_or_more", vec(new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                    new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_zero_or_more", vec(new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
                                         if is_err(x[0]) { return x[0]; }
                                         return MalResult::Ok(get_value(x[0]))
                                     })
-                                    grammer.add_to_nonterminal(new, vec<int>(), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                    grammar.add_to_nonterminal(new, vec<int>(), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
                                         return MalResult::Ok(malVector(vec<MalValue>()))
                                     })
                                 }
@@ -1290,10 +1290,10 @@ fun main(argc: int, argv: **char): int {
                             }
                         }
                     }
-                    return MalResult::Err(malString(str("add_grammer_rule called with not symbol, int, or string in rule")))
+                    return MalResult::Err(malString(str("add_grammar_rule called with not symbol, int, or string in rule")))
                 }
             }
-            grammer.add_to_or_create_nonterminal(nonterminal_str, int_rule, params[2], fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+            grammar.add_to_or_create_nonterminal(nonterminal_str, int_rule, params[2], fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
                 var params = vec<MalValue>()
                 for (var i = 0; i < x.size; i++;) {
                     if is_err(x[i]) {
@@ -1315,7 +1315,7 @@ fun main(argc: int, argv: **char): int {
             var current_ret = MalResult::Ok(malNil())
             if i < input.length() {
                 // initial handle whitespace
-                var BSR = fungll(grammer, optional_WS, input.slice(i, -1))
+                var BSR = fungll(grammar, optional_WS, input.slice(i, -1))
                 var longest = -1
                 for (var j = 0; j < BSR.data.size; j++;) {
                     if BSR.data[j].nonterminal == optional_WS && BSR.data[j].left == 0 {
@@ -1329,7 +1329,7 @@ fun main(argc: int, argv: **char): int {
                 }
             }
             while i < input.length() {
-                var r = read_str(grammer, input.slice(i, -1))
+                var r = read_str(grammar, input.slice(i, -1))
                 i += r.first
                 if is_err(r.second) {
                     return r.second
@@ -1339,7 +1339,7 @@ fun main(argc: int, argv: **char): int {
                     return current_ret
                 }
                 // handle whitespace again
-                var BSR = fungll(grammer, optional_WS, input.slice(i, -1))
+                var BSR = fungll(grammar, optional_WS, input.slice(i, -1))
                 var longest = -1
                 for (var j = 0; j < BSR.data.size; j++;) {
                     if BSR.data[j].nonterminal == optional_WS && BSR.data[j].left == 0 {
@@ -1357,21 +1357,21 @@ fun main(argc: int, argv: **char): int {
     }
     env->set(str("eval-read-string"), make_builtin_function(str("eval-read-string"), ERS));
     // reader macros
-    rep(grammer, env, str("(add_grammer_rule (quote atom) (vector \"'\" (quote form)) (fn* (_ x) (quasiquote (quote (unquote x)))))")) //'
-    rep(grammer, env, str("(add_grammer_rule 'form (vector \"\\\\[\" 'optional_WS \"\\\\]\") (fn* (& _) '(vector)))")) //'
-    rep(grammer, env, str("(add_grammer_rule 'form (vector \"\\\\[\" 'optional_WS 'space_forms 'optional_WS \"\\\\]\") (fn* (_ _ x _ _) (quasiquote (vector (splice-unquote x)))))")) //'
+    rep(grammar, env, str("(add_grammar_rule (quote atom) (vector \"'\" (quote form)) (fn* (_ x) (quasiquote (quote (unquote x)))))")) //'
+    rep(grammar, env, str("(add_grammar_rule 'form (vector \"\\\\[\" 'optional_WS \"\\\\]\") (fn* (& _) '(vector)))")) //'
+    rep(grammar, env, str("(add_grammar_rule 'form (vector \"\\\\[\" 'optional_WS 'space_forms 'optional_WS \"\\\\]\") (fn* (_ _ x _ _) (quasiquote (vector (splice-unquote x)))))")) //'
     // now we can use ' for the rest
-    rep(grammer, env, str("(add_grammer_rule 'atom [\"`\" 'form] (fn* (_ x) (quasiquote (quasiquote (unquote x)))))"))
-    rep(grammer, env, str("(add_grammer_rule 'atom [\"~\" 'form] (fn* (_ x) (vector (quote unquote) x)))"))
+    rep(grammar, env, str("(add_grammar_rule 'atom [\"`\" 'form] (fn* (_ x) (quasiquote (quasiquote (unquote x)))))"))
+    rep(grammar, env, str("(add_grammar_rule 'atom [\"~\" 'form] (fn* (_ x) (vector (quote unquote) x)))"))
     // the standard appears to be for splice-unquote to be <symbol-for-unqoute><symbol-for-deref>, but unquote deref is a reasonable
     // sequence of characters and causes ambigious parses! So I chose the other common unquote symbol to be splice-unquote
-    rep(grammer, env, str("(add_grammer_rule 'atom [\",\" 'form] (fn* (_ x) (vector (quote splice-unquote) x)))"))
-    rep(grammer, env, str("(add_grammer_rule 'atom [\"@\" 'form] (fn* (_ x) `(deref ~x)))")) //"
+    rep(grammar, env, str("(add_grammar_rule 'atom [\",\" 'form] (fn* (_ x) (vector (quote splice-unquote) x)))"))
+    rep(grammar, env, str("(add_grammar_rule 'atom [\"@\" 'form] (fn* (_ x) `(deref ~x)))")) //"
 
-    rep(grammer, env, str("(def! not (fn* (a) (if a false true)))"))
-    rep(grammer, env, str("(def! load-file (fn* (f) (eval-read-string (slurp f))))"))
-    rep(grammer, env, str("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (vector 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))"))
-    rep(grammer, env, str("(def! nil? (fn* (a) (= nil a)))"))
+    rep(grammar, env, str("(def! not (fn* (a) (if a false true)))"))
+    rep(grammar, env, str("(def! load-file (fn* (f) (eval-read-string (slurp f))))"))
+    rep(grammar, env, str("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (vector 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))"))
+    rep(grammar, env, str("(def! nil? (fn* (a) (= nil a)))"))
     var params = vec<MalValue>()
     if argc == 3 && str(argv[1]) == "-C" {
         env->set(str("*ARGV*"), malNil())
@@ -1386,7 +1386,7 @@ fun main(argc: int, argv: **char): int {
             params.add(malString(str(argv[i])))
         }
         env->set(str("*ARGV*"), malVector(params))
-        var eval_result_str = rep(grammer, env, str("(load-file \"") + argv[1] + "\")")
+        var eval_result_str = rep(grammar, env, str("(load-file \"") + argv[1] + "\")")
         println(eval_result_str)
         if eval_result_str.length() >= 11 && eval_result_str.slice(0,11) == "Exception: " {
             error("aborting compile")
@@ -1662,12 +1662,12 @@ fun main(argc: int, argv: **char): int {
         }
     } else {
         env->set(str("*ARGV*"), malVector(params))
-        rep(grammer, env, str("(println (str \"Mal [\" *host-language* \"]\"))"))
+        rep(grammar, env, str("(println (str \"Mal [\" *host-language* \"]\"))"))
         while (true) {
             var line = get_line(str("user> "), 1024)
             if (line == "***EOF***")
                 break
-            println(rep(grammer, env, line))
+            println(rep(grammar, env, line))
         }
     }
 }
