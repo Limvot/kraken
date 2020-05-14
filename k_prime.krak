@@ -1237,63 +1237,83 @@ fun main(argc: int, argv: **char): int {
             })))
         }
     }));
+    var add_grammer_rule_helper: fun(str, vec<MalValue>, MalValue, fun(ref MalValue, ref vec<MalResult>): MalResult): MalResult = fun(nonterminal_str: str, rule: vec<MalValue>, data: MalValue, f: fun(ref MalValue, ref vec<MalResult>): MalResult): MalResult {
+        var int_rule = vec<int>()
+        for (var i = 0; i < rule.size; i++;) {
+            if rule[i].is_int() {
+                int_rule.add(rule[i].get_int())
+            } else if rule[i].is_symbol() {
+                var sub_nonterminal_idx = grammar.nonterminal_names.find(rule[i].get_symbol_text())
+                if sub_nonterminal_idx == -1 {
+                    return MalResult::Err(malString(str("Couldn't find nonterminal: ") + rule[i].get_symbol_text()))
+                }
+                var sub_nonterminal = -1*(sub_nonterminal_idx+1)
+                int_rule.add(sub_nonterminal)
+            } else if rule[i].is_string() {
+                int_rule.add(grammar.add_terminal(rule[i].get_string(), malNil(), fun(f: ref MalValue, input: ref str, l: int, r: int): MalResult {
+                    return MalResult::Ok(malString(input.slice(l,r)))
+                }))
+            } else if rule[i].is_vector() {
+                // A sequence!
+                var sub_rule_names = nonterminal_str + "_seq_" + new_tmp()
+                var inner_rule = add_grammer_rule_helper(sub_rule_names, rule[i].get_vector_rc().get(), malNil(), fun(_: ref MalValue, seq: ref vec<MalResult>): MalResult {
+                    var to_ret = vec<MalValue>()
+                    for (var i = 0; i < seq.size; i++;) {
+                        if is_err(seq[i]) {
+                            return seq[i]
+                        }
+                        to_ret.add(get_value(seq[i]))
+                    }
+                    return MalResult::Ok(malVector(to_ret))
+                })
+                if is_err(inner_rule) {
+                    return inner_rule
+                }
+                int_rule.add(get_value(inner_rule).get_int())
+            } else {
+                match (rule[i].internal) {
+                    MalValue_int::BuiltinFunction(f) {
+                        if f.name == "+" || f.name == "*" {
+                            if int_rule.size == 0 {
+                                return MalResult::Err(malString(str("add_grammar_rule has + or * in first position, with nothing to repeat")))
+                            }
+                            var current = int_rule.last()
+                            var sub_rule_names = nonterminal_str + "_" + new_tmp()
+                            var new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_one_or_more", vec(current), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                if is_err(x[0]) { return x[0]; }
+                                return MalResult::Ok(malVector(vec(get_value(x[0]))))
+                            })
+                            grammar.add_to_nonterminal(new, vec(current, new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                if is_err(x[0]) { return x[0]; }
+                                if is_err(x[1]) { return x[1]; }
+                                return MalResult::Ok(malVector(vec(get_value(x[0])) + get_value(x[1]).get_vector_rc().get()))
+                            })
+                            if f.name == "*" {
+                                new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_zero_or_more", vec(new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                    if is_err(x[0]) { return x[0]; }
+                                    return MalResult::Ok(get_value(x[0]))
+                                })
+                                grammar.add_to_nonterminal(new, vec<int>(), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+                                    return MalResult::Ok(malVector(vec<MalValue>()))
+                                })
+                            }
+                            int_rule.last() = new
+                            continue
+                        }
+                    }
+                }
+                return MalResult::Err(malString(str("add_grammar_rule called with not symbol, int, or string in rule")))
+            }
+        }
+        return MalResult::Ok(malInt(grammar.add_to_or_create_nonterminal(nonterminal_str, int_rule, data, f)))
+    }
     env->set(str("add_grammar_rule"), make_builtin_function(str("add_grammar_rule"), fun(params: vec<MalValue>): MalResult {
         if params.size != 3 || !params[0].is_symbol() || !params[1].is_vector() {
             return MalResult::Err(malString(str("add_grammar_rule called with wrong number or type of params")))
         } else {
             var nonterminal_str = params[0].get_symbol_text()
             var rule = params[1].get_vector_rc().get()
-            var int_rule = vec<int>()
-            for (var i = 0; i < rule.size; i++;) {
-                if rule[i].is_int() {
-                    int_rule.add(rule[i].get_int())
-                } else if rule[i].is_symbol() {
-                    var sub_nonterminal_idx = grammar.nonterminal_names.find(rule[i].get_symbol_text())
-                    if sub_nonterminal_idx == -1 {
-                        return MalResult::Err(malString(str("Couldn't find nonterminal: ") + rule[i].get_symbol_text()))
-                    }
-                    var sub_nonterminal = -1*(sub_nonterminal_idx+1)
-                    int_rule.add(sub_nonterminal)
-                } else if rule[i].is_string() {
-                    int_rule.add(grammar.add_terminal(rule[i].get_string(), malNil(), fun(f: ref MalValue, input: ref str, l: int, r: int): MalResult {
-                        return MalResult::Ok(malString(input.slice(l,r)))
-                    }))
-                } else {
-                    match (rule[i].internal) {
-                        MalValue_int::BuiltinFunction(f) {
-                            if f.name == "+" || f.name == "*" {
-                                if int_rule.size == 0 {
-                                    return MalResult::Err(malString(str("add_grammar_rule has + or * in first position, with nothing to repeat")))
-                                }
-                                var current = int_rule.last()
-                                var sub_rule_names = nonterminal_str + "_" + new_tmp()
-                                var new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_one_or_more", vec(current), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
-                                    if is_err(x[0]) { return x[0]; }
-                                    return MalResult::Ok(malVector(vec(get_value(x[0]))))
-                                })
-                                grammar.add_to_nonterminal(new, vec(current, new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
-                                    if is_err(x[0]) { return x[0]; }
-                                    if is_err(x[1]) { return x[1]; }
-                                    return MalResult::Ok(malVector(vec(get_value(x[0])) + get_value(x[1]).get_vector_rc().get()))
-                                })
-                                if f.name == "*" {
-                                    new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_zero_or_more", vec(new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
-                                        if is_err(x[0]) { return x[0]; }
-                                        return MalResult::Ok(get_value(x[0]))
-                                    })
-                                    grammar.add_to_nonterminal(new, vec<int>(), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
-                                        return MalResult::Ok(malVector(vec<MalValue>()))
-                                    })
-                                }
-                                int_rule.last() = new
-                                continue
-                            }
-                        }
-                    }
-                    return MalResult::Err(malString(str("add_grammar_rule called with not symbol, int, or string in rule")))
-                }
-            }
-            grammar.add_to_or_create_nonterminal(nonterminal_str, int_rule, params[2], fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
+            return add_grammer_rule_helper(nonterminal_str, rule, params[2], fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
                 var params = vec<MalValue>()
                 for (var i = 0; i < x.size; i++;) {
                     if is_err(x[i]) {
@@ -1303,7 +1323,6 @@ fun main(argc: int, argv: **char): int {
                 }
                 return function_call(f, params)
             })
-            return MalResult::Ok(malNil())
         }
     }));
     var ERS = fun(params: vec<MalValue>): MalResult {
