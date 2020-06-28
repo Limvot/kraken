@@ -9,87 +9,206 @@ import rc:*
 
 import fungll:*
 
-adt MalValue_int {
-    True,                                   //      1 11 1 0
-    False,                                  //      0 11 1 0
-    Function: MalFunction,                  //        10 1 0
-    BuiltinFunction: MalBuiltinFunction,    //        '' ' '
-    String: str,                            //        01 1 0
-    Symbol: str,                            //        00 1 0
+adt KPValue_int {
+    True,                                   //       101 1 0
+    False,                                  //       100 1 0
+    Env: *KPEnv,                             //       011 1 0
+    Combiner: KPCombiner,                   //       010 1 0
+    BuiltinCombiner: KPBuiltinCombiner,     //       ''' ' '
+    String: str,                            //       001 1 0
+    Symbol: str,                            //       000 1 0
     Int: int,                               //           0 0
 
-    Vector: rc<vec<MalValue>>,              //<10sizebits> 1
+    Vector: rc<vec<KPValue>>,               //<10sizebits> 1
     // same encoding, but encodes 0-length null ptr
     Nil                                     // 00000000000 1
 }
-fun nmMV(i: ref MalValue_int): MalValue {
-    var to_ret.construct(i, null<MalValue>()): MalValue
-    return to_ret
-}
-fun malTrue(): MalValue {
-    return nmMV(MalValue_int::True())
-}
-fun malFalse(): MalValue {
-    return nmMV(MalValue_int::False())
-}
-fun bool_to_MalValue(b: bool): MalValue {
-    if b {
-        return nmMV(MalValue_int::True())
-    } else {
-        return nmMV(MalValue_int::False())
+obj KPEnv (Object) {
+    var data: map<str, KPValue>
+    var outer: *KPEnv
+    fun construct(): *KPEnv {
+        return construct(null<KPEnv>())
+    }
+    fun construct(outer: *KPEnv): *KPEnv {
+        data.construct()
+        this->outer = outer
+        return this
+    }
+    fun copy_construct(old: *KPEnv): void {
+        data.copy_construct(&old->data)
+        outer = old->outer
+    }
+    fun destruct(): void {
+        data.destruct()
+        outer = null<KPEnv>()
+    }
+    fun operator=(other:ref KPEnv):void {
+        destruct()
+        copy_construct(&other)
+    }
+    fun set(key: str, val: KPValue) {
+        data.set(key, val)
+    }
+    fun remove(key: str) {
+        data.remove(key)
+    }
+    fun find(key: str): *KPEnv {
+        if (data.contains_key(key)) {
+            return this
+        } else if (outer != null<KPEnv>()) {
+            return outer->find(key)
+        } else {
+            return null<KPEnv>()
+        }
+    }
+    fun get(key: str): KPResult {
+        var env = find(key)
+        if (env != null<KPEnv>()) {
+            return KPResult::Ok(env->data.get(key))
+        } else {
+            return KPResult::Err(kpString(str("'") + key + "' not found"))
+        }
+    }
+    fun to_string(): str {
+        var to_ret = str()
+        to_string(str("\t"), to_ret)
+        return to_ret
+    }
+    fun to_string(tabs: ref str, s: ref str) {
+        for (var i = 0; i < data.keys.size; i++;) {
+            /*s += tabs + data.keys[i] + ": " + data.values[i] + "\n"*/
+            s += tabs + data.keys[i] + "\n"
+        }
+        if outer != null<KPEnv>() {
+            outer->to_string(tabs + "\t", s)
+        }
     }
 }
-fun malString(s: ref str): MalValue {
-    return nmMV(MalValue_int::String(s))
+obj KPBuiltinCombiner (Object) {
+    var name: str
+    var fp: fun(vec<KPValue>, *KPEnv): KPResult
+    fun construct(name: ref str, fp: fun(vec<KPValue>, *KPEnv): KPResult): *KPBuiltinCombiner {
+        this->name.copy_construct(&name)
+        this->fp = fp
+        return this
+    }
+    fun copy_construct(old: *KPBuiltinCombiner): void {
+        this->fp = old->fp
+        this->name.copy_construct(&old->name)
+    }
+    fun destruct(): void {
+        this->name.destruct()
+    }
+    fun operator=(other:ref KPBuiltinCombiner):void {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref KPBuiltinCombiner):bool {
+        return false
+    }
+    fun call(params: vec<KPValue>, dynamic_env: KPValue): KPResult {
+        if !dynamic_env.is_env() {
+            return KPResult::Err(kpString(pr_str(dynamic_env, true) + " is not an env"))
+        }
+        return fp(params, dynamic_env.get_env())
+    }
 }
-fun malSymbol(s: ref str): MalValue {
-    return nmMV(MalValue_int::Symbol(s))
+fun make_builtin_combiner(name: str, f: fun(vec<KPValue>, *KPEnv): KPResult): KPValue {
+    var to_ret.construct(name, f): KPBuiltinCombiner
+    return nmMV(KPValue_int::BuiltinCombiner(to_ret))
 }
-fun malInt(i: int): MalValue {
-    return nmMV(MalValue_int::Int(i))
+obj KPCombiner (Object) {
+    var env: *KPEnv
+    var dynamic_env_name: str
+    var parameters: vec<str>
+    var is_variadic: bool
+    var body: *KPValue
+    fun construct(env: *KPEnv, dynamic_env_name: str, parameters: vec<str>, is_variadic: bool, body: KPValue): *KPCombiner {
+        this->env = env
+        this->dynamic_env_name.copy_construct(&dynamic_env_name)
+        this->parameters.copy_construct(&parameters)
+        this->is_variadic = is_variadic
+        this->body = new<KPValue>()
+        this->body->copy_construct(&body)
+        return this
+    }
+    fun copy_construct(old: *KPCombiner): void {
+        this->env = old->env
+        this->dynamic_env_name.copy_construct(&old->dynamic_env_name)
+        this->parameters.copy_construct(&old->parameters)
+        this->is_variadic = old->is_variadic
+        this->body = new<KPValue>()
+        this->body->copy_construct(old->body)
+    }
+    fun destruct(): void {
+        this->env = null<KPEnv>()
+        dynamic_env_name.destruct()
+        parameters.destruct()
+        delete(body)
+        body = null<KPValue>()
+    }
+    fun operator=(other:ref KPCombiner):void {
+        destruct()
+        copy_construct(&other)
+    }
+    fun operator==(other: ref KPCombiner):bool {
+        // not sure about env
+        return env == other.env && dynamic_env_name == other.dynamic_env_name && parameters == other.parameters && is_variadic == other.is_variadic && body->equals(*other.body)
+    }
+    // no call b/c need to do in EVAL for TCO
+    fun prep_call(params: ref vec<KPValue>, dynamic_env: KPValue): pair<*KPEnv, KPResult> {
+        // tco
+        if (!is_variadic && parameters.size != params.size) || (is_variadic && parameters.size > params.size + 1) {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("combiner called with the wrong number of parameters: ") + params.size + " but expecting " + parameters.size + ": [ " + str(",").join(parameters) + "], was: " + pr_str(kpVector(params), true) + ", function body is " + pr_str(*body, true))))
+        }
+        var new_env = new<KPEnv>()->construct(env)
+        for (var i = 0; i < parameters.size; i++;) {
+            if is_variadic && i == parameters.size - 1 {
+                new_env->set(parameters[i], kpVector(params.slice(i, -1)))
+            } else {
+                new_env->set(parameters[i], params[i])
+            }
+        }
+        new_env->set(dynamic_env_name, dynamic_env)
+        return make_pair(new_env, KPResult::Ok(*body))
+    }
 }
-fun malVector(v: ref vec<MalValue>): MalValue {
-    var rcd.construct(v): rc<vec<MalValue>>
-    return nmMV(MalValue_int::Vector(rcd))
-}
-fun malNil(): MalValue {
-    return nmMV(MalValue_int::Nil())
-}
-obj MalValue (Object) {
-    var internal: MalValue_int
-    var meta: *MalValue
 
-    fun construct(): *MalValue {
-        internal.copy_construct(&MalValue_int::Nil());
-        meta = null<MalValue>()
+obj KPValue (Object) {
+    var internal: KPValue_int
+    var meta: *KPValue
+
+    fun construct(): *KPValue {
+        internal.copy_construct(&KPValue_int::Nil());
+        meta = null<KPValue>()
     }
-    fun construct(i: ref MalValue_int, m: *MalValue): *MalValue {
+    fun construct(i: ref KPValue_int, m: *KPValue): *KPValue {
         internal.copy_construct(&i);
         meta = m
     }
-    fun copy_construct(other: *MalValue): void {
+    fun copy_construct(other: *KPValue): void {
         internal.copy_construct(&other->internal);
         /*meta = other->meta*/
-        if other->meta != null<MalValue>() {
-            meta = new<MalValue>()
+        if other->meta != null<KPValue>() {
+            meta = new<KPValue>()
             meta->copy_construct(other->meta)
         } else {
-            meta = null<MalValue>()
+            meta = null<KPValue>()
         }
     }
-    fun operator=(other: ref MalValue): void {
+    fun operator=(other: ref KPValue): void {
         destruct()
         copy_construct(&other)
     }
     fun destruct(): void {
-        if meta != null<MalValue>()
+        if meta != null<KPValue>()
             delete(meta)
         internal.destruct()
     }
-    fun equals(other: ref MalValue): bool {
+    fun equals(other: ref KPValue): bool {
         match (internal) {
-           MalValue_int::Vector(d) { match (other.internal) {
-                MalValue_int::Vector(db) {
+           KPValue_int::Vector(d) { match (other.internal) {
+                KPValue_int::Vector(db) {
                     if d.get().size != db.get().size {
                         return false
                     }
@@ -101,50 +220,69 @@ obj MalValue (Object) {
                     return true
                }
            } }
-           MalValue_int::String(d)  { match (other.internal) { MalValue_int::String(db) { return d == db; } } }
-           MalValue_int::Int(d)     { match (other.internal) { MalValue_int::Int(db) { return d == db; } } }
-           MalValue_int::Symbol(d)  { match (other.internal) { MalValue_int::Symbol(db) { return d == db; } } }
-           MalValue_int::Function(d){ match (other.internal) { MalValue_int::Function(db) { return d == db; } } }
-           MalValue_int::BuiltinFunction(d) { match (other.internal) { MalValue_int::BuiltinFunction(db) { return d == db; } } }
-           MalValue_int::True()     { match (other.internal) { MalValue_int::True() { return true; } } }
-           MalValue_int::False()    { match (other.internal) { MalValue_int::False() { return true; } } }
-           MalValue_int::Nil()      { match (other.internal) { MalValue_int::Nil() { return true; } } }
+           KPValue_int::String(d)  { match (other.internal) { KPValue_int::String(db) { return d == db; } } }
+           KPValue_int::Int(d)     { match (other.internal) { KPValue_int::Int(db) { return d == db; } } }
+           KPValue_int::Symbol(d)  { match (other.internal) { KPValue_int::Symbol(db) { return d == db; } } }
+           KPValue_int::Combiner(d){ match (other.internal) { KPValue_int::Combiner(db) { return d == db; } } }
+           KPValue_int::BuiltinCombiner(d) { match (other.internal) { KPValue_int::BuiltinCombiner(db) { return d == db; } } }
+           KPValue_int::Env(e)     { match (other.internal) { KPValue_int::Env(eb) { return e == eb; } } }
+           KPValue_int::True()     { match (other.internal) { KPValue_int::True() { return true; } } }
+           KPValue_int::False()    { match (other.internal) { KPValue_int::False() { return true; } } }
+           KPValue_int::Nil()      { match (other.internal) { KPValue_int::Nil() { return true; } } }
         }
         return false
     }
-    fun deep_clone(): MalValue {
+    fun deep_clone(): KPValue {
         match (internal) {
-            MalValue_int::Vector(v) {
-                return malVector(v.get())
+            KPValue_int::Vector(v) {
+                return kpVector(v.get())
+            }
+            KPValue_int::Env(e) {
+                var newenv = new<KPEnv>()
+                newenv->copy_construct(e)
+                return kpEnv(e)
             }
         }
         return *this
     }
-    fun is_function(): bool {
+    fun is_combiner(): bool {
         match (internal) {
-            MalValue_int::Function(f) {
+            KPValue_int::Combiner(f) {
                 return true
             }
-            MalValue_int::BuiltinFunction(f) {
+            KPValue_int::BuiltinCombiner(f) {
                 return true
             }
         }
         return false
+    }
+    fun is_env(): bool {
+        match (internal) {
+            KPValue_int::Env(e) {
+                return true
+            }
+        }
+        return false
+    }
+    fun get_env(): *KPEnv {
+        match (internal) {
+            KPValue_int::Env(e) {
+                return e
+            }
+        }
+        error("Tried to get env on not an env" + pr_str(*this, true))
     }
     fun is_vector(): bool {
         match (internal) {
-            MalValue_int::Vector(v) {
+            KPValue_int::Vector(v) {
                 return true
             }
-            /*MalValue_int::Nil() {*/
-                /*return true*/
-            /*}*/
         }
         return false
     }
-    fun get_vector_rc(): rc<vec<MalValue>> {
+    fun get_vector_rc(): rc<vec<KPValue>> {
         match (internal) {
-            MalValue_int::Vector(v) {
+            KPValue_int::Vector(v) {
                 return v
             }
         }
@@ -152,7 +290,7 @@ obj MalValue (Object) {
     }
     fun is_symbol(): bool {
         match (internal) {
-            MalValue_int::Symbol(s) {
+            KPValue_int::Symbol(s) {
                 return true
             }
         }
@@ -160,7 +298,7 @@ obj MalValue (Object) {
     }
     fun is_symbol(text: *char): bool {
         match (internal) {
-            MalValue_int::Symbol(s) {
+            KPValue_int::Symbol(s) {
                 return s == text
             }
         }
@@ -168,7 +306,7 @@ obj MalValue (Object) {
     }
     fun get_symbol_text(): str {
         match (internal) {
-            MalValue_int::Symbol(s) {
+            KPValue_int::Symbol(s) {
                 return s
             }
         }
@@ -176,7 +314,7 @@ obj MalValue (Object) {
     }
     fun is_string(): bool {
         match (internal) {
-            MalValue_int::String(s) {
+            KPValue_int::String(s) {
                 return true
             }
         }
@@ -184,7 +322,7 @@ obj MalValue (Object) {
     }
     fun get_string(): str {
         match (internal) {
-            MalValue_int::String(s) {
+            KPValue_int::String(s) {
                 return s
             }
         }
@@ -192,7 +330,7 @@ obj MalValue (Object) {
     }
     fun is_int(): bool {
         match (internal) {
-            MalValue_int::Int(i) {
+            KPValue_int::Int(i) {
                 return true
             }
         }
@@ -200,7 +338,7 @@ obj MalValue (Object) {
     }
     fun get_int(): int {
         match (internal) {
-            MalValue_int::Int(i) {
+            KPValue_int::Int(i) {
                 return i
             }
         }
@@ -208,7 +346,7 @@ obj MalValue (Object) {
     }
     fun is_nil(): bool {
         match (internal) {
-            MalValue_int::Nil() {
+            KPValue_int::Nil() {
                 return true
             }
         }
@@ -216,10 +354,10 @@ obj MalValue (Object) {
     }
     fun is_truthy(): bool {
         match (internal) {
-            MalValue_int::False() {
+            KPValue_int::False() {
                 return false
             }
-            MalValue_int::Nil() {
+            KPValue_int::Nil() {
                 return false
             }
         }
@@ -230,7 +368,45 @@ obj MalValue (Object) {
     }
 }
 
-fun read_str(grammar: ref Grammer<MalResult,MalValue>, s: str): pair<int, MalResult> {
+
+fun nmMV(i: ref KPValue_int): KPValue {
+    var to_ret.construct(i, null<KPValue>()): KPValue
+    return to_ret
+}
+fun kpTrue(): KPValue {
+    return nmMV(KPValue_int::True())
+}
+fun kpFalse(): KPValue {
+    return nmMV(KPValue_int::False())
+}
+fun bool_to_KPValue(b: bool): KPValue {
+    if b {
+        return nmMV(KPValue_int::True())
+    } else {
+        return nmMV(KPValue_int::False())
+    }
+}
+fun kpString(s: ref str): KPValue {
+    return nmMV(KPValue_int::String(s))
+}
+fun kpSymbol(s: ref str): KPValue {
+    return nmMV(KPValue_int::Symbol(s))
+}
+fun kpInt(i: int): KPValue {
+    return nmMV(KPValue_int::Int(i))
+}
+fun kpVector(v: ref vec<KPValue>): KPValue {
+    var rcd.construct(v): rc<vec<KPValue>>
+    return nmMV(KPValue_int::Vector(rcd))
+}
+fun kpNil(): KPValue {
+    return nmMV(KPValue_int::Nil())
+}
+fun kpEnv(e: *KPEnv): KPValue {
+    return nmMV(KPValue_int::Env(e))
+}
+
+fun read_str(grammar: ref Grammer<KPResult,KPValue>, s: str): pair<int, KPResult> {
     var BSR = fungll(grammar, grammar.start_symbol, s)
     var longest = -1
     for (var i = 0; i < BSR.data.size; i++;) {
@@ -247,273 +423,43 @@ fun read_str(grammar: ref Grammer<MalResult,MalValue>, s: str): pair<int, MalRes
             println(str() + i + ": " + grammar.to_string(BSR.data[i]))
         }
         println("Parse failed")
-        return make_pair(-1, MalResult::Err(malString(str("failed to parse"))))
+        return make_pair(-1, KPResult::Err(kpString(str("failed to parse"))))
     }
 }
 
-fun is_macro_call(ast: MalValue, env: *Env): bool {
-    if !ast.is_vector() {
-        return false
-    }
-    var l = ast.get_vector_rc()
-    if l.get().size == 0 || !l.get()[0].is_symbol() {
-        return false
-    }
-    var res = env->get(l.get()[0].get_symbol_text())
-    if is_err(res) {
-        return false
-    }
-    var v = get_value(res)
-    match (v.internal) {
-        MalValue_int::Function(f) {
-            return f.is_macro
-        }
-    }
-    return false
+adt KPResult {
+    Ok: KPValue,
+    Err: KPValue
 }
-
-fun macroexpand(ast: MalValue, env: *Env): MalResult {
-    while is_macro_call(ast, env) {
-        var l = ast.get_vector_rc()
-        var v = get_value(env->get(l.get()[0].get_symbol_text()))
-        match (v.internal) {
-            MalValue_int::Function(f) {
-                var params = l.get().slice(1,-1)
-                if (!f.is_variadic && f.parameters.size != params.size) || (f.is_variadic && f.parameters.size > params.size + 1) {
-                    return MalResult::Err(malString(str("macro called with the wrong number of parameters")))
-                }
-                env = new<Env>()->construct(f.env)
-                for (var i = 0; i < f.parameters.size; i++;) {
-                    if f.is_variadic && i == f.parameters.size - 1 {
-                        env->set(f.parameters[i], malVector(params.slice(i, -1)))
-                    } else {
-                        env->set(f.parameters[i], params[i])
-                    }
-                }
-                var tmp = *f.body
-                var tmp2 = EVAL(env, tmp)
-                if is_err(tmp2) {
-                    return tmp2
-                }
-                ast = get_value(tmp2)
-            }
-        }
-    }
-    return MalResult::Ok(ast)
-}
-
-fun quasiquote(ast: MalValue): MalValue {
-    if !ast.is_pair() {
-        return malVector(vec(malSymbol(str("quote")), ast))
-    } else {
-        var ast_list = ast.get_vector_rc()
-        if ast_list.get()[0].is_symbol("unquote") {
-            return ast_list.get()[1]
-        } else {
-            if ast_list.get()[0].is_pair() && ast_list.get()[0].get_vector_rc().get()[0].is_symbol("splice-unquote") {
-                return malVector(vec(malSymbol(str("concat")), ast_list.get()[0].get_vector_rc().get()[1], quasiquote(malVector(ast_list.get().slice(1,-1)))))
-            } else {
-                return malVector(vec(malSymbol(str("cons")), quasiquote(ast_list.get()[0]), quasiquote(malVector(ast_list.get().slice(1,-1)))))
-            }
-        }
-    }
-}
-
-obj Env (Object) {
-    var data: map<str, MalValue>
-    var outer: *Env
-    fun construct(): *Env {
-        return construct(null<Env>())
-    }
-    fun construct(outer: *Env): *Env {
-        data.construct()
-        this->outer = outer
-        return this
-    }
-    fun copy_construct(old: *Env): void {
-        data.copy_construct(&old->data)
-        outer = old->outer
-    }
-    fun destruct(): void {
-        data.destruct()
-        outer = null<Env>()
-    }
-    fun operator=(other:ref Env):void {
-        destruct()
-        copy_construct(&other)
-    }
-    fun set(key: str, val: MalValue) {
-        data.set(key, val)
-    }
-    fun remove(key: str) {
-        data.remove(key)
-    }
-    fun find(key: str): *Env {
-        if (data.contains_key(key)) {
-            return this
-        } else if (outer != null<Env>()) {
-            return outer->find(key)
-        } else {
-            return null<Env>()
-        }
-    }
-    fun get(key: str): MalResult {
-        var env = find(key)
-        if (env != null<Env>()) {
-            return MalResult::Ok(env->data.get(key))
-        } else {
-            return MalResult::Err(malString(str("'") + key + "' not found"))
-        }
-    }
-    fun to_string(): str {
-        var to_ret = str()
-        to_string(str("\t"), to_ret)
-        return to_ret
-    }
-    fun to_string(tabs: ref str, s: ref str) {
-        for (var i = 0; i < data.keys.size; i++;) {
-            /*s += tabs + data.keys[i] + ": " + data.values[i] + "\n"*/
-            s += tabs + data.keys[i] + "\n"
-        }
-        if outer != null<Env>() {
-            outer->to_string(tabs + "\t", s)
-        }
-    }
-}
-obj MalBuiltinFunction (Object) {
-    var name: str
-    var fp: fun(vec<MalValue>): MalResult
-    fun construct(name: ref str, fp: fun(vec<MalValue>): MalResult): *MalBuiltinFunction {
-        this->name.copy_construct(&name)
-        this->fp = fp
-        return this
-    }
-    fun copy_construct(old: *MalBuiltinFunction): void {
-        this->fp = old->fp
-        this->name.copy_construct(&old->name)
-    }
-    fun destruct(): void {
-        this->name.destruct()
-    }
-    fun operator=(other:ref MalBuiltinFunction):void {
-        destruct()
-        copy_construct(&other)
-    }
-    fun operator==(other: ref MalBuiltinFunction):bool {
-        return false
-    }
-    fun call(params: vec<MalValue>): MalResult {
-        return fp(params)
-    }
-}
-fun make_builtin_function(name: str, f: fun(vec<MalValue>): MalResult): MalValue {
-    var to_ret.construct(name, f): MalBuiltinFunction
-    return nmMV(MalValue_int::BuiltinFunction(to_ret))
-}
-obj MalFunction (Object) {
-    var env: *Env
-    var parameters: vec<str>
-    var is_variadic: bool
-    var is_macro: bool
-    var body: *MalValue
-    fun construct(env: *Env, parameters: vec<str>, is_variadic: bool, is_macro: bool, body: MalValue): *MalFunction {
-        this->env = env
-        this->parameters.copy_construct(&parameters)
-        this->is_variadic = is_variadic
-        this->is_macro = is_macro
-        this->body = new<MalValue>()
-        this->body->copy_construct(&body)
-        return this
-    }
-    fun copy_construct(old: *MalFunction): void {
-        this->env = old->env
-        this->parameters.copy_construct(&old->parameters)
-        this->is_variadic = old->is_variadic
-        this->is_macro = old->is_macro
-        this->body = new<MalValue>()
-        this->body->copy_construct(old->body)
-    }
-    fun destruct(): void {
-        this->env = null<Env>()
-        parameters.destruct()
-        delete(body)
-        body = null<MalValue>()
-    }
-    fun operator=(other:ref MalFunction):void {
-        destruct()
-        copy_construct(&other)
-    }
-    fun operator==(other: ref MalFunction):bool {
-        // not sure about env
-        return env == other.env && parameters == other.parameters && is_variadic == other.is_variadic && is_macro == other.is_macro && body->equals(*other.body)
-    }
-    // no call b/c need to do in EVAL for TCO
-    fun prep_call(params: ref vec<MalValue>): pair<*Env, MalResult> {
-        // tco
-        if (!is_variadic && parameters.size != params.size) || (is_variadic && parameters.size > params.size + 1) {
-            return make_pair(null<Env>(), MalResult::Err(malString(str("function called with the wrong number of parameters: ") + params.size + " but expecting " + parameters.size + ": [ " + str(",").join(parameters) + "], was: " + pr_str(malVector(params), true) + ", function body is " + pr_str(*body, true))))
-        }
-        var new_env = new<Env>()->construct(env)
-        for (var i = 0; i < parameters.size; i++;) {
-            if is_variadic && i == parameters.size - 1 {
-                new_env->set(parameters[i], malVector(params.slice(i, -1)))
-            } else {
-                new_env->set(parameters[i], params[i])
-            }
-        }
-        return make_pair(new_env, MalResult::Ok(*body))
-    }
-}
-
-fun function_call(f: MalValue, params: ref vec<MalValue>): MalResult {
-    match (f.internal) {
-        MalValue_int::BuiltinFunction(f) {
-            return f.call(params)
-        }
-        MalValue_int::Function(f) {
-            var call_pair = f.prep_call(params)
-            if is_err(call_pair.second) {
-                return call_pair.second
-            }
-            return EVAL(call_pair.first, get_value(call_pair.second))
-        }
-    }
-    return MalResult::Err(malString(str("trying to apply not a function: ") + pr_str(f ,true)))
-}
-
-adt MalResult {
-    Ok: MalValue,
-    Err: MalValue
-}
-fun is_err(r: MalResult): bool {
+fun is_err(r: KPResult): bool {
     match (r) {
-        MalResult::Err(e) {
+        KPResult::Err(e) {
             return true
         }
     }
     return false
 }
-fun get_err(r: MalResult): MalValue {
+fun get_err(r: KPResult): KPValue {
     match (r) {
-        MalResult::Err(e) {
+        KPResult::Err(e) {
             return e
         }
     }
-    /*return malSymbol(str("get-err-not-error"))*/
+    /*return kpSymbol(str("get-err-not-error"))*/
     error("get-err-not-error")
 }
-fun get_value(r: MalResult): MalValue {
+fun get_value(r: KPResult): KPValue {
     match (r) {
-        MalResult::Ok(v) {
+        KPResult::Ok(v) {
             return v
         }
     }
-    /*return malSymbol(str("get-value-is-error"))*/
+    /*return kpSymbol(str("get-value-is-error"))*/
     error("get-value-is-error")
 }
-fun pr_str(v: MalValue, print_readably: bool): str {
+fun pr_str(v: KPValue, print_readably: bool): str {
     match (v.internal) {
-        MalValue_int::Vector(l) {
+        KPValue_int::Vector(l) {
             var to_ret = str("( ")
             for (var i = 0; i < l.get().size; i++;) {
                 if (i != 0) {
@@ -523,10 +469,10 @@ fun pr_str(v: MalValue, print_readably: bool): str {
             }
             return to_ret + " )"
         }
-        MalValue_int::Int(i) {
+        KPValue_int::Int(i) {
             return to_string(i)
         }
-        MalValue_int::String(s) {
+        KPValue_int::String(s) {
             if print_readably {
                 var to_ret = str("\"") //"
                 for (var i = 0; i < s.length(); i++;) {
@@ -545,33 +491,36 @@ fun pr_str(v: MalValue, print_readably: bool): str {
                 return s
             }
         }
-        MalValue_int::Symbol(s) {
+        KPValue_int::Symbol(s) {
             if print_readably {
                 return "'" + s
             } else {
                 return s
             }
         }
-        MalValue_int::BuiltinFunction(f) {
-            return str("builtin function")
+        KPValue_int::BuiltinCombiner(f) {
+            return str("builtin combiner")
         }
-        MalValue_int::Function(f) {
-            return str("function")
+        KPValue_int::Combiner(f) {
+            return str("combiner")
         }
-        MalValue_int::True() {
+        KPValue_int::Env(e) {
+            return str("environment")
+        }
+        KPValue_int::True() {
             return str("true")
         }
-        MalValue_int::False() {
+        KPValue_int::False() {
             return str("false")
         }
-        MalValue_int::Nil() {
+        KPValue_int::Nil() {
             return str("nil")
         }
     }
     error("can't print")
 }
 
-fun READ(grammar: ref Grammer<MalResult, MalValue>, s: str): MalResult {
+fun READ(grammar: ref Grammer<KPResult, KPValue>, s: str): KPResult {
     var to_ret = read_str(grammar, s)
     if to_ret.first != s.length() {
         if is_err(to_ret.second) {
@@ -584,210 +533,25 @@ fun READ(grammar: ref Grammer<MalResult, MalValue>, s: str): MalResult {
     return to_ret.second
 }
 
-fun eval_ast(env: *Env, ast: MalValue): MalResult {
-    match (ast.internal) {
-        MalValue_int::Vector(l) {
-            var to_ret = vec<MalValue>()
-            for (var i = 0; i < l.get().size; i++;) {
-                var mid = EVAL(env, l.get()[i])
-                if is_err(mid) {
-                    return mid
-                }
-                to_ret.add(get_value(mid))
-            }
-            return MalResult::Ok(malVector(to_ret))
-        }
-        MalValue_int::Symbol(s) {
-            return env->get(s)
-        }
-    }
-    return MalResult::Ok(ast)
-}
-
-fun EVAL(env: *Env, ast: MalValue): MalResult {
+fun EVAL(env: *KPEnv, ast: KPValue): KPResult {
     // for tco
     while (true) {
-        var expanded = macroexpand(ast, env)
-        if (is_err(expanded)) {
-            return expanded
-        }
-        ast = get_value(expanded)
-        if !ast.is_vector() {
-            return eval_ast(env, ast)
-        }
         match (ast.internal) {
-            MalValue_int::Vector(l) {
+            KPValue_int::Vector(l) {
                 if (l.get().size == 0) {
-                    return MalResult::Ok(ast)
-                } else if (l.get()[0].is_symbol("def!")) {
-                    if (l.get().size != 3) {
-                        return MalResult::Err(malString(str("def! without exaclty key and value")))
-                    }
-                    if (!l.get()[1].is_symbol()) {
-                        return MalResult::Err(malString(str("def! not on symbol")))
-                    }
-                    if env->outer != null<Env>() {
-                        return MalResult::Err(malString(str("def! not at top level")))
-                    }
-                    var value = EVAL(env, l.get()[2])
-                    if (is_err(value)) {
-                        return value
-                    }
-                    env->set(l.get()[1].get_symbol_text(), get_value(value))
-                    return value
-                } else if (l.get()[0].is_symbol("defmacro!")) {
-                    if (l.get().size != 3) {
-                        return MalResult::Err(malString(str("defmacro! without exaclty key and value")))
-                    }
-                    if (!l.get()[1].is_symbol()) {
-                        return MalResult::Err(malString(str("defmacro! not on symbol")))
-                    }
-                    var value = EVAL(env, l.get()[2])
-                    if (is_err(value)) {
-                        return value
-                    }
-                    var v = get_value(value)
-                    match (v.internal) {
-                        MalValue_int::Function(f) {
-                            f.is_macro = true
-                            env->set(l.get()[1].get_symbol_text(), nmMV(MalValue_int::Function(f)))
-                            return value
-                        }
-                    }
-                    return MalResult::Err(malString(str("defmacro! on not a function")))
-                } else if (l.get()[0].is_symbol("let*")) {
-                    if (l.get().size != 3) {
-                        return MalResult::Err(malString(str("let* without list of bindings & end value")))
-                    }
-                    if (!l.get()[1].is_vector()) {
-                        return MalResult::Err(malString(str("let* without list of bindings")))
-                    }
-                    var bindings = l.get()[1].get_vector_rc()
-                    if (bindings.get().size & 1 != 0) {
-                        return MalResult::Err(malString(str("let* list of bindings has odd number of entries")))
-                    }
-                    var new_env = new<Env>()->construct(env)
-                    for (var i = 0; i < bindings.get().size; i+=2;) {
-                        if (!bindings.get()[i].is_symbol()) {
-                            return MalResult::Err(malString(str("let* var name not symbol")))
-                        }
-                        var to_set_value = EVAL(new_env, bindings.get()[i+1])
-                        if (is_err(to_set_value)) {
-                            return to_set_value
-                        }
-                        new_env->set(bindings.get()[i].get_symbol_text(), get_value(to_set_value))
-                    }
-                    // tco
-                    env = new_env
-                    var tmp = l.get()[2]
-                    ast = tmp
-                    continue
-                } else if (l.get()[0].is_symbol("do")) {
-                    for (var i = 1; i < l.get().size-1; i++;) {
-                        var mid = EVAL(env, l.get()[i])
-                        if is_err(mid) {
-                            return mid
-                        }
-                    }
-                    // tco
-                    var tmp = l.get()[l.get().size-1]
-                    ast = tmp
-                    continue
-                } else if (l.get()[0].is_symbol("if")) {
-                    if l.get().size != 3 && l.get().size != 4 {
-                        return MalResult::Err(malString(str("if needs 2 or 3 children")))
-                    }
-                    var cond = EVAL(env, l.get()[1])
-                    if is_err(cond) {
-                        return cond
-                    }
-                    // tco
-                    if get_value(cond).is_truthy() {
-                        var tmp = l.get()[2]
-                        ast = tmp
-                    } else if l.get().size == 4 {
-                        var tmp = l.get()[3]
-                        ast = tmp
-                    } else {
-                        return MalResult::Ok(malNil())
-                    }
-                    continue
-                } else if (l.get()[0].is_symbol("fn*")) {
-                    if l.get().size != 3 {
-                        return MalResult::Err(malString(str("fn* needs 2 children")))
-                    }
-                    if (!l.get()[1].is_vector()) {
-                        return MalResult::Err(malString(str("fn* without list of parameters")))
-                    }
-                    var parameters = l.get()[1].get_vector_rc()
-                    var parameters_str = vec<str>()
-                    var is_variadic = false
-                    for (var i = 0; i < parameters.get().size; i++;) {
-                        if (!parameters.get()[i].is_symbol()) {
-                            return MalResult::Err(malString(str("fn* parameter name not symbol")))
-                        }
-                        var symbol_text = parameters.get()[i].get_symbol_text()
-                        if symbol_text == "&" {
-                            if i != parameters.get().size - 2 {
-                                return MalResult::Err(malString(str("fn* has wrong number of arguments after &")))
-                            }
-                            if (!parameters.get()[i+1].is_symbol()) {
-                                return MalResult::Err(malString(str("fn* parameter name not symbol")))
-                            }
-                            is_variadic = true
-                            i++
-                            symbol_text = parameters.get()[i].get_symbol_text()
-                        }
-                        parameters_str.add(symbol_text)
-                    }
-                    var to_ret.construct(env, parameters_str, is_variadic, false, l.get()[2]): MalFunction
-                    return MalResult::Ok(nmMV(MalValue_int::Function(to_ret)))
-                } else if (l.get()[0].is_symbol("quote")) {
-                    if l.get().size == 1 {
-                        return MalResult::Err(malString(str("quote with no arguments")))
-                    }
-                    return MalResult::Ok(l.get()[1])
-                } else if (l.get()[0].is_symbol("quasiquote")) {
-                    if l.get().size == 1 {
-                        return MalResult::Err(malString(str("quasiquote with no arguments")))
-                    }
-                    var tmp = quasiquote(l.get()[1])
-                    ast = tmp
-                    continue
-                } else if (l.get()[0].is_symbol("macroexpand")) {
-                    if l.get().size == 1 {
-                        return MalResult::Err(malString(str("macroexpand with no arguments")))
-                    }
-                    return macroexpand(l.get()[1], env)
-                } else if (l.get()[0].is_symbol("try*")) {
-                    if l.get().size != 2 && (l.get().size != 3 || !l.get()[2].is_vector()) {
-                        return MalResult::Err(malString(str("try* wrong arguments")))
-                    }
-                    var A = EVAL(env, l.get()[1])
-                    if l.get().size == 3 && is_err(A) {
-                        var catch = l.get()[2].get_vector_rc()
-                        if catch.get().size != 3 || !catch.get()[0].is_symbol("catch*") || !catch.get()[1].is_symbol() {
-                            return MalResult::Err(malString(str("catch* block malformed")))
-                        }
-                        var new_env = new<Env>()->construct(env)
-                        env->set(catch.get()[1].get_symbol_text(), get_err(A))
-                        return EVAL(new_env, catch.get()[2])
-                    } else {
-                        return A
-                    }
+                    return KPResult::Err(kpString(str("Eval a zero length vector")))
                 } else {
-                    var mid = eval_ast(env, ast)
-                    if is_err(mid) {
-                        return mid
+                    // this breaks tco?
+                    var combiner = EVAL(env, l.get()[0])
+                    if is_err(combiner) {
+                        return combiner
                     }
-                    var to_call = get_value(mid).get_vector_rc()
-                    match (to_call.get()[0].internal) {
-                        MalValue_int::BuiltinFunction(f) {
-                            return f.call(to_call.get().slice(1,-1))
+                    match (get_value(combiner).internal) {
+                        KPValue_int::BuiltinCombiner(f) {
+                            return f.call(l.get().slice(1,-1), kpEnv(env))
                         }
-                        MalValue_int::Function(f) {
-                            var params = to_call.get().slice(1,-1)
-                            var call_pair = f.prep_call(to_call.get().slice(1, -1))
+                        KPValue_int::Combiner(f) {
+                            var call_pair = f.prep_call(l.get().slice(1, -1), kpEnv(env))
                             if is_err(call_pair.second) {
                                 return call_pair.second
                             }
@@ -796,15 +560,19 @@ fun EVAL(env: *Env, ast: MalValue): MalResult {
                             continue
                         }
                     }
-                    return MalResult::Err(malString(str("trying to call not a function:") + pr_str(to_call.get()[0], true)))
+                    return KPResult::Err(kpString(str("trying to call not a combiner: ") + pr_str(l.get()[0], true)))
                 }
             }
+            KPValue_int::Symbol(s) {
+                return env->get(s)
+            }
         }
-        return eval_ast(env, ast)
+        // everything else is self-evaluating
+        return KPResult::Ok(ast)
     }
 }
 
-fun rep(grammar: ref Grammer<MalResult, MalValue>, env: *Env, a: str): str {
+fun rep(grammar: ref Grammer<KPResult, KPValue>, env: *KPEnv, a: str): str {
     var read = READ(grammar, a)
     if is_err(read) {
         return pr_str(get_err(read), true)
@@ -817,7 +585,24 @@ fun rep(grammar: ref Grammer<MalResult, MalValue>, env: *Env, a: str): str {
         }
     }
 }
-fun print_wrapper(params: ref vec<MalValue>, sep: *char, print_readably: bool): str {
+
+fun function_call(f: KPValue, params: ref vec<KPValue>, env: KPValue): KPResult {
+    match (f.internal) {
+        KPValue_int::BuiltinCombiner(f) {
+            return f.call(params, env)
+        }
+        KPValue_int::Combiner(f) {
+            var call_pair = f.prep_call(params, env)
+            if is_err(call_pair.second) {
+                return call_pair.second
+            }
+            return EVAL(call_pair.first, get_value(call_pair.second))
+        }
+    }
+    return KPResult::Err(kpString(str("trying to apply not a combiner: ") + pr_str(f ,true)))
+}
+
+fun print_wrapper(params: ref vec<KPValue>, sep: *char, print_readably: bool): str {
     var to_ret = str()
     for (var i = 0; i < params.size; i++;) {
         to_ret += pr_str(params[i], print_readably)
@@ -830,21 +615,21 @@ fun print_wrapper(params: ref vec<MalValue>, sep: *char, print_readably: bool): 
 
 fun main(argc: int, argv: **char): int {
 
-    var grammar.construct(): Grammer<MalResult, MalValue>
+    var grammar.construct(): Grammer<KPResult, KPValue>
 
-    var ret_nil_term: fun(ref MalValue, ref str, int, int): MalResult = fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult { return MalResult::Ok(malNil()); }
-    var ret_nil_sym: fun(ref MalValue, ref vec<MalResult>): MalResult = fun(_: ref MalValue, x: ref vec<MalResult>): MalResult { return MalResult::Ok(malNil()); }
-    var ret_0_sym: fun(ref MalValue, ref vec<MalResult>): MalResult = fun(_: ref MalValue, x: ref vec<MalResult>): MalResult { return x[0]; }
+    var ret_nil_term: fun(ref KPValue, ref str, int, int): KPResult = fun(_: ref KPValue, input: ref str, l: int, r: int): KPResult { return KPResult::Ok(kpNil()); }
+    var ret_nil_sym: fun(ref KPValue, ref vec<KPResult>): KPResult = fun(_: ref KPValue, x: ref vec<KPResult>): KPResult { return KPResult::Ok(kpNil()); }
+    var ret_0_sym: fun(ref KPValue, ref vec<KPResult>): KPResult = fun(_: ref KPValue, x: ref vec<KPResult>): KPResult { return x[0]; }
 
     var WS = grammar.add_new_nonterminal("WS", vec(grammar.add_terminal("( |	|
 |(;[ -~]*
-))+", malNil(), ret_nil_term)), malNil(), ret_nil_sym)
-    var optional_WS = grammar.add_new_nonterminal("optional_WS", vec<int>(), malNil(), ret_nil_sym)
-    grammar.add_to_nonterminal(optional_WS, vec(WS), malNil(), ret_nil_sym)
+))+", kpNil(), ret_nil_term)), kpNil(), ret_nil_sym)
+    var optional_WS = grammar.add_new_nonterminal("optional_WS", vec<int>(), kpNil(), ret_nil_sym)
+    grammar.add_to_nonterminal(optional_WS, vec(WS), kpNil(), ret_nil_sym)
 
-    var atom = grammar.add_new_nonterminal("atom", vec(grammar.add_terminal("-?[0-9]+", malNil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult { return MalResult::Ok(malInt(string_to_num<int>(input.slice(l,r)))); })), malNil(), ret_0_sym)
+    var atom = grammar.add_new_nonterminal("atom", vec(grammar.add_terminal("-?[0-9]+", kpNil(), fun(_: ref KPValue, input: ref str, l: int, r: int): KPResult { return KPResult::Ok(kpInt(string_to_num<int>(input.slice(l,r)))); })), kpNil(), ret_0_sym)
     grammar.add_to_nonterminal(atom, vec(grammar.add_terminal("\"([#-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\\*)|(\\0)|
-|[ -!]|(\\\\\"))*\"", malNil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult { //"
+|[ -!]|(\\\\\"))*\"", kpNil(), fun(_: ref KPValue, input: ref str, l: int, r: int): KPResult { //"
         var to_ret = str()
         for (var i = l+1; i < r-1; i++;) {
             if input[i] == '\\' {
@@ -853,7 +638,7 @@ fun main(argc: int, argv: **char): int {
                 } else if input[i+1] == '\\' || input[i+1] == '"' {
                     to_ret += input[i+1]
                 } else {
-                    return MalResult::Err(malString(str("bad string escape")))
+                    return KPResult::Err(kpString(str("bad string escape")))
                 }
                 // skip
                 i++
@@ -861,550 +646,88 @@ fun main(argc: int, argv: **char): int {
                 to_ret += input[i]
             }
         }
-        return MalResult::Ok(malString(to_ret));
-    })), malNil(), ret_0_sym)
-    grammar.add_to_nonterminal(atom, vec(grammar.add_terminal("-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>)*)", malNil(), fun(_: ref MalValue, input: ref str, l: int, r: int): MalResult {
+        return KPResult::Ok(kpString(to_ret));
+    })), kpNil(), ret_0_sym)
+    grammar.add_to_nonterminal(atom, vec(grammar.add_terminal("-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>)*)", kpNil(), fun(_: ref KPValue, input: ref str, l: int, r: int): KPResult {
         var s = input.slice(l,r)
         if s == "true" {
-            return MalResult::Ok(malTrue());
+            return KPResult::Ok(kpTrue());
         } else if s == "false" {
-            return MalResult::Ok(malFalse());
+            return KPResult::Ok(kpFalse());
         } else if s == "nil" {
-            return MalResult::Ok(malNil());
+            return KPResult::Ok(kpNil());
         } else {
-            return MalResult::Ok(malSymbol(input.slice(l,r)));
+            return KPResult::Ok(kpSymbol(input.slice(l,r)));
         }
-    })), malNil(), ret_0_sym)
+    })), kpNil(), ret_0_sym)
 
-    var form = grammar.add_new_nonterminal("form", vec(atom), malNil(), ret_0_sym)
-    var space_forms = grammar.add_new_nonterminal("space_forms", vec<int>(), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
-        return MalResult::Ok(malVector(vec<MalValue>()))
+    var form = grammar.add_new_nonterminal("form", vec(atom), kpNil(), ret_0_sym)
+    var space_forms = grammar.add_new_nonterminal("space_forms", vec<int>(), kpNil(), fun(_: ref KPValue, x: ref vec<KPResult>): KPResult {
+        return KPResult::Ok(kpVector(vec<KPValue>()))
     })
-    grammar.add_to_nonterminal(space_forms, vec(form), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
+    grammar.add_to_nonterminal(space_forms, vec(form), kpNil(), fun(_: ref KPValue, x: ref vec<KPResult>): KPResult {
         if is_err(x[0]) {
             return x[0]
         }
-        return MalResult::Ok(malVector(vec(get_value(x[0]))))
+        return KPResult::Ok(kpVector(vec(get_value(x[0]))))
     })
-    grammar.add_to_nonterminal(space_forms, vec(form, WS, space_forms), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult {
+    grammar.add_to_nonterminal(space_forms, vec(form, WS, space_forms), kpNil(), fun(_: ref KPValue, x: ref vec<KPResult>): KPResult {
         if is_err(x[0]) {
             return x[0]
         }
         if is_err(x[2]) {
             return x[2]
         }
-        return MalResult::Ok(malVector(vec(get_value(x[0])) + get_value(x[2]).get_vector_rc().get()))
+        return KPResult::Ok(kpVector(vec(get_value(x[0])) + get_value(x[2]).get_vector_rc().get()))
     })
 
-    grammar.add_to_nonterminal(form, vec(grammar.add_terminal("\\(", malNil(), ret_nil_term),
+    grammar.add_to_nonterminal(form, vec(grammar.add_terminal("\\(", kpNil(), ret_nil_term),
                                                        optional_WS,
-                                                       grammar.add_terminal("\\)", malNil(), ret_nil_term)), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult { return MalResult::Ok(malVector(vec<MalValue>())); })
-    grammar.add_to_nonterminal(form, vec(grammar.add_terminal("\\(", malNil(), ret_nil_term),
+                                                       grammar.add_terminal("\\)", kpNil(), ret_nil_term)), kpNil(), fun(_: ref KPValue, x: ref vec<KPResult>): KPResult { return KPResult::Ok(kpVector(vec<KPValue>())); })
+    grammar.add_to_nonterminal(form, vec(grammar.add_terminal("\\(", kpNil(), ret_nil_term),
                                                        optional_WS,
                                                        space_forms,
                                                        optional_WS,
-                                                       grammar.add_terminal("\\)", malNil(), ret_nil_term)), malNil(), fun(_: ref MalValue, x: ref vec<MalResult>): MalResult { return x[2]; })
+                                                       grammar.add_terminal("\\)", kpNil(), ret_nil_term)), kpNil(), fun(_: ref KPValue, x: ref vec<KPResult>): KPResult { return x[2]; })
 
     grammar.set_start_symbol(form)
 
 
-    var env = new<Env>()->construct()
-    env->set(str("+"), make_builtin_function(str("+"), fun(params: vec<MalValue>): MalResult {
+    var env = new<KPEnv>()->construct()
+
+    env->set(str("+"), make_builtin_combiner(str("+"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
         var to_ret = 0
         for (var i = 0; i < params.size; i++;) {
-            match (params[i].internal) {
-                MalValue_int::Int(v) {
+            var ip = EVAL(dynamic_env, params[i])
+            if is_err(ip) {
+                return ip
+            }
+            match (get_value(ip).internal) {
+                KPValue_int::Int(v) {
                     to_ret += v
                     continue
                 }
             }
-            return MalResult::Err(malString(str("called + with not an int: ") + pr_str(params[i], false)))
+            return KPResult::Err(kpString(str("called + with not an int: ") + pr_str(params[i], false)))
         }
-        return MalResult::Ok(malInt(to_ret))
+        return KPResult::Ok(kpInt(to_ret))
     }));
-    env->set(str("-"), make_builtin_function(str("-"), fun(params: vec<MalValue>): MalResult {
-        var to_ret = 0
-        for (var i = 0; i < params.size; i++;) {
-            match (params[i].internal) {
-                MalValue_int::Int(v) {
-                    if (i == 0) {
-                        to_ret += v
-                    } else {
-                        to_ret -= v
-                    }
-                    continue
-                }
-            }
-            return MalResult::Err(malString(str("called - with not an int: ") + pr_str(params[i], false)))
-        }
-        return MalResult::Ok(malInt(to_ret))
-    }));
-    env->set(str("*"), make_builtin_function(str("*"), fun(params: vec<MalValue>): MalResult {
-        var to_ret = 1
-        for (var i = 0; i < params.size; i++;) {
-            match (params[i].internal) {
-                MalValue_int::Int(v) {
-                    to_ret *= v
-                    continue
-                }
-            }
-            return MalResult::Err(malString(str("called * with not an int: ") + pr_str(params[i], false)))
-        }
-        return MalResult::Ok(malInt(to_ret))
-    }));
-    env->set(str("/"), make_builtin_function(str("/"), fun(params: vec<MalValue>): MalResult {
-        var to_ret = 1
-        for (var i = 0; i < params.size; i++;) {
-            match (params[i].internal) {
-                MalValue_int::Int(v) {
-                    if (i == 0) {
-                        to_ret *= v
-                    } else {
-                        to_ret /= v
-                    }
-                    continue
-                }
-            }
-            return MalResult::Err(malString(str("called / with not an int: ") + pr_str(params[i], false)))
-        }
-        return MalResult::Ok(malInt(to_ret))
-    }));
-    env->set(str("="), make_builtin_function(str("="), fun(params: vec<MalValue>): MalResult {
-        if params.size != 2 {
-            return MalResult::Err(malString(str("= with not two parameters")))
-        } else {
-            return MalResult::Ok(bool_to_MalValue(params[0].equals(params[1])))
-        }
-    }));
-    env->set(str("<"), make_builtin_function(str("<"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 2 || !params[0].is_int() || !params[1].is_int() {
-            return MalResult::Err(malString(str("< with not two numbers")))
-        } else {
-            return MalResult::Ok(bool_to_MalValue(params[0].get_int() < params[1].get_int()))
-        }
-    }));
-    env->set(str("<="), make_builtin_function(str("<="), fun(params: vec<MalValue>): MalResult {
-        if params.size != 2 || !params[0].is_int() || !params[1].is_int() {
-            return MalResult::Err(malString(str("<= with not two numbers")))
-        } else {
-            return MalResult::Ok(bool_to_MalValue(params[0].get_int() <= params[1].get_int()))
-        }
-    }));
-    env->set(str(">"), make_builtin_function(str(">"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 2 || !params[0].is_int() || !params[1].is_int() {
-            return MalResult::Err(malString(str("> with not two numbers")))
-        } else {
-            return MalResult::Ok(bool_to_MalValue(params[0].get_int() > params[1].get_int()))
-        }
-    }));
-    env->set(str(">="), make_builtin_function(str(">="), fun(params: vec<MalValue>): MalResult {
-        if params.size != 2 || !params[0].is_int() || !params[1].is_int() {
-            return MalResult::Err(malString(str(">= with not two numbers")))
-        } else {
-            return MalResult::Ok(bool_to_MalValue(params[0].get_int() >= params[1].get_int()))
-        }
-    }));
-    env->set(str("str"), make_builtin_function(str("str"), fun(params: vec<MalValue>): MalResult {
-        return MalResult::Ok(malString(print_wrapper(params, "", false)))
-    }));
-    env->set(str("prn"), make_builtin_function(str("prn"), fun(params: vec<MalValue>): MalResult {
-        if params.size == 0 {
-            return MalResult::Err(malString(str("Called prn with 0 parameters")))
-        }
-        println(pr_str(params[0], true))
-        return MalResult::Ok(malNil())
-    }));
-    env->set(str("pr-str"), make_builtin_function(str("pr-str"), fun(params: vec<MalValue>): MalResult {
-        return MalResult::Ok(malString(print_wrapper(params, " ", true)))
-    }));
-    env->set(str("prn"), make_builtin_function(str("prn"), fun(params: vec<MalValue>): MalResult {
-        println(print_wrapper(params, " ", true))
-        return MalResult::Ok(malNil())
-    }));
-    env->set(str("println"), make_builtin_function(str("println"), fun(params: vec<MalValue>): MalResult {
-        println(print_wrapper(params, " ", false))
-        return MalResult::Ok(malNil())
-    }));
-    env->set(str("empty?"), make_builtin_function(str("empty?"), fun(params: vec<MalValue>): MalResult {
-        if params.size == 0 || !params[0].is_vector() {
-            return MalResult::Err(malString(str("first parameter of empty? is not a list")))
-        } else {
-            return MalResult::Ok(bool_to_MalValue(params[0].get_vector_rc().get().size == 0))
-        }
-    }));
-    env->set(str("count"), make_builtin_function(str("count"), fun(params: vec<MalValue>): MalResult {
-        if params.size == 0 || !params[0].is_vector() {
-            return MalResult::Err(malString(str("first parameter of count is not a list")))
-        } else {
-            return MalResult::Ok(malInt(params[0].get_vector_rc().get().size))
-        }
-    }));
-    env->set(str("read-string"), make_builtin_function(str("read-string"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 || !params[0].is_string() {
-            return MalResult::Err(malString(str("read-string with not a single string")))
-        } else {
-            return READ(grammar, params[0].get_string())
-        }
-    }));
-    env->set(str("slurp"), make_builtin_function(str("slurp"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 || !params[0].is_string() {
-            return MalResult::Err(malString(str("slurp with not a single string")))
-        } else {
-            return MalResult::Ok(malString(read_file(params[0].get_string())))
-        }
-    }));
-    env->set(str("eval"), make_builtin_function(str("eval"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 {
-            return MalResult::Err(malString(str("eval with wrong number of params")))
-        } else {
-            return EVAL(env, params[0])
-        }
-    }));
-    env->set(str("cons"), make_builtin_function(str("cons"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 2 || !params[1].is_vector() {
-            return MalResult::Err(malString(str("cons called with wrong number of params or second not an list/vec")))
-        } else {
-            return MalResult::Ok(malVector(vec(params[0]) + params[1].get_vector_rc().get()))
-        }
-    }));
-    env->set(str("concat"), make_builtin_function(str("concat"), fun(params: vec<MalValue>): MalResult {
-        var to_ret = vec<MalValue>()
-        for (var i = 0; i < params.size; i++;) {
-            if !params[i].is_vector() {
-                return MalResult::Err(malString(str("concat called with not an list")))
-            }
-            to_ret += params[i].get_vector_rc().get()
-        }
-        return MalResult::Ok(malVector(to_ret))
-    }));
-    env->set(str("nth"), make_builtin_function(str("nth"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 2 || !params[0].is_vector() || !params[1].is_int() {
-            return MalResult::Err(malString(str("nth called with wrong number or type of params")))
-        } else {
-            var list = params[0].get_vector_rc()
-            var idx = params[1].get_int()
-            if idx >= list.get().size {
-                return MalResult::Err(malString(str("nth idx out of range")))
-            }
-            return MalResult::Ok(list.get()[idx])
-        }
-    }));
-    env->set(str("set-nth!"), make_builtin_function(str("set-nth!"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 3 || !params[0].is_vector() || !params[1].is_int() {
-            return MalResult::Err(malString(str("set-nth! called with wrong number or type of params")))
-        } else {
-            var list = params[0].get_vector_rc()
-            var idx = params[1].get_int()
-            if idx >= list.get().size {
-                return MalResult::Err(malString(str("set-nth! idx out of range")))
-            }
-            list.get()[idx] = params[2];
-            return MalResult::Ok(malNil())
-        }
-    }));
-    env->set(str("first"), make_builtin_function(str("first"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 || !params[0].is_vector() {
-            return MalResult::Err(malString(str("first called with wrong number or type of params") + pr_str(params[0], true)))
-        } else {
-            var list = params[0].get_vector_rc()
-            if list.get().size == 0 {
-                return MalResult::Ok(malNil())
-            }
-            return MalResult::Ok(list.get()[0])
-        }
-    }));
-    env->set(str("rest"), make_builtin_function(str("rest"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 || !params[0].is_vector() {
-            return MalResult::Err(malString(str("rest called with wrong number or type of params")))
-        } else {
-            var list = params[0].get_vector_rc()
-            if list.get().size == 0 {
-                return MalResult::Ok(malVector(vec<MalValue>()))
-            }
-            return MalResult::Ok(malVector(list.get().slice(1,-1)))
-        }
-    }));
-    env->set(str("throw"), make_builtin_function(str("throw"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 {
-            return MalResult::Err(malString(str("throw called with wrong number or type of params")))
-        } else {
-            return MalResult::Err(params[0])
-        }
-    }));
-    env->set(str("apply"), make_builtin_function(str("apply"), fun(params: vec<MalValue>): MalResult {
-        if params.size < 2 || !params[params.size-1].is_vector() {
-            return MalResult::Err(malString(str("apply called with wrong number or type of params")))
-        } else {
-        var inner_params = params.slice(1,-2) + params[params.size-1].get_vector_rc().get()
-        return function_call(params[0], inner_params)
-        }
-    }));
-    env->set(str("map"), make_builtin_function(str("map"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 2 || !params[1].is_vector() {
-            return MalResult::Err(malString(str("map called with wrong number or type of params")))
-        } else {
-            var l = params[1].get_vector_rc()
-            var to_ret = vec<MalValue>()
-            for (var i = 0; i < l.get().size; i++;) {
-                var mid = function_call(params[0], vec(l.get()[i]))
-                if is_err(mid) {
-                    return mid
-                }
-                to_ret.add(get_value(mid))
-            }
-            return MalResult::Ok(malVector(to_ret))
-        }
-    }));
-    env->set(str("symbol?"), make_builtin_function(str("symbol?"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 {
-            return MalResult::Err(malString(str("symbol? called with wrong number of params")))
-        } else {
-            return MalResult::Ok(bool_to_MalValue(params[0].is_symbol()))
-        }
-    }));
-    env->set(str("symbol"), make_builtin_function(str("symbol"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 || !params[0].is_string() {
-            return MalResult::Err(malString(str("symbol called with wrong number or type of params")))
-        } else {
-            return MalResult::Ok(malSymbol(params[0].get_string()))
-        }
-    }));
-    env->set(str("vector"), make_builtin_function(str("vector"), fun(params: vec<MalValue>): MalResult {
-        return MalResult::Ok(malVector(params))
-    }));
-    env->set(str("vector?"), make_builtin_function(str("vector?"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 {
-            return MalResult::Err(malString(str("vector? called with wrong number of params")))
-        } else {
-            return MalResult::Ok(bool_to_MalValue(params[0].is_vector()))
-        }
-    }));
-    env->set(str("sequential?"), make_builtin_function(str("sequential?"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 {
-            return MalResult::Err(malString(str("sequential? called with wrong number of params")))
-        } else if params[0].is_nil() {
-            return MalResult::Ok(malFalse())
-        } else {
-            return MalResult::Ok(bool_to_MalValue(params[0].is_vector()))
-        }
-    }));
-    env->set(str("readline"), make_builtin_function(str("readline"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 || !params[0].is_string() {
-            return MalResult::Err(malString(str("readline called with wrong number or type of params")))
-        } else {
-            var entered = get_line(params[0].get_string(), 1024)
-            if entered == "***EOF***" {
-                return MalResult::Ok(malNil())
-            }
-            return MalResult::Ok(malString(entered))
-        }
-    }));
-    env->set(str("meta"), make_builtin_function(str("meta"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 {
-            return MalResult::Err(malString(str("meta called with not one argument")))
-        } else {
-            if params[0].meta != null<MalValue>() {
-                return MalResult::Ok(*params[0].meta)
-            } else {
-                return MalResult::Ok(malNil())
-            }
-        }
-    }));
-    env->set(str("with-meta"), make_builtin_function(str("with-meta"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 2 {
-            return MalResult::Err(malString(str("with-meta called with not two arguments")))
-        } else {
-            var new_meta = new<MalValue>()
-            new_meta->copy_construct(&params[1])
-            var new_value = params[0].deep_clone();
-            new_value.meta = new_meta
-            return MalResult::Ok(new_value)
-        }
-    }));
-    env->set(str("fn?"), make_builtin_function(str("fn?"), fun(params: vec<MalValue>): MalResult {
-        return MalResult::Err(malString(str("not implemented")))
-    }));
-    env->set(str("string?"), make_builtin_function(str("string?"), fun(params: vec<MalValue>): MalResult {
-        return MalResult::Err(malString(str("not implemented")))
-    }));
-    // self-modifying grammar
-    env->set(str("add_terminal"), make_builtin_function(str("add_terminal"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 2 || !params[0].is_string() {
-            return MalResult::Err(malString(str("add_terminal called with wrong number or type of params")))
-        } else {
-            return MalResult::Ok(malInt(grammar.add_terminal(params[0].get_string(), params[1], fun(f: ref MalValue, input: ref str, l: int, r: int): MalResult {
-                return function_call(f, vec(malString(input.slice(l,r))))
-            })))
-        }
-    }));
-    var add_grammer_rule_helper: fun(str, vec<MalValue>, MalValue, fun(ref MalValue, ref vec<MalResult>): MalResult): MalResult = fun(nonterminal_str: str, rule: vec<MalValue>, data: MalValue, f: fun(ref MalValue, ref vec<MalResult>): MalResult): MalResult {
-        var int_rule = vec<int>()
-        for (var i = 0; i < rule.size; i++;) {
-            if rule[i].is_int() {
-                int_rule.add(rule[i].get_int())
-            } else if rule[i].is_symbol() {
-                var sub_nonterminal_idx = grammar.nonterminal_names.find(rule[i].get_symbol_text())
-                if sub_nonterminal_idx == -1 {
-                    return MalResult::Err(malString(str("Couldn't find nonterminal: ") + rule[i].get_symbol_text()))
-                }
-                var sub_nonterminal = -1*(sub_nonterminal_idx+1)
-                int_rule.add(sub_nonterminal)
-            } else if rule[i].is_string() {
-                int_rule.add(grammar.add_terminal(rule[i].get_string(), malNil(), fun(f: ref MalValue, input: ref str, l: int, r: int): MalResult {
-                    return MalResult::Ok(malString(input.slice(l,r)))
-                }))
-            } else if rule[i].is_vector() {
-                // A sequence!
-                var sub_rule_names = nonterminal_str + "_seq_" + new_tmp()
-                var inner_rule = add_grammer_rule_helper(sub_rule_names, rule[i].get_vector_rc().get(), malNil(), fun(_: ref MalValue, seq: ref vec<MalResult>): MalResult {
-                    var to_ret = vec<MalValue>()
-                    for (var i = 0; i < seq.size; i++;) {
-                        if is_err(seq[i]) {
-                            return seq[i]
-                        }
-                        to_ret.add(get_value(seq[i]))
-                    }
-                    return MalResult::Ok(malVector(to_ret))
-                })
-                if is_err(inner_rule) {
-                    return inner_rule
-                }
-                int_rule.add(get_value(inner_rule).get_int())
-            } else {
-                match (rule[i].internal) {
-                    MalValue_int::BuiltinFunction(f) {
-                        if f.name == "+" || f.name == "*" {
-                            if int_rule.size == 0 {
-                                return MalResult::Err(malString(str("add_grammar_rule has + or * in first position, with nothing to repeat")))
-                            }
-                            var current = int_rule.last()
-                            var sub_rule_names = nonterminal_str + "_" + new_tmp()
-                            var new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_one_or_more", vec(current), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
-                                if is_err(x[0]) { return x[0]; }
-                                return MalResult::Ok(malVector(vec(get_value(x[0]))))
-                            })
-                            grammar.add_to_nonterminal(new, vec(current, new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
-                                if is_err(x[0]) { return x[0]; }
-                                if is_err(x[1]) { return x[1]; }
-                                return MalResult::Ok(malVector(vec(get_value(x[0])) + get_value(x[1]).get_vector_rc().get()))
-                            })
-                            if f.name == "*" {
-                                new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_zero_or_more", vec(new), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
-                                    if is_err(x[0]) { return x[0]; }
-                                    return MalResult::Ok(get_value(x[0]))
-                                })
-                                grammar.add_to_nonterminal(new, vec<int>(), malNil(), fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
-                                    return MalResult::Ok(malVector(vec<MalValue>()))
-                                })
-                            }
-                            int_rule.last() = new
-                            continue
-                        }
-                    }
-                }
-                return MalResult::Err(malString(str("add_grammar_rule called with not symbol, int, or string in rule")))
-            }
-        }
-        return MalResult::Ok(malInt(grammar.add_to_or_create_nonterminal(nonterminal_str, int_rule, data, f)))
-    }
-    env->set(str("add_grammar_rule"), make_builtin_function(str("add_grammar_rule"), fun(params: vec<MalValue>): MalResult {
-        if params.size != 3 || !params[0].is_symbol() || !params[1].is_vector() {
-            return MalResult::Err(malString(str("add_grammar_rule called with wrong number or type of params")))
-        } else {
-            var nonterminal_str = params[0].get_symbol_text()
-            var rule = params[1].get_vector_rc().get()
-            return add_grammer_rule_helper(nonterminal_str, rule, params[2], fun(f: ref MalValue, x: ref vec<MalResult>): MalResult {
-                var params = vec<MalValue>()
-                for (var i = 0; i < x.size; i++;) {
-                    if is_err(x[i]) {
-                        return x[i]
-                    }
-                    params.add(get_value(x[i]))
-                }
-                return function_call(f, params)
-            })
-        }
-    }));
-    var ERS = fun(params: vec<MalValue>): MalResult {
-        if params.size != 1 || !params[0].is_string() {
-            return MalResult::Err(malString(str("eval-read-string called with wrong number or type of params")))
-        } else {
-            var input = params[0].get_string()
-            var i = 0
-            var current_ret = MalResult::Ok(malNil())
-            if i < input.length() {
-                // initial handle whitespace
-                var BSR = fungll(grammar, optional_WS, input.slice(i, -1))
-                var longest = -1
-                for (var j = 0; j < BSR.data.size; j++;) {
-                    if BSR.data[j].nonterminal == optional_WS && BSR.data[j].left == 0 {
-                        if BSR.data[j].right > longest {
-                            longest = BSR.data[j].right
-                        }
-                    }
-                }
-                if longest > 0 {
-                    i += longest
-                }
-            }
-            while i < input.length() {
-                var r = read_str(grammar, input.slice(i, -1))
-                i += r.first
-                if is_err(r.second) {
-                    return r.second
-                }
-                current_ret = EVAL(env, get_value(r.second))
-                if is_err(current_ret) {
-                    return current_ret
-                }
-                // handle whitespace again
-                var BSR = fungll(grammar, optional_WS, input.slice(i, -1))
-                var longest = -1
-                for (var j = 0; j < BSR.data.size; j++;) {
-                    if BSR.data[j].nonterminal == optional_WS && BSR.data[j].left == 0 {
-                        if BSR.data[j].right > longest {
-                            longest = BSR.data[j].right
-                        }
-                    }
-                }
-                if longest > 0 {
-                    i += longest
-                }
-            }
-            return current_ret
-        }
-    }
-    env->set(str("eval-read-string"), make_builtin_function(str("eval-read-string"), ERS));
-    // reader macros
-    rep(grammar, env, str("(add_grammar_rule (quote atom) (vector \"'\" (quote form)) (fn* (_ x) (quasiquote (quote (unquote x)))))")) //'
-    rep(grammar, env, str("(add_grammar_rule 'form (vector \"\\\\[\" 'optional_WS \"\\\\]\") (fn* (& _) '(vector)))")) //'
-    rep(grammar, env, str("(add_grammar_rule 'form (vector \"\\\\[\" 'optional_WS 'space_forms 'optional_WS \"\\\\]\") (fn* (_ _ x _ _) (quasiquote (vector (splice-unquote x)))))")) //'
-    // now we can use ' for the rest
-    rep(grammar, env, str("(add_grammar_rule 'atom [\"`\" 'form] (fn* (_ x) (quasiquote (quasiquote (unquote x)))))"))
-    rep(grammar, env, str("(add_grammar_rule 'atom [\"~\" 'form] (fn* (_ x) (vector (quote unquote) x)))"))
-    // the standard appears to be for splice-unquote to be <symbol-for-unqoute><symbol-for-deref>, but unquote deref is a reasonable
-    // sequence of characters and causes ambigious parses! So I chose the other common unquote symbol to be splice-unquote
-    rep(grammar, env, str("(add_grammar_rule 'atom [\",\" 'form] (fn* (_ x) (vector (quote splice-unquote) x)))"))
-    rep(grammar, env, str("(add_grammar_rule 'atom [\"@\" 'form] (fn* (_ x) `(deref ~x)))")) //"
 
-    rep(grammar, env, str("(def! not (fn* (a) (if a false true)))"))
-    rep(grammar, env, str("(def! load-file (fn* (f) (eval-read-string (slurp f))))"))
-    rep(grammar, env, str("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (vector 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))"))
-    rep(grammar, env, str("(def! nil? (fn* (a) (= nil a)))"))
-    var params = vec<MalValue>()
     if argc == 3 && str(argv[1]) == "-C" {
-        env->set(str("*ARGV*"), malNil())
-        var evaled = ERS(vec(malString(str(argv[2]))))
-        if is_err(evaled) {
-            printlnerr(str("Exception: ") + pr_str(get_err(evaled), true))
-        } else {
-            println("Result: " + pr_str(get_value(evaled), true))
-        }
+        error("-C not implemented")
+        //env->set(str("*ARGV*"), kpNil())
+        //var evaled = ERS(vec(kpString(str(argv[2]))))
+        //if is_err(evaled) {
+        //    printlnerr(str("Exception: ") + pr_str(get_err(evaled), true))
+        //} else {
+        //    println("Result: " + pr_str(get_value(evaled), true))
+        //}
     } else if argc >= 2 {
+        var params = vec<KPValue>()
         for (var i = 2; i < argc; i++;) {
-            params.add(malString(str(argv[i])))
+            params.add(kpString(str(argv[i])))
         }
-        env->set(str("*ARGV*"), malVector(params))
+        env->set(str("*ARGV*"), kpVector(params))
         var eval_result_str = rep(grammar, env, str("(load-file \"") + argv[1] + "\")")
         println(eval_result_str)
         if eval_result_str.length() >= 11 && eval_result_str.slice(0,11) == "Exception: " {
@@ -1414,274 +737,11 @@ fun main(argc: int, argv: **char): int {
         var main = env->get(str("main"))
         if !is_err(main) {
             println("Starting compile!")
-            match (get_value(main).internal) {
-                MalValue_int::Function(f) {
-                    var top_decs = str("#include <stdlib.h>\n#include <stdio.h>\n#include <stddef.h>\n#include <string.h>\n#include <setjmp.h>\n")
-                    top_decs += """
-                    jmp_buf *current_exception_handler;
-                    size_t current_exception_value;
-                    void error(char* message) {fprintf(stderr, "%s", message); exit(1);}
-                    void check_num_params(size_t a, size_t b, char* function) { if (a!=b) {fprintf(stderr, "%s: expected num params to be %d\n", function, b); exit(1);}}
-                    void check_num_params_at_least(size_t a, size_t b, char* function) { if (a<b) {fprintf(stderr, "%s: expected num params to be at least %d\n", function, b); exit(1);}}
-                    void check_int(size_t p, char* function) { if ((p&0x7)!=0) {fprintf(stderr, "%s: expected param to be int\n", function); exit(1);}}
-                    void check_vector(size_t p, char* function) { if ((p&0x7)!=0x2) {fprintf(stderr, "%s: expected param to be vector\n", function); exit(1);}}
-                    void check_function(size_t p, char* message) { if ((p&0x7)!=0x6) {fprintf(stderr, "%s: expected a function\n", message); exit(1);}}
-                    typedef struct {
-                    size_t (*func)(size_t*,size_t,size_t*);
-                    size_t* data;
-                    } closure;
-                    size_t _plus_impl(size_t* _, size_t num, size_t* args) {
-                    check_num_params(num, 2, "+"); check_int(args[0], "+"); check_int(args[1], "+");
-                     return (size_t)(((((ptrdiff_t)args[0]) >> 3) + (((ptrdiff_t)args[1]) >> 3)) << 3);
-                    }"""
-                    var top_defs = str("closure _plus_closure = { _plus_impl, NULL};\n")
-                    top_defs += """size_t _minus_impl(size_t* _, size_t num, size_t* args) {
-                    check_num_params(num, 2, "-"); check_int(args[0], "-"); check_int(args[1], "-");
-                     return (size_t)(((((ptrdiff_t)args[0]) >> 3) - (((ptrdiff_t)args[1]) >> 3)) << 3);
-                    }
-                    closure _minus_closure =(closure){ _minus_impl, NULL};
-                    size_t _mult_impl(size_t* _, size_t num, size_t* args) {
-                    check_num_params(num, 2, "*"); check_int(args[0], "*"); check_int(args[1], "*");
-                     return (size_t)(((((ptrdiff_t)args[0]) >> 3) * (((ptrdiff_t)args[1]) >> 3)) << 3);
-                    }
-                    closure _mult_closure = (closure){ _mult_impl, NULL};
-                    size_t _div_impl(size_t* _, size_t num, size_t* args) {
-                    check_num_params(num, 2, "/"); check_int(args[0], "/"); check_int(args[1], "/");
-                     return (size_t)(((((ptrdiff_t)args[0]) >> 3) / (((ptrdiff_t)args[1]) >> 3)) << 3);
-                    }
-                    closure _div_closure = (closure){ _div_impl, NULL};
-                    size_t _eq_impl(size_t* _, size_t num, size_t* args) {
-                        check_num_params(num, 2, "=");
-                        if (args[0] == args[1]) {
-                            return 0x9F;
-                        } else if ((args[0]&0x7) != (args[1]&0x7)) {
-                            return 0x1F;
-                        } else if ((args[0]&0x3) == 0x05) {
-                            // string compare
-                            char* str1 = (char*)(((size_t*)(args[0]>>3))+1);
-                            char* str2 = (char*)(((size_t*)(args[1]>>3))+1);
-                            if (strcmp(str1,str2) == 0) {
-                                return 0x9F;
-                            } else {
-                                return 0x1F;
-                            }
-                        } else if ((args[0]&0x7) == 0x05) {
-                            // symbol compare
-                            char* sym1 = (char*)(((size_t*)(args[0]>>3))+1);
-                            char* sym2 = (char*)(((size_t*)(args[1]>>3))+1);
-                            if (strcmp(sym1,sym2) == 0) {
-                                return 0x9F;
-                            } else {
-                                return 0x1F;
-                            }
-                        } else {
-                            return 0x1F;
-                        }
-                    }
-                    closure _eq_closure = (closure){ _eq_impl, NULL};
-                    size_t _lt_impl(size_t* _, size_t num, size_t* args) {
-                    check_num_params(num, 2, "<"); check_int(args[0], "<"); check_int(args[1], "<");
-                    if (args[0] < args[1]) { return 0x9F; } else { return 0x1F; }
-                    }
-                    closure _lt_closure = (closure){ _lt_impl, NULL};
-                    size_t _lte_impl(size_t* _, size_t num, size_t* args) {
-                    check_num_params(num, 2, "<="); check_int(args[0], "<="); check_int(args[1], "<=");
-                    if (args[0] <= args[1]) { return 0x9F; } else { return 0x1F; }
-                    }
-                    closure _lte_closure = (closure){ _lte_impl, NULL};
-                    size_t _gt_impl(size_t* _, size_t num, size_t* args) {
-                    check_num_params(num, 2, ">"); check_int(args[0], ">"); check_int(args[1], ">");
-                    if (args[0] > args[1]) { return 0x9F; } else { return 0x1F; }
-                    }
-                    closure _gt_closure = (closure){ _gt_impl, NULL};
-                    size_t _gte_impl(size_t* _, size_t num, size_t* args) {
-                    check_num_params(num, 2, ">="); check_int(args[0], ">="); check_int(args[1], ">=");
-                    if (args[0] >= args[1]) { return 0x9F; } else { return 0x1F; }
-                    }
-                    closure _gte_closure = (closure){ _gte_impl, NULL};
-                    size_t _print_impl(size_t* _, size_t num, size_t* args) {
-                    for (int _idx = 0; _idx < num; _idx++) {
-                    if      ((args[_idx] & 0xFF) == 0x2F) printf("nil");
-                    else if ((args[_idx] & 0xFF) == 0x9F) printf("true");
-                    else if ((args[_idx] & 0xFF) == 0x1F) printf("false");
-                    else if ((args[_idx] & 0xFF) == 0x0F) printf("Char?");
-                    else if ((args[_idx] & 0x07) == 0x06) printf("function");
-                    else if ((args[_idx] & 0x07) == 0x05) printf("'%s", ((char*)(args[_idx]>>3))+sizeof(size_t));
-                    else if ((args[_idx] & 0x07) == 0x03) printf("%s", ((char*)(args[_idx]>>3))+sizeof(size_t));
-                    else if ((args[_idx] & 0x07) == 0x02) {
-                        printf("( ");
-                        size_t* vec = (size_t*)(args[_idx]>>3);
-                        for (int i = 0; i < vec[1]; i++) {
-                            _print_impl(NULL, 1, vec+i+2);
-                            printf(" ");
-                        }
-                        printf(")");
-                    } else if ((args[_idx] & 0x07) == 0x00) printf("%d", args[_idx]>>3);
-                    else printf("can't print");
-                    }
-                    return 0x2F;
-                    }
-                    closure _print_closure = (closure){ _print_impl, NULL};
-                    size_t _println_impl(size_t* _, size_t num, size_t* args) {
-                    _print_impl(_, num, args);
-                    printf("\n");
-                    return 0x2F;
-                    }
-                    closure _println_closure = (closure){ _println_impl, NULL};
-
-                    size_t _vector_impl(size_t* _, size_t num, size_t* args) {
-                        size_t *vec = malloc(sizeof(size_t)*(num + 2));
-                        vec[0] = 0x2F;
-                        vec[1] = num;
-                        for (int i = 0; i < num; i++)
-                            vec[i+2] = args[i];
-                        return ((((size_t)vec)<<3)|0x2);
-                    }
-                    closure _vector_closure = (closure){ _vector_impl, NULL};
-
-                    size_t _nth_impl(size_t* _, size_t num, size_t* args) {
-                        check_num_params(num, 2, "nth");
-                        check_int(args[1], "nth");
-                        if   ((args[0] & 0x7) == 0x2) {
-                            size_t* vec = (size_t*)(args[0]>>3);
-                            if (((ptrdiff_t)(args[1]>>3)) < 0 || (args[1]>>3) >= vec[1]) {
-                                error("nth idx out of range\n");
-                            }
-                            return vec[(args[1]>>3)+2];
-                        } else {
-                            error("Passed not a vector to nth\n");
-                        }
-                        return 0x2F;
-                    }
-                    closure _nth_closure = (closure){ _nth_impl, NULL};
-
-                    size_t _set_nth_impl(size_t* _, size_t num, size_t* args) {
-                        check_num_params(num, 3, "set-nth!");
-                        check_int(args[1], "set-nth!");
-                        if   ((args[0] & 0x7) == 0x2) {
-                            size_t* vec = (size_t*)(args[0]>>3);
-                            if (((ptrdiff_t)(args[1]>>3)) < 0 || (args[1]>>3) >= vec[1]) {
-                                error("nth idx out of range\n");
-                            }
-                            vec[(args[1]>>3)+2] = args[2];
-                            return 0x2F;
-                        } else {
-                            error("Passed not a vector to set-nth!\n");
-                        }
-                    }
-                    closure _set_nth_closure = (closure){ _set_nth_impl, NULL};
-
-                    size_t _cons_impl(size_t* _, size_t num, size_t* args) {
-                        check_num_params(num, 2, "cons");
-                        check_vector(args[1], "cons");
-                        size_t* old_vec = (size_t*)(args[1]>>3);
-                        size_t new_size = old_vec[1] + 1;
-                        size_t *vec = malloc(sizeof(size_t)*(new_size + 2));
-                        vec[0] = 0x2F;
-                        vec[1] = new_size;
-                        vec[2] = args[0];
-                        for (int i = 0; i < old_vec[1]; i++)
-                            vec[i+3] = old_vec[i+2];
-                        return ((((size_t)vec)<<3)|0x2);
-                    }
-                    closure _cons_closure = (closure){ _cons_impl, NULL};
-
-                    size_t _concat_impl(size_t* _, size_t num, size_t* args) {
-                        check_num_params(num, 2, "concat");
-                        check_vector(args[0], "concat");
-                        check_vector(args[1], "concat");
-                        size_t* vec1 = (size_t*)(args[0]>>3);
-                        size_t* vec2 = (size_t*)(args[1]>>3);
-                        size_t new_size = vec1[1] + vec2[1];
-                        size_t *vec = malloc(sizeof(size_t)*(new_size + 2));
-                        vec[0] = 0x2F;
-                        vec[1] = new_size;
-                        for (int i = 0; i < vec1[1]; i++)
-                            vec[i+2] = vec1[i+2];
-                        for (int i = 0; i < vec2[1]; i++)
-                            vec[vec1[1]+i+2] = vec1[i+2];
-                        return ((((size_t)vec)<<3)|0x2);
-                    }
-                    closure _concat_closure = (closure){ _concat_impl, NULL};
-
-                    size_t _with_meta_impl(size_t* _, size_t num, size_t* args) {
-                        check_num_params(num, 2, "with-meta");
-                        check_vector(args[0], "with-meta");
-
-                        size_t* og_vec = (size_t*)(args[0]>>3);
-                        size_t *vec = malloc(sizeof(size_t)*(og_vec[1] + 2));
-                        vec[0] = args[1];
-                        vec[1] = og_vec[1];
-                        for (int i = 0; i < og_vec[1]; i++)
-                            vec[i+2] = og_vec[i+2];
-                        return ((((size_t)vec)<<3)|0x2);
-                    }
-                    closure _with_meta_closure = (closure){ _with_meta_impl, NULL};
-
-                    size_t _meta_impl(size_t* _, size_t num, size_t* args) {
-                        check_num_params(num, 1, "meta");
-                        check_vector(args[0], "meta");
-
-                        return ((size_t*)(args[0]>>3))[0];
-                    }
-                    closure _meta_closure = (closure){ _meta_impl, NULL};
-
-                    size_t _throw_impl(size_t* _, size_t num, size_t* args) {
-                        check_num_params(num, 1, "throw");
-                        current_exception_value = args[0];
-                        longjmp(*current_exception_handler, 1);
-                    }
-                    closure _throw_closure = (closure){ _throw_impl, NULL};
-
-                    size_t _apply_impl(size_t* _, size_t num, size_t* args) {
-                        if (num < 2) {fprintf(stderr, "apply: expected num params to be >= 2\n"); exit(1);}
-                        check_function(args[0], "apply");
-                        check_vector(args[num-1], "apply");
-
-                        closure* func = (closure*)(args[0]>>3);
-                        size_t* args_vec = (size_t*)(args[num-1]>>3);
-                        size_t num_params = (num-2) + args_vec[1];
-                        size_t* params = malloc(sizeof(size_t)*num_params);
-                        for (int i = 0; i < (num-2); i++) {
-                            params[i] = args[i+1];
-                        }
-                        for (int i = 0; i < args_vec[1]; i++) {
-                            params[(num-2)+i] = args_vec[i+2];
-                        }
-                        size_t to_ret = func->func(func->data, num_params, params);
-                        free(params);
-                        return to_ret;
-                    }
-                    closure _apply_closure = (closure){ _apply_impl, NULL};
-
-                    size_t _count_impl(size_t* _, size_t num, size_t* args) {
-                        check_num_params(num, 1, "count");
-                        check_vector(args[0], "count");
-                        size_t* args_vec = (size_t*)(args[0]>>3);
-                        return (args_vec[1] << 3);
-                    }
-                    closure _count_closure = (closure){ _count_impl, NULL};
-
-                    """ //"
-                    var main_s = str("int main(int argc, char** argv) {\n")
-                    var main_body = str()
-                    var inner_main = compile(&top_decs, &top_defs, &main_s, &main_body, f.env, *f.body)
-                    main_s += main_body;
-                    main_s += "size_t main_to_ret = " + inner_main + ";\n"
-                    main_s += "check_int(main_to_ret, \"main return\");\n"
-                    main_s += "return (main_to_ret)>>3;\n}\n"
-                    write_file(str(argv[1]) + ".c", top_decs + top_defs + main_s)
-                    println("Finished compile")
-                    return 0
-                }
-            }
-            error("Main not a k' function")
+            error("Compiler not implemented")
         } else {
             println("No main function to compile, exiting")
         }
     } else {
-        env->set(str("*ARGV*"), malVector(params))
-        rep(grammar, env, str("(println (str \"Mal [\" *host-language* \"]\"))"))
         while (true) {
             var line = get_line(str("user> "), 1024)
             if (line == "***EOF***")
@@ -1689,421 +749,4 @@ fun main(argc: int, argv: **char): int {
             println(rep(grammar, env, line))
         }
     }
-}
-var tmp_idx: int = 0
-fun new_tmp(): str {
-    tmp_idx += 1
-    return str("x") + tmp_idx
-}
-fun find_closed_vars(defined: set<str>, env: *Env, ast: MalValue): set<str> {
-    match (ast.internal) {
-        MalValue_int::Vector(l) {
-            /*println("Find closed vars list")*/
-            if (l.get().size == 0) {
-                return set<str>()
-            } else if (l.get()[0].is_symbol("def!")) {
-                /*println("Find closed vars in def!")*/
-                defined.add(l.get()[1].get_symbol_text())
-                /*return find_closed_vars(defined, env, l[2])*/
-                var to_ret = find_closed_vars(defined, env, l.get()[2])
-                /*println("end Find closed vars in def!")*/
-                return to_ret
-            } else if (l.get()[0].is_symbol("let*")) {
-                var bindings = l.get()[1].get_vector_rc()
-                var to_ret = set<str>()
-                var new_env = new<Env>()->construct(env)
-                for (var i = 0; i < bindings.get().size; i+=2;) {
-                    defined.add(bindings.get()[i].get_symbol_text())
-                    new_env->set(bindings.get()[i].get_symbol_text(), malNil())
-                    to_ret += find_closed_vars(defined, new_env, bindings.get()[i+1])
-                }
-                return to_ret + find_closed_vars(defined, new_env, l.get()[2])
-            } else if l.get()[0].is_symbol("do") || l.get()[0].is_symbol("if") {
-                var to_ret = set<str>()
-                for (var i = 1; i < l.get().size; i++;) {
-                    to_ret += find_closed_vars(defined, env, l.get()[i])
-                }
-                return to_ret
-            } else if (l.get()[0].is_symbol("fn*")) {
-                /*println("Find closed vars fn*")*/
-                var f = EVAL(env, ast)
-                /*return find_closed_vars(defined, env, get_value(f))*/
-                var to_ret =  find_closed_vars(defined, env, get_value(f))
-                /*println("end find closed vars fn*")*/
-                return to_ret
-            } else if (l.get()[0].is_symbol("quote")) {
-                return set<str>()
-            } else if (l.get()[0].is_symbol("quasiquote")) {
-                return find_closed_vars(defined, env, quasiquote(l.get()[1]))
-            } else if (l.get()[0].is_symbol("macroexpand")) {
-                error("macroexpand doesn't make sense while finding closed vars")
-            } else if (l.get()[0].is_symbol("try*")) {
-                error("finding closed vars in try* unimplemented")
-            } else {
-                var to_ret = set<str>()
-                for (var i = 0; i < l.get().size; i++;) {
-                    to_ret += find_closed_vars(defined, env, l.get()[i])
-                }
-                return to_ret
-            }
-            /*println("end list")*/
-        }
-        MalValue_int::Symbol(s) {
-            if !defined.contains(s) {
-                var scope = env->find(s)
-                // null scope should mean top level var
-                if scope == null<Env>() {
-                    /*error("Can't find " + s + " in env when trying to find closed_vars\n" + env->to_string())*/
-                    return set<str>()
-                }
-                // don't do for top level vars
-                if scope->outer != null<Env>() {
-                    return set(s)
-                }
-            }
-            return set<str>()
-        }
-        MalValue_int::Int(i) {
-            return set<str>()
-        }
-        MalValue_int::Nil() {
-            return set<str>()
-        }
-        MalValue_int::True() {
-            return set<str>()
-        }
-        MalValue_int::False() {
-            return set<str>()
-        }
-        MalValue_int::String(s) {
-            return set<str>()
-        }
-        MalValue_int::Function(f) {
-            var new_env = new<Env>()->construct(env)
-            for (var i = 0; i < f.parameters.size; i++;) {
-                new_env->set(f.parameters[i], malNil())
-            }
-            /*println("Find closed vars going inside function:\n" + new_env->to_string())*/
-            /*return find_closed_vars(defined.union(from_vector(f.parameters)), new_env, *f.body)*/
-            var to_ret = find_closed_vars(defined.union(from_vector(f.parameters)), new_env, *f.body)
-            /*println("coming out of function")*/
-            return to_ret
-        }
-    }
-    error("Can't get closure_vars for " + pr_str(ast, true))
-}
-fun c_legal(s: ref str): str {
-    var to_ret = str()
-    for (var i = 0; i < s.length(); i++;) {
-        if s[i] == '!' {
-            to_ret += "_bang_"
-        } else if s[i] == '-' {
-            to_ret += "_dash_"
-        } else if s[i] == '+' {
-            to_ret += "_plus_"
-        } else if s[i] == '*' {
-            to_ret += "_star_"
-        } else if s[i] == '/' {
-            to_ret += "_div_"
-        } else if s[i] == '=' {
-            to_ret += "_eq_"
-        } else if s[i] == '>' {
-            to_ret += "_gt_"
-        } else if s[i] == '<' {
-            to_ret += "_lt_"
-        } else {
-            to_ret += s[i]
-        }
-    }
-    return to_ret
-}
-fun compile_value(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *Env, ast: MalValue, quoted: bool): str {
-    match (ast.internal) {
-        MalValue_int::Nil() {
-            return str("0x2F")
-        }
-        MalValue_int::True() {
-            return str("0x9F")
-        }
-        MalValue_int::False() {
-            return str("0x1F")
-        }
-        MalValue_int::BuiltinFunction(f) {
-            if (f.name == "+") {
-                return str("((((size_t)&_plus_closure)<<3)|0x6)")
-            } else if (f.name == "-") {
-                return str("((((size_t)&_minus_closure)<<3)|0x6)")
-            } else if (f.name == "*") {
-                return str("((((size_t)&_mult_closure)<<3)|0x6)")
-            } else if (f.name == "/") {
-                return str("((((size_t)&_div_closure)<<3)|0x6)")
-            } else if (f.name == "=") {
-                return str("((((size_t)&_eq_closure)<<3)|0x6)")
-            } else if (f.name == "<") {
-                return str("((((size_t)&_lt_closure)<<3)|0x6)")
-            } else if (f.name == "<=") {
-                return str("((((size_t)&_lte_closure)<<3)|0x6)")
-            } else if (f.name == ">") {
-                return str("((((size_t)&_gt_closure)<<3)|0x6)")
-            } else if (f.name == ">=") {
-                return str("((((size_t)&_gte_closure)<<3)|0x6)")
-            } else if (f.name == "print") {
-                return str("((((size_t)&_print_closure)<<3)|0x6)")
-            } else if (f.name == "println") {
-                return str("((((size_t)&_println_closure)<<3)|0x6)")
-            } else if (f.name == "vector") {
-                return str("((((size_t)&_vector_closure)<<3)|0x6)")
-            } else if (f.name == "nth") {
-                return str("((((size_t)&_nth_closure)<<3)|0x6)")
-            } else if (f.name == "set-nth!") {
-                return str("((((size_t)&_set_nth_closure)<<3)|0x6)")
-            } else if (f.name == "throw") {
-                return str("((((size_t)&_throw_closure)<<3)|0x6)")
-            } else if (f.name == "with-meta") {
-                return str("((((size_t)&_with_meta_closure)<<3)|0x6)")
-            } else if (f.name == "meta") {
-                return str("((((size_t)&_meta_closure)<<3)|0x6)")
-            } else if (f.name == "cons") {
-                return str("((((size_t)&_cons_closure)<<3)|0x6)")
-            } else if (f.name == "concat") {
-                return str("((((size_t)&_concat_closure)<<3)|0x6)")
-            } else if (f.name == "apply") {
-                return str("((((size_t)&_apply_closure)<<3)|0x6)")
-            } else if (f.name == "count") {
-                return str("((((size_t)&_count_closure)<<3)|0x6)")
-            }
-            error("cannot yet compile builtin function: " + f.name)
-        }
-        MalValue_int::Function(f) {
-            var fun_name = "fun_" + new_tmp()
-            *top_decs += "size_t " + fun_name + "(size_t*, size_t, size_t*);\n"
-            var function = "size_t " + fun_name + "(size_t* closed_vars, size_t num, size_t* args) {\n"
-            if f.is_variadic {
-                function += str("check_num_params_at_least(num, ") + (f.parameters.size-1) + ", \"lambda\");\n"
-            } else {
-                function += str("check_num_params(num, ") + f.parameters.size + ", \"lambda\");\n"
-            }
-            var new_env = new<Env>()->construct(env)
-            for (var i = 0; i < f.parameters.size; i++;) {
-                if f.is_variadic && i == f.parameters.size-1 {
-                    function += "size_t* " + f.parameters[i] + "_raw = malloc(sizeof(size_t)*(2+(num-" + (f.parameters.size-1) + ")));\n"
-                    function += f.parameters[i] + "_raw[0] = 0x2F;\n"
-                    function += f.parameters[i] + "_raw[1] = (num-" + (f.parameters.size-1) + ");\n"
-                    function += str() + "for (int i = 0; i < (num-" + (f.parameters.size-1) + "); i++) {\n"
-                    function += f.parameters[i] + "_raw[i+2] = args[i+" + (f.parameters.size-1) + "];\n"
-                    function += "}\n"
-                    function += "size_t " + f.parameters[i] + " = ((((size_t)" + f.parameters[i] + "_raw)<<3)|0x2);\n"
-                } else {
-                    function += "size_t " + f.parameters[i] + " = args[" + i + "];\n"
-                }
-                new_env->set(f.parameters[i], malNil())
-            }
-            var closed_vars = find_closed_vars(set<str>(), new_env, ast)
-            for (var i = 0; i < closed_vars.data.size; i++;) {
-                function += "size_t " + closed_vars.data[i] + " = closed_vars[" + i + "];\n"
-            }
-            var inner_value = compile(top_decs, top_defs, main_init, &function, new_env, *f.body)
-            function += "return " + inner_value + ";\n}\n"
-            *top_defs += function
-            *defs += "closure* " + fun_name + "_closure = malloc(sizeof(closure));\n"
-            *defs += fun_name + "_closure->func = " + fun_name + ";\n"
-
-
-            if closed_vars.data.size > 0 {
-                *defs += fun_name + "_closure->data = malloc(sizeof(size_t)*" + closed_vars.data.size + ");\n"
-                for (var i = 0; i < closed_vars.data.size; i++;) {
-                    *defs += fun_name + "_closure->data[" + i + "] = " + closed_vars.data[i] + ";\n"
-                }
-            } else {
-                *defs += fun_name + "_closure->data = NULL;\n"
-            }
-            return "((((size_t)"+fun_name+"_closure)<<3)|0x6)"
-        }
-        MalValue_int::Symbol(s) {
-            if quoted {
-                var val_name = "sym_" + new_tmp()
-                *defs += "size_t *" + val_name + " = malloc(sizeof(size_t)+sizeof(char)*" + (s.length()+1) +");\n"
-                *defs += "*" + val_name + " = " + s.length() + ";\n"
-                *defs += "strcpy(((char*)(" + val_name + "+1)), \"" + s + "\");\n"
-                return "((((size_t)" + val_name + ")<<3)|0x5)"
-            } else {
-                var c_legal_s = c_legal(s)
-                var e = env->find(s);
-                if e != null<Env>() && e->outer == null<Env>() {
-                    /*println(s + " found in outer-est scope!")*/
-                    var v = e->get(s)
-                    e->remove(s)
-                    var x = str()
-                    var value = compile_value(top_decs, top_defs, main_init, &x, e, get_value(v), true)
-                    *top_decs += "size_t " + c_legal_s + ";\n"
-                    *main_init += x
-                    *main_init += c_legal_s + " = " + value + ";\n"
-                }
-                return c_legal_s
-            }
-        }
-        MalValue_int::String(s) {
-            var val_name = "str_" + new_tmp()
-            *defs += "size_t *" + val_name + " = malloc(sizeof(size_t)+sizeof(char)*" + (s.length()+1) +");\n"
-            *defs += "*" + val_name + " = " + s.length() + ";\n"
-            *defs += "strcpy(((char*)(" + val_name + "+1)), \"" + s + "\");\n"
-            return "((((size_t)" + val_name + ")<<3)|0x3)"
-        }
-        MalValue_int::Vector(l) {
-            var call_str = str("_vector_impl(NULL, ") + l.get().size + ", (size_t[]){ "
-            for (var i = 0; i < l.get().size; i++;) {
-                if i != 0 {
-                    call_str += ", "
-                }
-                if quoted {
-                    call_str += compile_value(top_decs, top_defs, main_init, defs, env, l.get()[i], true)
-                } else {
-                    call_str += compile(top_decs, top_defs, main_init, defs, env, l.get()[i])
-                }
-            }
-            call_str += "})"
-            if ast.meta != null<MalValue>() {
-                var meta_value = compile_value(top_decs, top_defs, main_init, defs, env, *ast.meta, true)
-                var for_meta = "for_meta_" + new_tmp()
-                *defs += "size_t " + for_meta + " = " + call_str + ";\n"
-                *defs += "((size_t*)(" + for_meta + ">>3))[0] = " + meta_value + ";\n"
-                return for_meta
-            } else {
-                return call_str
-            }
-        }
-        MalValue_int::Int(i) {
-            return to_string(i<<3)
-        }
-    }
-    error("could not compile value: " + pr_str(ast, true))
-}
-fun compile(top_decs: *str, top_defs: *str, main_init: *str, defs: *str, env: *Env, ast: MalValue): str {
-    var expanded = macroexpand(ast, env)
-    if (is_err(expanded)) {
-        error("compile error in macroexpand: " + pr_str(get_err(expanded), true))
-    }
-    ast = get_value(expanded)
-    if !ast.is_vector() {
-        return compile_value(top_decs, top_defs, main_init, defs, env, ast, false)
-    }
-    match (ast.internal) {
-        MalValue_int::Vector(l) {
-            if (l.get().size == 0) {
-                return compile_value(top_decs, top_defs, main_init, defs, env, ast, false)
-            } else if (l.get()[0].is_symbol("def!")) {
-                if (l.get().size != 3) {
-                    error("def! without exaclty key and value")
-                }
-                if (!l.get()[1].is_symbol()) {
-                    error("def! not on symbol")
-                }
-                if env->outer != null<Env>() {
-                    error("def! not at top level")
-                }
-                var to_set_name = l.get()[1].get_symbol_text()
-                var to_set_value = compile(top_decs, top_defs, main_init, defs, env, l.get()[2])
-                *defs += "size_t " + to_set_name + " = " + to_set_value + ";\n"
-                return to_set_name
-            } else if (l.get()[0].is_symbol("defmacro!")) {
-                error("defmacro! doesn't make sense in compiled code")
-            } else if (l.get()[0].is_symbol("let*")) {
-                if (l.get().size != 3) {
-                    error("let* without list of bindings & end value")
-                }
-                if (!l.get()[1].is_vector()) {
-                    error("let* without list of bindings")
-                }
-                var bindings = l.get()[1].get_vector_rc()
-                if (bindings.get().size & 1 != 0) {
-                    error("let* list of bindings has odd number of entries")
-                }
-                var let_val = new_tmp()
-                *defs += "size_t " + let_val + ";\n{\n"
-                var new_env = new<Env>()->construct(env)
-                for (var i = 0; i < bindings.get().size; i+=2;) {
-                    if (!bindings.get()[i].is_symbol()) {
-                        error("let* var name not symbol")
-                    }
-                    var to_set_value = compile(top_decs, top_defs, main_init, defs, new_env, bindings.get()[i+1])
-                    *defs += "size_t " + bindings.get()[i].get_symbol_text() + " = " + to_set_value + ";\n"
-                    new_env->set(bindings.get()[i].get_symbol_text(), malNil())
-                }
-                *defs += let_val + " = " + compile(top_decs, top_defs, main_init, defs, new_env, l.get()[2]) + ";\n}\n"
-                return let_val
-            } else if (l.get()[0].is_symbol("do")) {
-                for (var i = 1; i < l.get().size-1; i++;) {
-                    var value_possible_side_effect = compile(top_decs, top_defs, main_init, defs, env, l.get()[i])
-                    *defs += value_possible_side_effect + ";\n"
-                }
-                return compile(top_decs, top_defs, main_init, defs, env, l.get()[l.get().size-1])
-            } else if (l.get()[0].is_symbol("if")) {
-                if l.get().size != 3 && l.get().size != 4 {
-                    error("if needs 2 or 3 children")
-                }
-                var cond = compile(top_decs, top_defs, main_init, defs, env, l.get()[1])
-                var tmp_name = new_tmp()
-                *defs += "size_t " + tmp_name + "; if (" + cond + " != 0x1F) {\n"
-                var then = compile(top_decs, top_defs, main_init, defs, env, l.get()[2])
-                *defs += tmp_name + " = " + then + ";\n} else {\n"
-                var else_ = compile(top_decs, top_defs, main_init, defs, env, l.get()[3])
-                *defs += tmp_name + " = " + else_ + ";\n}\n"
-                return tmp_name
-            } else if (l.get()[0].is_symbol("fn*")) {
-                var f = EVAL(env, ast)
-                return compile_value(top_decs, top_defs, main_init, defs, env, get_value(f), false)
-            } else if (l.get()[0].is_symbol("quote")) {
-                if l.get().size == 1 {
-                    error("compile quote with no arguments")
-                }
-                return compile_value(top_decs, top_defs, main_init, defs, env, l.get()[1], true)
-            } else if (l.get()[0].is_symbol("quasiquote")) {
-                if l.get().size == 1 {
-                    error("compile quasiquote with no arguments")
-                }
-                return compile(top_decs, top_defs, main_init, defs, env, quasiquote(l.get()[1]))
-            } else if (l.get()[0].is_symbol("macroexpand")) {
-                error("macroexpand doesn't make sense while compiling")
-            } else if (l.get()[0].is_symbol("try*")) {
-                var tmp_name = new_tmp()
-                var tmp_exception_name = new_tmp()
-                var tmp_new_exception_name = new_tmp()
-                *defs += "size_t " + tmp_name + " = 0;\n"
-                *defs += "jmp_buf *" + tmp_exception_name + " = current_exception_handler;\n"
-                *defs += "jmp_buf " + tmp_new_exception_name + ";\n"
-                *defs += "current_exception_handler = &" + tmp_new_exception_name + ";\n"
-                *defs += "if (!setjmp(*current_exception_handler)) {\n"
-                *defs += tmp_name + " = " + compile(top_decs, top_defs, main_init, defs, env, l.get()[1]) + ";\n"
-                *defs += "} else {\n"
-                if l.get().size == 3 {
-                    var catch = l.get()[2].get_vector_rc()
-                    if catch.get().size != 3 || !catch.get()[0].is_symbol("catch*") || !catch.get()[1].is_symbol() {
-                        error("catch* block malformed")
-                    }
-                    var new_env = new<Env>()->construct(env)
-                    new_env->set(catch.get()[1].get_symbol_text(), malNil())
-                    *defs += "size_t " + catch.get()[1].get_symbol_text() + " = current_exception_value;\n"
-                    *defs += tmp_name + " = " + compile(top_decs, top_defs, main_init, defs, new_env, catch.get()[2]) + ";\n"
-                } else {
-                    *defs += tmp_name + " = current_exception_value;\n";
-                }
-                *defs += "}\n"
-                *defs += "current_exception_handler = " + tmp_exception_name + ";\n"
-                return tmp_name
-            } else {
-                var to_call = vec<str>()
-                for (var i = 0; i < l.get().size; i++;) {
-                    to_call.add(compile(top_decs, top_defs, main_init, defs, env, l.get()[i]))
-                }
-                var func_name = new_tmp()
-                *defs += "size_t " + func_name + "_r = " + to_call[0] + ";\n"
-                *defs += "check_function(" + func_name + "_r, \"trying to call\");\n";
-                *defs +=  "closure* " + func_name + " = (closure*)(" + func_name + "_r>>3);\n"
-                var params_name = new_tmp()
-                *defs += "size_t " + params_name + "_params[] = {"+str(", ").join(to_call.slice(1,-1))+"};\n"
-                return func_name + "->func(" + func_name + "->data, " + to_string(l.get().size-1) + ", " + params_name + "_params)"
-            }
-        }
-    }
-    return compile_value(top_decs, top_defs, main_init, defs, env, ast, false)
 }
