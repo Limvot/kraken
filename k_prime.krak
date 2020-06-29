@@ -76,8 +76,8 @@ obj KPEnv (Object) {
     }
     fun to_string(tabs: ref str, s: ref str) {
         for (var i = 0; i < data.keys.size; i++;) {
-            /*s += tabs + data.keys[i] + ": " + data.values[i] + "\n"*/
-            s += tabs + data.keys[i] + "\n"
+            s += tabs + data.keys[i] + ": " + pr_str(data.values[i], true) + "\n"
+            /*s += tabs + data.keys[i] + "\n"*/
         }
         if outer != null<KPEnv>() {
             outer->to_string(tabs + "\t", s)
@@ -170,6 +170,7 @@ obj KPCombiner (Object) {
             }
         }
         new_env->set(dynamic_env_name, dynamic_env)
+        /*println("Calling with\n" + new_env->to_string())*/
         return make_pair(new_env, KPResult::Ok(*body))
     }
 }
@@ -695,6 +696,36 @@ fun main(argc: int, argv: **char): int {
 
     var env = new<KPEnv>()->construct()
 
+    env->set(str("vau"), make_builtin_combiner(str("vau"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        var param_symbols = vec<str>()
+        if params.size != 3 {
+            return KPResult::Err(kpString(str("bad number of params to vau")))
+        }
+        if !params[0].is_symbol() {
+            return KPResult::Err(kpString(str("first param to vau is not symbol")))
+        }
+        var dynamic_env_name = params[0].get_symbol_text()
+        var is_variadic = false
+        var parameters = vec<str>()
+        if !params[1].is_vector() {
+            return KPResult::Err(kpString(str("second param to vau is not vector")))
+        }
+        var parameter_objects = params[1].get_vector_rc()
+        for (var i = 0; i < parameter_objects.get().size; i++;) {
+            if !parameter_objects.get()[i].is_symbol() {
+                return KPResult::Err(kpString(str("second param to vau has a not symbol member")))
+            }
+            var parameter = parameter_objects.get()[i].get_symbol_text()
+            if parameter == "&" {
+                is_variadic = true
+            } else {
+                parameters.add(parameter)
+            }
+        }
+        var to_ret.construct(dynamic_env, dynamic_env_name, parameters, is_variadic, params[2]) : KPCombiner
+        return KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret)))
+    }));
+
     env->set(str("+"), make_builtin_combiner(str("+"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
         var to_ret = 0
         for (var i = 0; i < params.size; i++;) {
@@ -708,7 +739,7 @@ fun main(argc: int, argv: **char): int {
                     continue
                 }
             }
-            return KPResult::Err(kpString(str("called + with not an int: ") + pr_str(params[i], false)))
+            return KPResult::Err(kpString(str("called + with not an int: ") + pr_str(get_value(ip), false)))
         }
         return KPResult::Ok(kpInt(to_ret))
     }));
