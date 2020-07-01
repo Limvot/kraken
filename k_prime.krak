@@ -746,6 +746,21 @@ fun main(argc: int, argv: **char): int {
         return KPResult::Err(kpString(str("wrong number of params to eval")))
     }));
 
+    env->set(str("set!"), make_builtin_combiner(str("set!"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 2 {
+            return KPResult::Err(kpString(str("not 2 params to set!")))
+        }
+        if !params[0].is_symbol() {
+            return KPResult::Err(kpString(str("first parameter to set! is not a symbol")))
+        }
+        var data = EVAL(dynamic_env, params[1])
+        if is_err(data) {
+            return data
+        }
+        dynamic_env->set(params[0].get_symbol_text(), get_value(data))
+        return KPResult::Ok(kpNil())
+    }));
+
     env->set(str("+"), make_builtin_combiner(str("+"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
         var to_ret = 0
         for (var i = 0; i < params.size; i++;) {
