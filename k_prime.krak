@@ -726,6 +726,26 @@ fun main(argc: int, argv: **char): int {
         return KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret)))
     }));
 
+    env->set(str("eval"), make_builtin_combiner(str("eval"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        var evaled_params = vec<KPValue>()
+        for (var i = 0; i < params.size; i++;) {
+            var ip = EVAL(dynamic_env, params[i])
+            if is_err(ip) {
+                return ip
+            }
+            evaled_params.add(get_value(ip))
+        }
+        if evaled_params.size == 1 {
+            return EVAL(dynamic_env, evaled_params[0])
+        } else if params.size == 2 {
+            if !evaled_params[1].is_env() {
+                return KPResult::Err(kpString(str("second param to eval is not an environment")))
+            }
+            return EVAL(evaled_params[1].get_env(), evaled_params[0])
+        }
+        return KPResult::Err(kpString(str("wrong number of params to eval")))
+    }));
+
     env->set(str("+"), make_builtin_combiner(str("+"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
         var to_ret = 0
         for (var i = 0; i < params.size; i++;) {
