@@ -66,6 +66,8 @@ obj KPEnv (Object) {
         if (env != null<KPEnv>()) {
             return KPResult::Ok(env->data.get(key))
         } else {
+            println(key + "wasn't found in:")
+            println(to_string())
             return KPResult::Err(kpString(str("'") + key + "' not found"))
         }
     }
@@ -380,7 +382,7 @@ fun kpTrue(): KPValue {
 fun kpFalse(): KPValue {
     return nmMV(KPValue_int::False())
 }
-fun bool_to_KPValue(b: bool): KPValue {
+fun kpBool(b: bool): KPValue {
     if b {
         return nmMV(KPValue_int::True())
     } else {
@@ -446,7 +448,6 @@ fun get_err(r: KPResult): KPValue {
             return e
         }
     }
-    /*return kpSymbol(str("get-err-not-error"))*/
     error("get-err-not-error")
 }
 fun get_value(r: KPResult): KPValue {
@@ -455,7 +456,6 @@ fun get_value(r: KPResult): KPValue {
             return v
         }
     }
-    /*return kpSymbol(str("get-value-is-error"))*/
     error("get-value-is-error")
 }
 fun pr_str(v: KPValue, print_readably: bool): str {
@@ -500,7 +500,7 @@ fun pr_str(v: KPValue, print_readably: bool): str {
             }
         }
         KPValue_int::BuiltinCombiner(f) {
-            return str("builtin combiner")
+            return "builtin_combiner_" + f.name
         }
         KPValue_int::Combiner(f) {
             return str("combiner")
@@ -542,11 +542,11 @@ fun EVAL(env: *KPEnv, ast: KPValue): KPResult {
                 if (l.get().size == 0) {
                     return KPResult::Err(kpString(str("Eval a zero length vector")))
                 } else {
-                    // this breaks tco?
                     var combiner = EVAL(env, l.get()[0])
                     if is_err(combiner) {
                         return combiner
                     }
+                    /*println("About to call combiner evaled from " + pr_str(l.get()[0], true))*/
                     match (get_value(combiner).internal) {
                         KPValue_int::BuiltinCombiner(f) {
                             return f.call(l.get().slice(1,-1), kpEnv(env))
@@ -761,13 +761,75 @@ fun main(argc: int, argv: **char): int {
         return KPResult::Ok(kpNil())
     }));
 
-    env->set(str("+"), make_builtin_combiner(str("+"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
-        var to_ret = 0
+    env->set(str("cond"), make_builtin_combiner(str("cond"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if (params.size % 2) != 0 {
+            return KPResult::Err(kpString(str("Need even number of params to cond")))
+        }
+        for (var i = 0; i < params.size; i+=2;) {
+            var ip = EVAL(dynamic_env, params[i])
+            if is_err(ip) {
+                return ip
+            }
+            if get_value(ip).is_truthy() {
+                return EVAL(dynamic_env, params[i+1])
+            }
+        }
+        return KPResult::Ok(kpNil())
+    }));
+
+    env->set(str("vector"), make_builtin_combiner(str("vector"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        var evaled_params = vec<KPValue>()
         for (var i = 0; i < params.size; i++;) {
             var ip = EVAL(dynamic_env, params[i])
             if is_err(ip) {
                 return ip
             }
+            evaled_params.add(get_value(ip))
+        }
+        return KPResult::Ok(kpVector(evaled_params))
+    }));
+    env->set(str("len"), make_builtin_combiner(str("len"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 1 {
+            return KPResult::Err(kpString(str("Need 1 param to len")))
+        }
+        var v = EVAL(dynamic_env, params[0]);
+        if is_err(v) { return v; }
+        return KPResult::Ok(kpInt(get_value(v).get_vector_rc().get().size))
+    }));
+    env->set(str("idx"), make_builtin_combiner(str("idx"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 2 {
+            return KPResult::Err(kpString(str("Need 2 params to idx")))
+        }
+        var v = EVAL(dynamic_env, params[0]);
+        if is_err(v) { return v; }
+        var vv = get_value(v)
+        if !vv.is_vector() { return KPResult::Err(kpString(str("Param 1 to idx is not vector"))); }
+        var i = EVAL(dynamic_env, params[1]);
+        if is_err(i) { return i; }
+        var iv = get_value(i)
+        if !iv.is_int() { return KPResult::Err(kpString(str("Param 2 to idx is not int"))); }
+
+        return KPResult::Ok(vv.get_vector_rc().get()[iv.get_int()])
+    }));
+    env->set(str("concat"), make_builtin_combiner(str("concat"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        var to_ret = vec<KPValue>()
+        for (var i = 0; i < params.size; i++;) {
+            var ip = EVAL(dynamic_env, params[i])
+            if is_err(ip) {
+                return ip
+            }
+            var v = get_value(ip)
+            if !v.is_vector() { return KPResult::Err(kpString(str("Param ") + i + " to concat is not vector")); }
+            to_ret += v.get_vector_rc().get()
+        }
+        return KPResult::Ok(kpVector(to_ret))
+    }));
+
+    env->set(str("+"), make_builtin_combiner(str("+"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        var to_ret = 0
+        for (var i = 0; i < params.size; i++;) {
+            var ip = EVAL(dynamic_env, params[i])
+            if is_err(ip) { return ip; }
             match (get_value(ip).internal) {
                 KPValue_int::Int(v) {
                     to_ret += v
@@ -778,16 +840,49 @@ fun main(argc: int, argv: **char): int {
         }
         return KPResult::Ok(kpInt(to_ret))
     }));
+    env->set(str("-"), make_builtin_combiner(str("-"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        var to_ret = 0
+        for (var i = 0; i < params.size; i++;) {
+            var ip = EVAL(dynamic_env, params[i])
+            if is_err(ip) { return ip; }
+            match (get_value(ip).internal) {
+                KPValue_int::Int(v) {
+                    if i == 0 {
+                        to_ret += v
+                    } else {
+                        to_ret -= v
+                    }
+                    continue
+                }
+            }
+            return KPResult::Err(kpString(str("called - with not an int: ") + pr_str(get_value(ip), false)))
+        }
+        return KPResult::Ok(kpInt(to_ret))
+    }));
+
+    env->set(str("="), make_builtin_combiner(str("="), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 2 {
+            return KPResult::Err(kpString(str("Need 2 params to =")))
+        }
+        var a = EVAL(dynamic_env, params[0]);
+        if is_err(a) { return a; }
+        var b = EVAL(dynamic_env, params[1]);
+        if is_err(b) { return b; }
+        return KPResult::Ok(kpBool(get_value(a).equals(get_value(b))))
+    }));
+
+    // self-implementation fun
+    println(rep(grammar, env, str("(set! quote (vau _ (x) x))")))
+    println(rep(grammar, env, str("(set! let1 (vau de (s v b) (eval (vector (vector vau (quote _) (vector s) b) (eval v de)) de)))")))
+    println(rep(grammar, env, str("(set! apply (vau de (f p) (eval (concat (vector (eval f de)) (eval p de)) de)))")))
+    println(rep(grammar, env, str("(set! rest (vau de (rl) (apply (vau _ (f & r) r) (eval rl de))))")))
+    println(rep(grammar, env, str("(set! map (vau de (f ml) (let1 f (eval f de) (let1 iml (eval ml de) (cond (= 0 (len iml)) (vector) true (concat (vector (f (idx iml 0))) (map f (rest iml))))))))")))
+    println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval (vector vau (quote _) p b) se) (vau de (& op) (apply f (map (vau dde (ip) (eval (eval ip dde) de)) op))))))")))
+    println(rep(grammar, env, str("(set! fun (vau se (n p b) (eval (vector set! n (vector lambda p b)) se)))")))
+
 
     if argc == 3 && str(argv[1]) == "-C" {
         error("-C not implemented")
-        //env->set(str("*ARGV*"), kpNil())
-        //var evaled = ERS(vec(kpString(str(argv[2]))))
-        //if is_err(evaled) {
-        //    printlnerr(str("Exception: ") + pr_str(get_err(evaled), true))
-        //} else {
-        //    println("Result: " + pr_str(get_value(evaled), true))
-        //}
     } else if argc >= 2 {
         var params = vec<KPValue>()
         for (var i = 2; i < argc; i++;) {
