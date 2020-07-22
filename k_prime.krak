@@ -1181,6 +1181,96 @@ fun main(argc: int, argv: **char): int {
             })
         }
     }));
+    var ERS = fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 2 {
+            return KPResult::Err(kpString(str("eval-read-string with not a single string and env")))
+        } else {
+            var ip = EVAL(dynamic_env, params[0])
+            if is_err(ip) { return ip; }
+            var ipv = get_value(ip)
+            if !ipv.is_string() {
+                return KPResult::Err(kpString(str("first param to eval-read-string s not a string")))
+            }
+            var input = ipv.get_string()
+            var ep = EVAL(dynamic_env, params[1])
+            if is_err(ep) { return ep; }
+            var epv = get_value(ep)
+            if !epv.is_env() {
+                return KPResult::Err(kpString(str("second param to eval-read-string is not a env")))
+            }
+            var eval_env = epv.get_env()
+            var i = 0
+            var current_ret = KPResult::Ok(kpNil())
+            if i < input.length() {
+                // initial handle whitespace
+                var BSR = fungll(grammar, optional_WS, input.slice(i, -1))
+                var longest = -1
+                for (var j = 0; j < BSR.data.size; j++;) {
+                    if BSR.data[j].nonterminal == optional_WS && BSR.data[j].left == 0 {
+                        if BSR.data[j].right > longest {
+                            longest = BSR.data[j].right
+                        }
+                    }
+                }
+                if longest > 0 {
+                    i += longest
+                }
+            }
+            while i < input.length() {
+                var r = read_str(grammar, input.slice(i, -1))
+                i += r.first
+                if is_err(r.second) {
+                    return r.second
+                }
+                current_ret = EVAL(eval_env, get_value(r.second))
+                if is_err(current_ret) {
+                    return current_ret
+                }
+                // handle whitespace again
+                var BSR = fungll(grammar, optional_WS, input.slice(i, -1))
+                var longest = -1
+                for (var j = 0; j < BSR.data.size; j++;) {
+                    if BSR.data[j].nonterminal == optional_WS && BSR.data[j].left == 0 {
+                        if BSR.data[j].right > longest {
+                            longest = BSR.data[j].right
+                        }
+                    }
+                }
+                if longest > 0 {
+                    i += longest
+                }
+            }
+            return current_ret
+        }
+    }
+    env->set(str("eval-read-string"), make_builtin_combiner(str("eval-read-string"), ERS));
+
+    env->set(str("read-string"), make_builtin_combiner(str("read-string"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 1 {
+            return KPResult::Err(kpString(str("read-string with not a single string")))
+        } else {
+            var ip = EVAL(dynamic_env, params[0])
+            if is_err(ip) { return ip; }
+            var ipv = get_value(ip)
+            if !ipv.is_string() {
+                return KPResult::Err(kpString(str("read-string with not a single string")))
+            }
+            return READ(grammar, ipv.get_string())
+        }
+    }));
+    env->set(str("slurp"), make_builtin_combiner(str("slurp"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 1 {
+            return KPResult::Err(kpString(str("slurp with not a single string")))
+        } else {
+            var ip = EVAL(dynamic_env, params[0])
+            if is_err(ip) { return ip; }
+            var ipv = get_value(ip)
+            if !ipv.is_string() {
+                return KPResult::Err(kpString(str("read-string with not a single string")))
+            }
+            return KPResult::Ok(kpString(read_file(ipv.get_string())))
+        }
+    }));
 
     // self-implementation fun
     println(rep(grammar, env, str("(set! quote (vau _ (x) x))")))
@@ -1191,7 +1281,9 @@ fun main(argc: int, argv: **char): int {
     println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval (vector vau (quote _) p b) se) (vau de (& op) (apply f (map (vau dde (ip) (eval (eval ip dde) de)) op))))))")))
     println(rep(grammar, env, str("(set! fun (vau se (n p b) (eval (vector set! n (vector lambda p b)) se)))")))
 
-    println(rep(grammar, env, str("(add_grammar_rule (quote form) (quote ( \"'\" optional_WS form )) (vau _ (_ _ f) (vector quote f)))")))
+    println(rep(grammar, env, str("(add_grammar_rule (quote form) (quote ( \"'\" optional_WS form )) (vau _ (_ _ f) (vector quote f)))"))) // '
+    println(rep(grammar, env, str("(set! current-env (vau de () de))")))
+    println(rep(grammar, env, str("(set! load-file (vau de (f) (eval-read-string (slurp (eval f de)) (current-env))))")))
 
 
     if argc == 3 && str(argv[1]) == "-C" {
