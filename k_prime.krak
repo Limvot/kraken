@@ -603,15 +603,23 @@ fun function_call(f: KPValue, params: ref vec<KPValue>, env: KPValue): KPResult 
     return KPResult::Err(kpString(str("trying to apply not a combiner: ") + pr_str(f ,true)))
 }
 
-fun print_wrapper(params: ref vec<KPValue>, sep: *char, print_readably: bool): str {
+fun str_wrapper(params: ref vec<KPValue>, dynamic_env: *KPEnv, sep: *char, print_readably: bool): KPResult {
     var to_ret = str()
     for (var i = 0; i < params.size; i++;) {
-        to_ret += pr_str(params[i], print_readably)
+        var ip = EVAL(dynamic_env, params[i])
+        if is_err(ip) { return ip; }
+        to_ret += pr_str(get_value(ip), print_readably)
         if i != params.size-1 {
             to_ret += sep
         }
     }
-    return to_ret
+    return KPResult::Ok(kpString(to_ret))
+}
+
+var tmp_idx: int = 0
+fun new_tmp(): str {
+    tmp_idx += 1
+    return str("x") + tmp_idx
 }
 
 fun main(argc: int, argv: **char): int {
@@ -725,7 +733,6 @@ fun main(argc: int, argv: **char): int {
         var to_ret.construct(dynamic_env, dynamic_env_name, parameters, is_variadic, params[2]) : KPCombiner
         return KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret)))
     }));
-
     env->set(str("eval"), make_builtin_combiner(str("eval"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
         var evaled_params = vec<KPValue>()
         for (var i = 0; i < params.size; i++;) {
@@ -933,7 +940,6 @@ fun main(argc: int, argv: **char): int {
         if is_err(b) { return b; }
         return KPResult::Ok(kpBool(!get_value(a).equals(get_value(b))))
     }));
-
     env->set(str("<"), make_builtin_combiner(str("<"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
         if params.size != 2 {
             return KPResult::Err(kpString(str("Need 2 params to <")))
@@ -1014,6 +1020,168 @@ fun main(argc: int, argv: **char): int {
         return KPResult::Ok(kpFalse())
     }));
 
+    env->set(str("pr-str"), make_builtin_combiner(str("pr-str"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        return str_wrapper(params, dynamic_env, " ", true)
+    }));
+    env->set(str("str"), make_builtin_combiner(str("str"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        return str_wrapper(params, dynamic_env, "", false)
+    }));
+    env->set(str("prn"), make_builtin_combiner(str("prn"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        var to_print = str_wrapper(params, dynamic_env, " ", true)
+        if is_err(to_print) { return to_print; }
+        println(get_value(to_print).get_string())
+        return KPResult::Ok(kpNil())
+    }));
+    env->set(str("println"), make_builtin_combiner(str("println"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        var to_print = str_wrapper(params, dynamic_env, " ", false)
+        if is_err(to_print) { return to_print; }
+        println(get_value(to_print).get_string())
+        return KPResult::Ok(kpNil())
+    }));
+
+    env->set(str("meta"), make_builtin_combiner(str("meta"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 1 {
+            return KPResult::Err(kpString(str("meta called with not one argument")))
+        } else {
+            var or = EVAL(dynamic_env, params[0])
+            if is_err(or) { return or; }
+            var o = get_value(or)
+            if o.meta != null<KPValue>() {
+                return KPResult::Ok(*o.meta)
+            } else {
+                return KPResult::Ok(kpNil())
+            }
+        }
+    }));
+    env->set(str("with-meta"), make_builtin_combiner(str("with-meta"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 2 {
+            return KPResult::Err(kpString(str("with-meta called with not two arguments")))
+        } else {
+            var or = EVAL(dynamic_env, params[0])
+            if is_err(or) { return or; }
+            var mr = EVAL(dynamic_env, params[1])
+            if is_err(mr) { return mr; }
+            var new_meta = new<KPValue>()
+            new_meta->copy_construct(&get_value(mr))
+            var new_value = get_value(or).deep_clone();
+            new_value.meta = new_meta
+            return KPResult::Ok(new_value)
+        }
+    }));
+
+    // self-modifying grammar
+    env->set(str("add_terminal"), make_builtin_combiner(str("add_terminal"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 2  {
+            return KPResult::Err(kpString(str("add_terminal called with wrong number (not 2) params")))
+        } else {
+            var namer = EVAL(dynamic_env, params[0]);
+            if is_err(namer) { return namer; }
+            var namev = get_value(namer)
+            if !namev.is_string() {
+                return KPResult::Err(kpString(str("add_terminal called with wrong number (not 2) params")))
+            }
+            var funcr = EVAL(dynamic_env, params[1]);
+            if is_err(funcr) { return funcr; }
+            return KPResult::Ok(kpInt(grammar.add_terminal(namev.get_string(), get_value(funcr), fun(f: ref KPValue, input: ref str, l: int, r: int): KPResult {
+                return function_call(f, vec(kpString(input.slice(l,r))), kpEnv(env))
+            })))
+        }
+    }));
+    var add_grammer_rule_helper: fun(str, vec<KPValue>, KPValue, fun(ref KPValue, ref vec<KPResult>): KPResult): KPResult = fun(nonterminal_str: str, rule: vec<KPValue>, data: KPValue, f: fun(ref KPValue, ref vec<KPResult>): KPResult): KPResult {
+        var int_rule = vec<int>()
+        for (var i = 0; i < rule.size; i++;) {
+            if rule[i].is_int() {
+                int_rule.add(rule[i].get_int())
+            } else if rule[i].is_symbol() {
+                var sub_nonterminal_idx = grammar.nonterminal_names.find(rule[i].get_symbol_text())
+                if sub_nonterminal_idx == -1 {
+                    return KPResult::Err(kpString(str("Couldn't find nonterminal: ") + rule[i].get_symbol_text()))
+                }
+                var sub_nonterminal = -1*(sub_nonterminal_idx+1)
+                int_rule.add(sub_nonterminal)
+            } else if rule[i].is_string() {
+                int_rule.add(grammar.add_terminal(rule[i].get_string(), kpNil(), fun(f: ref KPValue, input: ref str, l: int, r: int): KPResult {
+                    return KPResult::Ok(kpString(input.slice(l,r)))
+                }))
+            } else if rule[i].is_vector() {
+                // A sequence!
+                var sub_rule_names = nonterminal_str + "_seq_" + new_tmp()
+                var inner_rule = add_grammer_rule_helper(sub_rule_names, rule[i].get_vector_rc().get(), kpNil(), fun(_: ref KPValue, seq: ref vec<KPResult>): KPResult {
+                    var to_ret = vec<KPValue>()
+                    for (var i = 0; i < seq.size; i++;) {
+                        if is_err(seq[i]) {
+                            return seq[i]
+                        }
+                        to_ret.add(get_value(seq[i]))
+                    }
+                    return KPResult::Ok(kpVector(to_ret))
+                })
+                if is_err(inner_rule) {
+                    return inner_rule
+                }
+                int_rule.add(get_value(inner_rule).get_int())
+            } else {
+                match (rule[i].internal) {
+                    KPValue_int::BuiltinCombiner(f) {
+                        if f.name == "+" || f.name == "*" {
+                            if int_rule.size == 0 {
+                                return KPResult::Err(kpString(str("add_grammar_rule has + or * in first position, with nothing to repeat")))
+                            }
+                            var current = int_rule.last()
+                            var sub_rule_names = nonterminal_str + "_" + new_tmp()
+                            var new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_one_or_more", vec(current), kpNil(), fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
+                                if is_err(x[0]) { return x[0]; }
+                                return KPResult::Ok(kpVector(vec(get_value(x[0]))))
+                            })
+                            grammar.add_to_nonterminal(new, vec(current, new), kpNil(), fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
+                                if is_err(x[0]) { return x[0]; }
+                                if is_err(x[1]) { return x[1]; }
+                                return KPResult::Ok(kpVector(vec(get_value(x[0])) + get_value(x[1]).get_vector_rc().get()))
+                            })
+                            if f.name == "*" {
+                                new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_zero_or_more", vec(new), kpNil(), fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
+                                    if is_err(x[0]) { return x[0]; }
+                                    return KPResult::Ok(get_value(x[0]))
+                                })
+                                grammar.add_to_nonterminal(new, vec<int>(), kpNil(), fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
+                                    return KPResult::Ok(kpVector(vec<KPValue>()))
+                                })
+                            }
+                            int_rule.last() = new
+                            continue
+                        }
+                    }
+                }
+                return KPResult::Err(kpString(str("add_grammar_rule called with not symbol, int, or string in rule")))
+            }
+        }
+        return KPResult::Ok(kpInt(grammar.add_to_or_create_nonterminal(nonterminal_str, int_rule, data, f)))
+    }
+    env->set(str("add_grammar_rule"), make_builtin_combiner(str("add_grammar_rule"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        var params_evaled = vec<KPValue>()
+        for (var i = 0; i < params.size; i++;) {
+            var ip = EVAL(dynamic_env, params[i])
+            if is_err(ip) { return ip; }
+            params_evaled.add(get_value(ip))
+        }
+        if params_evaled.size != 3 || !params_evaled[0].is_symbol() || !params_evaled[1].is_vector() {
+            return KPResult::Err(kpString(str("add_grammar_rule called with wrong number or type of params_evaled")))
+        } else {
+            var nonterminal_str = params_evaled[0].get_symbol_text()
+            var rule = params_evaled[1].get_vector_rc().get()
+            return add_grammer_rule_helper(nonterminal_str, rule, params_evaled[2], fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
+                var params = vec<KPValue>()
+                for (var i = 0; i < x.size; i++;) {
+                    if is_err(x[i]) {
+                        return x[i]
+                    }
+                    params.add(get_value(x[i]))
+                }
+                return function_call(f, params, kpEnv(env))
+            })
+        }
+    }));
+
     // self-implementation fun
     println(rep(grammar, env, str("(set! quote (vau _ (x) x))")))
     println(rep(grammar, env, str("(set! let1 (vau de (s v b) (eval (vector (vector vau (quote _) (vector s) b) (eval v de)) de)))")))
@@ -1022,6 +1190,8 @@ fun main(argc: int, argv: **char): int {
     println(rep(grammar, env, str("(set! map (vau de (f ml) (let1 f (eval f de) (let1 iml (eval ml de) (cond (= 0 (len iml)) (vector) true (concat (vector (f (idx iml 0))) (map f (rest iml))))))))")))
     println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval (vector vau (quote _) p b) se) (vau de (& op) (apply f (map (vau dde (ip) (eval (eval ip dde) de)) op))))))")))
     println(rep(grammar, env, str("(set! fun (vau se (n p b) (eval (vector set! n (vector lambda p b)) se)))")))
+
+    println(rep(grammar, env, str("(add_grammar_rule (quote form) (quote ( \"'\" optional_WS form )) (vau _ (_ _ f) (vector quote f)))")))
 
 
     if argc == 3 && str(argv[1]) == "-C" {
