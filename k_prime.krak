@@ -12,7 +12,7 @@ import fungll:*
 adt KPValue_int {
     True,                                   //       101 1 0
     False,                                  //       100 1 0
-    Env: *KPEnv,                             //       011 1 0
+    Env: *KPEnv,                            //       011 1 0
     Combiner: KPCombiner,                   //       010 1 0
     BuiltinCombiner: KPBuiltinCombiner,     //       ''' ' '
     String: str,                            //       001 1 0
@@ -66,7 +66,7 @@ obj KPEnv (Object) {
         if (env != null<KPEnv>()) {
             return KPResult::Ok(env->data.get(key))
         } else {
-            println(key + "wasn't found in:")
+            println(key + " wasn't found in:")
             println(to_string())
             return KPResult::Err(kpString(str("'") + key + "' not found"))
         }
@@ -621,7 +621,6 @@ fun new_tmp(): str {
     tmp_idx += 1
     return str("x") + tmp_idx
 }
-
 fun main(argc: int, argv: **char): int {
 
     var grammar.construct(): Grammer<KPResult, KPValue>
@@ -830,6 +829,28 @@ fun main(argc: int, argv: **char): int {
             to_ret += v.get_vector_rc().get()
         }
         return KPResult::Ok(kpVector(to_ret))
+    }));
+    env->set(str("slice"), make_builtin_combiner(str("slice"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 3 {
+            return KPResult::Err(kpString(str("Need 3 params to slice")))
+        }
+        var lr = EVAL(dynamic_env, params[0]);
+        if is_err(lr) { return lr; }
+        var lv = get_value(lr);
+        if !lv.is_vector() { return KPResult::Err(kpString(str("first param to slice is not vector"))); }
+        var startr = EVAL(dynamic_env, params[1]);
+        if is_err(startr) { return startr; }
+        var startv = get_value(startr);
+        if !startv.is_int() { return KPResult::Err(kpString(str("second param to slice is not int"))); }
+        var start = startv.get_int();
+        var endr = EVAL(dynamic_env, params[2]);
+        if is_err(endr) { return endr; }
+        var endv = get_value(endr);
+        if !endv.is_int() { return KPResult::Err(kpString(str("third param to slice is not int"))); }
+        var end = endv.get_int();
+
+
+        return KPResult::Ok(kpVector(lv.get_vector_rc().get().slice(start, end)))
     }));
 
     env->set(str("+"), make_builtin_combiner(str("+"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
@@ -1083,7 +1104,7 @@ fun main(argc: int, argv: **char): int {
             var funcr = EVAL(dynamic_env, params[1]);
             if is_err(funcr) { return funcr; }
             return KPResult::Ok(kpInt(grammar.add_terminal(namev.get_string(), get_value(funcr), fun(f: ref KPValue, input: ref str, l: int, r: int): KPResult {
-                return function_call(f, vec(kpString(input.slice(l,r))), kpEnv(env))
+                return function_call(f, vec(kpString(input.slice(l,r))), kpNil())
             })))
         }
     }));
@@ -1177,7 +1198,7 @@ fun main(argc: int, argv: **char): int {
                     }
                     params.add(get_value(x[i]))
                 }
-                return function_call(f, params, kpEnv(env))
+                return function_call(f, params, kpNil())
             })
         }
     }));
@@ -1271,19 +1292,73 @@ fun main(argc: int, argv: **char): int {
             return KPResult::Ok(kpString(read_file(ipv.get_string())))
         }
     }));
+    env->set(str("map"), make_builtin_combiner(str("map"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 2 {
+            return KPResult::Err(kpString(str("map called with not one argument")))
+        } else {
+            var fr = EVAL(dynamic_env, params[0])
+            if is_err(fr) { return fr; }
+            var f = get_value(fr)
+            if !f.is_combiner() {
+                return KPResult::Err(kpString(str("map called with not combiner")))
+            }
+
+            var lr = EVAL(dynamic_env, params[1])
+            if is_err(lr) { return lr; }
+            var l = get_value(lr)
+
+            var to_ret = vec<KPValue>()
+            for (var i = 0; i < l.get_vector_rc().get().size; i++;) {
+                var result = function_call(f, vec(l.get_vector_rc().get().get(i)), kpEnv(dynamic_env))
+                if is_err(result) {
+                    return result
+                }
+                to_ret.add(get_value(result))
+            }
+            return KPResult::Ok(kpVector(to_ret))
+        }
+    }));
+    env->set(str("filter"), make_builtin_combiner(str("filter"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 2 {
+            return KPResult::Err(kpString(str("filter called with not one argument")))
+        } else {
+            var fr = EVAL(dynamic_env, params[0])
+            if is_err(fr) { return fr; }
+            var f = get_value(fr)
+            if !f.is_combiner() {
+                return KPResult::Err(kpString(str("filter called with not combiner")))
+            }
+
+            var lr = EVAL(dynamic_env, params[1])
+            if is_err(lr) { return lr; }
+            var l = get_value(lr)
+
+            var to_ret = vec<KPValue>()
+            for (var i = 0; i < l.get_vector_rc().get().size; i++;) {
+                var result = function_call(f, vec(l.get_vector_rc().get().get(i)), kpEnv(dynamic_env))
+                if is_err(result) {
+                    return result
+                }
+                if get_value(result).is_truthy() {
+                    to_ret.add(l.get_vector_rc().get().get(i))
+                }
+            }
+            return KPResult::Ok(kpVector(to_ret))
+        }
+    }));
 
     // self-implementation fun
-    println(rep(grammar, env, str("(set! quote (vau _ (x) x))")))
-    println(rep(grammar, env, str("(set! let1 (vau de (s v b) (eval (vector (vector vau (quote _) (vector s) b) (eval v de)) de)))")))
-    println(rep(grammar, env, str("(set! apply (vau de (f p) (eval (concat (vector (eval f de)) (eval p de)) de)))")))
-    println(rep(grammar, env, str("(set! rest (vau de (rl) (apply (vau _ (f & r) r) (eval rl de))))")))
-    println(rep(grammar, env, str("(set! map (vau de (f ml) (let1 f (eval f de) (let1 iml (eval ml de) (cond (= 0 (len iml)) (vector) true (concat (vector (f (idx iml 0))) (map f (rest iml))))))))")))
-    println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval (vector vau (quote _) p b) se) (vau de (& op) (apply f (map (vau dde (ip) (eval (eval ip dde) de)) op))))))")))
-    println(rep(grammar, env, str("(set! fun (vau se (n p b) (eval (vector set! n (vector lambda p b)) se)))")))
-
-    println(rep(grammar, env, str("(add_grammar_rule (quote form) (quote ( \"'\" optional_WS form )) (vau _ (_ _ f) (vector quote f)))"))) // '
     println(rep(grammar, env, str("(set! current-env (vau de () de))")))
+    println(rep(grammar, env, str("(set! quote (vau _ (x) x))")))
+    println(rep(grammar, env, str("(add_grammar_rule (quote form) (quote ( \"'\" optional_WS form )) (vau _ (_ _ f) (vector quote f)))"))) // '
+    println(rep(grammar, env, str("(set! apply (vau de (f p ede) (eval (concat (vector (eval f de)) (eval p de)) (eval ede de))))")))
+    println(rep(grammar, env, str("(set! let1 (vau de (s v b) (eval (vector (vector vau '_ (vector s) b) (eval v de)) de)))")))
+    println(rep(grammar, env, str("(set! let (vau de (vs b) (cond (= (len vs) 0) (eval b de) true (apply let1 (vector (idx vs 0) (idx vs 1) (vector let (slice vs 2 -1) b)) de))))")))
+
+    println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval (vector vau '_ p b) se) (vau de (& op) (apply f (map (vau dde (ip) (eval (eval ip dde) de)) op) se)))))")))
+    println(rep(grammar, env, str("(set! fun (vau se (n p b) (eval (vector set! n (vector lambda p b)) se)))")))
     println(rep(grammar, env, str("(set! load-file (vau de (f) (eval-read-string (slurp (eval f de)) (current-env))))")))
+
 
 
     if argc == 3 && str(argv[1]) == "-C" {
