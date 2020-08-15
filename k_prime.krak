@@ -817,6 +817,27 @@ fun main(argc: int, argv: **char): int {
 
         return KPResult::Ok(vv.get_vector_rc().get()[iv.get_int()])
     }));
+    env->set(str("set-idx!"), make_builtin_combiner(str("set-idx!"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 3 {
+            return KPResult::Err(kpString(str("Need 3 params to set-idx!")))
+        }
+        var v = EVAL(dynamic_env, params[0]);
+        if is_err(v) { return v; }
+        var vv = get_value(v)
+        if !vv.is_vector() { return KPResult::Err(kpString(str("Param 1 to set-idx! is not vector"))); }
+        var i = EVAL(dynamic_env, params[1]);
+        if is_err(i) { return i; }
+        var iv = get_value(i)
+        if !iv.is_int() { return KPResult::Err(kpString(str("Param 2 to set-idx! is not int"))); }
+
+        var r = EVAL(dynamic_env, params[2]);
+        if is_err(r) { return r; }
+        var rv = get_value(r)
+
+        vv.get_vector_rc().get()[iv.get_int()] = rv;
+
+        return KPResult::Ok(kpNil())
+    }));
     env->set(str("concat"), make_builtin_combiner(str("concat"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
         var to_ret = vec<KPValue>()
         for (var i = 0; i < params.size; i++;) {
@@ -1351,13 +1372,16 @@ fun main(argc: int, argv: **char): int {
     println(rep(grammar, env, str("(set! current-env (vau de () de))")))
     println(rep(grammar, env, str("(set! quote (vau _ (x) x))")))
     println(rep(grammar, env, str("(add_grammar_rule (quote form) (quote ( \"'\" optional_WS form )) (vau _ (_ _ f) (vector quote f)))"))) // '
-    println(rep(grammar, env, str("(set! apply (vau de (f p ede) (eval (concat (vector (eval f de)) (eval p de)) (eval ede de))))")))
-    println(rep(grammar, env, str("(set! let1 (vau de (s v b) (eval (vector (vector vau '_ (vector s) b) (eval v de)) de)))")))
-    println(rep(grammar, env, str("(set! let (vau de (vs b) (cond (= (len vs) 0) (eval b de) true (apply let1 (vector (idx vs 0) (idx vs 1) (vector let (slice vs 2 -1) b)) de))))")))
+    println(rep(grammar, env, str("(add_grammar_rule 'form '( \"\\\\[\" optional_WS space_forms optional_WS \"\\\\]\" ) (vau _ (_ _ fs _ _) (concat (vector vector) fs)))"))) // '
+    println(rep(grammar, env, str("(set! apply (vau de (f p ede) (eval (concat [(eval f de)] (eval p de)) (eval ede de))))")))
+    println(rep(grammar, env, str("(set! let1 (vau de (s v b) (eval [[vau '_ [s] b] (eval v de)] de)))")))
+    println(rep(grammar, env, str("(set! let (vau de (vs b) (cond (= (len vs) 0) (eval b de) true (apply let1 [(idx vs 0) (idx vs 1) [let (slice vs 2 -1) b]] de))))")))
 
-    println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval (vector vau '_ p b) se) (vau de (& op) (apply f (map (vau dde (ip) (eval (eval ip dde) de)) op) se)))))")))
-    println(rep(grammar, env, str("(set! fun (vau se (n p b) (eval (vector set! n (vector lambda p b)) se)))")))
-    println(rep(grammar, env, str("(set! load-file (vau de (f) (eval-read-string (slurp (eval f de)) (current-env))))")))
+    //println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval [vau '_ p b] se) (vau de (& op) (apply f (map (vau dde (ip) (eval (eval ip dde) de)) op) se)))))")))
+    println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval [vau '_ p b] se) (vau de (& op) (apply f (map (vau dde (ip) (eval ip de)) op) se)))))")))
+
+    println(rep(grammar, env, str("(set! fun (vau se (n p b) (eval [set! n [lambda p b]] se)))")))
+    println(rep(grammar, env, str("(set! load-file (vau de (f) (eval-read-string (slurp (eval f de)) de)))")))
 
 
 
