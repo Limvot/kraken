@@ -1,0 +1,44 @@
+import mem:*
+
+fun rc<T>(in:T):rc<T> {
+    var to_ret.construct(in): rc<T>
+    return to_ret
+}
+
+obj rc<T> (Object) {
+    var inner: *rc_inner<T>
+    fun construct(): *rc<T> {
+        inner = null<rc_inner<T>>()
+        return this
+    }
+    fun construct(data: ref T): *rc<T> {
+        inner = new<rc_inner<T>>()
+        inner->data.copy_construct(&data)
+        inner->count = 1
+    }
+    fun copy_construct(old: *rc<T>): void {
+        inner = old->inner
+        inner->count++;
+    }
+    fun operator=(other: ref rc<T>): void {
+        if other.inner != inner {
+            destruct()
+            copy_construct(&other)
+        }
+    }
+    fun destruct(): void {
+        inner->count--;
+        if inner->count == 0 {
+            inner->data.destruct()
+            delete(inner)
+        }
+    }
+    fun get(): ref T {
+        return inner->data
+    }
+}
+
+obj rc_inner<T> {
+    var count: int
+    var data: T
+}
