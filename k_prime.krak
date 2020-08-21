@@ -61,7 +61,10 @@ obj KPEnv (Object) {
             return null<KPEnv>()
         }
     }
-    fun get(key: str): KPResult {
+    fun get(key: *char): KPResult {
+        return get(str(key))
+    }
+    fun get(key: ref str): KPResult {
         var env = find(key)
         if (env != null<KPEnv>()) {
             return KPResult::Ok(env->data.get(key))
@@ -391,6 +394,9 @@ fun kpBool(b: bool): KPValue {
 }
 fun kpString(s: ref str): KPValue {
     return nmMV(KPValue_int::String(s))
+}
+fun kpSymbol(s: *char): KPValue {
+    return kpSymbol(str(s))
 }
 fun kpSymbol(s: ref str): KPValue {
     return nmMV(KPValue_int::Symbol(s))
@@ -1217,9 +1223,12 @@ fun main(argc: int, argv: **char): int {
                     if is_err(x[i]) {
                         return x[i]
                     }
-                    params.add(get_value(x[i]))
+                    // Have to let our params be evald
+
+                    var our_quote.construct(null<KPEnv>(), str("doesn't matter"), vec(str("x")), false, kpSymbol("x")) : KPCombiner
+                    params.add(kpVector(vec(nmMV(KPValue_int::Combiner(our_quote)), get_value(x[i]))))
                 }
-                return function_call(f, params, kpNil())
+                return function_call(f, params, kpEnv(null<KPEnv>()))
             })
         }
     }));
@@ -1330,7 +1339,9 @@ fun main(argc: int, argv: **char): int {
 
             var to_ret = vec<KPValue>()
             for (var i = 0; i < l.get_vector_rc().get().size; i++;) {
-                var result = function_call(f, vec(l.get_vector_rc().get().get(i)), kpEnv(dynamic_env))
+                // need to swap to this being derived and not have this obnoxious
+                // uneval
+                var result = function_call(f, vec(kpVector(vec(get_value(env->get("quote")), l.get_vector_rc().get().get(i)))), kpEnv(dynamic_env))
                 if is_err(result) {
                     return result
                 }
@@ -1368,17 +1379,16 @@ fun main(argc: int, argv: **char): int {
         }
     }));
 
-    // self-implementation fun
+    // more self-implementation fun
     println(rep(grammar, env, str("(set! current-env (vau de () de))")))
     println(rep(grammar, env, str("(set! quote (vau _ (x) x))")))
-    println(rep(grammar, env, str("(add_grammar_rule (quote form) (quote ( \"'\" optional_WS form )) (vau _ (_ _ f) (vector quote f)))"))) // '
-    println(rep(grammar, env, str("(add_grammar_rule 'form '( \"\\\\[\" optional_WS space_forms optional_WS \"\\\\]\" ) (vau _ (_ _ fs _ _) (concat (vector vector) fs)))"))) // '
+    println(rep(grammar, env, str("(add_grammar_rule (quote form) (quote ( \"'\" optional_WS form )) (vau de (_ _ f) (vector quote (eval f de))))"))) // '
+    println(rep(grammar, env, str("(add_grammar_rule 'form '( \"\\\\[\" optional_WS space_forms optional_WS \"\\\\]\" ) (vau de (_ _ fs _ _) (concat (vector vector) (eval fs de))))"))) // '
     println(rep(grammar, env, str("(set! apply (vau de (f p ede) (eval (concat [(eval f de)] (eval p de)) (eval ede de))))")))
     println(rep(grammar, env, str("(set! let1 (vau de (s v b) (eval [[vau '_ [s] b] (eval v de)] de)))")))
     println(rep(grammar, env, str("(set! let (vau de (vs b) (cond (= (len vs) 0) (eval b de) true (apply let1 [(idx vs 0) (idx vs 1) [let (slice vs 2 -1) b]] de))))")))
 
-    //println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval [vau '_ p b] se) (vau de (& op) (apply f (map (vau dde (ip) (eval (eval ip dde) de)) op) se)))))")))
-    println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval [vau '_ p b] se) (vau de (& op) (apply f (map (vau dde (ip) (eval ip de)) op) se)))))")))
+    println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval [vau '_ p b] se) (vau de (& op) (apply f (map (vau dde (ip) (eval (eval ip dde) de)) op) se)))))")))
 
     println(rep(grammar, env, str("(set! fun (vau se (n p b) (eval [set! n [lambda p b]] se)))")))
     println(rep(grammar, env, str("(set! load-file (vau de (f) (eval-read-string (slurp (eval f de)) de)))")))
