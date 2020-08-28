@@ -789,6 +789,32 @@ fun main(argc: int, argv: **char): int {
         return KPResult::Ok(kpNil())
     }));
 
+    env->set(str("symbol?"), make_builtin_combiner(str("symbol?"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 1 {
+            return KPResult::Err(kpString(str("Need 1 param to symbol?")))
+        }
+        var ip = EVAL(dynamic_env, params[0])
+        if is_err(ip) {
+            return ip
+        }
+        return KPResult::Ok(kpBool(get_value(ip).is_symbol()))
+    }));
+
+    env->set(str("get-text"), make_builtin_combiner(str("get-text"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 1 {
+            return KPResult::Err(kpString(str("Need 1 param to get-text")))
+        }
+        var ip = EVAL(dynamic_env, params[0])
+        if is_err(ip) {
+            return ip
+        }
+        var iv = get_value(ip)
+        if !iv.is_symbol() {
+            return KPResult::Err(kpString(str("Called get-text with not a symbol")))
+        }
+        return KPResult::Ok(kpString(iv.get_symbol_text()))
+    }));
+
     env->set(str("vector"), make_builtin_combiner(str("vector"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
         var evaled_params = vec<KPValue>()
         for (var i = 0; i < params.size; i++;) {
@@ -799,6 +825,16 @@ fun main(argc: int, argv: **char): int {
             evaled_params.add(get_value(ip))
         }
         return KPResult::Ok(kpVector(evaled_params))
+    }));
+    env->set(str("vector?"), make_builtin_combiner(str("vector?"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+        if params.size != 1 {
+            return KPResult::Err(kpString(str("Need 1 param to vector?")))
+        }
+        var ip = EVAL(dynamic_env, params[0])
+        if is_err(ip) {
+            return ip
+        }
+        return KPResult::Ok(kpBool(get_value(ip).is_vector()))
     }));
     env->set(str("len"), make_builtin_combiner(str("len"), fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
         if params.size != 1 {
@@ -852,7 +888,7 @@ fun main(argc: int, argv: **char): int {
                 return ip
             }
             var v = get_value(ip)
-            if !v.is_vector() { return KPResult::Err(kpString(str("Param ") + i + " to concat is not vector")); }
+            if !v.is_vector() { return KPResult::Err(kpString(str("Param ") + i + " to concat is not vector: " + pr_str(v, false))); }
             to_ret += v.get_vector_rc().get()
         }
         return KPResult::Ok(kpVector(to_ret))
