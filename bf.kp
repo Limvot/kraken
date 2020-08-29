@@ -2,30 +2,30 @@
 ; are our base building block. In order to make the
 ; following BF implementation nice, let's add atoms!
 ; They will be implmented as length 1 vectors with nice syntax for deref
-(def! make-atom (fn* (x) [x]))
-(def! set-atom! (fn* (x y) (set-nth! x 0 y)))
-(def! get-atom (fn* (x) (nth x 0)))
-(add_grammar_rule 'form ["@" 'form] (fn* (_ x) `(get-atom ~x)))
+(fun make-atom (x) [x])
+(fun set-atom! (x y) (set-idx! x 0 y))
+(fun get-atom (x) (idx x 0))
+(add_grammar_rule 'form ["@" 'form] (lambda (_ x) `(get-atom ~x)))
 
 ; Now begin by defining our BF syntax & semantics
 ; Define our tokens as BF atoms
-(add_grammar_rule 'bfs_atom ["<"]   (fn* (_) '(set-atom! cursor (- @cursor 1))))
-(add_grammar_rule 'bfs_atom [">"]   (fn* (_) '(set-atom! cursor (+ @cursor 1))))
-(add_grammar_rule 'bfs_atom ["\\+"] (fn* (_) '(set-nth! tape @cursor (+ (nth tape @cursor) 1))))
-(add_grammar_rule 'bfs_atom ["-"]   (fn* (_) '(set-nth! tape @cursor (- (nth tape @cursor) 1))))
-(add_grammar_rule 'bfs_atom [","]   (fn* (_) '(let* (value (nth input @inptr))
-                                                    (do (set-atom! inptr (+ 1 @inptr))
-                                                        (set-nth! tape @cursor value)))))
-(add_grammar_rule 'bfs_atom ["."]   (fn* (_) '(set-atom! output (cons (nth tape @cursor) @output))))
+(add_grammar_rule 'bfs_atom ["<"]   (lambda (_) '(set-atom! cursor (- @cursor 1))))
+(add_grammar_rule 'bfs_atom [">"]   (lambda (_) '(set-atom! cursor (+ @cursor 1))))
+(add_grammar_rule 'bfs_atom ["\\+"] (lambda (_) '(set-idx! tape @cursor (+ (idx tape @cursor) 1))))
+(add_grammar_rule 'bfs_atom ["-"]   (lambda (_) '(set-idx! tape @cursor (- (idx tape @cursor) 1))))
+(add_grammar_rule 'bfs_atom [","]   (lambda (_) '(let (value (idx input @inptr))
+                                                      (do (set-atom! inptr (+ 1 @inptr))
+                                                          (set-idx! tape @cursor value)))))
+(add_grammar_rule 'bfs_atom ["."]   (lambda (_) '(set-atom! output (concat [(idx tape @cursor)] @output))))
 
 ; Define strings of BF atoms
-(add_grammar_rule 'bfs ['bfs_atom *] (fn* (x) x))
+(add_grammar_rule 'bfs ['bfs_atom *] (lambda (x) x))
 
 ; Add loop as an atom
 ; (note that closure cannot yet close over itself by value, so we pass it in)
-(add_grammar_rule 'bfs_atom ["\\[" 'bfs "]"] (fn* (_ x _)
-                `(let* (f (fn* (f)
-                                (if (= 0 (nth tape @cursor))
+(add_grammar_rule 'bfs_atom ["\\[" 'bfs "]"] (lambda (_ x _)
+                `(let (f (lambda (f)
+                                (if (= 0 (idx tape @cursor))
                                     nil
                                     (do ,x (f f)))))
                        (f f))))
@@ -33,17 +33,17 @@
 ; For now, stick BFS rule inside an unambigious BFS block
 ; Also add setup code
 (add_grammar_rule 'form ["bf" 'optional_WS "{" 'optional_WS 'bfs 'optional_WS "}"]
-                        (fn* (_ _ _ _ x _ _)
-                           `(fn* (input)
-                             (let* (
+                        (lambda (_ _ _ _ x _ _)
+                           `(lambda (input)
+                             (let (
                                     tape   (vector 0 0 0 0 0)
                                     cursor (make-atom 0)
                                     inptr  (make-atom 0)
                                     output (make-atom (vector))
                                     )
-                                (do (println "beginning bfs") ,x (nth output 0))))))
+                                (do (println "beginning bfs") ,x (idx output 0))))))
 
 ; Let's try it out! This BF program prints the input 3 times
 (println (bf { ,>+++[<.>-] } [1337]))
 ; we can also have it compile into our main program
-(def! main (fn* () (do (println "BF: " (bf { ,>+++[<.>-] } [1337])) 0)))
+(fun main () (do (println "BF: " (bf { ,>+++[<.>-] } [1337])) 0))

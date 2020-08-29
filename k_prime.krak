@@ -1416,18 +1416,8 @@ fun main(argc: int, argv: **char): int {
     }));
 
     // more self-implementation fun
-    println(rep(grammar, env, str("(set! current-env (vau de () de))")))
-    println(rep(grammar, env, str("(set! quote (vau _ (x) x))")))
-    println(rep(grammar, env, str("(add_grammar_rule (quote form) (quote ( \"'\" optional_WS form )) (vau de (_ _ f) (vector quote (eval f de))))"))) // '
-    println(rep(grammar, env, str("(add_grammar_rule 'form '( \"\\\\[\" optional_WS space_forms optional_WS \"\\\\]\" ) (vau de (_ _ fs _ _) (concat (vector vector) (eval fs de))))"))) // '
-    println(rep(grammar, env, str("(set! apply (vau de (f p ede) (eval (concat [(eval f de)] (eval p de)) (eval ede de))))")))
-    println(rep(grammar, env, str("(set! let1 (vau de (s v b) (eval [[vau '_ [s] b] (eval v de)] de)))")))
-    println(rep(grammar, env, str("(set! let (vau de (vs b) (cond (= (len vs) 0) (eval b de) true (apply let1 [(idx vs 0) (idx vs 1) [let (slice vs 2 -1) b]] de))))")))
-
-    println(rep(grammar, env, str("(set! lambda (vau se (p b) (let1 f (eval [vau '_ p b] se) (vau de (& op) (apply f (map (vau dde (ip) (eval (eval ip dde) de)) op) se)))))")))
-
-    println(rep(grammar, env, str("(set! fun (vau se (n p b) (eval [set! n [lambda p b]] se)))")))
     println(rep(grammar, env, str("(set! load-file (vau de (f) (eval-read-string (slurp (eval f de)) de)))")))
+    println(rep(grammar, env, str("(load-file \"prelude.kp\")")))
 
 
 
