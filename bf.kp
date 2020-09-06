@@ -1,3 +1,6 @@
+
+(load-file "./k_prime_stdlib/prelude.kp")
+
 ; We don't have atoms built in, mutable vectors
 ; are our base building block. In order to make the
 ; following BF implementation nice, let's add atoms!

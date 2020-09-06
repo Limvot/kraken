@@ -1,58 +1,44 @@
+; Load prelude so we get fun, lambda, if, quoting, etc
+(load-file "./k_prime_stdlib/prelude.kp")
+; First quick lookup function, since maps are not built in
+(fun get-value-helper (dict key i) (if (>= i (len dict))
+                                                nil
+                                                (if (= key (idx dict i))
+                                                    (idx dict (+ i 1))
+                                                    (get-value-helper dict key (+ i 2)))))
+(fun get-value (dict key) (get-value-helper dict key 0))
 
-(def! get-value-helper (fn* (dict key idx) (if (>= idx (count dict)) nil (if (= key (nth dict idx)) (nth dict (+ idx 1)) (get-value-helper dict key (+ idx 2))))))
-(def! get-value (fn* (dict key) (get-value-helper dict key 0)))
-(def! method-call (fn* (object method & arguments) (let* (method_fn (get-value (meta object) method))
+; Our actual method call function
+(fun method-call (object method & arguments) (let (method_fn (get-value (meta object) method))
                                                             (if (= method_fn nil)
                                                                 (println "no method " method)
-                                                                (apply method_fn object arguments)))))
-; method call syntax
-(add_grammar_rule 'form [ 'form "\\." 'atom 'optional_WS  "\\(" 'optional_WS 'space_forms 'optional_WS "\\)" ] (fn* (o _ m _ _ _ p _ _) `(method-call ~o '~m ,p)))
-; object syntax
-(def! flatten (fn* (l) (let*
-                        (flatten-helper (fn* (l a f) (if (> (count l) 0)
-                                                     (f (rest l) (concat a (first l)) f)
-                                                     a)))
-                        (flatten-helper l [] flatten-helper))))
-(add_grammar_rule 'form [ "obj" 'optional_WS 'atom 'optional_WS "{" 'optional_WS 'form 'optional_WS [ 'atom 'optional_WS 'form 'optional_WS ] + "}" ] (fn* (_ _ name _ _ _ constructor _ methods _)
-                                     (let* (processed_methods (flatten (map (fn* (m) [`'~(nth m 0) (nth m 2)]) methods)))
-                                        `(def! ~name (fn* (& args) (with-meta (apply ~constructor args)  [ ,processed_methods ] ))))))
-obj my_constructor {
-    (fn* () [17])
-    inc (fn* (o) (set-nth! o 0 (+ (nth o 0) 1)))
-    dec (fn* (o) (set-nth! o 0 (- (nth o 0) 1)))
-    set (fn* (o n) (set-nth! o 0 n))
-    get (fn* (o) (nth o 0))
-}
+                                                                (do (println "applying" method_fn (concat [object] arguments) ) (lapply method_fn (concat [object] arguments))))))
+; Some nice syntactic sugar for method calls
+(add_grammar_rule 'form ['form "\\." 'atom 'optional_WS "\\(" 'optional_WS 'space_forms 'optional_WS "\\)"]
+                            (lambda (o _ m _ _ _ p _ _) `(method-call ~o '~m ,p)))
 
-(println "pre construct")
-(def! actual_obj (my_constructor))
-(println "constructed" actual_obj)
-
-(println "here" actual_obj)
-(println "here" (meta actual_obj))
-
-(def! main (fn* () (do
-                   (println "actual_obj" actual_obj)
-                   (method-call actual_obj 'inc)
-                   (println "actual_obj" actual_obj)
-                   (println "with get: " (method-call actual_obj 'get))
-                   (println "actual_obj" actual_obj)
-                   (method-call actual_obj 'dec)
-                   (method-call actual_obj 'dec)
-                   (println "actual_obj" actual_obj)
-                   (println "setting old style 654")
-                   (method-call actual_obj 'set 654)
-                   (println "actual_obj" actual_obj)
-                   (println "Ok, doing with new method call syntax")
-                   actual_obj.inc()
-                   (println "actual_obj" actual_obj)
-                   (println "setting new style 1337")
-                   actual_obj.set(1337)
-                   (println "actual_obj" actual_obj)
-                   (println "with get " actual_obj.get())
-                    0)))
+; Ok, let's create our object by hand for this example
+(set! actual_obj (with-meta [0] [
+                                'inc (lambda (o) (set-idx! o 0 (+ (idx o 0) 1)))
+                                'dec (lambda (o) (set-idx! o 0 (- (idx o 0) 1)))
+                                'set (lambda (o n) (set-idx! o 0 n))
+                                'get (lambda (o) (idx o 0))
+                                ]))
 (do
-    (println "interp-main")
-    (main)
-    (println "done interp-main")
+    (println (meta actual_obj))
+    ; Use our new sugar
+    actual_obj.set(1337)
+    actual_obj.inc()
+    (println "get: " actual_obj.get())
+    actual_obj.dec()
+    (println "get: " actual_obj.get())
+
+    ; Use methods directly
+    (method-call actual_obj 'set 654)
+    (method-call actual_obj 'inc)
+    (println "get: " (method-call actual_obj 'get))
+    (method-call actual_obj 'dec)
+    (method-call actual_obj 'dec)
+    (println "get: " (method-call actual_obj 'get))
+
     nil)
