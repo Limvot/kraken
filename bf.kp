@@ -1,10 +1,10 @@
 
 (load-file "./k_prime_stdlib/prelude.kp")
 
-; We don't have atoms built in, mutable vectors
+; We don't have atoms built in, mutable arrays
 ; are our base building block. In order to make the
 ; following BF implementation nice, let's add atoms!
-; They will be implmented as length 1 vectors with nice syntax for deref
+; They will be implmented as length 1 arrays with nice syntax for deref
 (fun make-atom (x) [x])
 (fun set-atom! (x y) (set-idx! x 0 y))
 (fun get-atom (x) (idx x 0))
@@ -39,10 +39,10 @@
                         (lambda (_ _ _ _ x _ _)
                            `(lambda (input)
                              (let (
-                                    tape   (vector 0 0 0 0 0)
+                                    tape   (array 0 0 0 0 0)
                                     cursor (make-atom 0)
                                     inptr  (make-atom 0)
-                                    output (make-atom (vector))
+                                    output (make-atom (array))
                                     )
                                 (do (println "beginning bfs") ,x (idx output 0))))))
 

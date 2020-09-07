@@ -1,27 +1,37 @@
 
-(set! current-env (vau de () de))
 (set! quote (vau _ (x) x))
+(set! lambda (vau se (p b) (wrap (eval (array vau (quote _) p b) se))))
+(set! current-env (vau de () de))
+(set! fun (vau se (n p b) (eval (array set! n (array lambda p b)) se)))
 
-(add_grammar_rule (quote form) (quote ( "'" optional_WS form )) (vau de (_ _ f) (vector quote (eval f de))))
-(add_grammar_rule 'form '( "\\[" optional_WS space_forms optional_WS "\\]" ) (vau de (_ _ fs _ _) (concat (vector vector) (eval fs de))))
+; do_helper is basically mapping eval over statements, but the last one is in TCO position
+; a bit of a hack, using cond to sequence (note the repitition of the eval in TCO position if it's last,
+; otherwise the same eval in cond position, and wheather or not it returns a truthy value, it recurses in TCO position
+(fun do_helper (s i se) (cond (= i (len s)) nil
+                              (= i (- (len s) 1)) (eval (idx s i) se)
+                              (eval (idx s i) se) (do_helper s (+ i 1) se)
+                              true                (do_helper s (+ i 1) se)))
+(set! do (vau se (& s) (do_helper s 0 se)))
 
-(set! vapply (vau de (f p ede) (eval (concat [(eval f de)] (eval p de)) (eval ede de))))
+(fun concat_helper (a1 a2 a3 i) (cond (< i (len a1))              (do (set-idx! a3 i (idx a1 i))              (concat_helper a1 a2 a3 (+ i 1)))
+                                      (< i (+ (len a1) (len a2))) (do (set-idx! a3 i (idx a2 (- i (len a1)))) (concat_helper a1 a2 a3 (+ i 1)))
+                                      true a3))
+(fun concat (a1 a2) (concat_helper a1 a2 (array-with-len (+ (len a1) (len a2))) 0))
+
+(add_grammar_rule (quote form) (quote ( "'" optional_WS form )) (vau de (_ _ f) (array quote (eval f de))))
+(add_grammar_rule 'form '( "\\[" optional_WS space_forms optional_WS "\\]" ) (vau de (_ _ fs _ _) (concat (array array) (eval fs de))))
+
+(fun vapply (f p ede) (eval (concat [f]          p) ede))
+(fun lapply (f p)     (eval (concat [(unwrap f)] p) (current-env)))
 (set! let1 (vau de (s v b) (eval [[vau '_ [s] b] (eval v de)] de)))
 (set! let (vau de (vs b) (cond (= (len vs) 0) (eval b de) true (vapply let1 [(idx vs 0) (idx vs 1) [let (slice vs 2 -1) b]] de))))
-;(set! lambda (vau se (p b) (let1 f (eval [vau '_ p b] se) (vau de (& op) (vapply f (map (vau dde (ip) (eval (eval ip dde) de)) op) se)))))
-(set! lambda (vau se (p b) (wrap (eval [vau '_ p b] se))))
-(set! fun (vau se (n p b) (eval [set! n [lambda p b]] se)))
-(fun lapply (f p) (eval (concat [(unwrap f)] p) (current-env)))
-(fun do (& params) (cond 
-                    (= 0 (len params)) nil
-                    true (idx params (- (len params) 1))))
 (set! if (vau de (con than & else) (cond 
                                         (eval con de) (eval than de)
                                         (> (len else) 0) (eval (idx else 0) de)
                                         true nil)))
 
 (fun print_through (x) (let (_ (println x)) x))
-(fun is_pair? (x) (and (vector? x) (> (len x) 0)))
+(fun is_pair? (x) (and (array? x) (> (len x) 0)))
 
 (set! quasiquote (vau de (x)
     (cond (is_pair? x)

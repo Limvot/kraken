@@ -19,7 +19,7 @@ adt KPValue_int {
     Symbol: str,                            //       000 1 0
     Int: int,                               //           0 0
 
-    Vector: rc<vec<KPValue>>,               //<10sizebits> 1
+    Array: rc<vec<KPValue>>,               //<10sizebits> 1
     // same encoding, but encodes 0-length null ptr
     Nil                                     // 00000000000 1
 }
@@ -92,16 +92,19 @@ obj KPEnv (Object) {
 obj KPBuiltinCombiner (Object) {
     var name: str
     var wrap_level: int
-    var fp: fun(vec<KPValue>, *KPEnv): KPResult
-    fun construct(name: ref str, wrap_level: int, fp: fun(vec<KPValue>, *KPEnv): KPResult): *KPBuiltinCombiner {
+    var tco_eval: bool
+    var fp: fun(vec<KPValue>, *KPEnv): pair<*KPEnv, KPResult>
+    fun construct(name: ref str, wrap_level: int, tco_eval: bool, fp: fun(vec<KPValue>, *KPEnv): pair<*KPEnv, KPResult>): *KPBuiltinCombiner {
         this->name.copy_construct(&name)
         this->wrap_level = wrap_level
+        this->tco_eval = tco_eval
         this->fp = fp
         return this
     }
     fun copy_construct(old: *KPBuiltinCombiner): void {
         this->fp = old->fp
         this->wrap_level = old->wrap_level
+        this->tco_eval = old->tco_eval
         this->name.copy_construct(&old->name)
     }
     fun destruct(): void {
@@ -114,15 +117,15 @@ obj KPBuiltinCombiner (Object) {
     fun operator==(other: ref KPBuiltinCombiner):bool {
         return false
     }
-    fun call(params: vec<KPValue>, dynamic_env: KPValue): KPResult {
+    fun call(params: vec<KPValue>, dynamic_env: KPValue): pair<*KPEnv, KPResult> {
         if !dynamic_env.is_env() {
-            return KPResult::Err(kpString(pr_str(dynamic_env, true) + " is not an env"))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(pr_str(dynamic_env, true) + " is not an env")))
         }
         for (var l = 0; l < wrap_level; l++;) {
             for (var i = 0; i < params.size; i++;) {
                 var intermediate = EVAL(dynamic_env.get_env(), params[i]);
                 if is_err(intermediate) {
-                    return intermediate;
+                    return make_pair(null<KPEnv>(), intermediate);
                 }
                 params[i] = get_value(intermediate);
             }
@@ -130,8 +133,8 @@ obj KPBuiltinCombiner (Object) {
         return fp(params, dynamic_env.get_env())
     }
 }
-fun make_builtin_combiner(name: str, wrap_level: int, f: fun(vec<KPValue>, *KPEnv): KPResult): KPValue {
-    var to_ret.construct(name, wrap_level, f): KPBuiltinCombiner
+fun make_builtin_combiner(name: str, wrap_level: int, tco_eval: bool, f: fun(vec<KPValue>, *KPEnv): pair<*KPEnv,KPResult>): KPValue {
+    var to_ret.construct(name, wrap_level, tco_eval, f): KPBuiltinCombiner
     return nmMV(KPValue_int::BuiltinCombiner(to_ret))
 }
 obj KPCombiner (Object) {
@@ -191,12 +194,12 @@ obj KPCombiner (Object) {
         }
         // tco
         if (!is_variadic && parameters.size != params.size) || (is_variadic && parameters.size > params.size + 1) {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("combiner called with the wrong number of parameters: ") + params.size + " but expecting " + parameters.size + ": [ " + str(",").join(parameters) + "], was: " + pr_str(kpVector(params), true) + ", function body is " + pr_str(*body, true))))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("combiner called with the wrong number of parameters: ") + params.size + " but expecting " + parameters.size + ": [ " + str(",").join(parameters) + "], was: " + pr_str(kpArray(params), true) + ", function body is " + pr_str(*body, true))))
         }
         var new_env = new<KPEnv>()->construct(env)
         for (var i = 0; i < parameters.size; i++;) {
             if is_variadic && i == parameters.size - 1 {
-                new_env->set(parameters[i], kpVector(params.slice(i, -1)))
+                new_env->set(parameters[i], kpArray(params.slice(i, -1)))
             } else {
                 new_env->set(parameters[i], params[i])
             }
@@ -240,8 +243,8 @@ obj KPValue (Object) {
     }
     fun equals(other: ref KPValue): bool {
         match (internal) {
-           KPValue_int::Vector(d) { match (other.internal) {
-                KPValue_int::Vector(db) {
+           KPValue_int::Array(d) { match (other.internal) {
+                KPValue_int::Array(db) {
                     if d.get().size != db.get().size {
                         return false
                     }
@@ -267,8 +270,8 @@ obj KPValue (Object) {
     }
     fun deep_clone(): KPValue {
         match (internal) {
-            KPValue_int::Vector(v) {
-                return kpVector(v.get())
+            KPValue_int::Array(v) {
+                return kpArray(v.get())
             }
             KPValue_int::Env(e) {
                 var newenv = new<KPEnv>()
@@ -305,17 +308,17 @@ obj KPValue (Object) {
         }
         error("Tried to get env on not an env" + pr_str(*this, true))
     }
-    fun is_vector(): bool {
+    fun is_array(): bool {
         match (internal) {
-            KPValue_int::Vector(v) {
+            KPValue_int::Array(v) {
                 return true
             }
         }
         return false
     }
-    fun get_vector_rc(): rc<vec<KPValue>> {
+    fun get_array_rc(): rc<vec<KPValue>> {
         match (internal) {
-            KPValue_int::Vector(v) {
+            KPValue_int::Array(v) {
                 return v
             }
         }
@@ -397,7 +400,7 @@ obj KPValue (Object) {
         return true
     }
     fun is_pair(): bool {
-        return is_vector() && get_vector_rc().get().size > 0
+        return is_array() && get_array_rc().get().size > 0
     }
 }
 
@@ -431,9 +434,9 @@ fun kpSymbol(s: ref str): KPValue {
 fun kpInt(i: int): KPValue {
     return nmMV(KPValue_int::Int(i))
 }
-fun kpVector(v: ref vec<KPValue>): KPValue {
+fun kpArray(v: ref vec<KPValue>): KPValue {
     var rcd.construct(v): rc<vec<KPValue>>
-    return nmMV(KPValue_int::Vector(rcd))
+    return nmMV(KPValue_int::Array(rcd))
 }
 fun kpNil(): KPValue {
     return nmMV(KPValue_int::Nil())
@@ -493,7 +496,7 @@ fun get_value(r: KPResult): KPValue {
 }
 fun pr_str(v: KPValue, print_readably: bool): str {
     match (v.internal) {
-        KPValue_int::Vector(l) {
+        KPValue_int::Array(l) {
             var to_ret = str("( ")
             for (var i = 0; i < l.get().size; i++;) {
                 if (i != 0) {
@@ -571,9 +574,9 @@ fun EVAL(env: *KPEnv, ast: KPValue): KPResult {
     // for tco
     while (true) {
         match (ast.internal) {
-            KPValue_int::Vector(l) {
+            KPValue_int::Array(l) {
                 if (l.get().size == 0) {
-                    return KPResult::Err(kpString(str("Eval a zero length vector")))
+                    return KPResult::Err(kpString(str("Eval a zero length array")))
                 } else {
                     var combiner = EVAL(env, l.get()[0])
                     if is_err(combiner) {
@@ -582,7 +585,14 @@ fun EVAL(env: *KPEnv, ast: KPValue): KPResult {
                     /*println("About to call combiner evaled from " + pr_str(l.get()[0], true))*/
                     match (get_value(combiner).internal) {
                         KPValue_int::BuiltinCombiner(f) {
-                            return f.call(l.get().slice(1,-1), kpEnv(env))
+                            var call_pair =  f.call(l.get().slice(1,-1), kpEnv(env));
+                            if is_err(call_pair.second) || !f.tco_eval {
+                                return call_pair.second
+                            }
+                            // tco_eval is true, so do tco
+                            env = call_pair.first
+                            ast = get_value(call_pair.second)
+                            continue
                         }
                         KPValue_int::Combiner(f) {
                             var call_pair = f.prep_call(l.get().slice(1, -1), kpEnv(env))
@@ -607,7 +617,7 @@ fun EVAL(env: *KPEnv, ast: KPValue): KPResult {
 }
 
 fun function_call(f: KPValue, params: ref vec<KPValue>, env: KPValue): KPResult {
-    return EVAL(env.get_env(), kpVector(vec(f) + params))
+    return EVAL(env.get_env(), kpArray(vec(f) + params))
 }
 
 fun rep(grammar: ref Grammer<KPResult, KPValue>, env: *KPEnv, a: str): str {
@@ -692,13 +702,13 @@ fun main(argc: int, argv: **char): int {
 
     var form = grammar.add_new_nonterminal("form", vec(atom), kpNil(), ret_0_sym)
     var space_forms = grammar.add_new_nonterminal("space_forms", vec<int>(), kpNil(), fun(_: ref KPValue, x: ref vec<KPResult>): KPResult {
-        return KPResult::Ok(kpVector(vec<KPValue>()))
+        return KPResult::Ok(kpArray(vec<KPValue>()))
     })
     grammar.add_to_nonterminal(space_forms, vec(form), kpNil(), fun(_: ref KPValue, x: ref vec<KPResult>): KPResult {
         if is_err(x[0]) {
             return x[0]
         }
-        return KPResult::Ok(kpVector(vec(get_value(x[0]))))
+        return KPResult::Ok(kpArray(vec(get_value(x[0]))))
     })
     grammar.add_to_nonterminal(space_forms, vec(form, WS, space_forms), kpNil(), fun(_: ref KPValue, x: ref vec<KPResult>): KPResult {
         if is_err(x[0]) {
@@ -707,12 +717,12 @@ fun main(argc: int, argv: **char): int {
         if is_err(x[2]) {
             return x[2]
         }
-        return KPResult::Ok(kpVector(vec(get_value(x[0])) + get_value(x[2]).get_vector_rc().get()))
+        return KPResult::Ok(kpArray(vec(get_value(x[0])) + get_value(x[2]).get_array_rc().get()))
     })
 
     grammar.add_to_nonterminal(form, vec(grammar.add_terminal("\\(", kpNil(), ret_nil_term),
                                                        optional_WS,
-                                                       grammar.add_terminal("\\)", kpNil(), ret_nil_term)), kpNil(), fun(_: ref KPValue, x: ref vec<KPResult>): KPResult { return KPResult::Ok(kpVector(vec<KPValue>())); })
+                                                       grammar.add_terminal("\\)", kpNil(), ret_nil_term)), kpNil(), fun(_: ref KPValue, x: ref vec<KPResult>): KPResult { return KPResult::Ok(kpArray(vec<KPValue>())); })
     grammar.add_to_nonterminal(form, vec(grammar.add_terminal("\\(", kpNil(), ret_nil_term),
                                                        optional_WS,
                                                        space_forms,
@@ -724,24 +734,24 @@ fun main(argc: int, argv: **char): int {
 
     var env = new<KPEnv>()->construct()
 
-    env->set(str("vau"), make_builtin_combiner(str("vau"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("vau"), make_builtin_combiner(str("vau"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         var param_symbols = vec<str>()
         if params.size != 3 {
-            return KPResult::Err(kpString(str("bad number of params to vau")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("bad number of params to vau"))))
         }
         if !params[0].is_symbol() {
-            return KPResult::Err(kpString(str("first param to vau is not symbol")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("first param to vau is not symbol"))))
         }
         var dynamic_env_name = params[0].get_symbol_text()
         var is_variadic = false
         var parameters = vec<str>()
-        if !params[1].is_vector() {
-            return KPResult::Err(kpString(str("second param to vau is not vector")))
+        if !params[1].is_array() {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to vau is not array"))))
         }
-        var parameter_objects = params[1].get_vector_rc()
+        var parameter_objects = params[1].get_array_rc()
         for (var i = 0; i < parameter_objects.get().size; i++;) {
             if !parameter_objects.get()[i].is_symbol() {
-                return KPResult::Err(kpString(str("second param to vau has a not symbol member")))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to vau has a not symbol member"))))
             }
             var parameter = parameter_objects.get()[i].get_symbol_text()
             if parameter == "&" {
@@ -751,206 +761,204 @@ fun main(argc: int, argv: **char): int {
             }
         }
         var to_ret.construct(dynamic_env, dynamic_env_name, parameters, is_variadic, params[2]) : KPCombiner
-        return KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret)))
+        return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret))))
     }));
-    env->set(str("eval"), make_builtin_combiner(str("eval"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
-        var evaled_params = vec<KPValue>()
-        for (var i = 0; i < params.size; i++;) {
-            var ip = EVAL(dynamic_env, params[i])
-            if is_err(ip) {
-                return ip
-            }
-            evaled_params.add(get_value(ip))
-        }
-        if evaled_params.size == 1 {
-            return EVAL(dynamic_env, evaled_params[0])
+    // Uses TCO
+    env->set(str("eval"), make_builtin_combiner(str("eval"), 1, true, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size == 1 {
+            return make_pair(dynamic_env, KPResult::Ok(params[0]))
         } else if params.size == 2 {
-            if !evaled_params[1].is_env() {
-                return KPResult::Err(kpString(str("second param to eval is not an environment")))
+            if !params[1].is_env() {
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to eval is not an environment"))))
             }
-            return EVAL(evaled_params[1].get_env(), evaled_params[0])
+            return make_pair(params[1].get_env(), KPResult::Ok(params[0]))
         }
-        return KPResult::Err(kpString(str("wrong number of params to eval")))
+        return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("wrong number of params to eval"))))
     }));
 
-    env->set(str("set!"), make_builtin_combiner(str("set!"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("set!"), make_builtin_combiner(str("set!"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 2 {
-            return KPResult::Err(kpString(str("not 2 params to set!")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("not 2 params to set!"))))
         }
         if !params[0].is_symbol() {
-            return KPResult::Err(kpString(str("first parameter to set! is not a symbol")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("first parameter to set! is not a symbol"))))
         }
         var data = EVAL(dynamic_env, params[1])
         if is_err(data) {
-            return data
+            return make_pair(null<KPEnv>(), data)
         }
         dynamic_env->set(params[0].get_symbol_text(), get_value(data))
-        return KPResult::Ok(kpNil())
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpNil()))
     }));
 
-    env->set(str("cond"), make_builtin_combiner(str("cond"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    // cond uses TCO
+    env->set(str("cond"), make_builtin_combiner(str("cond"), 0, true, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if (params.size % 2) != 0 {
-            return KPResult::Err(kpString(str("Need even number of params to cond")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need even number of params to cond"))))
         }
         for (var i = 0; i < params.size; i+=2;) {
             var ip = EVAL(dynamic_env, params[i])
             if is_err(ip) {
-                return ip
+                return make_pair(null<KPEnv>(), ip)
             }
             if get_value(ip).is_truthy() {
-                return EVAL(dynamic_env, params[i+1])
+                // will be evaluated above because tco is true
+                return make_pair(dynamic_env, KPResult::Ok(params[i+1]))
             }
         }
-        return KPResult::Ok(kpNil())
+        return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("None of cond branches were true"))))
     }));
 
-    env->set(str("symbol?"), make_builtin_combiner(str("symbol?"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("symbol?"), make_builtin_combiner(str("symbol?"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {
-            return KPResult::Err(kpString(str("Need 1 param to symbol?")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to symbol?"))))
         }
         var ip = EVAL(dynamic_env, params[0])
         if is_err(ip) {
-            return ip
+            return make_pair(null<KPEnv>(), ip)
         }
-        return KPResult::Ok(kpBool(get_value(ip).is_symbol()))
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(get_value(ip).is_symbol())))
     }));
 
-    env->set(str("get-text"), make_builtin_combiner(str("get-text"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("get-text"), make_builtin_combiner(str("get-text"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {
-            return KPResult::Err(kpString(str("Need 1 param to get-text")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to get-text"))))
         }
         var ip = EVAL(dynamic_env, params[0])
         if is_err(ip) {
-            return ip
+            return make_pair(null<KPEnv>(), ip)
         }
         var iv = get_value(ip)
         if !iv.is_symbol() {
-            return KPResult::Err(kpString(str("Called get-text with not a symbol")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Called get-text with not a symbol"))))
         }
-        return KPResult::Ok(kpString(iv.get_symbol_text()))
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpString(iv.get_symbol_text())))
     }));
 
-    env->set(str("vector"), make_builtin_combiner(str("vector"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("array"), make_builtin_combiner(str("array"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         var evaled_params = vec<KPValue>()
         for (var i = 0; i < params.size; i++;) {
             var ip = EVAL(dynamic_env, params[i])
             if is_err(ip) {
-                return ip
+                return make_pair(null<KPEnv>(), ip)
             }
             evaled_params.add(get_value(ip))
         }
-        return KPResult::Ok(kpVector(evaled_params))
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpArray(evaled_params)))
     }));
-    env->set(str("vector?"), make_builtin_combiner(str("vector?"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("array-with-len"), make_builtin_combiner(str("array-with-len"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if !params[0].is_int() {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Called array-with-len with not an int"))))
+        }
+        var to_ret = vec<KPValue>()
+        var l = params[0].get_int()
+        for (var i = 0; i < l; i++;) {
+            to_ret.add(kpNil())
+        }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpArray(to_ret)))
+    }));
+    env->set(str("array?"), make_builtin_combiner(str("array?"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {
-            return KPResult::Err(kpString(str("Need 1 param to vector?")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to array?"))))
         }
         var ip = EVAL(dynamic_env, params[0])
         if is_err(ip) {
-            return ip
+            return make_pair(null<KPEnv>(), ip)
         }
-        return KPResult::Ok(kpBool(get_value(ip).is_vector()))
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(get_value(ip).is_array())))
     }));
-    env->set(str("len"), make_builtin_combiner(str("len"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("len"), make_builtin_combiner(str("len"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {
-            return KPResult::Err(kpString(str("Need 1 param to len")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to len"))))
         }
         var v = EVAL(dynamic_env, params[0]);
-        if is_err(v) { return v; }
-        return KPResult::Ok(kpInt(get_value(v).get_vector_rc().get().size))
+        if is_err(v) { return make_pair(null<KPEnv>(), v); }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpInt(get_value(v).get_array_rc().get().size)))
     }));
-    env->set(str("idx"), make_builtin_combiner(str("idx"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("idx"), make_builtin_combiner(str("idx"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 2 {
-            return KPResult::Err(kpString(str("Need 2 params to idx")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 params to idx"))))
         }
         var v = EVAL(dynamic_env, params[0]);
-        if is_err(v) { return v; }
+        if is_err(v) { return make_pair(null<KPEnv>(), v); }
         var vv = get_value(v)
-        if !vv.is_vector() { return KPResult::Err(kpString(str("Param 1 to idx is not vector"))); }
+        if !vv.is_array() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Param 1 to idx is not array")))); }
         var i = EVAL(dynamic_env, params[1]);
-        if is_err(i) { return i; }
+        if is_err(i) { return make_pair(null<KPEnv>(), i); }
         var iv = get_value(i)
-        if !iv.is_int() { return KPResult::Err(kpString(str("Param 2 to idx is not int"))); }
+        if !iv.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Param 2 to idx is not int")))); }
 
-        return KPResult::Ok(vv.get_vector_rc().get()[iv.get_int()])
+        var index = iv.get_int()
+        if index < 0 {
+            index += vv.get_array_rc().get().size
+        }
+
+        return make_pair(null<KPEnv>(), KPResult::Ok(vv.get_array_rc().get()[index]))
     }));
-    env->set(str("set-idx!"), make_builtin_combiner(str("set-idx!"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("set-idx!"), make_builtin_combiner(str("set-idx!"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 3 {
-            return KPResult::Err(kpString(str("Need 3 params to set-idx!")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 3 params to set-idx!"))))
         }
         var v = EVAL(dynamic_env, params[0]);
-        if is_err(v) { return v; }
+        if is_err(v) { return make_pair(null<KPEnv>(), v); }
         var vv = get_value(v)
-        if !vv.is_vector() { return KPResult::Err(kpString(str("Param 1 to set-idx! is not vector"))); }
+        if !vv.is_array() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Param 1 to set-idx! is not array")))); }
         var i = EVAL(dynamic_env, params[1]);
-        if is_err(i) { return i; }
+        if is_err(i) { return make_pair(null<KPEnv>(), i); }
         var iv = get_value(i)
-        if !iv.is_int() { return KPResult::Err(kpString(str("Param 2 to set-idx! is not int"))); }
+        if !iv.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Param 2 to set-idx! is not int")))); }
 
         var r = EVAL(dynamic_env, params[2]);
-        if is_err(r) { return r; }
+        if is_err(r) { return make_pair(null<KPEnv>(), r); }
         var rv = get_value(r)
 
-        vv.get_vector_rc().get()[iv.get_int()] = rv;
+        vv.get_array_rc().get()[iv.get_int()] = rv;
 
-        return KPResult::Ok(kpNil())
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpNil()))
     }));
-    env->set(str("concat"), make_builtin_combiner(str("concat"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
-        var to_ret = vec<KPValue>()
-        for (var i = 0; i < params.size; i++;) {
-            var ip = EVAL(dynamic_env, params[i])
-            if is_err(ip) {
-                return ip
-            }
-            var v = get_value(ip)
-            if !v.is_vector() { return KPResult::Err(kpString(str("Param ") + i + " to concat is not vector: " + pr_str(v, false))); }
-            to_ret += v.get_vector_rc().get()
-        }
-        return KPResult::Ok(kpVector(to_ret))
-    }));
-    env->set(str("slice"), make_builtin_combiner(str("slice"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("slice"), make_builtin_combiner(str("slice"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 3 {
-            return KPResult::Err(kpString(str("Need 3 params to slice")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 3 params to slice"))))
         }
         var lr = EVAL(dynamic_env, params[0]);
-        if is_err(lr) { return lr; }
+        if is_err(lr) { return make_pair(null<KPEnv>(), lr); }
         var lv = get_value(lr);
-        if !lv.is_vector() { return KPResult::Err(kpString(str("first param to slice is not vector"))); }
+        if !lv.is_array() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("first param to slice is not array")))); }
         var startr = EVAL(dynamic_env, params[1]);
-        if is_err(startr) { return startr; }
+        if is_err(startr) { return make_pair(null<KPEnv>(), startr); }
         var startv = get_value(startr);
-        if !startv.is_int() { return KPResult::Err(kpString(str("second param to slice is not int"))); }
+        if !startv.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to slice is not int")))); }
         var start = startv.get_int();
         var endr = EVAL(dynamic_env, params[2]);
-        if is_err(endr) { return endr; }
+        if is_err(endr) { return make_pair(null<KPEnv>(), endr); }
         var endv = get_value(endr);
-        if !endv.is_int() { return KPResult::Err(kpString(str("third param to slice is not int"))); }
+        if !endv.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("third param to slice is not int")))); }
         var end = endv.get_int();
 
 
-        return KPResult::Ok(kpVector(lv.get_vector_rc().get().slice(start, end)))
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpArray(lv.get_array_rc().get().slice(start, end))))
     }));
 
-    env->set(str("+"), make_builtin_combiner(str("+"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("+"), make_builtin_combiner(str("+"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         var to_ret = 0
         for (var i = 0; i < params.size; i++;) {
             var ip = EVAL(dynamic_env, params[i])
-            if is_err(ip) { return ip; }
+            if is_err(ip) { return make_pair(null<KPEnv>(), ip); }
             match (get_value(ip).internal) {
                 KPValue_int::Int(v) {
                     to_ret += v
                     continue
                 }
             }
-            return KPResult::Err(kpString(str("called + with not an int: ") + pr_str(get_value(ip), false)))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called + with not an int: ") + pr_str(get_value(ip), false))))
         }
-        return KPResult::Ok(kpInt(to_ret))
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpInt(to_ret)))
     }));
-    env->set(str("-"), make_builtin_combiner(str("-"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("-"), make_builtin_combiner(str("-"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         var to_ret = 0
         for (var i = 0; i < params.size; i++;) {
             var ip = EVAL(dynamic_env, params[i])
-            if is_err(ip) { return ip; }
+            if is_err(ip) { return make_pair(null<KPEnv>(), ip); }
             match (get_value(ip).internal) {
                 KPValue_int::Int(v) {
                     if i == 0 {
@@ -961,30 +969,30 @@ fun main(argc: int, argv: **char): int {
                     continue
                 }
             }
-            return KPResult::Err(kpString(str("called - with not an int: ") + pr_str(get_value(ip), false)))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called - with not an int: ") + pr_str(get_value(ip), false))))
         }
-        return KPResult::Ok(kpInt(to_ret))
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpInt(to_ret)))
     }));
-    env->set(str("*"), make_builtin_combiner(str("*"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("*"), make_builtin_combiner(str("*"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         var to_ret = 1
         for (var i = 0; i < params.size; i++;) {
             var ip = EVAL(dynamic_env, params[i])
-            if is_err(ip) { return ip; }
+            if is_err(ip) { return make_pair(null<KPEnv>(), ip); }
             match (get_value(ip).internal) {
                 KPValue_int::Int(v) {
                     to_ret *= v
                     continue
                 }
             }
-            return KPResult::Err(kpString(str("called * with not an int: ") + pr_str(get_value(ip), false)))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called * with not an int: ") + pr_str(get_value(ip), false))))
         }
-        return KPResult::Ok(kpInt(to_ret))
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpInt(to_ret)))
     }));
-    env->set(str("/"), make_builtin_combiner(str("/"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("/"), make_builtin_combiner(str("/"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         var to_ret = 1
         for (var i = 0; i < params.size; i++;) {
             var ip = EVAL(dynamic_env, params[i])
-            if is_err(ip) { return ip; }
+            if is_err(ip) { return make_pair(null<KPEnv>(), ip); }
             match (get_value(ip).internal) {
                 KPValue_int::Int(v) {
                     if i == 0 {
@@ -995,15 +1003,15 @@ fun main(argc: int, argv: **char): int {
                     continue
                 }
             }
-            return KPResult::Err(kpString(str("called / with not an int: ") + pr_str(get_value(ip), false)))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called / with not an int: ") + pr_str(get_value(ip), false))))
         }
-        return KPResult::Ok(kpInt(to_ret))
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpInt(to_ret)))
     }));
-    env->set(str("%"), make_builtin_combiner(str("%"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("%"), make_builtin_combiner(str("%"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         var to_ret = 1
         for (var i = 0; i < params.size; i++;) {
             var ip = EVAL(dynamic_env, params[i])
-            if is_err(ip) { return ip; }
+            if is_err(ip) { return make_pair(null<KPEnv>(), ip); }
             match (get_value(ip).internal) {
                 KPValue_int::Int(v) {
                     if i == 0 {
@@ -1014,176 +1022,176 @@ fun main(argc: int, argv: **char): int {
                     continue
                 }
             }
-            return KPResult::Err(kpString(str("called % with not an int: ") + pr_str(get_value(ip), false)))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called % with not an int: ") + pr_str(get_value(ip), false))))
         }
-        return KPResult::Ok(kpInt(to_ret))
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpInt(to_ret)))
     }));
 
-    env->set(str("="), make_builtin_combiner(str("="), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("="), make_builtin_combiner(str("="), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 2 {
-            return KPResult::Err(kpString(str("Need 2 params to =")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 params to ="))))
         }
         var a = EVAL(dynamic_env, params[0]);
-        if is_err(a) { return a; }
+        if is_err(a) { return make_pair(null<KPEnv>(), a); }
         var b = EVAL(dynamic_env, params[1]);
-        if is_err(b) { return b; }
-        return KPResult::Ok(kpBool(get_value(a).equals(get_value(b))))
+        if is_err(b) { return make_pair(null<KPEnv>(), b); }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(get_value(a).equals(get_value(b)))))
     }));
-    env->set(str("!="), make_builtin_combiner(str("!="), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("!="), make_builtin_combiner(str("!="), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 2 {
-            return KPResult::Err(kpString(str("Need 2 params to !=")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 params to !="))))
         }
         var a = EVAL(dynamic_env, params[0]);
-        if is_err(a) { return a; }
+        if is_err(a) { return make_pair(null<KPEnv>(), a); }
         var b = EVAL(dynamic_env, params[1]);
-        if is_err(b) { return b; }
-        return KPResult::Ok(kpBool(!get_value(a).equals(get_value(b))))
+        if is_err(b) { return make_pair(null<KPEnv>(), b); }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(!get_value(a).equals(get_value(b)))))
     }));
-    env->set(str("<"), make_builtin_combiner(str("<"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("<"), make_builtin_combiner(str("<"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 2 {
-            return KPResult::Err(kpString(str("Need 2 params to <")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 params to <"))))
         }
         var a = EVAL(dynamic_env, params[0]);
-        if is_err(a) { return a; }
+        if is_err(a) { return make_pair(null<KPEnv>(), a); }
         var av = get_value(a)
-        if !av.is_int() { return KPResult::Err(kpString(str("called < with first not an int"))); }
+        if !av.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called < with first not an int")))); }
         var b = EVAL(dynamic_env, params[1]);
-        if is_err(b) { return b; }
+        if is_err(b) { return make_pair(null<KPEnv>(), b); }
         var bv = get_value(b)
-        if !bv.is_int() { return KPResult::Err(kpString(str("called < with second not an int"))); }
-        return KPResult::Ok(kpBool(av.get_int() < bv.get_int()))
+        if !bv.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called < with second not an int")))); }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(av.get_int() < bv.get_int())))
     }));
-    env->set(str("<="), make_builtin_combiner(str("<="), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("<="), make_builtin_combiner(str("<="), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 2 {
-            return KPResult::Err(kpString(str("Need 2 params to <=")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 params to <="))))
         }
         var a = EVAL(dynamic_env, params[0]);
-        if is_err(a) { return a; }
+        if is_err(a) { return make_pair(null<KPEnv>(), a); }
         var av = get_value(a)
-        if !av.is_int() { return KPResult::Err(kpString(str("called <= with first not an int"))); }
+        if !av.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called <= with first not an int")))); }
         var b = EVAL(dynamic_env, params[1]);
-        if is_err(b) { return b; }
+        if is_err(b) { return make_pair(null<KPEnv>(), b); }
         var bv = get_value(b)
-        if !bv.is_int() { return KPResult::Err(kpString(str("called <= with second not an int"))); }
-        return KPResult::Ok(kpBool(av.get_int() <= bv.get_int()))
+        if !bv.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called <= with second not an int")))); }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(av.get_int() <= bv.get_int())))
     }));
-    env->set(str(">"), make_builtin_combiner(str(">"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str(">"), make_builtin_combiner(str(">"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 2 {
-            return KPResult::Err(kpString(str("Need 2 params to >")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 params to >"))))
         }
         var a = EVAL(dynamic_env, params[0]);
-        if is_err(a) { return a; }
+        if is_err(a) { return make_pair(null<KPEnv>(), a); }
         var av = get_value(a)
-        if !av.is_int() { return KPResult::Err(kpString(str("called > with first not an int"))); }
+        if !av.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called > with first not an int")))); }
         var b = EVAL(dynamic_env, params[1]);
-        if is_err(b) { return b; }
+        if is_err(b) { return make_pair(null<KPEnv>(), b); }
         var bv = get_value(b)
-        if !bv.is_int() { return KPResult::Err(kpString(str("called > with second not an int"))); }
-        return KPResult::Ok(kpBool(av.get_int() > bv.get_int()))
+        if !bv.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called > with second not an int")))); }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(av.get_int() > bv.get_int())))
     }));
-    env->set(str(">="), make_builtin_combiner(str(">="), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str(">="), make_builtin_combiner(str(">="), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 2 {
-            return KPResult::Err(kpString(str("Need 2 params to >=")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 params to >="))))
         }
         var a = EVAL(dynamic_env, params[0]);
-        if is_err(a) { return a; }
+        if is_err(a) { return make_pair(null<KPEnv>(), a); }
         var av = get_value(a)
-        if !av.is_int() { return KPResult::Err(kpString(str("called >= with first not an int"))); }
+        if !av.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called >= with first not an int")))); }
         var b = EVAL(dynamic_env, params[1]);
-        if is_err(b) { return b; }
+        if is_err(b) { return make_pair(null<KPEnv>(), b); }
         var bv = get_value(b)
-        if !bv.is_int() { return KPResult::Err(kpString(str("called >= with second not an int"))); }
-        return KPResult::Ok(kpBool(av.get_int() >= bv.get_int()))
+        if !bv.is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called >= with second not an int")))); }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(av.get_int() >= bv.get_int())))
     }));
 
-    env->set(str("and"), make_builtin_combiner(str("and"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("and"), make_builtin_combiner(str("and"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         for (var i = 0; i < params.size; i++;) {
             var ip = EVAL(dynamic_env, params[i])
-            if is_err(ip) { return ip; }
+            if is_err(ip) { return make_pair(null<KPEnv>(), ip); }
             var ipv = get_value(ip)
             if !ipv.is_truthy() || i == params.size - 1 {
-                return ip
+                return make_pair(null<KPEnv>(), ip)
             }
         }
-        return KPResult::Ok(kpFalse())
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpFalse()))
     }));
-    env->set(str("or"), make_builtin_combiner(str("or"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("or"), make_builtin_combiner(str("or"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         for (var i = 0; i < params.size; i++;) {
             var ip = EVAL(dynamic_env, params[i])
-            if is_err(ip) { return ip; }
+            if is_err(ip) { return make_pair(null<KPEnv>(), ip); }
             var ipv = get_value(ip)
             if ipv.is_truthy() || i == params.size - 1 {
-                return ip
+                return make_pair(null<KPEnv>(), ip)
             }
         }
-        return KPResult::Ok(kpFalse())
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpFalse()))
     }));
 
-    env->set(str("pr-str"), make_builtin_combiner(str("pr-str"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
-        return str_wrapper(params, dynamic_env, " ", true)
+    env->set(str("pr-str"), make_builtin_combiner(str("pr-str"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        return make_pair(null<KPEnv>(), str_wrapper(params, dynamic_env, " ", true))
     }));
-    env->set(str("str"), make_builtin_combiner(str("str"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
-        return str_wrapper(params, dynamic_env, "", false)
+    env->set(str("str"), make_builtin_combiner(str("str"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        return make_pair(null<KPEnv>(), str_wrapper(params, dynamic_env, "", false))
     }));
-    env->set(str("prn"), make_builtin_combiner(str("prn"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("prn"), make_builtin_combiner(str("prn"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         var to_print = str_wrapper(params, dynamic_env, " ", true)
-        if is_err(to_print) { return to_print; }
+        if is_err(to_print) { return make_pair(null<KPEnv>(), to_print); }
         println(get_value(to_print).get_string())
-        return KPResult::Ok(kpNil())
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpNil()))
     }));
-    env->set(str("println"), make_builtin_combiner(str("println"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("println"), make_builtin_combiner(str("println"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         var to_print = str_wrapper(params, dynamic_env, " ", false)
-        if is_err(to_print) { return to_print; }
+        if is_err(to_print) { return make_pair(null<KPEnv>(), to_print); }
         println(get_value(to_print).get_string())
-        return KPResult::Ok(kpNil())
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpNil()))
     }));
 
-    env->set(str("meta"), make_builtin_combiner(str("meta"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("meta"), make_builtin_combiner(str("meta"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {
-            return KPResult::Err(kpString(str("meta called with not one argument")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("meta called with not one argument"))))
         } else {
             var or = EVAL(dynamic_env, params[0])
-            if is_err(or) { return or; }
+            if is_err(or) { return make_pair(null<KPEnv>(), or); }
             var o = get_value(or)
             if o.meta != null<KPValue>() {
-                return KPResult::Ok(*o.meta)
+                return make_pair(null<KPEnv>(), KPResult::Ok(*o.meta))
             } else {
-                return KPResult::Ok(kpNil())
+                return make_pair(null<KPEnv>(), KPResult::Ok(kpNil()))
             }
         }
     }));
-    env->set(str("with-meta"), make_builtin_combiner(str("with-meta"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("with-meta"), make_builtin_combiner(str("with-meta"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 2 {
-            return KPResult::Err(kpString(str("with-meta called with not two arguments")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("with-meta called with not two arguments"))))
         } else {
             var or = EVAL(dynamic_env, params[0])
-            if is_err(or) { return or; }
+            if is_err(or) { return make_pair(null<KPEnv>(), or); }
             var mr = EVAL(dynamic_env, params[1])
-            if is_err(mr) { return mr; }
+            if is_err(mr) { return make_pair(null<KPEnv>(), mr); }
             var new_meta = new<KPValue>()
             new_meta->copy_construct(&get_value(mr))
             var new_value = get_value(or).deep_clone();
             new_value.meta = new_meta
-            return KPResult::Ok(new_value)
+            return make_pair(null<KPEnv>(), KPResult::Ok(new_value))
         }
     }));
 
     // self-modifying grammar
-    env->set(str("add_terminal"), make_builtin_combiner(str("add_terminal"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("add_terminal"), make_builtin_combiner(str("add_terminal"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 2  {
-            return KPResult::Err(kpString(str("add_terminal called with wrong number (not 2) params")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("add_terminal called with wrong number (not 2) params"))))
         } else {
             var namer = EVAL(dynamic_env, params[0]);
-            if is_err(namer) { return namer; }
+            if is_err(namer) { return make_pair(null<KPEnv>(), namer); }
             var namev = get_value(namer)
             if !namev.is_string() {
-                return KPResult::Err(kpString(str("add_terminal called with wrong number (not 2) params")))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("add_terminal called with wrong number (not 2) params"))))
             }
             var funcr = EVAL(dynamic_env, params[1]);
-            if is_err(funcr) { return funcr; }
-            return KPResult::Ok(kpInt(grammar.add_terminal(namev.get_string(), get_value(funcr), fun(f: ref KPValue, input: ref str, l: int, r: int): KPResult {
+            if is_err(funcr) { return make_pair(null<KPEnv>(), funcr); }
+            return make_pair(null<KPEnv>(), KPResult::Ok(kpInt(grammar.add_terminal(namev.get_string(), get_value(funcr), fun(f: ref KPValue, input: ref str, l: int, r: int): KPResult {
                 return function_call(f, vec(kpString(input.slice(l,r))), kpNil())
-            })))
+            }))))
         }
     }));
     var add_grammer_rule_helper: fun(str, vec<KPValue>, KPValue, fun(ref KPValue, ref vec<KPResult>): KPResult): KPResult = fun(nonterminal_str: str, rule: vec<KPValue>, data: KPValue, f: fun(ref KPValue, ref vec<KPResult>): KPResult): KPResult {
@@ -1202,10 +1210,10 @@ fun main(argc: int, argv: **char): int {
                 int_rule.add(grammar.add_terminal(rule[i].get_string(), kpNil(), fun(f: ref KPValue, input: ref str, l: int, r: int): KPResult {
                     return KPResult::Ok(kpString(input.slice(l,r)))
                 }))
-            } else if rule[i].is_vector() {
+            } else if rule[i].is_array() {
                 // A sequence!
                 var sub_rule_names = nonterminal_str + "_seq_" + new_tmp()
-                var inner_rule = add_grammer_rule_helper(sub_rule_names, rule[i].get_vector_rc().get(), kpNil(), fun(_: ref KPValue, seq: ref vec<KPResult>): KPResult {
+                var inner_rule = add_grammer_rule_helper(sub_rule_names, rule[i].get_array_rc().get(), kpNil(), fun(_: ref KPValue, seq: ref vec<KPResult>): KPResult {
                     var to_ret = vec<KPValue>()
                     for (var i = 0; i < seq.size; i++;) {
                         if is_err(seq[i]) {
@@ -1213,7 +1221,7 @@ fun main(argc: int, argv: **char): int {
                         }
                         to_ret.add(get_value(seq[i]))
                     }
-                    return KPResult::Ok(kpVector(to_ret))
+                    return KPResult::Ok(kpArray(to_ret))
                 })
                 if is_err(inner_rule) {
                     return inner_rule
@@ -1230,12 +1238,12 @@ fun main(argc: int, argv: **char): int {
                             var sub_rule_names = nonterminal_str + "_" + new_tmp()
                             var new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_one_or_more", vec(current), kpNil(), fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
                                 if is_err(x[0]) { return x[0]; }
-                                return KPResult::Ok(kpVector(vec(get_value(x[0]))))
+                                return KPResult::Ok(kpArray(vec(get_value(x[0]))))
                             })
                             grammar.add_to_nonterminal(new, vec(current, new), kpNil(), fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
                                 if is_err(x[0]) { return x[0]; }
                                 if is_err(x[1]) { return x[1]; }
-                                return KPResult::Ok(kpVector(vec(get_value(x[0])) + get_value(x[1]).get_vector_rc().get()))
+                                return KPResult::Ok(kpArray(vec(get_value(x[0])) + get_value(x[1]).get_array_rc().get()))
                             })
                             if f.name == "*" {
                                 new = grammar.add_to_or_create_nonterminal(sub_rule_names + "_zero_or_more", vec(new), kpNil(), fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
@@ -1243,7 +1251,7 @@ fun main(argc: int, argv: **char): int {
                                     return KPResult::Ok(get_value(x[0]))
                                 })
                                 grammar.add_to_nonterminal(new, vec<int>(), kpNil(), fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
-                                    return KPResult::Ok(kpVector(vec<KPValue>()))
+                                    return KPResult::Ok(kpArray(vec<KPValue>()))
                                 })
                             }
                             int_rule.last() = new
@@ -1256,19 +1264,19 @@ fun main(argc: int, argv: **char): int {
         }
         return KPResult::Ok(kpInt(grammar.add_to_or_create_nonterminal(nonterminal_str, int_rule, data, f)))
     }
-    env->set(str("add_grammar_rule"), make_builtin_combiner(str("add_grammar_rule"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("add_grammar_rule"), make_builtin_combiner(str("add_grammar_rule"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         var params_evaled = vec<KPValue>()
         for (var i = 0; i < params.size; i++;) {
             var ip = EVAL(dynamic_env, params[i])
-            if is_err(ip) { return ip; }
+            if is_err(ip) { return make_pair(null<KPEnv>(), ip); }
             params_evaled.add(get_value(ip))
         }
-        if params_evaled.size != 3 || !params_evaled[0].is_symbol() || !params_evaled[1].is_vector() {
-            return KPResult::Err(kpString(str("add_grammar_rule called with wrong number or type of params_evaled")))
+        if params_evaled.size != 3 || !params_evaled[0].is_symbol() || !params_evaled[1].is_array() {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("add_grammar_rule called with wrong number or type of params_evaled"))))
         } else {
             var nonterminal_str = params_evaled[0].get_symbol_text()
-            var rule = params_evaled[1].get_vector_rc().get()
-            return add_grammer_rule_helper(nonterminal_str, rule, params_evaled[2], fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
+            var rule = params_evaled[1].get_array_rc().get()
+            return make_pair(null<KPEnv>(), add_grammer_rule_helper(nonterminal_str, rule, params_evaled[2], fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
                 var params = vec<KPValue>()
                 for (var i = 0; i < x.size; i++;) {
                     if is_err(x[i]) {
@@ -1277,28 +1285,28 @@ fun main(argc: int, argv: **char): int {
                     // Have to let our params be evald
 
                     var our_quote.construct(null<KPEnv>(), str("doesn't matter"), vec(str("x")), false, kpSymbol("x")) : KPCombiner
-                    params.add(kpVector(vec(nmMV(KPValue_int::Combiner(our_quote)), get_value(x[i]))))
+                    params.add(kpArray(vec(nmMV(KPValue_int::Combiner(our_quote)), get_value(x[i]))))
                 }
                 return function_call(f, params, kpEnv(null<KPEnv>()))
-            })
+            }))
         }
     }));
-    var ERS = fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    var ERS = fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 2 {
-            return KPResult::Err(kpString(str("eval-read-string with not a single string and env")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("eval-read-string with not a single string and env"))))
         } else {
             var ip = EVAL(dynamic_env, params[0])
-            if is_err(ip) { return ip; }
+            if is_err(ip) { return make_pair(null<KPEnv>(), ip); }
             var ipv = get_value(ip)
             if !ipv.is_string() {
-                return KPResult::Err(kpString(str("first param to eval-read-string s not a string")))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("first param to eval-read-string s not a string"))))
             }
             var input = ipv.get_string()
             var ep = EVAL(dynamic_env, params[1])
-            if is_err(ep) { return ep; }
+            if is_err(ep) { return make_pair(null<KPEnv>(), ep); }
             var epv = get_value(ep)
             if !epv.is_env() {
-                return KPResult::Err(kpString(str("second param to eval-read-string is not a env")))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to eval-read-string is not a env"))))
             }
             var eval_env = epv.get_env()
             var i = 0
@@ -1322,11 +1330,11 @@ fun main(argc: int, argv: **char): int {
                 var r = read_str(grammar, input.slice(i, -1))
                 i += r.first
                 if is_err(r.second) {
-                    return r.second
+                    return make_pair(null<KPEnv>(), r.second)
                 }
                 current_ret = EVAL(eval_env, get_value(r.second))
                 if is_err(current_ret) {
-                    return current_ret
+                    return make_pair(null<KPEnv>(), current_ret)
                 }
                 // handle whitespace again
                 var BSR = fungll(grammar, optional_WS, input.slice(i, -1))
@@ -1342,136 +1350,81 @@ fun main(argc: int, argv: **char): int {
                     i += longest
                 }
             }
-            return current_ret
+            return make_pair(null<KPEnv>(), current_ret)
         }
     }
-    env->set(str("eval-read-string"), make_builtin_combiner(str("eval-read-string"), 0, ERS));
+    env->set(str("eval-read-string"), make_builtin_combiner(str("eval-read-string"), 0, false, ERS));
 
-    env->set(str("read-string"), make_builtin_combiner(str("read-string"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("read-string"), make_builtin_combiner(str("read-string"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {
-            return KPResult::Err(kpString(str("read-string with not a single string")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with not a single string"))))
         } else {
             var ip = EVAL(dynamic_env, params[0])
-            if is_err(ip) { return ip; }
+            if is_err(ip) { return make_pair(null<KPEnv>(), ip); }
             var ipv = get_value(ip)
             if !ipv.is_string() {
-                return KPResult::Err(kpString(str("read-string with not a single string")))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with not a single string"))))
             }
-            return READ(grammar, ipv.get_string())
+            return make_pair(null<KPEnv>(), READ(grammar, ipv.get_string()))
         }
     }));
-    env->set(str("slurp"), make_builtin_combiner(str("slurp"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("slurp"), make_builtin_combiner(str("slurp"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {
-            return KPResult::Err(kpString(str("slurp with not a single string")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("slurp with not a single string"))))
         } else {
             var ip = EVAL(dynamic_env, params[0])
-            if is_err(ip) { return ip; }
+            if is_err(ip) { return make_pair(null<KPEnv>(), ip); }
             var ipv = get_value(ip)
             if !ipv.is_string() {
-                return KPResult::Err(kpString(str("read-string with not a single string")))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with not a single string"))))
             }
             if !file_exists(ipv.get_string()) {
-                return KPResult::Err(kpString(str("read-string with bad path ") + ipv.get_string()))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with bad path ") + ipv.get_string())))
             }
-            return KPResult::Ok(kpString(read_file(ipv.get_string())))
+            return make_pair(null<KPEnv>(), KPResult::Ok(kpString(read_file(ipv.get_string()))))
         }
     }));
-    env->set(str("wrap"), make_builtin_combiner(str("wrap"), 1, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("wrap"), make_builtin_combiner(str("wrap"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {
-            return KPResult::Err(kpString(str("wrap called with not one argument")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("wrap called with not one argument"))))
         }
         match (params[0].internal) {
             KPValue_int::Combiner(c) {
                 var to_ret = c;
                 to_ret.wrap_level++
-                return KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret)))
+                return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret))))
             }
             KPValue_int::BuiltinCombiner(c) {
                 var to_ret = c;
                 to_ret.wrap_level++
-                return KPResult::Ok(nmMV(KPValue_int::BuiltinCombiner(to_ret)))
+                return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::BuiltinCombiner(to_ret))))
             }
         }
-        return KPResult::Err(kpString(str("wrap called with not combiner ") + pr_str(params[0], true)))
+        return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("wrap called with not combiner ") + pr_str(params[0], true))))
     }));
-    env->set(str("unwrap"), make_builtin_combiner(str("unwrap"), 1, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
+    env->set(str("unwrap"), make_builtin_combiner(str("unwrap"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {
-            return KPResult::Err(kpString(str("unwrap called with not one argument")))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("unwrap called with not one argument"))))
         }
         match (params[0].internal) {
             KPValue_int::Combiner(c) {
                 if c.wrap_level <= 0 {
-                    return KPResult::Err(kpString(str("unwrap called with combiner at wrap_level <= 0")))
+                    return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("unwrap called with combiner at wrap_level <= 0"))))
                 }
                 var to_ret = c;
                 to_ret.wrap_level--
-                return KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret)))
+                return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret))))
             }
             KPValue_int::BuiltinCombiner(c) {
                 if c.wrap_level <= 0 {
-                    return KPResult::Err(kpString(str("unwrap called with combiner at wrap_level <= 0")))
+                    return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("unwrap called with combiner at wrap_level <= 0"))))
                 }
                 var to_ret = c;
                 to_ret.wrap_level--
-                return KPResult::Ok(nmMV(KPValue_int::BuiltinCombiner(to_ret)))
+                return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::BuiltinCombiner(to_ret))))
             }
         }
-        return KPResult::Err(kpString(str("unwrap called with not combiner ") + pr_str(params[0], true)))
-    }));
-    env->set(str("map"), make_builtin_combiner(str("map"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
-        if params.size != 2 {
-            return KPResult::Err(kpString(str("map called with not two arguments")))
-        } else {
-            var fr = EVAL(dynamic_env, params[0])
-            if is_err(fr) { return fr; }
-            var f = get_value(fr)
-            if !f.is_combiner() {
-                return KPResult::Err(kpString(str("map called with not combiner")))
-            }
-            var lr = EVAL(dynamic_env, params[1])
-            if is_err(lr) { return lr; }
-            var l = get_value(lr)
-
-            var to_ret = vec<KPValue>()
-            for (var i = 0; i < l.get_vector_rc().get().size; i++;) {
-                // need to swap to this being derived and not have this obnoxious
-                // uneval
-                var result = function_call(f, vec(kpVector(vec(get_value(env->get("quote")), l.get_vector_rc().get().get(i)))), kpEnv(dynamic_env))
-                if is_err(result) {
-                    return result
-                }
-                to_ret.add(get_value(result))
-            }
-            return KPResult::Ok(kpVector(to_ret))
-        }
-    }));
-    env->set(str("filter"), make_builtin_combiner(str("filter"), 0, fun(params: vec<KPValue>, dynamic_env: *KPEnv): KPResult {
-        if params.size != 2 {
-            return KPResult::Err(kpString(str("filter called with not one argument")))
-        } else {
-            var fr = EVAL(dynamic_env, params[0])
-            if is_err(fr) { return fr; }
-            var f = get_value(fr)
-            if !f.is_combiner() {
-                return KPResult::Err(kpString(str("filter called with not combiner")))
-            }
-
-            var lr = EVAL(dynamic_env, params[1])
-            if is_err(lr) { return lr; }
-            var l = get_value(lr)
-
-            var to_ret = vec<KPValue>()
-            for (var i = 0; i < l.get_vector_rc().get().size; i++;) {
-                var result = function_call(f, vec(l.get_vector_rc().get().get(i)), kpEnv(dynamic_env))
-                if is_err(result) {
-                    return result
-                }
-                if get_value(result).is_truthy() {
-                    to_ret.add(l.get_vector_rc().get().get(i))
-                }
-            }
-            return KPResult::Ok(kpVector(to_ret))
-        }
+        return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("unwrap called with not combiner ") + pr_str(params[0], true))))
     }));
 
     // a tiny bit of self-implementation fun
@@ -1480,17 +1433,17 @@ fun main(argc: int, argv: **char): int {
     if argc == 3 && str(argv[1]) == "-C" {
         env->set(str("*ARGV*"), kpNil())
         var evaled = ERS(vec(kpString(str(argv[2])), kpEnv(env)), env)
-        if is_err(evaled) {
-            printlnerr(str("Exception: ") + pr_str(get_err(evaled), true))
+        if is_err(evaled.second) {
+            printlnerr(str("Exception: ") + pr_str(get_err(evaled.second), true))
         } else {
-            println("Result: " + pr_str(get_value(evaled), true))
+            println("Result: " + pr_str(get_value(evaled.second), true))
         }
     } else if argc >= 2 {
         var params = vec<KPValue>()
         for (var i = 2; i < argc; i++;) {
             params.add(kpString(str(argv[i])))
         }
-        env->set(str("*ARGV*"), kpVector(params))
+        env->set(str("*ARGV*"), kpArray(params))
         var eval_result_str = rep(grammar, env, str("(load-file \"") + argv[1] + "\")")
         println(eval_result_str)
         if eval_result_str.length() >= 11 && eval_result_str.slice(0,11) == "Exception: " {

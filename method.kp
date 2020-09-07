@@ -1,5 +1,3 @@
-; Load prelude so we get fun, lambda, if, quoting, etc
-(load-file "./k_prime_stdlib/prelude.kp")
 ; First quick lookup function, since maps are not built in
 (fun get-value-helper (dict key i) (if (>= i (len dict))
                                                 nil
