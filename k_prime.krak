@@ -751,7 +751,7 @@ fun main(argc: int, argv: **char): int {
         var parameter_objects = params[1].get_array_rc()
         for (var i = 0; i < parameter_objects.get().size; i++;) {
             if !parameter_objects.get()[i].is_symbol() {
-                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to vau has a not symbol member"))))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to vau has a not symbol member: ") + pr_str(parameter_objects.get()[i], true))))
             }
             var parameter = parameter_objects.get()[i].get_symbol_text()
             if parameter == "&" {

@@ -1,9 +1,9 @@
 ; First quick lookup function, since maps are not built in
 (fun get-value-helper (dict key i) (if (>= i (len dict))
                                                 nil
-                                                (if (= key (idx dict i))
-                                                    (idx dict (+ i 1))
-                                                    (get-value-helper dict key (+ i 2)))))
+                                                (if (= key (idx (idx dict i) 0))
+                                                    (idx (idx dict i) 1)
+                                                    (get-value-helper dict key (+ i 1)))))
 (fun get-value (dict key) (get-value-helper dict key 0))
 
 ; Our actual method call function
@@ -12,16 +12,54 @@
                                                                 (println "no method " method)
                                                                 (do (println "applying" method_fn (concat [object] arguments) ) (lapply method_fn (concat [object] arguments))))))
 ; Some nice syntactic sugar for method calls
+; No params
+(add_grammar_rule 'form ['form "\\." 'atom]
+                            (lambda (o _ m) `(method-call ~o '~m)))
+; params
 (add_grammar_rule 'form ['form "\\." 'atom 'optional_WS "\\(" 'optional_WS 'space_forms 'optional_WS "\\)"]
                             (lambda (o _ m _ _ _ p _ _) `(method-call ~o '~m ,p)))
 
+; object creation
+(set! make_object (vau de (name members)
+    (eval (print_through `(fun ~name ~members
+        (with-meta [,members]
+            [,(map_with_idx (lambda (i x) [array `'~x (lambda (o) (idx o i))]) members)]))) de)))
+
+; object syntax
+(add_grammar_rule 'form ["obj" 'WS 'atom "\\(" ['optional_WS 'atom] * 'optional_WS "\\)" 'optional_WS "{"  "}"] (lambda (_ _ name _ members _ _ _ _ _)
+        `(make_object ~name ~(map (lambda (x) (idx x 1)) members))))
+
 ; Ok, let's create our object by hand for this example
 (set! actual_obj (with-meta [0] [
-                                'inc (lambda (o) (set-idx! o 0 (+ (idx o 0) 1)))
-                                'dec (lambda (o) (set-idx! o 0 (- (idx o 0) 1)))
-                                'set (lambda (o n) (set-idx! o 0 n))
-                                'get (lambda (o) (idx o 0))
+                                    ['inc (lambda (o) (set-idx! o 0 (+ (idx o 0) 1)))]
+                                    ['dec (lambda (o) (set-idx! o 0 (- (idx o 0) 1)))]
+                                    ['set (lambda (o n) (set-idx! o 0 n))]
+                                    ['get (lambda (o) (idx o 0))]
                                 ]))
+
+(println "asdf")
+(println (make_object Wooo ( a b c )))
+(println "fdsa")
+
+obj MyConstructor() {}
+(println '(obj MyConstructor() {}))
+(println MyConstructor)
+(println (MyConstructor))
+
+(println "done with first")
+
+(println '(obj MyConstructor2( mem1 mem2 ) {}))
+
+obj MyConstructor2( mem1 mem2 ) {}
+(println "made")
+(println MyConstructor2)
+(println (MyConstructor2 1 2))
+(println (meta (MyConstructor2 1 2)))
+(println "it will be " (MyConstructor2 1337 266).mem1())
+(println "it will be " (MyConstructor2 1337 266).mem2())
+(println "it will be " (MyConstructor2 1337 777).mem2)
+(println "it was")
+
 (do
     (println (meta actual_obj))
     ; Use our new sugar

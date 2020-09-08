@@ -6,7 +6,7 @@
 
 ; do_helper is basically mapping eval over statements, but the last one is in TCO position
 ; a bit of a hack, using cond to sequence (note the repitition of the eval in TCO position if it's last,
-; otherwise the same eval in cond position, and wheather or not it returns a truthy value, it recurses in TCO position
+; otherwise the same eval in cond position, and wheather or not it returns a truthy value, it recurses in TCO position)
 (fun do_helper (s i se) (cond (= i (len s)) nil
                               (= i (- (len s) 1)) (eval (idx s i) se)
                               (eval (idx s i) se) (do_helper s (+ i 1) se)
@@ -23,14 +23,30 @@
 
 (fun vapply (f p ede) (eval (concat [f]          p) ede))
 (fun lapply (f p)     (eval (concat [(unwrap f)] p) (current-env)))
+
 (set! let1 (vau de (s v b) (eval [[vau '_ [s] b] (eval v de)] de)))
 (set! let (vau de (vs b) (cond (= (len vs) 0) (eval b de) true (vapply let1 [(idx vs 0) (idx vs 1) [let (slice vs 2 -1) b]] de))))
+
 (set! if (vau de (con than & else) (cond 
                                         (eval con de) (eval than de)
                                         (> (len else) 0) (eval (idx else 0) de)
                                         true nil)))
+(fun map (f l)
+    (let (helper (lambda (f l n i recurse)
+                                    (if (= i (len l))
+                                        n
+                                        (do (set-idx! n i (f (idx l i)))
+                                            (recurse f l n (+ i 1) recurse)))))
+         (helper f l (array-with-len (len l)) 0 helper)))
+(fun map_with_idx (f l)
+    (let (helper (lambda (f l n i recurse)
+                                    (if (= i (len l))
+                                        n
+                                        (do (set-idx! n i (f i (idx l i)))
+                                            (recurse f l n (+ i 1) recurse)))))
+         (helper f l (array-with-len (len l)) 0 helper)))
 
-(fun print_through (x) (let (_ (println x)) x))
+(fun print_through (x) (do (println x) x))
 (fun is_pair? (x) (and (array? x) (> (len x) 0)))
 
 (set! quasiquote (vau de (x)
