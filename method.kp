@@ -20,14 +20,16 @@
                             (lambda (o _ m _ _ _ p _ _) `(method-call ~o '~m ,p)))
 
 ; object creation
-(set! make_object (vau de (name members)
-    (eval (print_through `(fun ~name ~members
+(fun make_constructor (members methods)
+    (eval `(lambda  ~members
         (with-meta [,members]
-            [,(map_with_idx (lambda (i x) [array `'~x (lambda (o) (idx o i))]) members)]))) de)))
+            [,(map_with_idx (lambda (i x) [array `'~x (lambda (o) (idx o i))]) members)
+             ,(map (lambda (x) [array `'~(idx x 0) (idx x 1)]) methods)]))))
 
 ; object syntax
-(add_grammar_rule 'form ["obj" 'WS 'atom "\\(" ['optional_WS 'atom] * 'optional_WS "\\)" 'optional_WS "{"  "}"] (lambda (_ _ name _ members _ _ _ _ _)
-        `(make_object ~name ~(map (lambda (x) (idx x 1)) members))))
+(add_grammar_rule 'form ["obj" 'WS 'atom "\\(" ['optional_WS 'atom] * 'optional_WS "\\)" 'optional_WS "{" 'optional_WS ['atom 'optional_WS 'form 'optional_WS] *  "}"] (lambda (_ _ name _ members _ _ _ _ _ methods _)
+        `(set! ~name (make_constructor [,(map (lambda (x) `'~(idx x 1)) members)]
+                                       [,(map (lambda (x) `['~(idx x 0) ~(idx x 2)]) methods)]))))
 
 ; Ok, let's create our object by hand for this example
 (set! actual_obj (with-meta [0] [
@@ -38,7 +40,20 @@
                                 ]))
 
 (println "asdf")
-(println (make_object Wooo ( a b c )))
+(let (
+      MyConstructor (make_constructor '( a b c ) [ ['sum (lambda (o) (+ o.a o.b o.c))]
+                                                   ['add_a (lambda (o c) (+ o.a c))]])
+      my_object (MyConstructor 1 2 3)
+     )
+    (do
+        (println MyConstructor)
+        (println my_object)
+        (println my_object.a)
+        (println my_object.b)
+        (println my_object.c)
+        (println my_object.sum)
+        (println my_object.add_a(12))
+    ))
 (println "fdsa")
 
 obj MyConstructor() {}
@@ -50,7 +65,10 @@ obj MyConstructor() {}
 
 (println '(obj MyConstructor2( mem1 mem2 ) {}))
 
-obj MyConstructor2( mem1 mem2 ) {}
+obj MyConstructor2( mem1 mem2 ) {
+    add (lambda (self & nums) (lapply + (concat [self.mem1 self.mem2] nums)))
+    sub (lambda (self & nums) (lapply - (concat [self.mem1 self.mem2] nums)))
+}
 (println "made")
 (println MyConstructor2)
 (println (MyConstructor2 1 2))
@@ -58,6 +76,10 @@ obj MyConstructor2( mem1 mem2 ) {}
 (println "it will be " (MyConstructor2 1337 266).mem1())
 (println "it will be " (MyConstructor2 1337 266).mem2())
 (println "it will be " (MyConstructor2 1337 777).mem2)
+(println "it will be " (MyConstructor2 1337 777).add)
+(println "it will be " (MyConstructor2 1337 777).add(1))
+(println "it will be " (MyConstructor2 1337 777).add(1 2))
+(println "it will be " (MyConstructor2 1337 777).sub(1 2))
 (println "it was")
 
 (do
