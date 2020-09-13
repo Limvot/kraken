@@ -10,7 +10,7 @@
 (fun method-call (object method & arguments) (let (method_fn (get-value (meta object) method))
                                                             (if (= method_fn nil)
                                                                 (println "no method " method)
-                                                                (do (println "applying" method_fn (concat [object] arguments) ) (lapply method_fn (concat [object] arguments))))))
+                                                                (lapply method_fn (concat [object] arguments)))))
 ; Some nice syntactic sugar for method calls
 ; No params
 (add_grammar_rule 'form ['form "\\." 'atom]
@@ -31,72 +31,59 @@
         `(set! ~name (make_constructor [,(map (lambda (x) `'~(idx x 1)) members)]
                                        [,(map (lambda (x) `['~(idx x 0) ~(idx x 2)]) methods)]))))
 
-; Ok, let's create our object by hand for this example
-(set! actual_obj (with-meta [0] [
-                                    ['inc (lambda (o) (set-idx! o 0 (+ (idx o 0) 1)))]
-                                    ['dec (lambda (o) (set-idx! o 0 (- (idx o 0) 1)))]
-                                    ['set (lambda (o n) (set-idx! o 0 n))]
-                                    ['get (lambda (o) (idx o 0))]
-                                ]))
+; Lambda syntax
+(add_grammar_rule 'form ["\\|" 'optional_WS [ 'atom 'optional_WS ] * "\\|" 'optional_WS 'form ]
+                    (lambda (_ _ params _ _ body) `(lambda (,(map (lambda (x) (idx x 0)) params)) ~body)))
 
-(println "asdf")
-(let (
-      MyConstructor (make_constructor '( a b c ) [ ['sum (lambda (o) (+ o.a o.b o.c))]
-                                                   ['add_a (lambda (o c) (+ o.a c))]])
-      my_object (MyConstructor 1 2 3)
-     )
-    (do
-        (println MyConstructor)
-        (println my_object)
-        (println my_object.a)
-        (println my_object.b)
-        (println my_object.c)
-        (println my_object.sum)
-        (println my_object.add_a(12))
-    ))
-(println "fdsa")
+; {} body translated to do and let
+(add_grammar_rule 'block_member [ 'form ] |x| [x])
+(add_grammar_rule 'block_member [ "let" 'optional_WS 'atom 'optional_WS "=" 'optional_WS 'form ]
+                            |_ _ name _ _ _ rhs| `(~name ~rhs))
+(fun construct_body (is_do current to_add i)
+    (if (> (len to_add) i)
+        (cond (and is_do (= (len (idx to_add i)) 1)) (construct_body true (concat current [(idx (idx to_add i) 0)]) to_add (+ i 1))
+              (= (len (idx to_add i)) 1)             (concat current [(construct_body true [do (idx (idx to_add i) 0)] to_add (+ i 1))])
+              true                                   (concat current [(construct_body false [let [(idx (idx to_add i) 0) (idx (idx to_add i) 1)] ] to_add (+ i 1))]))
+        current))
+(add_grammar_rule 'form ["{" 'optional_WS [ 'block_member 'optional_WS ] * "}"]
+    |_ _ inner _| (construct_body true [do] (map |x| (idx x 0) inner) 0))
 
-obj MyConstructor() {}
-(println '(obj MyConstructor() {}))
-(println MyConstructor)
-(println (MyConstructor))
+; Call functions with function first, c style (notice no whitespace)
+(add_grammar_rule 'form [ 'form 'form ] |f ps| (concat [f] ps))
 
-(println "done with first")
+; fun syntax
+(add_grammar_rule 'form [ "fun" 'WS 'atom 'optional_WS "\\(" 'optional_WS [ 'atom 'optional_WS ] * "\\)" 'optional_WS 'form ]
+    |_ _ name _ _ _ params _ _ body| `(fun ~name (,(map |x| (idx x 0) params)) ~body))
 
-(println '(obj MyConstructor2( mem1 mem2 ) {}))
 
-obj MyConstructor2( mem1 mem2 ) {
-    add (lambda (self & nums) (lapply + (concat [self.mem1 self.mem2] nums)))
-    sub (lambda (self & nums) (lapply - (concat [self.mem1 self.mem2] nums)))
+obj Point( x y ) {
+    add |self other| { Point((+ self.x other.x) (+ self.y other.y)) }
+    sub |self other| { Point((- self.x other.x) (- self.y other.y)) }
+    to_str |self| { str("x: " self.x ", y: " self.y) }
 }
-(println "made")
-(println MyConstructor2)
-(println (MyConstructor2 1 2))
-(println (meta (MyConstructor2 1 2)))
-(println "it will be " (MyConstructor2 1337 266).mem1())
-(println "it will be " (MyConstructor2 1337 266).mem2())
-(println "it will be " (MyConstructor2 1337 777).mem2)
-(println "it will be " (MyConstructor2 1337 777).add)
-(println "it will be " (MyConstructor2 1337 777).add(1))
-(println "it will be " (MyConstructor2 1337 777).add(1 2))
-(println "it will be " (MyConstructor2 1337 777).sub(1 2))
-(println "it was")
 
-(do
-    (println (meta actual_obj))
-    ; Use our new sugar
-    actual_obj.set(1337)
-    actual_obj.inc()
-    (println "get: " actual_obj.get())
-    actual_obj.dec()
-    (println "get: " actual_obj.get())
+fun say_hi(name) {
+    println("hayo" name)
+}
 
-    ; Use methods directly
-    (method-call actual_obj 'set 654)
-    (method-call actual_obj 'inc)
-    (println "get: " (method-call actual_obj 'get))
-    (method-call actual_obj 'dec)
-    (method-call actual_obj 'dec)
-    (println "get: " (method-call actual_obj 'get))
+fun test() {
+    let plus_1 = |x| (+ x 1)
+    let a = 1
+    let b = plus_1(a)
+    println("some" b)
 
-    nil)
+    say_hi("Marcus")
+
+    let p1 = Point(1 2)
+    let p2 = Point(3 4)
+    let p3 = p1.add(p2)
+    let p4 = p1.sub(p2)
+
+    println("p1:" p1.to_str())
+    println("p2:" p2.to_str())
+    println("p3:" p3.to_str())
+    println("p4:" p4.to_str())
+
+    (+ a b)
+}
+println("Test result is" test())
