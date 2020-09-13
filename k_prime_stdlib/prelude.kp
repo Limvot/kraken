@@ -38,6 +38,12 @@
                                         (do (set-idx! n i (f (idx l i)))
                                             (recurse f l n (+ i 1) recurse)))))
          (helper f l (array-with-len (len l)) 0 helper)))
+(fun flat_map (f l)
+    (let (helper (lambda (f l n i recurse)
+                                    (if (= i (len l))
+                                        n
+                                        (recurse f l (concat n (f (idx l i))) (+ i 1) recurse))))
+         (helper f l (array) 0 helper)))
 (fun map_with_idx (f l)
     (let (helper (lambda (f l n i recurse)
                                     (if (= i (len l))

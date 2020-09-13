@@ -49,12 +49,25 @@
     |_ _ inner _| (construct_body true [do] (map |x| (idx x 0) inner) 0))
 
 ; Call functions with function first, c style (notice no whitespace)
-(add_grammar_rule 'form [ 'form 'form ] |f ps| (concat [f] ps))
+(add_grammar_rule 'form [ 'form 'call_form ] |f ps| (concat [f] ps))
 
 ; fun syntax
 (add_grammar_rule 'form [ "fun" 'WS 'atom 'optional_WS "\\(" 'optional_WS [ 'atom 'optional_WS ] * "\\)" 'optional_WS 'form ]
     |_ _ name _ _ _ params _ _ body| `(fun ~name (,(map |x| (idx x 0) params)) ~body))
 
+; string interpolation
+fun remove_dollar(done to_do i j) (do (println "remove_dollar" done to_do i j) (cond (>= j (- (len to_do) 2))          done
+                                        (= "\\$" (slice to_do j (+ j 2))) (remove_dollar (concat done (slice to_do i j)) to_do (+ j 2) (+ j 2))
+                                        true                              (remove_dollar done to_do i (+ j 1))))
+fun fixup_str_parts(s) (remove_dollar "" (slice s 0 -2) 0 0)
+(add_grammar_rule 'form [ "$\"" [ "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
+|[ -!]|(\\\\\"))*$" 'form ] * "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
+|[ -!]|(\\\\\"))*\"" ]
+    |_ string_form_pairs end| `(str ,( flat_map |x| [ (fixup_str_parts (idx x 0)) (idx x 1) ] string_form_pairs) ~(fixup_str_parts end)))
+
+(println "HAY")
+(println $"unu |\$| $$"inner $(+ 1 2) post-inner" sual")
+(println "YAAAA")
 
 obj Point( x y ) {
     add |self other| { Point((+ self.x other.x) (+ self.y other.y)) }
@@ -79,10 +92,10 @@ fun test() {
     let p3 = p1.add(p2)
     let p4 = p1.sub(p2)
 
-    println("p1:" p1.to_str())
-    println("p2:" p2.to_str())
-    println("p3:" p3.to_str())
-    println("p4:" p4.to_str())
+    println("p1:" p1.to_str)
+    println("p2:" p2.to_str)
+    println("p3:" p3.to_str)
+    println("p4:" p4.to_str)
 
     (+ a b)
 }
