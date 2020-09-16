@@ -70,3 +70,13 @@
 (add_grammar_rule 'form '("~" optional_WS form) (lambda (_ _ f) ['unquote f]))
 (add_grammar_rule 'form '("," optional_WS form) (lambda (_ _ f) ['splice-unquote f]))
 
+(set! Y (lambda (f)
+    ((lambda (x) (x x))
+     (lambda (x) (f (lambda (& y) (lapply (x x) y)))))))
+
+(set! vY (lambda (f)
+    ((lambda (x) (x x))
+     (lambda (x) (f (vau de (& y) (vapply (x x) y de)))))))
+
+(set! rep (Y (lambda (recurse) (wrap (vau de ()
+    (do (println (eval (read-string (get_line "> ")) de)) (recurse)))))))

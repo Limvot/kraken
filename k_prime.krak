@@ -565,7 +565,7 @@ fun READ(grammar: ref Grammer<KPResult, KPValue>, s: str): KPResult {
         } else {
             println("parsed to var: " + pr_str(get_value(to_ret.second), true))
         }
-        error("parsed some, but not all")
+        error("parsed some, but not all, remaining: " + s.slice(to_ret.first, -1))
     }
     return to_ret.second
 }
@@ -1195,17 +1195,20 @@ fun main(argc: int, argv: **char): int {
         }
     }));
     var ERS = fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
-        if params.size != 2 {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("eval-read-string with not a single string and env"))))
+        if params.size == 0 || params.size > 2 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("eval-read-string with not a single string and optional env"))))
         } else {
             if !params[0].is_string() {
                 return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("first param to eval-read-string s not a string"))))
             }
             var input = params[0].get_string()
-            if !params[1].is_env() {
+            if params.size == 2 && !params[1].is_env() {
                 return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to eval-read-string is not a env"))))
             }
-            var eval_env = params[1].get_env()
+            var eval_env = dynamic_env
+            if params.size == 2 {
+                eval_env = params[1].get_env()
+            }
             var i = 0
             var current_ret = KPResult::Ok(kpNil())
             if i < input.length() {
@@ -1267,12 +1270,22 @@ fun main(argc: int, argv: **char): int {
             return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("slurp with not a single string"))))
         } else {
             if !params[0].is_string() {
-                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with not a single string"))))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("slurp with not a single string"))))
             }
             if !file_exists(params[0].get_string()) {
-                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with bad path ") + params[0].get_string())))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("slurp with bad path ") + params[0].get_string())))
             }
             return make_pair(null<KPEnv>(), KPResult::Ok(kpString(read_file(params[0].get_string()))))
+        }
+    }));
+    env->set(str("get_line"), make_builtin_combiner(str("get_line"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size != 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("get_line with not a single string"))))
+        } else {
+            if !params[0].is_string() {
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("get_line with not a single string"))))
+            }
+            return make_pair(null<KPEnv>(), KPResult::Ok(kpString(get_line(params[0].get_string(), 1024))))
         }
     }));
     env->set(str("wrap"), make_builtin_combiner(str("wrap"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {

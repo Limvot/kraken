@@ -1,0 +1,43 @@
+(vau de (code)
+
+((wrap (vau _ (quote)
+((wrap (vau _ (let1)
+
+(let1 lambda (vau se (p b) (wrap (eval (array vau (quote _) p b) se)))
+
+
+
+(let1 do_helper (lambda (recurse s i se) (cond (= i (len s)) nil
+                                               (= i (- (len s) 1)) (eval (idx s i) se)
+                                               (eval (idx s i) se) (recurse recurse s (+ i 1) se)
+                                               true                (recurse recurse s (+ i 1) se)))
+(let1 do (vau se (& s) (do_helper do_helper s 0 se))
+
+(let1 concat_helper (lambda (recurse a1 a2 a3 i) (cond (< i (len a1))              (do (set-idx! a3 i (idx a1 i))              (recurse recurse a1 a2 a3 (+ i 1)))
+                                                       (< i (+ (len a1) (len a2))) (do (set-idx! a3 i (idx a2 (- i (len a1)))) (recurse recurse a1 a2 a3 (+ i 1)))
+                                                       true a3))
+(let1 concat (lambda (a1 a2) (concat_helper concat_helper a1 a2 (array-with-len (+ (len a1) (len a2))) 0))
+
+(let1 current-env (vau de () de)
+(let1 lapply (lambda (f p)     (eval (concat (array (unwrap f)) p) (current-env)))
+(let1 vapply (lambda (f p ede) (eval (concat (array f)          p) ede))
+(let1 Y (lambda (f)
+    ((lambda (x) (x x))
+     (lambda (x) (f (lambda (& y) (lapply (x x) y))))))
+(let1 vY (lambda (f)
+    ((lambda (x) (x x))
+     (lambda (x) (f (vau de (& y) (vapply (x x) y de))))))
+
+(let1 let (vY (lambda (recurse) (vau de (vs b) (cond (= (len vs) 0) (eval b de)
+                                                     true (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de)))))
+
+(let1 rec-lambda (vau se (p b) (eval (array Y (array lambda (quote (recurse)) (array lambda p b)))))
+
+(eval code)
+
+))))))))))))
+
+)) (vau de (s v b) (eval (array (array vau (quote _) (array s) b) (eval v de)) de)))
+)) (vau _ (x) x))
+
+)
