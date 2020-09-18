@@ -1,11 +1,8 @@
-(vau de (code)
 
 ((wrap (vau _ (quote)
 ((wrap (vau _ (let1)
 
 (let1 lambda (vau se (p b) (wrap (eval (array vau (quote _) p b) se)))
-
-
 
 (let1 do_helper (lambda (recurse s i se) (cond (= i (len s)) nil
                                                (= i (- (len s) 1)) (eval (idx s i) se)
@@ -31,13 +28,24 @@
 (let1 let (vY (lambda (recurse) (vau de (vs b) (cond (= (len vs) 0) (eval b de)
                                                      true (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de)))))
 
-(let1 rec-lambda (vau se (p b) (eval (array Y (array lambda (quote (recurse)) (array lambda p b)))))
+(let (
+        rec-lambda (vau se (p b) (eval (array Y (array lambda (quote (recurse)) (array lambda p b)))))
+        rep (Y (lambda (recurse) (wrap (vau de () (do (println (eval (read-string (get_line "> ")) de))
+                                                      (recurse))))))
+    )
 
-(eval code)
+    (do
+        (println "Welcome to Kraken! Parameters were" *ARGV*)
+        (cond (and (>= (len *ARGV*) 3) (= "-C" (idx *ARGV* 1))) (eval (read-string (idx *ARGV* 2)))
+              (> (len *ARGV*) 1)                                (eval (read-string (slurp (idx *ARGV* 1))))
+              true                                              (rep)
+        )
+    )
+)
+))))))))))) ; end of all the let1's
 
-))))))))))))
-
+; impl of let1
 )) (vau de (s v b) (eval (array (array vau (quote _) (array s) b) (eval v de)) de)))
+; impl of quote
 )) (vau _ (x) x))
 
-)

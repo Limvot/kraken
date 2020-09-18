@@ -657,6 +657,7 @@ fun main(argc: int, argv: **char): int {
     var ret_nil_term: fun(ref KPValue, ref str, int, int): KPResult = fun(_: ref KPValue, input: ref str, l: int, r: int): KPResult { return KPResult::Ok(kpNil()); }
     var ret_nil_sym: fun(ref KPValue, ref vec<KPResult>): KPResult = fun(_: ref KPValue, x: ref vec<KPResult>): KPResult { return KPResult::Ok(kpNil()); }
     var ret_0_sym: fun(ref KPValue, ref vec<KPResult>): KPResult = fun(_: ref KPValue, x: ref vec<KPResult>): KPResult { return x[0]; }
+    var ret_1_sym: fun(ref KPValue, ref vec<KPResult>): KPResult = fun(_: ref KPValue, x: ref vec<KPResult>): KPResult { return x[1]; }
 
     var WS = grammar.add_new_nonterminal("WS", vec(grammar.add_terminal("( |	|
 |(;[ -~]*
@@ -730,7 +731,9 @@ fun main(argc: int, argv: **char): int {
     grammar.add_to_nonterminal(form, vec(call_form), kpNil(), fun(_: ref KPValue, x: ref vec<KPResult>): KPResult {
         return x[0];
     })
-    grammar.set_start_symbol(form)
+    var start_symbol = grammar.add_new_nonterminal("start_symbol", vec(optional_WS, form, optional_WS), kpNil(), ret_1_sym)
+    grammar.set_start_symbol(start_symbol)
+    //grammar.set_start_symbol(form)
 
 
     var env = new<KPEnv>()->construct()
@@ -1194,66 +1197,6 @@ fun main(argc: int, argv: **char): int {
             }))
         }
     }));
-    var ERS = fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
-        if params.size == 0 || params.size > 2 {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("eval-read-string with not a single string and optional env"))))
-        } else {
-            if !params[0].is_string() {
-                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("first param to eval-read-string s not a string"))))
-            }
-            var input = params[0].get_string()
-            if params.size == 2 && !params[1].is_env() {
-                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to eval-read-string is not a env"))))
-            }
-            var eval_env = dynamic_env
-            if params.size == 2 {
-                eval_env = params[1].get_env()
-            }
-            var i = 0
-            var current_ret = KPResult::Ok(kpNil())
-            if i < input.length() {
-                // initial handle whitespace
-                var BSR = fungll(grammar, optional_WS, input.slice(i, -1))
-                var longest = -1
-                for (var j = 0; j < BSR.data.size; j++;) {
-                    if BSR.data[j].nonterminal == optional_WS && BSR.data[j].left == 0 {
-                        if BSR.data[j].right > longest {
-                            longest = BSR.data[j].right
-                        }
-                    }
-                }
-                if longest > 0 {
-                    i += longest
-                }
-            }
-            while i < input.length() {
-                var r = read_str(grammar, input.slice(i, -1))
-                i += r.first
-                if is_err(r.second) {
-                    return make_pair(null<KPEnv>(), r.second)
-                }
-                current_ret = EVAL(eval_env, get_value(r.second))
-                if is_err(current_ret) {
-                    return make_pair(null<KPEnv>(), current_ret)
-                }
-                // handle whitespace again
-                var BSR = fungll(grammar, optional_WS, input.slice(i, -1))
-                var longest = -1
-                for (var j = 0; j < BSR.data.size; j++;) {
-                    if BSR.data[j].nonterminal == optional_WS && BSR.data[j].left == 0 {
-                        if BSR.data[j].right > longest {
-                            longest = BSR.data[j].right
-                        }
-                    }
-                }
-                if longest > 0 {
-                    i += longest
-                }
-            }
-            return make_pair(null<KPEnv>(), current_ret)
-        }
-    }
-    env->set(str("eval-read-string"), make_builtin_combiner(str("eval-read-string"), 1, false, ERS));
 
     env->set(str("read-string"), make_builtin_combiner(str("read-string"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {
@@ -1331,42 +1274,12 @@ fun main(argc: int, argv: **char): int {
         return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("unwrap called with not combiner ") + pr_str(params[0], true))))
     }));
 
-    // a tiny bit of self-implementation fun
-    println(rep(grammar, env, str("(set! load-file (vau de (f) (eval-read-string (slurp (eval f de)) de)))")))
-
-    if argc == 3 && str(argv[1]) == "-C" {
-        env->set(str("*ARGV*"), kpNil())
-        var evaled = ERS(vec(kpString(str(argv[2])), kpEnv(env)), env)
-        if is_err(evaled.second) {
-            printlnerr(str("Exception: ") + pr_str(get_err(evaled.second), true))
-        } else {
-            println("Result: " + pr_str(get_value(evaled.second), true))
-        }
-    } else if argc >= 2 {
-        var params = vec<KPValue>()
-        for (var i = 2; i < argc; i++;) {
-            params.add(kpString(str(argv[i])))
-        }
-        env->set(str("*ARGV*"), kpArray(params))
-        var eval_result_str = rep(grammar, env, str("(load-file \"") + argv[1] + "\")")
-        println(eval_result_str)
-        if eval_result_str.length() >= 11 && eval_result_str.slice(0,11) == "Exception: " {
-            error("aborting compile")
-        }
-        // check for compile
-        var main = env->get(str("main"))
-        if !is_err(main) {
-            println("Starting compile!")
-            error("Compiler not implemented")
-        } else {
-            println("No main function to compile, exiting")
-        }
-    } else {
-        while (true) {
-            var line = get_line(str("user> "), 1024)
-            if (line == "***EOF***")
-                break
-            println(rep(grammar, env, line))
-        }
+    // Launch into new kraken for interface and self-hosting features
+    var params = vec<KPValue>()
+    for (var i = 0; i < argc; i++;) {
+        params.add(kpString(str(argv[i])))
     }
+    env->set(str("*ARGV*"), kpArray(params))
+    println(rep(grammar, env, str("(eval (read-string (slurp \"./new_kraken.kp\")))")))
+    return 0
 }
