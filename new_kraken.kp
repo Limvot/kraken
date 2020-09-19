@@ -1,5 +1,5 @@
 
-((wrap (vau _ (quote)
+((wrap (vau root_env (quote)
 ((wrap (vau _ (let1)
 
 (let1 lambda (vau se (p b) (wrap (eval (array vau (quote _) p b) se)))
@@ -32,13 +32,39 @@
         rec-lambda (vau se (p b) (eval (array Y (array lambda (quote (recurse)) (array lambda p b)))))
         rep (Y (lambda (recurse) (wrap (vau de () (do (println (eval (read-string (get_line "> ")) de))
                                                       (recurse))))))
+        is_pair? (lambda (x) (and (array? x) (> (len x) 0)))
+
+        quasiquote (vY (lambda (recurse) (vau de (x)
+            (cond (is_pair? x)
+                        (cond (and (symbol? (idx x 0)) (= (get-text (idx x 0)) "unquote"))
+                                    (eval (idx x 1) de)
+                              true
+                                    (cond (and (is_pair? (idx x 0)) (symbol? (idx (idx x 0) 0)) (= (get-text (idx (idx x 0) 0)) "splice-unquote"))
+                                                (concat (eval (idx (idx x 0) 1) de) (vapply recurse (array (slice x 1 -1)) de))
+                                          true
+                                                (concat (array (vapply recurse (array (idx x 0)) de)) (vapply recurse (array (slice x 1 -1)) de))))
+                  true x))))
+        scope_let (quasiquote ((unquote let) (
+                            root_env        (unquote root_env)
+                            lambda          (unquote lambda)
+                            rec-lambda      (unquote rec-lambda)
+                            let             (unquote let)
+                            do              (unquote do)
+                            concat          (unquote concat)
+                            lapply          (unquote lapply)
+                            vapply          (unquote vapply)
+                            Y               (unquote Y)
+                            vY              (unquote vY)
+                            quasiquote      (unquote quasiquote)
+                         )
+                   ))
     )
 
     (do
         (println "Welcome to Kraken! Parameters were" *ARGV*)
-        (cond (and (>= (len *ARGV*) 3) (= "-C" (idx *ARGV* 1))) (eval (read-string (idx *ARGV* 2)))
-              (> (len *ARGV*) 1)                                (eval (read-string (slurp (idx *ARGV* 1))))
-              true                                              (rep)
+        (cond (and (>= (len *ARGV*) 3) (= "-C" (idx *ARGV* 1))) (eval (concat scope_let (array (read-string (idx *ARGV* 2)))) root_env)
+              (> (len *ARGV*) 1)                                (eval (concat scope_let (array (read-string (slurp (idx *ARGV* 1))))) root_env)
+              true                                              (eval (concat scope_let (array (array rep))) root_env)
         )
     )
 )
