@@ -644,6 +644,27 @@ fun str_wrapper(params: ref vec<KPValue>, dynamic_env: *KPEnv, sep: *char, print
     }
     return KPResult::Ok(kpString(to_ret))
 }
+fun unwrap(f: KPValue): KPResult {
+    match (f.internal) {
+        KPValue_int::Combiner(c) {
+            if c.wrap_level <= 0 {
+                return KPResult::Err(kpString(str("unwrap called with combiner at wrap_level <= 0")))
+            }
+            var to_ret = c;
+            to_ret.wrap_level--
+            return KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret)))
+        }
+        KPValue_int::BuiltinCombiner(c) {
+            if c.wrap_level <= 0 {
+                return KPResult::Err(kpString(str("unwrap called with combiner at wrap_level <= 0")))
+            }
+            var to_ret = c;
+            to_ret.wrap_level--
+            return KPResult::Ok(nmMV(KPValue_int::BuiltinCombiner(to_ret)))
+        }
+    }
+    return KPResult::Err(kpString(str("unwrap called with not combiner ") + pr_str(f, true)))
+}
 
 var tmp_idx: int = 0
 fun new_tmp(): str {
@@ -1093,20 +1114,32 @@ fun main(argc: int, argv: **char): int {
         }
     }));
 
-    // self-modifying grammar
-    env->set(str("add_terminal"), make_builtin_combiner(str("add_terminal"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
-        if params.size != 2  {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("add_terminal called with wrong number (not 2) params"))))
-        } else {
-            if !params[0].is_string() {
-                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("add_terminal called with not string as first param"))))
-            }
-            return make_pair(null<KPEnv>(), KPResult::Ok(kpInt(grammar.add_terminal(params[0].get_string(), params[1], fun(f: ref KPValue, input: ref str, l: int, r: int): KPResult {
-                return function_call(f, vec(kpString(input.slice(l,r))), kpNil())
-            }))))
+    env->set(str("wrap"), make_builtin_combiner(str("wrap"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size != 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("wrap called with not one argument"))))
         }
+        match (params[0].internal) {
+            KPValue_int::Combiner(c) {
+                var to_ret = c;
+                to_ret.wrap_level++
+                return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret))))
+            }
+            KPValue_int::BuiltinCombiner(c) {
+                var to_ret = c;
+                to_ret.wrap_level++
+                return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::BuiltinCombiner(to_ret))))
+            }
+        }
+        return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("wrap called with not combiner ") + pr_str(params[0], true))))
     }));
-    var add_grammer_rule_helper: fun(str, vec<KPValue>, KPValue, fun(ref KPValue, ref vec<KPResult>): KPResult): KPResult = fun(nonterminal_str: str, rule: vec<KPValue>, data: KPValue, f: fun(ref KPValue, ref vec<KPResult>): KPResult): KPResult {
+    env->set(str("unwrap"), make_builtin_combiner(str("unwrap"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size != 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("unwrap called with not one argument"))))
+        }
+        return make_pair(null<KPEnv>(), unwrap(params[0]))
+    }));
+
+    var add_grammer_rule_helper: fun(ref Grammer<KPResult, KPValue>, str, vec<KPValue>, KPValue, fun(ref KPValue, ref vec<KPResult>): KPResult): KPResult = fun(grammar: ref Grammer<KPResult, KPValue>, nonterminal_str: str, rule: vec<KPValue>, data: KPValue, f: fun(ref KPValue, ref vec<KPResult>): KPResult): KPResult {
         var int_rule = vec<int>()
         for (var i = 0; i < rule.size; i++;) {
             if rule[i].is_int() {
@@ -1125,7 +1158,7 @@ fun main(argc: int, argv: **char): int {
             } else if rule[i].is_array() {
                 // A sequence!
                 var sub_rule_names = nonterminal_str + "_seq_" + new_tmp()
-                var inner_rule = add_grammer_rule_helper(sub_rule_names, rule[i].get_array_rc().get(), kpNil(), fun(_: ref KPValue, seq: ref vec<KPResult>): KPResult {
+                var inner_rule = add_grammer_rule_helper(grammar, sub_rule_names, rule[i].get_array_rc().get(), kpNil(), fun(_: ref KPValue, seq: ref vec<KPResult>): KPResult {
                     var to_ret = vec<KPValue>()
                     for (var i = 0; i < seq.size; i++;) {
                         if is_err(seq[i]) {
@@ -1176,36 +1209,63 @@ fun main(argc: int, argv: **char): int {
         }
         return KPResult::Ok(kpInt(grammar.add_to_or_create_nonterminal(nonterminal_str, int_rule, data, f)))
     }
-    env->set(str("add_grammar_rule"), make_builtin_combiner(str("add_grammar_rule"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
-        if params.size != 3 || !params[0].is_symbol() || !params[1].is_array() {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("add_grammar_rule called with wrong number or type of params_evaled"))))
-        } else {
-            var nonterminal_str = params[0].get_symbol_text()
-            var rule = params[1].get_array_rc().get()
-            return make_pair(null<KPEnv>(), add_grammer_rule_helper(nonterminal_str, rule, params[2], fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
-                var params = vec<KPValue>()
-                for (var i = 0; i < x.size; i++;) {
-                    if is_err(x[i]) {
-                        return x[i]
-                    }
-                    // Have to let our params be evald
-
-                    var our_quote.construct(null<KPEnv>(), str("doesn't matter"), vec(str("x")), false, kpSymbol("x")) : KPCombiner
-                    params.add(kpArray(vec(nmMV(KPValue_int::Combiner(our_quote)), get_value(x[i]))))
-                }
-                return function_call(f, params, kpEnv(null<KPEnv>()))
-            }))
-        }
-    }));
 
     env->set(str("read-string"), make_builtin_combiner(str("read-string"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
-        if params.size != 1 {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with not a single string"))))
+        if params.size != 1 && params.size != 3 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with not a single string, or string, grammer array, and start_symbol"))))
         } else {
             if !params[0].is_string() {
                 return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with not a single string"))))
             }
-            return make_pair(null<KPEnv>(), READ(grammar, params[0].get_string()))
+            if params.size == 1 {
+                return make_pair(null<KPEnv>(), READ(grammar, params[0].get_string()))
+            } else {
+                if !params[1].is_array() {
+                    return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with second param not an array"))))
+                }
+                var grammar.construct(): Grammer<KPResult, KPValue>
+
+                var gram_arr = params[1].get_array_rc().get()
+                for (var i = 0; i < gram_arr.size; i++;) {
+                    if !gram_arr[i].is_array() {
+                        return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with second param not containing a sub array at index: ") + i)))
+                    }
+                    var inner_arr = gram_arr[i].get_array_rc().get()
+                    if !inner_arr[0].is_symbol() {
+                        return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with second param not containing a sub array : ") + i + " index 0 not symbol")))
+                    }
+                    var nonterminal_str = inner_arr[0].get_symbol_text()
+                    if !inner_arr[1].is_array() {
+                        return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with second param not containing a sub array : ") + i + " index 1 not array")))
+                    }
+                    var rule = inner_arr[1].get_array_rc().get()
+                    add_grammer_rule_helper(grammar, nonterminal_str, rule, inner_arr[2], fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
+                        var params = vec<KPValue>()
+                        for (var j = 0; j < x.size; j++;) {
+                            if is_err(x[j]) {
+                                return x[j]
+                            }
+                            params.add(get_value(x[j]))
+                        }
+                        var unwrapped_f = unwrap(f)
+                        if is_err(unwrapped_f) {
+                            return unwrapped_f
+                        }
+                        return function_call(get_value(unwrapped_f), params, kpEnv(null<KPEnv>()))
+                    })
+                }
+
+                if !params[2].is_symbol() {
+                    return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with third param not a symbol"))))
+                }
+                var start_symbol_idx = grammar.nonterminal_names.find(params[2].get_symbol_text())
+                if start_symbol_idx == -1 {
+                    return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Couldn't find nonterminal to make start symbol: ") + params[2].get_symbol_text())))
+                }
+                grammar.set_start_symbol((-1*start_symbol_idx)-1)
+                println("Doing actual reading with new grammer of " + params[0].get_string())
+                return make_pair(null<KPEnv>(), READ(grammar, params[0].get_string()))
+            }
         }
     }));
     env->set(str("slurp"), make_builtin_combiner(str("slurp"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
@@ -1230,48 +1290,6 @@ fun main(argc: int, argv: **char): int {
             }
             return make_pair(null<KPEnv>(), KPResult::Ok(kpString(get_line(params[0].get_string(), 1024))))
         }
-    }));
-    env->set(str("wrap"), make_builtin_combiner(str("wrap"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
-        if params.size != 1 {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("wrap called with not one argument"))))
-        }
-        match (params[0].internal) {
-            KPValue_int::Combiner(c) {
-                var to_ret = c;
-                to_ret.wrap_level++
-                return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret))))
-            }
-            KPValue_int::BuiltinCombiner(c) {
-                var to_ret = c;
-                to_ret.wrap_level++
-                return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::BuiltinCombiner(to_ret))))
-            }
-        }
-        return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("wrap called with not combiner ") + pr_str(params[0], true))))
-    }));
-    env->set(str("unwrap"), make_builtin_combiner(str("unwrap"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
-        if params.size != 1 {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("unwrap called with not one argument"))))
-        }
-        match (params[0].internal) {
-            KPValue_int::Combiner(c) {
-                if c.wrap_level <= 0 {
-                    return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("unwrap called with combiner at wrap_level <= 0"))))
-                }
-                var to_ret = c;
-                to_ret.wrap_level--
-                return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret))))
-            }
-            KPValue_int::BuiltinCombiner(c) {
-                if c.wrap_level <= 0 {
-                    return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("unwrap called with combiner at wrap_level <= 0"))))
-                }
-                var to_ret = c;
-                to_ret.wrap_level--
-                return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::BuiltinCombiner(to_ret))))
-            }
-        }
-        return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("unwrap called with not combiner ") + pr_str(params[0], true))))
     }));
 
     // Launch into new kraken for interface and self-hosting features

@@ -87,6 +87,7 @@
                                 vapply
                                 Y
                                 vY
+                                quote
                                 quasiquote
                                 provide
         )
