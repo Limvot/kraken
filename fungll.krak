@@ -108,6 +108,19 @@ obj Grammer<T,K> (Object) {
             return terminals[erminal-1].regexString
         }
     }
+    fun to_string(): str {
+        var to_ret = str()
+        for (var i = 0; i < nonterminals.size; i++;) {
+            for (var j = 0; j < nonterminals[i].size; j++;) {
+                to_ret += nonterminal_names[i] + " ::="
+                for (var k = 0; k < nonterminals[i][j].size; k++;) {
+                    to_ret += " " + to_string(nonterminals[i][j][k])
+                }
+                to_ret += "\n"
+            }
+        }
+        return "start_symbol: " + to_string(start_symbol) + "\n" + to_ret
+    }
     fun eval_BSR(input: ref str, BSR: ref set<BS>): T {
         var top = -1
         for (var i = 0; i < BSR.data.size; i++;) {

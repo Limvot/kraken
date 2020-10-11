@@ -454,6 +454,11 @@ fun read_str(grammar: ref Grammer<KPResult,KPValue>, s: str): pair<int, KPResult
         }
     }
     if longest >= 0 {
+        println("trying to parse: " + s)
+        println(str("length of BSR is: ") + BSR.size())
+        for (var i = 0; i < BSR.data.size; i++;) {
+            println(str() + i + ": " + grammar.to_string(BSR.data[i]))
+        }
         return make_pair(longest, grammar.eval_BSR(s.slice(0, longest), BSR))
     } else {
         println("trying to parse: " + s)
@@ -1239,7 +1244,7 @@ fun main(argc: int, argv: **char): int {
                         return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("read-string with second param not containing a sub array : ") + i + " index 1 not array")))
                     }
                     var rule = inner_arr[1].get_array_rc().get()
-                    add_grammer_rule_helper(grammar, nonterminal_str, rule, inner_arr[2], fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
+                    var result = add_grammer_rule_helper(grammar, nonterminal_str, rule, inner_arr[2], fun(f: ref KPValue, x: ref vec<KPResult>): KPResult {
                         var params = vec<KPValue>()
                         for (var j = 0; j < x.size; j++;) {
                             if is_err(x[j]) {
@@ -1253,6 +1258,9 @@ fun main(argc: int, argv: **char): int {
                         }
                         return function_call(get_value(unwrapped_f), params, kpEnv(null<KPEnv>()))
                     })
+                    if is_err(result) {
+                        return make_pair(null<KPEnv>(), result)
+                    }
                 }
 
                 if !params[2].is_symbol() {
@@ -1264,6 +1272,7 @@ fun main(argc: int, argv: **char): int {
                 }
                 grammar.set_start_symbol((-1*start_symbol_idx)-1)
                 println("Doing actual reading with new grammer of " + params[0].get_string())
+                println("With grammer:\n" + grammar.to_string())
                 return make_pair(null<KPEnv>(), READ(grammar, params[0].get_string()))
             }
         }

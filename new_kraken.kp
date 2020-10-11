@@ -30,8 +30,6 @@
 
 (let (
         rec-lambda (vau se (p b) (eval (array Y (array lambda (quote (recurse)) (array lambda p b))) se))
-        rep (vY (lambda (recurse) (wrap (vau de () (do (println (eval (read-string (get_line "> ")) de))
-                                                       (eval (array recurse) de))))))
 
         if (vau de (con than & else) (cond (eval con de) (eval than de)
                                            (> (len else) 0) (eval (idx else 0) de)
@@ -70,8 +68,25 @@
                                           true
                                                 (concat (array (vapply recurse (array (idx x 0)) de)) (vapply recurse (array (slice x 1 -1)) de))))
                   true x))))
+        standard_grammar (array
+           (array (quote WS) (array "( |	|
+|(;[ -~]*
+))+") (lambda (x) nil))
+           (array (quote atom) (array "-?[0-9]+") (lambda (x) (read-string x)))
+           ; String here
+           (array (quote atom) (array "-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>|%)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>|%)*)") (lambda (x) (cond (= "true" x) true
+                                                              (= "false" x) false
+                                                              (= "nil" x) nil
+                                                              true        (read-string x))))
+           (array (quote form) (array (quote atom)) (lambda (x) x))
+           (array (quote form) (array "\\(" (quote WS) * "\\)" ) (lambda (_ _ _) (array)))
+           (array (quote form) (array "\\(" (quote WS) * (quote form) (array (quote WS) + (quote form)) * (quote WS) * "\\)" ) (lambda (_ _ head tail _ _) (concat (array head) (map (lambda (x) (idx x 1)) tail))))
+        )
+        rep (vY (lambda (recurse) (wrap (vau de () (do (println (eval (read-string (get_line "> ") standard_grammar (quote form)) de))
+                                                       (eval (array recurse) de))))))
+        print_through (lambda (x) (do (println x) x))
         provide (vau de (& items) (array let
-                                         (flat_map (lambda (item) (array item (eval item de))) items)))
+                                         (flat_map (lambda (item) (array item (array quote (eval item de)))) items)))
         scope_let_sans_import (provide
                                 root_env
                                 lambda
@@ -89,6 +104,7 @@
                                 vY
                                 quote
                                 quasiquote
+                                standard_grammar
                                 provide
         )
         insert_into_scope_let (lambda (scope_let name item) (array (idx scope_let 0) (concat (idx scope_let 1) (array name item))))
@@ -102,8 +118,8 @@
 
     (do
         (println "Welcome to Kraken! Parameters were" *ARGV*)
-        (cond (and (>= (len *ARGV*) 3) (= "-C" (idx *ARGV* 1))) (eval (concat scope_let (array (read-string (idx *ARGV* 2)))) root_env)
-              (> (len *ARGV*) 1)                                (eval (concat scope_let (array (read-string (slurp (idx *ARGV* 1))))) root_env)
+        (cond (and (>= (len *ARGV*) 3) (= "-C" (idx *ARGV* 1))) (eval (concat scope_let (array (read-string (idx *ARGV* 2) standard_grammar (quote form)))) root_env)
+              (> (len *ARGV*) 1)                                (eval (concat scope_let (array (read-string (slurp (idx *ARGV* 1)) standard_grammar (quote form)))) root_env)
               true                                              (eval (concat scope_let (array (array rep))) root_env)
         )
     )
