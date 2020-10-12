@@ -68,31 +68,6 @@
                                           true
                                                 (concat (array (vapply recurse (array (idx x 0)) de)) (vapply recurse (array (slice x 1 -1)) de))))
                   true x))))
-        tiny_grammar (array
-           (array (quote WS) (array "( |	|
-|(;[ -~]*
-))+") (lambda (x) nil))
-            (array (quote start_symbol) (array (quote WS) * "only_str" (quote WS) *) (lambda (_ _ _) 1337))
-        )
-        standard_grammar (array
-           (array (quote WS) (array "( |	|
-|(;[ -~]*
-))+") (lambda (x) nil))
-           (array (quote atom) (array "-?[0-9]+") (lambda (x) (read-string x)))
-           (array (quote atom) (array "\"([#-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\\\*)|(\\0)|
-|[ -!]|(\\\\\"))*\"") (lambda (x) (read-string x)))
-           (array (quote atom) (array "-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>|%)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>|%)*)") (lambda (x) (cond (= "true" x) true
-                                                              (= "false" x) false
-                                                              (= "nil" x) nil
-                                                              true        (read-string x))))
-           (array (quote form) (array (quote atom)) (lambda (x) x))
-           (array (quote form) (array "\\(" (quote WS) * "\\)" ) (lambda (_ _ _) (array)))
-           (array (quote form) (array "\\(" (quote WS) * (quote form) (array (quote WS) + (quote form)) * (quote WS) * "\\)" ) (lambda (_ _ head tail _ _) (concat (array head) (map (lambda (x) (idx x 1)) tail))))
-           (array (quote start_symbol) (array (quote WS) * (quote form) (quote WS) *) (lambda (_ f _) f))
-           (array (quote start_symbol) (array (quote WS) * "#lang" (quote WS) * (quote form) "[ -~]*") (lambda (_ _ _ gram source)  (read-string source (eval gram) (quote start_symbol))))
-        )
-        rep (vY (lambda (recurse) (wrap (vau de () (do (println (eval (read-string (get_line "> ") standard_grammar (quote start_symbol)) de))
-                                                       (eval (array recurse) de))))))
         print_through (lambda (x) (do (println x) x))
         provide (vau de (& items) (array let
                                          (flat_map (lambda (item) (array item (array quote (eval item de)))) items)))
@@ -113,7 +88,6 @@
                                 vY
                                 quote
                                 quasiquote
-                                standard_grammar
                                 provide
         )
         insert_into_scope_let (lambda (scope_let name item) (array (idx scope_let 0) (concat (idx scope_let 1) (array name item))))
@@ -123,6 +97,26 @@
                                                                (array (read-string (slurp (eval lib_path de))))) root_env))
                              (eval (concat imported_scope_let (array code)) de)))))
         scope_let (insert_into_scope_let scope_let_sans_import (quote with_import) with_import)
+        standard_grammar (array
+           (array (quote WS) (array "( |	|
+|(;[ -~]*
+))+") (lambda (x) nil))
+           (array (quote atom) (array "-?[0-9]+") (lambda (x) (read-string x)))
+           (array (quote atom) (array "\"([#-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\\\*)|(\\0)|
+|[ -!]|(\\\\\"))*\"") (lambda (x) (read-string x)))
+           (array (quote atom) (array "-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>|%)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>|%)*)") (lambda (x) (cond (= "true" x) true
+                                                              (= "false" x) false
+                                                              (= "nil" x) nil
+                                                              true        (read-string x))))
+           (array (quote form) (array (quote atom)) (lambda (x) x))
+           (array (quote form) (array "\\(" (quote WS) * "\\)" ) (lambda (_ _ _) (array)))
+           (array (quote form) (array "\\(" (quote WS) * (quote form) (array (quote WS) + (quote form)) * (quote WS) * "\\)" ) (lambda (_ _ head tail _ _) (concat (array head) (map (lambda (x) (idx x 1)) tail))))
+           (array (quote start_symbol) (array (quote WS) * (quote form) (quote WS) *) (lambda (_ f _) f))
+           (array (quote start_symbol) (array (quote WS) * "#lang" (quote WS) * (quote form) "[ -~]*") (lambda (_ _ _ gram source) (read-string source (eval (concat scope_let (array gram)) root_env) (quote start_symbol))))
+        )
+
+        rep (vY (lambda (recurse) (wrap (vau de () (do (println (eval (read-string (get_line "> ") standard_grammar (quote start_symbol)) de))
+                                                       (eval (array recurse) de))))))
     )
 
     (do
