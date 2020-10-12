@@ -702,7 +702,7 @@ fun main(argc: int, argv: **char): int {
                 } else if input[i+1] == '\\' || input[i+1] == '"' {
                     to_ret += input[i+1]
                 } else {
-                    return KPResult::Err(kpString(str("bad string escape")))
+                    return KPResult::Err(kpString(str("bad string escape: ") + input[i+1]))
                 }
                 // skip
                 i++

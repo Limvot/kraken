@@ -73,7 +73,8 @@
 |(;[ -~]*
 ))+") (lambda (x) nil))
            (array (quote atom) (array "-?[0-9]+") (lambda (x) (read-string x)))
-           ; String here
+           (array (quote atom) (array "\"([#-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\\\*)|(\\0)|
+|[ -!]|(\\\\\"))*\"") (lambda (x) (read-string x)))
            (array (quote atom) (array "-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>|%)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>|%)*)") (lambda (x) (cond (= "true" x) true
                                                               (= "false" x) false
                                                               (= "nil" x) nil
