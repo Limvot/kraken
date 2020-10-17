@@ -42,6 +42,14 @@
                                                 (do (set-idx! n i (f (idx l i)))
                                                     (recurse f l n (+ i 1))))))
                  (helper f l (array-with-len (len l)) 0)))
+
+        ; Huge thanks to Oleg Kiselyov for his fantastic website
+        ; http://okmij.org/ftp/Computation/fixed-point-combinators.html
+        Y* (lambda (& l)
+            ((lambda (u) (u u))
+             (lambda (p)
+                (map (lambda (li) (lambda (& x) (lapply (lapply li (p p)) x))) l))))
+
         flat_map (lambda (f l)
             (let (helper (rec-lambda (f l n i)
                                             (if (= i (len l))
@@ -86,9 +94,11 @@
                                 vapply
                                 Y
                                 vY
+                                Y*
                                 quote
                                 quasiquote
                                 provide
+                                print_through
         )
         insert_into_scope_let (lambda (scope_let name item) (array (idx scope_let 0) (concat (idx scope_let 1) (array name item))))
         ; Gotta insert with_import into scope_let via vY combinator so it can use itself

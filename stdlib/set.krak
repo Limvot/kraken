@@ -149,9 +149,7 @@ obj set<T> (Object, Serializable) {
 
     }
     fun pop(): T {
-        var to_ret = data.last()
-        data.remove(data.size-1)
-        return to_ret
+        return data.pop()
     }
     fun union(other: set<T>): set<T> {
         for (var i = 0; i < data.size; i++;)

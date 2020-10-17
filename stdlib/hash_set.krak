@@ -127,5 +127,21 @@ obj hash_set<T> (Object, Serializable) {
         }
 
     }
+    fun pop(): T {
+        return data.pop().first
+    }
+    fun union(other: hash_set<T>): hash_set<T> {
+        for_each(fun(i: T) {
+            other.add(i)
+        })
+        return other
+    }
+    fun operator-(items: ref hash_set<T>): hash_set<T> {
+        var to_ret.copy_construct(this): hash_set<T>
+        items.for_each(fun(i: T) {
+            to_ret.remove(i)
+        })
+        return to_ret
+    }
 }
 

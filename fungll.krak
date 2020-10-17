@@ -2,6 +2,7 @@ import vec:*
 import vec_literals:*
 import map:*
 import set:*
+import hash_set
 import util:*
 import str:*
 import regex:*
@@ -216,7 +217,7 @@ fun pending(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int): Pen
     var to_ret.construct(nonterminal, rule_idx, idx_into_rule, left): Pending
     return to_ret
 }
-obj Descriptor (Object) {
+obj Descriptor (Object, Hashable) {
     var nonterminal: int
     var rule_idx: int
     var idx_into_rule: int
@@ -247,6 +248,10 @@ obj Descriptor (Object) {
     }
     fun operator==(rhs: ref Descriptor): bool {
         return nonterminal == rhs.nonterminal && rule_idx == rhs.rule_idx && idx_into_rule == rhs.idx_into_rule && left == rhs.left && pivot == rhs.pivot
+    }
+    fun hash():ulong {
+        //return hash(nonterminal) ^ hash(rule_idx) ^ hash(idx_into_rule) ^ hash(left) ^ hash(pivot)
+        return nonterminal*3 +  rule_idx*5 + idx_into_rule*7 + left*11 + pivot*13
     }
 }
 fun descriptor(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int, pivot: int): Descriptor {
@@ -304,21 +309,16 @@ fun bs(nonterminal: int, rule_idx: int, idx_into_rule: int, left: int, pivot: in
 /*}*/
 fun fungll<T,K>(grammar: ref Grammer<T,K>, start_symbol: int, input: ref str): set<BS> {
     var R = descend(grammar, start_symbol, 0)
-    var U = set<Descriptor>()
     var G = map<pair<int, int>, set<Pending>>()
     var P = map<pair<int,int>, set<int>>()
     var Y = set<BS>()
-    while R.size() != 0 {
-        var d = R.pop()
+
+    R.chaotic_closure(fun(d: Descriptor): set<Descriptor> {
         var it = process(grammar, input, d, G, P)
-        var Rp = it.first.first
-        var Yp = it.first.second
+        //var Yp = it.first.second
+        Y += it.first.second
         var Gp = it.second
         var Pp = it.third
-
-        U.add(d)
-        var nextR = R.union(Rp) - U
-        R = nextR
 
         for (var i = 0; i < Gp.keys.size; i++;) {
             if G.contains_key(Gp.keys[i]) {
@@ -334,8 +334,10 @@ fun fungll<T,K>(grammar: ref Grammer<T,K>, start_symbol: int, input: ref str): s
                 P[Pp.keys[i]] = Pp.values[i]
             }
         }
-        Y += Yp
-    }
+
+        // Rp
+        return it.first.first
+    })
     return Y
 }
 fun descend<T,K>(grammar: ref Grammer<T,K>, symbol: int, l: int): set<Descriptor> {

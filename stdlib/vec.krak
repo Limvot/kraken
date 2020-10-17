@@ -384,5 +384,10 @@ obj vec<T> (Object, Serializable) {
             return to_ret
         }
     }
+    fun pop(): T {
+        var to_ret = data[size-1]
+        remove(size-1)
+        return to_ret
+    }
 };
 

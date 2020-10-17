@@ -6,5 +6,7 @@ mkShell {
   nativeBuildInputs = [
     emscripten
     nodejs
+    valgrind
+    kcachegrind
   ];
 }

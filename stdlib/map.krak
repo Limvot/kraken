@@ -96,7 +96,7 @@ obj map<T,U> (Object, Serializable) {
     fun remove(key: ref T) {
         var idx = keys.find(key)
         if (idx < 0)
-            util::error("trying to remove nonexistant key-value!")
+            return;
         keys.remove(idx)
         values.remove(idx)
     }
@@ -122,6 +122,9 @@ obj map<T,U> (Object, Serializable) {
             to_ret[nkv.first] = nkv.second
         }
         return to_ret
+    }
+    fun pop(): util::pair<T,U> {
+        return util::make_pair(keys.pop(), values.pop())
     }
 }
 

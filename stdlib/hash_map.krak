@@ -110,5 +110,11 @@ obj hash_map<T,U> (Object, Serializable) {
         size = 0
         data.add(map::map<T,U>())
     }
+    fun pop(): util::pair<T,U> {
+        for (var i = 0; i < data.size; i++;)
+            if (data[i].size() > 0)
+                return data[i].pop()
+        io::println("trying to pop out of an empty hash_map")
+    }
 }
 
