@@ -13,7 +13,7 @@
 (let1 concat_helper (lambda (recurse a1 a2 a3 i) (cond (< i (len a1))              (do (set-idx! a3 i (idx a1 i))              (recurse recurse a1 a2 a3 (+ i 1)))
                                                        (< i (+ (len a1) (len a2))) (do (set-idx! a3 i (idx a2 (- i (len a1)))) (recurse recurse a1 a2 a3 (+ i 1)))
                                                        true a3))
-(let1 concat (lambda (a1 a2) (concat_helper concat_helper a1 a2 (array-with-len (+ (len a1) (len a2))) 0))
+(let1 concat (lambda (& as) (concat_helper concat_helper as (array-with-len (lapply + (map len as))) 0))
 
 (let1 current-env (vau de () de)
 (let1 lapply (lambda (f p)     (eval (concat (array (unwrap f)) p) (current-env)))
@@ -29,6 +29,7 @@
                                                      true (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de)))))
 
 (let (
+        print_through (lambda (x) (do (println x) x))
         rec-lambda (vau se (p b) (eval (array Y (array lambda (quote (recurse)) (array lambda p b))) se))
 
         if (vau de (con than & else) (cond (eval con de) (eval than de)
@@ -43,12 +44,38 @@
                                                     (recurse f l n (+ i 1))))))
                  (helper f l (array-with-len (len l)) 0)))
 
+        map_i (lambda (f l)
+            (let (helper (rec-lambda (f l n i)
+                                            (if (= i (len l))
+                                                n
+                                                (do (set-idx! n i (f i (idx l i)))
+                                                    (recurse f l n (+ i 1))))))
+                 (helper f l (array-with-len (len l)) 0)))
+
+        filter_i (lambda (f l)
+               (let (helper (rec-lambda (f l n i)
+                                            (if (= i (len l))
+                                                n
+                                                (if (f i (idx l i)) (recurse f l (concat n (array (idx l i))) (+ i 1))
+                                                                    (recurse f l n (+ i 1))))))
+                    (helper f l (array) 0)))
+
+
         ; Huge thanks to Oleg Kiselyov for his fantastic website
         ; http://okmij.org/ftp/Computation/fixed-point-combinators.html
         Y* (lambda (& l)
             ((lambda (u) (u u))
              (lambda (p)
                 (map (lambda (li) (lambda (& x) (lapply (lapply li (p p)) x))) l))))
+
+        let-rec (vau de (name_func body)
+                    (let (names (filter_i (lambda (i x) (= 0 (% i 2))) name_func)
+                          funcs (filter_i (lambda (i x) (= 1 (% i 2))) name_func)
+                          overwrite_name (idx name_func (- (len name_func) 2)))
+
+                          (eval (array let (concat (array overwrite_name (concat (array Y*) (map (lambda (f) (array lambda names f)) funcs)))
+                                                                                (lapply concat (map_i (lambda (i n) (array n (array idx overwrite_name i))) names)))
+                                       body))))
 
         flat_map (lambda (f l)
             (let (helper (rec-lambda (f l n i)
@@ -76,7 +103,6 @@
                                           true
                                                 (concat (array (vapply recurse (array (idx x 0)) de)) (vapply recurse (array (slice x 1 -1)) de))))
                   true x))))
-        print_through (lambda (x) (do (println x) x))
         provide (vau de (& items) (array let
                                          (flat_map (lambda (item) (array item (array quote (eval item de)))) items)))
         scope_let_sans_import (provide
@@ -84,6 +110,7 @@
                                 lambda
                                 rec-lambda
                                 let
+                                let-rec
                                 do
                                 if
                                 concat
