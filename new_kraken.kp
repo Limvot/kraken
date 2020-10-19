@@ -9,15 +9,16 @@
                                                (eval (idx s i) se) (recurse recurse s (+ i 1) se)
                                                true                (recurse recurse s (+ i 1) se)))
 (let1 do (vau se (& s) (do_helper do_helper s 0 se))
-
-(let1 concat_helper (lambda (recurse a1 a2 a3 i) (cond (< i (len a1))              (do (set-idx! a3 i (idx a1 i))              (recurse recurse a1 a2 a3 (+ i 1)))
-                                                       (< i (+ (len a1) (len a2))) (do (set-idx! a3 i (idx a2 (- i (len a1)))) (recurse recurse a1 a2 a3 (+ i 1)))
-                                                       true a3))
-(let1 concat (lambda (& as) (concat_helper concat_helper as (array-with-len (lapply + (map len as))) 0))
+(let1 cons (lambda (h t) (let1 a (array-with-len (+ 1 (len t)))
+                         (let1 helper (lambda (recurse d s i) (cond (< i (len s)) (do (set-idx! d (+ i 1) (idx s i))
+                                                                                    (recurse recurse d s (+ i 1)))
+                                                                    true          d))
+                            (do (set-idx! a 0 h)
+                                (helper helper a t 0)))))
 
 (let1 current-env (vau de () de)
-(let1 lapply (lambda (f p)     (eval (concat (array (unwrap f)) p) (current-env)))
-(let1 vapply (lambda (f p ede) (eval (concat (array f)          p) ede))
+(let1 lapply (lambda (f p)     (eval (cons (unwrap f) p) (current-env)))
+(let1 vapply (lambda (f p ede) (eval (cons f          p) ede))
 (let1 Y (lambda (f)
     ((lambda (x) (x x))
      (lambda (x) (f (lambda (& y) (lapply (x x) y))))))
@@ -30,6 +31,7 @@
 
 (let (
         print_through (lambda (x) (do (println x) x))
+
         rec-lambda (vau se (p b) (eval (array Y (array lambda (quote (recurse)) (array lambda p b))) se))
 
         if (vau de (con than & else) (cond (eval con de) (eval than de)
@@ -51,6 +53,13 @@
                                                 (do (set-idx! n i (f i (idx l i)))
                                                     (recurse f l n (+ i 1))))))
                  (helper f l (array-with-len (len l)) 0)))
+
+        concat_helper (lambda (recurse as o i j k) (if (< i (len as))
+                                                            (if (< j (len (idx as i))) (do (set-idx! o k  (idx (idx as i) j))
+                                                                                           (recurse recurse as o i (+ j 1) (+ k 1)))
+                                                                                       (recurse recurse as o (+ i 1) 0 k))
+                                                            o))
+        concat (lambda (& as) (concat_helper concat_helper as (array-with-len (lapply + (map len as))) 0 0 0))
 
         filter_i (lambda (f l)
                (let (helper (rec-lambda (f l n i)
@@ -164,7 +173,7 @@
         )
     )
 )
-))))))))))) ; end of all the let1's
+)))))))))) ; end of all the let1's
 
 ; impl of let1
 )) (vau de (s v b) (eval (array (array vau (quote _) (array s) b) (eval v de)) de)))

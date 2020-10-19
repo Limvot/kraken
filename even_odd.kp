@@ -1,0 +1,51 @@
+(do
+    (println "Double")
+    (let-rec (
+        even (lambda (n) (cond (= 0 n) true
+                               (= 1 n) false
+                               true    (odd (- n 1))))
+        odd (lambda (n) (cond (= 0 n) false
+                              (= 1 n) true
+                              true    (even (- n 1))))
+        )
+        (do
+            (println (even 7))
+            (println (even 8))
+            (println (odd 7))
+            (println (odd 8))
+        )
+    )
+
+    (println "Triple")
+    (let-rec (
+        first (lambda (n) (cond (= 0 n) true
+                                (= 1 n) false
+                                (= 2 n) false
+                                true    (third (- n 1))))
+
+        second (lambda (n) (cond (= 0 n) false
+                                 (= 1 n) true
+                                 (= 2 n) false
+                                 true    (first (- n 1))))
+
+        third (lambda (n) (cond (= 0 n) false
+                                (= 1 n) false
+                                (= 2 n) true
+                                true    (second (- n 1))))
+        )
+        (do
+            (println)
+            (println (first 7))
+            (println (first 8))
+            (println (first 9))
+            (println)
+            (println (second 7))
+            (println (second 8))
+            (println (second 9))
+            (println)
+            (println (third 7))
+            (println (third 8))
+            (println (third 9))
+        )
+    )
+)
