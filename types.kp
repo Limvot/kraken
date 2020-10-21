@@ -1,0 +1,32 @@
+(let (
+    check_and_erase (lambda (x type)
+         (let (xe (x)
+               xi (idx xe 0)
+               xt (idx xe 1))
+           (if (= type xt) xi (println "\n\nType error, expected" type "but got" xt "\n\n")))
+    )
+
+    add_one_impl (lambda (x) (+ x 1))
+
+    stlc (array
+
+       (array (quote WS) (array "( |	|
+|(;[ -~]*
+))+") (lambda (x) nil))
+
+       (array (quote stlc_expr) (array "-?[0-9]+") (lambda (x) (lambda () (array (read-string x) (quote int)))))
+       (array (quote stlc_expr) (array "plus")     (lambda (x) (lambda () (array + (quote (int int int))))))
+       (array (quote stlc_expr) (array "call" (quote WS) (quote stlc_expr) (quote WS) (quote stlc_expr) (quote WS) (quote stlc_expr))    (lambda (_ _ c _ a _ b) (lambda () (let (
+                                                                                                                                    ae (check_and_erase a (quote int))
+                                                                                                                                    be (check_and_erase b (quote int))
+                                                                                                                                    ce (check_and_erase c (quote (int int int)))
+                                                                                                                                )
+                                                                                                                                    (array (ce ae be) (quote int))
+                                                                                                                                ))))
+       (array (quote stlc)      (array (quote stlc_expr))                                                   (lambda (x) (check_and_erase x (quote int))))
+    )
+
+    our_expr "call 4 13 20"
+)
+    (println "\n\nExpr evaluates to" (eval (read-string our_expr stlc (quote stlc))) "\n")
+)
