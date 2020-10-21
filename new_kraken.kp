@@ -157,6 +157,13 @@
            (array (quote form) (array (quote atom)) (lambda (x) x))
            (array (quote form) (array "\\(" (quote WS) * "\\)" ) (lambda (_ _ _) (array)))
            (array (quote form) (array "\\(" (quote WS) * (quote form) (array (quote WS) + (quote form)) * (quote WS) * "\\)" ) (lambda (_ _ head tail _ _) (concat (array head) (map (lambda (x) (idx x 1)) tail))))
+
+           (array (quote form) (array "\\[" (quote WS) * "\\]" ) (lambda (_ _ _) (array array)))
+           (array (quote form) (array "\\[" (quote WS) * (quote form) (array (quote WS) + (quote form)) * (quote WS) * "\\]" ) (lambda (_ _ head tail _ _) (concat (array array head) (map (lambda (x) (idx x 1)) tail))))
+           (array (quote form) (array "'" (quote WS) * (quote form)) (lambda (_ _ x) (array quote x)))
+           (array (quote form) (array "`" (quote WS) * (quote form)) (lambda (_ _ x) (array quasiquote x)))
+           (array (quote form) (array "~" (quote WS) * (quote form)) (lambda (_ _ x) (array (quote unquote) x)))
+           (array (quote form) (array "," (quote WS) * (quote form)) (lambda (_ _ x) (array (quote splice-unquote) x)))
            (array (quote start_symbol) (array (quote WS) * (quote form) (quote WS) *) (lambda (_ f _) f))
            (array (quote start_symbol) (array (quote WS) * "#lang" (quote WS) * (quote form) "[ -~]*") (lambda (_ _ _ gram source) (read-string source (eval (concat scope_let (array gram)) root_env) (quote start_symbol))))
         )
