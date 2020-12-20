@@ -136,14 +136,14 @@
                                 provide
                                 print_through
         )
-        insert_into_scope_let (lambda (scope_let name item) (array (idx scope_let 0) (concat (idx scope_let 1) (array name item))))
+        insert_into_scope_let (lambda (scope_let name item) (array (idx scope_let 0) (concat (idx scope_let 1) (array name (array quote item)))))
         ; Gotta insert with_import into scope_let via vY combinator so it can use itself
         with_import (vY (lambda (recurse) (vau de (lib_path code)
                         (let (imported_scope_let (eval (concat (insert_into_scope_let scope_let_sans_import (quote with_import) recurse)
                                                                (array (read-string (slurp (eval lib_path de))))) root_env))
                              (eval (concat imported_scope_let (array code)) de)))))
         scope_let (insert_into_scope_let scope_let_sans_import (quote with_import) with_import)
-        standard_grammar (array
+        gen_standard_grammar (rec-lambda () (array
            (array (quote WS) (array "( |	|
 |(;[ -~]*
 ))+") (lambda (x) nil))
@@ -165,8 +165,13 @@
            (array (quote form) (array "~" (quote WS) * (quote form)) (lambda (_ _ x) (array (quote unquote) x)))
            (array (quote form) (array "," (quote WS) * (quote form)) (lambda (_ _ x) (array (quote splice-unquote) x)))
            (array (quote start_symbol) (array (quote WS) * (quote form) (quote WS) *) (lambda (_ f _) f))
-           (array (quote start_symbol) (array (quote WS) * "#lang" (quote WS) * (quote form) "[ -~]*") (lambda (_ _ _ gram source) (read-string source (eval (concat scope_let (array gram)) root_env) (quote start_symbol))))
-        )
+           (array (quote start_symbol) (array (quote WS) * "#lang" (quote WS) * (quote form) "[ -~]*")
+                                       (lambda (_ _ _ gram source) (read-string source
+                                                                        (eval (concat (insert_into_scope_let scope_let (quote standard_grammar) (recurse)) (array gram)) root_env)
+                                                                        (quote start_symbol))))
+        ))
+        standard_grammar (gen_standard_grammar)
+        scope_let (insert_into_scope_let scope_let (quote standard_grammar) standard_grammar)
 
         rep (vY (lambda (recurse) (wrap (vau de () (do (println (eval (read-string (get_line "> ") standard_grammar (quote start_symbol)) de))
                                                        (eval (array recurse) de))))))
