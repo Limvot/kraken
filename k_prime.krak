@@ -1307,6 +1307,6 @@ fun main(argc: int, argv: **char): int {
         params.add(kpString(str(argv[i])))
     }
     env->set(str("*ARGV*"), kpArray(params))
-    println(rep(grammar, env, str("(eval (read-string (slurp \"./new_kraken.kp\")))")))
+    println(rep(grammar, env, str("(eval (read-string (slurp \"./prelude.kp\")))")))
     return 0
 }

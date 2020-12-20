@@ -1,0 +1,3 @@
+#lang (with_import "./new_kraken.kp" new_kraken_untyped)
+
+(println "THIS IS ININ the real real finally")
