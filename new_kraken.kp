@@ -1,5 +1,40 @@
 (let (
-   new_kraken_untyped standard_grammar
-   )
+
+
+    ; {} body translated to do and let
+    construct_body (rec-lambda (is_do current to_add i)
+        (if (> (len to_add) i)
+            (cond (and is_do (= (len (idx to_add i)) 1)) (recurse true (concat current [(idx (idx to_add i) 0)]) to_add (+ i 1))
+                  (= (len (idx to_add i)) 1)             (concat current [(recurse true [do (idx (idx to_add i) 0)] to_add (+ i 1))])
+                  true                                   (concat current [(recurse false [let [(idx (idx to_add i) 0) (idx (idx to_add i) 1)] ] to_add (+ i 1))]))
+            current))
+
+    ; string interpolation
+    remove_dollar (rec-lambda (done to_do i j) (cond (>= j (- (len to_do) 2)) (str done (slice to_do i -1))
+                                            (= "\\$" (slice to_do j (+ j 2))) (recurse (str done (slice to_do i j) "$") to_do (+ j 2) (+ j 2))
+                                            true                              (recurse done to_do i (+ j 1))))
+    fixup_str_parts (lambda (s) (remove_dollar "" (slice s 0 -2) 0 0))
+
+
+
+   new_kraken_untyped (concat standard_grammar (array
+
+        (array 'block_member [ 'form ] (lambda (x) [x]))
+        (array 'block_member [ "let" 'WS * 'atom 'WS * "=" 'WS * 'form ]
+                                    (lambda (_ _ name _ _ _ rhs) `(~name ~rhs)))
+        (array 'form ["{" 'WS * [ 'block_member 'WS * ] * "}"]
+            (lambda (_ _ inner _) (construct_body true [do] (map (lambda (x) (idx x 0)) inner) 0)))
+
+
+        (array 'form [ "$\"" [ "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
+|[ -!]|(\\\\\"))*$" 'form ] * "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
+|[ -!]|(\\\\\"))*\"" ]
+            (lambda (_ string_form_pairs end) `(str ,( flat_map (lambda (x) [ (fixup_str_parts (idx x 0)) (idx x 1) ]) string_form_pairs) ~(fixup_str_parts end))))
+
+
+        (array 'form [ "\\|" 'WS * [ 'atom 'WS * ] * "\\|" 'WS * 'form ]
+                    (lambda (_ _ params _ _ body) `(lambda (,(map (lambda (x) (idx x 0)) params)) ~body)))
+
+   )))
    (provide new_kraken_untyped)
 )

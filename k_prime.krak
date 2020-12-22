@@ -449,7 +449,7 @@ fun read_str(grammar: ref Grammer<KPResult,KPValue>, s: str): pair<int, KPResult
     var BSR = fungll(grammar, grammar.start_symbol, s)
     var longest = -1
     for (var i = 0; i < BSR.data.size; i++;) {
-        if BSR.data[i].nonterminal == grammar.start_symbol && BSR.data[i].left == 0 && BSR.data[i].idx_into_rule == grammar.nonterminals[(-1*BSR.data[i].nonterminal)-1][BSR.data[i].rule_idx].size {
+        if BSR.data[i].nonterminal == grammar.start_symbol && BSR.data[i].left == 0 && BSR.data[i].idx_into_rule == grammar.nonterminals[(-1*BSR.data[i].nonterminal)-1][BSR.data[i].rule_idx].size && BSR.data[i].right > longest {
             longest = BSR.data[i].right
         }
     }

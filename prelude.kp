@@ -155,19 +155,19 @@
                                                                 (insert_into_scope_let 
                                                                     (insert_into_scope_let scope_let_sans_import_gram (quote standard_grammar) (gen_standard_grammar))
                                                                     (quote with_import) with_import)
-                                                               (array (read-string (slurp (eval lib_path de))))) root_env))
+                                                               (array (read-string (slurp (eval lib_path de)) (gen_standard_grammar) (quote start_symbol)))) root_env))
                              (eval (concat imported_scope_let (array code)) de)))
             gen_standard_grammar (vau de () (array
                (array (quote WS) (array "( |	|
 |(;[ -~]*
 ))+") (lambda (x) nil))
-               (array (quote atom) (array "-?[0-9]+") (lambda (x) (read-string x)))
+               (array (quote atom) (array "-?[0-9]+") (lambda (x) (do (println "read-str for number") (read-string x))))
                (array (quote atom) (array "\"([#-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\\\*)|(\\0)|
-|[ -!]|(\\\\\"))*\"") (lambda (x) (read-string x)))
+|[ -!]|(\\\\\"))*\"") (lambda (x) (do (println "read-str for string") (read-string x))))
                (array (quote atom) (array "-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>|%)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>|%)*)") (lambda (x) (cond (= "true" x) true
                                                                   (= "false" x) false
                                                                   (= "nil" x) nil
-                                                                  true        (read-string x))))
+                                                                  true        (do (println "read-string for atom") (read-string x)))))
                (array (quote form) (array (quote atom)) (lambda (x) x))
                (array (quote form) (array "\\(" (quote WS) * "\\)" ) (lambda (_ _ _) (array)))
                (array (quote form) (array "\\(" (quote WS) * (quote form) (array (quote WS) + (quote form)) * (quote WS) * "\\)" ) (lambda (_ _ head tail _ _) (concat (array head) (map (lambda (x) (idx x 1)) tail))))
