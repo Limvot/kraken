@@ -1,8 +1,31 @@
 (let (
 
 
+
+    ; First quick lookup function, since maps are not built in
+    get-value-helper (rec-lambda recurse (dict key i) (if (>= i (len dict))
+                                                    nil
+                                                    (if (= key (idx (idx dict i) 0))
+                                                        (idx (idx dict i) 1)
+                                                        (recurse dict key (+ i 1)))))
+    get-value (lambda (dict key) (get-value-helper dict key 0))
+
+    ; Our actual method call function
+    method-call (lambda (object method & arguments) (let (method_fn (get-value (meta object) method))
+                                                                (if (= method_fn nil)
+                                                                    (println "no method " method)
+                                                                    (lapply method_fn (concat [object] arguments)))))
+
+
+    make_constructor (lambda (name members methods)
+        `(~rec-lambda ~name ~members
+            (~with-meta [,members]
+                [,(map_with_idx (lambda (i x) [array `'~x (lambda (o) (idx o i))]) members)
+                 ,(map (lambda (x) [array `'~(idx x 0) (idx x 1)]) methods)])))
+
+
     ; {} body translated to do and let
-    construct_body (rec-lambda (is_do current to_add i)
+    construct_body (rec-lambda recurse (is_do current to_add i)
         (if (> (len to_add) i)
             (cond (and is_do (= (len (idx to_add i)) 1)) (recurse true (concat current [(idx (idx to_add i) 0)]) to_add (+ i 1))
                   (= (len (idx to_add i)) 1)             (concat current [(recurse true [do (idx (idx to_add i) 0)] to_add (+ i 1))])
@@ -10,7 +33,7 @@
             current))
 
     ; string interpolation
-    remove_dollar (rec-lambda (done to_do i j) (cond (>= j (- (len to_do) 2)) (str done (slice to_do i -1))
+    remove_dollar (rec-lambda recurse (done to_do i j) (cond (>= j (- (len to_do) 2)) (str done (slice to_do i -1))
                                             (= "\\$" (slice to_do j (+ j 2))) (recurse (str done (slice to_do i j) "$") to_do (+ j 2) (+ j 2))
                                             true                              (recurse done to_do i (+ j 1))))
     fixup_str_parts (lambda (s) (remove_dollar "" (slice s 0 -2) 0 0))
@@ -19,10 +42,37 @@
 
    new_kraken_untyped (concat standard_grammar (array
 
+        (array 'call_innards [ 'WS * ] (lambda (_) (array)))
+        (array 'call_innards [ 'form [ 'WS 'form ] * ] (lambda (f r) (concat [f] (map (lambda (x) (idx x 1)) r))))
+
+        (array 'form ['form "\\." 'atom]
+                                    (lambda (o _ m) `(~method-call ~o '~m)))
+        ; params
+        (array 'form ['form "\\." 'atom "\\(" 'call_innards "\\)"]
+                                    (lambda (o _ m _ p _) `(~method-call ~o '~m ,p)))
+
+
+        (array 'form [ "\\|" 'call_innards "\\|" 'WS * 'form ]
+                    (lambda (_ params _ _ body) `(lambda (,params) ~body)))
+
+        ; Call functions with function first, c style (notice no whitespace)
+        (array 'form [ 'form "\\(" 'call_innards "\\)" ]
+                    (lambda (f _ ps _) (concat [f] ps)))
+
+        ; fun syntax
+        (array 'block_member [ "fun" 'WS 'atom 'WS * "\\(" 'call_innards "\\)" 'WS * 'form ]
+            (lambda (_ _ name _ _ params _ _ body) `(~name (~lambda (,params) ~body))))
+
+        ; object syntax
+        (array 'block_member ["obj" 'WS 'atom "\\(" ['WS * 'atom] * 'WS * "\\)" 'WS * "{" 'WS * ['atom 'WS * 'form 'WS *] *  "}"]
+            (lambda (_ _ name _ members _ _ _ _ _ methods _)
+                [name (make_constructor name (map (lambda (x) (idx x 1)) members)
+                                             (map (lambda (x) [(idx x 0) (idx x 2)]) methods))]))
+
         (array 'block_member [ 'form ] (lambda (x) [x]))
         (array 'block_member [ "let" 'WS * 'atom 'WS * "=" 'WS * 'form ]
                                     (lambda (_ _ name _ _ _ rhs) `(~name ~rhs)))
-        (array 'form ["{" 'WS * [ 'block_member 'WS * ] * "}"]
+        (array 'form ["{" 'WS * [ 'block_member 'WS ] * "}"]
             (lambda (_ _ inner _) (construct_body true [do] (map (lambda (x) (idx x 0)) inner) 0)))
 
 
@@ -30,10 +80,6 @@
 |[ -!]|(\\\\\"))*$" 'form ] * "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
 |[ -!]|(\\\\\"))*\"" ]
             (lambda (_ string_form_pairs end) `(str ,( flat_map (lambda (x) [ (fixup_str_parts (idx x 0)) (idx x 1) ]) string_form_pairs) ~(fixup_str_parts end))))
-
-
-        (array 'form [ "\\|" 'WS * [ 'atom 'WS * ] * "\\|" 'WS * 'form ]
-                    (lambda (_ _ params _ _ body) `(lambda (,(map (lambda (x) (idx x 0)) params)) ~body)))
 
    )))
    (provide new_kraken_untyped)
