@@ -179,15 +179,15 @@
                (array (quote form) (array "~" (quote WS) * (quote form)) (lambda (_ _ x) (array (quote unquote) x)))
                (array (quote form) (array "," (quote WS) * (quote form)) (lambda (_ _ x) (array (quote splice-unquote) x)))
                (array (quote start_symbol) (array (quote WS) * (quote form) (quote WS) *) (lambda (_ f _) f))
-               (array (quote start_symbol) (array (quote WS) * "#lang" (quote WS) * (quote form) "([ -~]|
+               (array (quote start_symbol) (array (quote WS) * "#lang" (quote WS) (quote form) (quote WS) (quote form) "([ -~]|
 )*")
-                                           (lambda (_ _ _ gram source) (do (println "gonna do that # yo") (read-string source
+                                           (lambda (_ _ _ gram _ symbol source) (do (println "gonna do that # yo") (read-string source
                                                                             (eval (concat
                                                                                     (insert_into_scope_let 
                                                                                         (insert_into_scope_let scope_let_sans_import_gram (quote standard_grammar) (gen_standard_grammar))
                                                                                         (quote with_import) with_import)
                                                                                     (array gram)) root_env)
-                                                                            (quote start_symbol)))))
+                                                                            symbol))))
             ))
         )
             (insert_into_scope_let 

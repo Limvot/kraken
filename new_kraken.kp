@@ -1,7 +1,5 @@
 (let (
 
-
-
     ; First quick lookup function, since maps are not built in
     get-value-helper (rec-lambda recurse (dict key i) (if (>= i (len dict))
                                                     nil
@@ -29,8 +27,10 @@
         (if (> (len to_add) i)
             (cond (and is_do (= (len (idx to_add i)) 1)) (recurse true (concat current [(idx (idx to_add i) 0)]) to_add (+ i 1))
                   (= (len (idx to_add i)) 1)             (concat current [(recurse true [do (idx (idx to_add i) 0)] to_add (+ i 1))])
+                  (= (len (idx to_add i)) 3)             (concat current [[with_import (idx (idx to_add i) 0) (recurse false [do] to_add (+ i 1))]])
                   true                                   (concat current [(recurse false [let [(idx (idx to_add i) 0) (idx (idx to_add i) 1)] ] to_add (+ i 1))]))
             current))
+
 
     ; string interpolation
     remove_dollar (rec-lambda recurse (done to_do i j) (cond (>= j (- (len to_do) 2)) (str done (slice to_do i -1))
@@ -63,17 +63,23 @@
         (array 'block_member [ "fun" 'WS 'atom 'WS * "\\(" 'call_innards "\\)" 'WS * 'form ]
             (lambda (_ _ name _ _ params _ _ body) `(~name (~lambda (,params) ~body))))
 
+        (array 'block_member [ 'form ] (lambda (x) [x]))
+        (array 'block_member [ "let" 'WS * 'atom 'WS * "=" 'WS * 'form ]
+                                    (lambda (_ _ name _ _ _ rhs) `(~name ~rhs)))
         ; object syntax
         (array 'block_member ["obj" 'WS 'atom "\\(" ['WS * 'atom] * 'WS * "\\)" 'WS * "{" 'WS * ['atom 'WS * 'form 'WS *] *  "}"]
             (lambda (_ _ name _ members _ _ _ _ _ methods _)
                 [name (make_constructor name (map (lambda (x) (idx x 1)) members)
                                              (map (lambda (x) [(idx x 0) (idx x 2)]) methods))]))
+        ; import
+        (array 'block_member [ "with_import" 'WS 'atom 'WS * ":" ]
+            (lambda (_ _ file _ _) [file 0 0]))
 
-        (array 'block_member [ 'form ] (lambda (x) [x]))
-        (array 'block_member [ "let" 'WS * 'atom 'WS * "=" 'WS * 'form ]
-                                    (lambda (_ _ name _ _ _ rhs) `(~name ~rhs)))
         (array 'form ["{" 'WS * [ 'block_member 'WS ] * "}"]
             (lambda (_ _ inner _) (construct_body true [do] (map (lambda (x) (idx x 0)) inner) 0)))
+
+        (array 'new_kraken_start_symbol [ 'WS * [ 'block_member 'WS ] * ]
+            (lambda (_ inner) (construct_body true [do] (map (lambda (x) (idx x 0)) inner) 0)))
 
 
         (array 'form [ "$\"" [ "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
