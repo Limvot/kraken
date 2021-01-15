@@ -122,33 +122,13 @@
                                           true
                                                 (concat (array (vapply recurse (array (idx x 0)) de)) (vapply recurse (array (slice x 1 -1)) de))))
                   true x))))
-        provide (vau de (& items) (array let
-                                         (flat_map (lambda (item) (array item (array quote (eval item de)))) items)))
-        scope_let_sans_import_gram (
-                                provide
-                                root_env
-                                lambda
-                                rec-lambda
-                                let
-                                let-rec
-                                let-vrec
-                                do
-                                if
-                                concat
-                                map
-                                flat_map
-                                map_with_idx
-                                lapply
-                                vapply
-                                Y
-                                vY
-                                Y*
-                                quote
-                                quasiquote
-                                provide
-                                print_through
-        )
-        insert_into_scope_let (lambda (scope_let name item) (array (idx scope_let 0) (concat (idx scope_let 1) (array name (array quote item)))))
+
+        repl (vY (lambda (recurse) (wrap (vau de (grammer start_symbol)
+                    (do (recover (println (eval (read-string (get_line "> ") grammer start_symbol) de))
+                            captured_error (println "repl caught an exception:" captured_error))
+                        (eval (array recurse (array quote grammer) (array quote start_symbol)) de))))))
+
+
         string-to-int (lambda (s) (let (
             helper (rec-lambda recurse (s i result)
                 (if (< i (len s))
@@ -176,6 +156,48 @@
                 )
             )) (helper s 1 "")))
 
+        basic_rules (array
+                (array (quote WS) (array "( |	|
+|(;[ -~]*
+))+") (lambda (x) nil))
+               (array (quote number) (array "-?[0-9]+") (lambda (x) (string-to-int x)))
+               (array (quote string) (array "\"([#-[]|	|[]-~]|(\\\\\\\\)|(\\\\n)|(\\\\t)|(\\*)|(\\\\0)|
+|[ -!]|(\\\\\"))*\"") (lambda (x) (unescape-str x)))
+               (array (quote bool_nil_symbol) (array "-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>|%)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>|%)*)") (lambda (x) (cond (= "true" x) true
+                                                                  (= "false" x) false
+                                                                  (= "nil" x) nil
+                                                                  true        (str-to-symbol x))))
+        )
+
+        provide (vau de (& items) (array let
+                                         (flat_map (lambda (item) (array item (array quote (eval item de)))) items)))
+        scope_let_sans_import_gram (provide
+                                root_env
+                                lambda
+                                rec-lambda
+                                let
+                                let-rec
+                                let-vrec
+                                do
+                                if
+                                concat
+                                map
+                                flat_map
+                                map_with_idx
+                                lapply
+                                vapply
+                                Y
+                                vY
+                                Y*
+                                quote
+                                quasiquote
+                                repl
+                                provide
+                                print_through
+                                basic_rules
+        )
+        insert_into_scope_let (lambda (scope_let name item) (array (idx scope_let 0) (concat (idx scope_let 1) (array name (array quote item)))))
+
         scope_let (let-vrec (
             with_import (vau de (lib_path code)
                             (let (imported_scope_let (eval (concat 
@@ -184,18 +206,10 @@
                                                                     (quote with_import) with_import)
                                                                (array (read-string (slurp (eval lib_path de)) (gen_standard_grammar) (quote start_symbol)))) root_env))
                              (eval (concat imported_scope_let (array code)) de)))
-            gen_standard_grammar (vau de () (array
-               (array (quote WS) (array "( |	|
-|(;[ -~]*
-))+") (lambda (x) nil))
-               (array (quote atom) (array "-?[0-9]+") (lambda (x) (string-to-int x)))
-               (array (quote atom) (array "\"([#-[]|	|[]-~]|(\\\\\\\\)|(\\\\n)|(\\\\t)|(\\*)|(\\\\0)|
-|[ -!]|(\\\\\"))*\"") (lambda (x) (unescape-str x)))
-               (array (quote atom) (array "-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>|%)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>|%)*)") (lambda (x) (cond (= "true" x) true
-                                                                  (= "false" x) false
-                                                                  (= "nil" x) nil
-                                                                  true        (str-to-symbol x))))
-               (array (quote form) (array (quote atom)) (lambda (x) x))
+            gen_standard_grammar (vau de () (concat basic_rules (array
+               (array (quote form) (array (quote number)) (lambda (x) x))
+               (array (quote form) (array (quote string)) (lambda (x) x))
+               (array (quote form) (array (quote bool_nil_symbol)) (lambda (x) x))
                (array (quote form) (array "\\(" (quote WS) * "\\)" ) (lambda (_ _ _) (array)))
                (array (quote form) (array "\\(" (quote WS) * (quote form) (array (quote WS) + (quote form)) * (quote WS) * "\\)" ) (lambda (_ _ head tail _ _) (concat (array head) (map (lambda (x) (idx x 1)) tail))))
 
@@ -215,23 +229,20 @@
                                                                                         (quote with_import) with_import)
                                                                                     (array gram)) root_env)
                                                                             symbol))))
-            ))
+            )))
         )
             (insert_into_scope_let 
                 (insert_into_scope_let scope_let_sans_import_gram (quote standard_grammar) (gen_standard_grammar))
                 (quote with_import) with_import)
         )
         standard_grammar (eval (concat scope_let (array (quote standard_grammar))) root_env)
-
-        rep (vY (lambda (recurse) (wrap (vau de () (do (println (eval (read-string (get_line "> ") standard_grammar (quote start_symbol)) de))
-                                                       (eval (array recurse) de))))))
     )
 
     (do
         (println "Welcome to Kraken! Parameters were" *ARGV*)
         (cond (and (>= (len *ARGV*) 3) (= "-C" (idx *ARGV* 1))) (eval (concat scope_let (array (read-string (idx *ARGV* 2) standard_grammar (quote start_symbol)))) root_env)
               (> (len *ARGV*) 1)                                (eval (concat scope_let (array (read-string (slurp (idx *ARGV* 1)) standard_grammar (quote start_symbol)))) root_env)
-              true                                              (eval (concat scope_let (array (array rep))) root_env)
+              true                                              (eval (concat scope_let (array (array repl (array quote standard_grammar) (array quote (quote start_symbol))))) root_env)
         )
     )
 )

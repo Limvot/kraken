@@ -1162,6 +1162,29 @@ fun main(argc: int, argv: **char): int {
         return make_pair(null<KPEnv>(), unwrap(params[0]))
     }));
 
+    env->set(str("error"), make_builtin_combiner(str("error"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size != 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("error called with not one argument"))))
+        }
+        return make_pair(null<KPEnv>(), KPResult::Err(params[0]))
+    }));
+
+    env->set(str("recover"), make_builtin_combiner(str("recover"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size != 3 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("recover called with not three arguments"))))
+        }
+        var data = EVAL(dynamic_env, params[0])
+        if is_err(data) {
+            if !params[1].is_symbol() {
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("recover called with not symbol as middle"))))
+            }
+            var new_env = new<KPEnv>()->construct(dynamic_env)
+            new_env->set(params[1].get_symbol_text(), get_err(data))
+            return make_pair(null<KPEnv>(), EVAL(new_env, params[2]))
+        }
+        return make_pair(null<KPEnv>(), data)
+    }));
+
     var add_grammer_rule_helper: fun(ref Grammer<KPResult, KPValue>, str, vec<KPValue>, KPValue, fun(ref KPValue, ref vec<KPResult>): KPResult): KPResult = fun(grammar: ref Grammer<KPResult, KPValue>, nonterminal_str: str, rule: vec<KPValue>, data: KPValue, f: fun(ref KPValue, ref vec<KPResult>): KPResult): KPResult {
         var int_rule = vec<int>()
         for (var i = 0; i < rule.size; i++;) {

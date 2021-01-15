@@ -40,53 +40,58 @@
 
 
 
-   new_kraken_untyped (concat standard_grammar (array
+   new_kraken_untyped (concat basic_rules [
 
-        (array 'call_innards [ 'WS * ] (lambda (_) (array)))
-        (array 'call_innards [ 'form [ 'WS 'form ] * ] (lambda (f r) (concat [f] (map (lambda (x) (idx x 1)) r))))
+        [ 'expr [ 'number ]          (lambda (x) x) ]
+        [ 'expr [ 'string ]          (lambda (x) x) ]
+        [ 'expr [ 'bool_nil_symbol ] (lambda (x) x) ]
 
-        (array 'form ['form "\\." 'atom]
-                                    (lambda (o _ m) `(~method-call ~o '~m)))
+        [ 'call_innards [ 'WS * ]                 (lambda (_)   []) ]
+        [ 'call_innards [ 'expr [ 'WS 'expr ] * ] (lambda (f r) (concat [f] (map (lambda (x) (idx x 1)) r))) ]
+
+        [ 'expr ['expr "\\." 'bool_nil_symbol]    (lambda (o _ m) `(~method-call ~o '~m)) ]
         ; params
-        (array 'form ['form "\\." 'atom "\\(" 'call_innards "\\)"]
-                                    (lambda (o _ m _ p _) `(~method-call ~o '~m ,p)))
+        [ 'expr ['expr "\\." 'bool_nil_symbol "\\(" 'call_innards "\\)"]
+                                    (lambda (o _ m _ p _) `(~method-call ~o '~m ,p)) ]
 
 
-        (array 'form [ "\\|" 'call_innards "\\|" 'WS * 'form ]
-                    (lambda (_ params _ _ body) `(lambda (,params) ~body)))
+        [ 'expr [ "\\|" 'call_innards "\\|" 'WS * 'expr ]
+                    (lambda (_ params _ _ body) `(lambda (,params) ~body)) ]
 
         ; Call functions with function first, c style (notice no whitespace)
-        (array 'form [ 'form "\\(" 'call_innards "\\)" ]
-                    (lambda (f _ ps _) (concat [f] ps)))
+        [ 'expr [ 'expr "\\(" 'call_innards "\\)" ]
+                    (lambda (f _ ps _) (concat [f] ps)) ]
 
         ; fun syntax
-        (array 'block_member [ "fun" 'WS 'atom 'WS * "\\(" 'call_innards "\\)" 'WS * 'form ]
-            (lambda (_ _ name _ _ params _ _ body) `(~name (~lambda (,params) ~body))))
+        [ 'block_member [ "fun" 'WS 'bool_nil_symbol 'WS * "\\(" 'call_innards "\\)" 'WS * 'expr ]
+            (lambda (_ _ name _ _ params _ _ body) `(~name (~lambda (,params) ~body))) ]
 
-        (array 'block_member [ 'form ] (lambda (x) [x]))
-        (array 'block_member [ "let" 'WS * 'atom 'WS * "=" 'WS * 'form ]
-                                    (lambda (_ _ name _ _ _ rhs) `(~name ~rhs)))
+        [ 'block_member [ 'expr ] (lambda (x) [x]) ]
+        [ 'block_member [ "let" 'WS * 'bool_nil_symbol 'WS * "=" 'WS * 'expr ]
+                                    (lambda (_ _ name _ _ _ rhs) `(~name ~rhs)) ]
         ; object syntax
-        (array 'block_member ["obj" 'WS 'atom "\\(" ['WS * 'atom] * 'WS * "\\)" 'WS * "{" 'WS * ['atom 'WS * 'form 'WS *] *  "}"]
+        [ 'block_member ["obj" 'WS 'bool_nil_symbol "\\(" ['WS * 'bool_nil_symbol] * 'WS * "\\)" 'WS * "{" 'WS * ['bool_nil_symbol 'WS * 'expr 'WS *] *  "}"]
             (lambda (_ _ name _ members _ _ _ _ _ methods _)
                 [name (make_constructor name (map (lambda (x) (idx x 1)) members)
-                                             (map (lambda (x) [(idx x 0) (idx x 2)]) methods))]))
+                                             (map (lambda (x) [(idx x 0) (idx x 2)]) methods))]) ]
         ; import
-        (array 'block_member [ "with_import" 'WS 'atom 'WS * ":" ]
-            (lambda (_ _ file _ _) [file 0 0]))
+        [ 'block_member [ "with_import" 'WS 'string 'WS * ":" ]
+            (lambda (_ _ file _ _) [file 0 0]) ]
 
-        (array 'form ["{" 'WS * [ 'block_member 'WS ] * "}"]
-            (lambda (_ _ inner _) (construct_body true [do] (map (lambda (x) (idx x 0)) inner) 0)))
+        [ 'expr ["{" 'WS * 'block_member "}"]
+            (lambda (_ _ inner _) (construct_body true [do] [inner] 0)) ]
+        [ 'expr ["{" 'WS * [ 'block_member 'WS ] * "}"]
+            (lambda (_ _ inner _) (construct_body true [do] (map (lambda (x) (idx x 0)) inner) 0)) ]
 
-        (array 'new_kraken_start_symbol [ 'WS * [ 'block_member 'WS ] * ]
-            (lambda (_ inner) (construct_body true [do] (map (lambda (x) (idx x 0)) inner) 0)))
+        [ 'new_kraken_start_symbol [ 'WS * [ 'block_member 'WS ] * ]
+            (lambda (_ inner) (construct_body true [do] (map (lambda (x) (idx x 0)) inner) 0)) ]
 
 
-        (array 'form [ "$\"" [ "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
-|[ -!]|(\\\\\"))*$" 'form ] * "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
+        [ 'expr [ "$\"" [ "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
+|[ -!]|(\\\\\"))*$" 'expr ] * "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
 |[ -!]|(\\\\\"))*\"" ]
-            (lambda (_ string_form_pairs end) `(str ,( flat_map (lambda (x) [ (fixup_str_parts (idx x 0)) (idx x 1) ]) string_form_pairs) ~(fixup_str_parts end))))
+            (lambda (_ string_expr_pairs end) `(str ,( flat_map (lambda (x) [ (fixup_str_parts (idx x 0)) (idx x 1) ]) string_expr_pairs) ~(fixup_str_parts end))) ]
 
-   )))
+   ]))
    (provide new_kraken_untyped)
 )
