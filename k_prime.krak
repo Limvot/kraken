@@ -1312,6 +1312,7 @@ fun main(argc: int, argv: **char): int {
             return make_pair(null<KPEnv>(), KPResult::Ok(kpString(get_line(params[0].get_string(), 1024))))
         }
     }));
+    env->set(str("empty_env"), kpEnv(new<KPEnv>()->construct()))
 
     // Launch into new kraken for interface and self-hosting features
     var params = vec<KPValue>()

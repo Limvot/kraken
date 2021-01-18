@@ -1,33 +1,75 @@
 (let (
-    check_and_erase (lambda (x type)
-         (let (xe (x)
-               xt (meta xe))
-           (if (= type xt) xe (println "\n\nType error, expected" type "but got" xt "\n\n")))
+    ; First quick lookup function, since maps are not built in
+    lookup (let (lookup-helper (rec-lambda recurse (dict key i) (if (>= i (len dict))
+                                                                nil
+                                                                (if (= key (idx (idx dict i) 0))
+                                                                    (idx (idx dict i) 1)
+                                                                    (recurse dict key (+ i 1))))))
+                   (lambda (dict key) (lookup-helper dict key 0)))
+
+    with_type (lambda (exp typ) [exp typ])
+    get_exp     (lambda (et)      (idx et 0))
+    get_typ     (lambda (et)      (idx et 1))
+    get_ret_typ (lambda (f_typ)   (idx f_typ 1))
+    types_match (lambda (t1 t2) (= t1 t2))
+
+    simple_type_com (lambda (exp typ) (lambda (env) (with_type exp typ)))
+    symbol_type_com (lambda (sym)     (lambda (env) (with_type sym (lookup env sym))))
+
+    parameter_types_match (let (pmth (rec-lambda recurse (l1 l2 i) (cond (= i (len l1))                      true
+                                                                         (types_match (idx l1 i) (idx l2 i)) (recurse l1 l2 (+ i 1))
+                                                                         true                                false)))
+                               (lambda (f_t pt) (let (fp_t (idx f_t 0))
+                                                    (if (= (len fp_t) (len pt))
+                                                        (pmth fp_t pt 0)
+                                                        false))))
+    call_type_com (lambda (innards)
+        (lambda (env)
+            (if (= 0 (len innards)) (error "stlc_error: Can't have a 0-length call")
+                (let (
+                    f_et ((idx innards 0) env)
+                    f_e (get_exp f_et)
+                    f_t (get_typ f_et)
+                    p_et (map (lambda (x) (x env)) (slice innards 1 -1))
+                    p_e  (map get_exp p_et)
+                    p_t  (map get_typ p_et)
+                ) (if (parameter_types_match f_t p_t)
+                      (with_type (cons f_e p_e) (get_ret_typ f_t))
+                      (error (str "Function type (" f_t ") does not match parameter types (" p_t ")"))
+                  )
+                )
+            )
+        )
     )
 
-    add_one_impl (lambda (x) (+ x 1))
-
-    stlc [
-
-       [ 'WS [ "( |	|
-|(;[ -~]*
-))+"] (lambda (x) nil)]
-
-       [ 'stlc_expr '("-?[0-9]+") (lambda (x) (lambda () (with-meta (read-string x) 'int))) ]
-       [ 'stlc_expr '("plus")     (lambda (x) (lambda () (with-meta + '(int int int)))) ]
-       [ 'stlc_expr '("call" WS stlc_expr WS stlc_expr WS stlc_expr)
-                                       (lambda (_ _ c _ a _ b) (lambda ()
-                                           (let (
-                                                ae (check_and_erase a 'int)
-                                                be (check_and_erase b 'int)
-                                                ce (check_and_erase c '(int int int))
-                                           )
-                                               (with-meta [ce ae be] 'int)
-                                           ))) ]
-       [ 'stlc      '(stlc_expr)   (lambda (x) (check_and_erase x 'int)) ]
+    base_env [
+        [ '+ [['int 'int] 'int]  ]
+        [ '- [['int 'int] 'int]  ]
+        [ '< [['int 'int] 'bool] ]
+        [ '> [['int 'int] 'bool] ]
+        [ 'println [['str] 'nil] ]
     ]
+    current_env (vau de () de)
+    syms (map (lambda (x) (idx x 0)) base_env)
+    builtin_real_env (eval (concat (vapply provide syms root_env) [[current_env]]) empty_env)
 
-    our_expr "call plus 13 20"
-)
-    (println "\n\nExpr evaluates to" (eval (read-string our_expr stlc 'stlc)) "\n")
+    stlc (concat basic_rules [
+
+        [ 'expr [ 'number ]          (lambda (x) (simple_type_com x 'int)) ]
+        [ 'expr [ 'string ]          (lambda (x) (simple_type_com x 'str)) ]
+        [ 'expr [ 'bool_nil_symbol ] (lambda (x) (cond  (= x true)  (simple_type_com x 'bool)
+                                                        (= x false) (simple_type_com x 'bool)
+                                                        (= x nil)   (simple_type_com x 'nil)
+                                                        true        (symbol_type_com x)
+                                                  )
+                                                 ) ]
+
+        [ 'call_innards [ 'WS * ]                 (lambda (_)   []) ]
+        [ 'call_innards [ 'expr [ 'WS 'expr ] * ] (lambda (f r) (cons f (map (lambda (x) (idx x 1)) r))) ]
+        [ 'form [ "\\(" 'call_innards "\\)" ] (lambda (_ innards _) (call_type_com innards)) ]
+
+        [ 'stlc_start_symbol [ 'WS * 'form 'WS * ] (lambda (_ e _) [eval (get_exp (e base_env)) builtin_real_env]) ]
+
+   ]))
+   (provide stlc)
 )

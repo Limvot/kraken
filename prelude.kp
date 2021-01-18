@@ -11,8 +11,9 @@
 (let1 do (vau se (& s) (do_helper do_helper s 0 se))
 
 (let1 current-env (vau de () de)
-(let1 lapply (lambda (f p)     (eval (concat (array (unwrap f)) p) (current-env)))
-(let1 vapply (lambda (f p ede) (eval (concat (array f)          p) ede))
+(let1 cons (lambda (h t) (concat (array h) t))
+(let1 lapply (lambda (f p)     (eval (cons (unwrap f) p) (current-env)))
+(let1 vapply (lambda (f p ede) (eval (cons f          p) ede))
 (let1 Y (lambda (f)
     ((lambda (x) (x x))
      (lambda (x) (f (lambda (& y) (lapply (x x) y))))))
@@ -168,7 +169,7 @@
                                 let-vrec
                                 do
                                 if
-                                concat
+                                cons
                                 map
                                 map_i
                                 flat_map
@@ -234,7 +235,7 @@
         )
     )
 )
-))))))))) ; end of all the let1's
+)))))))))) ; end of all the let1's
 
 ; impl of let1
 )) (vau de (s v b) (eval (array (array vau (quote _) (array s) b) (eval v de)) de)))
