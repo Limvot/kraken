@@ -18,7 +18,7 @@
     make_constructor (lambda (name members methods)
         `(~rec-lambda ~name ~members
             (~with-meta [,members]
-                [,(map_with_idx (lambda (i x) [array `'~x (lambda (o) (idx o i))]) members)
+                [,(map_i (lambda (i x) [array `'~x (lambda (o) (idx o i))]) members)
                  ,(map (lambda (x) [array `'~(idx x 0) (idx x 1)]) methods)])))
 
 
@@ -40,7 +40,7 @@
 
 
 
-   new_kraken_untyped (concat basic_rules [
+   new_kraken_untyped (concat standard_grammar [
 
         [ 'expr [ 'number ]          (lambda (x) x) ]
         [ 'expr [ 'string ]          (lambda (x) x) ]
@@ -87,11 +87,16 @@
             (lambda (_ inner) (construct_body true [do] (map (lambda (x) (idx x 0)) inner) 0)) ]
 
 
-        [ 'expr [ "$\"" [ "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
-|[ -!]|(\\\\\"))*$" 'expr ] * "(#|[%-[]|	|[]-~]|(\\\\)|(\\n)|(\\t)|(\\*)|(\\\\$)|
+        [ 'expr [ "$\"" [ "(#|[%-[]|	|[]-~]|(\\\\\\\\)|(\\\\n)|(\\\\t)|(\\*)|(\\\\$)|
+|[ -!]|(\\\\\"))*$" 'expr ] * "(#|[%-[]|	|[]-~]|(\\\\\\\\)|(\\\\n)|(\\\\t)|(\\*)|(\\\\$)|
 |[ -!]|(\\\\\"))*\"" ]
             (lambda (_ string_expr_pairs end) `(str ,( flat_map (lambda (x) [ (fixup_str_parts (idx x 0)) (idx x 1) ]) string_expr_pairs) ~(fixup_str_parts end))) ]
 
+        ; Swapping back and forth between underlying Lisp syntax
+        ; Might want to disable this when we start doing typing
+        ; till we figure out how to type Vau and such.
+        [ 'expr [ "\\\\" 'form ] (lambda (_ inner) inner) ]
+        [ 'form [ "\\\\" 'expr ] (lambda (_ inner) inner) ]
    ]))
    (provide new_kraken_untyped)
 )

@@ -37,5 +37,13 @@ fun test() {
     println("post after + a b" +(a b))
     with_import "./import_test.kp":
     println("post new impot after + a b" +(a b))
+    println("We're back baby" \(+ 1 13
+                                (do
+                                    (println "hahaha" 'a \{
+                                        let a = 75
+                                        let b = 75
+                                        println("Inside hahaha more HAHAHAA " +(1 2 a b))
+                                        "Inside Result"
+                                    }) 4)))
 }
 println("Test result is" test())
