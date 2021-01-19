@@ -7,11 +7,14 @@
                                                                     (recurse dict key (+ i 1))))))
                    (lambda (dict key) (lookup-helper dict key 0)))
 
-    with_type (lambda (exp typ) [exp typ])
+    with_type   (lambda (exp typ) [exp typ])
     get_exp     (lambda (et)      (idx et 0))
     get_typ     (lambda (et)      (idx et 1))
     get_ret_typ (lambda (f_typ)   (idx f_typ 1))
-    types_match (lambda (t1 t2) (= t1 t2))
+    get_params_typs (lambda (f_typ)   (idx f_typ 0))
+    types_match (lambda (t1 t2)   (= t1 t2))
+
+    execute_type_com (lambda (tc e) (tc e))
 
     simple_type_com (lambda (exp typ) (lambda (env) (with_type exp typ)))
     symbol_type_com (lambda (sym)     (lambda (env) (with_type sym (lookup env sym))))
@@ -19,7 +22,7 @@
     parameter_types_match (let (pmth (rec-lambda recurse (l1 l2 i) (cond (= i (len l1))                      true
                                                                          (types_match (idx l1 i) (idx l2 i)) (recurse l1 l2 (+ i 1))
                                                                          true                                false)))
-                               (lambda (f_t pt) (let (fp_t (idx f_t 0))
+                               (lambda (f_t pt) (let (fp_t (get_params_typs f_t))
                                                     (if (= (len fp_t) (len pt))
                                                         (pmth fp_t pt 0)
                                                         false))))
@@ -27,10 +30,10 @@
         (lambda (env)
             (if (= 0 (len innards)) (error "stlc_error: Can't have a 0-length call")
                 (let (
-                    f_et ((idx innards 0) env)
+                    f_et (execute_type_com (idx innards 0) env)
                     f_e (get_exp f_et)
                     f_t (get_typ f_et)
-                    p_et (map (lambda (x) (x env)) (slice innards 1 -1))
+                    p_et (map (lambda (x) (execute_type_com x env)) (slice innards 1 -1))
                     p_e  (map get_exp p_et)
                     p_t  (map get_typ p_et)
                 ) (if (parameter_types_match f_t p_t)
@@ -39,6 +42,19 @@
                   )
                 )
             )
+        )
+    )
+
+    lambda_type_com (lambda (p t b)
+        (lambda (env)
+            (let (
+                extended_env (cons [p t] env)
+                b_et (execute_type_com b extended_env)
+                b_t (get_typ b_et)
+                b_e (get_exp b_et)
+                f_e [lambda [p] b_e]
+                f_t [[t] b_t]
+            ) (with_type f_e f_t))
         )
     )
 
@@ -63,12 +79,13 @@
                                                         true        (symbol_type_com x)
                                                   )
                                                  ) ]
+        [ 'expr [ "\\\\" 'WS * 'bool_nil_symbol 'WS * ":" 'WS * 'bool_nil_symbol 'WS * "." 'WS * 'expr ] (lambda (_ _ p _ _ _ t _ _ _ b) (lambda_type_com p t b)) ]
 
         [ 'call_innards [ 'WS * ]                 (lambda (_)   []) ]
         [ 'call_innards [ 'expr [ 'WS 'expr ] * ] (lambda (f r) (cons f (map (lambda (x) (idx x 1)) r))) ]
-        [ 'form [ "\\(" 'call_innards "\\)" ] (lambda (_ innards _) (call_type_com innards)) ]
+        [ 'expr [ "\\(" 'call_innards "\\)" ] (lambda (_ innards _) (call_type_com innards)) ]
 
-        [ 'stlc_start_symbol [ 'WS * 'form 'WS * ] (lambda (_ e _) [eval (get_exp (e base_env)) builtin_real_env]) ]
+        [ 'stlc_start_symbol [ 'WS * 'expr 'WS * ] (lambda (_ e _) [eval (get_exp (execute_type_com e base_env)) builtin_real_env]) ]
 
    ]))
    (provide stlc)
