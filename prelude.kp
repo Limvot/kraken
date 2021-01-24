@@ -98,6 +98,22 @@
                                                 n
                                                 (recurse f l (concat n (f (idx l i))) (+ i 1)))))
                  (helper f l (array) 0)))
+        flat_map_i (lambda (f l)
+            (let (helper (rec-lambda recurse (f l n i)
+                                            (if (= i (len l))
+                                                n
+                                                (recurse f l (concat n (f i (idx l i))) (+ i 1)))))
+                 (helper f l (array) 0)))
+        ; with all this, we make a destrucutring-capable let
+        let (let (
+            destructure_helper (rec-lambda recurse (vs i r)
+                (cond (= (len vs) i)      r
+                      (array? (idx vs i)) (let (bad_sym (str-to-symbol (str (idx vs i)))
+                                                new_vs (flat_map_i (lambda (i x) (array x (array idx bad_sym i))) (idx vs i))
+                                                )
+                                                (recurse (concat new_vs (slice vs (+ i 2) -1)) 0 (concat r (array bad_sym (idx vs (+ i 1))))))
+                      true                (recurse vs (+ i 2) (concat r (slice vs i (+ i 2))))
+            ))) (vau de (vs b) (vapply let (array (destructure_helper vs 0 (array)) b) de)))
 
         is_pair? (lambda (x) (and (array? x) (> (len x) 0)))
 
@@ -173,6 +189,7 @@
                                 map
                                 map_i
                                 flat_map
+                                flat_map_i
                                 lapply
                                 vapply
                                 Y

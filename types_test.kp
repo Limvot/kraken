@@ -1,2 +1,2 @@
 #lang (with_import "./types.kp" stlc) stlc_start_symbol
-(\ x : int . (+ x 1) 2)
+(\ x  . (+ x 1337) 12)
