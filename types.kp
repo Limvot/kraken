@@ -14,13 +14,15 @@
 
     applyST (rec-lambda recurse (S t)
                 (cond
+                    (meta t)    (with-meta (recurse (filter (lambda (x) (not (contains (meta t) x))) S) (with-meta t nil)) (meta t))
                     (int? t)    (or  (lookup S t) t)
                     (array? t)  (map (lambda (x) (recurse S x)) t)
                     true t
     ))
     applySE (lambda (S env) (map (lambda (x) [(idx x 0) (applyST S (idx x 1))]) env))
     applySS (lambda (S_0 S_1) (let (r (concat S_0 (applySE S_0 S_1)) _ (println "applySS of " S_0 " and " S_1 " is " r)) r))
-    fvT (rec-lambda recurse (t) (cond (symbol? t) [t]
+    fvT (rec-lambda recurse (t) (cond (meta t)    (filter (lambda (x) (not (contains (meta t) x))) (recurse (with-meta t nil)))
+                                      (int? t)    [t]
                                       (array? t)  (flat_map recurse t)
                                       true        []
     ))
@@ -35,13 +37,20 @@
                         (int? a) (varBind a b)
                         (int? b) (varBind b a)
                         (= a b)  []
-                        true     (error (str "Cannot unify " a " " b))
+                        true     (error (str "Cannot unify " a " and " b))
     ) _ (println "mgu of " a " and " b " is " r)) r))
+
+    generalize (lambda (env t) (do (println "generalize " t " with respect to " env) (let (free_T (fvT t)
+                                     free_E (fvE env))
+                                    (with-meta t (filter (lambda (x) (not (contains free_E x))) free_T)))))
+    instantiate (lambda (sigma idn) (do (println "instantiate " sigma " meta is " (meta sigma)) [(applyST (map_i (lambda (x i) [x (+ i idn)]) (meta sigma)) (with-meta sigma nil)) (+ idn (len (meta sigma)))]))
 
     execute_type_com (lambda (tc e idn) (tc e idn))
 
     simple_type_com (lambda (exp typ) (lambda (env idn) [exp typ [] idn]))
-    symbol_type_com (lambda (sym)     (lambda (env idn) [sym (lookup env sym) [] idn]))
+    symbol_type_com (lambda (sym)     (lambda (env idn) (let (
+                                                            (t idn) (instantiate (lookup env sym) idn))
+                                                            [sym t [] idn])))
 
     call_type_com (lambda (innards)
         (lambda (env idn)
@@ -68,7 +77,7 @@
             (let (
                 (p_t idn) (if (= nil t) [idn (+ 1 idn)]
                                         [t   idn])
-                extended_env (cons [p p_t] env)
+                extended_env (cons [p (with-meta p_t [])] env)
                 (b_e b_t S idn) (execute_type_com b extended_env idn)
                 f_e [lambda [p] b_e]
                 f_t [[ (applyST S p_t) ] b_t]
@@ -76,12 +85,26 @@
         )
     )
 
+    let_type_com (lambda (x e1 e2)
+        (lambda (env0 idn)
+            (let (
+                (e1_e e1_t S_0 idn) (execute_type_com e1 env0 idn)
+                env1 (applySE S_0 env0)
+                e1_sigma (generalize env1 e1_t)
+                extended_env (cons [x e1_sigma] env1)
+                (e2_e e2_t S_1 idn) (execute_type_com e2 extended_env idn)
+                l_e [[lambda [x] e2_e] e1_e]
+                l_t e2_t
+            ) [l_e l_t (applySS S_1 S_0) idn])
+        )
+    )
+
     base_env [
-        [ '+ [['int 'int] 'int]  ]
-        [ '- [['int 'int] 'int]  ]
-        [ '< [['int 'int] 'bool] ]
-        [ '> [['int 'int] 'bool] ]
-        [ 'println [['str] 'nil] ]
+        [ '+       (with-meta [['int 'int] 'int]   []) ]
+        [ '-       (with-meta [['int 'int] 'int]   []) ]
+        [ '<       (with-meta [['int 'int] 'bool]  []) ]
+        [ '>       (with-meta [['int 'int] 'bool]  []) ]
+        [ 'println (with-meta [['str] 'void]       []) ]
     ]
     current_env (vau de () de)
     syms (map (lambda (x) (idx x 0)) base_env)
@@ -89,6 +112,7 @@
     top-level-erase-and-check (lambda (e) (let (
                                             (e t S idn) (execute_type_com e base_env 0)
                                             _ (println "Type of program is " t " with sub " S)
+                                            _ (println "expression code is " e)
                                           ) e))
 
     stlc (concat basic_rules [
@@ -103,6 +127,8 @@
                                                  ) ]
         [ 'expr [ "\\\\" 'WS * 'bool_nil_symbol 'WS * ":" 'WS * 'bool_nil_symbol 'WS * "." 'WS * 'expr ] (lambda (_ _ p _ _ _ t _ _ _ b) (lambda_type_com p t b)) ]
         [ 'expr [ "\\\\" 'WS * 'bool_nil_symbol 'WS * "." 'WS * 'expr ] (lambda (_ _ p _ _ _ b) (lambda_type_com p nil b)) ]
+
+        [ 'expr [ "let" 'WS * 'bool_nil_symbol 'WS * "=" 'WS * 'expr 'WS * "in" 'WS * 'expr ] (lambda (_ _ x _ _ _ e1 _ _ _ e2) (let_type_com x e1 e2)) ]
 
         [ 'call_innards [ 'WS * ]                 (lambda (_)   []) ]
         [ 'call_innards [ 'expr [ 'WS 'expr ] * ] (lambda (f r) (cons f (map (lambda (x) (idx x 1)) r))) ]
