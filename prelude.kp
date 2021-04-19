@@ -138,16 +138,27 @@
 
 
         string-to-int (lambda (s) (let (
-            helper (rec-lambda recurse (s i result)
+            c0 (idx "0" 0)
+            c9 (idx "9" 0)
+            ca (idx "a" 0)
+            cz (idx "z" 0)
+            cA (idx "A" 0)
+            cZ (idx "Z" 0)
+            helper (rec-lambda recurse (s i radix result)
                 (if (< i (len s))
-                    (recurse s (+ i 1) (+ (* 10 result) (- (idx s i) (idx "0" 0))))
+                    (let (c (idx s i))
+                        (cond (<= c0 c c9) (recurse s (+ i 1) radix (+ (* radix result)       (- (idx s i) c0)))
+                              (<= ca c cz) (recurse s (+ i 1) radix (+ (* radix result) (+ 10 (- (idx s i) ca))))
+                              (<= cA c cZ) (recurse s (+ i 1) radix (+ (* radix result) (+ 10 (- (idx s i) cA))))
+                              true         (error "Impossible char in string-to-int"))
+                    )
                     result
                 )
             ))
-            (if (= (idx s 0) (idx "-" 0))
-                (- (helper s 1 0))
-                (helper s 0 0)
-        )))
+            (cond (= (idx s 0) (idx "-" 0))                                              (- (helper s 1 10 0))
+                  (and (> (len s) 2) (or (= "0x" (slice s 0 2)) (= "0X" (slice s 0 2))))    (helper s 2 16 0)
+                  true                                                                      (helper s 0 10 0))
+        ))
 
         unescape-str (lambda (s) (let (
             helper (rec-lambda recurse (s i r)
@@ -168,10 +179,10 @@
                 (array (quote WS) (array "( |	|
 |(;[ -~]*
 ))+") (lambda (x) nil))
-               (array (quote number) (array "-?[0-9]+") (lambda (x) (string-to-int x)))
+               (array (quote number) (array "(0(x|X)([0-9]|[a-f]|[A-F])+)|(-?[0-9]+)") (lambda (x) (string-to-int x)))
                (array (quote string) (array "\"([#-[]|	|[]-~]|(\\\\\\\\)|(\\\\n)|(\\\\t)|(\\*)|(\\\\0)|
 |[ -!]|(\\\\\"))*\"") (lambda (x) (unescape-str x)))
-               (array (quote bool_nil_symbol) (array "-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|<|>|%)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|<|>|%)*)") (lambda (x) (cond (= "true" x) true
+               (array (quote bool_nil_symbol) (array "-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|\\||<|>|%)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|\\||<|>|%)*)") (lambda (x) (cond (= "true" x) true
                                                                   (= "false" x) false
                                                                   (= "nil" x) nil
                                                                   true        (str-to-symbol x))))

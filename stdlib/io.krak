@@ -125,7 +125,7 @@ fun write_file_binary(path: str::str, vdata: vec::vec<char>) {
     defer delete(char_path)
     var data = vdata.getBackingMemory()
     var size = vdata.size
-    var fp = fopen(char_path, "w")
+    var fp = fopen(char_path, "wb")
     fwrite((data) cast *void, (1) cast ulong, (size) cast ulong, fp)
     fclose(fp)
 }

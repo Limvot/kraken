@@ -1,0 +1,46 @@
+
+(let (
+    ; Vectors and Values
+    ; Bytes encode themselves
+    encode_u_LEB128 (rec-lambda recurse (x)
+        (cond (< x 0x80) [x]
+              true       (cons (| (& x 0x7F) 0x1) (recurse (>> x 8))))
+    )
+    encode_s8_LEB128 (lambda (x) (encode_u_LEB128 (& x 255)))
+    encode_vector (lambda (enc v)
+        (concat (encode_u_LEB128 (len v)) (flat_map enc v) )
+    )
+    encode_floating_point (lambda (x) (error "unimplemented"))
+    encode_name (lambda (name)
+        (encode_vector (lambda (x) [x]) name)
+    )
+
+    ; Types
+    ; TODO
+    encode_limits (lambda (x)
+        (cond (= 1 (len x)) (concat [0x00] (encode_u_LEB128 (idx x 0)))
+              (= 2 (len x)) (concat [0x01] (encode_u_LEB128 (idx x 0)) (encode_u_LEB128 (idx x 1)))
+              true          (error "trying to encode bad limits"))
+    )
+
+    ; Instructions
+    ; TODO
+
+    ; Modules
+    encode_memory_section (lambda (x)
+        (let (
+            encoded (encode_vector encode_limits x)
+        ) (concat [0x05] (encode_u_LEB128 (len encoded)) encoded ))
+    )
+
+
+    wasm_to_binary (lambda (wasm_code)
+        (let (
+            magic   [ 0x00 0x61 0x73 0x6D ]
+            version [ 0x01 0x00 0x00 0x00 ]
+            memory  (encode_memory_section [ [0x20 0x30] ])
+        ) (concat magic version memory))
+    )
+)
+    (provide wasm_to_binary)
+)
