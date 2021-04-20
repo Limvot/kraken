@@ -4,10 +4,10 @@
     ; Bytes encode themselves
     encode_u_LEB128 (rec-lambda recurse (x)
         (cond (< x 0x80) [x]
-              true       (cons (| (& x 0x7F) 0x1) (recurse (>> x 8))))
+              true       (cons (| (& x 0x7F) 0x80) (recurse (>> x 7))))
     )
-    encode_s8_LEB128 (lambda (x) (encode_u_LEB128 (& x 255)))
-    encode_s32_LEB128 (lambda (x) (encode_u_LEB128 (& x 255)))
+    encode_s8_LEB128  (lambda (x) (encode_u_LEB128 (& x 0xFF)))
+    encode_s32_LEB128 (lambda (x) (encode_u_LEB128 (& x 0xFFFFFFFF)))
     encode_vector (lambda (enc v)
         (concat (encode_u_LEB128 (len v)) (flat_map enc v) )
     )
