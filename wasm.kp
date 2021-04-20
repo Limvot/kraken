@@ -7,6 +7,7 @@
               true       (cons (| (& x 0x7F) 0x1) (recurse (>> x 8))))
     )
     encode_s8_LEB128 (lambda (x) (encode_u_LEB128 (& x 255)))
+    encode_s32_LEB128 (lambda (x) (encode_u_LEB128 (& x 255)))
     encode_vector (lambda (enc v)
         (concat (encode_u_LEB128 (len v)) (flat_map enc v) )
     )
@@ -22,24 +23,116 @@
               (= 2 (len x)) (concat [0x01] (encode_u_LEB128 (idx x 0)) (encode_u_LEB128 (idx x 1)))
               true          (error "trying to encode bad limits"))
     )
+    encode_number_type (lambda (x)
+        (cond   (= x 'i32) [0x7F]
+                (= x 'i64) [0x7E]
+                (= x 'f32) [0x7D]
+                (= x 'f64) [0x7C]
+                true       (error "bad number type"))
+    )
+    encode_valtype (lambda (x)
+        ; we don't handle reference types yet
+        (encode_number_type x)
+    )
+    encode_result_type (lambda (x)
+        (encode_vector encode_valtype x)
+    )
+    encode_function_type (lambda (x)
+        (concat [0x60] (encode_result_type (idx x 0))
+                       (encode_result_type (idx x 1)))
+    )
 
     ; Instructions
     ; TODO
 
     ; Modules
+    encode_type_section (lambda (x)
+        (let (
+            encoded (encode_vector encode_function_type x)
+        ) (concat [0x01] (encode_u_LEB128 (len encoded)) encoded ))
+    )
     encode_memory_section (lambda (x)
         (let (
             encoded (encode_vector encode_limits x)
         ) (concat [0x05] (encode_u_LEB128 (len encoded)) encoded ))
     )
+    encode_export (lambda (export)
+        (let (
+            (name type idx) export
+        ) (concat (encode_name name)
+                  (cond (= type 'func)   [0x00]
+                        (= type 'table)  [0x01]
+                        (= type 'mem)    [0x02]
+                        (= type 'global) [0x03]
+                        true             (error "bad export type"))
+                  (encode_u_LEB128 idx)
+        ))
+    )
+    encode_export_section (lambda (x)
+        (let (
+            encoded (encode_vector encode_export x)
+        ) (concat [0x07] (encode_u_LEB128 (len encoded)) encoded ))
+    )
+
+    encode_function_section (lambda (x)
+        (let (
+            encoded (encode_vector encode_u_LEB128 x)
+        ) (concat [0x03] (encode_u_LEB128 (len encoded)) encoded ))
+    )
+    encode_ins (lambda (ins)
+        (let (
+            op (idx ins 0)
+        ) (cond (= op 'unreachable)            [0x00]
+                (= op 'nop)                    [0x01]
+                ; skipping a bunch
+                ; Parametric Instructions
+                (= op 'drop)                   [0x1A]
+                ; skip
+                ; Variable Instructions
+                (= op 'local.get)      (concat [0x20] (encode_u_LEB128 (idx ins 1)))
+                (= op 'local.set)      (concat [0x21] (encode_u_LEB128 (idx ins 1)))
+                (= op 'local.tee)      (concat [0x22] (encode_u_LEB128 (idx ins 1)))
+                (= op 'global.get)     (concat [0x23] (encode_u_LEB128 (idx ins 1)))
+                (= op 'global.set)     (concat [0x24] (encode_u_LEB128 (idx ins 1)))
+                ; skip
+                ; Numeric Instructions
+                (= op 'i32.const)      (concat [0x41] (encode_s32_LEB128 (idx ins 1)))
+                ; skip
+                (= op 'i32.add)                [0x6A]
+        ))
+    )
+    encode_code (lambda (x)
+        (let (
+            (locals body) x
+            enc_locals (encode_vector (lambda (loc)
+                                    (concat (encode_u_LEB128 (idx loc 0)) (encode_u_LEB128 (idx loc 1)))) locals)
+            enc_expr (concat (flat_map encode_ins body) [0x0B])
+            code_bytes (concat enc_locals enc_expr)
+        ) (concat (encode_u_LEB128 (len code_bytes)) code_bytes))
+    )
+    encode_code_section (lambda (x)
+        (let (
+            encoded (encode_vector encode_code x)
+        ) (concat [0x0A] (encode_u_LEB128 (len encoded)) encoded ))
+    )
 
 
     wasm_to_binary (lambda (wasm_code)
         (let (
-            magic   [ 0x00 0x61 0x73 0x6D ]
-            version [ 0x01 0x00 0x00 0x00 ]
-            memory  (encode_memory_section [ [0x20 0x30] ])
-        ) (concat magic version memory))
+            magic    [ 0x00 0x61 0x73 0x6D ]
+            version  [ 0x01 0x00 0x00 0x00 ]
+            type     (encode_type_section [ [['i32] ['i32]] ])
+            function (encode_function_section [ 0 ])
+            memory   (encode_memory_section [ [0x20 0x30] ])
+            export   (encode_export_section [ ["add" 'func 0] ])
+            code     (encode_code_section [
+                        [ [] [
+                                ['i32.const 1337]
+                                ['local.get 0]
+                                ['i32.add]
+                        ] ]
+            ])
+        ) (concat magic version type function memory export code))
     )
 )
     (provide wasm_to_binary)

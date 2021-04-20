@@ -716,7 +716,7 @@ fun main(argc: int, argv: **char): int {
         }
         return KPResult::Ok(kpString(to_ret));
     })), kpNil(), ret_0_sym)
-    grammar.add_to_nonterminal(atom, vec(grammar.add_terminal("-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|\\||<|>|%)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|\\||<|>|%)*)", kpNil(), fun(_: ref KPValue, input: ref str, l: int, r: int): KPResult {
+    grammar.add_to_nonterminal(atom, vec(grammar.add_terminal("-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|\\||<|>|%)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|\\||<|>|%|\\.)*)", kpNil(), fun(_: ref KPValue, input: ref str, l: int, r: int): KPResult {
         var s = input.slice(l,r)
         if s == "true" {
             return KPResult::Ok(kpTrue());
