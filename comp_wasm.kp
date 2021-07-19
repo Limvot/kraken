@@ -6,9 +6,10 @@
     _ (println "out" out)
     wasm_code (module
         (func (param i32) (result i32)
-            (i32.const 34)
+            (i32.const 4)
             (local.get 0)
-            (i32.add)
+            i32.add
+            (i32.add (local.get 0))
         )
         (export "add" (func 0))
     )

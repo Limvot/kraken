@@ -139,7 +139,11 @@
     func (vau de (p_type r_type & body) (lambda (type function memory export code)
         (let (
             our_type [ [ (idx p_type 1) ] [ (idx r_type 1) ] ]
-            our_code (map (lambda (x) (eval x de)) body)
+            our_code (flat_map (lambda (x) (let (ins (eval x de))
+                                             (cond (array? ins) ins
+                                                    true       (ins) ; un-evaled function, bare WAT
+                                             )))
+                                body)
         ) [
             ; type
             (concat type [ our_type ])
@@ -153,9 +157,9 @@
             (concat code [ [ [] our_code ] ])
         ])
     ))
-    i32.const (lambda (const) ['i32.const const])
-    local.get (lambda (const) ['local.get const])
-    i32.add   (lambda ()      ['i32.add])
+    i32.const (lambda (const)                                                   [['i32.const const]])
+    local.get (lambda (const)                                                   [['local.get const]])
+    i32.add   (lambda (& flatten)  (concat (map (lambda (x) (idx x 0)) flatten) [['i32.add]]))
     export (vau de (name t_v) (lambda (type function memory export code)
         [ type function memory (concat export [ [ name (idx t_v 0) (idx t_v 1) ] ]) code ]
     ))
