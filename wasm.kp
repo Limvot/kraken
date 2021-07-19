@@ -42,9 +42,6 @@
                        (encode_result_type (idx x 1)))
     )
 
-    ; Instructions
-    ; TODO
-
     ; Modules
     encode_type_section (lambda (x)
         (let (
@@ -119,21 +116,49 @@
 
     wasm_to_binary (lambda (wasm_code)
         (let (
+            (type_section function_section memory_section export_section code_section) wasm_code
+            _ (println "type_section" type_section "function_section" function_section "memory_section" memory_section "export_section" export_section "code_section" code_section)
             magic    [ 0x00 0x61 0x73 0x6D ]
             version  [ 0x01 0x00 0x00 0x00 ]
-            type     (encode_type_section [ [['i32] ['i32]] ])
-            function (encode_function_section [ 0 ])
-            memory   (encode_memory_section [ [0x20 0x30] ])
-            export   (encode_export_section [ ["add" 'func 0] ])
-            code     (encode_code_section [
-                        [ [] [
-                                ['i32.const 1337]
-                                ['local.get 0]
-                                ['i32.add]
-                        ] ]
-            ])
+            type     (encode_type_section type_section)
+            function (encode_function_section function_section)
+            memory   (encode_memory_section memory_section)
+            export   (encode_export_section export_section)
+            code     (encode_code_section code_section)
         ) (concat magic version type function memory export code))
     )
+
+    module (lambda (& args) (let (
+        helper (rec-lambda recurse (entries i type function memory export code)
+            (if (= i (len entries)) [ type function memory export code ]
+                (let (
+                    (t f m e c) ((idx entries i) type function memory export code)
+                 ) (recurse entries (+ i 1) t f m e c))))
+    ) (helper args 0 [] [] [] [] [])))
+
+    func (vau de (p_type r_type & body) (lambda (type function memory export code)
+        (let (
+            our_type [ [ (idx p_type 1) ] [ (idx r_type 1) ] ]
+            our_code (map (lambda (x) (eval x de)) body)
+        ) [
+            ; type
+            (concat type [ our_type ])
+            ; function
+            (concat function [ (len function) ])
+            ; memory
+            memory
+            ; export
+            export
+            ; code
+            (concat code [ [ [] our_code ] ])
+        ])
+    ))
+    i32.const (lambda (const) ['i32.const const])
+    local.get (lambda (const) ['local.get const])
+    i32.add   (lambda ()      ['i32.add])
+    export (vau de (name t_v) (lambda (type function memory export code)
+        [ type function memory (concat export [ [ name (idx t_v 0) (idx t_v 1) ] ]) code ]
+    ))
 )
-    (provide wasm_to_binary)
+    (provide wasm_to_binary module func i32.const local.get i32.add export)
 )

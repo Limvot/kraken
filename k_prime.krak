@@ -892,8 +892,18 @@ fun main(argc: int, argv: **char): int {
         if !params[1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Param 2 to idx is not int ") + pr_str(params[1], true)))); }
 
         var index = params[1].get_int()
+        var size = 0
+        if params[0].is_array() {
+            size = params[0].get_array_rc().get().size
+        } else {
+            size = params[0].get_string().length()
+        }
         if index < 0 {
-            index += params[0].get_array_rc().get().size
+            index += size
+        }
+
+        if index < 0 || index >= size {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("idx out of bounds, tried to get index ") + index + " in " + pr_str(params[0], true))))
         }
 
         if params[0].is_array() {

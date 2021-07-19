@@ -1,11 +1,19 @@
 (with_import "./wasm.kp"
 (let (
     _ (println "args" *ARGV*)
-    (_ _ in out) (cond (!= (len *ARGV*) 4) (error "wrong number of params")
+    (_ _ out) (cond (!= (len *ARGV*) 3) (error "wrong number of params")
                        true                *ARGV*)
-    _ (println "in" in "out" out)
-    wasm_code [
-    ]
+    _ (println "out" out)
+    wasm_code (module
+        (func (param i32) (result i32)
+            (i32.const 34)
+            (local.get 0)
+            (i32.add)
+        )
+        (export "add" (func 0))
+    )
+
+
     _ (write_file out (wasm_to_binary wasm_code))
     return_code 0
 ) return_code ))
