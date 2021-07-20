@@ -919,7 +919,7 @@ fun main(argc: int, argv: **char): int {
         if !params[0].is_array() && !params[0].is_string() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("first param to slice is not string or array")))); }
         if !params[1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to slice is not int")))); }
         var start = params[1].get_int();
-        if !params[2].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("third param to slice is not int")))); }
+        if !params[2].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("third param to slice is not int ") + pr_str(params[2], true)))); }
         var end = params[2].get_int();
 
         if params[0].is_array() {
@@ -1066,7 +1066,7 @@ fun main(argc: int, argv: **char): int {
         }
         if !params[0].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called < with first not an int")))); }
         for (var i = 0; i < params.size - 1; i++;) {
-            if !params[i+1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called < with not an int")))); }
+            if !params[i+1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called < with param ") + (i+1) + " not an int " + pr_str(params[i+1], true)))); }
             if !(params[i].get_int() < params[i+1].get_int()) {
                 return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(false)))
             }
@@ -1092,7 +1092,7 @@ fun main(argc: int, argv: **char): int {
         }
         if !params[0].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called > with first not an int")))); }
         for (var i = 0; i < params.size - 1; i++;) {
-            if !params[i+1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called > with not an int")))); }
+            if !params[i+1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called > with param ") + (i+1) + " not an int " + pr_str(params[i+1], true)))); }
             if !(params[i].get_int() > params[i+1].get_int()) {
                 return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(false)))
             }

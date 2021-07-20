@@ -5,13 +5,16 @@
                        true                *ARGV*)
     _ (println "out" out)
     wasm_code (module
-        (func (param i32) (result i32)
-            (i32.const 4)
-            (local.get 0)
+        (func $add (param $num i32) (result i32)
+            (local $tmp1 i32)
+            (local $tmp2 i32)
+            (i32.const 11)
+            (local.get $num)
             i32.add
-            (i32.add (local.get 0))
+            (i32.add (local.get $num))
         )
-        (export "add" (func 0))
+        ; nothing
+        (export "add" (func $add))
     )
 
 

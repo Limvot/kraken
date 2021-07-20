@@ -1,5 +1,6 @@
-
+(with_import "./collections.kp"
 (let (
+
     ; Vectors and Values
     ; Bytes encode themselves
     encode_u_LEB128 (rec-lambda recurse (x)
@@ -129,22 +130,43 @@
     )
 
     module (lambda (& args) (let (
-        helper (rec-lambda recurse (entries i type function memory export code)
+        helper (rec-lambda recurse (entries i name_dict type function memory export code)
             (if (= i (len entries)) [ type function memory export code ]
                 (let (
-                    (t f m e c) ((idx entries i) type function memory export code)
-                 ) (recurse entries (+ i 1) t f m e c))))
-    ) (helper args 0 [] [] [] [] [])))
+                    (n_d t f m e c) ((idx entries i) name_dict type function memory export code)
+                 ) (recurse entries (+ i 1) n_d t f m e c))))
+    ) (helper args 0 empty_dict [] [] [] [] [])))
 
-    func (vau de (p_type r_type & body) (lambda (type function memory export code)
+    func (vau de (name & inside) (lambda (name_dict type function memory export code)
         (let (
-            our_type [ [ (idx p_type 1) ] [ (idx r_type 1) ] ]
-            our_code (flat_map (lambda (x) (let (ins (eval x de))
+            (params result locals body) ((rec-lambda recurse (i pe re)
+                                            (cond (and (= nil pe) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'param (idx (idx inside i) 0)))
+                                                             (recurse (+ i 1) pe re)
+                                                  (and (= nil pe) (= nil re) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'result (idx (idx inside i) 0)))
+                                                            ; only one result possible
+                                                             (recurse (+ i 1) i (+ i 1))
+                                                  (= nil pe) (recurse (+ i 1) i i)
+                                                  (and            (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'local (idx (idx inside i) 0)))
+                                                             (recurse (+ i 1) pe re)
+                                                  true      [ (slice inside 0 (or pe 0)) (slice inside (or pe 0) (or re pe 0)) (slice inside (or re pe 0) i) (slice inside i -1) ]
+                                            )
+                                        ) 0 nil nil)
+            result (if (!= 0 (len result)) (idx result 0)
+                                           result)
+            _ (if (!= 0 (len locals)) (error "We don't support locals yet!"))
+            _ (println "params " params " result " result " locals " locals " body " body)
+            outer_name_dict (put name_dict name (len function))
+            (num_params inner_name_dict) (foldr (lambda (x a) [(+ (idx a 0) 1) (put (idx a 1) (idx x 1) (idx a 0))]) [ 0 outer_name_dict ] params)
+            _ (println "inner name dict" inner_name_dict)
+            inner_env (add-dict-to-env de inner_name_dict)
+            our_type [ (map (lambda (x) (idx x 2)) params) (slice result 1 -1) ]
+            our_code (flat_map (lambda (x) (let (ins (eval x inner_env))
                                              (cond (array? ins) ins
                                                     true       (ins) ; un-evaled function, bare WAT
                                              )))
                                 body)
         ) [
+            outer_name_dict
             ; type
             (concat type [ our_type ])
             ; function
@@ -160,9 +182,9 @@
     i32.const (lambda (const)                                                   [['i32.const const]])
     local.get (lambda (const)                                                   [['local.get const]])
     i32.add   (lambda (& flatten)  (concat (map (lambda (x) (idx x 0)) flatten) [['i32.add]]))
-    export (vau de (name t_v) (lambda (type function memory export code)
-        [ type function memory (concat export [ [ name (idx t_v 0) (idx t_v 1) ] ]) code ]
+    export (vau de (name t_v) (lambda (name_dict type function memory export code)
+        [ name_dict type function memory (concat export [ [ name (idx t_v 0) (get-value name_dict (idx t_v 1)) ] ]) code ]
     ))
 )
     (provide wasm_to_binary module func i32.const local.get i32.add export)
-)
+))
