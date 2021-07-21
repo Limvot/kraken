@@ -103,7 +103,7 @@
         (let (
             (locals body) x
             enc_locals (encode_vector (lambda (loc)
-                                    (concat (encode_u_LEB128 (idx loc 0)) (encode_u_LEB128 (idx loc 1)))) locals)
+                                    (concat (encode_u_LEB128 (idx loc 0)) (encode_valtype (idx loc 1)))) locals)
             enc_expr (concat (flat_map encode_ins body) [0x0B])
             code_bytes (concat enc_locals enc_expr)
         ) (concat (encode_u_LEB128 (len code_bytes)) code_bytes))
@@ -153,11 +153,18 @@
                                         ) 0 nil nil)
             result (if (!= 0 (len result)) (idx result 0)
                                            result)
-            _ (if (!= 0 (len locals)) (error "We don't support locals yet!"))
             _ (println "params " params " result " result " locals " locals " body " body)
             outer_name_dict (put name_dict name (len function))
-            (num_params inner_name_dict) (foldr (lambda (x a) [(+ (idx a 0) 1) (put (idx a 1) (idx x 1) (idx a 0))]) [ 0 outer_name_dict ] params)
+            (num_params inner_name_dict) (foldl (lambda (a x) [(+ (idx a 0) 1) (put (idx a 1) (idx x 1) (idx a 0))]) [ 0 outer_name_dict ] params)
+            (num_locals inner_name_dict) (foldl (lambda (a x) [(+ (idx a 0) 1) (put (idx a 1) (idx x 1) (idx a 0))]) [ num_params inner_name_dict ] locals)
             _ (println "inner name dict" inner_name_dict)
+            compressed_locals ((rec-lambda recurse (cur_list cur_typ cur_num i)
+                                (cond (and (= i (len locals)) (= 0 cur_num)) cur_list
+                                           (= i (len locals))                (concat cur_list [ [cur_num cur_typ] ])
+                                      (= cur_typ (idx (idx locals i) 2))     (recurse cur_list                              cur_typ                (+ 1 cur_num) (+ 1 i))
+                                      (= nil cur_typ)                        (recurse cur_list                              (idx (idx locals i) 2) 1             (+ 1 i))
+                                      true                                   (recurse (concat cur_list [[cur_num cur_typ]]) (idx (idx locals i) 2) 1             (+ 1 i)))
+                               ) [] nil 0 0)
             inner_env (add-dict-to-env de inner_name_dict)
             our_type [ (map (lambda (x) (idx x 2)) params) (slice result 1 -1) ]
             our_code (flat_map (lambda (x) (let (ins (eval x inner_env))
@@ -176,7 +183,7 @@
             ; export
             export
             ; code
-            (concat code [ [ [] our_code ] ])
+            (concat code [ [ compressed_locals our_code ] ])
         ])
     ))
     i32.const (lambda (const)                                                   [['i32.const const]])
