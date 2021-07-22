@@ -1,13 +1,19 @@
 (with_import "./wasm.kp"
 (let (
     _ (println "args" *ARGV*)
-    (_ _ out) (cond (!= (len *ARGV*) 3) (error "wrong number of params")
+    (_ _ out) (cond (!= (len *ARGV*) 3) (error "wrong number of params to comp_wasm (please provide out)")
                        true                *ARGV*)
     _ (println "out" out)
     wasm_code (module
         (func $add (param $num i32) (result i32)
             (local $tmp1 i32)
             (local $tmp2 i32)
+            (block
+                (i32.const 1337)
+                (i32.const 1338)
+                drop
+                drop
+            )
             (i32.const 11)
             (local.get $tmp2)
             i32.add

@@ -9,6 +9,7 @@
     )
     encode_s8_LEB128  (lambda (x) (encode_u_LEB128 (& x 0xFF)))
     encode_s32_LEB128 (lambda (x) (encode_u_LEB128 (& x 0xFFFFFFFF)))
+    encode_s33_LEB128 (lambda (x) (encode_u_LEB128 (& x 0x1FFFFFFFF)))
     encode_vector (lambda (enc v)
         (concat (encode_u_LEB128 (len v)) (flat_map enc v) )
     )
@@ -77,11 +78,20 @@
             encoded (encode_vector encode_u_LEB128 x)
         ) (concat [0x03] (encode_u_LEB128 (len encoded)) encoded ))
     )
-    encode_ins (lambda (ins)
+    encode_blocktype (lambda (type) (cond (symbol? type)  (encode_valtype type)
+                                         (= [] type)      [0x40] ; empty type
+                                         true             (encode_s33_LEB128 typ)
+                                   ))
+    encode_ins (rec-lambda recurse (ins)
         (let (
             op (idx ins 0)
         ) (cond (= op 'unreachable)            [0x00]
                 (= op 'nop)                    [0x01]
+                (= op 'block)          (concat [0x02] (encode_blocktype (idx ins 1)) (flat_map recurse (idx ins 2)) [0x0B])
+                ;...
+                (= op 'return)                 [0x0F]
+                (= op 'call)           (condat [0x10] (encode_u_LEB128 (idx ins 1)))
+                ; call_indirect
                 ; skipping a bunch
                 ; Parametric Instructions
                 (= op 'drop)                   [0x1A]
@@ -167,11 +177,13 @@
                                ) [] nil 0 0)
             inner_env (add-dict-to-env de inner_name_dict)
             our_type [ (map (lambda (x) (idx x 2)) params) (slice result 1 -1) ]
+            _ (println "about to get our_code")
             our_code (flat_map (lambda (x) (let (ins (eval x inner_env))
                                              (cond (array? ins) ins
                                                     true       (ins) ; un-evaled function, bare WAT
                                              )))
                                 body)
+            _ (println "resulting code " our_code)
         ) [
             outer_name_dict
             ; type
@@ -186,12 +198,15 @@
             (concat code [ [ compressed_locals our_code ] ])
         ])
     ))
+    drop      (lambda ()                                                        [['drop]])
     i32.const (lambda (const)                                                   [['i32.const const]])
     local.get (lambda (const)                                                   [['local.get const]])
-    i32.add   (lambda (& flatten)  (concat (map (lambda (x) (idx x 0)) flatten) [['i32.add]]))
+    i32.add   (lambda (& flatten)  (concat (flat_map (lambda (x) x) flatten)    [['i32.add]]))
+    block     (lambda (& inner)                                                 [['block [] (flat_map (lambda (x) (cond (array? x) x
+                                                                                                                        true       (x))) inner)]])
     export (vau de (name t_v) (lambda (name_dict type function memory export code)
         [ name_dict type function memory (concat export [ [ name (idx t_v 0) (get-value name_dict (idx t_v 1)) ] ]) code ]
     ))
 )
-    (provide wasm_to_binary module func i32.const local.get i32.add export)
+    (provide wasm_to_binary module func drop i32.const local.get i32.add block export)
 ))
