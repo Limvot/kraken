@@ -88,6 +88,7 @@
         ) (cond (= op 'unreachable)            [0x00]
                 (= op 'nop)                    [0x01]
                 (= op 'block)          (concat [0x02] (encode_blocktype (idx ins 1)) (flat_map recurse (idx ins 2)) [0x0B])
+                (= op 'br)             (concat [0x0C] (encode_u_LEB128 (idx ins 1)))
                 ;...
                 (= op 'return)                 [0x0F]
                 (= op 'call)           (condat [0x10] (encode_u_LEB128 (idx ins 1)))
@@ -204,9 +205,10 @@
     i32.add   (lambda (& flatten)  (concat (flat_map (lambda (x) x) flatten)    [['i32.add]]))
     block     (lambda (& inner)                                                 [['block [] (flat_map (lambda (x) (cond (array? x) x
                                                                                                                         true       (x))) inner)]])
+    br        (lambda (const)                                                   [['br const]])
     export (vau de (name t_v) (lambda (name_dict type function memory export code)
         [ name_dict type function memory (concat export [ [ name (idx t_v 0) (get-value name_dict (idx t_v 1)) ] ]) code ]
     ))
 )
-    (provide wasm_to_binary module func drop i32.const local.get i32.add block export)
+    (provide wasm_to_binary module func drop i32.const local.get i32.add block br export)
 ))
