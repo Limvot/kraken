@@ -176,7 +176,7 @@
                                       (= nil cur_typ)                        (recurse cur_list                              (idx (idx locals i) 2) 1             (+ 1 i))
                                       true                                   (recurse (concat cur_list [[cur_num cur_typ]]) (idx (idx locals i) 2) 1             (+ 1 i)))
                                ) [] nil 0 0)
-            inner_env (add-dict-to-env de inner_name_dict)
+            inner_env (add-dict-to-env de (put inner_name_dict 'depth 0))
             our_type [ (map (lambda (x) (idx x 2)) params) (slice result 1 -1) ]
             _ (println "about to get our_code")
             our_code (flat_map (lambda (x) (let (ins (eval x inner_env))
@@ -203,9 +203,13 @@
     i32.const (lambda (const)                                                   [['i32.const const]])
     local.get (lambda (const)                                                   [['local.get const]])
     i32.add   (lambda (& flatten)  (concat (flat_map (lambda (x) x) flatten)    [['i32.add]]))
-    block     (lambda (& inner)                                                 [['block [] (flat_map (lambda (x) (cond (array? x) x
-                                                                                                                        true       (x))) inner)]])
-    br        (lambda (const)                                                   [['br const]])
+    block     (vau de (name & inner) (let (
+                new_depth (+ 1 (eval 'depth de))
+                inner_env (add-dict-to-env de [[ name [new_depth] ] [ 'depth new_depth ]])
+               )                                                                [['block [] (flat_map (lambda (x) (let (ins (eval x inner_env)) (cond (array? ins) ins
+                                                                                                                                      true         (ins)))) inner)]]))
+    br        (vau de (b) (let (block (eval b de)) (if (int? block)             [['br block]]
+                                                                                [['br (eval [- 'depth (idx block 0)] de)]])))
     export (vau de (name t_v) (lambda (name_dict type function memory export code)
         [ name_dict type function memory (concat export [ [ name (idx t_v 0) (get-value name_dict (idx t_v 1)) ] ]) code ]
     ))

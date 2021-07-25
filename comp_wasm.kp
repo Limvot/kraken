@@ -8,12 +8,16 @@
         (func $add (param $num i32) (result i32)
             (local $tmp1 i32)
             (local $tmp2 i32)
-            (block
+            (block $test
                 (i32.const 1337)
                 (i32.const 1338)
                 drop
                 drop
-                (br 0)
+                (block $inner_test
+                    (br $inner_test)
+                    (br $test)
+                )
+                (br $test)
                 drop
             )
             (i32.const 11)
