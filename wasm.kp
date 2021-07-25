@@ -50,6 +50,23 @@
             encoded (encode_vector encode_function_type x)
         ) (concat [0x01] (encode_u_LEB128 (len encoded)) encoded ))
     )
+    encode_import (lambda (import)
+        (let (
+            (mod_name name type idx) import
+        ) (concat (encode_name mod_name)
+                  (encode_name name)
+                  (cond (= type 'func)   (concat [0x00] (encode_u_LEB128 idx))
+                        (= type 'table)  (concat [0x01] (error "can't encode table type"))
+                        (= type 'mem)    (concat [0x02] (error "can't encode mem type"))
+                        (= type 'global) (concat [0x03] (error "can't encode global type"))
+                        true                            (error (str "bad import type" type))))
+        )
+    )
+    encode_import_section (lambda (x)
+        (let (
+            encoded (encode_vector encode_import x)
+        ) (concat [0x02] (encode_u_LEB128 (len encoded)) encoded ))
+    )
     encode_memory_section (lambda (x)
         (let (
             encoded (encode_vector encode_limits x)
@@ -74,8 +91,11 @@
     )
 
     encode_function_section (lambda (x)
-        (let (
-            encoded (encode_vector encode_u_LEB128 x)
+        (let (                                     ; nil functions are placeholders for improted functions
+            _ (println "encoding function section " x)
+            filtered (filter (lambda (i) (!= nil i)) x)
+            _ (println "post filtered " filtered)
+            encoded (encode_vector encode_u_LEB128 filtered)
         ) (concat [0x03] (encode_u_LEB128 (len encoded)) encoded ))
     )
     encode_blocktype (lambda (type) (cond (symbol? type)  (encode_valtype type)
@@ -91,7 +111,7 @@
                 (= op 'br)             (concat [0x0C] (encode_u_LEB128 (idx ins 1)))
                 ;...
                 (= op 'return)                 [0x0F]
-                (= op 'call)           (condat [0x10] (encode_u_LEB128 (idx ins 1)))
+                (= op 'call)           (concat [0x10] (encode_u_LEB128 (idx ins 1)))
                 ; call_indirect
                 ; skipping a bunch
                 ; Parametric Instructions
@@ -128,27 +148,28 @@
 
     wasm_to_binary (lambda (wasm_code)
         (let (
-            (type_section function_section memory_section export_section code_section) wasm_code
-            _ (println "type_section" type_section "function_section" function_section "memory_section" memory_section "export_section" export_section "code_section" code_section)
+            (type_section import_section function_section memory_section export_section code_section) wasm_code
+            _ (println "type_section" type_section "import_section" import_section "function_section" function_section "memory_section" memory_section "export_section" export_section "code_section" code_section)
             magic    [ 0x00 0x61 0x73 0x6D ]
             version  [ 0x01 0x00 0x00 0x00 ]
             type     (encode_type_section type_section)
+            import   (encode_import_section import_section)
             function (encode_function_section function_section)
             memory   (encode_memory_section memory_section)
             export   (encode_export_section export_section)
             code     (encode_code_section code_section)
-        ) (concat magic version type function memory export code))
+        ) (concat magic version type import function memory export code))
     )
 
     module (lambda (& args) (let (
-        helper (rec-lambda recurse (entries i name_dict type function memory export code)
-            (if (= i (len entries)) [ type function memory export code ]
+        helper (rec-lambda recurse (entries i name_dict type import function memory export code)
+            (if (= i (len entries)) [ type import function memory export code ]
                 (let (
-                    (n_d t f m e c) ((idx entries i) name_dict type function memory export code)
-                 ) (recurse entries (+ i 1) n_d t f m e c))))
-    ) (helper args 0 empty_dict [] [] [] [] [])))
+                    (n_d t im f m e c) ((idx entries i) name_dict type import function memory export code)
+                 ) (recurse entries (+ i 1) n_d t im f m e c))))
+    ) (helper args 0 empty_dict [] [] [] [] [] [])))
 
-    func (vau de (name & inside) (lambda (name_dict type function memory export code)
+    func (vau de (name & inside) (lambda (name_dict type import function memory export code)
         (let (
             (params result locals body) ((rec-lambda recurse (i pe re)
                                             (cond (and (= nil pe) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'param (idx (idx inside i) 0)))
@@ -189,6 +210,8 @@
             outer_name_dict
             ; type
             (concat type [ our_type ])
+            ; import
+            import
             ; function
             (concat function [ (len function) ])
             ; memory
@@ -210,9 +233,21 @@
                                                                                                                                       true         (ins)))) inner)]]))
     br        (vau de (b) (let (block (eval b de)) (if (int? block)             [['br block]]
                                                                                 [['br (eval [- 'depth (idx block 0)] de)]])))
-    export (vau de (name t_v) (lambda (name_dict type function memory export code)
-        [ name_dict type function memory (concat export [ [ name (idx t_v 0) (get-value name_dict (idx t_v 1)) ] ]) code ]
+    call      (lambda (f & flatten)  (concat (flat_map (lambda (x) x) flatten)  [['call f]]))
+    import (vau de (mod_name name t_idx_typ) (lambda (name_dict type import function memory export code) (let (
+            _ (if (!= 'func (idx t_idx_typ 0)) (error "only supporting importing functions rn"))
+            (import_type idx_name param_type result_type) t_idx_typ
+            actual_type_idx (len type)
+            actual_type [ (slice param_type 1 -1) (slice result_type 1 -1) ]
+        )
+        [ (put name_dict idx_name (len function)) (concat type [actual_type]) (concat import [ [mod_name name import_type actual_type_idx] ]) (concat function [nil]) memory export code ])
+    ))
+
+    export (vau de (name t_v) (lambda (name_dict type import function memory export code)
+        [ name_dict type import function memory (concat export [ [ name (idx t_v 0) (get-value name_dict (idx t_v 1)) ] ]) code ]
     ))
 )
-    (provide wasm_to_binary module func drop i32.const local.get i32.add block br export)
+    (provide wasm_to_binary
+             module import func export
+             drop i32.const local.get i32.add block br call)
 ))

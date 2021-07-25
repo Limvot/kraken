@@ -64,7 +64,7 @@
                                                 (if (f i (idx l i)) (recurse f l (concat n (array (idx l i))) (+ i 1))
                                                                     (recurse f l n (+ i 1))))))
                     (helper f l (array) 0)))
-        filter (lambda (f l) (filter_i (lambda (x i) (f x)) l))
+        filter (lambda (f l) (filter_i (lambda (i x) (f x)) l))
 
         not (lambda (x) (if x false true))
 
