@@ -3,14 +3,16 @@
 
     ; Vectors and Values
     ; Bytes encode themselves
-    encode_u_LEB128 (rec-lambda recurse (x)
-        (cond (< x 0x80) [x]
-              true       (cons (| (& x 0x7F) 0x80) (recurse (>> x 7))))
+    encode_LEB128_helper (rec-lambda recurse (allow_neg x)
+        (cond (and allow_neg (< x 0x80)) [x]
+                             (< x 0x40)  [x]
+              true       (cons (| (& x 0x7F) 0x80) (recurse true (>> x 7))))
     )
-    encode_s8_LEB128  (lambda (x) (encode_u_LEB128 (& x 0xFF)))
-    encode_s32_LEB128 (lambda (x) (encode_u_LEB128 (& x 0xFFFFFFFF)))
-    encode_s33_LEB128 (lambda (x) (encode_u_LEB128 (& x 0x1FFFFFFFF)))
-    encode_s64_LEB128 (lambda (x) (encode_u_LEB128 (& x 0xFFFFFFFFFFFFFFFF)))
+    encode_u_LEB128    (lambda (x) (encode_LEB128_helper true x))
+    encode_s8_LEB128   (lambda (x) (encode_LEB128_helper (< x 0) (& x 0xFF)))
+    encode_s32_LEB128  (lambda (x) (encode_LEB128_helper (< x 0) (& x 0xFFFFFFFF)))
+    encode_s33_LEB128  (lambda (x) (encode_LEB128_helper (< x 0) (& x 0x1FFFFFFFF)))
+    encode_s64_LEB128  (lambda (x) (encode_LEB128_helper (< x 0) (& x 0xFFFFFFFFFFFFFFFF)))
     encode_vector (lambda (enc v)
         (concat (encode_u_LEB128 (len v)) (flat_map enc v) )
     )
@@ -59,7 +61,7 @@
                   (encode_name name)
                   (cond (= type 'func)   (concat [0x00] (encode_u_LEB128 idx))
                         (= type 'table)  (concat [0x01] (error "can't encode table type"))
-                        (= type 'mem)    (concat [0x02] (error "can't encode mem type"))
+                        (= type 'memory) (concat [0x02] (error "can't encode memory type"))
                         (= type 'global) (concat [0x03] (error "can't encode global type"))
                         true                            (error (str "bad import type" type))))
         )
@@ -80,7 +82,7 @@
         ) (concat (encode_name name)
                   (cond (= type 'func)   [0x00]
                         (= type 'table)  [0x01]
-                        (= type 'mem)    [0x02]
+                        (= type 'memory) [0x02]
                         (= type 'global) [0x03]
                         true             (error "bad export type"))
                   (encode_u_LEB128 idx)
@@ -202,7 +204,9 @@
                                                   (and (= nil pe) (= nil re) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'result (idx (idx inside i) 0)))
                                                             ; only one result possible
                                                              (recurse (+ i 1) i (+ i 1))
-                                                  (= nil pe) (recurse (+ i 1) i i)
+                                                  (and (= nil re) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'result (idx (idx inside i) 0)))
+                                                            ; only one result possible
+                                                             (recurse (+ i 1) pe (+ i 1))
                                                   (and            (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'local (idx (idx inside i) 0)))
                                                              (recurse (+ i 1) pe re)
                                                   true      [ (slice inside 0 (or pe 0)) (slice inside (or pe 0) (or re pe 0)) (slice inside (or re pe 0) i) (slice inside i -1) ]

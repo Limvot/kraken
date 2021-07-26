@@ -4,48 +4,59 @@
     (_ _ out) (cond (!= (len *ARGV*) 3) (error "wrong number of params to comp_wasm (please provide out)")
                        true                *ARGV*)
     _ (println "out" out)
-    wasm_code (module
-        (import "wasi_unstable" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
-        (memory $mem 1)
-        (data (i32.const 16) "HellH") ;; adder to put, then data
-        (func $add (param $num i32) (result i32)
-            (local $tmp1 i32)
-            (local $tmp2 i32)
-            (block $test
-                (i32.const 1337)
-                (i32.const 1338)
+    wasm_code
+        (module
+          (import "wasi_unstable" "path_open"
+                  (func $path_open  (param i32 i32 i32 i32 i32 i64 i64 i32 i32)
+                                  (result i32)))
+          (import "wasi_unstable" "fd_prestat_dir_name"
+                  (func $fd_prestat_dir_name  (param i32 i32 i32)
+                                  (result i32)))
+          (import "wasi_unstable" "fd_read"
+                  (func $fd_read  (param i32 i32 i32 i32)
+                                  (result i32)))
+          (import "wasi_unstable" "fd_write"
+                  (func $fd_write (param i32 i32 i32 i32)
+                                  (result i32)))
+          (memory $mem 1)
+          (data (i32.const 16) "HellH") ;; adder to put, then data
+          (func $start
                 (i32.store (i32.const 8) (i32.const 16))  ;; adder of data
-                (i32.load (i32.const 8))
-                (i64.store (i32.const 8) (i64.const 16))  ;; adder of data
-                (i64.load (i32.const 8))
-                drop
-                drop
-                drop
-                (block $inner_test
-                    (br $inner_test)
-                    (br $test)
-                )
-                (br $test)
+                (i32.store (i32.const 12) (i32.const 5)) ;; len of data
+                ;; open file
+                (call $path_open
+                      (i32.const 3) ;; file descriptor
+                      (i32.const 0) ;; lookup flags
+                      (i32.const 16) ;; path string  *
+                      (i32.load (i32.const 12)) ;; path string  len
+                      (i32.const 1) ;; o flags
+                      (i64.const 66) ;; base rights
+                      (i64.const 66) ;; inheriting rights
+                      (i32.const 0) ;; fdflags
+                      (i32.const 4) ;; opened fd out ptr
+                 )
                 drop
 
-                (call $fd_write
+                (call $fd_read
                       (i32.const 0) ;; file descriptor
+                      (i32.const 8) ;; *iovs
+                      (i32.const 1) ;; iovs_len
+                      (i32.const 12) ;; nwritten, overwrite buf len with it
+                )
+                drop
+
+                ;; print name
+                (call $fd_write
+                      (i32.load (i32.const 4)) ;; file descriptor
                       (i32.const 8) ;; *iovs
                       (i32.const 1) ;; iovs_len
                       (i32.const 4) ;; nwritten
                 )
                 drop
-            )
-            (i32.const 11)
-            (local.get $tmp2)
-            i32.add
-            (i32.add (local.get $num))
+          )
+          (export "memory" (memory $mem))
+          (export "_start" (func $start))
         )
-        ; nothing
-        (export "add" (func $add))
-    )
-
-
     _ (write_file out (wasm_to_binary wasm_code))
     return_code 0
 ) return_code ))
