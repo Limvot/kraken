@@ -6,12 +6,19 @@
     _ (println "out" out)
     wasm_code (module
         (import "wasi_unstable" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
+        (memory $mem 1)
+        (data (i32.const 16) "HellH") ;; adder to put, then data
         (func $add (param $num i32) (result i32)
             (local $tmp1 i32)
             (local $tmp2 i32)
             (block $test
                 (i32.const 1337)
                 (i32.const 1338)
+                (i32.store (i32.const 8) (i32.const 16))  ;; adder of data
+                (i32.load (i32.const 8))
+                (i64.store (i32.const 8) (i64.const 16))  ;; adder of data
+                (i64.load (i32.const 8))
+                drop
                 drop
                 drop
                 (block $inner_test
