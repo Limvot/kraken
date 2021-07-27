@@ -36,6 +36,30 @@
                       (i32.const 4) ;; opened fd out ptr
                  )
                 drop
+                (block $a
+                    (block $b
+                        (br $a)
+                        (br_if $b (i32.const 3))
+                        (loop $l
+                            (br $a)
+                            (br $l)
+                        )
+                        (_if $myif (i32.const 1)
+                            (then
+                                (i32.const 1)
+                                drop
+                                (br $b)
+                            )
+                            (else
+                                (br $myif)
+                            )
+                        )
+                        (_if $another (i32.const 1) (br $b))
+                        (i32.const 1)
+                        (_if $third (br $b))
+                        (_if $fourth (br $fourth))
+                    )
+                )
 
                 (call $fd_read
                       (i32.const 0) ;; file descriptor

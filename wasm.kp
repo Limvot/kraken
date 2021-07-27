@@ -112,7 +112,11 @@
         ) (cond (= op 'unreachable)            [0x00]
                 (= op 'nop)                    [0x01]
                 (= op 'block)          (concat [0x02] (encode_blocktype (idx ins 1)) (flat_map recurse (idx ins 2)) [0x0B])
+                (= op 'loop)           (concat [0x03] (encode_blocktype (idx ins 1)) (flat_map recurse (idx ins 2)) [0x0B])
+                (= op 'if)             (concat [0x04] (encode_blocktype (idx ins 1)) (flat_map recurse (idx ins 2)) (if (!= 3 (len ins)) (concat [0x05] (flat_map recurse (idx ins 3)))
+                                                                                                                                         [])                                        [0x0B])
                 (= op 'br)             (concat [0x0C] (encode_u_LEB128 (idx ins 1)))
+                (= op 'br_if)          (concat [0x0D] (encode_u_LEB128 (idx ins 1)))
                 ;...
                 (= op 'return)                 [0x0F]
                 (= op 'call)           (concat [0x10] (encode_u_LEB128 (idx ins 1)))
@@ -262,13 +266,35 @@
     i64.load  (lambda (& flatten)  (concat (flat_map (lambda (x) x) flatten)    [['i64.load 3 0]]))
     i32.store (lambda (& flatten)  (concat (flat_map (lambda (x) x) flatten)    [['i32.store 2 0]]))
     i64.store (lambda (& flatten)  (concat (flat_map (lambda (x) x) flatten)    [['i64.store 3 0]]))
-    block     (vau de (name & inner) (let (
+    flat_eval_ins (lambda (instructions de) (flat_map (lambda (x) (let (ins (eval x de)) (cond (array? ins) ins
+                                                                                              true        (ins)))) instructions))
+    block_like_body (lambda (name de inner) (let (
                 new_depth (+ 1 (eval 'depth de))
                 inner_env (add-dict-to-env de [[ name [new_depth] ] [ 'depth new_depth ]])
-               )                                                                [['block [] (flat_map (lambda (x) (let (ins (eval x inner_env)) (cond (array? ins) ins
-                                                                                                                                      true         (ins)))) inner)]]))
+               ) (flat_eval_ins inner inner_env)))
+    block     (vau de (name & inner)                                            [['block [] (block_like_body name de inner)]])
+    loop      (vau de (name & inner)                                            [['loop  [] (block_like_body name de inner)]])
+    _if       (vau de (name & inner) (let (
+                                            (end_idx else_section) (if (= 'else (idx (idx inner -1) 0))      [ -2            (slice (idx inner -1) 1 -1) ]
+                                                                                                             [ -1             nil ])
+                                            (end_idx then_section) (if (= 'then (idx (idx inner end_idx) 0)) [ (- end_idx 1) (slice (idx inner end_idx) 1 -1) ]
+                                                                                                             [ (- end_idx 1) [ (idx inner end_idx) ] ])
+                                            flattened (flat_eval_ins (slice inner 0 end_idx) de)
+                                            _ (println "flattened " flattened " then_section " then_section " else_section " else_section)
+                                            then_block (block_like_body name de then_section)
+                                            else_block (if (!= nil else_section) [(block_like_body name de else_section)]
+                                                                                 [])
+                                                                                    final_if (concat ['if [] then_block] else_block)
+                                                                                    _ (println "final if is " final_if)
+                                           ) (concat flattened                  [final_if ])))
+
     br        (vau de (b) (let (block (eval b de)) (if (int? block)             [['br block]]
                                                                                 [['br (eval [- 'depth (idx block 0)] de)]])))
+    br_if     (vau de (b & flatten)  (let (block (eval b de)
+                                           block_val (if (int? block) block
+                                                                      (eval [- 'depth (idx block 0)] de))
+                                           rest (flat_eval_ins flatten de)
+                                      )                           (concat rest  [['br_if block_val]])))
     call      (lambda (f & flatten)  (concat (flat_map (lambda (x) x) flatten)  [['call f]]))
     import (vau de (mod_name name t_idx_typ) (lambda (name_dict type import function memory export code data) (let (
             _ (if (!= 'func (idx t_idx_typ 0)) (error "only supporting importing functions rn"))
@@ -291,5 +317,5 @@
              drop i32.const i64.const local.get i32.add
              i32.load i64.load
              i32.store i64.store
-             block br call)
+             block loop _if br br_if call)
 ))
