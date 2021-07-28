@@ -80,6 +80,7 @@
           )
           (export "memory" (memory $mem))
           (export "_start" (func $start))
+          (start $start)
         )
     _ (write_file out (wasm_to_binary wasm_code))
     return_code 0

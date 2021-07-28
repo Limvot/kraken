@@ -94,6 +94,12 @@
         ) (concat [0x07] (encode_u_LEB128 (len encoded)) encoded ))
     )
 
+    encode_start_section (lambda (x)
+        (cond (= 0 (len x)) []
+              (= 1 (len x)) (let (encoded (encode_u_LEB128 (idx x 0))) (concat [0x08] (encode_u_LEB128 (len encoded)) encoded ))
+              true          (error (str "bad lenbgth for start section " (len x) " was " x)))
+    )
+
     encode_function_section (lambda (x)
         (let (                                     ; nil functions are placeholders for improted functions
             _ (println "encoding function section " x)
@@ -172,8 +178,8 @@
 
     wasm_to_binary (lambda (wasm_code)
         (let (
-            (type_section import_section function_section memory_section export_section code_section data_section) wasm_code
-            _ (println "type_section" type_section "import_section" import_section "function_section" function_section "memory_section" memory_section "export_section" export_section "code_section" code_section "data_section" data_section)
+            (type_section import_section function_section memory_section export_section start_section code_section data_section) wasm_code
+            _ (println "type_section" type_section "import_section" import_section "function_section" function_section "memory_section" memory_section "export_section" export_section "start_section" start_section "code_section" code_section "data_section" data_section)
             magic    [ 0x00 0x61 0x73 0x6D ]
             version  [ 0x01 0x00 0x00 0x00 ]
             type     (encode_type_section type_section)
@@ -181,26 +187,27 @@
             function (encode_function_section function_section)
             memory   (encode_memory_section memory_section)
             export   (encode_export_section export_section)
+            start    (encode_start_section start_section)
             code     (encode_code_section code_section)
             data     (encode_data_section data_section)
             ;data_count (let (body (encode_u_LEB128 (len data_section))) (concat [0x0C] (encode_u_LEB128 (len body)) body))
             data_count []
-        ) (concat magic version type import function memory export data_count code data))
+        ) (concat magic version type import function memory export data_count start code data))
     )
 
     module (lambda (& args) (let (
-        helper (rec-lambda recurse (entries i name_dict type import function memory export code data)
-            (if (= i (len entries)) [ type import function memory export code data]
+        helper (rec-lambda recurse (entries i name_dict type import function memory export start code data)
+            (if (= i (len entries)) [ type import function memory export start code data]
                 (let (
-                    (n_d t im f m e c d) ((idx entries i) name_dict type import function memory export code data)
-                 ) (recurse entries (+ i 1) n_d t im f m e c d))))
-    ) (helper args 0 empty_dict [] [] [] [] [] [] [])))
+                    (n_d t im f m e s c d) ((idx entries i) name_dict type import function memory export start code data)
+                 ) (recurse entries (+ i 1) n_d t im f m e s c d))))
+    ) (helper args 0 empty_dict [] [] [] [] [] [] [] [])))
 
-    memory (vau de (idx_name & limits) (lambda (name_dict type import function memory export code data)
-        [ (put name_dict idx_name (len memory)) type import function (concat memory [(map (lambda (x) (eval x de)) limits)]) export code data ]))
+    memory (vau de (idx_name & limits) (lambda (name_dict type import function memory export start code data)
+        [ (put name_dict idx_name (len memory)) type import function (concat memory [(map (lambda (x) (eval x de)) limits)]) export start code data ]))
         
 
-    func (vau de (name & inside) (lambda (name_dict type import function memory export code data)
+    func (vau de (name & inside) (lambda (name_dict type import function memory export start code data)
         (let (
             (params result locals body) ((rec-lambda recurse (i pe re)
                                             (cond (and (= nil pe) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'param (idx (idx inside i) 0)))
@@ -251,6 +258,8 @@
             memory
             ; export
             export
+            ; start
+            start
             ; code
             (concat code [ [ compressed_locals our_code ] ])
             ; data
@@ -284,9 +293,7 @@
                                             then_block (block_like_body name de then_section)
                                             else_block (if (!= nil else_section) [(block_like_body name de else_section)]
                                                                                  [])
-                                                                                    final_if (concat ['if [] then_block] else_block)
-                                                                                    _ (println "final if is " final_if)
-                                           ) (concat flattened                  [final_if ])))
+                                           ) (concat flattened                  [(concat ['if [] then_block] else_block)])))
 
     br        (vau de (b) (let (block (eval b de)) (if (int? block)             [['br block]]
                                                                                 [['br (eval [- 'depth (idx block 0)] de)]])))
@@ -296,24 +303,28 @@
                                            rest (flat_eval_ins flatten de)
                                       )                           (concat rest  [['br_if block_val]])))
     call      (lambda (f & flatten)  (concat (flat_map (lambda (x) x) flatten)  [['call f]]))
-    import (vau de (mod_name name t_idx_typ) (lambda (name_dict type import function memory export code data) (let (
+    import (vau de (mod_name name t_idx_typ) (lambda (name_dict type import function memory export start code data) (let (
             _ (if (!= 'func (idx t_idx_typ 0)) (error "only supporting importing functions rn"))
             (import_type idx_name param_type result_type) t_idx_typ
             actual_type_idx (len type)
             actual_type [ (slice param_type 1 -1) (slice result_type 1 -1) ]
         )
-        [ (put name_dict idx_name (len function)) (concat type [actual_type]) (concat import [ [mod_name name import_type actual_type_idx] ]) (concat function [nil]) memory export code data ])
+        [ (put name_dict idx_name (len function)) (concat type [actual_type]) (concat import [ [mod_name name import_type actual_type_idx] ]) (concat function [nil]) memory export start code data ])
     ))
 
-    export (vau de (name t_v) (lambda (name_dict type import function memory export code data)
-        [ name_dict type import function memory (concat export [ [ name (idx t_v 0) (get-value name_dict (idx t_v 1)) ] ]) code data ]
+    export (vau de (name t_v) (lambda (name_dict type import function memory export start code data)
+        [ name_dict type import function memory (concat export [ [ name (idx t_v 0) (get-value name_dict (idx t_v 1)) ] ]) start code data ]
     ))
 
-    data (lambda (& it) (lambda (name_dict type import function memory export code data)
-                                [name_dict type import function memory export code (concat data [it])]))
+    start (vau de (name) (lambda (name_dict type import function memory export start code data)
+        [ name_dict type import function memory export (concat start [(get-value name_dict name)]) code data ]
+    ))
+
+    data (lambda (& it) (lambda (name_dict type import function memory export start code data)
+                                [name_dict type import function memory export start code (concat data [it])]))
 )
     (provide wasm_to_binary
-             module import memory func export data
+             module import memory start func export data
              drop i32.const i64.const local.get i32.add
              i32.load i64.load
              i32.store i64.store
