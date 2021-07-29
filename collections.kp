@@ -7,7 +7,7 @@
     foldr (let (helper (rec-lambda recurse (f z v i) (if (= i (len v)) z
                                                                        (f (idx v i) (recurse f z v (+ i 1))))))
                (lambda (f z v) (helper f z v 0)))
-
+    reverse (lambda (x) (foldl (lambda (acc i) (cons i acc)) [] x))
     empty_dict []
     put (lambda (m k v) (cons [k v] m))
     get-value-helper (rec-lambda recurse (dict key i) (if (>= i (len dict))
@@ -21,6 +21,6 @@
                                                     (recurse (eval [ [vau '_ [(idx (idx dict i) 0)] [ [vau 'inner [] 'inner] ] ] (idx (idx dict i) 1) ] env) dict (+ i 1)))))
                       (lambda (env dict) (helper env dict 0)))
 )
-    (provide foldl foldr empty_dict put get-value add-dict-to-env)
+    (provide foldl foldr reverse empty_dict put get-value add-dict-to-env)
 )
 
