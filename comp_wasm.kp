@@ -21,7 +21,7 @@
           (memory $mem 1)
           (global $gi i32 (i32.const 8))
           (global $gb (mut i64) (i64.const 9))
-          (table $tab 8 funcref)
+          (table $tab 2 funcref)
           ;(table $tab2 8 16 funcref)
           (data (i32.const 16) "HellH") ;; adder to put, then data
           (func $start
@@ -82,6 +82,7 @@
                 )
                 drop
           )
+          (elem (i32.const 0) $start $start)
           (export "memory" (memory $mem))
           (export "_start" (func $start))
           (start $start)
