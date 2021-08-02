@@ -1,0 +1,15 @@
+(with_import "./rb.kp"
+(let (
+    first empty
+    _ (println first " contains? " 1 " ? " (contains? first 1))
+    second (insert first 1)
+    _ (println second " contains? " 1 " ? " (contains? second 1))
+    third (insert second 2)
+    _ (println third " contains? " 1 " ? " (contains? third 1))
+    _ (println third " contains? " 2 " ? " (contains? third 2))
+    fourth (insert third 3)
+    _ (println fourth " contains? " 1 " ? " (contains? fourth 1))
+    _ (println fourth " contains? " 2 " ? " (contains? fourth 2))
+    _ (println fourth " contains? " 3 " ? " (contains? fourth 3))
+    _ (println fourth " contains? " 4 " ? " (contains? fourth 4))
+) nil))

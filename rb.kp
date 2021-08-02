@@ -1,0 +1,32 @@
+
+(with_import "./match.kp"
+(let (
+    ; ['R ..] or ['B ..] or ['BB]
+    ; possibly temporarily ['BB ..] during rebalencing
+    empty ['B]
+
+    contains? (rec-lambda recurse (t v) (match t
+                                            ['B]        false
+                                            [c a x b]   (cond (< v x) (recurse a v)
+                                                              (= v x) true
+                                                              true    (recurse b v))))
+
+    blacken (lambda (t) (match t
+                            ['R a x b] ['B a x b]
+                            t          t))
+    balance (lambda (t) (match t
+                            ['B ['R ['R a x b] y c] z d] ['R ['B a x b] y ['B c z d]]
+                            ['B ['R a x ['R b y c]] z d] ['R ['B a x b] y ['B c z d]]
+                            ['B a x ['R ['R b y c] z d]] ['R ['B a x b] y ['B c z d]]
+                            ['B a x ['R b y ['R c z d]]] ['R ['B a x b] y ['B c z d]]
+                            t                            t))
+    insert (lambda (t v) (let (
+        ins (rec-lambda ins (t) (match t
+                                    ['B]        ['R ['B] v ['B]]
+                                    [c a x b]   (cond (< v x) (balance [c (ins a) x b])
+                                                      (= v x) [c a x b]
+                                                      true    (balance [c a x (ins b)]))))
+    ) (blacken (ins t))))
+)
+    (provide empty contains? insert)
+))
