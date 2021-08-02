@@ -115,7 +115,7 @@ obj KPBuiltinCombiner (Object) {
         copy_construct(&other)
     }
     fun operator==(other: ref KPBuiltinCombiner):bool {
-        return false
+        return name == other.name
     }
     fun call(params: vec<KPValue>, dynamic_env: KPValue): pair<*KPEnv, KPResult> {
         if !dynamic_env.is_env() {
@@ -383,6 +383,17 @@ obj KPValue (Object) {
     fun is_nil(): bool {
         match (internal) {
             KPValue_int::Nil() {
+                return true
+            }
+        }
+        return false
+    }
+    fun is_bool(): bool {
+        match (internal) {
+            KPValue_int::True() {
+                return true
+            }
+            KPValue_int::False() {
                 return true
             }
         }
@@ -839,11 +850,53 @@ fun main(argc: int, argv: **char): int {
         return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(params[0].is_symbol())))
     }));
 
-    env->set(str("int?"), make_builtin_combiner(str("symbol?"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+    env->set(str("int?"), make_builtin_combiner(str("int?"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {
             return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to int?"))))
         }
         return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(params[0].is_int())))
+    }));
+
+    env->set(str("string?"), make_builtin_combiner(str("string?"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size != 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to string?"))))
+        }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(params[0].is_string())))
+    }));
+
+    env->set(str("combiner?"), make_builtin_combiner(str("combiner?"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size != 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to combiner?"))))
+        }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(params[0].is_combiner())))
+    }));
+
+    env->set(str("env?"), make_builtin_combiner(str("env?"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size != 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to env?"))))
+        }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(params[0].is_env())))
+    }));
+
+    env->set(str("nil?"), make_builtin_combiner(str("nil?"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size != 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to nil?"))))
+        }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(params[0].is_nil())))
+    }));
+
+    env->set(str("bool?"), make_builtin_combiner(str("bool?"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size != 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to bool?"))))
+        }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(params[0].is_bool())))
+    }));
+
+    env->set(str("array?"), make_builtin_combiner(str("array?"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
+        if params.size != 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to array?"))))
+        }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(params[0].is_array())))
     }));
 
     env->set(str("str-to-symbol"), make_builtin_combiner(str("str-to-symbol"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
@@ -868,12 +921,6 @@ fun main(argc: int, argv: **char): int {
 
     env->set(str("array"), make_builtin_combiner(str("array"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         return make_pair(null<KPEnv>(), KPResult::Ok(kpArray(params)))
-    }));
-    env->set(str("array?"), make_builtin_combiner(str("array?"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
-        if params.size != 1 {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to array?"))))
-        }
-        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(params[0].is_array())))
     }));
     env->set(str("len"), make_builtin_combiner(str("len"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size != 1 {

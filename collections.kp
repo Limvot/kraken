@@ -1,12 +1,12 @@
 
 (let (
 
-    foldl (let (helper (rec-lambda recurse (f z v i) (if (= i (len v)) z
-                                                                       (recurse f (f z (idx v i)) v (+ i 1)))))
-               (lambda (f z v) (helper f z v 0)))
-    foldr (let (helper (rec-lambda recurse (f z v i) (if (= i (len v)) z
-                                                                       (f (idx v i) (recurse f z v (+ i 1))))))
-               (lambda (f z v) (helper f z v 0)))
+    foldl (let (helper (rec-lambda recurse (f z vs i) (if (= i (len (idx vs 0))) z
+                                                                       (recurse f (lapply f (cons z (map (lambda (x) (idx x i)) vs))) vs (+ i 1)))))
+               (lambda (f z & vs) (helper f z vs 0)))
+    foldr (let (helper (rec-lambda recurse (f z vs i) (if (= i (len (idx vs 0))) z
+                                                                       (lapply f (cons (recurse f z vs (+ i 1)) (map (lambda (x) (idx x i)) vs))))))
+               (lambda (f z & vs) (helper f z vs 0)))
     reverse (lambda (x) (foldl (lambda (acc i) (cons i acc)) [] x))
     empty_dict []
     put (lambda (m k v) (cons [k v] m))
