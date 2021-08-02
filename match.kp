@@ -14,7 +14,10 @@
             ; check for invocation of quote directly
             ; not necessarily ideal if they define their own quote or something
             (and (symbol?     x) (array?      c) (= 2 (len c)) (= quote (idx c 0)) (= x (idx c 1))) name_dict
-            ; ditto with above, but with array
+            ; ditto with above, but with unquote to allow matching against the *value* of variables
+            (and (array?      c) (= 2 (len c)) (= 'unquote (idx c 0)) (= x (eval (idx c 1) de)))    name_dict
+            ; ditto with above, but with array. Also note this means you have to use '[' and ']' as calling
+            ; array explicitly will give you the symbol array instead...
             (and (array?      x) (array?      c) (= (+ 1 (len x)) (len c)) (= array (idx c 0)))     (foldl recurse name_dict x (slice c 1 -1))
             true                                                                                    nil
         ))

@@ -1,12 +1,20 @@
 
 (with_import "./match.kp"
 (let (
-    ; ['R ..] or ['B ..] or ['BB]
-    ; possibly temporarily ['BB ..] during rebalencing
-    empty ['B]
+    ; This is based on https://www.cs.cornell.edu/courses/cs3110/2020sp/a4/deletion.pdf
+    ; and the figure references refer to it
+    ; Insert is taken from the same paper, but is origional to Okasaki, I belive
+
+    ; I think this is actually pretty cool - instead of having a bunch of seperate ['B]
+    ; be our leaf node, we use ['B] with all nils. This allows us to not use -B, as
+    ; both leaf and non-leaf 'BB has the same structure with children! Also, we make
+    ; sure to use empty itself so we don't make a ton of empties...
+    empty ['B nil nil nil]
+    E  empty
+    EE ['BB nil nil nil]
 
     contains? (rec-lambda recurse (t v) (match t
-                                            ['B]        false
+                                            ~E                        false
                                             [c a x b]   (cond (< v x) (recurse a v)
                                                               (= v x) true
                                                               true    (recurse b v))))
@@ -15,18 +23,62 @@
                             ['R a x b] ['B a x b]
                             t          t))
     balance (lambda (t) (match t
+                            ; figures 1 and 2
                             ['B ['R ['R a x b] y c] z d] ['R ['B a x b] y ['B c z d]]
                             ['B ['R a x ['R b y c]] z d] ['R ['B a x b] y ['B c z d]]
                             ['B a x ['R ['R b y c] z d]] ['R ['B a x b] y ['B c z d]]
                             ['B a x ['R b y ['R c z d]]] ['R ['B a x b] y ['B c z d]]
+                            ; figure 8, double black cases
+                            ['BB ['R a x ['R b y c]] z d] ['B ['B a x b] y ['B c z d]]
+                            ['BB a x ['R ['R b y c] z d]] ['B ['B a x b] y ['B c z d]]
+                            ; already balenced
                             t                            t))
     insert (lambda (t v) (let (
         ins (rec-lambda ins (t) (match t
-                                    ['B]        ['R ['B] v ['B]]
+                                    ~E                        ['R t v t]
                                     [c a x b]   (cond (< v x) (balance [c (ins a) x b])
                                                       (= v x) [c a x b]
                                                       true    (balance [c a x (ins b)]))))
     ) (blacken (ins t))))
+
+    rotate (lambda (t) (match t
+      ; case 1, fig 6
+      ['R ['BB a x b] y ['B c z d]]          (balance ['B ['R ['B a x b] y c] z d])
+      ['R ['B a x b] y ['BB c z d]]          (balance ['B a x ['R b y ['B c z d]]])
+      ; case 2, figure 7
+      ['B ['BB a x b] y ['B c z d]]          (balance ['BB ['R ['B a x b] y c] z d])
+      ['B ['B a x b] y ['BB c z d]]          (balance ['BB a x ['R b y ['B c z d]]])
+      ; case 3, figure 9
+      ['B ['BB a w b] x ['R ['B c y d] z e]] ['B (balance ['B ['R ['B a w b] x c] y d]) z e]
+      ['B ['R a w ['B b x c]] y ['BB d z e]] ['B a w (balance ['B b x ['R c y ['B d z e]]])]
+      ; fall through
+      t                                     t))
+
+    redden (lambda (t) (match t
+                        ['B a x b] (if (and (= 'B (idx a 0)) (= 'B (idx b 0))) ['R a x b]
+                                                                               t)
+                        t                                                      t))
+
+    min_delete (rec-lambda recurse (t) (match t
+                    ~E                                      (error "min_delete empty tree")
+                    ['R ~E x ~E]                            [x E]
+                    ['B ~E x ~E]                            [x EE]
+                    ['B ~E x ['R a y b]]                    [x ['B a y b]]
+                    [c a x b]   (let ((v ap) (recurse a))   [v (rotate [c ap x b])])))
+    delete (lambda (t v) (let (
+        del (rec-lambda del (t v) (match t
+                                    ; figure 3
+                                    ~E                      t
+                                    ; figure 4
+                                    ['R ~E ~v ~E]           E
+                                    ['B ['R a x b] ~v ~E]   ['B a x b]
+                                    ; figure 5
+                                    ['B ~E ~v ~E]           EE
+                                    [c a x b] (cond (< v x) (rotate [c (del a v) x b])
+                                                    (= v x) (let ((vp bp) (min_delete b))
+                                                            (rotate [c a vp bp]))
+                                                    true    (rotate [c a x (del b v)]))))
+    ) (del (redden t) v)))
 )
-    (provide empty contains? insert)
+    (provide empty contains? insert delete)
 ))

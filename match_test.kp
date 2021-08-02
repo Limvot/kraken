@@ -38,4 +38,12 @@
                [ 1337 "str" 'walla + a false b [ 'inner c 'end ] d ] (str "matched, and got " a b c d)
                     a (+ a 1)
         ))
+    (println "seventh "
+        (let (b 2)
+        (match [ 1337 [ 1 2 3] 11 ]
+                    1                       true
+                    "str"                   "It was a string!"
+                    [ 1337 [ a ~b c] 11 ]   (str "matched, and got " a c " while checking based on inserted " b)
+                    a                       "sigh, failed to match"
+        )))
 ))
