@@ -2,6 +2,10 @@
 (with_import "./collections.kp"
 (with_import "./rb.kp"
 (let (
+
+    ; Implementing "Purely Functional GLL Parsing"
+    ;               by L. Thomas van Binsbergena, Elizabeth Scott, Adrian Johnstone
+    ; retrived from from http://ltvanbinsbergen.nl/publications/jcola-fgll.pdf
     
     ; quick recognizer sketch
     ;nterm(X,p)(t,k,c) = p(t,k,c)
