@@ -1,0 +1,101 @@
+
+(with_import "./collections.kp"
+(with_import "./rb.kp"
+(let (
+    
+    ; quick recognizer sketch
+    ;nterm(X,p)(t,k,c) = p(t,k,c)
+    ;term(lt)(t,k,c)   =(if (= lt t[k]) (c (+ k 1))
+                                       false)
+    ;seqStart(t,k,c)   = c(k)
+    ;seqOp(p,q)(t,k,c) = p(t,k, (lambda (r) q(t,r,c)) )
+    ;altStart(t,k,c)   = false
+    ;altOp(p,q)(t,k,c) = p(t,k,c) or q(t,k,c)
+    ;recognize(p)(t)   = p(t,0, (lambda (r) (= r (len t)))
+
+
+    ;var G = map<pair<int, int>, set<Pending>>()
+    ;var P = map<pair<int,int>, set<int>>()
+    ;var Y = set<BS>()
+
+    ; discriptor is a triple of grammer-slot and 2 indicies of t-string
+    ;   corresponding to process
+    ;       <X::= a.b,l,k>
+    ;       I previously had this as nonterminal, rule-idx, idx into rule, l,r
+
+    ; U - discriptors added to (worklist?), makes sure no duplicates added to "list"
+    ; P - binary relation between pairs of commencments and right extants
+    ;       makes sure that later discoveries that use a sub-non-terminal that has already
+    ;       been processed can be completed since the sub-non-terminal won't be
+    ;       re-descended at the same index <s::=.d,k,k>
+    ;       
+    ;       a commencement is a pair of a nonterminal and a left extent (the arguemnts to
+    ;       descend, since that's what we're skipping) to a set of right extants
+    ; G - binary relation between commencments and continuations, modified to include
+    ;       actional continuation.
+    ;       The normal continuation is a pair of as slot and a left extent.
+    ;       So <<X,k> -> <g,l>> in G, with a new are is combined to form
+    ;       discriptor <g,l,r> and BSR <g,l,k,r> whenever k,r are discovered for X
+    ;       Note we haven't finished things with the above P, since some subs of the form
+    ;           <s::=.d,k,k> or descriptors that follow them may not have been processed
+    ;           yet. When new Right extants are discovered, we must add descriptors
+    ;           <Y::=a's.b',l',r_j> and <X::as.b,l,rj> to R (if not in U) and add
+    ;           BSR elements <Y::=a's.b',l',k,r_j> and <X::=as.b,l,k,r_j> to Y
+    ; Y - Our result BSR set!
+
+    ; I've decided, a slot is [X [stff] int-for-dot]
+
+
+    id (lambda (sigma) sigma)
+    altStart                  (lambda (t s k c) id)
+    altOp    (lambda (p q)    (lambda (t s k c) (lcompose (p t s k c) (q t s <empty> k c))))
+    term (lambda (s) [ s term_parser ])
+    term_parser                 (lambda (t gram_slot l k c) (lambda (sigma)
+        (if (= (get-s gram_slot) (idx t k)) ((c [gram_slot l (+ 1 k)]) sigma)
+                                            sigma)))
+    seqStart (lambda (t X b l c0) (continue [X::=.b,l,l,l] c0)
+    seqOp (lambda (p [s q]) (lambda (t X b l c0) (let (
+                                c2 (lambda ([slot l r]) (continue [slot l k r] c0))
+                                c1 (lambda ([slot l k]) (q t slot l k c2))
+                               ) (p t X sb l c1)))))
+    continue (lambda (descriptor? c) (lambda (sigma)
+        (if (set-contains? U descriptor?) sigma
+            (let (
+                [U G P Y] sigma
+                (slot l r) descriptor?
+                (X rhs i) slot
+                BSR_element [slot l k r]
+                Yp (if (or (= 0 i) (= (len rhs) i)) (set-insert Y BSR_element)
+                                                    Y)
+                Up (set-insert U descriptor)
+            ) ((c BSR_element) [Up G P Yp]))
+        )))
+    cont_for (lambda (s p) (lambda (descriptor?) (lambda (sigma) (let (
+            [U G P Y] sigma
+            sigmap [U G (set-insert P [[s k] r]) Y]
+            composed (foldl (lambda (cp [g l c]) (compose cp (c [g l r]))) id (map-get-or-default G [s k] []))
+        ) (composed sigmap)))))
+    nterm (lambda (s p) [ s (nterm_parser p) ])
+    nterm_parser (lambda (p) (lambda (t gram_slot l k c) (lambda (sigma)
+        (let (
+            R (map-get-or-default P [s k] [])
+            [U G P Y] sigma
+            sigmap [U (map-insert G [s k] [gram_slot l c]) Y]
+        ) (if (= 0 (size R)) ((p t s k (cont_for s p)) sigmap)
+                             (foldl (lambda (cp r) (compose cp (c [gram_slot l r]))) id R))
+        ))))
+    parse (lambda ([s f]) (lambda (t)
+        (let (
+            X (fresh)
+            sigma [ empty empty empty empty ]
+            c (lambda (bsr_element) (lambda (sigma) sigma))
+            [U G P Y] ((f t X::=s. 0 0 c) sigma)
+         ) Y)))
+
+    ; Big notes
+    ;   - haven't figured out exactly how grammer slots are going to work, also if s is already a vector
+    ;   - also need to add [] destructuring to parameter lists & change let desturcturing to []
+    ;   - much more I'm sure I'm quite tired
+)
+(provide)
+)))

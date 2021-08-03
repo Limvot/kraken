@@ -27,6 +27,8 @@
 (let (
         print_through (lambda (x) (do (println x) x))
 
+        lcompose (lambda (g f) (lambda (& args) (lapply g (array (lapply f args)))))
+
         rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
 
         if (vau de (con than & else) (cond (eval con de) (eval than de)
@@ -210,6 +212,7 @@
                                 not
                                 lapply
                                 vapply
+                                lcompose
                                 Y
                                 vY
                                 Y*

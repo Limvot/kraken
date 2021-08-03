@@ -16,6 +16,10 @@
     E  empty
     EE ['BB nil nil nil]
 
+    size (rec-lambda recurse (t) (match t
+                                        ~E  0
+                                        [c a x b] (+ 1 (recurse a) (recurse b))))
+
     generic-contains? (rec-lambda recurse (t cmp v found not-found) (match t
                                             ~E                            (not-found)
                                             [c a x b] (match (cmp v x) '< (recurse a cmp v found not-found)
@@ -110,5 +114,6 @@
     map-remove           (lambda (t k)   (generic-delete     t map-cmp [k nil]))
 )
     (provide set-empty set-insert set-contains? set-remove
-             map-empty map-insert map-contains-key? map-get map-get-or-default map-get-with-default map-remove)
+             map-empty map-insert map-contains-key? map-get map-get-or-default map-get-with-default map-remove
+             size)
 ))
