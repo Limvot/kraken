@@ -7,21 +7,6 @@
     ;               by L. Thomas van Binsbergena, Elizabeth Scott, Adrian Johnstone
     ; retrived from from http://ltvanbinsbergen.nl/publications/jcola-fgll.pdf
     
-    ; quick recognizer sketch
-    ;nterm(X,p)(t,k,c) = p(t,k,c)
-    ;term(lt)(t,k,c)   =(if (= lt t[k]) (c (+ k 1))
-                                       false)
-    ;seqStart(t,k,c)   = c(k)
-    ;seqOp(p,q)(t,k,c) = p(t,k, (lambda (r) q(t,r,c)) )
-    ;altStart(t,k,c)   = false
-    ;altOp(p,q)(t,k,c) = p(t,k,c) or q(t,k,c)
-    ;recognize(p)(t)   = p(t,0, (lambda (r) (= r (len t)))
-
-
-    ;var G = map<pair<int, int>, set<Pending>>()
-    ;var P = map<pair<int,int>, set<int>>()
-    ;var Y = set<BS>()
-
     ; discriptor is a triple of grammer-slot and 2 indicies of t-string
     ;   corresponding to process
     ;       <X::= a.b,l,k>
@@ -49,57 +34,51 @@
 
     ; I've decided, a slot is [X [stff] int-for-dot]
 
-
     id (lambda (sigma) sigma)
     altStart                  (lambda (t s k c) id)
-    altOp    (lambda (p q)    (lambda (t s k c) (lcompose (p t s k c) (q t s <empty> k c))))
-    term (lambda (s) [ s term_parser ])
-    term_parser                 (lambda (t gram_slot l k c) (lambda (sigma)
-        (if (= (get-s gram_slot) (idx t k)) ((c [gram_slot l (+ 1 k)]) sigma)
+    altOp    (lambda (p q)    (lambda (t s k c) (lcompose (p t s k c) (q t s [] k c))))
+    term_parser                 (lambda (t [X b i] l k c) (lambda (sigma)
+        (if (= (idx b (- i 1)) (idx t k)) ((c [[X b i] l (+ 1 k)]) sigma)
                                             sigma)))
-    seqStart (lambda (t X b l c0) (continue [X::=.b,l,l,l] c0)
-    seqOp (lambda (p [s q]) (lambda (t X b l c0) (let (
-                                c2 (lambda ([slot l r]) (continue [slot l k r] c0))
-                                c1 (lambda ([slot l k]) (q t slot l k c2))
-                               ) (p t X sb l c1)))))
-    continue (lambda (descriptor? c) (lambda (sigma)
-        (if (set-contains? U descriptor?) sigma
+    term (lambda (s) [ s term_parser ])
+
+    continue (lambda (BSR_element c) (lambda ([U G P Y])
             (let (
-                [U G P Y] sigma
-                (slot l r) descriptor?
-                (X rhs i) slot
-                BSR_element [slot l k r]
-                Yp (if (or (= 0 i) (= (len rhs) i)) (set-insert Y BSR_element)
-                                                    Y)
+                [slot l k r] BSR_element
+                descriptor [slot l r]
+                (X b i) slot
+                Yp (if (or (!= 0 i) (= (len rhs) i)) (set-insert Y BSR_element)
+                                                     Y)
                 Up (set-insert U descriptor)
-            ) ((c BSR_element) [Up G P Yp]))
-        )))
-    cont_for (lambda (s p) (lambda (descriptor?) (lambda (sigma) (let (
-            [U G P Y] sigma
-            sigmap [U G (set-insert P [[s k] r]) Y]
-            composed (foldl (lambda (cp [g l c]) (compose cp (c [g l r]))) id (map-get-or-default G [s k] []))
-        ) (composed sigmap)))))
-    nterm (lambda (s p) [ s (nterm_parser p) ])
-    nterm_parser (lambda (p) (lambda (t gram_slot l k c) (lambda (sigma)
+            ) (if (set-contains? U descriptor) [U G P Yp]
+                                               ((c descriptor) [Up G P Yp])))))
+    seqStart (lambda (t X b l c0) (continue [[X b 0] l l l] c0))
+    seqOp (lambda (p [s q]) (lambda (t X b l c0) (let (
+                                c1 (lambda ([slot l k]) (let (
+                                    c2 (lambda ([slot l r]) (continue [slot l k r] c0))
+                                   ) (q t slot l k c2)))
+                               ) (p t X (cons s b) l c1))))
+
+    cont_for (lambda (s p) (lambda ([[s d i] k r]) (lambda ([U G P Y]) (let (
+            composed (set-foldl (lambda (cp [g l c]) (lcompose cp (c [g l r]))) id (multimap-get G [s k]))
+        ) (composed [U G (multimap-insert P [s k] r) Y])))))
+    nterm_parser (lambda (p) (lambda (t gram_slot l k c) (lambda ([U G P Y])
         (let (
-            R (map-get-or-default P [s k] [])
-            [U G P Y] sigma
-            sigmap [U (map-insert G [s k] [gram_slot l c]) Y]
+            [X b i] gram_slot
+            s (idx b (- i 1))
+            R (multimap-get P [s k])
+            sigmap [U (multimap-insert G [s k] [gram_slot l c]) P Y]
         ) (if (= 0 (size R)) ((p t s k (cont_for s p)) sigmap)
-                             (foldl (lambda (cp r) (compose cp (c [gram_slot l r]))) id R))
-        ))))
+                             (set-foldl (lambda (cp r) (lcompose cp (c [gram_slot l r]))) id R)
+        )))))
+    nterm (lambda (s p) [ s (nterm_parser p) ])
     parse (lambda ([s f]) (lambda (t)
         (let (
-            X (fresh)
-            sigma [ empty empty empty empty ]
-            c (lambda (bsr_element) (lambda (sigma) sigma))
-            [U G P Y] ((f t X::=s. 0 0 c) sigma)
-         ) Y)))
-
-    ; Big notes
-    ;   - haven't figured out exactly how grammer slots are going to work, also if s is already a vector
-    ;   - also need to add [] destructuring to parameter lists & change let desturcturing to []
-    ;   - much more I'm sure I'm quite tired
+            X '__FUNGLL_UNIQUE_START_SYMBOL__
+            sigma [ set-empty multimap-empty multimap-empty set-empty ]
+            c (lambda (descriptor) (lambda (sigma) sigma))
+            [U G P Y] ((f t ['X [s] 1] 0 0 c) sigma)
+         ) (set-foldl cons [] Y))))
 )
-(provide)
+(provide altStart altOp term seqStart seqOp nterm parse)
 )))

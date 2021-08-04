@@ -12,6 +12,7 @@
     _ (println fourth " set-contains? " 2 " ? " (set-contains? fourth 2) " size " (size fourth))
     _ (println fourth " set-contains? " 3 " ? " (set-contains? fourth 3) " size " (size fourth))
     _ (println fourth " set-contains? " 4 " ? " (set-contains? fourth 4) " size " (size fourth))
+    _ (println fourth " foldl with + " (set-foldl + 0 fourth))
     fifth (set-remove fourth 1)
     _ (println fifth " set-contains? " 1 " ? " (set-contains? fifth 1) " size " (size fifth))
     _ (println fifth " set-contains? " 2 " ? " (set-contains? fifth 2) " size " (size fifth))

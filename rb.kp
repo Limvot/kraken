@@ -20,6 +20,10 @@
                                         ~E  0
                                         [c a x b] (+ 1 (recurse a) (recurse b))))
 
+    generic-foldl (rec-lambda recurse (f z t) (match t
+                                                     ~E z
+                                                     [c a x b]  (recurse f (f (recurse f z a) x) b)))
+
     generic-contains? (rec-lambda recurse (t cmp v found not-found) (match t
                                             ~E                            (not-found)
                                             [c a x b] (match (cmp v x) '< (recurse a cmp v found not-found)
@@ -87,15 +91,17 @@
                                     ['B ~E x ~E]            (match (cmp v x) '= EE
                                                                              _  t)
                                     [c a x b]               (match (cmp v x) '< (rotate [c (del a v) x b])
-                                                                             '= (let ((vp bp) (min_delete b))
+                                                                             '= (let ([vp bp] (min_delete b))
                                                                                 (rotate [c a vp bp]))
                                                                              '> (rotate [c a x (del b v)]))))
     ) (del (redden t) v)))
+
 
     set-cmp (lambda (a b) (cond (< a b) '<
                                 (= a b) '=
                                 true    '>))
     set-empty empty
+    set-foldl generic-foldl
     set-insert           (lambda (t x)   (generic-insert     t set-cmp x false))
     set-contains?        (lambda (t x)   (generic-contains?  t set-cmp x       (lambda (f) true)      (lambda () false)))
     set-remove           (lambda (t x)   (generic-delete     t set-cmp x))
@@ -112,8 +118,15 @@
     map-get-or-default   (lambda (t k d) (generic-contains?  t map-cmp [k nil] (lambda (f) (idx f 1)) (lambda () d)))
     map-get-with-default (lambda (t k d) (generic-contains?  t map-cmp [k nil] (lambda (f) (idx f 1)) (lambda () (d))))
     map-remove           (lambda (t k)   (generic-delete     t map-cmp [k nil]))
+
+    ; This could be 2x as efficent by being implmented on generic instead of map,
+    ; as we wouldn't have to traverse once to find and once to insert
+    multimap-empty map-empty
+    multimap-insert           (lambda (t k v) (map-insert t k (set-insert (map-get-or-default t k set-empty) v)))
+    multimap-get              (lambda (t k)   (map-get-or-default t k set-empty))
 )
-    (provide set-empty set-insert set-contains? set-remove
+    (provide set-empty set-foldl set-insert set-contains? set-remove
              map-empty map-insert map-contains-key? map-get map-get-or-default map-get-with-default map-remove
+             multimap-empty multimap-insert multimap-get
              size)
 ))

@@ -1,0 +1,6 @@
+(with_import "./fungll.kp"
+(let (
+    just_a_parser (parse (nterm 'A (altOp altStart (seqOp seqStart (term (idx "a" 0))))))
+    parse_result (just_a_parser "a")
+    _ (println "parse result " parse_result)
+) nil))

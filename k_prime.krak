@@ -1115,7 +1115,7 @@ fun main(argc: int, argv: **char): int {
         if params.size <= 1 {
             return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 or more params to <"))))
         }
-        if !params[0].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called < with first not an int ") + pr_str(params[0], true)))); }
+        if !params[0].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called < with first not an int ") + pr_str(params[0], true) + "\nenv was\n" + dynamic_env->to_string()))); }
         for (var i = 0; i < params.size - 1; i++;) {
             if !params[i+1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called < with param ") + (i+1) + " not an int " + pr_str(params[i+1], true)))); }
             if !(params[i].get_int() < params[i+1].get_int()) {
