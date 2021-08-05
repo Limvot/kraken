@@ -207,6 +207,16 @@ obj vec<T> (Object, Serializable) {
                 return false
         return true
     }
+    fun operator< <U>(other: ref vec<U>):bool {
+        if (size < other.size)
+            return true
+        if (size > other.size)
+            return false
+        for (var i = 0; i < size; i++;)
+            if (data[i] < other.data[i]) // it's !(==) because we want equality if our members are equal, and overloading etc
+                return true
+        return false
+    }
 
     fun set(index: int, dataIn: ref T): void {
         if (index < 0 || index  >= size)

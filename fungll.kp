@@ -38,8 +38,9 @@
     altStart                  (lambda (t s k c) id)
     altOp    (lambda (p q)    (lambda (t s k c) (lcompose (p t s k c) (q t s [] k c))))
     term_parser                 (lambda (t [X b i] l k c) (lambda (sigma)
-        (if (= (idx b (- i 1)) (idx t k)) ((c [[X b i] l (+ 1 k)]) sigma)
-                                            sigma)))
+        (let (this_term (idx b (- i 1)))
+                (if (= this_term (slice t k (+ k (len this_term)))) ((c [[X b i] l (+ (len this_term) k)]) sigma)
+                                                    sigma))))
     term (lambda (s) [ s term_parser ])
 
     continue (lambda (BSR_element c) (lambda ([U G P Y])

@@ -46,6 +46,15 @@ obj KPEnv (Object) {
         destruct()
         copy_construct(&other)
     }
+    fun operator<(other: ref KPEnv):bool {
+        if data.keys < other.data.keys || data.values < other.data.values {
+            return true;
+        }
+        if (outer != null<KPEnv>()) && ((other.outer == null<KPEnv>()) || (*outer < *other.outer)) {
+            return true;
+        }
+        return false;
+    }
     fun set(key: str, val: KPValue) {
         data.set(key, val)
     }
@@ -117,6 +126,9 @@ obj KPBuiltinCombiner (Object) {
     fun operator==(other: ref KPBuiltinCombiner):bool {
         return name == other.name
     }
+    fun operator<(other: ref KPBuiltinCombiner):bool {
+        return name < other.name
+    }
     fun call(params: vec<KPValue>, dynamic_env: KPValue): pair<*KPEnv, KPResult> {
         if !dynamic_env.is_env() {
             return make_pair(null<KPEnv>(), KPResult::Err(kpString(pr_str(dynamic_env, true) + " is not an env")))
@@ -177,6 +189,10 @@ obj KPCombiner (Object) {
     fun operator==(other: ref KPCombiner):bool {
         // not sure about env
         return env == other.env && dynamic_env_name == other.dynamic_env_name && wrap_level == other.wrap_level && parameters == other.parameters && is_variadic == other.is_variadic && body->equals(*other.body)
+    }
+    fun operator<(other: ref KPCombiner):bool {
+        // not sure about env
+        return *env < *other.env || dynamic_env_name < other.dynamic_env_name || wrap_level < other.wrap_level || parameters < other.parameters || is_variadic < other.is_variadic || body->lt(*other.body)
     }
     // no call b/c need to do in EVAL for TCO
     fun prep_call(params: ref vec<KPValue>, dynamic_env: KPValue): pair<*KPEnv, KPResult> {
@@ -265,6 +281,45 @@ obj KPValue (Object) {
            KPValue_int::True()     { match (other.internal) { KPValue_int::True() { return true; } } }
            KPValue_int::False()    { match (other.internal) { KPValue_int::False() { return true; } } }
            KPValue_int::Nil()      { match (other.internal) { KPValue_int::Nil() { return true; } } }
+        }
+        return false
+    }
+    fun variant(): int {
+        match (internal) {
+           KPValue_int::Array(d)           { return 0; }
+           KPValue_int::String(d)          { return 1; }
+           KPValue_int::Int(d)             { return 2; }
+           KPValue_int::Symbol(d)          { return 3; }
+           KPValue_int::Combiner(d)        { return 4; }
+           KPValue_int::BuiltinCombiner(d) { return 5; }
+           KPValue_int::Env(e)             { return 6; }
+           KPValue_int::True()             { return 7; }
+           KPValue_int::False()            { return 8; }
+           KPValue_int::Nil()              { return 9; }
+        }
+    }
+    fun operator<(other: ref KPValue):bool {
+        return this->lt(other)
+    }
+    fun lt(other: ref KPValue): bool {
+        var our_variant = variant()
+        var their_variant = other.variant()
+        if our_variant < their_variant {
+            return true;
+        } else if our_variant > their_variant {
+            return false;
+        }
+        match (internal) {
+           KPValue_int::Array(d) { match (other.internal) { KPValue_int::Array(db) { return d.get() < db.get(); } } }
+           KPValue_int::String(d)  { match (other.internal) { KPValue_int::String(db) { return d < db; } } }
+           KPValue_int::Int(d)     { match (other.internal) { KPValue_int::Int(db) { return d < db; } } }
+           KPValue_int::Symbol(d)  { match (other.internal) { KPValue_int::Symbol(db) { return d < db; } } }
+           KPValue_int::Combiner(d){ match (other.internal) { KPValue_int::Combiner(db) { return d < db; } } }
+           KPValue_int::BuiltinCombiner(d) { match (other.internal) { KPValue_int::BuiltinCombiner(db) { return d < db; } } }
+           KPValue_int::Env(e)     { match (other.internal) { KPValue_int::Env(eb) { return e < eb; } } }
+           KPValue_int::True()     { match (other.internal) { KPValue_int::True() { return false; } } }
+           KPValue_int::False()    { match (other.internal) { KPValue_int::False() { return false; } } }
+           KPValue_int::Nil()      { match (other.internal) { KPValue_int::Nil() { return false; } } }
         }
         return false
     }
@@ -1100,25 +1155,33 @@ fun main(argc: int, argv: **char): int {
     }));
 
     env->set(str("="), make_builtin_combiner(str("="), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
-        if params.size != 2 {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 params to ="))))
+        if params.size <= 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 or more params to ="))))
         }
-        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(params[0].equals(params[1]))))
+        for (var i = 0; i < params.size - 1; i++;) {
+            if !(params[i].equals(params[i+1])) {
+                return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(false)))
+            }
+        }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(true)))
     }));
     env->set(str("!="), make_builtin_combiner(str("!="), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
-        if params.size != 2 {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 params to !="))))
+        if params.size <= 1 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 or more params to !="))))
         }
-        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(!params[0].equals(params[1]))))
+        for (var i = 0; i < params.size - 1; i++;) {
+            if (params[i].equals(params[i+1])) {
+                return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(false)))
+            }
+        }
+        return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(true)))
     }));
     env->set(str("<"), make_builtin_combiner(str("<"), 1, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if params.size <= 1 {
             return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 or more params to <"))))
         }
-        if !params[0].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called < with first not an int ") + pr_str(params[0], true) + "\nenv was\n" + dynamic_env->to_string()))); }
         for (var i = 0; i < params.size - 1; i++;) {
-            if !params[i+1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called < with param ") + (i+1) + " not an int " + pr_str(params[i+1], true)))); }
-            if !(params[i].get_int() < params[i+1].get_int()) {
+            if !(params[i].lt(params[i+1])) {
                 return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(false)))
             }
         }
@@ -1128,10 +1191,8 @@ fun main(argc: int, argv: **char): int {
         if params.size <= 1 {
             return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 or more params to <="))))
         }
-        if !params[0].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called <= with first not an int")))); }
         for (var i = 0; i < params.size - 1; i++;) {
-            if !params[i+1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called <= with not an int")))); }
-            if !(params[i].get_int() <= params[i+1].get_int()) {
+            if !(params[i].lt(params[i+1])) && !(params[i].equals(params[i+1])) {
                 return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(false)))
             }
         }
@@ -1141,10 +1202,8 @@ fun main(argc: int, argv: **char): int {
         if params.size <= 1 {
             return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 or more params to >"))))
         }
-        if !params[0].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called > with first not an int")))); }
         for (var i = 0; i < params.size - 1; i++;) {
-            if !params[i+1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called > with param ") + (i+1) + " not an int " + pr_str(params[i+1], true)))); }
-            if !(params[i].get_int() > params[i+1].get_int()) {
+            if params[i].lt(params[i+1]) || params[i].equals(params[i+1]) {
                 return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(false)))
             }
         }
@@ -1154,10 +1213,8 @@ fun main(argc: int, argv: **char): int {
         if params.size <= 1 {
             return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 or more params to >="))))
         }
-        if !params[0].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called >= with first not an int")))); }
         for (var i = 0; i < params.size - 1; i++;) {
-            if !params[i+1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("called >= with not an int")))); }
-            if !(params[i].get_int() >= params[i+1].get_int()) {
+            if params[i].lt(params[i+1]) {
                 return make_pair(null<KPEnv>(), KPResult::Ok(kpBool(false)))
             }
         }

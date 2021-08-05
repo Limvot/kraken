@@ -223,6 +223,9 @@ obj str (Object, Serializable, Hashable) {
             r++
         }
     }
+    fun operator<(other: ref str): bool {
+        return *this <= other && *this != other
+    }
 
     fun operator*(n: int): str {
         var to_ret.construct(): str
