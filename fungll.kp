@@ -38,10 +38,16 @@
     altStart                  (lambda (t s k c) id)
     altOp    (lambda (p q)    (lambda (t s k c) (lcompose (p t s k c) (q t s [] k c))))
     term_parser                 (lambda (t [X b i] l k c) (lambda (sigma)
-        (let (this_term (idx b (- i 1)))
-                (if (= this_term (slice t k (+ k (len this_term)))) ((c [[X b i] l (+ (len this_term) k)]) sigma)
+        (let (this_term (idx b (- i 1))
+              _ (println "term parser looking for " this_term " at position " k " in " t)
+             )
+                (if (and (<= (+ k (len this_term)) (len t)) (= this_term (slice t k (+ k (len this_term))))) ((c [[X b i] l (+ (len this_term) k)]) sigma)
                                                     sigma))))
-    term (lambda (s) [ s term_parser ])
+    ; the extra lambda layer of indirection is so that
+    ; recursive nonterminals can be made with rec-let, which
+    ; only works on functions. So both term types get wrapped in
+    ; an extra function which is evaluated in seqOp and parse
+    term (lambda (s) (lambda () [ s term_parser ]))
 
     continue (lambda (BSR_element c) (lambda ([U G P Y])
             (let (
@@ -54,10 +60,12 @@
             ) (if (set-contains? U descriptor) [U G P Yp]
                                                ((c descriptor) [Up G P Yp])))))
     seqStart (lambda (t X b l c0) (continue [[X b 0] l l l] c0))
-    seqOp (lambda (p [s q]) (lambda (t X b l c0) (let (
-                                c1 (lambda ([slot l k]) (let (
+    seqOp (lambda (p s_q) (lambda (t X b l c0) (let (
+                                ; see term discussion about extra lambda wrap
+                                [s q] (s_q)
+                                c1 (lambda ([[X b i] l k]) (let (
                                     c2 (lambda ([slot l r]) (continue [slot l k r] c0))
-                                   ) (q t slot l k c2)))
+                                   ) (q t [X b (+ 1 i)] l k c2)))
                                ) (p t X (cons s b) l c1))))
 
     cont_for (lambda (s p) (lambda ([[s d i] k r]) (lambda ([U G P Y]) (let (
@@ -72,9 +80,12 @@
         ) (if (= 0 (size R)) ((p t s k (cont_for s p)) sigmap)
                              (set-foldl (lambda (cp r) (lcompose cp (c [gram_slot l r]))) id R)
         )))))
-    nterm (lambda (s p) [ s (nterm_parser p) ])
-    parse (lambda ([s f]) (lambda (t)
+    ; see term discussion about extra lambda wrap
+    nterm (lambda (s p) (lambda () [ s (nterm_parser p) ]))
+    parse (lambda (s_f) (lambda (t)
         (let (
+            ; see term discussion about extra lambda wrap
+            [s f] (s_f)
             X '__FUNGLL_UNIQUE_START_SYMBOL__
             sigma [ set-empty multimap-empty multimap-empty set-empty ]
             c (lambda (descriptor) (lambda (sigma) sigma))

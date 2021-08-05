@@ -35,7 +35,7 @@
 
     _ (println "The a|a,A parser")
     just_aa_parser (let-rec (
-                        As (nterm 'A (altOp (altOp altStart (seqOp seqStart (term "a"))) (seqOp (seqOp seqStart (term ",")) As)))
+                        As (nterm 'A (altOp (altOp altStart (seqOp seqStart (term "a"))) (seqOp (seqOp (seqOp seqStart (term "a")) (term ",")) As)))
                     ) (parse As))
     _ (println "parse result for a " (just_aa_parser "a"))
     _ (println "parse result for b " (just_aa_parser "b"))
