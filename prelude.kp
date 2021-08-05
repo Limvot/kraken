@@ -121,11 +121,15 @@
             ))) (vau de (vs b) (vapply let (array (destructure_helper vs 0 (array)) b) de)))
 
         ; and a destructuring-capable lambda!
-        lambda (vau se (p b) (let (
-            sym_params (map (lambda (param) (if (symbol? param) param
-                                                                (str-to-symbol (str param)))) p)
-            body (array let (flat_map_i (lambda (i x) (array (idx p i) x)) sym_params) b)
-        ) (wrap (eval (array vau (quote _) sym_params body) se))))
+        only_symbols (rec-lambda recurse (a i) (cond (= i (len a))       true
+                                                     (symbol? (idx a i)) (recurse a (+ i 1))
+                                                     true                false))
+        lambda (vau se (p b) (if (only_symbols p 0) (vapply lambda (array p b) se)
+            (let (
+                sym_params (map (lambda (param) (if (symbol? param) param
+                                                                    (str-to-symbol (str param)))) p)
+                body (array let (flat_map_i (lambda (i x) (array (idx p i) x)) sym_params) b)
+            ) (wrap (eval (array vau (quote _) sym_params body) se)))))
 
         ; and rec-lambda - yes it's the same definition again
         rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
