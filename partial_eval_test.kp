@@ -1,0 +1,16 @@
+(with_import "./partial_eval.kp"
+(let (
+    test-case (lambda (code) (let (
+                    _ (println "Code: " code)
+                    partially_evaled (partial_eval code)
+                    _ (println "Partially evaled: " partially_evaled)
+                    fully_evaled (eval (val partially_evaled))
+                    _ (println "Fully evaled: " fully_evaled)
+                    _ (println)
+              ) fully_evaled))
+
+    simple_add (read-string "(+ 1 2)")
+    vau_with_add (read-string "(vau de (x) (+ (eval x de) (+ 1 2)))")
+    _ (test-case simple_add)
+    _ (test-case vau_with_add)
+) nil))

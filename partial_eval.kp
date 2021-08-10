@@ -1,0 +1,119 @@
+(with_import "./collections.kp"
+(let (
+    ; This partial eval only works via the root env,
+    ; since we can't tell from outside if something takes an env
+    ; or not
+    ; Also, based on that, we have to switch on every primitive...
+
+
+    ; Here is every form in k'
+    ; True
+    ; False
+    ; Env: *KPEnv
+    ; Combiner: KPCombiner / BuiltinCombiner: KPBuiltinCombiner
+    ; String: str
+    ; Symbol: str
+    ; Int: int
+    ; Array: rc<vec<KPValue>>
+    ; Nil
+
+
+    ; Ok, some more things we need / need to change
+
+    ; Arrays need to be able to contain some combination of now and later that 
+    ; can be extracted correctly by the relevent operators (idx, slice)
+
+    ; Vau needs to be handled, obv, which will require a handling of it
+    ; pre-evaluating the parameters. The more I think about it, the more
+    ; straight forward it seems actually - it can mostly mirror actual vau?
+
+    ; how should empty-env be handled? More generally, how much do we reify enviornments?
+
+    ; meta...
+
+    ; I think now/later will have to be split into
+    ; later/now_value/array/comb(wrap_level / dynamic_env_usage?)/env
+    ; Env will need special checking for escaping, including when contained inside of an array or other combinator
+    ; Actually, that extends to checking escaping for combinators in general, since they may close over laters
+
+
+    now? (lambda (x) (= 'now (idx x 0)))
+    val  (lambda (x) (idx x 1))
+    partial_eval_helper (rec-lambda recurse (x env)
+        (cond   (= x true)                      ['now true ]
+                (= x false)                     ['now false]
+                (env? x)                        (error "called partial_eval with an env " x)
+                (combiner? x)                   (error "called partial_eval with a combiner, not yet supported (assuming just parsed symbols etc) " x)
+                (string? x)                     ['now x]
+                (symbol? x)                     (get-value env x)
+                (int? x)                        ['now x]
+                (and (array? x) (= 0 (len x)))  (error "Partial eval on empty array")
+                (array? x)                      (let (
+                                                    subs (map (lambda (y) (recurse y env)) x)
+                                                    comb (idx subs 0)
+                                                ) (if (now? comb) ((val comb) (slice subs 1 -1))
+                                                                  ['later (map val subs)]))
+                (nil? x)                        ['now x]
+
+        )
+    )
+    needs_params_real (vau de (f_sym) ['now (lambda (params) (if (foldl (lambda (a x) (and a (now? x))) true params) ['now (lapply (eval f_sym de) (map val params))]
+                                                                                                                     ['later (cons f_sym (map val params))])) ])
+    partial_eval (lambda (x) (partial_eval_helper x [
+        ; vau
+        ; eval
+        ; cond
+        [ 'symbol? (needs_params_real symbol?) ]
+        [ 'int? (needs_params_real int?) ]
+        [ 'string? (needs_params_real string?) ]
+        ; combiner?
+        ; env?
+        [ 'nil? (needs_params_real nil?) ]
+        [ 'bool? (needs_params_real bool?) ]
+        ; array?
+        [ 'str-to-symbol (needs_params_real str-to-symbol) ]
+        [ 'get-text (needs_params_real get-text) ]
+        ; array
+        ; len
+        ; idx
+        ; slice
+        ; concat
+        [ '+ (needs_params_real +) ]
+        [ '- (needs_params_real -) ] 
+        [ '* (needs_params_real *) ] 
+        [ '/ (needs_params_real /) ] 
+        [ '% (needs_params_real %) ] 
+        [ '& (needs_params_real &) ] 
+        [ '| (needs_params_real |) ] 
+        [ '<< (needs_params_real <<) ]
+        [ '>> (needs_params_real >>) ]
+        [ '= (needs_params_real =) ]
+        [ '!= (needs_params_real !=) ]
+        [ '< (needs_params_real <) ]
+        [ '<= (needs_params_real <=) ]
+        [ '> (needs_params_real >) ]
+        [ '>= (needs_params_real >=) ]
+
+        ; Don't forget, these short-circut with the truthy/falsey values
+        ; and
+        ; or
+
+        ; pr-str
+        [ 'str (needs_params_real str) ]
+        [ 'prn (needs_params_real prn) ]
+        ; println
+        ; meta
+        ; with-meta
+        ; wrap
+        ; unwrap
+        ; error
+        ; recover
+        ; read-string
+        ; slurp
+        ; get_line
+        ; write_file
+        ; empty_env
+    ]))
+)
+    (provide partial_eval now? val)
+))
