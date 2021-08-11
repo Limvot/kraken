@@ -199,7 +199,7 @@
                (array (quote number) (array "(0(x|X)([0-9]|[a-f]|[A-F])+)|(-?[0-9]+)") (lambda (x) (string-to-int x)))
                (array (quote string) (array "\"([#-[]|	|[]-~]|(\\\\\\\\)|(\\\\n)|(\\\\t)|(\\*)|(\\\\0)|
 |[ -!]|(\\\\\"))*\"") (lambda (x) (unescape-str x)))
-               (array (quote bool_nil_symbol) (array "-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|\\||<|>|%|$)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|\\||<|>|%|$|\\.)*)") (lambda (x) (cond (= "true" x) true
+               (array (quote bool_nil_symbol) (array "-|(([a-z]|[A-Z]|_|\\*|/|\\?|\\+|!|=|&|\\||<|>|%|$|\\.)([a-z]|[A-Z]|_|[0-9]|\\*|\\?|\\+|-|!|=|&|\\||<|>|%|$|\\.)*)") (lambda (x) (cond (= "true" x) true
                                                                   (= "false" x) false
                                                                   (= "nil" x) nil
                                                                   true        (str-to-symbol x))))
