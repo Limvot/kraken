@@ -94,26 +94,30 @@
                                          (if (foldl (lambda (a x) (and a (val? x))) true evaled_params) ['val (lapply actual_function (map .val evaled_params))]
                                                                                                         ['later (cons actual_function params)])))
         ) [f_sym ['prim_comb handler actual_function]]))
+    give_up (vau de (f_sym) (let (
+        actual_function (eval f_sym de)
+        handler (lambda (de params) ['later (cons actual_function params)])
+        ) [f_sym ['prim_comb handler actual_function]]))
 
     partial_eval (lambda (x) (partial_eval_helper x [
-        ; vau
-        ; eval
-        ; cond
+        (give_up vau)
+        (give_up eval)
+        (give_up cond)
         (needs_params_val_lambda symbol?)
         (needs_params_val_lambda int?)
         (needs_params_val_lambda string?)
-        ; combiner?
-        ; env?
+        (give_up combiner?)
+        (give_up env?)
         (needs_params_val_lambda nil?)
         (needs_params_val_lambda bool?)
-        ; array?
+        (give_up array?)
         (needs_params_val_lambda str-to-symbol)
         (needs_params_val_lambda get-text)
-        ; array
-        ; len
-        ; idx
-        ; slice
-        ; concat
+        (give_up array)
+        (give_up len)
+        (give_up idx)
+        (give_up slice)
+        (give_up concat)
         (needs_params_val_lambda +)
         (needs_params_val_lambda -)
         (needs_params_val_lambda *)
@@ -131,24 +135,24 @@
         (needs_params_val_lambda >=)
 
         ; Don't forget, these short-circut with the truthy/falsey values
-        ; and
-        ; or
+        (give_up and)
+        (give_up or)
 
         ; pr-str
         (needs_params_val_lambda str)
         (needs_params_val_lambda prn)
-        ; println
-        ; meta
-        ; with-meta
-        ; wrap
-        ; unwrap
-        ; error
-        ; recover
-        ; read-string
-        ; slurp
-        ; get_line
-        ; write_file
-        ; empty_env
+        (give_up println)
+        (give_up meta)
+        (give_up with-meta)
+        (give_up wrap)
+        (give_up unwrap)
+        (give_up error)
+        (give_up recover)
+        (give_up read-string)
+        (give_up slurp)
+        (give_up get_line)
+        (give_up write_file)
+        (give_up empty_env)
     ]))
 )
     (provide partial_eval strip)

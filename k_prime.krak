@@ -152,13 +152,15 @@ fun make_builtin_combiner(name: str, wrap_level: int, tco_eval: bool, f: fun(vec
 obj KPCombiner (Object) {
     var env: *KPEnv
     var dynamic_env_name: str
+    var uses_dynamic_env: bool
     var wrap_level: int
     var parameters: vec<str>
     var is_variadic: bool
     var body: *KPValue
-    fun construct(env: *KPEnv, dynamic_env_name: str, parameters: vec<str>, is_variadic: bool, body: KPValue): *KPCombiner {
+    fun construct(env: *KPEnv, dynamic_env_name: str, uses_dynamic_env: bool, parameters: vec<str>, is_variadic: bool, body: KPValue): *KPCombiner {
         this->env = env
         this->dynamic_env_name.copy_construct(&dynamic_env_name)
+        this->uses_dynamic_env = uses_dynamic_env
         this->wrap_level = 0
         this->parameters.copy_construct(&parameters)
         this->is_variadic = is_variadic
@@ -169,6 +171,7 @@ obj KPCombiner (Object) {
     fun copy_construct(old: *KPCombiner): void {
         this->env = old->env
         this->dynamic_env_name.copy_construct(&old->dynamic_env_name)
+        this->uses_dynamic_env = old->uses_dynamic_env
         this->wrap_level = old->wrap_level 
         this->parameters.copy_construct(&old->parameters)
         this->is_variadic = old->is_variadic
@@ -188,11 +191,11 @@ obj KPCombiner (Object) {
     }
     fun operator==(other: ref KPCombiner):bool {
         // not sure about env
-        return env == other.env && dynamic_env_name == other.dynamic_env_name && wrap_level == other.wrap_level && parameters == other.parameters && is_variadic == other.is_variadic && body->equals(*other.body)
+        return env == other.env && dynamic_env_name == other.dynamic_env_name && uses_dynamic_env == other.uses_dynamic_env && wrap_level == other.wrap_level && parameters == other.parameters && is_variadic == other.is_variadic && body->equals(*other.body)
     }
     fun operator<(other: ref KPCombiner):bool {
         // not sure about env
-        return *env < *other.env || dynamic_env_name < other.dynamic_env_name || wrap_level < other.wrap_level || parameters < other.parameters || is_variadic < other.is_variadic || body->lt(*other.body)
+        return *env < *other.env || dynamic_env_name < other.dynamic_env_name || uses_dynamic_env < other.uses_dynamic_env || wrap_level < other.wrap_level || parameters < other.parameters || is_variadic < other.is_variadic || body->lt(*other.body)
     }
     // no call b/c need to do in EVAL for TCO
     fun prep_call(params: ref vec<KPValue>, dynamic_env: KPValue): pair<*KPEnv, KPResult> {
@@ -220,7 +223,9 @@ obj KPCombiner (Object) {
                 new_env->set(parameters[i], params[i])
             }
         }
-        new_env->set(dynamic_env_name, dynamic_env)
+        if uses_dynamic_env {
+            new_env->set(dynamic_env_name, dynamic_env)
+        }
         /*println("Calling with\n" + new_env->to_string())*/
         return make_pair(new_env, KPResult::Ok(*body))
     }
@@ -836,19 +841,25 @@ fun main(argc: int, argv: **char): int {
 
     env->set(str("vau"), make_builtin_combiner(str("vau"), 0, false, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         var param_symbols = vec<str>()
-        if params.size != 3 {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("bad number of params to vau"))))
+        if params.size != 2 && params.size != 3 {
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("bad number of params to vau: ") + params.size)))
         }
-        if !params[0].is_symbol() {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("first param to vau is not symbol"))))
+        var uses_dynamic_env = params.size == 3
+        var offset = 0
+        var dynamic_env_name = str()
+        if uses_dynamic_env {
+            if !params[0].is_symbol() {
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("first param to vau is not symbol"))))
+            }
+            dynamic_env_name = params[0].get_symbol_text()
+            offset = 1
         }
-        var dynamic_env_name = params[0].get_symbol_text()
         var is_variadic = false
         var parameters = vec<str>()
-        if !params[1].is_array() {
+        if !params[offset+0].is_array() {
             return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to vau is not array"))))
         }
-        var parameter_objects = params[1].get_array_rc()
+        var parameter_objects = params[offset+0].get_array_rc()
         for (var i = 0; i < parameter_objects.get().size; i++;) {
             if !parameter_objects.get()[i].is_symbol() {
                 return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to vau has a not symbol member: ") + pr_str(parameter_objects.get()[i], true))))
@@ -860,7 +871,7 @@ fun main(argc: int, argv: **char): int {
                 parameters.add(parameter)
             }
         }
-        var to_ret.construct(dynamic_env, dynamic_env_name, parameters, is_variadic, params[2]) : KPCombiner
+        var to_ret.construct(dynamic_env, dynamic_env_name, uses_dynamic_env, parameters, is_variadic, params[offset+1]) : KPCombiner
         return make_pair(null<KPEnv>(), KPResult::Ok(nmMV(KPValue_int::Combiner(to_ret))))
     }));
     // Uses TCO

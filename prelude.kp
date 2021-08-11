@@ -1,8 +1,8 @@
 
 ((wrap (vau root_env (quote)
-((wrap (vau _ (let1)
+((wrap (vau (let1)
 
-(let1 lambda (vau se (p b) (wrap (eval (array vau (quote _) p b) se)))
+(let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
 
 (let1 do_helper (lambda (recurse s i se) (cond (= i (len s)) nil
                                                (= i (- (len s) 1)) (eval (idx s i) se)
@@ -129,7 +129,7 @@
                 sym_params (map (lambda (param) (if (symbol? param) param
                                                                     (str-to-symbol (str param)))) p)
                 body (array let (flat_map_i (lambda (i x) (array (idx p i) x)) sym_params) b)
-            ) (wrap (eval (array vau (quote _) sym_params body) se)))))
+            ) (wrap (eval (array vau sym_params body) se)))))
 
         ; and rec-lambda - yes it's the same definition again
         rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
@@ -291,7 +291,7 @@
 )))))))))) ; end of all the let1's
 
 ; impl of let1
-)) (vau de (s v b) (eval (array (array vau (quote _) (array s) b) (eval v de)) de)))
+)) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))
 ; impl of quote
-)) (vau _ (x) x))
+)) (vau (x) x))
 
