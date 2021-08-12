@@ -2,7 +2,7 @@
 (let (
     test-case (lambda (code) (let (
                     _ (println "Code: " code)
-                    partially_evaled (partial_eval code)
+                    [comb_to_mark_map partially_evaled] (partial_eval code)
                     _ (println "Partially evaled: " partially_evaled)
                     stripped (strip partially_evaled)
                     _ (println "Stripped: " stripped)

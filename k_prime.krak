@@ -1005,7 +1005,7 @@ fun main(argc: int, argv: **char): int {
         if params.size != 2 {
             return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 2 params to idx"))))
         }
-        if !params[0].is_array() && !params[0].is_string() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Param 1 to idx is not string or array") + pr_str(params[0], true)))); }
+        if !params[0].is_array() && !params[0].is_string() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Param 1 to idx is not string or array") + pr_str(params[0], true) + " " + "\nenv was\n" + dynamic_env->to_string()))); }
         if !params[1].is_int() { return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Param 2 to idx is not int ") + pr_str(params[1], true)))); }
 
         var index = params[1].get_int()

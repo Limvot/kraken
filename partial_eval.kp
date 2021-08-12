@@ -20,19 +20,8 @@
 
     ; Ok, some more things we need / need to change
 
-    ; Arrays need to be able to contain some combination of now and later that 
-    ; can be extracted correctly by the relevent operators (idx, slice)
-
-    ; Vau needs to be handled, obv, which will require a handling of it
-    ; pre-evaluating the parameters. The more I think about it, the more
-    ; straight forward it seems actually - it can mostly mirror actual vau?
-
-    ; how should empty-env be handled? More generally, how much do we reify enviornments?
-
     ; meta...
 
-    ; I think now/later will have to be split into
-    ; later/now_value/array/comb(wrap_level / dynamic_env_usage?)/env
     ; Env will need special checking for escaping, including when contained inside of an array or other combinator
     ; Actually, that extends to checking escaping for combinators in general, since they may close over laters
 
@@ -42,7 +31,7 @@
     ; ['marked_array a] (a contains marked values)
     ; ['comb wrap_level de? se params body <actual_function>]
     ; ['prim_comb <handler_function> <actual_function>]
-    ; ['env [ ['symbol marked_value ]... ] <name_it_can_be_found_as(changes, must not escape)>]
+    ; ['env [ ['symbol marked_value ]... ] <actual_env>]
 
 
     val? (lambda (x) (= 'val (idx x 0)))
@@ -55,6 +44,8 @@
     prim_comb? (lambda (x) (= 'prim_comb (idx x 0)))
     .prim_comb (lambda (x) (idx x 1))
     marked_env? (lambda (x) (= 'env (idx x 0)))
+    .env_marked (lambda (x) (idx x 1))
+    .env_real (lambda (x) (idx x 2))
 
     strip (rec-lambda recurse (x)
         (cond (val? x)          (.val x)
@@ -66,41 +57,66 @@
         )
     )
 
+    ; GAH ok additionally
+    ; partial_eval_helper will have to deal with combinator values (at least, primitives, I suspect all)
+    ; as it might have to use them to reconstruct an expression on strip,
+    ; and we will have to partially-eval previously strip'ped expressions when
+    ; calling functions whose definition we partially-evaled, etc.
     ; partial_eval_helper always takes in unmarked expressions and makes marked ones, maintaining marked envs
-    partial_eval_helper (rec-lambda recurse (x env)
-        (cond   (= x true)                      ['val true ]
-                (= x false)                     ['val false]
+    ;
+    ; If indeed we have to keep track of non-primitive combinator values (which I think makes sense for stripping),
+    ; we'll have to continually keep a map
+    ; of values to their definition.
+
+    partial_eval_helper (rec-lambda recurse (x env comb_to_mark_map)
+        (cond   (= x true)                      [comb_to_mark_map ['val true ]]
+                (= x false)                     [comb_to_mark_map ['val false]]
                 (env? x)                        (error "called partial_eval with an env " x)
                 (combiner? x)                   (error "called partial_eval with a combiner, not yet supported (assuming just parsed symbols etc) " x)
-                (string? x)                     ['val x]
-                (symbol? x)                     (get-value env x)
-                (int? x)                        ['val x]
+                (string? x)                     [comb_to_mark_map ['val x]]
+                (symbol? x)                     [comb_to_mark_map (get-value (.env_marked env) x)]
+                (int? x)                        [comb_to_mark_map ['val x]]
                 (and (array? x) (= 0 (len x)))  (error "Partial eval on empty array")
-                (array? x)                      (let ( comb (recurse (idx x 0) env) )
-                                                     (cond (later? comb)     ['later x]
-                                                           (prim_comb? comb) ((.prim_comb comb) env (slice x 1 -1))
+                (array? x)                      (let ( [comb_to_mark_map comb] (recurse (idx x 0) env comb_to_mark_map) )
+                                                     (cond (later? comb)     [comb_to_mark_map ['later x]]
+                                                           (prim_comb? comb) ((.prim_comb comb) env comb_to_mark_map (slice x 1 -1))
                                                            (comb? comb)      (let (
                                                                                  [wrap_level de? se params body actual_function] (.comb comb)
-                                                                                 ;subs (map (lambda (y) (recurse y env)) x)
-                                                                             ) ['later x])
+                                                                                    ; Env will need special checking for escaping, including when contained inside of an array or other combinator
+                                                                                    ; Actually, that extends to checking escaping for combinators in general, since they may close over laters
+                                                                                 ;subs (map (lambda (y) (recurse y env comb_to_mark_map)) x)
+                                                                             ) [comb_to_mark_map ['later x]])
                                                            true              (error (str "Partial eval noticed that you will likely call not a function " x))))
-                (nil? x)                        ['val x]
+                (nil? x)                        [comb_to_mark_map ['val x]]
 
         )
     )
     needs_params_val_lambda (vau de (f_sym) (let (
         actual_function (eval f_sym de)
-        handler (lambda (de params) (let (evaled_params (map (lambda (x) (partial_eval_helper x de)) params))
-                                         (if (foldl (lambda (a x) (and a (val? x))) true evaled_params) ['val (lapply actual_function (map .val evaled_params))]
-                                                                                                        ['later (cons actual_function params)])))
+        handler (lambda (de comb_to_mark_map params) (let (
+                [comb_to_mark_map evaled_params] (map (lambda (x) (partial_eval_helper x de comb_to_mark_map)) params)
+                [comb_to_mark_map evaled_params] (foldl (lambda ([comb_to_mark_map evaleds] x) (let (
+                                                                     [comb_to_mark_map evaled] (partial_eval_helper x de comb_to_mark_map)
+                                                                 ) [comb_to_mark_map (cons evaled evaleds)])) [comb_to_mark_map []] params)
+            )
+            (if (foldl (lambda (a x) (and a (val? x))) true evaled_params) [comb_to_mark_map ['val (lapply actual_function (map .val evaled_params))]]
+                                                                           [comb_to_mark_map ['later (cons actual_function params)]])))
         ) [f_sym ['prim_comb handler actual_function]]))
     give_up (vau de (f_sym) (let (
         actual_function (eval f_sym de)
-        handler (lambda (de params) ['later (cons actual_function params)])
+        handler (lambda (de comb_to_mark_map params) [comb_to_mark_map ['later (cons actual_function params)]])
         ) [f_sym ['prim_comb handler actual_function]]))
 
-    partial_eval (lambda (x) (partial_eval_helper x [
+    root_marked_env ['env [
+        ; Ok, so for combinators, it should partial eval the body.
+        ; It should then check to see if the partial-evaled body has closed over
+        ; any 'later values from above the combinator. If so, the combinator should
+        ; evaluate to a ['later [vau de? params (strip partially_evaled_body)]], otherwise it can evaluate to a 'comb.
+        ; Note that this 'later may be re-evaluated later if the parent function is called.
         (give_up vau)
+
+        ; eval should have it's parameters partially -evaled, then partially-eval e again.
+        ; failure can 'later at either point
         (give_up eval)
         (give_up cond)
         (needs_params_val_lambda symbol?)
@@ -152,8 +168,14 @@
         (give_up slurp)
         (give_up get_line)
         (give_up write_file)
-        (give_up empty_env)
-    ]))
+        ['empty_env ['env [] empty_env]]
+    ] root_env]
+
+    comb_to_mark_map (foldl (lambda (a x) (cond (comb?      (idx x 1)) (put a (idx (idx x 1) 6) (idx x 1))
+                                                (prim_comb? (idx x 1)) (put a (idx (idx x 1) 2) (idx x 1))
+                                                true                   a
+                                          ) ) empty_dict (idx root_marked_env 1))
+    partial_eval (lambda (x) (partial_eval_helper x root_marked_env comb_to_mark_map))
 )
     (provide partial_eval strip)
 ))
