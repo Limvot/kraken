@@ -890,7 +890,7 @@ fun main(argc: int, argv: **char): int {
     // cond uses TCO
     env->set(str("cond"), make_builtin_combiner(str("cond"), 0, true, fun(params: vec<KPValue>, dynamic_env: *KPEnv): pair<*KPEnv, KPResult> {
         if (params.size % 2) != 0 {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need even number of params to cond"))))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need even number of params to cond, have: ") + params.size + " last is " + pr_str(params[params.size-1], true))))
         }
         for (var i = 0; i < params.size; i+=2;) {
             var ip = EVAL(dynamic_env, params[i])

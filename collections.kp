@@ -8,6 +8,7 @@
                                                                        (lapply f (cons (recurse f z vs (+ i 1)) (map (lambda (x) (idx x i)) vs))))))
                (lambda (f z & vs) (helper f z vs 0)))
     reverse (lambda (x) (foldl (lambda (acc i) (cons i acc)) [] x))
+    zip (lambda (& xs) (lapply foldr (concat [(lambda (a & ys) (cons ys a)) []] xs)))
     empty_dict []
     put (lambda (m k v) (cons [k v] m))
     get-value-helper (rec-lambda recurse (dict key i) (if (>= i (len dict))
@@ -21,6 +22,6 @@
                                                     (recurse (eval [ [vau '_ [(idx (idx dict i) 0)] [ [vau 'inner [] 'inner] ] ] (idx (idx dict i) 1) ] env) dict (+ i 1)))))
                       (lambda (env dict) (helper env dict 0)))
 )
-    (provide foldl foldr reverse empty_dict put get-value add-dict-to-env)
+    (provide foldl foldr reverse zip empty_dict put get-value add-dict-to-env)
 )
 
