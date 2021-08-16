@@ -54,13 +54,14 @@
     env-lookup (lambda (env key) (env-lookup-helper (idx env 1) key 0 (lambda () (error (str key " not found in env " dict))) (lambda (x) x)))
 
     strip (rec-lambda recurse (x)
+        (do (println "calling strip with " x)
         (cond (val? x)          (.val x)
               (later? x)        (.later x)
               (marked_array? x) (map recurse (idx x 1))
               (comb? x)         (idx x 6)
               (prim_comb? x)    (idx x 2)
               (makred_env? x)   (error "Env escaped to strip!")
-        )
+        ))
     )
 
     ; GAH ok additionally
@@ -156,9 +157,30 @@
             [comb_to_mark_map pe_body] (partial_eval_helper body inner_env comb_to_mark_map)
             spe_body (strip pe_body)
         ) (if (or (= nil (.env_real de)) (closes_over_outside_vars de spe_body)) [comb_to_mark_map ['later (concat [vau] vau_de? [vau_params spe_body])]]
-                                                                                 [comb_to_mark_map ['comb 0 de? de vau_params spe_body
-                                                                                         (do (println "evaling (eval " (str (concat [vau] vau_de? [vau_params spe_body]) (.env_real de)) ")" )               (eval (concat [vau] vau_de? [vau_params spe_body]) (.env_real de)))]]))
+                                                                                 (let (real_func (eval (concat [vau] vau_de? [vau_params spe_body]) (.env_real de))
+                                                                                       marked_func ['comb 0 de? de vau_params spe_body real_func]
+                                                                                 ) [(put comb_to_mark_map real_func marked_func) marked_func])))
         ) vau]]
+        ['wrap ['prim_comb (lambda (de comb_to_mark_map params) (let (
+                _ (if (!= 1 (len params)) (error (str "bad number of params to partial-eval wrap " params)))
+                [comb_to_mark_map evaled] (partial_eval_helper (idx params 0) de comb_to_mark_map)
+                ;_ (println "wrap evaled is " evaled)
+            ) (if (comb? evaled) (let ([wrap_level de? se params body actual_function] (.comb evaled)
+                                        wrapped_actual_fun (wrap actual_function)
+                                        wrapped_marked_fun ['comb (+ 1 wrap_level) de? se params body wrapped_actual_fun]
+                                      ) [(put comb_to_mark_map wrapped_actual_fun wrapped_marked_fun) wrapped_marked_fun])
+                                 [comb_to_mark_map ['later [wrap (strip evaled)]]]))
+        ) wrap]]
+        ['unwrap ['prim_comb (lambda (de comb_to_mark_map params) (let (
+                _ (if (!= 1 (len params)) (error (str "bad number of params to partial-eval unwrap " params)))
+                [comb_to_mark_map evaled] (partial_eval_helper (idx params 0) de comb_to_mark_map)
+                ;_ (println "unwrap evaled is " evaled)
+            ) (if (comb? evaled) (let ([wrap_level de? se params body actual_function] (.comb evaled)
+                                        unwrapped_actual_fun (unwrap actual_function)
+                                        unwrapped_marked_fun ['comb (- wrap_level 1) de? se params body unwrapped_actual_fun]
+                                      ) [(put comb_to_mark_map unwrapped_actual_fun unwrapped_marked_fun) unwrapped_marked_fun])
+                                 [comb_to_mark_map ['later [unwrap (strip evaled)]]]))
+        ) unwrap]]
 
         ; eval should have it's parameters partially -evaled, then partially-eval e again.
         ; failure can 'later at either point
@@ -205,8 +227,6 @@
         (give_up println)
         (give_up meta)
         (give_up with-meta)
-        (give_up wrap)
-        (give_up unwrap)
         (give_up error)
         (give_up recover)
         (give_up read-string)
