@@ -47,7 +47,7 @@
     .env_marked (lambda (x) (idx x 1))
     .env_real (lambda (x) (idx x 2))
 
-    env-lookup-helper (rec-lambda recurse (dict key i fail success) (cond (and (= i (- (len dict)) 1) (= nil (idx dict i)))  (fail)
+    env-lookup-helper (rec-lambda recurse (dict key i fail success) (cond (and (= i (- (len dict) 1)) (= nil (idx dict i)))  (fail)
                                                                           (= i (- (len dict) 1))                             (recurse (idx (idx dict i) 1) key 0 fail success)
                                                                           (= key (idx (idx dict i) 0))                       (success (idx (idx dict i) 1))
                                                                           true                                               (recurse dict key (+ i 1) fail success)))
@@ -76,8 +76,8 @@
     partial_eval_helper (rec-lambda recurse (x env comb_to_mark_map)
         (cond   (= x true)                      [comb_to_mark_map ['val true ]]
                 (= x false)                     [comb_to_mark_map ['val false]]
-                (env? x)                        (error "called partial_eval with an env " x)
-                (combiner? x)                   (error "called partial_eval with a combiner, not yet supported (assuming just parsed symbols etc) " x)
+                (env? x)                        (error (str "called partial_eval with an env " x))
+                (combiner? x)                   [comb_to_mark_map (get-value comb_to_mark_map x)]
                 (string? x)                     [comb_to_mark_map ['val x]]
                 (symbol? x)                     [comb_to_mark_map (env-lookup env x)]
                 (int? x)                        [comb_to_mark_map ['val x]]
@@ -97,23 +97,24 @@
                                                                                                                         (let ([comb_to_mark_map p] (recurse p env comb_to_mark_map))
                                                                                                                               [comb_to_mark_map (concat ac [p])]))
                                                                                                                     [comb_to_mark_map []]
-                                                                                                                    params))
+                                                                                                                    (map strip params)))
                                                                                                  (param-recurse (- wrap 1) evaled_params comb_to_mark_map))
                                                                                             [comb_to_mark_map params])
-                                                                                            ) wrap_level params comb_to_mark_map)
+                                                                                            ) wrap_level (map (lambda (p) ['val p]) (slice x 1 -1)) comb_to_mark_map)
                                                                                  de_entry (if (!= nil de?) [ [de? env] ]
                                                                                                            [])
+                                                                                 _ (println "appropriately evaled params " appropriatly_evaled_params)
                                                                                  inner_env ['env (concat (zip params appropriatly_evaled_params) de_entry [se]) nil]
+                                                                                 ;_ (println "inner_env is " inner_env)
                                                                              ) (recurse body inner_env comb_to_mark_map))
                                                            true              (error (str "Partial eval noticed that you will likely call not a function " x))))
                 (nil? x)                        [comb_to_mark_map ['val x]]
-
+                true                            (error (str "impossible partial_eval value " x))
         )
     )
     needs_params_val_lambda (vau de (f_sym) (let (
         actual_function (eval f_sym de)
         handler (lambda (de comb_to_mark_map params) (let (
-                [comb_to_mark_map evaled_params] (map (lambda (x) (partial_eval_helper x de comb_to_mark_map)) params)
                 [comb_to_mark_map evaled_params] (foldl (lambda ([comb_to_mark_map evaleds] x) (let (
                                                                      [comb_to_mark_map evaled] (partial_eval_helper x de comb_to_mark_map)
                                                                  ) [comb_to_mark_map (cons evaled evaleds)])) [comb_to_mark_map []] params)
@@ -213,9 +214,11 @@
         (give_up get_line)
         (give_up write_file)
         ['empty_env ['env [] empty_env]]
+        nil
     ] root_env]
 
-    comb_to_mark_map (foldl (lambda (a x) (cond (comb?      (idx x 1)) (put a (idx (idx x 1) 6) (idx x 1))
+    comb_to_mark_map (foldl (lambda (a x) (cond (= nil x)              a
+                                                (comb?      (idx x 1)) (put a (idx (idx x 1) 6) (idx x 1))
                                                 (prim_comb? (idx x 1)) (put a (idx (idx x 1) 2) (idx x 1))
                                                 true                   a
                                           ) ) empty_dict (idx root_marked_env 1))
