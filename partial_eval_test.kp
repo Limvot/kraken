@@ -26,6 +26,6 @@
     _ (test-case vau_with_passthrough)
     _ (test-case vau_with_no_eval_add)
     _ (test-case vau_with_wrap_add)
-    ;_ (test-case vau_with_add_p)
+    _ (test-case vau_with_add_p)
     ;_ (test-case vau_with_add_p_called)
 ) nil))

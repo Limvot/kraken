@@ -849,7 +849,7 @@ fun main(argc: int, argv: **char): int {
         var dynamic_env_name = str()
         if uses_dynamic_env {
             if !params[0].is_symbol() {
-                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("first param to vau is not symbol"))))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("first param to vau is not symbol ") + pr_str(params[0], true))))
             }
             dynamic_env_name = params[0].get_symbol_text()
             offset = 1

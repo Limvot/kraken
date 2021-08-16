@@ -121,7 +121,7 @@
                                                                  ) [comb_to_mark_map (cons evaled evaleds)])) [comb_to_mark_map []] params)
             )
             (if (foldl (lambda (a x) (and a (val? x))) true evaled_params) [comb_to_mark_map ['val (lapply actual_function (map .val evaled_params))]]
-                                                                           [comb_to_mark_map ['later (cons actual_function params)]])))
+                                                                           [comb_to_mark_map ['later (cons actual_function (map strip evaled_params))]])))
         ) [f_sym ['prim_comb handler actual_function]]))
     give_up (vau de (f_sym) (let (
         actual_function (eval f_sym de)
@@ -150,7 +150,7 @@
         ;(give_up vau)
         ['vau ['prim_comb (lambda (de comb_to_mark_map params) (let (
             de?         (if (= 3 (len params)) (idx params 0))
-            vau_de?     (if (= nil de?) [] [de])
+            vau_de?     (if (= nil de?) [] [de?])
             vau_params  (if (= nil de?) (idx params 0) (idx params 1))
             body        (if (= nil de?) (idx params 1) (idx params 2))
             inner_env   ['env (concat (map (lambda (p) [p ['later p]]) vau_params) (if (= nil de?) [] [ [de? ['later de?]] ]) [de]) nil]
