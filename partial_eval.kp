@@ -228,7 +228,21 @@
             _ (println "after second eval, " eval_2_body)
         ) [comb_to_mark_map eval_2_body]
         )))) eval]]
-        (give_up cond)
+        ['cond ['prim_comb (lambda (de comb_to_mark_map params)
+            (if (!= 0 (% (len params) 2)) (error (str "partial eval cond with odd params " params))
+                (let ([comb_to_mark_map evaled_params] (foldl (lambda ([comb_to_mark_map ac] p)
+                                                                 (let ([comb_to_mark_map p] (partial_eval_helper p de comb_to_mark_map))
+                                                                       [comb_to_mark_map (concat ac [p])]))
+                                                              [comb_to_mark_map []]
+                                                              params)
+                      _ (println "Cond evaluated its parameters to " evaled_params)
+                ) ((rec-lambda recurse (i)
+                                          (cond (later? (idx evaled_params i))      [comb_to_mark_map ['later (cons cond (slice (map strip evaled_params) i -1))]]
+                                                (and (val? (idx evaled_params i))
+                                                (not (.val (idx evaled_params i)))) (recurse (+ 2 i))
+                                                true                                [comb_to_mark_map (idx evaled_params (+ 1 i))])
+                   ) 0)))
+        ) cond]]
         (needs_params_val_lambda symbol?)
         (needs_params_val_lambda int?)
         (needs_params_val_lambda string?)
