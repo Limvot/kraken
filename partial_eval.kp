@@ -51,7 +51,7 @@
                                                                           (= i (- (len dict) 1))                             (recurse (idx (idx dict i) 1) key 0 fail success)
                                                                           (= key (idx (idx dict i) 0))                       (success (idx (idx dict i) 1))
                                                                           true                                               (recurse dict key (+ i 1) fail success)))
-    env-lookup (lambda (env key) (env-lookup-helper (idx env 1) key 0 (lambda () (error (str key " not found in env " dict))) (lambda (x) x)))
+    env-lookup (lambda (env key) (env-lookup-helper (idx env 1) key 0 (lambda () (error (str key " not found in env " (idx env 1)))) (lambda (x) x)))
 
     strip (rec-lambda recurse (x)
         (do (println "calling strip with " x)
@@ -60,7 +60,8 @@
               (marked_array? x) (map recurse (idx x 1))
               (comb? x)         (idx x 6)
               (prim_comb? x)    (idx x 2)
-              (makred_env? x)   (error "Env escaped to strip!")
+              (marked_env? x)   (error "Env escaped to strip!")
+              true              (error (str "some other strip? " x))
         ))
     )
 
@@ -87,10 +88,17 @@
                                                                              ; it seems like even if it's later we should be able to eval some?
                                                                              ; Maybe there should be something between 'later and 'comb made in vau
                                                                              ; for those sorts of cases, but maybe it doesn't matter?
-                                                     (cond (later? comb)     [comb_to_mark_map ['later x]]
+                                                                             ; NOTE: it does matter, and we def need an in between.
+                                                                             ; Consider a nested vau "((vau de (y) ((vau dde (z) (+ 1 (eval z dde))) y)) 17)"
+                                                                             ; This won't partially evaluate much at all (besides resolving global functions)
+                                                                             ; because the inner vau will never evaluate to a comb, since it didn't have a real env
+                                                                             ; (because of a bug, actually, MAYYYYYBE we still don't need it?), and thus couldn't then be called
+                                                                             ; even though that call would do the evaluation without any real env and would have succeded.
+                                                     (cond (later? comb)     [comb_to_mark_map ['later (cons (strip comb) (slice x 1 -1))]]
                                                            (prim_comb? comb) ((.prim_comb comb) env comb_to_mark_map (slice x 1 -1))
                                                            (comb? comb)      (let (
                                                                                  [wrap_level de? se params body actual_function] (.comb comb)
+                                                                                 literal_params (slice x 1 -1)
                                                                                  [comb_to_mark_map appropriatly_evaled_params] ((rec-lambda param-recurse (wrap params comb_to_mark_map)
                                                                                         (if (!= 0 wrap)
                                                                                             (let ([comb_to_mark_map evaled_params]
@@ -101,13 +109,30 @@
                                                                                                                     (map strip params)))
                                                                                                  (param-recurse (- wrap 1) evaled_params comb_to_mark_map))
                                                                                             [comb_to_mark_map params])
-                                                                                            ) wrap_level (map (lambda (p) ['val p]) (slice x 1 -1)) comb_to_mark_map)
-                                                                                 de_entry (if (!= nil de?) [ [de? env] ]
-                                                                                                           [])
+                                                                                            ) wrap_level (map (lambda (p) ['val p]) literal_params) comb_to_mark_map)
+                                                                                 de_entry (if (!= nil de?) [ [de? env] ] [])
                                                                                  _ (println "appropriately evaled params " appropriatly_evaled_params)
-                                                                                 inner_env ['env (concat (zip params appropriatly_evaled_params) de_entry [se]) nil]
-                                                                                 ;_ (println "inner_env is " inner_env)
-                                                                             ) (recurse body inner_env comb_to_mark_map))
+                                                                                 de_real_entry (if (!= nil de?) [ [de? (.env_real env)] ] nil)
+                                                                                 se_real_env (.env_real se)
+                                                                                 inner_real_env (if (and de_real_entry se_real_env)
+                                                                                                    (add-dict-to-env se_real_env
+                                                                                                                     (concat (zip params (map strip appropriatly_evaled_params))
+                                                                                                                             de_real_entry))
+                                                                                                    nil)
+                                                                                 ;inner_real_env nil
+                                                                                 inner_env ['env (concat (zip params appropriatly_evaled_params) de_entry [se]) inner_real_env]
+                                                                                 _ (println "going to eval " body " with inner_env is " inner_env)
+                                                                                 ; Ok, this might be a later, in which case we need to re-wrap up in a vau, since
+                                                                                 ; it might depend on our parameter symbols, if they're used as parameters to
+                                                                                 ; a 'later value that might be a vau, since we don't know if they have to be evaluated and thus
+                                                                                 ; can't partially evaluate them.
+                                                                                 [comb_to_mark_map func_result] (recurse body inner_env comb_to_mark_map)
+                                                                                 ; theretically we could save some of the partial eval here by making a new
+                                                                                 ; unwrapped comb attached to the partially evaluated parameters and even
+                                                                                 ; the partially evaluated body...
+                                                                                 result (if (later? func_result) [comb_to_mark_map ['later (cons (strip comb) literal_params)]]
+                                                                                                                 [comb_to_mark_map func_result])
+                                                                             ) result)
                                                            true              (error (str "Partial eval noticed that you will likely call not a function " x))))
                 (nil? x)                        [comb_to_mark_map ['val x]]
                 true                            (error (str "impossible partial_eval value " x))
@@ -137,7 +162,7 @@
     ; a new binding scope & would be shadowing... we should at least be able to implement it for
     ; vau/lambda, but we won't at first
     closes_over_outside_vars (rec-lambda recurse (env body) (cond
-                (symbol? body)                     (env-lookup-helper (idx env 1) body 0 (lambda () false) (lambda (x) true))
+                (symbol? body)                     (env-lookup-helper (idx env 1) body 0 (lambda () false) (lambda (x) [body]))
                 (array? body)                      (foldl (lambda (a x) (or a (recurse env x))) false body)
                 true                               false))
 
@@ -156,9 +181,12 @@
             inner_env   ['env (concat (map (lambda (p) [p ['later p]]) vau_params) (if (= nil de?) [] [ [de? ['later de?]] ]) [de]) nil]
             [comb_to_mark_map pe_body] (partial_eval_helper body inner_env comb_to_mark_map)
             spe_body (strip pe_body)
-        ) (if (or (= nil (.env_real de)) (closes_over_outside_vars de spe_body)) [comb_to_mark_map ['later (concat [vau] vau_de? [vau_params spe_body])]]
+            for_later (or (= nil (.env_real de)) (closes_over_outside_vars de spe_body))
+            _ (println "for_later is " for_later " for " params " because of either env being null " (= nil (.env_real de)) " or " spe_body " closing over ourside " (closes_over_outside_vars de spe_body))
+        ) (if for_later [comb_to_mark_map ['later (concat [vau] vau_de? [vau_params spe_body])]]
                                                                                  (let (real_func (eval (concat [vau] vau_de? [vau_params spe_body]) (.env_real de))
                                                                                        marked_func ['comb 0 de? de vau_params spe_body real_func]
+                                                                                       _ (println "Marked func is " marked_func)
                                                                                  ) [(put comb_to_mark_map real_func marked_func) marked_func])))
         ) vau]]
         ['wrap ['prim_comb (lambda (de comb_to_mark_map params) (let (
@@ -184,7 +212,22 @@
 
         ; eval should have it's parameters partially -evaled, then partially-eval e again.
         ; failure can 'later at either point
-        (give_up eval)
+        ['eval ['prim_comb (lambda (de comb_to_mark_map params) (let (
+
+            _ (println "doing an eval, evaling body " (idx params 0))
+            _ (println "Doing an eval, starting by getting env")
+            [comb_to_mark_map eval_env] (if (= 2 (len params)) (partial_eval_helper (idx params 1) de comb_to_mark_map)
+                                                               [comb_to_mark_map de])
+         ) (if (not (marked_env? eval_env)) [comb_to_mark_map ['later (cons eval params)]]
+                                            (let (
+            _ (println "ok, env was " eval_env)
+            _ (println "first eval of param" (idx params 0))
+            [comb_to_mark_map eval_1_body] (partial_eval_helper (idx params 0) de comb_to_mark_map)
+            _ (println "after first eval, " eval_1_body)
+            [comb_to_mark_map eval_2_body] (partial_eval_helper (strip eval_1_body) eval_env comb_to_mark_map)
+            _ (println "after second eval, " eval_2_body)
+        ) [comb_to_mark_map eval_2_body]
+        )))) eval]]
         (give_up cond)
         (needs_params_val_lambda symbol?)
         (needs_params_val_lambda int?)

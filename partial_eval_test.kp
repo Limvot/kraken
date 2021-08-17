@@ -9,6 +9,10 @@
                     fully_evaled (eval stripped)
                     _ (println "Fully evaled: " fully_evaled)
                     _ (if (combiner? fully_evaled) (println "..and called " (fully_evaled 1337)))
+
+                    outer_eval (eval code root_env)
+                    _ (println " outer-eval " outer_eval)
+                    _ (if (combiner? outer_eval) (println "..and outer called " (outer_eval 1337)))
                     _ (println)
               ) fully_evaled))
 
@@ -19,7 +23,7 @@
     vau_with_no_eval_add (read-string "((vau (y) (+ 13 2 y)) 4)")
     vau_with_wrap_add (read-string "((wrap (vau (y) (+ 13 2 y))) (+ 3 4))")
     vau_with_add_p (read-string "(vau de (y) (+ (eval y de) (+ 1 2)))")
-    vau_with_add_p_called (read-string "((vau de (y) (+ (eval y de) (+ 1 2))) 4)")
+    vau_with_add_p_called (read-string "((vau de (y) ((vau dde (z) (+ 1 (eval z dde))) y)) 17)")
     _ (test-case simple_add)
     _ (test-case vau_with_add)
     _ (test-case vau_with_add_called)
@@ -27,5 +31,5 @@
     _ (test-case vau_with_no_eval_add)
     _ (test-case vau_with_wrap_add)
     _ (test-case vau_with_add_p)
-    ;_ (test-case vau_with_add_p_called)
+    _ (test-case vau_with_add_p_called)
 ) nil))
