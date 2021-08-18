@@ -166,6 +166,14 @@
                 (array? body)                      (foldl (lambda (a x) (or a (recurse env x))) false body)
                 true                               false))
 
+    parameters_evaled_proxy (lambda (inner_f) (lambda (de comb_to_mark_map params) (let (
+        [comb_to_mark_map evaled_params] (foldl (lambda ([comb_to_mark_map ac] p)
+                                                                 (let ([comb_to_mark_map p] (partial_eval_helper p de comb_to_mark_map))
+                                                                       [comb_to_mark_map (concat ac [p])]))
+                                                              [comb_to_mark_map []]
+                                                              params)
+    ) (inner_f de comb_to_mark_map evaled_params))))
+
     root_marked_env ['env [
         ; Ok, so for combinators, it should partial eval the body.
         ; It should then check to see if the partial-evaled body has closed over
@@ -228,31 +236,40 @@
             _ (println "after second eval, " eval_2_body)
         ) [comb_to_mark_map eval_2_body]
         )))) eval]]
-        ['cond ['prim_comb (lambda (de comb_to_mark_map params)
-            (if (!= 0 (% (len params) 2)) (error (str "partial eval cond with odd params " params))
-                (let ([comb_to_mark_map evaled_params] (foldl (lambda ([comb_to_mark_map ac] p)
-                                                                 (let ([comb_to_mark_map p] (partial_eval_helper p de comb_to_mark_map))
-                                                                       [comb_to_mark_map (concat ac [p])]))
-                                                              [comb_to_mark_map []]
-                                                              params)
-                      _ (println "Cond evaluated its parameters to " evaled_params)
-                ) ((rec-lambda recurse (i)
+        ['cond ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map evaled_params)
+            (if (!= 0 (% (len evaled_params) 2)) (error (str "partial eval cond with odd evaled_params " evaled_params))
+                ((rec-lambda recurse (i)
                                           (cond (later? (idx evaled_params i))      [comb_to_mark_map ['later (cons cond (slice (map strip evaled_params) i -1))]]
                                                 (and (val? (idx evaled_params i))
                                                 (not (.val (idx evaled_params i)))) (recurse (+ 2 i))
                                                 true                                [comb_to_mark_map (idx evaled_params (+ 1 i))])
-                   ) 0)))
-        ) cond]]
+                 ) 0)
+            )
+        )) cond]]
         (needs_params_val_lambda symbol?)
         (needs_params_val_lambda int?)
         (needs_params_val_lambda string?)
-        (give_up combiner?)
-        (give_up env?)
+        ['combiner? ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map [evaled_param])
+            (cond (val? evaled_param)       [comb_to_mark_map ['val (combiner? (.val evaled_param))]]
+                  (comb? evaled_param)      [comb_to_mark_map ['val true]]
+                  (prim_comb? evaled_param) [comb_to_mark_map ['val true]]
+                  (later? evaled_param)     [comb_to_mark_map ['later [combiner? (strip evaled_param)]]]
+                  true                      [comb_to_mark_map ['val false]]
+            )
+        )) combiner?]]
+        ;(give_up env?)
+        ['env? ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map [evaled_param])
+            (cond (val? evaled_param)           [comb_to_mark_map ['val (env? (.val evaled_param))]]
+                  (marked_env? evaled_param)    [comb_to_mark_map ['val true]]
+                  (later? evaled_param)         [comb_to_mark_map ['later [env? (strip evaled_param)]]]
+                  true                          [comb_to_mark_map ['val false]]
+            )
+        )) env?]]
         (needs_params_val_lambda nil?)
         (needs_params_val_lambda bool?)
-        (give_up array?)
         (needs_params_val_lambda str-to-symbol)
         (needs_params_val_lambda get-text)
+        (give_up array?)
         (give_up array)
         (give_up len)
         (give_up idx)
@@ -277,6 +294,7 @@
         ; Don't forget, these short-circut with the truthy/falsey values
         (give_up and)
         (give_up or)
+        ; should make not a built in and then do here
 
         ; pr-str
         (needs_params_val_lambda str)

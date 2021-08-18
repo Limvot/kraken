@@ -24,9 +24,21 @@
     vau_with_wrap_add (read-string "((wrap (vau (y) (+ 13 2 y))) (+ 3 4))")
     vau_with_add_p (read-string "(vau de (y) (+ (eval y de) (+ 1 2)))")
     vau_with_add_p_called (read-string "((vau de (y) ((vau dde (z) (+ 1 (eval z dde))) y)) 17)")
+
     cond_test (read-string "(cond false 1 false 2 (+ 1 2) 3 true 1337)")
     cond_vau_test (read-string "(vau de (x) (cond false 1 false 2 x 3 true 42))")
     cond_vau_test2 (read-string "(vau de (x) (cond false 1 false 2 3 x true 42))")
+
+    combiner_test (read-string "(combiner? true)")
+    combiner_test2 (read-string "(combiner? (vau de (x) x))")
+    combiner_test3 (read-string "(vau de (x) (combiner? x))")
+
+    env_test  (read-string "(env? true)")
+    ; this doesn't partially eval, but it could with a more percise if the marked values were more percise
+    env_test2 (read-string "(vau de (x) (env? de))")
+    env_test3 (read-string "(vau de (x) (env? x))")
+    env_test4 (read-string "((vau de (x) (env? de)) 1)")
+
     _ (test-case simple_add)
     _ (test-case vau_with_add)
     _ (test-case vau_with_add_called)
@@ -38,4 +50,11 @@
     _ (test-case cond_test)
     _ (test-case cond_vau_test)
     _ (test-case cond_vau_test2)
+    _ (test-case combiner_test)
+    _ (test-case combiner_test2)
+    _ (test-case combiner_test3)
+    _ (test-case env_test)
+    _ (test-case env_test2)
+    _ (test-case env_test3)
+    _ (test-case env_test4)
 ) nil))
