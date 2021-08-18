@@ -3,8 +3,6 @@
     ; This partial eval only works via the root env,
     ; since we can't tell from outside if something takes an env
     ; or not
-    ; Also, based on that, we have to switch on every primitive...
-
 
     ; Here is every form in k'
     ; True
@@ -22,9 +20,6 @@
 
     ; meta...
 
-    ; Env will need special checking for escaping, including when contained inside of an array or other combinator
-    ; Actually, that extends to checking escaping for combinators in general, since they may close over laters
-
     ; Ok, instead of just ['now v] and ['later v], we have these marked values
     ; ['val v] (v can be an array)
     ; ['later c]
@@ -39,6 +34,7 @@
     later? (lambda (x) (= 'later (idx x 0)))
     .later (lambda (x) (idx x 1))
     marked_array? (lambda (x) (= 'marked_array (idx x 0)))
+    .marked_array (lambda (x) (idx x 1))
     comb? (lambda (x) (= 'comb (idx x 0)))
     .comb (lambda (x) (slice x 1 -1))
     prim_comb? (lambda (x) (= 'prim_comb (idx x 0)))
@@ -138,6 +134,7 @@
                 true                            (error (str "impossible partial_eval value " x))
         )
     )
+    is_all_vals (lambda (evaled_params) (foldl (lambda (a x) (and a (val? x))) true evaled_params))
     needs_params_val_lambda (vau de (f_sym) (let (
         actual_function (eval f_sym de)
         handler (lambda (de comb_to_mark_map params) (let (
@@ -145,7 +142,7 @@
                                                                      [comb_to_mark_map evaled] (partial_eval_helper x de comb_to_mark_map)
                                                                  ) [comb_to_mark_map (cons evaled evaleds)])) [comb_to_mark_map []] params)
             )
-            (if (foldl (lambda (a x) (and a (val? x))) true evaled_params) [comb_to_mark_map ['val (lapply actual_function (map .val evaled_params))]]
+            (if (is_all_vals evaled_params) [comb_to_mark_map ['val (lapply actual_function (map .val evaled_params))]]
                                                                            [comb_to_mark_map ['later (cons actual_function (map strip evaled_params))]])))
         ) [f_sym ['prim_comb handler actual_function]]))
     give_up (vau de (f_sym) (let (
@@ -180,7 +177,6 @@
         ; any 'later values from above the combinator. If so, the combinator should
         ; evaluate to a ['later [vau de? params (strip partially_evaled_body)]], otherwise it can evaluate to a 'comb.
         ; Note that this 'later may be re-evaluated later if the parent function is called.
-        ;(give_up vau)
         ['vau ['prim_comb (lambda (de comb_to_mark_map params) (let (
             de?         (if (= 3 (len params)) (idx params 0))
             vau_de?     (if (= nil de?) [] [de?])
@@ -239,10 +235,10 @@
         ['cond ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map evaled_params)
             (if (!= 0 (% (len evaled_params) 2)) (error (str "partial eval cond with odd evaled_params " evaled_params))
                 ((rec-lambda recurse (i)
-                                          (cond (later? (idx evaled_params i))      [comb_to_mark_map ['later (cons cond (slice (map strip evaled_params) i -1))]]
+                                          (cond (later? (idx evaled_params i))           [comb_to_mark_map ['later (cons cond (slice (map strip evaled_params) i -1))]]
                                                 (and (val? (idx evaled_params i))
-                                                (not (.val (idx evaled_params i)))) (recurse (+ 2 i))
-                                                true                                [comb_to_mark_map (idx evaled_params (+ 1 i))])
+                                                     (not (.val (idx evaled_params i)))) (recurse (+ 2 i))
+                                                true                                     [comb_to_mark_map (idx evaled_params (+ 1 i))])
                  ) 0)
             )
         )) cond]]
@@ -257,7 +253,6 @@
                   true                      [comb_to_mark_map ['val false]]
             )
         )) combiner?]]
-        ;(give_up env?)
         ['env? ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map [evaled_param])
             (cond (val? evaled_param)           [comb_to_mark_map ['val (env? (.val evaled_param))]]
                   (marked_env? evaled_param)    [comb_to_mark_map ['val true]]
@@ -269,12 +264,49 @@
         (needs_params_val_lambda bool?)
         (needs_params_val_lambda str-to-symbol)
         (needs_params_val_lambda get-text)
-        (give_up array?)
-        (give_up array)
-        (give_up len)
-        (give_up idx)
-        (give_up slice)
-        (give_up concat)
+        ['array? ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map [evaled_param])
+            (cond (val? evaled_param)           [comb_to_mark_map ['val (array? (.val evaled_param))]]
+                  (marked_array? evaled_param)    [comb_to_mark_map ['val true]]
+                  (later? evaled_param)         [comb_to_mark_map ['later [array? (strip evaled_param)]]]
+                  true                          [comb_to_mark_map ['val false]]
+            )
+        )) array?]]
+        ['array ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map evaled_params)
+            (if (is_all_vals evaled_params)     [comb_to_mark_map ['val (map strip evaled_params)]]
+                                                [comb_to_mark_map ['marked_array evaled_params]]
+            )
+        )) array]]
+        ['len ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map [evaled_param])
+            (cond (val? evaled_param)           [comb_to_mark_map ['val (len (.val evaled_param))]]
+                  (marked_array? evaled_param)  [comb_to_mark_map ['val (len (.marked_array evaled_param))]]
+                  true                          [comb_to_mark_map ['later [len (strip evaled_param)]]]
+            )
+        )) len]]
+        ['idx ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map [evaled_array evaled_idx])
+            (cond (and (val? evaled_idx) (val? evaled_array))             [comb_to_mark_map ['val (idx (.val evaled_array) (.val evaled_idx))]]
+                  (and (val? evaled_idx) (marked_array? evaled_array))    [comb_to_mark_map       (idx (.marked_array evaled_array) (.val evaled_idx))]
+                  true                                                    [comb_to_mark_map ['later [idx (strip evaled_array) (strip evaled_idx)]]]
+            )
+        )) idx]]
+        ['slice ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map [evaled_array evaled_begin evaled_end])
+            (cond (and (val? evaled_begin) (val? evaled_end) (val? evaled_array))             [comb_to_mark_map ['val (slice (.val evaled_array) (.val evaled_begin) (.val evaled_end))]]
+                  (and (val? evaled_begin) (val? evaled_end) (marked_array? evaled_array))    [comb_to_mark_map ['marked_array (slice (.marked_array evaled_array)
+                                                                                                                                      (.val evaled_begin)
+                                                                                                                                      (.val evaled_end))]]
+                  true                                                                        [comb_to_mark_map ['later [slice (strip evaled_array)
+                                                                                                                               (strip evaled_begin)
+                                                                                                                               (strip evaled_end)]]]
+            )
+        )) slice]]
+        ['concat ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map evaled_params)
+            (cond (foldl (lambda (a x) (and a (val? x))) true evaled_params)                           [comb_to_mark_map ['val (lapply concat (map strip evaled_params))]]
+                  (foldl (lambda (a x) (and a (or (val? x) (marked_array? x)))) true evaled_params)    [comb_to_mark_map ['marked_array (lapply concat (map (lambda (x)
+                                                                                                                            (if (val? x) (map (lambda (y) ['val y]) (.val x))
+                                                                                                                                         (.marked_array x))
+                                                                                                                                                            ) evaled_params))]]
+                  true                                                                                 [comb_to_mark_map ['later (cons concat (map strip evaled_params))]]
+            )
+        )) concat]]
         (needs_params_val_lambda +)
         (needs_params_val_lambda -)
         (needs_params_val_lambda *)
@@ -291,20 +323,38 @@
         (needs_params_val_lambda >)
         (needs_params_val_lambda >=)
 
-        ; Don't forget, these short-circut with the truthy/falsey values
-        (give_up and)
-        (give_up or)
+        ['and ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map evaled_params)
+            ((rec-lambda recurse (i)
+                                      (cond (= i (- (len evaled_params) 1))          [comb_to_mark_map (idx evaled_params i)]
+                                            (later? (idx evaled_params i))           [comb_to_mark_map ['later (cons and (slice (map strip evaled_params) i -1))]]
+                                            (and (val? (idx evaled_params i))
+                                                 (not (.val (idx evaled_params i)))) [comb_to_mark_map (idx evaled_params i)]
+                                            true                                     (recurse (+ 1 i)))
+             ) 0)
+        )) and]]
+        ['or ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map evaled_params)
+            ((rec-lambda recurse (i)
+                                      (cond (= i (- (len evaled_params) 1))          [comb_to_mark_map (idx evaled_params i)]
+                                            (later? (idx evaled_params i))           [comb_to_mark_map ['later (cons or (slice (map strip evaled_params) i -1))]]
+                                            (and (val? (idx evaled_params i))
+                                                 (not (.val (idx evaled_params i)))) (recurse (+ 1 i))
+                                            true                                     [comb_to_mark_map (idx evaled_params i)])
+             ) 0)
+        )) or]]
         ; should make not a built in and then do here
+        ; OR not - I think it will actually lower correctly partially evaled
 
-        ; pr-str
+        (needs_params_val_lambda pr-str)
         (needs_params_val_lambda str)
         (needs_params_val_lambda prn)
         (give_up println)
+        ; really do need to figure out if we want to keep meta, and add it if so
         (give_up meta)
         (give_up with-meta)
+        ; if we want to get fancy, we could do error/recover too
         (give_up error)
         (give_up recover)
-        (give_up read-string)
+        (needs_params_val_lambda read-string)
         (give_up slurp)
         (give_up get_line)
         (give_up write_file)
