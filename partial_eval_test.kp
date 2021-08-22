@@ -8,11 +8,17 @@
                     _ (println "Stripped: " stripped)
                     fully_evaled (eval stripped)
                     _ (println "Fully evaled: " fully_evaled)
-                    _ (if (combiner? fully_evaled) (println "..and called " (fully_evaled 1337)))
+                    fully_evaled_called (if (combiner? fully_evaled) (fully_evaled 1337))
+                    _ (if (combiner? fully_evaled) (println "..and called " fully_evaled_called))
 
                     outer_eval (eval code root_env)
                     _ (println " outer-eval " outer_eval)
-                    _ (if (combiner? outer_eval) (println "..and outer called " (outer_eval 1337)))
+                    outer_called (if (combiner? outer_eval) (outer_eval 1337))
+                    _ (if (combiner? outer_eval) (println "..and outer called " outer_called))
+                    _ (cond (or (combiner? fully_evaled) (combiner? outer_eval))
+                                                (if (!= fully_evaled_called outer_called) (error (str "called versions unequal for " code " are " fully_evaled_called " vs " outer_called)))
+                            (!= fully_evaled outer_eval)                                  (error (str "partial-eval versions unequal for " code " are " fully_evaled " vs " outer_eval))
+                            true                                                          nil)
                     _ (println)
               ) fully_evaled))
 
@@ -39,6 +45,18 @@
     env_test3 (read-string "(vau de (x) (env? x))")
     env_test4 (read-string "((vau de (x) (env? de)) 1)")
 
+    ; let1 test
+
+    ; ((wrap (vau root_env (quote) ((wrap (vau (let1) ;HERE;)) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de))))) (vau (x) x))
+
+    ;let1_test (read-string "((wrap (vau root_env (quote) ((wrap (vau (let1) (let1 a 12 (+ a 1)))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de))))) (vau (x) x))")
+    let1_test (read-string "((wrap (vau (let1) (let1 a 12 (+ a 1)))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+
+    ;big_test1 [[vau ['*ARGV*] (read-string (slurp "./prelude.kp"))] ["" "-C" "1339"]]
+    ;big_test1 [[vau ['*ARGV*] (read-string (slurp "./prelude.kp"))] ["" "-C" "(let (a 17) (vau (x) a))"]]
+    big_test1 [[vau ['*ARGV*] (read-string (slurp "./prelude.kp"))] ["" "-C" "(let (a 17) a)"]]
+    ;big_test1 [[vau ['*ARGV*] (read-string (slurp "./prelude.kp"))] []]
+
     _ (test-case simple_add)
     _ (test-case vau_with_add)
     _ (test-case vau_with_add_called)
@@ -57,4 +75,10 @@
     _ (test-case env_test2)
     _ (test-case env_test3)
     _ (test-case env_test4)
+
+    _ (test-case let1_test)
+
+    ;_ (println "THE BIG SHOW")
+    ;_ (println big_test1)
+    ;_ (test-case big_test1)
 ) nil))
