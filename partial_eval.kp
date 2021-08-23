@@ -57,7 +57,10 @@
         (cond (val? x)          (.val x)
               (later? x)        (.later x)
               (marked_array? x) (cons array (map recurse (idx x 1)))
-              (comb? x)         (idx x 6)
+              (comb? x)         (let (c (idx x 6))
+                                     ; not currently possible, I rolled back partial-vau
+                                     (if (= nil c) (error (str "partial eval failed: stripping a combinator without a real combinator (due to nil enviornment, no doubt)" x))
+                                                   c))
               (prim_comb? x)    (idx x 2)
               (marked_env? x)   (error "Env escaped to strip!")
               true              (error (str "some other strip? " x))
@@ -189,29 +192,25 @@
             [comb_to_mark_map pe_body] (partial_eval_helper body inner_env comb_to_mark_map (+ 1 indent))
             spe_body (strip pe_body)
             ;for_later (or (= nil (.env_real de)) (closes_over_outside_vars de spe_body))
+            ;_ (println (indent_str indent) "for_later is " for_later " for " params " because of either env being null " (= nil (.env_real de)) " or " spe_body " closing over ourside " (closes_over_outside_vars de spe_body))
             for_later (= nil (.env_real de))
-            _ (println (indent_str indent) "for_later is " for_later " for " params " because of either env being null " (= nil (.env_real de)) " or " spe_body " closing over ourside " (closes_over_outside_vars de spe_body))
+            _ (println (indent_str indent) "for_later is " for_later " for " params " because of env being null " de)
         ) (if for_later [comb_to_mark_map ['later (concat [vau] vau_de? [vau_params spe_body])]]
-                                                                                 (let (real_func (eval (concat [vau] vau_de? [vau_params spe_body]) (.env_real de))
-                                                                                       marked_func ['comb 0 de? de vau_params spe_body real_func]
-                                                                                       _ (println (indent_str indent) "Marked func is " marked_func)
-                                                                                 ) [(put comb_to_mark_map real_func marked_func) marked_func])))
+                        ;;;rolled_back;;;[comb_to_mark_map ['comb 0 de? de vau_params spe_body nil]]
+                        (let (real_func (eval (concat [vau] vau_de? [vau_params spe_body]) (.env_real de))
+                              marked_func ['comb 0 de? de vau_params spe_body real_func]
+                              _ (println (indent_str indent) "Marked func is " marked_func)
+                             ) [(put comb_to_mark_map real_func marked_func) marked_func])))
         ) vau]]
-        ['wrap ['prim_comb (lambda (de comb_to_mark_map params indent) (let (
-                _ (if (!= 1 (len params)) (error (str "bad number of params to partial-eval wrap " params)))
-                [comb_to_mark_map evaled] (partial_eval_helper (idx params 0) de comb_to_mark_map (+ 1 indent))
-                ;_ (println (indent_str indent) "wrap evaled is " evaled)
-            ) (if (comb? evaled) (let ([wrap_level de? se params body actual_function] (.comb evaled)
+        ['wrap ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map [evaled] indent)
+              (if (comb? evaled) (let ([wrap_level de? se params body actual_function] (.comb evaled)
                                         wrapped_actual_fun (wrap actual_function)
                                         wrapped_marked_fun ['comb (+ 1 wrap_level) de? se params body wrapped_actual_fun]
                                       ) [(put comb_to_mark_map wrapped_actual_fun wrapped_marked_fun) wrapped_marked_fun])
                                  [comb_to_mark_map ['later [wrap (strip evaled)]]]))
         ) wrap]]
-        ['unwrap ['prim_comb (lambda (de comb_to_mark_map params indent) (let (
-                _ (if (!= 1 (len params)) (error (str "bad number of params to partial-eval unwrap " params)))
-                [comb_to_mark_map evaled] (partial_eval_helper (idx params 0) de comb_to_mark_map (+ 1 indent))
-                ;_ (println (indent_str indent) "unwrap evaled is " evaled)
-            ) (if (comb? evaled) (let ([wrap_level de? se params body actual_function] (.comb evaled)
+        ['unwrap ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map [evaled] indent)
+             (if (comb? evaled) (let ([wrap_level de? se params body actual_function] (.comb evaled)
                                         unwrapped_actual_fun (unwrap actual_function)
                                         unwrapped_marked_fun ['comb (- wrap_level 1) de? se params body unwrapped_actual_fun]
                                       ) [(put comb_to_mark_map unwrapped_actual_fun unwrapped_marked_fun) unwrapped_marked_fun])
@@ -220,39 +219,38 @@
 
         ; eval should have it's parameters partially -evaled, then partially-eval e again.
         ; failure can 'later at either point
-        ['eval ['prim_comb (lambda (de comb_to_mark_map params indent) (let (
-
-            _ (println (indent_str indent) "doing an eval, evaling body " (idx params 0))
-            _ (println (indent_str indent) "Doing an eval, starting by getting env")
-            [comb_to_mark_map eval_env] (if (= 2 (len params)) (partial_eval_helper (idx params 1) de comb_to_mark_map (+ 1 indent))
+        ['eval ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map params indent) (let (
+            [comb_to_mark_map eval_env] (if (= 2 (len params)) [comb_to_mark_map (idx params 1)]
                                                                [comb_to_mark_map de])
             _ (println (indent_str indent) "is this a marked env? " (marked_env? eval_env))
-         ) (if (not (marked_env? eval_env)) [comb_to_mark_map ['later (cons eval params)]]
+         ) (if (not (marked_env? eval_env)) [comb_to_mark_map ['later (cons eval (map strip params))]]
                                             (let (
             _ (println (indent_str indent) "ok, env was " eval_env)
-            _ (println (indent_str indent) "first eval of param" (idx params 0))
-            [comb_to_mark_map eval_1_body] (partial_eval_helper (idx params 0) de comb_to_mark_map (+ 1 indent))
-            _ (println (indent_str indent) "after first eval, " eval_1_body)
+            body (idx params 0)
+            _ (println (indent_str indent) "after first eval of param (from parameters_evaled_proxy)" body)
 
             eval_strip (rec-lambda recurse (x)
                 (do (println (indent_str indent) "calling eval_strip with " x)
                 (cond (val? x)          (.val x)
                       (later? x)        [eval (.later x) (.env_real eval_env)]
                       (marked_array? x) (map recurse (idx x 1))
-                      (comb? x)         (idx x 6)
+                      (comb? x)         (let (c (idx x 6))
+                                             ; not currently possible, I rolled back partial-vau
+                                             (if (= nil c) (error (str "partial eval failed: stripping a combinator without a real combinator (due to nil enviornment, no doubt)" x))
+                                                           c))
                       (prim_comb? x)    (idx x 2)
                       (marked_env? x)   (error "Env escaped to eval_strip!")
                       true              (error (str "some other eval_strip? " x))
                 ))
             )
 
-            eval_1_body_stripped (eval_strip eval_1_body)
-            _ (println (indent_str indent) "after first eval stripped, " eval_1_body_stripped)
-            [comb_to_mark_map eval_2_body] (partial_eval_helper eval_1_body_stripped eval_env comb_to_mark_map (+ 1 indent))
+            body_stripped (eval_strip body)
+            _ (println (indent_str indent) "after first eval stripped, " body_stripped)
+            [comb_to_mark_map eval_2_body] (partial_eval_helper body_stripped eval_env comb_to_mark_map (+ 1 indent))
             _ (println (indent_str indent) "after second eval, " eval_2_body)
             _ (println (indent_str indent) "after second eval stripped (not used), " (eval_strip eval_2_body))
         ) [comb_to_mark_map eval_2_body]
-        )))) eval]]
+        ))))) eval]]
         ['cond ['prim_comb (parameters_evaled_proxy (lambda (de comb_to_mark_map evaled_params indent)
             (if (!= 0 (% (len evaled_params) 2)) (error (str "partial eval cond with odd evaled_params " evaled_params))
                 ((rec-lambda recurse (i)

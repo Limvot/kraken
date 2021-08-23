@@ -29,6 +29,8 @@
     vau_with_no_eval_add (read-string "((vau (y) (+ 13 2 y)) 4)")
     vau_with_wrap_add (read-string "((wrap (vau (y) (+ 13 2 y))) (+ 3 4))")
     vau_with_add_p (read-string "(vau de (y) (+ (eval y de) (+ 1 2)))")
+    ;; No longer works with our more aggressive partial-evaling of vaus with incomplete environments
+    ;; BUT DOES CUZ I ROLLED THAT BACK
     vau_with_add_p_called (read-string "((vau de (y) ((vau dde (z) (+ 1 (eval z dde))) y)) 17)")
 
     cond_test (read-string "(cond false 1 false 2 (+ 1 2) 3 true 1337)")
@@ -51,6 +53,10 @@
 
     ;let1_test (read-string "((wrap (vau root_env (quote) ((wrap (vau (let1) (let1 a 12 (+ a 1)))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de))))) (vau (x) x))")
     let1_test (read-string "((wrap (vau (let1) (let1 a 12 (+ a 1)))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+    let2_test (read-string "((wrap (vau (let1) (let1 a 12 (vau (x) (+ a 1))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+    let3_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (+ x a 1)))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+    let4_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+    ;let5_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ x a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
 
     ;big_test1 [[vau ['*ARGV*] (read-string (slurp "./prelude.kp"))] ["" "-C" "1339"]]
     ;big_test1 [[vau ['*ARGV*] (read-string (slurp "./prelude.kp"))] ["" "-C" "(let (a 17) (vau (x) a))"]]
@@ -64,6 +70,8 @@
     _ (test-case vau_with_no_eval_add)
     _ (test-case vau_with_wrap_add)
     _ (test-case vau_with_add_p)
+    ;; No longer works with our more aggressive partial-evaling of vaus with incomplete environments
+    ;; BUT DOES CUZ I ROLLED THAT BACK
     _ (test-case vau_with_add_p_called)
     _ (test-case cond_test)
     _ (test-case cond_vau_test)
@@ -77,6 +85,10 @@
     _ (test-case env_test4)
 
     _ (test-case let1_test)
+    _ (test-case let2_test)
+    _ (test-case let3_test)
+    _ (test-case let4_test)
+    ;_ (test-case let5_test)
 
     ;_ (println "THE BIG SHOW")
     ;_ (println big_test1)
