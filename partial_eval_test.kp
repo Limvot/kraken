@@ -56,7 +56,25 @@
     let2_test (read-string "((wrap (vau (let1) (let1 a 12 (vau (x) (+ a 1))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
     let3_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (+ x a 1)))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
     let4_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
-    ;let5_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ x a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+    let5_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ x a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+
+    lambda1_test (read-string "((wrap (vau (let1)
+                               (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
+                               (lambda (x) x)
+                               ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+    lambda2_test (read-string "((wrap (vau (let1)
+                               (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
+                               (let1 a 12
+                                     (lambda (x) (+ a x)))
+                               ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+    lambda3_test (read-string "((wrap (vau (let1)
+                               (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
+                               (let1 a 12
+                                     (lambda (x) (let1 b (+ a x)
+                                                         (+ a x b))))
+                               ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+
+
 
     ;big_test1 [[vau ['*ARGV*] (read-string (slurp "./prelude.kp"))] ["" "-C" "1339"]]
     ;big_test1 [[vau ['*ARGV*] (read-string (slurp "./prelude.kp"))] ["" "-C" "(let (a 17) (vau (x) a))"]]
@@ -70,8 +88,6 @@
     _ (test-case vau_with_no_eval_add)
     _ (test-case vau_with_wrap_add)
     _ (test-case vau_with_add_p)
-    ;; No longer works with our more aggressive partial-evaling of vaus with incomplete environments
-    ;; BUT DOES CUZ I ROLLED THAT BACK
     _ (test-case vau_with_add_p_called)
     _ (test-case cond_test)
     _ (test-case cond_vau_test)
@@ -88,7 +104,11 @@
     _ (test-case let2_test)
     _ (test-case let3_test)
     _ (test-case let4_test)
-    ;_ (test-case let5_test)
+    _ (test-case let5_test)
+
+    _ (test-case lambda1_test)
+    _ (test-case lambda2_test)
+    _ (test-case lambda3_test)
 
     ;_ (println "THE BIG SHOW")
     ;_ (println big_test1)

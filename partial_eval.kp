@@ -114,6 +114,8 @@
                                                        _ (println (indent_str indent) "Going to do an array call!")
                                                        _ (println (indent_str indent) "     total is " x)
                                                        _ (println (indent_str indent) "     evaled comb is  " comb)
+                                                       comb (if (val? comb) (get-value comb_to_mark_map (.val comb))
+                                                                            comb)
                                                      )
                                                                              ; it seems like even if it's later we should be able to eval some?
                                                                              ; Maybe there should be something between 'later and 'comb made in vau
@@ -175,7 +177,7 @@
                                                                                                                          [comb_to_mark_map ['later (cons actual_function literal_params)]])
                                                                                                                  [comb_to_mark_map func_result])
                                                                              ) result)
-                                                           true              (error (str "Partial eval noticed that you will likely call not a function " x))))
+                                                           true              (error (str "Partial eval noticed that you will likely call not a function " comb  " total is " x))))
                 (nil? x)                        [comb_to_mark_map ['val x]]
                 true                            (error (str "impossible partial_eval value " x))
         )
