@@ -263,21 +263,28 @@
             ;; but we'd have to be careful to also remove it on this side, and what about if it gets wrapped in another combiner? Maybe just a bad idea
             ;;;;
             terrible_hack_strip (rec-lambda recurse (x)
-                (cond (val? x)          (.val x)
-                      (later? x)        (.later x)
-                      (marked_array? x) (map recurse (idx x 1))
+                (cond (val? x)          [true (.val x)]
+                      (later? x)        [false (.later x)]
+                      (marked_array? x) (foldl (lambda ([ok a] x) (let ([nok p] (recurse x))
+                                                                        [(and ok nok) (concat a [p])]))
+                                               [true []]
+                                               (idx x 1))
                       (comb? x)         (let (c (idx x 6))
                                              (if (= nil c) (error (str "partial eval failed: inne stripping a combinator without a real combinator (due to nil enviornment, no doubt)" x))
-                                                           c))
-                      (prim_comb? x)    (idx x 2)
+                                                           [true c]))
+                      (prim_comb? x)    [true (idx x 2)]
                       (marked_env? x)   (error "Env escaped to strip!")
                       true              (error (str "some other strip? " x))
                 )
             )
 
+            fallback_result [comb_to_mark_map ['later [eval (.later body1) (if (= nil (.env_real eval_env)) (slice params 1 -1) (.env_real eval_env))]]]
             c_body2 (cond (val? body1)      (partial_eval_helper (.val body1) eval_env comb_to_mark_map imm_eval (+ 1 indent))
-                      (later? body1)        [comb_to_mark_map ['later [eval (.later body1) (if (= nil (.env_real eval_env)) (slice params 1 -1) (.env_real eval_env))]]]
-                      (marked_array? body1) (partial_eval_helper (map terrible_hack_strip (idx body1 1)) eval_env comb_to_mark_map imm_eval (+ 1 indent))
+                      (later? body1)        fallback_result
+                      ; In the case of a later value internal to marked_array, it must finish being evaluated, or at least kept as a later
+                      (marked_array? body1) (let ([ok sbody1] (terrible_hack_strip body1))
+                                                 (if ok (partial_eval_helper sbody1 eval_env comb_to_mark_map imm_eval (+ 1 indent))
+                                                        fallback_result))
                       (comb? body1)         [comb_to_mark_map body1]
                       (prim_comb? body1)    [comb_to_mark_map body1]
                       (marked_env? body1)   (error "Env escaped to eval_strip!")
