@@ -74,27 +74,30 @@
                                                          (+ a x b))))
                                ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
 
-    do1_test (read-string "((wrap (vau (let1)
-                               (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
-                               (let1 do_helper (lambda (recurse s i se) (cond (= i (len s)) nil
-                                                                              (= i (- (len s) 1)) (eval (idx s i) se)
-                                                                              (eval (idx s i) se) (recurse recurse s (+ i 1) se)
-                                                                              true                (recurse recurse s (+ i 1) se)))
-                               (let1 do (vau se (& s) (do_helper do_helper s 0 se))
-                               (do (println 1 2 3)
-                                   (println 4 5 6))
-                               ))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+    array_test (read-string "(array 1 2 3 4 5)")
+    vararg_test (read-string "((wrap (vau (a & rest) rest)) 1 2 3 4 5)")
 
-    do2_test (read-string "((wrap (vau (let1)
-                               (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
-                               (let1 do_helper (lambda (recurse s i se) (cond (= i (len s)) nil
-                                                                              (= i (- (len s) 1)) (eval (idx s i) se)
-                                                                              (eval (idx s i) se) (recurse recurse s (+ i 1) se)
-                                                                              true                (recurse recurse s (+ i 1) se)))
-                               (let1 do (vau se (& s) (do_helper do_helper s 0 se))
-                               (do (println 1 2 3)
-                                   (println 4 5 6))
-                               ))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+    ;do1_test (read-string "((wrap (vau (let1)
+    ;                           (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
+    ;                           (let1 do_helper (lambda (recurse s i se) (cond (= i (len s)) nil
+    ;                                                                          (= i (- (len s) 1)) (eval (idx s i) se)
+    ;                                                                          (eval (idx s i) se) (recurse recurse s (+ i 1) se)
+    ;                                                                          true                (recurse recurse s (+ i 1) se)))
+    ;                           (let1 do (vau se (& s) (do_helper do_helper s 0 se))
+    ;                           (do (println 1 2 3)
+    ;                               (println 4 5 6))
+    ;                           ))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+
+    ;do2_test (read-string "((wrap (vau (let1)
+    ;                           (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
+    ;                           (let1 do_helper (lambda (recurse s i se) (cond (= i (len s)) nil
+    ;                                                                          (= i (- (len s) 1)) (eval (idx s i) se)
+    ;                                                                          (eval (idx s i) se) (recurse recurse s (+ i 1) se)
+    ;                                                                          true                (recurse recurse s (+ i 1) se)))
+    ;                           (let1 do (vau se (& s) (do_helper do_helper s 0 se))
+    ;                           (do (println 1 2 3)
+    ;                               (println 4 5 6))
+    ;                           ))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
 
 
     ;big_test1 [[vau ['*ARGV*] (read-string (slurp "./prelude.kp"))] ["" "-C" "1339"]]
@@ -131,8 +134,11 @@
     _ (test-case lambda2_test)
     _ (test-case lambda3_test)
 
-    _ (test-case do1_test)
-    _ (test-case do2_test)
+    _ (test-case vararg_test)
+    _ (test-case array_test)
+
+    ;_ (test-case do1_test)
+    ;_ (test-case do2_test)
 
     ;_ (println "THE BIG SHOW")
     ;_ (println big_test1)
