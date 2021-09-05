@@ -20,6 +20,15 @@
 
     ; meta...
 
+    ; !!!!!!!!!!!!!!!!!!!!!!!!!!
+    ; ! To avoid exponential blowup due to evaluating function, then params, then function with params, etc etc
+    ; ! Should probabally implement some form of evaluating to head-normal form controlled by boolean
+    ; ! that quits as soon as it has any sort of value (I suppose the real change is only to combinators and arrays)
+    ; ! so that we don't waste time re-trying etc. Anything in parameter position would be fully evaluated, so I don't think
+    ; ! we'd waste overmuch, but it could make things less efficient I suppose...
+    ; ! Maybe it's a bad idea - food for thought! Might need a better cacheing strategy
+    ; !!!!!!!!!!!!!!!!!!!!!!!!!
+
     ; Ok, instead of just ['now v] and ['later v], we have these marked values
     ; ['val v] (v can be an array)
     ; ['later c]
@@ -78,8 +87,9 @@
                                                    (str "   " (recurse (- i 1)))))
 
     strip (rec-lambda recurse (x)
-        (do ;(println "calling strip with " x)
-        (cond (val? x)          (.val x) ;(let (v (.val x)) (if (array? v) (cons array (map recurse (map (lambda (x) ['val x]) v))) v))
+        (do (println "calling strip with " x)
+        (cond (val? x)          ;(.val x)
+                                (let (v (.val x)) (if (array? v) (cons array (map recurse (map (lambda (x) ['val x]) v))) v))
               (later? x)        (.later x)
               (marked_array? x) (cons array (map recurse (idx x 1)))
               (comb? x)         (let (c (idx x 7))
@@ -89,6 +99,22 @@
               (marked_env? x)   (error "Env escaped to strip!")
               true              (error (str "some other strip? " x))
         ))
+    )
+
+    eval_strip (rec-lambda recurse (x)
+        (cond (val? x)          [true (.val x)]
+              (later? x)        [false (.later x)]
+              (marked_array? x) (foldl (lambda ([ok a] x) (let ([nok p] (recurse x))
+                                                                [(and ok nok) (concat a [p])]))
+                                       [true []]
+                                       (idx x 1))
+              (comb? x)         (let (c (idx x 7))
+                                     (if (= nil c) (error (str "partial eval failed: eval_stripping a combinator without a real combinator (due to nil enviornment, no doubt)" x))
+                                                   [true c]))
+              (prim_comb? x)    [true (idx x 2)]
+              (marked_env? x)   (error "Env escaped to eval_strip!")
+              true              (error (str "some other eval_strip? " x))
+        )
     )
 
     ; GAH ok additionally
@@ -131,17 +157,21 @@
                                                            (comb? comb)      (let (
                                                                                  [wrap_level de? se variadic params body actual_function] (.comb comb)
                                                                                  literal_params (slice x 1 -1)
-                                                                                 [comb_to_mark_map appropriatly_evaled_params] ((rec-lambda param-recurse (wrap params comb_to_mark_map)
+                                                                                 [ok comb_to_mark_map appropriatly_evaled_params] ((rec-lambda param-recurse (wrap params comb_to_mark_map)
                                                                                         (if (!= 0 wrap)
+                                                                                            (let ([ok eval_strip_params] (eval_strip ['marked_array params]))
+                                                                                                (if (not ok) [ok comb_to_mark_map nil]
                                                                                             (let ([comb_to_mark_map evaled_params]
                                                                                                                     (foldl (lambda ([comb_to_mark_map ac] p)
                                                                                                                         (let ([comb_to_mark_map p] (recurse p env comb_to_mark_map false (+ 1 indent)))
                                                                                                                               [comb_to_mark_map (concat ac [p])]))
-                                                                                                                    [comb_to_mark_map []]
-                                                                                                                    (map strip params)))
-                                                                                                 (param-recurse (- wrap 1) evaled_params comb_to_mark_map))
-                                                                                            [comb_to_mark_map params])
+                                                                                                                        [comb_to_mark_map []]
+                                                                                                                        eval_strip_params))
+                                                                                                 (param-recurse (- wrap 1) evaled_params comb_to_mark_map))))
+                                                                                            [true comb_to_mark_map params])
                                                                                             ) wrap_level (map (lambda (p) ['val p]) literal_params) comb_to_mark_map)
+                                                                                 ) (if (not ok) [comb_to_mark_map ['later (cons (strip comb) (slice x 1 -1))]]
+                                                                                 (let (
                                                                                  final_params (if variadic (concat (slice appropriatly_evaled_params 0 (- (len params) 1))
                                                                                                                    [['marked_array (slice appropriatly_evaled_params (- (len params) 1) -1)]])
                                                                                                            appropriatly_evaled_params)
@@ -179,7 +209,7 @@
                                                                                                                             [comb_to_mark_map ['later (cons (strip comb) literal_params)]])
                                                                                                                          [comb_to_mark_map ['later (cons actual_function literal_params)]])
                                                                                                                  [comb_to_mark_map func_result])
-                                                                             ) result)
+                                                                             ) result)))
                                                            true              (error (str "Partial eval noticed that you will likely call not a function " comb  " total is " x))))
                 (nil? x)                        [comb_to_mark_map ['val x]]
                 true                            (error (str "impossible partial_eval value " x))
@@ -261,33 +291,12 @@
             [comb_to_mark_map body1] (partial_eval_helper (idx params 0) de comb_to_mark_map imm_eval (+ 1 indent))
             _ (println (indent_str indent) "after first eval of param " body1)
 
-            ;;;;
-            ;; TODO: add a terrible hack (I was thinking about some sort of value to embed a non-real combiner into the stripped that will be turned back in partial eval
-            ;; but we'd have to be careful to also remove it on this side, and what about if it gets wrapped in another combiner? Maybe just a bad idea
-            ;;;;
-            terrible_hack_strip (rec-lambda recurse (x)
-                (cond (val? x)          [true (.val x)]
-                      (later? x)        [false (.later x)]
-                      (marked_array? x) (foldl (lambda ([ok a] x) (let ([nok p] (recurse x))
-                                                                        [(and ok nok) (concat a [p])]))
-                                               [true []]
-                                               (idx x 1))
-                      (comb? x)         (let (c (idx x 7))
-                                             (if (= nil c) (error (str "partial eval failed: inne stripping a combinator without a real combinator (due to nil enviornment, no doubt)" x))
-                                                           [true c]))
-                      (prim_comb? x)    [true (idx x 2)]
-                      (marked_env? x)   (error "Env escaped to strip!")
-                      true              (error (str "some other strip? " x))
-                )
-            )
-
-            fallback_result [comb_to_mark_map ['later [eval (.later body1) (if (= nil (.env_real eval_env)) (slice params 1 -1) (.env_real eval_env))]]]
             c_body2 (cond (val? body1)      (partial_eval_helper (.val body1) eval_env comb_to_mark_map imm_eval (+ 1 indent))
-                      (later? body1)        fallback_result
+                      (later? body1)        [comb_to_mark_map ['later [eval (.later body1) (if (= nil (.env_real eval_env)) (slice params 1 -1) (.env_real eval_env))]]]
                       ; In the case of a later value internal to marked_array, it must finish being evaluated, or at least kept as a later
-                      (marked_array? body1) (let ([ok sbody1] (terrible_hack_strip body1))
+                      (marked_array? body1) (let ([ok sbody1] (eval_strip body1))
                                                  (if ok (partial_eval_helper sbody1 eval_env comb_to_mark_map imm_eval (+ 1 indent))
-                                                        fallback_result))
+                                                        [comb_to_mark_map ['later [eval (strip body1) (if (= nil (.env_real eval_env)) (slice params 1 -1) (.env_real eval_env))]]]))
                       (comb? body1)         [comb_to_mark_map body1]
                       (prim_comb? body1)    [comb_to_mark_map body1]
                       (marked_env? body1)   (error "Env escaped to eval_strip!")

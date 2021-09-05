@@ -29,8 +29,6 @@
     vau_with_no_eval_add (read-string "((vau (y) (+ 13 2 y)) 4)")
     vau_with_wrap_add (read-string "((wrap (vau (y) (+ 13 2 y))) (+ 3 4))")
     vau_with_add_p (read-string "(vau de (y) (+ (eval y de) (+ 1 2)))")
-    ;; No longer works with our more aggressive partial-evaling of vaus with incomplete environments
-    ;; BUT DOES CUZ I ROLLED THAT BACK
     vau_with_add_p_called (read-string "((vau de (y) ((vau dde (z) (+ 1 (eval z dde))) y)) 17)")
 
     cond_test (read-string "(cond false 1 false 2 (+ 1 2) 3 true 1337)")
@@ -56,6 +54,12 @@
     let2_test (read-string "((wrap (vau (let1) (let1 a 12 (vau (x) (+ a 1))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
     let3_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (+ x a 1)))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
     let4_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+
+    ; I've broken this one with my parameter bailing I think
+    ; The problem seems to be the second eval of let1, which is ( marked_array ( ( marked_array ( ( prim_comb combiner(wrap_level: 1) builtin_combiner_vau(wrap_level: 0) ) ( val ( y) ) ( val ( + y x a ) ) ) ) ( later ( builtin_combiner_+(wrap_level: 1) x a 1 ) ) ) )
+    ; that is, ['ma ['ma vau ('val y) 'val (+ y x a) ] 'later [+ x a 1] ], and because of that later, eval_strip
+    ; is returning not-ok, and so the whole thing can't be passed to partial_eval.
+    ; To fix it, we'd need that strip-hack-thing to strip it out then sub it back in in the partial eval.
     let5_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ x a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
 
     lambda1_test (read-string "((wrap (vau (let1)
@@ -134,8 +138,8 @@
     _ (test-case lambda2_test)
     _ (test-case lambda3_test)
 
-    _ (test-case vararg_test)
     _ (test-case array_test)
+    _ (test-case vararg_test)
 
     ;_ (test-case do1_test)
     ;_ (test-case do2_test)
