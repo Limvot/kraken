@@ -51,8 +51,8 @@
     marked_symbol? (lambda (x) (= 'marked_symbol (idx x 0)))
     .marked_symbol_is_val (lambda (x) (idx x 1))
     .marked_symbol_value  (lambda (x) (idx x 2))
-    later? (lambda (x) (or (and (marked_array? x) (= false (.marked_array_is_val x)))
-                           (and (symbol? x)       (= false (.symbol_is_val x)))))
+    later? (lambda (x) (or (and (marked_array? x)  (= false (.marked_array_is_val x)))
+                           (and (marked_symbol? x) (= false (.marked_symbol_is_val x)))))
     comb? (lambda (x) (= 'comb (idx x 0)))
     .comb (lambda (x) (slice x 1 -1))
     prim_comb? (lambda (x) (= 'prim_comb (idx x 0)))
@@ -76,7 +76,7 @@
     strip (rec-lambda recurse (x)
         (do (println "calling strip with " x)
         (cond (val? x)           (.val x)
-              (marked_array? x)  (let (stripped_vales (map recurse (.marked_array_values x)))
+              (marked_array? x)  (let (stripped_values (map recurse (.marked_array_values x)))
                                       (if (.marked_array_is_val x) (cons array stripped_values)
                                                                    stripped_values))
               (marked_symbol? x) (if (.marked_symbol_is_val x) [quote (.marked_symbol_value x)]
@@ -92,7 +92,7 @@
 
     ; A bit wild, but what if instead of is_value we had an evaluation level integer, kinda like wrap?
     ; when lowering, it could just turn into multiple evals or somesuch, though we'd have to be careful of envs...
-    try_unval (rec-lambda recurse (x)
+    try_unval (rec-lambda recurse (x) (let (_ (println "try_unvaling " x) r
         (cond (marked_array? x) (if (not (.marked_array_is_val x)) [false nil]
                                                                    (let ([sub_ok subs] (foldl (lambda ([ok a] x) (let ([nok p] (recurse x))
                                                                                                                       [(and ok nok) (concat a [p])]))
@@ -102,8 +102,8 @@
                                                                                    [false nil])))
               (marked_symbol? x) (if (.marked_symbol_is_val x) [true ['marked_symbol false (.marked_symbol_value x)]]
                                                                [false nil])
-              true               x
-        )
+              true               [true x]
+        ) _ (println "\tresult was " r)) r)
     )
     try_unval_array (lambda (x) (foldl (lambda ([ok a] x) (let ([nok p] (try_unval x))
                                                                [(and ok nok) (concat a [p])]))
@@ -163,10 +163,11 @@
                                                                                  [wrap_level de? se variadic params body actual_function] (.comb comb)
                                                                                  [ok appropriatly_evaled_params] ((rec-lambda param-recurse (wrap params)
                                                                                         (if (!= 0 wrap)
-                                                                                            (let ([ok unval_params] (try_unval_array params))
+                                                                                            (let (rp_eval (lambda (p) (recurse p env false (+ 1 indent)))
+                                                                                                  pre_evaled (map rp_eval params)
+                                                                                                  [ok unval_params] (try_unval_array pre_evaled))
                                                                                                  (if (not ok) [ok nil]
-                                                                                                    (let (evaled_params (map (lambda (p) (recurse p env false (+ 1 indent)))
-                                                                                                                             unval_params))
+                                                                                                    (let (evaled_params (map rp_eval unval_params))
                                                                                                          (param-recurse (- wrap 1) evaled_params))))
                                                                                             [true params])
                                                                                     ) wrap_level literal_params)
@@ -216,7 +217,7 @@
     needs_params_val_lambda (vau de (f_sym) (let (
         actual_function (eval f_sym de)
         handler (rec-lambda recurse (de params imm_eval indent) (let (
-                evaled_params (map (lambda (p) (partial_eval_helper x de false (+ 1 indent))) params)
+                evaled_params (map (lambda (p) (partial_eval_helper p de false (+ 1 indent))) params)
             )
             (if (is_all_values evaled_params) (mark (lapply actual_function (map strip evaled_params)))
                                               ['marked_array false (cons ['prim_comb recurse actual_function] evaled_params)])))
@@ -224,7 +225,7 @@
     give_up_eval_params (vau de (f_sym) (let (
         actual_function (eval f_sym de)
         handler (rec-lambda recurse (de params imm_eval indent) (let (
-                evaled_params (map (lambda (p) (partial_eval_helper x de false (+ 1 indent))) params)
+                evaled_params (map (lambda (p) (partial_eval_helper p de false (+ 1 indent))) params)
             )
             ['marked_array false (cons ['prim_comb recurse actual_function] evaled_params)]))
         ) [f_sym ['prim_comb handler actual_function]]))
@@ -246,19 +247,24 @@
         ; evaluate to a ['later [vau de? params (strip partially_evaled_body)]], otherwise it can evaluate to a 'comb.
         ; Note that this 'later may be re-evaluated later if the parent function is called.
         ['vau ['prim_comb (rec-lambda recurse (de params imm_eval indent) (let (
-            de?         (if (= 3 (len params)) (idx params 0))
-            vau_de?     (if (= nil de?) [] [de?])
-            [variadic vau_params]  (foldl (lambda ([v a] x) (if (= x '&) [true a] [v (concat a [x])])) [false []] (if (= nil de?) (idx params 0) (idx params 1)))
+            mde?         (if (= 3 (len params)) (idx params 0))
+            vau_mde?     (if (= nil mde?) [] [mde?])
+            de?          (if mde? (.marked_symbol_value mde?))
+            vau_de?      (if (= nil de?) [] [de?])
+            raw_marked_params (if (= nil de?) (idx params 0) (idx params 1))
+            raw_params (map strip (.marked_array_values raw_marked_params))
+            [variadic vau_params]  (foldl (lambda ([v a] x) (if (= x '&) [true a] [v (concat a [x])])) [false []] raw_params)
             body        (if (= nil de?) (idx params 1) (idx params 2))
             inner_env   ['env (concat (map (lambda (p) [p ['marked_symbol false p]]) vau_params) (if (= nil de?) [] [ [de? ['marked_symbol false de?]] ]) [de]) nil]
+            _ (map (lambda (x) (if (not (symbol? x)) (error (str "bad vau param not symbol " x " in " vau_params)))) vau_params)
             _ (println (indent_str indent) "in vau, evaluating body with 'later params - " body)
             pe_body (partial_eval_helper body inner_env false (+ 1 indent))
             _ (println (indent_str indent) "in vau, result of evaluating body was " pe_body " stripping")
             for_later (= nil (.env_real de))
             _ (println (indent_str indent) "imm_eval is " imm_eval " and for_later is " for_later " for " params " because of env being null " de)
-        ) (if for_later (if (not imm_eval) ['marked_array false (concat [['prim_comb recurse vau]] vau_de? [vau_params pe_body])]
+        ) (if for_later (if (not imm_eval) ['marked_array false (concat [['prim_comb recurse vau]] vau_mde? [raw_marked_params pe_body])]
                                            ['comb 0 de? de variadic vau_params pe_body nil])
-                        (let (real_func (eval (concat [vau] vau_de? [vau_params (strip pe_body)]) (.env_real de))
+                        (let (real_func (eval (concat [vau] vau_de? [raw_params (strip pe_body)]) (.env_real de))
                               marked_func ['comb 0 de? de variadic vau_params pe_body real_func]
                               _ (println (indent_str indent) "Marked func is " marked_func)
                              ) marked_func)))

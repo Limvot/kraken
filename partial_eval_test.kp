@@ -5,7 +5,7 @@
                     ; For right now we only support calling partial_eval in such a way that it partial evals against
                     ; the root env, but this is could and really should be extended. We could at least check if the env we're called with
                     ; is the root_env, or if what we look up in whatever env is passed in matches something in the root env
-                    [comb_to_mark_map partially_evaled] (partial_eval code)
+                    partially_evaled (partial_eval code)
                     _ (println "Partially evaled: " partially_evaled)
                     stripped (strip partially_evaled)
                     _ (println "Stripped: " stripped)
