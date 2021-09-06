@@ -2,11 +2,14 @@
 (let (
     test-case (lambda (code) (let (
                     _ (println "Code: " code)
+                    ; For right now we only support calling partial_eval in such a way that it partial evals against
+                    ; the root env, but this is could and really should be extended. We could at least check if the env we're called with
+                    ; is the root_env, or if what we look up in whatever env is passed in matches something in the root env
                     [comb_to_mark_map partially_evaled] (partial_eval code)
                     _ (println "Partially evaled: " partially_evaled)
                     stripped (strip partially_evaled)
                     _ (println "Stripped: " stripped)
-                    fully_evaled (eval stripped)
+                    fully_evaled (eval stripped root_env)
                     _ (println "Fully evaled: " fully_evaled)
                     fully_evaled_called (if (combiner? fully_evaled) (fully_evaled 1337))
                     _ (if (combiner? fully_evaled) (println "..and called " fully_evaled_called))
@@ -39,6 +42,8 @@
     combiner_test2 (read-string "(combiner? (vau de (x) x))")
     combiner_test3 (read-string "(vau de (x) (combiner? x))")
 
+    symbol_test (read-string "((vau (x) x) a)")
+
     env_test  (read-string "(env? true)")
     ; this doesn't partially eval, but it could with a more percise if the marked values were more percise
     env_test2 (read-string "(vau de (x) (env? de))")
@@ -60,7 +65,9 @@
     ; that is, ['ma ['ma vau ('val y) 'val (+ y x a) ] 'later [+ x a 1] ], and because of that later, eval_strip
     ; is returning not-ok, and so the whole thing can't be passed to partial_eval.
     ; To fix it, we'd need that strip-hack-thing to strip it out then sub it back in in the partial eval.
-    let5_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ x a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+    let5_test (read-string "((wrap (vau (let1)
+                                (let1 a 12 (wrap (vau (x) (let1 y (+ x a 1) (+ y x a))))
+                            ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
 
     lambda1_test (read-string "((wrap (vau (let1)
                                (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
@@ -71,6 +78,7 @@
                                (let1 a 12
                                      (lambda (x) (+ a x)))
                                ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+    ;!!!! Ditto to let5_test
     lambda3_test (read-string "((wrap (vau (let1)
                                (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
                                (let1 a 12
@@ -123,6 +131,7 @@
     _ (test-case combiner_test)
     _ (test-case combiner_test2)
     _ (test-case combiner_test3)
+    _ (test-case symbol_test)
     _ (test-case env_test)
     _ (test-case env_test2)
     _ (test-case env_test3)
