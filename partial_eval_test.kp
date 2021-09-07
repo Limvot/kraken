@@ -60,11 +60,38 @@
     let3_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (+ x a 1)))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
     let4_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
 
-    ; I've broken this one with my parameter bailing I think
-    ; The problem seems to be the second eval of let1, which is ( marked_array ( ( marked_array ( ( prim_comb combiner(wrap_level: 1) builtin_combiner_vau(wrap_level: 0) ) ( val ( y) ) ( val ( + y x a ) ) ) ) ( later ( builtin_combiner_+(wrap_level: 1) x a 1 ) ) ) )
-    ; that is, ['ma ['ma vau ('val y) 'val (+ y x a) ] 'later [+ x a 1] ], and because of that later, eval_strip
-    ; is returning not-ok, and so the whole thing can't be passed to partial_eval.
-    ; To fix it, we'd need that strip-hack-thing to strip it out then sub it back in in the partial eval.
+    ; Ok, the post-refactor sticking point is
+    ;
+    ; after first eval of param  ( marked_array true ( ( marked_array true ( ( prim_comb combiner(wrap_level: 1) builtin_combiner_vau(wrap_level: 0) ) ( marked_array true ( ( marked_symbol true y ) ) ) ( marked_array true ( ( marked_symbol true + ) ( marked_symbol true y ) ( marked_symbol true x ) ( marked_symbol true a ) ) ) ) ) ( marked_array false ( ( prim_comb combiner(wrap_level: 1) builtin_combiner_+(wrap_level: 1) ) ( marked_symbol false x ) ( val 12 ) ( val 1 ) ) ) ) )
+    ;
+    ; tries to finish the eval by unvaling & then partial evaling:
+    ; [ [ vau [ 'y ] [ '+ 'y 'x 'a ] ] ( + x 12 1 ) ]
+    ;
+    ; This fails as it can't unval (+ x 12 1). Note the vau's not wrapped, so it won't actually partial eval after that, but it still dies first...
+    ; This is where that is_val as an int might make sense...
+    ;   theoretically when the vau uses y and then strips it can sub in the stuff exactly, as subbing in itself counts as an evaluation.
+    ;   In general, stripping counts as a +1 to the is_val counter and we need to add evals or (array ...)/quote to get it to 0. In this case, it would work perfectly.
+    ;   The REALLY tricky part is that by allow it to go negative we have to remember what environment it needs to be evaluated in and make sure it's either the same environment
+    ;   or a sub environment that doesn't shadow anything...
+    ;
+    ; ALTERNATIVE: allow partial evals on things that contain negatives, but don't actually do the call, but allow the partial eval to go into the other
+    ;               parts, namely into the body of the vau above
+    ;
+    ; Also, it seems to be bailing even harder than it otherwise should be, as that above partial eval of let1, as limited as it is, doesn't show up in the final output
+    ;   This is due to the later? and closes_over_var_from_this_env_marked check in function call
+    ;
+    ;!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ; Which means we need TODO
+    ;!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ;   1) Change from is_val as a bool to is_val as an int, and allow negative values in certain situations
+    ;       If we're not careful about the environment it was evaluated in vs current environment, we'll also have to carry around the environment
+    ;       We might be able to call partial_eval with them, but not pass them any further down, esp into anything that might change the scope.
+    ;       This will at least allow us to decend into and partial eval the other parts of the array calling form so we can partial eval inside the body's of lets
+    ;       where the value being assigned has some later? value.
+    ;   2) Finish up closes_over_var_from_this_env_marked so it's less finicky
+    ;
+    ; I think we'll need both for this to actualy work
+    ;
     let5_test (read-string "((wrap (vau (let1)
                                 (let1 a 12 (wrap (vau (x) (let1 y (+ x a 1) (+ y x a))))
                             ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")

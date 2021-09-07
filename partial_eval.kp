@@ -208,8 +208,10 @@
                                                                                  func_result (recurse body inner_env imm_eval (+ 1 indent))
 
                                                                                  _ (println (indent_str indent) "evaled result of function call (imm_eval was " imm_eval ")  is " func_result)
-                                                                                 result (if (and (later? func_result)
-                                                                                                 (closes_over_var_from_this_env_marked inner_env func_result))
+                                                                                 result_is_later (later? func_result)
+                                                                                 result_closes_over (closes_over_var_from_this_env_marked inner_env func_result)
+                                                                                 _ (println (indent_str indent) "func call result is later? " result_is_later " and result_closes_over " result_closes_over)
+                                                                                 result (if (and result_is_later result_closes_over)
                                                                                                                  ; this is exponential-y - we retry without imm to see if we can
                                                                                                                  ; have a better partial eval'd later instead of giving up entirely
                                                                                                                  (let (comb (recurse (idx values 0) env false (+ 1 indent)))
