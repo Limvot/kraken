@@ -880,7 +880,7 @@ fun main(argc: int, argv: **char): int {
             return make_pair(dynamic_env, KPResult::Ok(params[0]))
         } else if params.size == 2 {
             if !params[1].is_env() {
-                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to eval is not an environment"))))
+                return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("second param to eval is not an environment") + pr_str(params[1], true))))
             }
             return make_pair(params[1].get_env(), KPResult::Ok(params[0]))
         }
