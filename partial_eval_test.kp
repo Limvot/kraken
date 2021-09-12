@@ -7,6 +7,7 @@
                     ; is the root_env, or if what we look up in whatever env is passed in matches something in the root env
                     partially_evaled (partial_eval code)
                     _ (println "Partially evaled: " partially_evaled)
+                    _ (print_strip partially_evaled)
                     stripped (strip partially_evaled)
                     _ (println "Stripped: " stripped)
                     fully_evaled (eval stripped root_env)

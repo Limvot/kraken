@@ -78,7 +78,6 @@
                                          true            ['val x]))
 
     strip (rec-lambda recurse (x)
-        (do (println "calling strip with " x)
         (cond (val? x)           (.val x)
               (marked_array? x)  (let (stripped_values (map recurse (.marked_array_values x)))
                                       (if (.marked_array_is_val x) (cons array stripped_values)
@@ -91,25 +90,38 @@
               (prim_comb? x)     (idx x 2)
               (marked_env? x)    (error "Env escaped to strip!")
               true               (error (str "some other strip? " x))
-        ))
+        )
     )
+
+    print_strip (lambda (x) (println ((rec-lambda recurse (x)
+        (cond (val? x)           (.val x)
+              (marked_array? x)  (let (stripped_values (map recurse (.marked_array_values x)))
+                                      (if (.marked_array_is_val x) (cons array stripped_values)
+                                                                   stripped_values))
+              (marked_symbol? x) (if (.marked_symbol_is_val x) [quote (.marked_symbol_value x)]
+                                                               (.marked_symbol_value x))
+              (comb? x)          (let ([wrap_level de? se variadic params body actual_function] (.comb x)) (str "<comb " wrap_level " " params " " (recurse body) ">"))
+              (prim_comb? x)     (idx x 2)
+              (marked_env? x)    (error "Env escaped to strip!")
+              true               (error (str "some other strip? " x))
+        )
+    ) x)))
 
     ; A bit wild, but what if instead of is_value we had an evaluation level integer, kinda like wrap?
     ; when lowering, it could just turn into multiple evals or somesuch, though we'd have to be careful of envs...
-    try_unval (rec-lambda recurse (x) (let (_ (println "try_unvaling " x) r
-        (cond (marked_array? x) (if (not (.marked_array_is_val x)) [false nil]
-                                                                   (let ([sub_ok subs] (foldl (lambda ([ok a] x) (let ([nok p] (recurse x))
+    try_unval (rec-lambda recurse (x fail_f) (let (_ (println "try_unvaling " x) r
+        (cond (marked_array? x) (if (not (.marked_array_is_val x)) [false (fail_f x)]
+                                                                   (let ([sub_ok subs] (foldl (lambda ([ok a] x) (let ([nok p] (recurse x fail_f))
                                                                                                                       [(and ok nok) (concat a [p])]))
                                                                                               [true []]
                                                                                               (.marked_array_values x)))
-                                                                        (if sub_ok [true ['marked_array false subs]]
-                                                                                   [false nil])))
+                                                                        [sub_ok ['marked_array false subs]]))
               (marked_symbol? x) (if (.marked_symbol_is_val x) [true ['marked_symbol false (.marked_symbol_value x)]]
-                                                               [false nil])
+                                                               [false (fail_f x)])
               true               [true x]
         ) _ (println "\tresult was " r)) r)
     )
-    try_unval_array (lambda (x) (foldl (lambda ([ok a] x) (let ([nok p] (try_unval x))
+    try_unval_array (lambda (x) (foldl (lambda ([ok a] x) (let ([nok p] (try_unval x (lambda (_) nil)))
                                                                [(and ok nok) (concat a [p])]))
                                        [true []]
                                        x))
@@ -153,11 +165,13 @@
                 (marked_array? x)   (cond (.marked_array_is_val x) x
                                           (= 0 (len (.marked_array_values x))) (error "Partial eval on empty array")
                                           true (let (values (.marked_array_values x)
+                                                      _ (println (indent_str indent) "partial_evaling comb " (idx values 0))
                                                      comb (recurse (idx values 0) env true (+ 1 indent))
                                                      literal_params (slice values 1 -1)
                                                       _ (println (indent_str indent) "Going to do an array call!")
                                                       _ (println (indent_str indent) "     total is " x)
                                                       _ (println (indent_str indent) "     evaled comb is  " comb)
+                                                      ident (+ 1 indent)
                                                      )
                                                                              ; Replacing the old note here with one that mentions that
                                                                              ; we use the imm_eval to know if it's ok to generate
@@ -167,18 +181,21 @@
                                                      (cond (later? comb)     ['marked_array false (cons comb literal_params)]
                                                            (prim_comb? comb) ((.prim_comb comb) env literal_params imm_eval (+ 1 indent))
                                                            (comb? comb)      (let (
+                                                                                 rp_eval (lambda (p) (recurse p env false (+ 1 indent)))
                                                                                  [wrap_level de? se variadic params body actual_function] (.comb comb)
-                                                                                 [ok appropriatly_evaled_params] ((rec-lambda param-recurse (wrap params)
+                                                                                 ensure_val_params (map ensure_val literal_params)
+                                                                                 _ (println (indent_str indent) "partial_evaling params with wrap level " wrap_level " " ensure_val_params)
+                                                                                 [ok appropriatly_evaled_params] ((rec-lambda param-recurse (wrap cparams)
                                                                                         (if (!= 0 wrap)
-                                                                                            (let (rp_eval (lambda (p) (recurse p env false (+ 1 indent)))
-                                                                                                  pre_evaled (map rp_eval params)
+                                                                                            (let (pre_evaled (map rp_eval cparams)
                                                                                                   [ok unval_params] (try_unval_array pre_evaled))
                                                                                                  (if (not ok) [ok nil]
                                                                                                     (let (evaled_params (map rp_eval unval_params))
                                                                                                          (param-recurse (- wrap 1) evaled_params))))
-                                                                                            [true params])
-                                                                                    ) wrap_level (map ensure_val literal_params))
-                                                                                 ) (if (not ok) ['marked_array false (cons comb literal_params)]
+                                                                                            [true cparams])
+                                                                                    ) wrap_level ensure_val_params)
+                                                                                 ) (if (not ok) ['marked_array false (cons comb (if (> wrap_level 0) (map rp_eval literal_params)
+                                                                                                                                                     literal_params))]
                                                                                  (let (
                                                                                  final_params (if variadic (concat (slice appropriatly_evaled_params 0 (- (len params) 1))
                                                                                                                    [['marked_array true (slice appropriatly_evaled_params (- (len params) 1) -1)]])
@@ -205,6 +222,7 @@
                                                                                  ; We check with closes_over_var_from_this_env_marked, which can be made more
                                                                                  ; sophisticated, see its definition
 
+                                                                                 _ (println (indent_str indent) "partial_evaling body " body)
                                                                                  func_result (recurse body inner_env imm_eval (+ 1 indent))
 
                                                                                  _ (println (indent_str indent) "evaled result of function call (imm_eval was " imm_eval ")  is " func_result)
@@ -212,11 +230,14 @@
                                                                                  result_closes_over (closes_over_var_from_this_env_marked inner_env func_result)
                                                                                  _ (println (indent_str indent) "func call result is later? " result_is_later " and result_closes_over " result_closes_over)
                                                                                  result (if (and result_is_later result_closes_over)
-                                                                                                                 ; this is exponential-y - we retry without imm to see if we can
-                                                                                                                 ; have a better partial eval'd later instead of giving up entirely
-                                                                                                                 (let (comb (recurse (idx values 0) env false (+ 1 indent)))
-                                                                                                                      ['marked_array false (cons comb literal_params)])
-                                                                                                                 func_result)
+                                                                                                ; this is exponential-y - we retry without imm to see if we can
+                                                                                                ; have a better partial eval'd later instead of giving up entirely
+                                                                                                (let (
+                                                                                                     _ (println (indent_str indent) "partial_evaling retrying comb and parameters after fail b/c result_is_later and result_closes_over " (idx values 0) " with wrap_level " wrap_level " and params " literal_params)
+                                                                                                     comb (recurse (idx values 0) env false (+ 1 indent)))
+                                                                                                     ['marked_array false (cons comb (if (> wrap_level 0) (map rp_eval ensure_val_params)
+                                                                                                                                                    literal_params))])
+                                                                                                func_result)
                                                                              ) result)))
                                                            true              (error (str "Partial eval noticed that you will likely call not a function " comb  " total is " x)))))
                 true                (error (str "impossible partial_eval value " x))
@@ -226,6 +247,7 @@
     needs_params_val_lambda (vau de (f_sym) (let (
         actual_function (eval f_sym de)
         handler (rec-lambda recurse (de params imm_eval indent) (let (
+                _ (println "partial_evaling params in need_params_val_lambda for " f_sym " is " params)
                 evaled_params (map (lambda (p) (partial_eval_helper p de false (+ 1 indent))) params)
             )
             (if (is_all_values evaled_params) (mark (lapply actual_function (map strip evaled_params)))
@@ -234,6 +256,7 @@
     give_up_eval_params (vau de (f_sym) (let (
         actual_function (eval f_sym de)
         handler (rec-lambda recurse (de params imm_eval indent) (let (
+                _ (println "partial_evaling params in give_up_eval_params for " f_sym " is " params)
                 evaled_params (map (lambda (p) (partial_eval_helper p de false (+ 1 indent))) params)
             )
             ['marked_array false (cons ['prim_comb recurse actual_function] evaled_params)]))
@@ -243,6 +266,7 @@
     ; ! I think needs_params_val_lambda should be combined with parameters_evaled_proxy
     ; !!!!!!
     parameters_evaled_proxy (rec-lambda recurse (pasthr_ie inner_f) (lambda (de params imm_eval indent) (let (
+        _ (println "partial_evaling params in parameters_evaled_proxy is " params)
         [evaled_params l] (foldl (lambda ([ac i] p) (let (p (partial_eval_helper p de (if (= i pasthr_ie) imm_eval false) (+ 1 indent)))
                                                          [(concat ac [p]) (+ i 1)]))
                                  [[] 0]
@@ -297,18 +321,25 @@
 
         ['eval ['prim_comb (rec-lambda recurse (de params imm_eval indent) (let (
             self ['prim_comb recurse eval]
+            _ (println "partial_evaling param 1 maybe in eval is (if it exists) " (if (= 2 (len params)) (idx params 1)))
             eval_env (if (= 2 (len params)) (partial_eval_helper (idx params 1) de false (+ 1 indent))
                                             de)
+            eval_env_v (if (= 2 (len params)) [eval_env] [])
          ) (if (not (marked_env? eval_env)) ['marked_array false (cons self params)]
                                             (let (
-            _ (println (indent_str indent) "ok, env was " eval_env)
+            _ (println (indent_str indent) "ok, env was " eval_env " partial_evaling_body the first time")
             body1 (partial_eval_helper (idx params 0) de imm_eval (+ 1 indent))
             _ (println (indent_str indent) "after first eval of param " body1)
 
-            [ok unval_body] (try_unval body1)
-            body2 (if ok (partial_eval_helper unval_body eval_env imm_eval (+ 1 indent))
-                         ['marked_array false (cons self (if (= 2 (len params)) [body1 eval_env]
-                                                                                [body1]))])
+            ; With this, we don't actually fail as this is always a legitimate uneval
+            fail_handler (lambda (failed) ['marked_array false (concat [self failed] eval_env_v)])
+            [ok unval_body] (try_unval body1 fail_handler)
+            self_fallback (fail_handler body1)
+            _ (println "partial_evaling body for the second time in eval " unval_body)
+            body2 (if (= self_fallback unval_body) self_fallback (partial_eval_helper unval_body eval_env imm_eval (+ 1 indent)))
+            ;[ok unval_body] (try_unval body1 (lambda (failed) nil))
+            ;body2 (if ok (partial_eval_helper unval_body eval_env imm_eval (+ 1 indent))
+            ;             self_fallback)
 
             _ (println (indent_str indent) "and body2 is " body2)
             ) body2))
@@ -440,5 +471,5 @@
 
     partial_eval (lambda (x) (partial_eval_helper (mark x) root_marked_env false 0))
 )
-    (provide partial_eval strip)
+    (provide partial_eval strip print_strip)
 ))
