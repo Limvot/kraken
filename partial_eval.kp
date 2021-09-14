@@ -136,18 +136,24 @@
     ; This is a conservative analysis, since we can't always tell what constructs introduce
     ; a new binding scope & would be shadowing... we should at least be able to implement it for
     ; vau/lambda, but we won't at first
-    closes_over_var_from_this_env_marked (rec-lambda recurse (env x) (cond
+    in_array (let (helper (rec-lambda recurse (x a i) (cond (= i (len a))   false
+                                                            (= x (idx a i)) true
+                                                            true            (recurse x a (+ i 1)))))
+                  (lambda (x a) (helper x a 0)))
+    contains_symbols (rec-lambda recurse (stop_envs symbols x) (cond
               (val? x)           false
-              (marked_symbol? x) (env-lookup-helper (concat (slice (idx env 1) 0 -2) [nil]) (.marked_symbol_value x) 0 (lambda () false) (lambda (x) [x]))
-              (marked_array? x)  (foldl (lambda (a x) (or a (recurse env x))) false (.marked_array_values x))
-                                    ; This is where we'd be smart and remove shadowed stuff
-                                    ; Also this won't work yet because env
-              (comb? x)          true ;(let ( [wrap_level de? se variadic params body actual_function] (.comb x)) (or (recurse env se) (recurse env body)))
+              (marked_symbol? x) (in_array (.marked_symbol_value x) symbols)
+              (marked_array? x)  (foldl (lambda (a x) (or a (recurse stop_envs symbols x))) false (.marked_array_values x))
+              (comb? x)          (let ([wrap_level de? se variadic params body actual_function] (.comb x))
+                                      (or (recurse stop_envs symbols se) (recurse stop_envs (filter (lambda (y) (not (in_array y params))) symbols) body)))
 
               (prim_comb? x)    false
-              ; Should check to see if the env has anything form env in it, somehow? See if it has this env itself in it?
-              (marked_env? x)   true ;(error "haven't handled env in closes_over_var_from_this_env_marked!")
-              true              (error (str "Something odd passed to closes_over_var_from_this_env_marked " x))
+              (marked_env? x)   (let (inner (.env_marked x))
+                                     (cond (in_array x stop_envs)                                                                       false
+                                           (foldl (lambda (a x) (or a (recurse stop_envs symbols (idx x 1)))) false (slice inner 0 -2)) true
+                                           (idx inner -1)                                                                     (recurse stop_envs symbols (idx inner -1))
+                                           true                                                                                         false))
+              true              (error (str "Something odd passed to contains_symbols " x))
     ))
 
     indent_str (rec-lambda recurse (i) (if (= i 0) ""
@@ -219,15 +225,18 @@
                                                                                  ; if they're used as parameters to a 'later value that might be a vau,
                                                                                  ; since we don't know if they have to be evaluated and thus
                                                                                  ; can't partially evaluate them.
-                                                                                 ; We check with closes_over_var_from_this_env_marked, which can be made more
-                                                                                 ; sophisticated, see its definition
+                                                                                 ; !!! I belive this can be modified to wrap up into a specialized version of the func though
+                                                                                 ; !!! and indeed that might be the right option for vaus
+                                                                                 ; !!! something like (if (= 0 wrap_level) ['marked_array false (cons ['comb wrap_level de? se variadic params func_result nil] literal_params)]
+                                                                                 ; !!! but have to be careful about what real_function should be
 
                                                                                  _ (println (indent_str indent) "partial_evaling body " body)
                                                                                  func_result (recurse body inner_env imm_eval (+ 1 indent))
 
                                                                                  _ (println (indent_str indent) "evaled result of function call (imm_eval was " imm_eval ")  is " func_result)
                                                                                  result_is_later (later? func_result)
-                                                                                 result_closes_over (closes_over_var_from_this_env_marked inner_env func_result)
+                                                                                 stop_envs ((rec-lambda ser (a e) (if e (ser (cons e a) (idx (.env_marked e) -1)) a)) [] se)
+                                                                                 result_closes_over (contains_symbols stop_envs (concat params (if de? [de?] [])) func_result)
                                                                                  _ (println (indent_str indent) "func call result is later? " result_is_later " and result_closes_over " result_closes_over)
                                                                                  result (if (and result_is_later result_closes_over)
                                                                                                 ; this is exponential-y - we retry without imm to see if we can
