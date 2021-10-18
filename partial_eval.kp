@@ -53,13 +53,14 @@
 
     later? (rec-lambda recurse (x) (or (and (marked_array? x)  (or (= false (.marked_array_is_val x)) (foldl (lambda (a x) (or a (recurse x))) false (.marked_array_values x))))
                                        (and (marked_symbol? x) (= false (.marked_symbol_is_val x)))
-                                       (and (marked_env? x)    (not (marked_env_real? x)))
-                                       (and (comb? x)          (let ([wrap_level de? se variadic params body] (.comb x)
-                                                                     ; this is the complex bit - we should do something like check if
-                                                                     ; se is fake check to see if there are symbols or eval that could use it
-                                                                     ; or a sub-comb's se, or if de is non-nil and used in some sub-call.
-                                                                     comb_is_later (recurse se)
-                                                                    ) comb_is_later))
+                                      ; This is now taken care of via the de Bruijn >= 0 check in call, otherwise these are values, kinda, as long as they don't go negative (or are real)
+                                      ;(and (marked_env? x)    (not (marked_env_real? x)))
+                                      ;(and (comb? x)          (let ([wrap_level de? se variadic params body] (.comb x)
+                                      ;                              ; this is the complex bit - we should do something like check if
+                                      ;                              ; se is fake check to see if there are symbols or eval that could use it
+                                      ;                              ; or a sub-comb's se, or if de is non-nil and used in some sub-call.
+                                      ;                              comb_is_later (recurse se)
+                                      ;                             ) comb_is_later))
                                    ))
     false? (lambda (x) (cond (and (marked_array? x)  (= false (.marked_array_is_val x)))    (error (str "got a later marked_array passed to false? " x))
                              (and (marked_symbol? x) (= false (.marked_symbol_is_val x)))   (error (str "got a later marked_symbol passed to false? " x))
@@ -89,8 +90,8 @@
               (marked_symbol? x) (if (.marked_symbol_is_val x) ['quote (.marked_symbol_value x)]
                                                                (.marked_symbol_value x))
               (comb? x)          (let ([wrap_level de? se variadic params body] (.comb x))
-                                      (str "<comb " wrap_level " " de? " <se> " params " " (recurse body) ">"))
-                                      ;(str "<comb " wrap_level " " de? " <se " (recurse se) "> " params " " (recurse body) ">"))
+                                      ;(str "<comb " wrap_level " " de? " <se> " params " " (recurse body) ">"))
+                                      (str "<comb " wrap_level " " de? " <se " (recurse se) "> " params " " (recurse body) ">"))
               (prim_comb? x)     (idx x 2)
               (marked_env? x)    (let (e (.env_marked x)
                                        index (.marked_env_idx x)
@@ -186,13 +187,14 @@
 
     is_all_values (lambda (evaled_params) (foldl (lambda (a x) (and a (not (later? x)))) true evaled_params))
 
+    ; * TODO: allowing envs to be shead if they're not used.
     shift_envs (rec-lambda recurse (cutoff d x) (cond
         (val? x)            [true x]
         (marked_env? x)     (let ([_env is_real dbi meat] x
                                   [nmeat_ok nmeat] (foldl (lambda ([ok r] [k v]) (let ([tok tv] (recurse cutoff d v)) [(and ok tok) (concat r [[k tv]])])) [true []] (slice meat 0 -2))
                                   [nupper_ok nupper] (if (idx meat -1) (recurse cutoff d (idx meat -1)) [true nil])
                                   ndbi (if (>= cutoff dbi) (+ dbi d) dbi)
-                              ) [(and nmeat_ok nupper_ok (>= ndbi 0)) ['env is_real ndbi (concat nmeat [nupper])]])
+                              ) [(and nmeat_ok nupper_ok (or is_real (>= ndbi 0))) ['env is_real ndbi (concat nmeat [nupper])]])
         (comb? x)           (let ([wrap_level de? se variadic params body] (.comb x)
                                     [se_ok nse] (recurse cutoff d se)
                                     [body_ok nbody] (recurse (+ cutoff 1) d body)
@@ -210,7 +212,6 @@
     ; ['ref de_bruijn_index_of_env index_into_env] or somesuch. Could really simplify
     ; compiling, and I think make partial-eval more efficient. More accurate closes_over analysis too, I think
     make_tmp_inner_env (lambda (params de? de)
-            ; TODO: our de Bruijn index is 0, increment de's index
             ['env false 0 (concat (map (lambda (p) [p ['marked_symbol false p]]) params) (if (= nil de?) [] [ [de? ['marked_symbol false de?]] ]) [(increment_envs de)])])
 
 
@@ -220,7 +221,15 @@
                 ; Note that we need to normalize indicies, I think - incrementing or decrmenting values in the env from env_stack
                 ; to match what we have here, which can be calculated by the difference between the level the env thinks it is verses what it is
                 ; note we do have to make sure that index is copied over as well.
-                (marked_env? x)     x
+                (marked_env? x)     (let (dbi (.marked_env_idx x))
+                                          (if dbi (let (curr_env (idx env_stack dbi)
+                                                        odbi (.marked_env_idx curr_env)
+                                                        _ (if (!= dbi odbi) (error (str (str_strip "same env with different dbis " x) (str_strip " and " curr_env))))
+                                                        )
+                                                        ;(idx (shift_envs ? (- dbi odbi) curr_env) 1))
+                                                        curr_env)
+                                                  x))
+
                 (comb? x)           (let ([wrap_level de? se variadic params body] (.comb x))
                                         (if (or (and (not (marked_env_real? env)) (not (marked_env_real? se)))   ; both aren't real, re-evaluation of creation site
                                                 (and      (marked_env_real? env)  (not (marked_env_real? se))))  ; new env real, but se isn't - creation!
@@ -263,11 +272,10 @@
                                                                                  final_params (if variadic (concat (slice appropriatly_evaled_params 0 (- (len params) 1))
                                                                                                                    [['marked_array true (slice appropriatly_evaled_params (- (len params) 1) -1)]])
                                                                                                            appropriatly_evaled_params)
-                                                                                 de_entry (if (!= nil de?) [ [de? (if (marked_env_real? env) env
-                                                                                                                                             ['marked_symbol false de?])] ]
-                                                                                                           [])
+                                                                                 [de_real de_entry] (if (!= nil de?) [ (marked_env_real? env) [ [de? env ] ] ]
+                                                                                                                     [ true []])
                                                                                  ;_ (println (indent_str indent) "final_params params " final_params)
-                                                                                 inner_env ['env (marked_env_real? se) 0 (concat (zip params (map (lambda (x) (increment_envs x)) final_params)) de_entry [(increment_envs se)])]
+                                                                                 inner_env ['env (and de_real (marked_env_real? se)) 0 (concat (zip params (map (lambda (x) (increment_envs x)) final_params)) de_entry [(increment_envs se)])]
                                                                                  _ (print_strip (indent_str indent) " with inner_env is " inner_env)
                                                                                  _ (print_strip (indent_str indent) "going to eval " body)
 
@@ -293,7 +301,7 @@
     needs_params_val_lambda (vau de (f_sym) (let (
         actual_function (eval f_sym de)
         handler (rec-lambda recurse (de env_stack params indent) (let (
-                _ (println "partial_evaling params in need_params_val_lambda for " f_sym " is " params)
+                ;_ (println "partial_evaling params in need_params_val_lambda for " f_sym " is " params)
                 evaled_params (map (lambda (p) (partial_eval_helper p de env_stack (+ 1 indent))) params)
             )
             (if (is_all_values evaled_params) (mark (lapply actual_function (map strip evaled_params)))
@@ -339,7 +347,6 @@
             _ (print_strip (indent_str indent) "in vau, evaluating body with 'later params - " body)
             pe_body (partial_eval_helper body inner_env (cons inner_env env_stack) (+ 1 indent))
             _ (print_strip (indent_str indent) "in vau, result of evaluating body was " pe_body)
-            _ (print_strip pe_body)
         ) ['comb 0 de? de variadic vau_params pe_body]
         )) vau]]
 
@@ -361,7 +368,7 @@
             eval_env (if (= 2 (len params)) (partial_eval_helper (idx params 1) de env_stack (+ 1 indent))
                                             de)
             eval_env_v (if (= 2 (len params)) [eval_env] [])
-         ) (if (not (marked_env? eval_env)) ['marked_array false (cons self params)]
+         ) (if (not (marked_env? eval_env)) (do (print_strip (indent_str indent) "eval got not a marked env " eval_env) ['marked_array false (cons self params)])
                                             (let (
             _ (print_strip (indent_str indent) " partial_evaling_body the first time " (idx params 0))
             body1 (partial_eval_helper (idx params 0) de env_stack (+ 1 indent))
@@ -371,7 +378,7 @@
             fail_handler (lambda (failed) ['marked_array false (concat [self failed] eval_env_v)])
             [ok unval_body] (try_unval body1 fail_handler)
             self_fallback (fail_handler body1)
-            _ (print_strip "partial_evaling body for the second time in eval " unval_body)
+            _ (print_strip (indent_str indent) "partial_evaling body for the second time in eval " unval_body)
             body2 (if (= self_fallback unval_body) self_fallback (partial_eval_helper unval_body eval_env env_stack (+ 1 indent)))
             _ (print_strip (indent_str indent) "and body2 is " body2)
             ) body2))
@@ -412,6 +419,7 @@
         (needs_params_val_lambda bool?)
         (needs_params_val_lambda str-to-symbol)
         (needs_params_val_lambda get-text)
+
         ['array? ['prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack [evaled_param] indent)
             (cond 
                   (later? evaled_param)         ['marked_array false [['prim_comb recurse array?] evaled_param]]
@@ -419,8 +427,12 @@
                   true                          ['val false]
             )
         )) array?]]
+        ; This one's sad, might need to come back to it.
+        ; We need to be able to differentiate between half-and-half arrays
+        ; for when we ensure_params_values or whatever, because that's super wrong
         ['array ['prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
-                                                ['marked_array true evaled_params]
+                                                (if (is_all_values evaled_params) ['marked_array true evaled_params]
+                                                                                  ['marked_array false (cons ['prim_comb recurse array] evaled_params)])
         )) array]]
         ['len ['prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack [evaled_param] indent)
             (cond (later? evaled_param)         ['marked_array false [['prim_comb recurse len] evaled_param]]
@@ -446,6 +458,7 @@
                   true                                                                                              ['marked_array false (cons ['prim_comb recurse concat] evaled_params)]
             )
         ))) concat]]
+
         (needs_params_val_lambda +)
         (needs_params_val_lambda -)
         (needs_params_val_lambda *)
