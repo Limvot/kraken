@@ -61,6 +61,13 @@
     let3_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (+ x a 1)))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
     let4_test (read-string "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
 
+    let4.3_test (read-string "((wrap (vau (let1)
+                                (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a))))
+                            ))) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))")
+    let4.7_test (read-string "((wrap (vau (let1)
+                                (let1 a 12 (wrap (vau (x) (let1 y (+ x a 1) (+ y x a))))
+                            ))) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))")
+
     ;!!!!!!!!!!!!!!!!!!!!!!!!!!
     ; Which means we need TODO
     ;!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -149,6 +156,8 @@
     _ (test-case let2_test)
     _ (test-case let3_test)
     _ (test-case let4_test)
+    _ (test-case let4.3_test)
+    _ (test-case let4.7_test)
     _ (test-case let5_test)
 
     _ (test-case lambda1_test)

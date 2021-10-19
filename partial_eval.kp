@@ -103,9 +103,9 @@
     ) (idx args -1))])))
     print_strip (lambda (& args) (println (lapply str_strip args)))
 
-    strip (let (helper (rec-lambda recurse (x need_value) 
+    strip (let (helper (rec-lambda recurse (x need_value de_sym)
         (cond (val? x)           (.val x)
-              (marked_array? x)  (let (stripped_values (map (lambda (x) (recurse x need_value)) (.marked_array_values x)))
+              (marked_array? x)  (let (stripped_values (map (lambda (x) (recurse x need_value de_sym)) (.marked_array_values x)))
                                       (if (.marked_array_is_val x) (if need_value (error (str "needed value for this strip but got" x)) (cons array stripped_values))
                                                                    stripped_values))
               (marked_symbol? x) (if (.marked_symbol_is_val x) (if need_value (error (str "needed value for this strip but got" x)) [quote (.marked_symbol_value x)])
@@ -115,23 +115,24 @@
                                        final_params (if variadic (concat (slice params 0 -2) '& [(idx params -1)]) params)
                                        ; Honestly, could trim down the env to match what could be evaluated in the comb
                                        ; Also if this isn't real, lower to a call to vau
-                                       se_env (if (marked_env_real? se) (recurse se true) nil)
-                                       body_v (recurse body false)
+                                       se_env (if (marked_env_real? se) (recurse se true de_sym) nil)
+                                       body_v (recurse body false de?)
                                        ve (concat [vau] de_entry [final_params] [body_v])
                                        fe ((rec-lambda recurse (x i) (if (= i 0) x (recurse [wrap x] (- i 1)))) ve wrap_level)
                                  ) (if se_env (eval fe se_env) fe))
               (prim_comb? x)     (idx x 2)
                                           ; env emitting doesn't pay attention to real value right now, not sure if that makes sense
                                           ; TODO: properly handle de Bruijn indexed envs
-              (marked_env? x)    (let (_ (if (not (marked_env_real? x)) (error (str_strip "trying to emit fake env!" x)))
-                                       upper (idx (.env_marked x) -1)
-                                       upper_env (if upper (recurse upper true) empty_env)
-                                       just_entries (slice (.env_marked x) 0 -2)
-                                       vdict (map (lambda ([k v]) [k (recurse v true)]) just_entries)
-                                 ) (add-dict-to-env upper_env vdict))
+              (marked_env? x)    (cond (and de_sym (= 0 (.marked_env_idx x))) de_sym
+                                       true                                   (let (_ (if (not (marked_env_real? x)) (error (str_strip "trying to emit fake env! " de_sym " " (.marked_env_idx x) " " x)))
+                                                                                    upper (idx (.env_marked x) -1)
+                                                                                    upper_env (if upper (recurse upper true de_sym) empty_env)
+                                                                                    just_entries (slice (.env_marked x) 0 -2)
+                                                                                    vdict (map (lambda ([k v]) [k (recurse v true de_sym)]) just_entries)
+                                                                              ) (add-dict-to-env upper_env vdict)))
               true               (error (str "some other strip? " x))
         )
-    ))  (lambda (x) (let (_ (print_strip "stripping: " x) r (helper x false) _ (println "result of strip " r)) r)))
+    ))  (lambda (x) (let (_ (print_strip "stripping: " x) r (helper x false nil) _ (println "result of strip " r)) r)))
 
     ; A bit wild, but what if instead of is_value we had an evaluation level integer, kinda like wrap?
     ; when lowering, it could just turn into multiple evals or somesuch, though we'd have to be careful of envs...
@@ -193,8 +194,10 @@
         (marked_env? x)     (let ([_env is_real dbi meat] x
                                   [nmeat_ok nmeat] (foldl (lambda ([ok r] [k v]) (let ([tok tv] (recurse cutoff d v)) [(and ok tok) (concat r [[k tv]])])) [true []] (slice meat 0 -2))
                                   [nupper_ok nupper] (if (idx meat -1) (recurse cutoff d (idx meat -1)) [true nil])
-                                  ndbi (if (>= cutoff dbi) (+ dbi d) dbi)
-                              ) [(and nmeat_ok nupper_ok (or is_real (>= ndbi 0))) ['env is_real ndbi (concat nmeat [nupper])]])
+                                  ndbi (cond (nil? dbi)      nil
+                                             (>= dbi cutoff) (+ dbi d)
+                                             true            dbi)
+                              ) [(and nmeat_ok nupper_ok (or is_real (and ndbi (>= ndbi 0)))) ['env is_real ndbi (concat nmeat [nupper])]])
         (comb? x)           (let ([wrap_level de? se variadic params body] (.comb x)
                                     [se_ok nse] (recurse cutoff d se)
                                     [body_ok nbody] (recurse (+ cutoff 1) d body)
@@ -222,12 +225,13 @@
                 ; to match what we have here, which can be calculated by the difference between the level the env thinks it is verses what it is
                 ; note we do have to make sure that index is copied over as well.
                 (marked_env? x)     (let (dbi (.marked_env_idx x))
-                                          (if dbi (let (curr_env (idx env_stack dbi)
-                                                        odbi (.marked_env_idx curr_env)
-                                                        _ (if (!= dbi odbi) (error (str (str_strip "same env with different dbis " x) (str_strip " and " curr_env))))
+                                          (if dbi (let (new_env (idx env_stack dbi)
+                                                        ndbi (.marked_env_idx new_env)
+                                                        ;_ (if (!= dbi ndbi) (error (str (str_strip "same env with different dbis " x) (str_strip " and " new_env))))
+                                                        _ (if (!= 0 ndbi) (error (str_strip "new env with non-zero dbis " x)))
+                                                        _ (println (str_strip "replacing " x) (str_strip " with " new_env))
                                                         )
-                                                        ;(idx (shift_envs ? (- dbi odbi) curr_env) 1))
-                                                        curr_env)
+                                                        (if (= 0 dbi) new_env (idx (shift_envs 0 dbi new_env) 1)))
                                                   x))
 
                 (comb? x)           (let ([wrap_level de? se variadic params body] (.comb x))
@@ -272,7 +276,7 @@
                                                                                  final_params (if variadic (concat (slice appropriatly_evaled_params 0 (- (len params) 1))
                                                                                                                    [['marked_array true (slice appropriatly_evaled_params (- (len params) 1) -1)]])
                                                                                                            appropriatly_evaled_params)
-                                                                                 [de_real de_entry] (if (!= nil de?) [ (marked_env_real? env) [ [de? env ] ] ]
+                                                                                 [de_real de_entry] (if (!= nil de?) [ (marked_env_real? env) [ [de? (increment_envs env) ] ] ]
                                                                                                                      [ true []])
                                                                                  ;_ (println (indent_str indent) "final_params params " final_params)
                                                                                  inner_env ['env (and de_real (marked_env_real? se)) 0 (concat (zip params (map (lambda (x) (increment_envs x)) final_params)) de_entry [(increment_envs se)])]
@@ -283,6 +287,7 @@
                                                                                  _ (print_strip (indent_str indent) "evaled result of function call  is " tmp_func_result)
                                                                                  [able_to_sub_env func_result] (decrement_envs tmp_func_result)
                                                                                  result_is_later (later? func_result)
+                                                                                 _ (print_strip (indent_str indent) "success? " able_to_sub_env " decremented result of function call  is " tmp_func_result)
                                                                                  stop_envs ((rec-lambda ser (a e) (if e (ser (cons e a) (idx (.env_marked e) -1)) a)) [] se)
                                                                                  result_closes_over (contains_symbols stop_envs (concat params (if de? [de?] [])) func_result)
                                                                                  _ (println (indent_str indent) "func call able_to_sub: " able_to_sub_env " result is later? " result_is_later " and result_closes_over " result_closes_over)
