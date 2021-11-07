@@ -1,0 +1,40 @@
+(with_import "./partial_eval.kp"
+(let (
+    test-case (lambda (source) (let (
+                    _ (println "Source: " source)
+                    code (read-string source)
+                    _ (println "Code: " code)
+                    partially_evaled (partial_eval code)
+                    _ (println "Partially evaled: " partially_evaled)
+                    _ (print_strip partially_evaled)
+                    stripped (strip partially_evaled)
+                    _ (println "Stripped: " stripped)
+                    fully_evaled (eval stripped root_env)
+                    _ (println "Fully evaled: " fully_evaled)
+                    fully_evaled_called (if (combiner? fully_evaled) (fully_evaled 1337))
+                    _ (if (combiner? fully_evaled) (println "..and called " fully_evaled_called))
+
+                    outer_eval (eval code root_env)
+                    _ (println " outer-eval " outer_eval)
+                    outer_called (if (combiner? outer_eval) (outer_eval 1337))
+                    _ (if (combiner? outer_eval) (println "..and outer called " outer_called))
+                    _ (cond (or (combiner? fully_evaled) (combiner? outer_eval))
+                                                (if (!= fully_evaled_called outer_called) (error (str "called versions unequal for " code " are " fully_evaled_called " vs " outer_called)))
+                            (!= fully_evaled outer_eval)                                  (error (str "partial-eval versions unequal for " code " are " fully_evaled " vs " outer_eval))
+                            true                                                          nil)
+                    _ (println)
+              ) fully_evaled))
+
+    ;_ (test-case "(+ 1 2)")
+    _ (test-case "((wrap (vau (x n) (x x n))) (wrap (vau (self n) (cond (= n 0) 10 true (self self (- n 1))))) 2)")
+
+    ;_ (test-case "((wrap (vau (let1)
+    ;                          (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
+    ;                          (let1 current-env (vau de () de)
+    ;                          (let1 cons (lambda (h t) (concat (array h) t))
+    ;                          (let1 lapply (lambda (f p)     (eval (cons (unwrap f) p) (current-env)))
+    ;                          (lambda (x) x)
+    ;                          )))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")
+
+
+) nil))

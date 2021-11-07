@@ -220,10 +220,6 @@
 
     partial_eval_helper (rec-lambda recurse (x env env_stack indent)
         (cond   (val? x)            x
-                ; TODO: update from current environment stack based on de Bruijn index
-                ; Note that we need to normalize indicies, I think - incrementing or decrmenting values in the env from env_stack
-                ; to match what we have here, which can be calculated by the difference between the level the env thinks it is verses what it is
-                ; note we do have to make sure that index is copied over as well.
                 (marked_env? x)     (let (dbi (.marked_env_idx x))
                                           (if dbi (let (new_env (idx env_stack dbi)
                                                         ndbi (.marked_env_idx new_env)
@@ -299,7 +295,8 @@
                                                                                                                                                      literal_params))]
                                                                                                 func_result)
                                                                              ) result)))
-                                                           (later? comb)     ['marked_array false (cons comb literal_params)])))
+                                                           (later? comb)     ['marked_array false (cons comb literal_params)]
+                                                            true             (error (str "impossible comb value " x)))))
                 true                (error (str "impossible partial_eval value " x))
         )
     )
@@ -457,12 +454,12 @@
             )
         )) slice]]
         ['concat ['prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
-            (cond (foldl (lambda (a x) (and a (and (marked_array? x) (.marked_array_is_val x))) true evaled_params) ['marked_array true (lapply concat (map (lambda (x)
+            (cond (foldl (lambda (a x) (and a (and (marked_array? x) (.marked_array_is_val x)))) true evaled_params) ['marked_array true (lapply concat (map (lambda (x)
                                                                                                                                                              (.marked_array_values x))
                                                                                                                                                             evaled_params))]
                   true                                                                                              ['marked_array false (cons ['prim_comb recurse concat] evaled_params)]
             )
-        ))) concat]]
+        )) concat]]
 
         (needs_params_val_lambda +)
         (needs_params_val_lambda -)
