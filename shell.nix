@@ -8,5 +8,7 @@ mkShell {
     nodejs
     valgrind
     kcachegrind
+    chicken
+    chez
   ];
 }
