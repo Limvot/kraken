@@ -90,7 +90,6 @@
               (marked_symbol? x) (if (.marked_symbol_is_val x) ['quote (.marked_symbol_value x)]
                                                                (.marked_symbol_value x))
               (comb? x)          (let ([wrap_level de? se variadic params body] (.comb x))
-                                      ;(str "<comb " wrap_level " " de? " <se> " params " " (recurse body) ">"))
                                       (str "<comb " wrap_level " " de? " <se " (recurse se) "> " params " " (recurse body) ">"))
               (prim_comb? x)     (idx x 2)
               (marked_env? x)    (let (e (.env_marked x)

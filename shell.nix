@@ -10,5 +10,6 @@ mkShell {
     kcachegrind
     chicken
     chez
+    racket
   ];
 }
