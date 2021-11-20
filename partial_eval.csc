@@ -15,27 +15,27 @@
     (er-macro-transformer
         (lambda (x r c)
             (let* (
-                    (items (list-ref x 1))
-                    (body (list-ref x 2))
-                    (flat_map_i (lambda (f l) ((rec recurse (lambda (f l i) (cond
-                                                                                ((equal? '() l) '())
-                                                                                (#t      (append (f i (car l)) (recurse f (cdr l) (+ i 1)))))
-                                                            )) f l 0)))
-                    (flatten-helper (rec recurse (lambda (items)
-                                                    (cond
-                                                        ((equal? '() items) '())
-                                                        (#t           (let* (
-                                                                            (clause (car items))
-                                                                            (result (cond
-                                                                                        ((list? (car clause)) (let ((s (gensym)))
-                                                                                                                    (cons `(,s ,(car (cdr clause)))
-                                                                                                                        (flat_map_i (lambda (i x)
-                                                                                                                                   (recurse `((,x (list-ref ,s ,i))))
-                                                                                                                               )
-                                                                                                                               (car clause)))))
-                                                                                        (#t                (list clause))))
-                                                                          ) (append result (recurse (cdr items)))))
-                                                    ))))
+                   (items (list-ref x 1))
+                   (body (list-ref x 2))
+                   (flat_map_i (lambda (f l) ((rec recurse (lambda (f l i) (cond
+                                                                            ((equal? '() l) '())
+                                                                            (#t      (append (f i (car l)) (recurse f (cdr l) (+ i 1)))))
+                                                           )) f l 0)))
+                   (flatten-helper (rec recurse (lambda (items)
+                                                 (cond
+                                                  ((equal? '() items) '())
+                                                  (#t           (let* (
+                                                                       (clause (car items))
+                                                                       (result (cond
+                                                                                ((list? (car clause)) (let ((s (gensym)))
+                                                                                    (cons `(,s ,(car (cdr clause)))
+                                                                                     (flat_map_i (lambda (i x)
+                                                                                                  (recurse `((,x (list-ref ,s ,i))))
+                                                                                                 )
+                                                                                      (car clause)))))
+                                                                                (#t                (list clause))))
+                                                                      ) (append result (recurse (cdr items)))))
+                                                 ))))
 
                     (flat_items (flatten-helper items))
                     (_ (print items " flattened " flat_items))
@@ -174,6 +174,153 @@
               (true               (error (str "some other strip? " x)))
         )
     )))  (lambda (x) (let ((_ (print_strip "stripping: " x)) (r (helper x false)) (_ (println "result of strip " r))) r))))
+
+    ; A bit wild, but what if instead of is_value we had an evaluation level integer, kinda like wrap?
+    ; when lowering, it could just turn into multiple evals or somesuch, though we'd have to be careful of envs...
+    (try_unval (rec-lambda recurse (x fail_f)
+        (cond ((marked_array? x) (if (not (.marked_array_is_val x)) (array false (fail_f x))
+                                                                    (dlet (((sub_ok subs) (foldl (dlambda ((ok a) x) (dlet (((nok p) (recurse x fail_f)))
+                                                                                                                       (array (and ok nok) (concat a (array p)))))
+                                                                                               (array true (array))
+                                                                                               (.marked_array_values x))))
+                                                                         (array sub_ok (array 'marked_array false subs)))))
+              ((marked_symbol? x) (if (.marked_symbol_is_val x) (array true (array 'marked_symbol false (.marked_symbol_value x)))
+                                                                (array false (fail_f x))))
+              (true               (array true x))
+        )
+    ))
+    (try_unval_array (lambda (x) (foldl (dlambda ((ok a) x) (dlet (((nok p) (try_unval x (lambda (_) nil))))
+                                                                   (array (and ok nok) (concat a (array p)))))
+                                        (array true (array))
+                                        x)))
+
+    (ensure_val (rec-lambda recurse (x)
+        (cond ((marked_array? x)  (array 'marked_array true (map recurse (.marked_array_values x))))
+              ((marked_symbol? x) (array 'marked_symbol true (.marked_symbol_value x)))
+              (true               x)
+        )
+    ))
+    ; This is a conservative analysis, since we can't always tell what constructs introduce
+    ; a new binding scope & would be shadowing... we should at least be able to implement it for
+    ; vau/lambda, but we won't at first
+    (in_array (let ((helper (rec-lambda recurse (x a i) (cond ((= i (len a))   false)
+                                                              ((= x (idx a i)) true)
+                                                              (true            (recurse x a (+ i 1)))))))
+                   (lambda (x a) (helper x a 0))))
+
+    (is_all_values (lambda (evaled_params) (foldl (lambda (a x) (and a (not (later? x)))) true evaled_params)))
+
+    ; * TODO: allowing envs to be shead if they're not used.
+    (shift_envs (rec-lambda recurse (cutoff d x) (cond
+        ((val? x)            (array true x))
+        ((marked_env? x)     (dlet (((_env is_real dbi meat) x)
+                                    ((nmeat_ok nmeat) (foldl (dlambda ((ok r) (k v)) (dlet (((tok tv) (recurse cutoff d v))) (array (and ok tok) (concat r (array (array k tv)))))) (array true (array)) (slice meat 0 -2)))
+                                    ((nupper_ok nupper) (if (idx meat -1) (recurse cutoff d (idx meat -1)) (array true nil)))
+                                    (ndbi (cond ((nil? dbi)      nil)
+                                                ((>= dbi cutoff) (+ dbi d))
+                                                (true            dbi)))
+                              ) (array (and nmeat_ok nupper_ok (or is_real (and ndbi (>= ndbi 0)))) (array 'env is_real ndbi (concat nmeat (array nupper))))))
+        ((comb? x)           (dlet (((wrap_level de? se variadic params body) (.comb x))
+                                    ((se_ok nse) (recurse cutoff d se))
+                                    ((body_ok nbody) (recurse (+ cutoff 1) d body))
+                                ) (array (and se_ok body_ok) (array 'comb wrap_level de? nse variadic params nbody))))
+        ((prim_comb? x)      (array true x))
+        ((marked_symbol? x)  (array true x))
+        ((marked_array? x)   (dlet (((insides_ok insides) (foldl (dlambda ((ok r) tx) (dlet (((tok tr) (recurse cutoff d tx))) (array (and ok tok) (concat r (array tr))))) (array true (array)) (.marked_array_values x))))
+                                   (array insides_ok (array 'marked_array (.marked_array_is_val x) insides))))
+        (true                (error (str "impossible shift_envs value " x)))
+    )))
+    (increment_envs (lambda (x) (idx (shift_envs 0  1 x) 1)))
+    (decrement_envs (lambda (x)      (shift_envs 0 -1 x)))
+
+    ; TODO: instead of returning the later symbols, we could create a new value of a new type
+    ; ['ref de_bruijn_index_of_env index_into_env] or somesuch. Could really simplify
+    ; compiling, and I think make partial-eval more efficient. More accurate closes_over analysis too, I think
+    (make_tmp_inner_env (lambda (params de? de)
+            (array 'env false 0 (concat (map (lambda (p) (array p (array 'marked_symbol false p))) params) (if (= nil de?) (array) (array (array de? (array 'marked_symbol false de?)) )) (array (increment_envs de))))))
+
+
+    (partial_eval_helper (rec-lambda recurse (x env env_stack indent)
+        (cond   ((val? x)            x)
+                ((marked_env? x)     (let ((dbi (.marked_env_idx x)))
+                                          (if dbi (let* ((new_env (idx env_stack dbi))
+                                                         (ndbi (.marked_env_idx new_env))
+                                                         (_ (if (!= 0 ndbi) (error (str_strip "new env with non-zero dbis " x))))
+                                                         (_ (println (str_strip "replacing " x) (str_strip " with " new_env)))
+                                                        )
+                                                        (if (= 0 dbi) new_env (idx (shift_envs 0 dbi new_env) 1)))
+                                                  x)))
+
+                ((comb? x)           (dlet (((wrap_level de? se variadic params body) (.comb x)))
+                                        (if (or (and (not (marked_env_real? env)) (not (marked_env_real? se)))   ; both aren't real, re-evaluation of creation site
+                                                (and      (marked_env_real? env)  (not (marked_env_real? se))))  ; new env real, but se isn't - creation!
+                                             (let ((inner_env (make_tmp_inner_env params de? env)))
+                                                  (array 'comb wrap_level de? env variadic params (recurse body inner_env (cons inner_env env_stack) (+ indent 1))))
+                                             x)))
+                ((prim_comb? x)      x)
+                ((marked_symbol? x)  (if (.marked_symbol_is_val x) x
+                                                                  (env-lookup env (.marked_symbol_value x))))
+                ((marked_array? x)   (cond ((.marked_array_is_val x) x)
+                                           ((= 0 (len (.marked_array_values x))) (error "Partial eval on empty array"))
+                                           (true (let* ((values (.marked_array_values x))
+                                                        (_ (print_strip (indent_str indent) "partial_evaling comb " (idx values 0)))
+                                                        (comb (recurse (idx values 0) env env_stack (+ 1 indent)))
+                                                        (literal_params (slice values 1 -1))
+                                                        (_ (println (indent_str indent) "Going to do an array call!"))
+                                                        (_ (print_strip (indent_str indent) "     total is " x))
+                                                        (_ (print_strip (indent_str indent) "     evaled comb is  " comb))
+                                                        (ident (+ 1 indent))
+                                                     )
+                                                     (cond ((prim_comb? comb) ((.prim_comb comb) env env_stack literal_params (+ 1 indent)))
+                                                           ((comb? comb)      (dlet (
+                                                                                 (rp_eval (lambda (p) (recurse p env env_stack (+ 1 indent))))
+                                                                                 ((wrap_level de? se variadic params body) (.comb comb))
+                                                                                 (ensure_val_params (map ensure_val literal_params))
+                                                                                 ((ok appropriatly_evaled_params) ((rec-lambda param-recurse (wrap cparams)
+                                                                                        (if (!= 0 wrap)
+                                                                                            (dlet ((pre_evaled (map rp_eval cparams))
+                                                                                                   ((ok unval_params) (try_unval_array pre_evaled)))
+                                                                                                 (if (not ok) (array ok nil)
+                                                                                                    (let* ((evaled_params (map rp_eval unval_params)))
+                                                                                                          (param-recurse (- wrap 1) evaled_params))))
+                                                                                            (array true cparams))
+                                                                                    ) wrap_level ensure_val_params))
+                                                                                 (ok_and_non_later (and ok (is_all_values appropriatly_evaled_params)))
+                                                                                 ) (if (not ok_and_non_later) (array 'marked_array false (cons comb (if (> wrap_level 0) (map rp_eval literal_params)
+                                                                                                                                                     literal_params)))
+                                                                                 (dlet (
+                                                                                 (final_params (if variadic (concat (slice appropriatly_evaled_params 0 (- (len params) 1))
+                                                                                                                   (array (array 'marked_array true (slice appropriatly_evaled_params (- (len params) 1) -1))))
+                                                                                                           appropriatly_evaled_params))
+                                                                                 ((array de_real de_entry) (if (!= nil de?) (array (marked_env_real? env) (array (array de? (increment_envs env) ) ) )
+                                                                                                                     (array true (array))))
+                                                                                 (inner_env (array 'env (and de_real (marked_env_real? se)) 0 (concat (zip params (map (lambda (x) (increment_envs x)) final_params)) de_entry (array (increment_envs se)))))
+                                                                                 (_ (print_strip (indent_str indent) " with inner_env is " inner_env))
+                                                                                 (_ (print_strip (indent_str indent) "going to eval " body))
+
+                                                                                 (tmp_func_result (recurse body inner_env (cons inner_env env_stack) (+ 1 indent)))
+                                                                                 (_ (print_strip (indent_str indent) "evaled result of function call  is " tmp_func_result))
+                                                                                 ((able_to_sub_env func_result) (decrement_envs tmp_func_result))
+                                                                                 (result_is_later (later? func_result))
+                                                                                 (_ (print_strip (indent_str indent) "success? " able_to_sub_env " decremented result of function call  is " tmp_func_result))
+                                                                                 (stop_envs ((rec-lambda ser (a e) (if e (ser (cons e a) (idx (.env_marked e) -1)) a)) (array) se))
+                                                                                 (result_closes_over (contains_symbols stop_envs (concat params (if de? (array de?) (array))) func_result))
+                                                                                 (_ (println (indent_str indent) "func call able_to_sub: " able_to_sub_env " result is later? " result_is_later " and result_closes_over " result_closes_over))
+                                                                                 ; This could be improved to a specialized version of the function
+                                                                                 ; just by re-wrapping it in a comb instead if we wanted.
+                                                                                 ; Something to think about!
+                                                                                 (result (if (or (not able_to_sub_env) (and result_is_later result_closes_over))
+                                                                                                (array 'marked_array false (cons comb (if (> wrap_level 0) (map rp_eval literal_params)
+                                                                                                                                                     literal_params)))
+                                                                                                func_result))
+                                                                             ) result))))
+                                                           ((later? comb)    (array 'marked_array false (cons comb literal_params)))
+                                                           (true             (error (str "impossible comb value " x))))))))
+                (true                (error (str "impossible partial_eval value " x)))
+        )
+    ))
+
+
 
     (test-all (lambda () (begin
         (print (val? '(val)))
