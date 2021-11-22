@@ -62,7 +62,7 @@
        (array? list?)
        (concat append)
        (len length)
-       (idx (lambda (x i) (list-ref x (if (< i 0) (+ i 1 (len x)) i))))
+       (idx (lambda (x i) (list-ref x (if (< i 0) (+ i (len x)) i))))
        (false #f)
        (true #t)
        (nil '())
@@ -187,7 +187,7 @@
                                                                                         ) (add-dict-to-env upper_env vdict))))
               (true               (error (str "some other strip? " x)))
         )
-    )))  (lambda (x) (let ((_ (print_strip "stripping: " x)) (r (helper x false)) (_ (println "result of strip " r))) r))))
+    )))  (lambda (x) (let* ((_ (print_strip "stripping: " x)) (r (helper x false)) (_ (println "result of strip " r))) r))))
 
     ; A bit wild, but what if instead of is_value we had an evaluation level integer, kinda like wrap?
     ; when lowering, it could just turn into multiple evals or somesuch, though we'd have to be careful of envs...
