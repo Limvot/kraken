@@ -51,18 +51,32 @@
                      )
                      `(lambda ,param_sym (dlet ( (,params ,param_sym) ) ,body))))))
 
+(define-syntax needs_params_val_lambda
+    (er-macro-transformer
+         (lambda (x r c)
+                (let ((f_sym (list-ref x 1)))
+                     `(needs_params_val_lambda_inner ',f_sym ,f_sym)))))
+
 (let* (
        (array list)
+       (array? list?)
        (concat append)
        (len length)
-       (idx list-ref)
+       (idx (lambda (x i) (list-ref x (if (< i 0) (+ i 1 (len x)) i))))
        (false #f)
        (true #t)
        (nil '())
 
+       (println print)
+
        (= equal?)
+       (!= (lambda (a b) (not (= a b))))
+       (% modulo)
+       (int? integer?)
+       (env? (lambda (x) false))
+       (combiner? (lambda (x) false))
        (drop (rec-lambda recurse (x i) (if (= 0 i) x (recurse (cdr x) (- i 1)))))
-       (take (rec-lambda recurse (x i) (if (= 0 i) '() (cons (car x) (recurse (cdr x) (- i 1))))))
+       (take (rec-lambda recurse (x i) (if (= 0 i) (array) (cons (car x) (recurse (cdr x) (- i 1))))))
        (slice (lambda (x s e) (let* ( (l (len x))
                                       (s (if (< s 0) (+ s l 1) s))
                                       (e (if (< e 0) (+ e l 1) e))
@@ -118,7 +132,7 @@
     (mark (rec-lambda recurse (x) (cond   ((env? x)        (error "called mark with an env " x))
                                           ((combiner? x)   (error "called mark with a combiner " x))
                                           ((symbol? x)     (mark_symbol false x))
-                                          ((array? x)      (mark__array false (map recurse x)))
+                                          ((array? x)      (mark_array false (map recurse x)))
                                           (true            (mark_val x)))))
 
     (indent_str (rec-lambda recurse (i) (if (= i 0) ""
@@ -320,9 +334,132 @@
         )
     ))
 
+    ; !!!!!!
+    ; ! I think needs_params_val_lambda should be combined with parameters_evaled_proxy
+    ; !!!!!!
+    (parameters_evaled_proxy (rec-lambda recurse (pasthr_ie inner_f) (lambda (de env_stack params indent) (dlet (
+        (_ (println "partial_evaling params in parameters_evaled_proxy is " params))
+        ((evaled_params l) (foldl (dlambda ((ac i) p) (let ((p (partial_eval_helper p de env_stack (+ 1 indent))))
+                                                         (array (concat ac (array p)) (+ i 1))))
+                                 (array (array) 0)
+                                 params))
+    ) (inner_f (lambda args (apply (recurse pasthr_ie inner_f) args)) de env_stack evaled_params indent)))))
+
+    (needs_params_val_lambda_inner (lambda (f_sym actual_function) (let* (
+        (handler (rec-lambda recurse (de env_stack params indent) (let (
+                ;_ (println "partial_evaling params in need_params_val_lambda for " f_sym " is " params)
+                (evaled_params (map (lambda (p) (partial_eval_helper p de env_stack (+ 1 indent))) params))
+            )
+            (if (is_all_values evaled_params) (mark (apply actual_function (map strip evaled_params)))
+                                              (array 'marked_array false (cons (array 'prim_comb recurse actual_function) evaled_params))))))
+        ) (array f_sym (array 'prim_comb handler actual_function)))))
+
+    (root_marked_env (array 'env true nil (array
+
+        ; Ok, so for combinators, it should partial eval the body.
+        ; It should then check to see if the partial-evaled body has closed over
+        ; any 'later values from above the combinator. If so, the combinator should
+        ; evaluate to a ['later [vau de? params (strip partially_evaled_body)]], otherwise it can evaluate to a 'comb.
+        ; Note that this 'later may be re-evaluated later if the parent function is called.
+        (array 'vau (array 'prim_comb (rec-lambda recurse (de env_stack params indent) (dlet (
+            (mde?         (if (= 3 (len params)) (idx params 0) nil))
+            (vau_mde?     (if (= nil mde?) (array) (array mde?)))
+            (de?          (if mde? (.marked_symbol_value mde?) nil))
+            (vau_de?      (if (= nil de?) (array) (array de?)))
+            (raw_marked_params (if (= nil de?) (idx params 0) (idx params 1)))
+            (raw_params (map (lambda (x) (if (not (marked_symbol? x)) (error (str "not a marked symbol " x))
+                                            (.marked_symbol_value x))) (.marked_array_values raw_marked_params)))
+
+            ((variadic vau_params)  (foldl (dlambda ((v a) x) (if (= x '&) (array true a) (array v (concat a (array x))))) (array false (array)) raw_params))
+            (body        (if (= nil de?) (idx params 1) (idx params 2)))
+            (inner_env (make_tmp_inner_env vau_params de? de))
+            (_ (print_strip (indent_str indent) "in vau, evaluating body with 'later params - " body))
+            (pe_body (partial_eval_helper body inner_env (cons inner_env env_stack) (+ 1 indent)))
+            (_ (print_strip (indent_str indent) "in vau, result of evaluating body was " pe_body))
+        ) (array 'comb 0 de? de variadic vau_params pe_body)
+        )) 'vau_fake_real))
+
+        (array 'wrap (array 'prim_comb (parameters_evaled_proxy 0 (dlambda (recurse de env_stack (evaled) indent)
+              (if (comb? evaled) (dlet (((wrap_level de? se variadic params body) (.comb evaled))
+                                        (wrapped_marked_fun (array 'comb (+ 1 wrap_level) de? se variadic params body))
+                                       ) wrapped_marked_fun)
+                                 (array 'marked_array false (array (array 'prim_comb recurse wrap) evaled))))
+        ) 'wrap_fake_real))
+
+        (array 'unwrap (array 'prim_comb (parameters_evaled_proxy 0 (dlambda (recurse de env_stack (evaled) indent)
+             (if (comb? evaled) (dlet (((wrap_level de? se variadic params body) (.comb evaled))
+                                       (unwrapped_marked_fun (array 'comb (- wrap_level 1) de? se variadic params body))
+                                      ) unwrapped_marked_fun)
+                                 (array 'marked_array false (array (array 'prim_comb recurse wrap) evaled))))
+        ) 'unwrap_fake_real))
+
+        (array 'eval (array 'prim_comb (rec-lambda recurse (de env_stack params indent) (dlet (
+            (self (array 'prim_comb recurse eval))
+            (eval_env (if (= 2 (len params)) (partial_eval_helper (idx params 1) de env_stack (+ 1 indent))
+                                             de))
+            (eval_env_v (if (= 2 (len params)) (array eval_env) (array)))
+         ) (if (not (marked_env? eval_env)) (array 'marked_array false (cons self params))
+                                            (dlet (
+            (_ (print_strip (indent_str indent) " partial_evaling_body the first time " (idx params 0)))
+            (body1 (partial_eval_helper (idx params 0) de env_stack (+ 1 indent)))
+            (_ (print_strip (indent_str indent) "after first eval of param " body1))
+
+            ; With this, we don't actually fail as this is always a legitimate uneval
+            (fail_handler (lambda (failed) (array 'marked_array false (concat (array self failed) eval_env_v))))
+            ((ok unval_body) (try_unval body1 fail_handler))
+            (self_fallback (fail_handler body1))
+            (_ (print_strip (indent_str indent) "partial_evaling body for the second time in eval " unval_body))
+            (body2 (if (= self_fallback unval_body) self_fallback (partial_eval_helper unval_body eval_env env_stack (+ 1 indent))))
+            (_ (print_strip (indent_str indent) "and body2 is " body2))
+            ) body2))
+        )) 'eval_fake_real))
+
+        ;TODO: This could go a lot farther, not stopping after the first 'later, etc
+        ; Also, GAH on odd params - but only one by one - a later odd param can't be imm_eval cuz it will
+        ; be frozen if an earlier cond is 'later....
+        (array 'cond (array 'prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
+            (if (!= 0 (% (len evaled_params) 2)) (error (str "partial eval cond with odd evaled_params " evaled_params))
+                ((rec-lambda recurse_inner (i)
+                                          (cond ((later? (idx evaled_params i))  (array 'marked_array false (cons (array 'prim_comb recurse cond) (slice evaled_params i -1))))
+                                                ((false? (idx evaled_params i))  (recurse_inner (+ 2 i)))
+                                                (true                            (idx evaled_params (+ 1 i)))) ; we could partially_eval again passing in immediate
+                                                                                                               ; eval if it was true, to partially counteract the above GAH
+                 ) 0)
+            )
+        )) 'cond_fake_real))
+
+        (needs_params_val_lambda symbol?)
+        (needs_params_val_lambda int?)
+        (needs_params_val_lambda string?)
+
+        ;; RESUME with combiner?
+
+        (needs_params_val_lambda +)
+        (needs_params_val_lambda -)
+        (needs_params_val_lambda *)
+        (needs_params_val_lambda /)
+        (needs_params_val_lambda %)
+        ;(needs_params_val_lambda &)
+        ;(needs_params_val_lambda |)
+        ;(needs_params_val_lambda <<)
+        ;(needs_params_val_lambda >>)
+        (needs_params_val_lambda =)
+        (needs_params_val_lambda !=)
+        (needs_params_val_lambda <)
+        (needs_params_val_lambda <=)
+        (needs_params_val_lambda >)
+        (needs_params_val_lambda >=)
 
 
-    (test-all (lambda () (begin
+    )))
+
+
+    (partial_eval (lambda (x) (partial_eval_helper (mark x) root_marked_env (array) 0)))
+
+
+    (test-all (lambda () (let* (
+            (run_test (lambda (s) (print "result of test \"" s "\" => " (str_strip (partial_eval (read (open-input-string s)))))))
+        ) (begin
         (print (val? '(val)))
         (print "take 3" (take '(1 2 3 4 5 6 7 8 9 10) 3))
         (print "drop 3" (drop '(1 2 3 4 5 6 7 8 9 10) 3))
@@ -344,7 +481,10 @@
 
         (print (call-with-input-string "'(1 2)" (lambda (p) (read p))))
         (print (read (open-input-string "'(3 4)")))
-    )))
+
+        (print (run_test "(+ 1 2)"))
+
+    ))))
 
 ) (test-all))
 )
