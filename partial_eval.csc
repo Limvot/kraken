@@ -57,7 +57,18 @@
                 (let ((f_sym (list-ref x 1)))
                      `(needs_params_val_lambda_inner ',f_sym ,f_sym)))))
 
+
+(define-syntax give_up_eval_params
+    (er-macro-transformer
+         (lambda (x r c)
+                (let ((f_sym (list-ref x 1)))
+                     `(give_up_eval_params_inner ',f_sym ,f_sym)))))
+
+
+
 (let* (
+       (= equal?)
+       (!= (lambda (a b) (not (= a b))))
        (array list)
        (array? list?)
        (concat append)
@@ -66,11 +77,15 @@
        (false #f)
        (true #t)
        (nil '())
+       (str-to-symbol string->symbol)
+       (get-text symbol->string)
 
+       (nil? (lambda (x) (= nil x)))
+       (bool? (lambda (x) (or (= #t x) (= #f x))))
        (println print)
 
-       (= equal?)
-       (!= (lambda (a b) (not (= a b))))
+       (read-string (lambda (s) (read (open-input-string s))))
+
        (% modulo)
        (int? integer?)
        (env? (lambda (x) false))
@@ -131,7 +146,9 @@
 
     (mark (rec-lambda recurse (x) (cond   ((env? x)        (error "called mark with an env " x))
                                           ((combiner? x)   (error "called mark with a combiner " x))
-                                          ((symbol? x)     (mark_symbol false x))
+                                          ((symbol? x)     (cond ((= 'true x)  (mark_val #t))
+                                                                 ((= 'false x) (mark_val #f))
+                                                                 (#t           (mark_symbol false x))))
                                           ((array? x)      (mark_array false (map recurse x)))
                                           (true            (mark_val x)))))
 
@@ -354,6 +371,15 @@
                                               (array 'marked_array false (cons (array 'prim_comb recurse actual_function) evaled_params))))))
         ) (array f_sym (array 'prim_comb handler actual_function)))))
 
+    (give_up_eval_params_inner (lambda (f_sym actual_function) (let* (
+        (handler (rec-lambda recurse (de env_stack params indent) (let (
+                ;_ (println "partial_evaling params in give_up_eval_params for " f_sym " is " params)
+                (evaled_params (map (lambda (p) (partial_eval_helper p de env_stack (+ 1 indent))) params))
+            )
+            (array 'marked_array false (cons (array 'prim_comb recurse actual_function) evaled_params)))))
+        ) (array f_sym (array 'prim_comb handler actual_function)))))
+
+
     (root_marked_env (array 'env true nil (array
 
         ; Ok, so for combinators, it should partial eval the body.
@@ -364,6 +390,7 @@
         (array 'vau (array 'prim_comb (rec-lambda recurse (de env_stack params indent) (dlet (
             (mde?         (if (= 3 (len params)) (idx params 0) nil))
             (vau_mde?     (if (= nil mde?) (array) (array mde?)))
+            (_ (print "mde? is " mde?))
             (de?          (if mde? (.marked_symbol_value mde?) nil))
             (vau_de?      (if (= nil de?) (array) (array de?)))
             (raw_marked_params (if (= nil de?) (idx params 0) (idx params 1)))
@@ -432,7 +459,63 @@
         (needs_params_val_lambda int?)
         (needs_params_val_lambda string?)
 
-        ;; RESUME with combiner?
+        (array 'combiner? (array 'prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
+            (cond ((comb? evaled_param)          (array 'val true))
+                  ((prim_comb? evaled_param)     (array 'val true))
+                  ((later? evaled_param)         (array 'marked_array false (array (array 'prim_comb recurse combiner?) evaled_param)))
+                  (true                          (array 'val false))
+            )
+        )) 'combinerp_fake_real))
+        (array 'env? (array 'prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
+            (cond ((marked_env? evaled_param)    (array 'val true))
+                  ((later? evaled_param)         (array 'marked_array false (array (array 'prim_comb recurse env?) evaled_param)))
+                  (true                          (array 'val false))
+            )
+        )) 'envp_fake_real))
+        (needs_params_val_lambda nil?)
+        (needs_params_val_lambda bool?)
+        (needs_params_val_lambda str-to-symbol)
+        (needs_params_val_lambda get-text)
+
+        (array 'array? (array 'prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
+            (cond
+                  ((later? evaled_param)         (array 'marked_array false (array (array 'prim_comb recurse array?) evaled_param)))
+                  ((marked_array? evaled_param)  (array 'val true))
+                  (true                          (array 'val false))
+            )
+        )) 'arrayp_fake_real))
+
+        ; This one's sad, might need to come back to it.
+        ; We need to be able to differentiate between half-and-half arrays
+        ; for when we ensure_params_values or whatever, because that's super wrong
+        (array 'array (array 'prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
+                                                (if (is_all_values evaled_params) (array 'marked_array true evaled_params)
+                                                                                  (array 'marked_array false (cons (array 'prim_comb recurse array) evaled_params)))
+        )) 'array_fake_real))
+        (array 'len (array 'prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
+            (cond ((later? evaled_param)         (array 'marked_array false (array (array 'prim_comb recurse len) evaled_param)))
+                  ((marked_array? evaled_param)  (array 'val (len (.marked_array_values evaled_param))))
+                  (true                          (error (str "bad type to len " evaled_param)))
+            )
+        )) 'len_fake_real))
+        (array 'idx (array 'prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_array evaled_idx) indent)
+            (cond ((and (val? evaled_idx) (marked_array? evaled_array) (.marked_array_is_val evaled_array)) (idx (.marked_array_values evaled_array) (.val evaled_idx)))
+                  (true                                                                                     (array 'marked_array false (array (array 'prim_comb recurse idx) evaled_array evaled_idx)))
+            )
+        )) 'idx_fake_real))
+        (array 'slice (array 'prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_array evaled_begin evaled_end) indent)
+            (cond ((and (val? evaled_begin) (val? evaled_end) (marked_array? evaled_array) (.marked_array_is_val evaled_array))
+                            (array 'marked_array true (slice (.marked_array_values evaled_array) (.val evaled_begin) (.val evaled_end))))
+                  (true      (array 'marked_array false (array (array 'prim_comb recurse slice) evaled_array evaled_idx evaled_begin evaled_end)))
+            )
+        )) 'slice_fake_real))
+        (array 'concat (array 'prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
+            (cond ((foldl (lambda (a x) (and a (and (marked_array? x) (.marked_array_is_val x)))) true evaled_params) (array 'marked_array true (lapply concat (map (lambda (x)
+                                                                                                                                                             (.marked_array_values x))
+                                                                                                                                                            evaled_params))))
+                  (true                                                                                              (array 'marked_array false (cons (array 'prim_comb recurse concat) evaled_params)))
+            )
+        )) 'concat_fake_real))
 
         (needs_params_val_lambda +)
         (needs_params_val_lambda -)
@@ -450,7 +533,44 @@
         (needs_params_val_lambda >)
         (needs_params_val_lambda >=)
 
+        ; these could both be extended to eliminate other known true values except for the end and vice-versa
+        (array 'and (array 'prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
+            ((rec-lambda inner_recurse (i)
+                                      (cond ((= i (- (len evaled_params) 1))          (idx evaled_params i))
+                                            ((later? (idx evaled_params i))           (array 'marked_array false (cons (array 'prim_comb recurse and) (slice evaled_params i -1))))
+                                            ((false? (idx evaled_params i))           (idx evaled_params i))
+                                            (true                                     (inner_recurse (+ 1 i))))
+             ) 0)
+        )) 'and_fake_real))
+        ; see above for improvement
+        (array 'or (array 'prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
+            ((rec-lambda inner_recurse (i)
+                                      (cond ((= i (- (len evaled_params) 1))          (idx evaled_params i))
+                                            ((later? (idx evaled_params i))           (array 'marked_array false (cons (array 'prim_comb recurse or) (slice evaled_params i -1))))
+                                            ((false? (idx evaled_params i))           (recurse (+ 1 i)))
+                                            (true                                     (idx evaled_params i)))
+             ) 0)
+        )) 'or_fake_real))
+        ; should make not a built in and then do here
+        ; OR not - I think it will actually lower correctly partially evaled
 
+        ;(needs_params_val_lambda pr-str)
+        (needs_params_val_lambda str)
+        ;(needs_params_val_lambda prn)
+        (give_up_eval_params println)
+        ; really do need to figure out if we want to keep meta, and add it if so
+        ;(give_up_eval_params meta)
+        ;(give_up_eval_params with-meta)
+        ; if we want to get fancy, we could do error/recover too
+        ;(give_up_eval_params error)
+        ;(give_up_eval_params recover)
+        (needs_params_val_lambda read-string)
+        ;(give_up_eval_params slurp)
+        ;(give_up_eval_params get_line)
+        ;(give_up_eval_params write_file)
+        (array 'empty_env (array 'env true nil (array nil)))
+
+        nil
     )))
 
 
@@ -458,7 +578,7 @@
 
 
     (test-all (lambda () (let* (
-            (run_test (lambda (s) (print "result of test \"" s "\" => " (str_strip (partial_eval (read (open-input-string s)))))))
+            (run_test (lambda (s) (print "result of test \"" s "\" => " (str_strip (partial_eval (read-string s))))))
         ) (begin
         (print (val? '(val)))
         (print "take 3" (take '(1 2 3 4 5 6 7 8 9 10) 3))
@@ -483,6 +603,10 @@
         (print (read (open-input-string "'(3 4)")))
 
         (print (run_test "(+ 1 2)"))
+        (print) (print)
+        (print (run_test "(cond false 1 true 2)"))
+        (print (run_test "(println 1)"))
+        (print (run_test "((vau (x) (+ x 1)) 2)"))
 
     ))))
 

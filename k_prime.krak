@@ -970,7 +970,7 @@ fun main(argc: int, argv: **char): int {
             return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Need 1 param to str-to-symbol"))))
         }
         if !params[0].is_string() {
-            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Called get-text with not a symbol"))))
+            return make_pair(null<KPEnv>(), KPResult::Err(kpString(str("Called str-to-symbol with not a symbol"))))
         }
         return make_pair(null<KPEnv>(), KPResult::Ok(kpSymbol(params[0].get_string())))
     }));
