@@ -255,9 +255,9 @@
     ; TODO: make this check for stop envs using de Bruijn indicies
     (contains_symbols (rec-lambda recurse (stop_envs symbols x) (cond
               ((val? x)           false)
-              ((marked_symbol? x) (let ((r (in_array (.marked_symbol_value x) symbols))
-                                        (_ (if r (println "!!! contains symbols found " x " in symbols " symbols))))
-                                       r))
+              ((marked_symbol? x) (let* ((r (in_array (.marked_symbol_value x) symbols))
+                                         (_ (if r (println "!!! contains symbols found " x " in symbols " symbols))))
+                                        r))
               ((marked_array? x)  (foldl (lambda (a x) (or a (recurse stop_envs symbols x))) false (.marked_array_values x)))
               ((comb? x)          (dlet (((wrap_level de? se variadic params body) (.comb x)))
                                       (or (recurse stop_envs symbols se) (recurse stop_envs (filter (lambda (y) (not (or (= de? y) (in_array y params)))) symbols) body))))
@@ -612,7 +612,7 @@
 
 
     (test-all (lambda () (let* (
-            (run_test (lambda (s) (print "result of test \"" s "\" => " (str_strip (partial_eval (read-string s))))))
+            (run_test (lambda (s) (begin (print "\n\ngoing to partial eval " s) (print "result of test \"" s "\" => " (str_strip (partial_eval (read-string s)))))))
         ) (begin
         (print (val? '(val)))
         (print "take 3" (take '(1 2 3 4 5 6 7 8 9 10) 3))
@@ -650,6 +650,21 @@
         (print (run_test "(cond false 1 true 2)"))
         (print (run_test "(println 1)"))
         (print (run_test "((vau (x) (+ x 1)) 2)"))
+
+
+        (print (run_test "(+ 1 2)"))
+        (print (run_test "(vau (y) (+ 1 2))"))
+        (print (run_test "((vau (y) (+ 1 2)) 4)"))
+        (print (run_test "((vau (y) y) 4)"))
+        (print (run_test "((vau (y) (+ 13 2 y)) 4)"))
+        (print (run_test "((wrap (vau (y) (+ 13 2 y))) (+ 3 4))"))
+        (print (run_test "(vau de (y) (+ (eval y de) (+ 1 2)))"))
+        (print (run_test "((vau de (y) ((vau dde (z) (+ 1 (eval z dde))) y)) 17)"))
+
+        (print (run_test "(cond false 1 false 2 (+ 1 2) 3 true 1337)"))
+        (print (run_test "(vau de (x) (cond false 1 false 2 x 3 true 42))"))
+        (print (run_test "(vau de (x) (cond false 1 false 2 3 x true 42))"))
+
 
     ))))
 
