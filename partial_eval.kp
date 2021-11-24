@@ -361,7 +361,7 @@
              (if (comb? evaled) (let ([wrap_level de? se variadic params body] (.comb evaled)
                                         unwrapped_marked_fun ['comb (- wrap_level 1) de? se variadic params body]
                                       ) unwrapped_marked_fun)
-                                 ['marked_array false [['prim_comb recurse wrap] evaled]]))
+                                 ['marked_array false [['prim_comb recurse unwrap] evaled]]))
         ) unwrap]]
 
         ['eval ['prim_comb (rec-lambda recurse (de env_stack params indent) (let (
