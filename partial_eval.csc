@@ -354,7 +354,7 @@
 
                 ((comb? x)           (dlet (((wrap_level de? se variadic params body) (.comb x)))
                                         (mif (or (and (not (marked_env_real? env)) (not (marked_env_real? se)))   ; both aren't real, re-evaluation of creation site
-                                                (and      (marked_env_real? env)  (not (marked_env_real? se))))  ; new env real, but se isn't - creation!
+                                                 (and      (marked_env_real? env)  (not (marked_env_real? se))))  ; new env real, but se isn't - creation!
                                              (let ((inner_env (make_tmp_inner_env params de? env)))
                                                   (marked_comb wrap_level de? env variadic params (recurse body inner_env (cons inner_env env_stack) (+ indent 1))))
                                              x)))
@@ -508,19 +508,21 @@
             ) body2))
         )) 'eval_fake_real))
 
-        ;TODO: This could go a lot farther, not stopping after the first 'later, etc
-        ; Also, GAH on odd params - but only one by one - a later odd param can't be imm_eval cuz it will
-        ; be frozen mif an earlier cond is 'later....
-        (array 'cond (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
-            (mif (!= 0 (% (len evaled_params) 2)) (error (str "partial eval cond with odd evaled_params " evaled_params))
-                ((rec-lambda recurse_inner (i)
-                                          (cond ((later? (idx evaled_params i))  (marked_array false (cons (marked_prim_comb recurse 'cond_fake_real) (slice evaled_params i -1))))
-                                                ((false? (idx evaled_params i))  (recurse_inner (+ 2 i)))
-                                                (true                            (idx evaled_params (+ 1 i)))) ; we could partially_eval again passing in immediate
-                                                                                                               ; eval mif it was true, to partially counteract the above GAH
-                 ) 0)
+        (array 'cond (marked_prim_comb (rec-lambda recurse (de env_stack params indent)
+            (mif (!= 0 (% (len params) 2)) (error (str "partial eval cond with odd params " params))
+                ((rec-lambda recurse_inner (i so_far)
+                                          (let* ((evaled_cond (partial_eval_helper (idx params i) de env_stack (+ 1 indent)))
+                                                 (_ (print (indent_str indent) "in cond cond " (idx params i) " evaluated to " evaled_cond)))
+                                          (cond ((later? evaled_cond)            (recurse_inner (+ 2 i) (concat so_far (array evaled_cond
+                                                                                                                              (partial_eval_helper (idx params (+ i 1)) de env_stack (+ 1 indent))))))
+                                                ((false? evaled_cond)            (recurse_inner (+ 2 i) so_far))
+                                                ((= (len params) i)              (marked_array false (cons (marked_prim_comb recurse 'cond_fake_real) so_far)))
+                                                (true                            (let ((evaled_body (partial_eval_helper (idx params (+ 1 i)) de env_stack (+ 1 indent))))
+                                                                                      (mif (!= (len so_far) 0) (marked_array false (cons (marked_prim_comb recurse 'cond_fake_real) (concat so_far (array evaled_cond evaled_body))))
+                                                                                                                evaled_body)))
+                 ))) 0 (array))
             )
-        )) 'cond_fake_real))
+        ) 'cond_fake_real))
 
         (needs_params_val_lambda symbol?)
         (needs_params_val_lambda int?)
@@ -756,12 +758,12 @@
         (print (run_test "(array 1 2 3 4 5)"))
         (print (run_test "((wrap (vau (a & rest) rest)) 1 2 3 4 5)"))
 
-        ;(print "\n\nrecursion test\n\n")
-        ;(print (run_test "((wrap (vau (let1)
-        ;                           (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
-        ;                           ((lambda (x n) (x x n)) (lambda (recurse n) (cond n    (* n (recurse recurse (- n 1)))
-        ;                                                                             true 1                               )) 5)
-        ;                           ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
+        (print "\n\nrecursion test\n\n")
+        (print (run_test "((wrap (vau (let1)
+                                   (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
+                                   ((lambda (x n) (x x n)) (lambda (recurse n) (cond (!= 0 n) (* n (recurse recurse (- n 1)))
+                                                                                     true     1                               )) 5)
+                                   ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
 
     ))))
 
