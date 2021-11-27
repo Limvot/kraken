@@ -1,5 +1,7 @@
 (import (chicken process-context))
 (import (chicken port))
+(import (chicken io))
+(import (chicken bitwise))
 (import (r5rs))
 (define-syntax rec-lambda
     (er-macro-transformer
@@ -115,11 +117,16 @@
                                                ((f (car l)) (cons (car l) (recurse f (cdr l))))
                                                (true        (recurse f (cdr l))))))
 
+       (flat_map (lambda (f l) ((rec recurse (lambda (f l) (cond
+                                                                ((equal? '() l) '())
+                                                                (#t      (append (f (car l)) (recurse f (cdr l)))))
+                                               )) f l)))
        (str (lambda args (begin
                             (define mp (open-output-string))
                             (display args mp)
                             (get-output-string mp))))
 
+       (write_file (lambda (file bytes) (call-with-output-file file (lambda (out) (foldl (lambda (_ o) (write-byte o out)) (void) bytes)))))
       )
 (let* (
 
@@ -645,6 +652,236 @@
 
     (partial_eval (lambda (x) (partial_eval_helper (mark x) root_marked_env (array) 0)))
 
+    ;; WASM
+
+    (bor  bitwise-ior)
+    (band bitwise-and)
+    (<<   arithmetic-shift)
+    (>>   (lambda (a b) (arithmetic-shift a (- b))))
+
+    ; Vectors and Values
+    ; Bytes encode themselves
+    (encode_LEB128_helper (rec-lambda recurse (allow_neg x)
+        (cond ((and allow_neg (< x #x80)) (array x))
+                             ((< x #x40)  (array x))
+              (true       (cons (bor (band x #x7F) #x80) (recurse true (>> x 7)))))
+    ))
+    (encode_u_LEB128    (lambda (x) (encode_LEB128_helper true x)))
+    (encode_s8_LEB128   (lambda (x) (encode_LEB128_helper (< x 0) (band x #xFF))))
+    (encode_s32_LEB128  (lambda (x) (encode_LEB128_helper (< x 0) (band x #xFFFFFFFF))))
+    (encode_s33_LEB128  (lambda (x) (encode_LEB128_helper (< x 0) (band x #x1FFFFFFFF))))
+    (encode_s64_LEB128  (lambda (x) (encode_LEB128_helper (< x 0) (band x #xFFFFFFFFFFFFFFFF))))
+    (encode_vector (lambda (enc v)
+        (concat (encode_u_LEB128 (len v)) (flat_map enc v) )
+    ))
+    (encode_floating_point (lambda (x) (error "unimplemented")))
+    (encode_name (lambda (name)
+        (encode_vector (lambda (x) (array x)) name)
+    ))
+    (encode_bytes encode_name)
+
+    (encode_limits (lambda (x)
+       (cond ((= 1 (len x)) (concat (array #x00) (encode_u_LEB128 (idx x 0))))
+              ((= 2 (len x)) (concat (array #x01) (encode_u_LEB128 (idx x 0)) (encode_u_LEB128 (idx x 1))))
+              (true          (error "trying to encode bad limits")))
+    ))
+    (encode_number_type (lambda (x)
+        (cond  ((= x 'i32) (array #x7F))
+               ((= x 'i64) (array #x7E))
+               ((= x 'f32) (array #x7D))
+               ((= x 'f64) (array #x7C))
+               (true       (error (str "bad number type " x))))
+    ))
+    (encode_valtype (lambda (x)
+        ; we don't handle reference types yet
+        (encode_number_type x)
+    ))
+    (encode_result_type (lambda (x)
+        (encode_vector encode_valtype x)
+    ))
+    (encode_function_type (lambda (x)
+        (concat (array #x60) (encode_result_type (idx x 0))
+                             (encode_result_type (idx x 1)))
+    ))
+    (encode_ref_type (lambda (t) (cond ((= t 'funcref)   (array #x70))
+                                       ((= t 'externref) (array #x6F))
+                                       (true             (error (str "Bad ref type " t))))))
+    (encode_type_section (lambda (x)
+        (let (
+            (encoded (encode_vector encode_function_type x))
+        ) (concat (array #x01) (encode_u_LEB128 (len encoded)) encoded ))
+    ))
+    (encode_import (lambda (import)
+        (dlet (
+            ((mod_name name type idx) import)
+        ) (concat (encode_name mod_name)
+                  (encode_name name)
+                  (cond ((= type 'func)   (concat (array #x00) (encode_u_LEB128 idx)))
+                        ((= type 'table)  (concat (array #x01) (error "can't encode table type")))
+                        ((= type 'memory) (concat (array #x02) (error "can't encode memory type")))
+                        ((= type 'global) (concat (array #x03) (error "can't encode global type")))
+                        (true                                  (error (str "bad import type" type)))))
+        )
+    ))
+    (encode_import_section (lambda (x)
+        (let (
+            (encoded (encode_vector encode_import x))
+        ) (concat (array #x02) (encode_u_LEB128 (len encoded)) encoded ))
+    ))
+
+    (encode_table_type (lambda (t) (concat (encode_ref_type (idx t 0)) (encode_limits (idx t 1)))))
+
+    (encode_table_section (lambda (x)
+        (let (
+            (encoded (encode_vector encode_table_type x))
+        ) (concat (array #x04) (encode_u_LEB128 (len encoded)) encoded ))
+    ))
+    (encode_memory_section (lambda (x)
+        (let (
+            (encoded (encode_vector encode_limits x))
+        ) (concat (array #x05) (encode_u_LEB128 (len encoded)) encoded ))
+    ))
+    (encode_export (lambda (export)
+        (dlet (
+            ((name type idx) export)
+        ) (concat (encode_name name)
+                  (cond ((= type 'func)   (array #x00))
+                        ((= type 'table)  (array #x01))
+                        ((= type 'memory) (array #x02))
+                        ((= type 'global) (array #x03))
+                        (true             (error "bad export type")))
+                  (encode_u_LEB128 idx)
+        ))
+    ))
+    (encode_export_section (lambda (x)
+        (let (
+            (encoded (encode_vector encode_export x))
+        ) (concat (array #x07) (encode_u_LEB128 (len encoded)) encoded ))
+    ))
+
+    (encode_start_section (lambda (x)
+        (cond ((= 0 (len x)) (array))
+              ((= 1 (len x)) (let ((encoded (encode_u_LEB128 (idx x 0)))) (concat (array #x08) (encode_u_LEB128 (len encoded)) encoded )))
+              (true          (error (str "bad lenbgth for start section " (len x) " was " x))))
+    ))
+
+    (encode_function_section (lambda (x)
+        (let* (                                     ; nil functions are placeholders for improted functions
+            (_ (println "encoding function section " x))
+            (filtered (filter (lambda (i) (!= nil i)) x))
+            (_ (println "post filtered " filtered))
+            (encoded (encode_vector encode_u_LEB128 filtered))
+        ) (concat (array #x03) (encode_u_LEB128 (len encoded)) encoded ))
+    ))
+    (encode_blocktype (lambda (type) (cond ((symbol? type)  (encode_valtype type))
+                                           ((= (array) type)     (array #x40)) ; empty type
+                                           (true            (encode_s33_LEB128 typ))
+                                   )))
+
+    (encode_ins (rec-lambda recurse (ins)
+        (let (
+            (op (idx ins 0))
+        ) (cond ((= op 'unreachable)            (array #x00))
+                ((= op 'nop)                    (array #x01))
+                ((= op 'block)          (concat (array #x02) (encode_blocktype (idx ins 1)) (flat_map recurse (idx ins 2)) (array #x0B)))
+                ((= op 'loop)           (concat (array #x03) (encode_blocktype (idx ins 1)) (flat_map recurse (idx ins 2)) (array #x0B)))
+                ((= op 'if)             (concat (array #x04) (encode_blocktype (idx ins 1)) (flat_map recurse (idx ins 2)) (if (!= 3 (len ins)) (concat (array #x05) (flat_map recurse (idx ins 3)))
+                                                                                                                                          (array ))     (array #x0B)))
+                ((= op 'br)             (concat (array #x0C) (encode_u_LEB128 (idx ins 1))))
+                ((= op 'br_if)          (concat (array #x0D) (encode_u_LEB128 (idx ins 1))))
+                ;...
+                ((= op 'return)                 (array #x0F))
+                ((= op 'call)           (concat (array #x10) (encode_u_LEB128 (idx ins 1))))
+                ; call_indirect
+                ; skipping a bunch
+                ; Parametric Instructions
+                ((= op 'drop)                   (array #x1A))
+                ; skip
+                ; Variable Instructions
+                ((= op 'local.get)      (concat (array #x20) (encode_u_LEB128 (idx ins 1))))
+                ((= op 'local.set)      (concat (array #x21) (encode_u_LEB128 (idx ins 1))))
+                ((= op 'local.tee)      (concat (array #x22) (encode_u_LEB128 (idx ins 1))))
+                ((= op 'global.get)     (concat (array #x23) (encode_u_LEB128 (idx ins 1))))
+                ((= op 'global.set)     (concat (array #x24) (encode_u_LEB128 (idx ins 1))))
+                ; table
+                ; memory
+                ((= op 'i32.load)       (concat (array #x28) (encode_u_LEB128 (idx ins 1)) (encode_u_LEB128 (idx ins 2))))
+                ((= op 'i64.load)       (concat (array #x29) (encode_u_LEB128 (idx ins 1)) (encode_u_LEB128 (idx ins 2))))
+                ((= op 'i32.store)      (concat (array #x36) (encode_u_LEB128 (idx ins 1)) (encode_u_LEB128 (idx ins 2))))
+                ((= op 'i64.store)      (concat (array #x37) (encode_u_LEB128 (idx ins 1)) (encode_u_LEB128 (idx ins 2))))
+                ; Numeric Instructions
+                ((= op 'i32.const)      (concat (array #x41) (encode_s32_LEB128 (idx ins 1))))
+                ((= op 'i64.const)      (concat (array #x42) (encode_s64_LEB128 (idx ins 1))))
+                ; skip
+                ((= op 'i32.add)                (array #x6A))
+        ))
+    ))
+
+    (encode_expr (lambda (expr) (concat (flat_map encode_ins expr) (array #x0B))))
+    (encode_code (lambda (x)
+        (dlet (
+            ((locals body) x)
+            (enc_locals (encode_vector (lambda (loc)
+                                    (concat (encode_u_LEB128 (idx loc 0)) (encode_valtype (idx loc 1)))) locals))
+            (enc_expr (encode_expr body))
+            (code_bytes (concat enc_locals enc_expr))
+        ) (concat (encode_u_LEB128 (len code_bytes)) code_bytes))
+    ))
+    (encode_code_section (lambda (x)
+        (let (
+            (encoded (encode_vector encode_code x))
+        ) (concat (array #x0A) (encode_u_LEB128 (len encoded)) encoded ))
+    ))
+
+    (encode_global_type (lambda (t) (concat (encode_valtype (idx t 0)) (cond ((= (idx t 1) 'const) (array #x00))
+                                                                             ((= (idx t 1) 'mut)   (array #x01))
+                                                                             (true                 (error (str "bad mutablity " (idx t 1))))))))
+    (encode_global_section (lambda (global_section)
+        (let (
+            (encoded (encode_vector (lambda (x) (concat (encode_global_type (idx x 0)) (encode_expr (idx x 1)))) global_section))
+        ) (concat (array #x06) (encode_u_LEB128 (len encoded)) encoded ))
+    ))
+
+    ; only supporting one type of element section for now, active funcrefs with offset
+    (encode_element (lambda (x) (concat (array #x00) (encode_expr (idx x 0)) (encode_vector encode_u_LEB128 (idx x 1)))))
+    (encode_element_section (lambda (x)
+        (let (
+            (encoded (encode_vector encode_element x))
+        ) (concat (array #x09) (encode_u_LEB128 (len encoded)) encoded ))
+    ))
+
+    (encode_data (lambda (data) (cond ((= 2 (len data)) (concat (array #x00) (encode_expr (idx data 0)) (encode_bytes (idx data 1))))
+                                      ((= 1 (len data)) (concat (array #x01) (encode_bytes (idx data 0))))
+                                      ((= 3 (len data)) (concat (array #x02) (encode_u_LEB128 (idx data 0)) (encode_expr (idx data 1)) (encode_bytes (idx data 2))))
+                                      (true             (error (str "bad data" data))))))
+    (encode_data_section (lambda (x)
+        (let (
+            (encoded (encode_vector encode_data x))
+        ) (concat (array #x0B) (encode_u_LEB128 (len encoded)) encoded ))
+    ))
+
+    (wasm_to_binary (lambda (wasm_code)
+        (dlet (
+            ((type_section import_section function_section table_section memory_section global_section export_section start_section element_section code_section data_section) wasm_code)
+            (_ (println "type_section" type_section "import_section" import_section "function_section" function_section "memory_section" memory_section "global_section" global_section "export_section" export_section "start_section" start_section "element_section" element_section "code_section" code_section "data_section" data_section))
+            (magic    (array #x00 #x61 #x73 #x6D ))
+            (version  (array #x01 #x00 #x00 #x00 ))
+            (type     (encode_type_section type_section))
+            (import   (encode_import_section import_section))
+            (function (encode_function_section function_section))
+            (table    (encode_table_section table_section))
+            (memory   (encode_memory_section memory_section))
+            (global   (encode_global_section global_section))
+            (export   (encode_export_section export_section))
+            (start    (encode_start_section start_section))
+            (elem     (encode_element_section element_section))
+            (code     (encode_code_section code_section))
+            (data     (encode_data_section data_section))
+            ;data_count (let (body (encode_u_LEB128 (len data_section))) (concat (array #x0C) (encode_u_LEB128 (len body)) body))
+            (data_count (array))
+        ) (concat magic version type import function table memory global export data_count start elem code data))
+    ))
+
 
     (test-all (lambda () (let* (
             (run_test (lambda (s) (let* (
@@ -764,6 +1001,41 @@
                                    ((lambda (x n) (x x n)) (lambda (recurse n) (cond (!= 0 n) (* n (recurse recurse (- n 1)))
                                                                                      true     1                               )) 5)
                                    ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
+
+        (print "\n\nlambda recursion test\n\n")
+        (print (run_test "((wrap (vau (let1)
+                                   (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
+                                   (lambda (n) ((lambda (x n) (x x n)) (lambda (recurse n) (cond (!= 0 n) (* n (recurse recurse (- n 1)))
+                                                                                     true     1                               )) n))
+                                   ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
+        (let* (
+            (output (wasm_to_binary (array
+                ; type_section
+                (array)
+                ; import_section
+                (array)
+                ; function_section
+                (array)
+                ; table_section
+                (array)
+                ; memory_section
+                (array)
+                ; global_section
+                (array)
+                ; export_section
+                (array)
+                ; start_section
+                (array)
+                ; element_section
+                (array)
+                ; code_section
+                (array)
+                ; data_section
+                (array)
+            )))
+            (_ (print "to out " output))
+            (_ (write_file "./csc_out.wasm" output))
+        ) (void))
 
     ))))
 
