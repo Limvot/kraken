@@ -1275,6 +1275,7 @@
 
                   (elem (i32.const 0) '$start '$start)
                   (export "memory" '(memory $mem))
+                  (export "_start" '(func   $start))
             )))
             (_ (print "to out " output))
             (_ (write_file "./csc_out.wasm" output))
