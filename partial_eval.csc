@@ -846,6 +846,7 @@
                                                                              (true                 (error (str "bad mutablity " (idx t 1))))))))
     (encode_global_section (lambda (global_section)
         (let (
+            (_ (print "encoding exprs " global_section))
             (encoded (encode_vector (lambda (x) (concat (encode_global_type (idx x 0)) (encode_expr (idx x 1)))) global_section))
         ) (concat (array #x06) (encode_u_LEB128 (len encoded)) encoded ))
     ))
@@ -937,13 +938,12 @@
                       ((= nil cur_typ)                        (recurse cur_list                              (idx (idx locals i) 2) 1             (+ 1 i)))
                       (true                                   (recurse (concat cur_list (array (array cur_num cur_typ))) (idx (idx locals i) 2) 1             (+ 1 i))))
                ) (array) nil 0 0))
-            ;(inner_env (add-dict-to-env de (put inner_name_dict 'depth 0)))
             (_ (println "params: " params " result: " result))
             (our_type (array (map (lambda (x) (idx x 2)) params) result))
+            ;(inner_env (add-dict-to-env de (put inner_name_dict 'depth 0)))
+            (inner_name_dict_with_depth (put inner_name_dict 'depth 0))
             (_ (println "about to get our_code"))
-            (our_code (flat_map (lambda (ins) (cond ((array? ins) ins)
-                                                    (true        (ins)) ; un-evaled function, bare WAT
-                                              ))
+            (our_code (flat_map (lambda (inss) (map (lambda (ins) (ins inner_name_dict_with_depth)) inss))
                                 body))
             (_ (println "resulting code " our_code))
         ) (array
@@ -973,40 +973,51 @@
         ))
     )))
 
-    (drop      (lambda ()                                                        (array (array 'drop))))
-    (i32.const (lambda (const)                                                   (array (array 'i32.const const))))
-    (i64.const (lambda (const)                                                   (array (array 'i64.const const))))
-    (local.get (lambda (const)                                                   (array (array 'local.get const))))
-    (i32.add   (lambda flatten  (concat (flat_map (lambda (x) x) flatten)        (array (array 'i32.add)))))
-    (i32.load  (lambda flatten  (concat (flat_map (lambda (x) x) flatten)        (array (array 'i32.load 2 0)))))
-    (i64.load  (lambda flatten  (concat (flat_map (lambda (x) x) flatten)        (array (array 'i64.load 3 0)))))
-    (i32.store (lambda flatten  (concat (flat_map (lambda (x) x) flatten)        (array (array 'i32.store 2 0)))))
-    (i64.store (lambda flatten  (concat (flat_map (lambda (x) x) flatten)        (array (array 'i64.store 3 0)))))
-    (flat_eval_ins (lambda (instructions) (flat_map (lambda (ins) (cond ((array? ins) ins)
-                                                                        (true        (ins)))) instructions)))
+    ;;;;;;;;;;;;;;;
+    ; Instructions
+    ;;;;;;;;;;;;;;;
+    (drop      (lambda ()                                           (array (lambda (name_dict) (array 'drop)))))
+    (i32.const (lambda (const)                                      (array (lambda (name_dict) (array 'i32.const const)))))
+    (i64.const (lambda (const)                                      (array (lambda (name_dict) (array 'i64.const const)))))
+    (local.get (lambda (const)                                      (array (lambda (name_dict) (array 'local.get const)))))
+    (i32.add   (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.add))))))
+    (i32.load  (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.load 2 0))))))
+    (i64.load  (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.load 3 0))))))
+    (i32.store (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.store 2 0))))))
+    (i64.store (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.store 3 0))))))
 
-    (block_like_body (lambda (name inner) (flat_eval_ins inner)))
-    (block     (lambda (name . inner)                                            (array (array 'block (array) (block_like_body name inner)))))
-    (_loop     (lambda (name . inner)                                            (array (array 'loop  (array) (block_like_body name inner)))))
+    (block_like_body (lambda (name_dict name inner) (let* (
+                                                    (new_depth (+ 1 (get-value name_dict 'depth)))
+                                                    (inner_env (put (put name_dict name new_depth) 'depth new_depth))
+                                                ) (flat_map (lambda (inss) (map (lambda (ins) (ins inner_env)) inss)) inner))))
+
+
+    (block     (lambda (name . inner)                               (array (lambda (name_dict) (array 'block (array) (block_like_body name_dict name inner))))))
+    (_loop     (lambda (name . inner)                               (array (lambda (name_dict) (array 'loop  (array) (block_like_body name_dict name inner))))))
     (_if       (lambda (name . inner) (dlet (
                                             ((end_idx else_section) (if (= 'else (idx (idx inner -1) 0))      (array -2            (slice (idx inner -1) 1 -1) )
                                                                                                               (array -1             nil )))
                                             ((end_idx then_section) (if (= 'then (idx (idx inner end_idx) 0)) (array (- end_idx 1) (slice (idx inner end_idx) 1 -1) )
                                                                                                               (array (- end_idx 1) (array (idx inner end_idx) ) )))
-                                            (flattened (flat_eval_ins (slice inner 0 end_idx)))
+                                            (flattened (apply concat (slice inner 0 end_idx)))
                                             (_ (println "flattened " flattened " then_section " then_section " else_section " else_section))
-                                            (then_block (block_like_body name then_section))
-                                            (else_block (if (!= nil else_section) (array (block_like_body name else_section))
-                                                                                  (array)))
-                                           ) (concat flattened                  (array (concat (array 'if (array) then_block) else_block))))))
+                                           ) (concat flattened      (array (lambda (name_dict) (concat (array 'if (array) (block_like_body name_dict name then_section))
+                                                                                                      (if (!= nil else_section) (array (block_like_body name_dict name else_section))
+                                                                                  (array)))))))))
 
-    (br        (lambda (block) (if (int? block)  (array (array 'br block)))))
-    (br_if     (lambda (block . flatten)  (let ((rest (flat_eval_ins flatten)))
-                                                (concat rest  (array (array 'br_if block))))))
-    (call      (lambda (f . flatten)  (concat (flat_map (lambda (x) x) flatten)  (array (array 'call f)))))
+    (then (lambda rest (cons 'then rest)))
+    (else (lambda rest (cons 'else rest)))
+
+    (br        (lambda (block) (array (lambda (name_dict) (array 'br (if (int? block) block (- (get-value name_dict 'depth) (get-value name_dict block))))))))
+    (br_if     (lambda (block . flatten) (concat (apply concat flatten)  (array (lambda (name_dict) (array 'br_if (if (int? block) block (- (get-value name_dict 'depth) (get-value name_dict block)))))))))
+    (call      (lambda (f . flatten)  (concat (apply concat flatten)  (array (lambda (name_dict) (array 'call (if (int? f) f (get-value name_dict f))))))))
+
+    ;;;;;;;;;;;;;;;;;;;
+    ; End Instructions
+    ;;;;;;;;;;;;;;;;;;;
+
 
     (import (lambda (mod_name name t_idx_typ) (lambda (name_dict type import function table memory global export start elem code data) (dlet (
-            (_ (print "t_idx_type " t_idx_typ))
             (_ (if (!= 'func (idx t_idx_typ 0)) (error "only supporting importing functions rn")))
             ((import_type idx_name param_type result_type) t_idx_typ)
             (actual_type_idx (len type))
@@ -1018,7 +1029,7 @@
     (global (lambda (idx_name global_type expr) (lambda (name_dict type import function table memory global export start elem code data)
         (array (put name_dict idx_name (len global))
           type import function table memory
-          (concat global (array (array (if (array? global_type) (reverse global_type) (array global_type 'const)) expr )))
+          (concat global (array (array (if (array? global_type) (reverse global_type) (array global_type 'const)) (map (lambda (x) (x empty_dict)) expr) )))
           export start elem code data )
     )))
 
@@ -1033,19 +1044,12 @@
     )))
 
     (elem (lambda (offset . entries) (lambda (name_dict type import function table memory global export start elem code data)
-        (array name_dict type import function table memory global export start (concat elem (array (array offset (map (lambda (x) (get-value name_dict x)) entries)))) code data )
+        (array name_dict type import function table memory global export start (concat elem (array (array (map (lambda (x) (x empty_dict)) offset) (map (lambda (x) (get-value name_dict x)) entries)))) code data )
     )))
 
     (data (lambda it (lambda (name_dict type import function table memory global export start elem code data)
-                       (array name_dict type import function table memory global export start elem code (concat data (array it))))))
-
-    ;(i32 'i32)
-    ;(i64 'i32)
-    ;(param  (lambda it (cons 'param  it)))
-    ;(result (lambda it (cons 'result it)))
-
-    (then (lambda rest (cons 'then rest)))
-    (else (lambda rest (cons 'else rest)))
+                       (array name_dict type import function table memory global export start elem code
+                              (concat data (array (map (lambda (x) (if (array? x) (map (lambda (y) (y empty_dict)) x) x)) it)))))))
 
 
     (test-all (lambda () (let* (
@@ -1211,66 +1215,53 @@
                               (i32.const 0) ;; fdflags
                               (i32.const 4) ;; opened fd out ptr
                          )
-                         drop
-                        (block '$a ; 1
-                            (block '$b ; 2
-                                (br 1 ;$a
-                                )
-                                (br_if  2 ;$b
+                        (drop)
+                        (block '$a
+                            (block '$b
+                                (br '$a)
+                                (br_if  '$b
                                         (i32.const 3))
-                                (_loop '$l ; 3
-                                    (br ;$a
-                                        1
-                                    )
-                                    (br ;$l
-                                        3
-                                    )
+                                (_loop '$l
+                                    (br '$a)
+                                    (br '$l)
                                 )
-                                (_if '$myif  ; 3
+                                (_if '$myif
                                     (i32.const 1)
                                     (then
                                         (i32.const 1)
-                                        drop
-                                        (br ;$b
-                                            2
-                                        )
+                                        (drop)
+                                        (br '$b)
                                     )
                                     (else
-                                        (br ;$myif
-                                            3
-                                        )
+                                        (br '$myif)
                                     )
                                 )
-                                (_if '$another ; 3
+                                (_if '$another
                                     (i32.const 1)
-                                    (br 2 ;$b
-                                    ))
+                                    (br '$b))
                                 (i32.const 1)
-                                (_if '$third ; 3
-                                    (br ;$b
-                                        2
-                                    ))
-                                (_if '$fourth ; 3
-                                    (br 3 ;$fourth
-                                    ))
+                                (_if '$third
+                                    (br '$b))
+                                (_if '$fourth
+                                    (br '$fourth))
                             )
                         )
-                        (call 2; $fd_read
+                        (call '$fd_read
                               (i32.const 0) ;; file descriptor
                               (i32.const 8) ;; *iovs
                               (i32.const 1) ;; iovs_len
                               (i32.const 12) ;; nwritten, overwrite buf len with it
                         )
-                        drop
+                        (drop)
 
                         ;; print name
-                        (call 3; $fd_write
+                        (call '$fd_write
                               (i32.load (i32.const 4)) ;; file descriptor
                               (i32.const 8) ;; *iovs
                               (i32.const 1) ;; iovs_len
                               (i32.const 4) ;; nwritten
                         )
-                        drop
+                        (drop)
                   )
 
                   (elem (i32.const 0) '$start '$start)
