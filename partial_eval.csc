@@ -822,6 +822,7 @@
                 ((= op 'i64.const)      (concat (array #x42) (encode_s64_LEB128 (idx ins 1))))
                 ; skip
                 ((= op 'i32.add)                (array #x6A))
+                ((= op 'i64.add)                (array #x7C))
         ))
     ))
 
@@ -981,6 +982,7 @@
     (i64.const (lambda (const)                                      (array (lambda (name_dict) (array 'i64.const const)))))
     (local.get (lambda (const)                                      (array (lambda (name_dict) (array 'local.get const)))))
     (i32.add   (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.add))))))
+    (i64.add   (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.add))))))
     (i32.load  (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.load 2 0))))))
     (i64.load  (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.load 3 0))))))
     (i32.store (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.store 2 0))))))
@@ -1050,6 +1052,36 @@
     (data (lambda it (lambda (name_dict type import function table memory global export start elem code data)
                        (array name_dict type import function table memory global export start elem code
                               (concat data (array (map (lambda (x) (if (array? x) (map (lambda (y) (y empty_dict)) x) x)) it)))))))
+
+    (compile_helper (lambda (c) (cond
+        ((val? c)   (let ((v (.val c)))
+                         (cond ((int? v) (i64.const v))
+                               (true     (error (str "Can't compile " c " right now"))))))
+        (true       (error (str "can't compile " c " right now")))
+    )))
+    (compile (lambda (marked_code) (wasm_to_binary (module
+          (import "wasi_unstable" "fd_write"
+                  '(func $fd_write (param i32 i32 i32 i32)
+                                   (result i32)))
+          (memory '$mem 1)
+          (table  '$tab 2 'funcref)
+          (data (i32.const 16) "HellH") ;; adder to put, then data
+          (func '$start
+                (i64.store (i32.const 16) (i64.add (i64.const #x30) (compile_helper marked_code)))
+                (i32.store (i32.const 8) (i32.const 16))  ;; adder of data
+                (i32.store (i32.const 12) (i32.const 1)) ;; len of data
+                (call '$fd_write
+                      (i32.const 1) ;; file descriptor
+                      (i32.const 8) ;; *iovs
+                      (i32.const 1) ;; iovs_len
+                      (i32.const 4) ;; nwritten
+                )
+                (drop)
+          )
+          (elem (i32.const 0) '$start '$start)
+          (export "memory" '(memory $mem))
+          (export "_start" '(func   $start))
+    ))))
 
 
     (test-all (lambda () (let* (
@@ -1179,8 +1211,8 @@
                                                                                      true     1                               )) n))
                                    ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
         (let* (
-            ;(output (wasm_to_binary (module)))
-            (output (wasm_to_binary (module
+            (output1 (wasm_to_binary (module)))
+            (output2 (wasm_to_binary (module
                   (import "wasi_unstable" "path_open"
                           '(func $path_open  (param i32 i32 i32 i32 i32 i64 i64 i32 i32)
                                              (result i32)))
@@ -1268,8 +1300,9 @@
                   (export "memory" '(memory $mem))
                   (export "_start" '(func   $start))
             )))
-            (_ (print "to out " output))
-            (_ (write_file "./csc_out.wasm" output))
+            (output3 (compile (partial_eval (read-string "6"))))
+            (_ (print "to out " output3))
+            (_ (write_file "./csc_out.wasm" output3))
         ) (void))
 
     ))))
