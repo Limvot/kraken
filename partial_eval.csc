@@ -101,6 +101,12 @@
 
        (zip (lambda args (apply map list args)))
 
+       (empty_dict (array))
+       (put (lambda (m k v) (cons (array k v) m)))
+       (get-value (lambda (d k) (let ((result (alist-ref k d)))
+                                     (if (array? result) (idx result 0)
+                                                         (error (str "could not find " k " in " d))))))
+
        (% modulo)
        (int? integer?)
        (env? (lambda (x) false))
@@ -676,14 +682,14 @@
     ))
     (encode_floating_point (lambda (x) (error "unimplemented")))
     (encode_name (lambda (name)
-        (encode_vector (lambda (x) (array x)) name)
+        (encode_vector (lambda (x) (array x)) (map char->integer (string->list name)))
     ))
     (encode_bytes encode_name)
 
     (encode_limits (lambda (x)
        (cond ((= 1 (len x)) (concat (array #x00) (encode_u_LEB128 (idx x 0))))
-              ((= 2 (len x)) (concat (array #x01) (encode_u_LEB128 (idx x 0)) (encode_u_LEB128 (idx x 1))))
-              (true          (error "trying to encode bad limits")))
+             ((= 2 (len x)) (concat (array #x01) (encode_u_LEB128 (idx x 0)) (encode_u_LEB128 (idx x 1))))
+             (true          (error "trying to encode bad limits")))
     ))
     (encode_number_type (lambda (x)
         (cond  ((= x 'i32) (array #x7F))
@@ -755,7 +761,9 @@
     ))
     (encode_export_section (lambda (x)
         (let (
+            (_ (print "encoding element " x))
             (encoded (encode_vector encode_export x))
+            (_ (print "donex"))
         ) (concat (array #x07) (encode_u_LEB128 (len encoded)) encoded ))
     ))
 
@@ -846,7 +854,9 @@
     (encode_element (lambda (x) (concat (array #x00) (encode_expr (idx x 0)) (encode_vector encode_u_LEB128 (idx x 1)))))
     (encode_element_section (lambda (x)
         (let (
+            (_ (print "encoding element " x))
             (encoded (encode_vector encode_element x))
+            (_ (print "donex"))
         ) (concat (array #x09) (encode_u_LEB128 (len encoded)) encoded ))
     ))
 
@@ -882,6 +892,161 @@
         ) (concat magic version type import function table memory global export data_count start elem code data))
     ))
 
+    (module (lambda args (let (
+        (helper (rec-lambda recurse (entries i name_dict type import function table memory global export start elem code data)
+            (if (= i (len entries)) (array  type import function table memory global export start elem code data)
+                (dlet (
+                    ((n_d t im f ta m g e s elm c d) ((idx entries i) name_dict type import function table memory global export start elem code data))
+                 ) (recurse entries (+ i 1) n_d t im f ta m g e s elm c d)))))
+    ) (helper args 0 empty_dict (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array )))))
+
+    (table (lambda (idx_name . limits_type) (lambda (name_dict type import function table memory global export start elem code data)
+        (array (put name_dict idx_name (len table)) type import function (concat table (array (array (idx limits_type -1) (slice limits_type 0 -2) ))) memory global export start elem code data ))))
+
+    (memory (lambda (idx_name . limits) (lambda (name_dict type import function table memory global export start elem code data)
+        (array (put name_dict idx_name (len memory)) type import function table (concat memory (array limits)) global export start elem code data ))))
+
+    (func (lambda (name . inside) (lambda (name_dict type import function table memory global export start elem code data)
+        (dlet (
+            (_ (print "ok, doing a func: " name " with inside " inside))
+            ((params result locals body) ((rec-lambda recurse (i pe re)
+                                            (cond ((and (= nil pe) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'param (idx (idx inside i) 0)))
+                                                             (recurse (+ i 1) pe re))
+                                                  ((and (= nil pe) (= nil re) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'result (idx (idx inside i) 0)))
+                                                            ; only one result possible
+                                                             (recurse (+ i 1) i (+ i 1)))
+                                                  ((and (= nil re) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'result (idx (idx inside i) 0)))
+                                                            ; only one result possible
+                                                             (recurse (+ i 1) pe (+ i 1)))
+                                                  ((and            (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'local (idx (idx inside i) 0)))
+                                                             (recurse (+ i 1) pe re))
+                                                  (true      (array (slice inside 0 (or (!= nil pe) 0)) (slice inside (or (!= nil pe) 0) (or (!= nil re) (!= nil pe) 0)) (slice inside (or (!= nil re) (!= nil pe) 0) i) (slice inside i -1) ))
+                                            )
+                                        ) 0 nil nil))
+            (result (if (!= 0 (len result)) (idx result 0)
+                                           result))
+            (_ (println "params " params " result " result " locals " locals " body " body))
+            (outer_name_dict (put name_dict name (len function)))
+            ((num_params inner_name_dict) (foldl (lambda (a x) (array (+ (idx a 0) 1) (put (idx a 1) (idx x 1) (idx a 0)))) (array 0 outer_name_dict ) params))
+            ((num_locals inner_name_dict) (foldl (lambda (a x) (array (+ (idx a 0) 1) (put (idx a 1) (idx x 1) (idx a 0)))) (array num_params inner_name_dict ) locals))
+            (_ (println "inner name dict" inner_name_dict))
+            (compressed_locals ((rec-lambda recurse (cur_list cur_typ cur_num i)
+                (cond ((and (= i (len locals)) (= 0 cur_num)) cur_list)
+                           ((= i (len locals))                (concat cur_list (array (array cur_num cur_typ) )))
+                      ((= cur_typ (idx (idx locals i) 2))     (recurse cur_list                              cur_typ                (+ 1 cur_num) (+ 1 i)))
+                      ((= nil cur_typ)                        (recurse cur_list                              (idx (idx locals i) 2) 1             (+ 1 i)))
+                      (true                                   (recurse (concat cur_list (array (array cur_num cur_typ))) (idx (idx locals i) 2) 1             (+ 1 i))))
+               ) (array) nil 0 0))
+            ;(inner_env (add-dict-to-env de (put inner_name_dict 'depth 0)))
+            (_ (println "params: " params " result: " result))
+            (our_type (array (map (lambda (x) (idx x 2)) params) result))
+            (_ (println "about to get our_code"))
+            (our_code (flat_map (lambda (ins) (cond ((array? ins) ins)
+                                                    (true        (ins)) ; un-evaled function, bare WAT
+                                              ))
+                                body))
+            (_ (println "resulting code " our_code))
+        ) (array
+            outer_name_dict
+            ; type
+            (concat type (array our_type ))
+            ; import
+            import
+            ; function
+            (concat function (array (len function) ))
+            ; table
+            table
+            ; memory
+            memory
+            ; global
+            global
+            ; export
+            export
+            ; start
+            start
+            ; element
+            elem
+            ; code
+            (concat code (array (array compressed_locals our_code ) ))
+            ; data
+            data
+        ))
+    )))
+
+    (drop      (lambda ()                                                        (array (array 'drop))))
+    (i32.const (lambda (const)                                                   (array (array 'i32.const const))))
+    (i64.const (lambda (const)                                                   (array (array 'i64.const const))))
+    (local.get (lambda (const)                                                   (array (array 'local.get const))))
+    (i32.add   (lambda flatten  (concat (flat_map (lambda (x) x) flatten)        (array (array 'i32.add)))))
+    (i32.load  (lambda flatten  (concat (flat_map (lambda (x) x) flatten)        (array (array 'i32.load 2 0)))))
+    (i64.load  (lambda flatten  (concat (flat_map (lambda (x) x) flatten)        (array (array 'i64.load 3 0)))))
+    (i32.store (lambda flatten  (concat (flat_map (lambda (x) x) flatten)        (array (array 'i32.store 2 0)))))
+    (i64.store (lambda flatten  (concat (flat_map (lambda (x) x) flatten)        (array (array 'i64.store 3 0)))))
+    (flat_eval_ins (lambda (instructions) (flat_map (lambda (ins) (cond ((array? ins) ins)
+                                                                        (true        (ins)))) instructions)))
+
+    (block_like_body (lambda (name inner) (flat_eval_ins inner)))
+    (block     (lambda (name . inner)                                            (array (array 'block (array) (block_like_body name inner)))))
+    (_loop     (lambda (name . inner)                                            (array (array 'loop  (array) (block_like_body name inner)))))
+    (_if       (lambda (name . inner) (dlet (
+                                            ((end_idx else_section) (if (= 'else (idx (idx inner -1) 0))      (array -2            (slice (idx inner -1) 1 -1) )
+                                                                                                              (array -1             nil )))
+                                            ((end_idx then_section) (if (= 'then (idx (idx inner end_idx) 0)) (array (- end_idx 1) (slice (idx inner end_idx) 1 -1) )
+                                                                                                              (array (- end_idx 1) (array (idx inner end_idx) ) )))
+                                            (flattened (flat_eval_ins (slice inner 0 end_idx)))
+                                            (_ (println "flattened " flattened " then_section " then_section " else_section " else_section))
+                                            (then_block (block_like_body name then_section))
+                                            (else_block (if (!= nil else_section) (array (block_like_body name else_section))
+                                                                                  (array)))
+                                           ) (concat flattened                  (array (concat (array 'if (array) then_block) else_block))))))
+
+    (br        (lambda (block) (if (int? block)  (array (array 'br block)))))
+    (br_if     (lambda (block . flatten)  (let ((rest (flat_eval_ins flatten)))
+                                                (concat rest  (array (array 'br_if block))))))
+    (call      (lambda (f . flatten)  (concat (flat_map (lambda (x) x) flatten)  (array (array 'call f)))))
+
+    (import (lambda (mod_name name t_idx_typ) (lambda (name_dict type import function table memory global export start elem code data) (dlet (
+            (_ (print "t_idx_type " t_idx_typ))
+            (_ (if (!= 'func (idx t_idx_typ 0)) (error "only supporting importing functions rn")))
+            ((import_type idx_name param_type result_type) t_idx_typ)
+            (actual_type_idx (len type))
+            (actual_type (array (slice param_type 1 -1) (slice result_type 1 -1) ))
+        )
+        (array (put name_dict idx_name (len function)) (concat type (array actual_type)) (concat import (array (array mod_name name import_type actual_type_idx) )) (concat function (array nil)) table memory global export start elem code data ))
+    )))
+
+    (global (lambda (idx_name global_type expr) (lambda (name_dict type import function table memory global export start elem code data)
+        (array (put name_dict idx_name (len global))
+          type import function table memory
+          (concat global (array (array (if (array? global_type) (reverse global_type) (array global_type 'const)) expr )))
+          export start elem code data )
+    )))
+
+    (export (lambda (name t_v) (lambda (name_dict type import function table memory global export start elem code data)
+        (array name_dict type import function table memory global
+               (concat export (array (array name (idx t_v 0) (get-value name_dict (idx t_v 1)) ) ))
+               start elem code data )
+    )))
+
+    (start (lambda (name) (lambda (name_dict type import function table memory global export start elem code data)
+        (array name_dict type import function table memory global export (concat start (array (get-value name_dict name))) elem code data )
+    )))
+
+    (elem (lambda (offset . entries) (lambda (name_dict type import function table memory global export start elem code data)
+        (array name_dict type import function table memory global export start (concat elem (array (array offset (map (lambda (x) (get-value name_dict x)) entries)))) code data )
+    )))
+
+    (data (lambda it (lambda (name_dict type import function table memory global export start elem code data)
+                       (array name_dict type import function table memory global export start elem code (concat data (array it))))))
+
+    ;(i32 'i32)
+    ;(i64 'i32)
+    ;(param  (lambda it (cons 'param  it)))
+    ;(result (lambda it (cons 'result it)))
+
+    (then (lambda rest (cons 'then rest)))
+    (else (lambda rest (cons 'else rest)))
+
 
     (test-all (lambda () (let* (
             (run_test (lambda (s) (let* (
@@ -893,7 +1058,8 @@
         ) (begin
         (print (val? '(val)))
         (print "take 3" (take '(1 2 3 4 5 6 7 8 9 10) 3))
-        (print "drop 3" (drop '(1 2 3 4 5 6 7 8 9 10) 3))
+        ; shadowed by wasm
+        ;(print "drop 3" (drop '(1 2 3 4 5 6 7 8 9 10) 3))
         (print (slice '(1 2 3) 1 2))
         (print (slice '(1 2 3) 1 -1))
         (print (slice '(1 2 3) -1 -1))
@@ -1009,29 +1175,106 @@
                                                                                      true     1                               )) n))
                                    ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
         (let* (
-            (output (wasm_to_binary (array
-                ; type_section
-                (array)
-                ; import_section
-                (array)
-                ; function_section
-                (array)
-                ; table_section
-                (array)
-                ; memory_section
-                (array)
-                ; global_section
-                (array)
-                ; export_section
-                (array)
-                ; start_section
-                (array)
-                ; element_section
-                (array)
-                ; code_section
-                (array)
-                ; data_section
-                (array)
+            ;(output (wasm_to_binary (module)))
+            (output (wasm_to_binary (module
+                  (import "wasi_unstable" "path_open"
+                          '(func $path_open  (param i32 i32 i32 i32 i32 i64 i64 i32 i32)
+                                             (result i32)))
+                  (import "wasi_unstable" "fd_prestat_dir_name"
+                          '(func $fd_prestat_dir_name  (param i32 i32 i32)
+                                           (result i32)))
+                  (import "wasi_unstable" "fd_read"
+                          '(func $fd_read  (param i32 i32 i32 i32)
+                                           (result i32)))
+                  (import "wasi_unstable" "fd_write"
+                          '(func $fd_write (param i32 i32 i32 i32)
+                                           (result i32)))
+                  (memory '$mem 1)
+                  (global '$gi 'i32       (i32.const 8))
+                  (global '$gb '(mut i64) (i64.const 9))
+                  (table  '$tab 2 'funcref)
+                  (data (i32.const 16) "HellH") ;; adder to put, then data
+
+
+                  (func '$start
+                        (i32.store (i32.const 8) (i32.const 16))  ;; adder of data
+                        (i32.store (i32.const 12) (i32.const 5)) ;; len of data
+                        ;; open file
+                        (call 0 ;$path_open
+                              (i32.const 3) ;; file descriptor
+                              (i32.const 0) ;; lookup flags
+                              (i32.const 16) ;; path string  *
+                              (i32.load (i32.const 12)) ;; path string  len
+                              (i32.const 1) ;; o flags
+                              (i64.const 66) ;; base rights
+                              (i64.const 66) ;; inheriting rights
+                              (i32.const 0) ;; fdflags
+                              (i32.const 4) ;; opened fd out ptr
+                         )
+                         drop
+                        (block '$a ; 1
+                            (block '$b ; 2
+                                (br 1 ;$a
+                                )
+                                (br_if  2 ;$b
+                                        (i32.const 3))
+                                (_loop '$l ; 3
+                                    (br ;$a
+                                        1
+                                    )
+                                    (br ;$l
+                                        3
+                                    )
+                                )
+                                (_if '$myif  ; 3
+                                    (i32.const 1)
+                                    (then
+                                        (i32.const 1)
+                                        drop
+                                        (br ;$b
+                                            2
+                                        )
+                                    )
+                                    (else
+                                        (br ;$myif
+                                            3
+                                        )
+                                    )
+                                )
+                                (_if '$another ; 3
+                                    (i32.const 1)
+                                    (br 2 ;$b
+                                    ))
+                                (i32.const 1)
+                                (_if '$third ; 3
+                                    (br ;$b
+                                        2
+                                    ))
+                                (_if '$fourth ; 3
+                                    (br 3 ;$fourth
+                                    ))
+                            )
+                        )
+                        (call 2; $fd_read
+                              (i32.const 0) ;; file descriptor
+                              (i32.const 8) ;; *iovs
+                              (i32.const 1) ;; iovs_len
+                              (i32.const 12) ;; nwritten, overwrite buf len with it
+                        )
+                        drop
+
+                        ;; print name
+                        (call 3; $fd_write
+                              (i32.load (i32.const 4)) ;; file descriptor
+                              (i32.const 8) ;; *iovs
+                              (i32.const 1) ;; iovs_len
+                              (i32.const 4) ;; nwritten
+                        )
+                        drop
+                  )
+
+                  (elem (i32.const 0) '$start '$start)
+                  (export "memory" '(memory $mem))
             )))
             (_ (print "to out " output))
             (_ (write_file "./csc_out.wasm" output))

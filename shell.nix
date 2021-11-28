@@ -11,5 +11,7 @@ mkShell {
     chicken
     chez
     racket
+    wabt
+    wasmtime
   ];
 }
