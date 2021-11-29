@@ -817,12 +817,17 @@
                 ((= op 'i64.load)       (concat (array #x29) (encode_u_LEB128 (idx ins 1)) (encode_u_LEB128 (idx ins 2))))
                 ((= op 'i32.store)      (concat (array #x36) (encode_u_LEB128 (idx ins 1)) (encode_u_LEB128 (idx ins 2))))
                 ((= op 'i64.store)      (concat (array #x37) (encode_u_LEB128 (idx ins 1)) (encode_u_LEB128 (idx ins 2))))
+                ((= op 'memory.grow)            (array #x40 #x00))
                 ; Numeric Instructions
                 ((= op 'i32.const)      (concat (array #x41) (encode_s32_LEB128 (idx ins 1))))
                 ((= op 'i64.const)      (concat (array #x42) (encode_s64_LEB128 (idx ins 1))))
                 ; skip
                 ((= op 'i32.add)                (array #x6A))
+                ((= op 'i32.shl)                (array #x74))
+                ((= op 'i32.shr_s)              (array #x75))
+                ((= op 'i32.shr_u)              (array #x76))
                 ((= op 'i64.add)                (array #x7C))
+                ((= op 'i64.shr_u)              (array #x88))
         ))
     ))
 
@@ -912,20 +917,20 @@
         (dlet (
             (_ (print "ok, doing a func: " name " with inside " inside))
             ((params result locals body) ((rec-lambda recurse (i pe re)
-                                            (cond ((and (= nil pe) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'param (idx (idx inside i) 0)))
+                                            (cond ((and (= false pe) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'param (idx (idx inside i) 0)))
                                                              (recurse (+ i 1) pe re))
-                                                  ((and (= nil pe) (= nil re) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'result (idx (idx inside i) 0)))
+                                                  ((and (= false pe) (= false re) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'result (idx (idx inside i) 0)))
                                                             ; only one result possible
                                                              (recurse (+ i 1) i (+ i 1)))
-                                                  ((and (= nil re) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'result (idx (idx inside i) 0)))
+                                                  ((and (= false re) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'result (idx (idx inside i) 0)))
                                                             ; only one result possible
                                                              (recurse (+ i 1) pe (+ i 1)))
-                                                  ((and            (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'local (idx (idx inside i) 0)))
-                                                             (recurse (+ i 1) pe re))
-                                                  (true      (array (slice inside 0 (or (!= nil pe) 0)) (slice inside (or (!= nil pe) 0) (or (!= nil re) (!= nil pe) 0)) (slice inside (or (!= nil re) (!= nil pe) 0) i) (slice inside i -1) ))
+                                                  ((and              (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'local (idx (idx inside i) 0)))
+                                                             (recurse (+ i 1) (or pe i) (or re i)))
+                                                  (true      (array (slice inside 0 (or pe i)) (slice inside (or pe i) (or re pe i)) (slice inside (or re pe i) i) (slice inside i -1)))
                                             )
-                                        ) 0 nil nil))
-            (result (if (!= 0 (len result)) (idx result 0)
+                                        ) 0 false false))
+            (result (if (!= 0 (len result)) (array (idx (idx result 0) 1))
                                            result))
             (_ (println "params " params " result " result " locals " locals " body " body))
             (outer_name_dict (put name_dict name (len function)))
@@ -977,16 +982,24 @@
     ;;;;;;;;;;;;;;;
     ; Instructions
     ;;;;;;;;;;;;;;;
-    (drop      (lambda ()                                           (array (lambda (name_dict) (array 'drop)))))
-    (i32.const (lambda (const)                                      (array (lambda (name_dict) (array 'i32.const const)))))
-    (i64.const (lambda (const)                                      (array (lambda (name_dict) (array 'i64.const const)))))
-    (local.get (lambda (const)                                      (array (lambda (name_dict) (array 'local.get const)))))
-    (i32.add   (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.add))))))
-    (i64.add   (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.add))))))
-    (i32.load  (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.load 2 0))))))
-    (i64.load  (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.load 3 0))))))
-    (i32.store (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.store 2 0))))))
-    (i64.store (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.store 3 0))))))
+    (drop           (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'drop))))))
+    (i32.const      (lambda (const)                                      (array (lambda (name_dict) (array 'i32.const const)))))
+    (i64.const      (lambda (const)                                      (array (lambda (name_dict) (array 'i64.const const)))))
+    (local.get      (lambda (const)                                      (array (lambda (name_dict)     (array 'local.get (if (int? const) const (get-value name_dict const)))))))
+    (local.set      (lambda (const . flatten) (concat (apply concat flatten) (array (lambda (name_dict) (array 'local.set (if (int? const) const (get-value name_dict const))))))))
+    (global.get     (lambda (const)                                      (array (lambda (name_dict)     (array 'global.get (if (int? const) const (get-value name_dict const)))))))
+    (global.set     (lambda (const . flatten) (concat (apply concat flatten) (array (lambda (name_dict) (array 'global.set (if (int? const) const (get-value name_dict const))))))))
+    (i32.add        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.add))))))
+    (i64.add        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.add))))))
+    (i32.load       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.load 2 0))))))
+    (i64.load       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.load 3 0))))))
+    (i32.store      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.store 2 0))))))
+    (i64.store      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.store 3 0))))))
+    (memory.grow    (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'memory.grow))))))
+    (i32.shl        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.shl))))))
+    (i32.shr_u      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.shr_u))))))
+    (i64.shr_u      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.shr_u))))))
+
 
     (block_like_body (lambda (name_dict name inner) (let* (
                                                     (new_depth (+ 1 (get-value name_dict 'depth)))
@@ -1053,10 +1066,37 @@
                        (array name_dict type import function table memory global export start elem code
                               (concat data (array (map (lambda (x) (if (array? x) (map (lambda (y) (y empty_dict)) x) x)) it)))))))
 
+
+    ; Everything is an i64, and we're on a 32 bit wasm system, so we have a good many bits to play with
+
+    ; Int - should maximize int
+    ;  xxxxx0
+
+    ; Combiner - a double of func index and closure (which could just be the env, actually, even if we trim...)
+    ;  <func_idx32>|<env_ptr29>001
+
+    ; Array / Nil
+    ;  <array_size32><array_ptr29>011 / 0..0 011
+
+    ; String - should be close to array, bitpacked, just different ptr rep?
+    ;  <string_size32><string_ptr29>111
+
+    ; Env - only necessary if we have eval / vaus left
+    ; 0..0<env_ptr29>0101
+
+    ; Symbol - ideally interned
+    ;  <symbol_idx>01101
+
+    ; True          / False
+    ;  0..0 111101  /  0..0 011101
+
+
     (compile_helper (lambda (c) (cond
         ((val? c)   (let ((v (.val c)))
-                         (cond ((int? v) (i64.const v))
-                               (true     (error (str "Can't compile " c " right now"))))))
+                         (cond ((int? v)    (i64.const (<< v 1)))
+                               ((= true v)  (i64.const #b00111101))
+                               ((= false v) (i64.const #b00011101))
+                               (true        (error (str "Can't compile " c " right now"))))))
         (true       (error (str "can't compile " c " right now")))
     )))
     (compile (lambda (marked_code) (wasm_to_binary (module
@@ -1064,21 +1104,40 @@
                   '(func $fd_write (param i32 i32 i32 i32)
                                    (result i32)))
           (memory '$mem 1)
-          (table  '$tab 2 'funcref)
-          (data (i32.const 16) "HellH") ;; adder to put, then data
-          (func '$start
-                (i64.store (i32.const 16) (i64.add (i64.const #x30) (compile_helper marked_code)))
-                (i32.store (i32.const 8) (i32.const 16))  ;; adder of data
-                (i32.store (i32.const 12) (i32.const 1)) ;; len of data
-                (call '$fd_write
-                      (i32.const 1) ;; file descriptor
-                      (i32.const 8) ;; *iovs
-                      (i32.const 1) ;; iovs_len
-                      (i32.const 4) ;; nwritten
+          ;(table  '$tab 2 'funcref)
+          ;(data (i32.const 16) "HellH") ;; adder to put, then data
+          (global '$last_base '(mut i32)      (i32.const 0))
+          (func '$malloc '(param $bytes i32) '(result i32)
+
+            (_if '$myif
+                (global.get '$last_base)
+                (then)
+                (else
+                    (drop (memory.grow (i32.const 1)))
                 )
-                (drop)
+            )
+            (global.set '$last_base (i32.shl (memory.grow (i32.add (i32.const 1) (i32.shr_u (local.get '$bytes) (i32.const 16)))) (i32.const 16)))
+            (global.get '$last_base)
           )
-          (elem (i32.const 0) '$start '$start)
+          (func '$free '(param bytes i32)
+          )
+          (func '$print '(param $to_print i64) '(local $buf i32)
+                (local.set '$buf (call '$malloc (i32.const 64)))
+                (i64.store (i32.add (local.get '$buf) (i32.const 12)) (i64.add (i64.const #x30) (i64.shr_u (local.get '$to_print) (i64.const 1))))
+                (i32.store (i32.add (local.get '$buf) (i32.const 4))  (i32.add (local.get '$buf) (i32.const 12)))  ;; adder of data
+                (i32.store (i32.add (local.get '$buf) (i32.const 8))  (i32.const 1)) ;; len of data
+                (drop (call '$fd_write
+                          (i32.const 1)     ;; file descriptor
+                          (i32.add (i32.const 4) (local.get '$buf)) ;; *iovs
+                          (i32.const 1)     ;; iovs_len
+                          (local.get '$buf) ;; nwritten
+                ))
+                (call '$free (local.get '$buf))
+          )
+          (func '$start
+                (call '$print (compile_helper marked_code))
+          )
+          ;(elem (i32.const 0) '$start '$start)
           (export "memory" '(memory $mem))
           (export "_start" '(func   $start))
     ))))
@@ -1300,7 +1359,7 @@
                   (export "memory" '(memory $mem))
                   (export "_start" '(func   $start))
             )))
-            (output3 (compile (partial_eval (read-string "6"))))
+            (output3 (compile (partial_eval (read-string "(+ 1 2)"))))
             (_ (print "to out " output3))
             (_ (write_file "./csc_out.wasm" output3))
         ) (void))

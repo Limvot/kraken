@@ -13,5 +13,6 @@ mkShell {
     racket
     wabt
     wasmtime
+    wasm3
   ];
 }
