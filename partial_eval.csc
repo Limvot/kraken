@@ -684,7 +684,18 @@
     (encode_name (lambda (name)
         (encode_vector (lambda (x) (array x)) (map char->integer (string->list name)))
     ))
-    (encode_bytes encode_name)
+    (hex_digit (lambda (digit) (let ((d (char->integer digit)))
+                                    (cond ((< d #x3A) (- d #x30))
+                                          ((< d #x47) (- d #x37))
+                                          (true       (- d #x57))))))
+    (encode_bytes (lambda (str)
+        (encode_vector (lambda (x) (array x)) ((rec-lambda recurse (s) (cond
+                                                                          ((= nil s)       nil)
+                                                                          ((= #\\ (car s)) (cons (+ (* 16 (hex_digit (car (cdr s))))
+                                                                                                          (hex_digit (car (cdr (cdr s))))) (recurse (cdr (cdr (cdr s))))))
+                                                                          (true            (cons (char->integer (car s)) (recurse (cdr s))))
+                                               )) (string->list str)))
+    ))
 
     (encode_limits (lambda (x)
        (cond ((= 1 (len x)) (concat (array #x00) (encode_u_LEB128 (idx x 0))))
@@ -821,7 +832,30 @@
                 ; Numeric Instructions
                 ((= op 'i32.const)      (concat (array #x41) (encode_s32_LEB128 (idx ins 1))))
                 ((= op 'i64.const)      (concat (array #x42) (encode_s64_LEB128 (idx ins 1))))
-                ; skip
+                ((= op 'i32.eqz)                (array #x45))
+                ((= op 'i32.eq)                 (array #x46))
+                ((= op 'i32.ne)                 (array #x47))
+                ((= op 'i32.lt_s)               (array #x48))
+                ((= op 'i32.lt_u)               (array #x49))
+                ((= op 'i32.gt_s)               (array #x4A))
+                ((= op 'i32.gt_u)               (array #x4B))
+                ((= op 'i32.le_s)               (array #x4C))
+                ((= op 'i32.le_u)               (array #x4D))
+                ((= op 'i32.ge_s)               (array #x4E))
+                ((= op 'i32.ge_u)               (array #x4F))
+
+                ((= op 'i64.eqz)                (array #x50))
+                ((= op 'i64.eq)                 (array #x51))
+                ((= op 'i64.ne)                 (array #x52))
+                ((= op 'i64.lt_s)               (array #x53))
+                ((= op 'i64.lt_u)               (array #x54))
+                ((= op 'i64.gt_s)               (array #x55))
+                ((= op 'i64.gt_u)               (array #x56))
+                ((= op 'i64.le_s)               (array #x57))
+                ((= op 'i64.le_u)               (array #x58))
+                ((= op 'i64.ge_s)               (array #x59))
+                ((= op 'i64.ge_u)               (array #x5A))
+
                 ((= op 'i32.add)                (array #x6A))
                 ((= op 'i32.shl)                (array #x74))
                 ((= op 'i32.shr_s)              (array #x75))
@@ -991,6 +1025,30 @@
     (global.set     (lambda (const . flatten) (concat (apply concat flatten) (array (lambda (name_dict) (array 'global.set (if (int? const) const (get-value name_dict const))))))))
     (i32.add        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.add))))))
     (i64.add        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.add))))))
+
+    (i32.eqz        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.eqz))))))
+    (i32.eq         (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.eq))))))
+    (i32.ne         (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.ne))))))
+    (i32.lt_s       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.lt_s))))))
+    (i32.lt_u       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.lt_u))))))
+    (i32.gt_s       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.gt_s))))))
+    (i32.gt_u       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.gt_u))))))
+    (i32.le_s       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.le_s))))))
+    (i32.le_u       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.le_u))))))
+    (i32.ge_s       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.ge_s))))))
+    (i32.ge_u       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.ge_u))))))
+    (i64.eqz        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.eqz))))))
+    (i64.eq         (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.eq))))))
+    (i64.ne         (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.ne))))))
+    (i64.lt_s       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.lt_s))))))
+    (i64.lt_u       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.lt_u))))))
+    (i64.gt_s       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.gt_s))))))
+    (i64.gt_u       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.gt_u))))))
+    (i64.le_s       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.le_s))))))
+    (i64.le_u       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.le_u))))))
+    (i64.ge_s       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.ge_s))))))
+    (i64.ge_u       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.ge_u))))))
+
     (i32.load       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.load 2 0))))))
     (i64.load       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.load 3 0))))))
     (i32.store      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.store 2 0))))))
@@ -1103,36 +1161,50 @@
           (import "wasi_unstable" "fd_write"
                   '(func $fd_write (param i32 i32 i32 i32)
                                    (result i32)))
-          (memory '$mem 1)
           ;(table  '$tab 2 'funcref)
-          ;(data (i32.const 16) "HellH") ;; adder to put, then data
+
+          (memory '$mem 1)
+          (data                         (i32.const 8)  "\\04\\00\\00\\00\\00\\00\\00\\00true")
+          (data                         (i32.const 24) "\\05\\00\\00\\00\\00\\00\\00\\00false")
+          (global '$data_end '(mut i32) (i32.const 40))
+
           (global '$last_base '(mut i32)      (i32.const 0))
           (func '$malloc '(param $bytes i32) '(result i32)
-
-            (_if '$myif
-                (global.get '$last_base)
-                (then)
-                (else
-                    (drop (memory.grow (i32.const 1)))
-                )
-            )
             (global.set '$last_base (i32.shl (memory.grow (i32.add (i32.const 1) (i32.shr_u (local.get '$bytes) (i32.const 16)))) (i32.const 16)))
             (global.get '$last_base)
           )
           (func '$free '(param bytes i32)
           )
-          (func '$print '(param $to_print i64) '(local $buf i32)
-                (local.set '$buf (call '$malloc (i32.const 64)))
-                (i64.store (i32.add (local.get '$buf) (i32.const 12)) (i64.add (i64.const #x30) (i64.shr_u (local.get '$to_print) (i64.const 1))))
-                (i32.store (i32.add (local.get '$buf) (i32.const 4))  (i32.add (local.get '$buf) (i32.const 12)))  ;; adder of data
-                (i32.store (i32.add (local.get '$buf) (i32.const 8))  (i32.const 1)) ;; len of data
+          (func '$print '(param $to_print i64) '(local $iov i32) '(local $data i32)
+
+                (block '$to_print_switch
+                    (_if '$is_true
+                         (i64.eq (i64.const #b00111101) (local.get '$to_print))
+                         (local.set '$data (i32.const 8))
+                         (br '$to_print_switch))
+                    (_if '$is_false
+                         (i64.eq (i64.const #b00011101) (local.get '$to_print))
+                         (local.set '$data (i32.const 24))
+                         (br '$to_print_switch))
+                    ;; default is int
+                    (local.set '$data (call '$malloc (i32.const 16)))
+                    (i64.store (local.get '$data) (i64.const 1))
+                    (i64.store (i32.add (i32.const 8) (local.get '$data)) (i64.add (i64.const #x30) (i64.shr_u (local.get '$to_print) (i64.const 1))))
+                )
+
+                (local.set '$iov (call '$malloc (i32.const 8)))
+                (i32.store (local.get '$iov)                         (i32.add (i32.const 8) (local.get '$data)))    ;; adder of data
+                (i32.store (i32.add (local.get '$iov) (i32.const 4)) (i32.load (local.get '$data)))                 ;; len of data
                 (drop (call '$fd_write
                           (i32.const 1)     ;; file descriptor
-                          (i32.add (i32.const 4) (local.get '$buf)) ;; *iovs
+                          (local.get '$iov) ;; *iovs
                           (i32.const 1)     ;; iovs_len
-                          (local.get '$buf) ;; nwritten
+                          (local.get '$iov) ;; nwritten
                 ))
-                (call '$free (local.get '$buf))
+                (call '$free (local.get '$iov))
+                (_if '$need_to_free
+                    (i32.gt_u (local.get '$data) (global.get '$data_end))
+                    (call '$free (local.get '$data)))
           )
           (func '$start
                 (call '$print (compile_helper marked_code))
@@ -1269,6 +1341,10 @@
                                    (lambda (n) ((lambda (x n) (x x n)) (lambda (recurse n) (cond (!= 0 n) (* n (recurse recurse (- n 1)))
                                                                                      true     1                               )) n))
                                    ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
+        (print "ok, hex of 0 is " (hex_digit #\0))
+        (print "ok, hex of 1 is " (hex_digit #\1))
+        (print "ok, hex of a is " (hex_digit #\a))
+        (print "ok, hex of A is " (hex_digit #\A))
         (let* (
             (output1 (wasm_to_binary (module)))
             (output2 (wasm_to_binary (module
@@ -1359,11 +1435,10 @@
                   (export "memory" '(memory $mem))
                   (export "_start" '(func   $start))
             )))
-            (output3 (compile (partial_eval (read-string "(+ 1 2)"))))
+            (output3 (compile (partial_eval (read-string "(= 3 (+ 1 2))"))))
             (_ (print "to out " output3))
             (_ (write_file "./csc_out.wasm" output3))
         ) (void))
-
     ))))
 
 ) (test-all))
