@@ -2,6 +2,7 @@
 (import (chicken port))
 (import (chicken io))
 (import (chicken bitwise))
+(import (chicken string))
 (import (r5rs))
 (define-syntax rec-lambda
     (er-macro-transformer
@@ -84,8 +85,13 @@
        (!= (lambda (a b) (not (= a b))))
        (array list)
        (array? list?)
-       (concat append)
-       (len length)
+       (concat (lambda args (cond ((equal?  (length args) 0)   (list))
+                                  ((list?   (list-ref args 0)) (apply append args))
+                                  ((string? (list-ref args 0)) (apply conc args))
+                                  (true                        (error "bad value to concat")))))
+       (len    (lambda (x)  (cond ((list? x)   (length x))
+                                  ((string? x) (string-length x))
+                                  (true        (error "bad value to len")))))
        (idx (lambda (x i) (list-ref x (mif (< i 0) (+ i (len x)) i))))
        (false #f)
        (true #t)
@@ -105,10 +111,11 @@
        (put (lambda (m k v) (cons (array k v) m)))
        (get-value (lambda (d k) (let ((result (alist-ref k d)))
                                      (if (array? result) (idx result 0)
-                                                         (error (str "could not find " k " in " d))))))
+                                                         (error (print "could not find " k " in " d))))))
 
        (% modulo)
        (int? integer?)
+       (str? string?)
        (env? (lambda (x) false))
        (combiner? (lambda (x) false))
        (drop (rec-lambda recurse (x i) (mif (= 0 i) x (recurse (cdr x) (- i 1)))))
@@ -667,18 +674,17 @@
 
     ; Vectors and Values
     ; Bytes encode themselves
-    (encode_LEB128_helper (rec-lambda recurse (allow_neg x)
-        (cond ((and allow_neg (< x #x80)) (array x))
-                             ((< x #x40)  (array x))
-              (true       (cons (bor (band x #x7F) #x80) (recurse true (>> x 7)))))
+
+    ; Note that the shift must be arithmatic
+    (encode_LEB128 (rec-lambda recurse (x)
+        (let ((b (band #x7F x))
+              (v (>> x 7)))
+
+            (cond ((or (and (= v 0) (= (band b #x40) 0)) (and (= v -1) (!= (band b #x40) 0))) (array b))
+                  (true                                                                       (cons (bor b #x80) (recurse v)))))
     ))
-    (encode_u_LEB128    (lambda (x) (encode_LEB128_helper true x)))
-    (encode_s8_LEB128   (lambda (x) (encode_LEB128_helper (< x 0) (band x #xFF))))
-    (encode_s32_LEB128  (lambda (x) (encode_LEB128_helper (< x 0) (band x #xFFFFFFFF))))
-    (encode_s33_LEB128  (lambda (x) (encode_LEB128_helper (< x 0) (band x #x1FFFFFFFF))))
-    (encode_s64_LEB128  (lambda (x) (encode_LEB128_helper (< x 0) (band x #xFFFFFFFFFFFFFFFF))))
     (encode_vector (lambda (enc v)
-        (concat (encode_u_LEB128 (len v)) (flat_map enc v) )
+        (concat (encode_LEB128 (len v)) (flat_map enc v) )
     ))
     (encode_floating_point (lambda (x) (error "unimplemented")))
     (encode_name (lambda (name)
@@ -698,8 +704,8 @@
     ))
 
     (encode_limits (lambda (x)
-       (cond ((= 1 (len x)) (concat (array #x00) (encode_u_LEB128 (idx x 0))))
-             ((= 2 (len x)) (concat (array #x01) (encode_u_LEB128 (idx x 0)) (encode_u_LEB128 (idx x 1))))
+       (cond ((= 1 (len x)) (concat (array #x00) (encode_LEB128 (idx x 0))))
+             ((= 2 (len x)) (concat (array #x01) (encode_LEB128 (idx x 0)) (encode_LEB128 (idx x 1))))
              (true          (error "trying to encode bad limits")))
     ))
     (encode_number_type (lambda (x)
@@ -726,14 +732,14 @@
     (encode_type_section (lambda (x)
         (let (
             (encoded (encode_vector encode_function_type x))
-        ) (concat (array #x01) (encode_u_LEB128 (len encoded)) encoded ))
+        ) (concat (array #x01) (encode_LEB128 (len encoded)) encoded ))
     ))
     (encode_import (lambda (import)
         (dlet (
             ((mod_name name type idx) import)
         ) (concat (encode_name mod_name)
                   (encode_name name)
-                  (cond ((= type 'func)   (concat (array #x00) (encode_u_LEB128 idx)))
+                  (cond ((= type 'func)   (concat (array #x00) (encode_LEB128 idx)))
                         ((= type 'table)  (concat (array #x01) (error "can't encode table type")))
                         ((= type 'memory) (concat (array #x02) (error "can't encode memory type")))
                         ((= type 'global) (concat (array #x03) (error "can't encode global type")))
@@ -743,7 +749,7 @@
     (encode_import_section (lambda (x)
         (let (
             (encoded (encode_vector encode_import x))
-        ) (concat (array #x02) (encode_u_LEB128 (len encoded)) encoded ))
+        ) (concat (array #x02) (encode_LEB128 (len encoded)) encoded ))
     ))
 
     (encode_table_type (lambda (t) (concat (encode_ref_type (idx t 0)) (encode_limits (idx t 1)))))
@@ -751,12 +757,12 @@
     (encode_table_section (lambda (x)
         (let (
             (encoded (encode_vector encode_table_type x))
-        ) (concat (array #x04) (encode_u_LEB128 (len encoded)) encoded ))
+        ) (concat (array #x04) (encode_LEB128 (len encoded)) encoded ))
     ))
     (encode_memory_section (lambda (x)
         (let (
             (encoded (encode_vector encode_limits x))
-        ) (concat (array #x05) (encode_u_LEB128 (len encoded)) encoded ))
+        ) (concat (array #x05) (encode_LEB128 (len encoded)) encoded ))
     ))
     (encode_export (lambda (export)
         (dlet (
@@ -767,7 +773,7 @@
                         ((= type 'memory) (array #x02))
                         ((= type 'global) (array #x03))
                         (true             (error "bad export type")))
-                  (encode_u_LEB128 idx)
+                  (encode_LEB128 idx)
         ))
     ))
     (encode_export_section (lambda (x)
@@ -775,12 +781,12 @@
             (_ (print "encoding element " x))
             (encoded (encode_vector encode_export x))
             (_ (print "donex"))
-        ) (concat (array #x07) (encode_u_LEB128 (len encoded)) encoded ))
+        ) (concat (array #x07) (encode_LEB128 (len encoded)) encoded ))
     ))
 
     (encode_start_section (lambda (x)
         (cond ((= 0 (len x)) (array))
-              ((= 1 (len x)) (let ((encoded (encode_u_LEB128 (idx x 0)))) (concat (array #x08) (encode_u_LEB128 (len encoded)) encoded )))
+              ((= 1 (len x)) (let ((encoded (encode_LEB128 (idx x 0)))) (concat (array #x08) (encode_LEB128 (len encoded)) encoded )))
               (true          (error (str "bad lenbgth for start section " (len x) " was " x))))
     ))
 
@@ -789,12 +795,12 @@
             (_ (println "encoding function section " x))
             (filtered (filter (lambda (i) (!= nil i)) x))
             (_ (println "post filtered " filtered))
-            (encoded (encode_vector encode_u_LEB128 filtered))
-        ) (concat (array #x03) (encode_u_LEB128 (len encoded)) encoded ))
+            (encoded (encode_vector encode_LEB128 filtered))
+        ) (concat (array #x03) (encode_LEB128 (len encoded)) encoded ))
     ))
     (encode_blocktype (lambda (type) (cond ((symbol? type)  (encode_valtype type))
                                            ((= (array) type)     (array #x40)) ; empty type
-                                           (true            (encode_s33_LEB128 typ))
+                                           (true            (encode_LEB128 typ))
                                    )))
 
     (encode_ins (rec-lambda recurse (ins)
@@ -806,32 +812,32 @@
                 ((= op 'loop)           (concat (array #x03) (encode_blocktype (idx ins 1)) (flat_map recurse (idx ins 2)) (array #x0B)))
                 ((= op 'if)             (concat (array #x04) (encode_blocktype (idx ins 1)) (flat_map recurse (idx ins 2)) (if (!= 3 (len ins)) (concat (array #x05) (flat_map recurse (idx ins 3)))
                                                                                                                                           (array ))     (array #x0B)))
-                ((= op 'br)             (concat (array #x0C) (encode_u_LEB128 (idx ins 1))))
-                ((= op 'br_if)          (concat (array #x0D) (encode_u_LEB128 (idx ins 1))))
+                ((= op 'br)             (concat (array #x0C) (encode_LEB128 (idx ins 1))))
+                ((= op 'br_if)          (concat (array #x0D) (encode_LEB128 (idx ins 1))))
                 ;...
                 ((= op 'return)                 (array #x0F))
-                ((= op 'call)           (concat (array #x10) (encode_u_LEB128 (idx ins 1))))
+                ((= op 'call)           (concat (array #x10) (encode_LEB128 (idx ins 1))))
                 ; call_indirect
                 ; skipping a bunch
                 ; Parametric Instructions
                 ((= op 'drop)                   (array #x1A))
                 ; skip
                 ; Variable Instructions
-                ((= op 'local.get)      (concat (array #x20) (encode_u_LEB128 (idx ins 1))))
-                ((= op 'local.set)      (concat (array #x21) (encode_u_LEB128 (idx ins 1))))
-                ((= op 'local.tee)      (concat (array #x22) (encode_u_LEB128 (idx ins 1))))
-                ((= op 'global.get)     (concat (array #x23) (encode_u_LEB128 (idx ins 1))))
-                ((= op 'global.set)     (concat (array #x24) (encode_u_LEB128 (idx ins 1))))
+                ((= op 'local.get)      (concat (array #x20) (encode_LEB128 (idx ins 1))))
+                ((= op 'local.set)      (concat (array #x21) (encode_LEB128 (idx ins 1))))
+                ((= op 'local.tee)      (concat (array #x22) (encode_LEB128 (idx ins 1))))
+                ((= op 'global.get)     (concat (array #x23) (encode_LEB128 (idx ins 1))))
+                ((= op 'global.set)     (concat (array #x24) (encode_LEB128 (idx ins 1))))
                 ; table
                 ; memory
-                ((= op 'i32.load)       (concat (array #x28) (encode_u_LEB128 (idx ins 1)) (encode_u_LEB128 (idx ins 2))))
-                ((= op 'i64.load)       (concat (array #x29) (encode_u_LEB128 (idx ins 1)) (encode_u_LEB128 (idx ins 2))))
-                ((= op 'i32.store)      (concat (array #x36) (encode_u_LEB128 (idx ins 1)) (encode_u_LEB128 (idx ins 2))))
-                ((= op 'i64.store)      (concat (array #x37) (encode_u_LEB128 (idx ins 1)) (encode_u_LEB128 (idx ins 2))))
+                ((= op 'i32.load)       (concat (array #x28) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i64.load)       (concat (array #x29) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i32.store)      (concat (array #x36) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i64.store)      (concat (array #x37) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
                 ((= op 'memory.grow)            (array #x40 #x00))
                 ; Numeric Instructions
-                ((= op 'i32.const)      (concat (array #x41) (encode_s32_LEB128 (idx ins 1))))
-                ((= op 'i64.const)      (concat (array #x42) (encode_s64_LEB128 (idx ins 1))))
+                ((= op 'i32.const)      (concat (array #x41) (encode_LEB128 (idx ins 1))))
+                ((= op 'i64.const)      (concat (array #x42) (encode_LEB128 (idx ins 1))))
                 ((= op 'i32.eqz)                (array #x45))
                 ((= op 'i32.eq)                 (array #x46))
                 ((= op 'i32.ne)                 (array #x47))
@@ -857,11 +863,15 @@
                 ((= op 'i64.ge_u)               (array #x5A))
 
                 ((= op 'i32.add)                (array #x6A))
+                ((= op 'i32.and)                (array #x71))
                 ((= op 'i32.shl)                (array #x74))
                 ((= op 'i32.shr_s)              (array #x75))
                 ((= op 'i32.shr_u)              (array #x76))
                 ((= op 'i64.add)                (array #x7C))
+                ((= op 'i64.and)                (array #x83))
                 ((= op 'i64.shr_u)              (array #x88))
+
+                ((= op 'i32.wrap_i64)           (array #xA7))
         ))
     ))
 
@@ -870,15 +880,15 @@
         (dlet (
             ((locals body) x)
             (enc_locals (encode_vector (lambda (loc)
-                                    (concat (encode_u_LEB128 (idx loc 0)) (encode_valtype (idx loc 1)))) locals))
+                                    (concat (encode_LEB128 (idx loc 0)) (encode_valtype (idx loc 1)))) locals))
             (enc_expr (encode_expr body))
             (code_bytes (concat enc_locals enc_expr))
-        ) (concat (encode_u_LEB128 (len code_bytes)) code_bytes))
+        ) (concat (encode_LEB128 (len code_bytes)) code_bytes))
     ))
     (encode_code_section (lambda (x)
         (let (
             (encoded (encode_vector encode_code x))
-        ) (concat (array #x0A) (encode_u_LEB128 (len encoded)) encoded ))
+        ) (concat (array #x0A) (encode_LEB128 (len encoded)) encoded ))
     ))
 
     (encode_global_type (lambda (t) (concat (encode_valtype (idx t 0)) (cond ((= (idx t 1) 'const) (array #x00))
@@ -888,27 +898,27 @@
         (let (
             (_ (print "encoding exprs " global_section))
             (encoded (encode_vector (lambda (x) (concat (encode_global_type (idx x 0)) (encode_expr (idx x 1)))) global_section))
-        ) (concat (array #x06) (encode_u_LEB128 (len encoded)) encoded ))
+        ) (concat (array #x06) (encode_LEB128 (len encoded)) encoded ))
     ))
 
     ; only supporting one type of element section for now, active funcrefs with offset
-    (encode_element (lambda (x) (concat (array #x00) (encode_expr (idx x 0)) (encode_vector encode_u_LEB128 (idx x 1)))))
+    (encode_element (lambda (x) (concat (array #x00) (encode_expr (idx x 0)) (encode_vector encode_LEB128 (idx x 1)))))
     (encode_element_section (lambda (x)
         (let (
             (_ (print "encoding element " x))
             (encoded (encode_vector encode_element x))
             (_ (print "donex"))
-        ) (concat (array #x09) (encode_u_LEB128 (len encoded)) encoded ))
+        ) (concat (array #x09) (encode_LEB128 (len encoded)) encoded ))
     ))
 
     (encode_data (lambda (data) (cond ((= 2 (len data)) (concat (array #x00) (encode_expr (idx data 0)) (encode_bytes (idx data 1))))
                                       ((= 1 (len data)) (concat (array #x01) (encode_bytes (idx data 0))))
-                                      ((= 3 (len data)) (concat (array #x02) (encode_u_LEB128 (idx data 0)) (encode_expr (idx data 1)) (encode_bytes (idx data 2))))
+                                      ((= 3 (len data)) (concat (array #x02) (encode_LEB128 (idx data 0)) (encode_expr (idx data 1)) (encode_bytes (idx data 2))))
                                       (true             (error (str "bad data" data))))))
     (encode_data_section (lambda (x)
         (let (
             (encoded (encode_vector encode_data x))
-        ) (concat (array #x0B) (encode_u_LEB128 (len encoded)) encoded ))
+        ) (concat (array #x0B) (encode_LEB128 (len encoded)) encoded ))
     ))
 
     (wasm_to_binary (lambda (wasm_code)
@@ -928,7 +938,7 @@
             (elem     (encode_element_section element_section))
             (code     (encode_code_section code_section))
             (data     (encode_data_section data_section))
-            ;data_count (let (body (encode_u_LEB128 (len data_section))) (concat (array #x0C) (encode_u_LEB128 (len body)) body))
+            ;data_count (let (body (encode_LEB128 (len data_section))) (concat (array #x0C) (encode_LEB128 (len body)) body))
             (data_count (array))
         ) (concat magic version type import function table memory global export data_count start elem code data))
     ))
@@ -939,15 +949,15 @@
                 (dlet (
                     ((n_d t im f ta m g e s elm c d) ((idx entries i) name_dict type import function table memory global export start elem code data))
                  ) (recurse entries (+ i 1) n_d t im f ta m g e s elm c d)))))
-    ) (helper args 0 empty_dict (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array )))))
+    ) (helper (apply concat args) 0 empty_dict (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array ) (array )))))
 
-    (table (lambda (idx_name . limits_type) (lambda (name_dict type import function table memory global export start elem code data)
-        (array (put name_dict idx_name (len table)) type import function (concat table (array (array (idx limits_type -1) (slice limits_type 0 -2) ))) memory global export start elem code data ))))
+    (table (lambda (idx_name . limits_type) (array (lambda (name_dict type import function table memory global export start elem code data)
+        (array (put name_dict idx_name (len table)) type import function (concat table (array (array (idx limits_type -1) (slice limits_type 0 -2) ))) memory global export start elem code data )))))
 
-    (memory (lambda (idx_name . limits) (lambda (name_dict type import function table memory global export start elem code data)
-        (array (put name_dict idx_name (len memory)) type import function table (concat memory (array limits)) global export start elem code data ))))
+    (memory (lambda (idx_name . limits) (array (lambda (name_dict type import function table memory global export start elem code data)
+        (array (put name_dict idx_name (len memory)) type import function table (concat memory (array limits)) global export start elem code data )))))
 
-    (func (lambda (name . inside) (lambda (name_dict type import function table memory global export start elem code data)
+    (func (lambda (name . inside) (array (lambda (name_dict type import function table memory global export start elem code data)
         (dlet (
             (_ (print "ok, doing a func: " name " with inside " inside))
             ((params result locals body) ((rec-lambda recurse (i pe re)
@@ -1011,11 +1021,12 @@
             ; data
             data
         ))
-    )))
+    ))))
 
     ;;;;;;;;;;;;;;;
     ; Instructions
     ;;;;;;;;;;;;;;;
+    (unreachable    (lambda ()                                           (array (lambda (name_dict) (array 'unreachable)))))
     (drop           (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'drop))))))
     (i32.const      (lambda (const)                                      (array (lambda (name_dict) (array 'i32.const const)))))
     (i64.const      (lambda (const)                                      (array (lambda (name_dict) (array 'i64.const const)))))
@@ -1024,7 +1035,9 @@
     (global.get     (lambda (const)                                      (array (lambda (name_dict)     (array 'global.get (if (int? const) const (get-value name_dict const)))))))
     (global.set     (lambda (const . flatten) (concat (apply concat flatten) (array (lambda (name_dict) (array 'global.set (if (int? const) const (get-value name_dict const))))))))
     (i32.add        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.add))))))
+    (i32.and        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.add))))))
     (i64.add        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.add))))))
+    (i64.and        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.and))))))
 
     (i32.eqz        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.eqz))))))
     (i32.eq         (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.eq))))))
@@ -1058,6 +1071,7 @@
     (i32.shr_u      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.shr_u))))))
     (i64.shr_u      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.shr_u))))))
 
+    (i32.wrap_i64   (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.wrap_i64))))))
 
     (block_like_body (lambda (name_dict name inner) (let* (
                                                     (new_depth (+ 1 (get-value name_dict 'depth)))
@@ -1090,39 +1104,39 @@
     ;;;;;;;;;;;;;;;;;;;
 
 
-    (import (lambda (mod_name name t_idx_typ) (lambda (name_dict type import function table memory global export start elem code data) (dlet (
+    (import (lambda (mod_name name t_idx_typ) (array (lambda (name_dict type import function table memory global export start elem code data) (dlet (
             (_ (if (!= 'func (idx t_idx_typ 0)) (error "only supporting importing functions rn")))
             ((import_type idx_name param_type result_type) t_idx_typ)
             (actual_type_idx (len type))
             (actual_type (array (slice param_type 1 -1) (slice result_type 1 -1) ))
         )
         (array (put name_dict idx_name (len function)) (concat type (array actual_type)) (concat import (array (array mod_name name import_type actual_type_idx) )) (concat function (array nil)) table memory global export start elem code data ))
-    )))
+    ))))
 
-    (global (lambda (idx_name global_type expr) (lambda (name_dict type import function table memory global export start elem code data)
+    (global (lambda (idx_name global_type expr) (array (lambda (name_dict type import function table memory global export start elem code data)
         (array (put name_dict idx_name (len global))
           type import function table memory
           (concat global (array (array (if (array? global_type) (reverse global_type) (array global_type 'const)) (map (lambda (x) (x empty_dict)) expr) )))
           export start elem code data )
-    )))
+    ))))
 
-    (export (lambda (name t_v) (lambda (name_dict type import function table memory global export start elem code data)
+    (export (lambda (name t_v) (array (lambda (name_dict type import function table memory global export start elem code data)
         (array name_dict type import function table memory global
                (concat export (array (array name (idx t_v 0) (get-value name_dict (idx t_v 1)) ) ))
                start elem code data )
-    )))
+    ))))
 
-    (start (lambda (name) (lambda (name_dict type import function table memory global export start elem code data)
+    (start (lambda (name) (array (lambda (name_dict type import function table memory global export start elem code data)
         (array name_dict type import function table memory global export (concat start (array (get-value name_dict name))) elem code data )
-    )))
+    ))))
 
-    (elem (lambda (offset . entries) (lambda (name_dict type import function table memory global export start elem code data)
+    (elem (lambda (offset . entries) (array (lambda (name_dict type import function table memory global export start elem code data)
         (array name_dict type import function table memory global export start (concat elem (array (array (map (lambda (x) (x empty_dict)) offset) (map (lambda (x) (get-value name_dict x)) entries)))) code data )
-    )))
+    ))))
 
-    (data (lambda it (lambda (name_dict type import function table memory global export start elem code data)
+    (data (lambda it (array (lambda (name_dict type import function table memory global export start elem code data)
                        (array name_dict type import function table memory global export start elem code
-                              (concat data (array (map (lambda (x) (if (array? x) (map (lambda (y) (y empty_dict)) x) x)) it)))))))
+                              (concat data (array (map (lambda (x) (if (array? x) (map (lambda (y) (y empty_dict)) x) x)) it))))))))
 
 
     ; Everything is an i64, and we're on a 32 bit wasm system, so we have a good many bits to play with
@@ -1149,12 +1163,16 @@
     ;  0..0 111101  /  0..0 011101
 
 
-    (compile_helper (lambda (c) (cond
+    (compile_helper (lambda (alloc_data datasi c) (cond
         ((val? c)   (let ((v (.val c)))
-                         (cond ((int? v)    (i64.const (<< v 1)))
-                               ((= true v)  (i64.const #b00111101))
-                               ((= false v) (i64.const #b00011101))
-                               (true        (error (str "Can't compile " c " right now"))))))
+                         (cond ((int? v)    (array (i64.const (<< v 1))   datasi))
+                               ((= true v)  (array (i64.const #b00111101) datasi))
+                               ((= false v) (array (i64.const #b00011101) datasi))
+                               ((str? v)    (dlet (((c_loc c_len datasi) (alloc_data v datasi))
+                                                   (a (bor (<< c_len 32) c_loc #b111))
+                                                   (_ (print "So with len " c_len " and loc " c_loc " is now " a " so recovering would be " (band #xFFFFFFF8 a) " and size " (>> a 32)))
+                                                   ) (array (i64.const a) datasi)))
+                               (true        (error (str "Can't compile " v " right now"))))))
         (true       (error (str "can't compile " c " right now")))
     )))
     (compile (lambda (marked_code) (wasm_to_binary (module
@@ -1164,51 +1182,68 @@
           ;(table  '$tab 2 'funcref)
 
           (memory '$mem 1)
-          (data                         (i32.const 8)  "\\04\\00\\00\\00\\00\\00\\00\\00true")
-          (data                         (i32.const 24) "\\05\\00\\00\\00\\00\\00\\00\\00false")
-          (global '$data_end '(mut i32) (i32.const 40))
-
-          (global '$last_base '(mut i32)      (i32.const 0))
+          (global '$last_base '(mut i32) (i32.const 0))
           (func '$malloc '(param $bytes i32) '(result i32)
             (global.set '$last_base (i32.shl (memory.grow (i32.add (i32.const 1) (i32.shr_u (local.get '$bytes) (i32.const 16)))) (i32.const 16)))
             (global.get '$last_base)
           )
           (func '$free '(param bytes i32)
           )
-          (func '$print '(param $to_print i64) '(local $iov i32) '(local $data i32)
-
-                (block '$to_print_switch
-                    (_if '$is_true
-                         (i64.eq (i64.const #b00111101) (local.get '$to_print))
-                         (local.set '$data (i32.const 8))
-                         (br '$to_print_switch))
-                    (_if '$is_false
-                         (i64.eq (i64.const #b00011101) (local.get '$to_print))
-                         (local.set '$data (i32.const 24))
-                         (br '$to_print_switch))
-                    ;; default is int
-                    (local.set '$data (call '$malloc (i32.const 16)))
-                    (i64.store (local.get '$data) (i64.const 1))
-                    (i64.store (i32.add (i32.const 8) (local.get '$data)) (i64.add (i64.const #x30) (i64.shr_u (local.get '$to_print) (i64.const 1))))
-                )
-
-                (local.set '$iov (call '$malloc (i32.const 8)))
-                (i32.store (local.get '$iov)                         (i32.add (i32.const 8) (local.get '$data)))    ;; adder of data
-                (i32.store (i32.add (local.get '$iov) (i32.const 4)) (i32.load (local.get '$data)))                 ;; len of data
-                (drop (call '$fd_write
-                          (i32.const 1)     ;; file descriptor
-                          (local.get '$iov) ;; *iovs
-                          (i32.const 1)     ;; iovs_len
-                          (local.get '$iov) ;; nwritten
-                ))
-                (call '$free (local.get '$iov))
-                (_if '$need_to_free
-                    (i32.gt_u (local.get '$data) (global.get '$data_end))
-                    (call '$free (local.get '$data)))
+          (func '$drop '(param bytes i64)
           )
-          (func '$start
-                (call '$print (compile_helper marked_code))
-          )
+          (dlet (
+              (alloc_data (dlambda (d (watermark datas)) (cond ((str? d)      (let ((size (+ 8 (band (len d) -8)))) (array (+ watermark 8) (len d) (array (+ watermark 8 size) (concat datas (data (i32.const watermark) (concat "\\00\\00\\00\\00\\00\\00\\00\\80" d)))))))
+                                                               (true          (error (str "can't alloc_data for anything else besides strings yet" d)))
+                                                         )
+              ))
+              (datasi (array 8 (array)))
+              ((true_loc true_length datasi) (alloc_data "true" datasi))
+              ((false_loc false_length datasi) (alloc_data "false" datasi))
+              (print (func '$print '(param $to_print i64) '(local $iov i32) '(local $data i32) '(local $data_size i32)
+                    (block '$to_print_switch
+                        (_if '$is_true
+                             (i64.eq (i64.const #b00111101) (local.get '$to_print))
+                             (local.set '$data_size (i32.const true_length))
+                             (local.set '$data (i32.const true_loc))
+                             (br '$to_print_switch))
+                        (_if '$is_false
+                             (i64.eq (i64.const #b00011101) (local.get '$to_print))
+                             (local.set '$data_size (i32.const false_length))
+                             (local.set '$data (i32.const false_loc))
+                             (br '$to_print_switch))
+                        (_if '$is_str
+                             (i64.eq (i64.const #b0111) (i64.and (i64.const #b0111) (local.get '$to_print)))
+
+                             ; This is weird, I clearly misunderstood how they wrap negative numbers?
+                             ;(local.set '$data      (i32.and (i32.const -8) (i32.wrap_i64 (local.get '$to_print))))
+                             (local.set '$data      (i32.wrap_i64 (i64.and (i64.const -8) (local.get '$to_print))))
+                             (local.set '$data_size (i32.wrap_i64 (i64.shr_u (local.get '$to_print) (i64.const 32))))
+                             (br '$to_print_switch))
+                        ;; default is int
+                        (local.set '$data_size (i32.const 1))
+                        (local.set '$data (call '$malloc (i32.const 8)))
+                        (i64.store (local.get '$data) (i64.add (i64.const #x30) (i64.shr_u (local.get '$to_print) (i64.const 1))))
+                        (unreachable)
+                    )
+
+                    (local.set '$iov (call '$malloc (i32.const 8)))
+                    (i32.store (local.get '$iov)                         (local.get '$data))      ;; adder of data
+                    (i32.store (i32.add (local.get '$iov) (i32.const 4)) (local.get '$data_size)) ;; len of data
+                    (drop (call '$fd_write
+                              (i32.const 1)     ;; file descriptor
+                              (local.get '$iov) ;; *iovs
+                              (i32.const 1)     ;; iovs_len
+                              (local.get '$iov) ;; nwritten
+                    ))
+                    (call '$free (local.get '$iov))
+                    (call '$drop (local.get '$to_print))
+              ))
+              ((compiled_code datasi) (compile_helper alloc_data datasi marked_code))
+              (start (func '$start
+                    (call '$print compiled_code)
+              ))
+              ((watermark datas) datasi)
+          ) (concat (global '$data_end '(mut i32) (i32.const watermark)) datas print start ))
           ;(elem (i32.const 0) '$start '$start)
           (export "memory" '(memory $mem))
           (export "_start" '(func   $start))
@@ -1435,9 +1470,11 @@
                   (export "memory" '(memory $mem))
                   (export "_start" '(func   $start))
             )))
-            (output3 (compile (partial_eval (read-string "(= 3 (+ 1 2))"))))
+            ;(output3 (compile (partial_eval (read-string "(str 3 (+ 1 2))"))))
+            (output3 (compile (partial_eval (read-string "\"hello world\""))))
             (_ (print "to out " output3))
             (_ (write_file "./csc_out.wasm" output3))
+            (_ (print "encoding -8 as a s32_LEB128 " (encode_LEB128 -8)))
         ) (void))
     ))))
 
