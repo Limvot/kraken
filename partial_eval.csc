@@ -88,10 +88,10 @@
        (concat (lambda args (cond ((equal?  (length args) 0)   (list))
                                   ((list?   (list-ref args 0)) (apply append args))
                                   ((string? (list-ref args 0)) (apply conc args))
-                                  (true                        (error "bad value to concat")))))
+                                  (#t          (begin (print "the bad concat is " args) (error "bad value to concat"))))))
        (len    (lambda (x)  (cond ((list? x)   (length x))
                                   ((string? x) (string-length x))
-                                  (true        (error "bad value to len")))))
+                                  (#t          (begin (print "the bad len is " x) (error "bad value to len"))))))
        (idx (lambda (x i) (list-ref x (mif (< i 0) (+ i (len x)) i))))
        (false #f)
        (true #t)
@@ -885,6 +885,7 @@
                 ((= op 'i64.rem_s)              (array #x81))
                 ((= op 'i64.rem_u)              (array #x82))
                 ((= op 'i64.and)                (array #x83))
+                ((= op 'i64.shr_s)              (array #x87))
                 ((= op 'i64.shr_u)              (array #x88))
 
                 ((= op 'i32.wrap_i64)           (array #xA7))
@@ -1104,6 +1105,7 @@
     (memory.grow    (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'memory.grow))))))
     (i32.shl        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.shl))))))
     (i32.shr_u      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.shr_u))))))
+    (i64.shr_s      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.shr_s))))))
     (i64.shr_u      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.shr_u))))))
 
     (i32.wrap_i64   (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.wrap_i64))))))
@@ -1244,7 +1246,16 @@
               ((true_loc true_length datasi) (alloc_data "true" datasi))
               ((false_loc false_length datasi) (alloc_data "false" datasi))
               (int_digits (func '$int_digits '(param $int i64) '(result i32) '(local $tmp i32)
-                    (local.set '$tmp (i32.const 1))
+                    (_if '$is_neg
+                        (i64.lt_s (local.get '$int) (i64.const 0))
+                        (then
+                            (local.set '$int (i64.sub (i64.const 0) (local.get '$int)))
+                            (local.set '$tmp (i32.const 2))
+                        )
+                        (else
+                            (local.set '$tmp (i32.const 1))
+                        )
+                    )
                     (block '$b
                         (_loop '$l
                             (br_if '$b (i64.le_u (local.get '$int) (i64.const 9)))
@@ -1273,7 +1284,7 @@
                                                ))
                                          (else
                                             ;; default is int
-                                            (call '$int_digits (i64.shr_u (local.get '$to_str_len) (i64.const 1)))
+                                            (call '$int_digits (i64.shr_s (local.get '$to_str_len) (i64.const 1)))
                                         )
                                     )
                                 )
@@ -1318,9 +1329,17 @@
                                                ))
                                          (else
                                             ;; default is int
-                                            (local.set '$to_str (i64.shr_u (local.get '$to_str) (i64.const 1)))
+                                            (local.set '$to_str (i64.shr_s (local.get '$to_str) (i64.const 1)))
                                             (local.set '$len_tmp (call '$int_digits (local.get '$to_str)))
                                             (local.set '$buf_tmp (i32.add (local.get '$buf) (local.get '$len_tmp)))
+
+                                            (_if '$is_neg
+                                                (i64.lt_s (local.get '$to_str) (i64.const 0))
+                                                (then
+                                                    (local.set '$to_str (i64.sub (i64.const 0) (local.get '$to_str)))
+                                                    (i64.store8 (local.get '$buf) (i64.const #x2D))
+                                                )
+                                            )
 
                                             (block '$b
                                                 (_loop '$l
@@ -1587,7 +1606,7 @@
                   (export "memory" '(memory $mem))
                   (export "_start" '(func   $start))
             )))
-            (output3 (compile (partial_eval (read-string "(+ 1337 (+ 1 2))"))))
+            (output3 (compile (partial_eval (read-string "(+ 1 1337 (+ 1 2))"))))
             ;(output3 (compile (partial_eval (read-string "\"hello world\""))))
             ;(output3 (compile (partial_eval (read-string "((vau (x) x) asdf)"))))
             (_ (print "to out " output3))
