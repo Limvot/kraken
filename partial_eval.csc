@@ -1234,7 +1234,8 @@
               ((true_loc true_length datasi) (alloc_data "true" datasi))
               ((false_loc false_length datasi) (alloc_data "false" datasi))
 
-              ((func_idx funcs) (array 0 (array)))
+              ; 0 is fd_write
+              ((func_idx funcs) (array 1 (array)))
               ((k_int_digits func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$int_digits '(param $int i64) '(result i32) '(local $tmp i32)
                     (_if '$is_neg
                         (i64.lt_s (local.get '$int) (i64.const 0))
