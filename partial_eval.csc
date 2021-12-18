@@ -157,6 +157,7 @@
     (.marked_symbol_is_val  (lambda (x) (idx x 2)))
     (.marked_symbol_value   (lambda (x) (idx x 3)))
     (.comb                  (lambda (x) (slice x 2 -1)))
+    (.prim_comb_sym         (lambda (x) (idx x 3)))
     (.prim_comb             (lambda (x) (idx x 2)))
     (.marked_env            (lambda (x) (slice x 2 -1)))
     (.marked_env_idx        (lambda (x) (idx x 3)))
@@ -1208,44 +1209,6 @@
     (i64_le_hexify (lambda (x) ((rec-lambda recurse (x i) (if (= i 0) ""
                                                                   (concat "\\" (to_hex_digit (remainder (quotient x 16) 16)) (to_hex_digit (remainder x 16)) (recurse (quotient x 256) (- i 1))))) x 8)))
 
-    (compile_helper (rec-lambda recurse (alloc_data datasi c) (cond
-        ((val? c)   (let ((v (.val c)))
-                         (cond ((int? v)    (array (<< v 1)   datasi))
-                               ((= true v)  (array #b00111101 datasi))
-                               ((= false v) (array #b00011101 datasi))
-                               ((str? v)    (dlet (((c_loc c_len datasi) (alloc_data v datasi))
-                                                   (a (bor (<< c_len 32) c_loc #b011))
-                                                   ) (array a datasi)))
-                               (true        (error (str "Can't compile value " v " right now"))))))
-        ((marked_symbol? c) (cond ((.marked_symbol_is_val c) (dlet (((c_loc c_len datasi) (alloc_data (symbol->string (.marked_symbol_value c))  datasi))
-                                                               (a (bor (<< c_len 32) c_loc #b111))
-                                                               ) (array a datasi)))
-                                  (true                      (error (str "can't compile non-val symbols " c " right now")))))
-        ((marked_array? c) (if (.marked_array_is_val c) (let ((actual_len (len (.marked_array_values c))))
-                                                             (if (= 0 actual_len) (array nil_array_value datasi)
-                                                                (dlet (((comp_values datasi) (foldr (dlambda (x (a datasi)) (dlet (((v datasi) (recurse alloc_data datasi x)))
-                                                                                                                          (array (cons v a) datasi))) (array (array) datasi) (.marked_array_values c)))
-                                                                       ((c_loc c_len datasi) (alloc_data (apply concat (map i64_le_hexify comp_values)) datasi)))
-                                                                      (array (bor (<< actual_len 32) c_loc #b101) datasi))))
-                                                        (error (str "can't compile call right now " c))))
-
-        ((marked_env? c) (dlet ((e (.env_marked c))
-                                ((comp_values datasi) (foldr (dlambda ((k v) (a datasi)) (dlet (((kv datasi) (recurse alloc_data datasi (marked_symbol true k)))
-                                                                                                ((vv datasi) (recurse alloc_data datasi v)))
-                                                                                          (array (cons kv (cons vv a)) datasi))) (array (array) datasi) (slice e 0 -2)))
-                                (u (idx e -1))
-                                (_ (print "comp values are " comp_values))
-                                ((uv datasi) (mif u (begin (print "turns out " u " did exist") (recurse alloc_data datasi (idx e -1)))
-                                                    (begin (print "turns out " u " didn't exist, returning nil_array value") (array nil_array_value datasi))))
-                                (all_hex (map i64_le_hexify (concat comp_values (array uv))))
-                                (_ (print "all_hex " all_hex))
-                                ((c_loc c_len datasi) (alloc_data (apply concat all_hex) datasi)))
-                               (array (bor (<< c_loc 5) #b01001) datasi)))
-
-
-
-        (true       (error (str "can't compile " c " right now")))
-    )))
     (compile (lambda (marked_code) (wasm_to_binary (module
           (import "wasi_unstable" "fd_write"
                   '(func $fd_write (param i32 i32 i32 i32)
@@ -1270,7 +1233,9 @@
               (datasi (array 8 (array)))
               ((true_loc true_length datasi) (alloc_data "true" datasi))
               ((false_loc false_length datasi) (alloc_data "false" datasi))
-              (int_digits (func '$int_digits '(param $int i64) '(result i32) '(local $tmp i32)
+
+              ((func_idx funcs) (array 0 (array)))
+              ((k_int_digits func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$int_digits '(param $int i64) '(result i32) '(local $tmp i32)
                     (_if '$is_neg
                         (i64.lt_s (local.get '$int) (i64.const 0))
                         (then
@@ -1290,8 +1255,8 @@
                         )
                     )
                     (local.get '$tmp)
-              ))
-              (str_len (func '$str_len '(param $to_str_len i64) '(result i32) '(local $running_len_tmp i32) '(local $i_tmp i32) '(local $x_tmp i32) '(local $item i64)
+              ))))
+              ((k_str_len func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str_len '(param $to_str_len i64) '(result i32) '(local $running_len_tmp i32) '(local $i_tmp i32) '(local $x_tmp i32) '(local $item i64)
                     (_if '$is_true '(result i32)
                          (i64.eq (i64.const #b00111101) (local.get '$to_str_len))
                          (then (i32.const true_length))
@@ -1360,8 +1325,16 @@
                                                             (local.get '$running_len_tmp)
                                                         )
                                                         (else
-                                                            ;; default is int
-                                                            (call '$int_digits (i64.shr_s (local.get '$to_str_len) (i64.const 1)))
+                                                            (_if '$is_comb '(result i32)
+                                                                (i64.eq (i64.const #b0001) (i64.and (i64.const #b1111) (local.get '$to_str_len)))
+                                                                (then
+                                                                    (i32.const 4)
+                                                                )
+                                                                (else
+                                                                    ;; must be int
+                                                                    (call '$int_digits (i64.shr_s (local.get '$to_str_len) (i64.const 1)))
+                                                                )
+                                                            )
                                                         )
                                                     )
                                                  )
@@ -1372,8 +1345,8 @@
                             )
                         )
                     )
-              ))
-              (str_helper (func '$str_helper '(param $to_str i64) '(param $buf i32) '(result i32) '(local $len_tmp i32) '(local $buf_tmp i32) '(local $ptr_tmp i32) '(local $i_tmp i32) '(local $item i64)
+              ))))
+              ((k_str_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str_helper '(param $to_str i64) '(param $buf i32) '(result i32) '(local $len_tmp i32) '(local $buf_tmp i32) '(local $ptr_tmp i32) '(local $i_tmp i32) '(local $item i64)
                     (_if '$is_true '(result i32)
                          (i64.eq (i64.const #b00111101) (local.get '$to_str))
                          (then (memory.copy (local.get '$buf)
@@ -1475,30 +1448,39 @@
                                                             (local.get '$len_tmp)
                                                         )
                                                         (else
-                                                            ;; default is int
-                                                            (local.set '$to_str (i64.shr_s (local.get '$to_str) (i64.const 1)))
-                                                            (local.set '$len_tmp (call '$int_digits (local.get '$to_str)))
-                                                            (local.set '$buf_tmp (i32.add (local.get '$buf) (local.get '$len_tmp)))
-
-                                                            (_if '$is_neg
-                                                                (i64.lt_s (local.get '$to_str) (i64.const 0))
+                                                            (_if '$is_comb '(result i32)
+                                                                (i64.eq (i64.const #b0001) (i64.and (i64.const #b1111) (local.get '$to_str)))
                                                                 (then
-                                                                    (local.set '$to_str (i64.sub (i64.const 0) (local.get '$to_str)))
-                                                                    (i64.store8 (local.get '$buf) (i64.const #x2D))
+                                                                    (i32.store (local.get '$buf) (i32.const #x626D6F63))
+                                                                    (i32.const 4)
+                                                                )
+                                                                (else
+                                                                    ;; must be int
+                                                                    (local.set '$to_str (i64.shr_s (local.get '$to_str) (i64.const 1)))
+                                                                    (local.set '$len_tmp (call '$int_digits (local.get '$to_str)))
+                                                                    (local.set '$buf_tmp (i32.add (local.get '$buf) (local.get '$len_tmp)))
+
+                                                                    (_if '$is_neg
+                                                                        (i64.lt_s (local.get '$to_str) (i64.const 0))
+                                                                        (then
+                                                                            (local.set '$to_str (i64.sub (i64.const 0) (local.get '$to_str)))
+                                                                            (i64.store8 (local.get '$buf) (i64.const #x2D))
+                                                                        )
+                                                                    )
+
+                                                                    (block '$b
+                                                                        (_loop '$l
+                                                                            (local.set '$buf_tmp (i32.sub (local.get '$buf_tmp) (i32.const 1)))
+                                                                            (i64.store8 (local.get '$buf_tmp) (i64.add (i64.const #x30) (i64.rem_u (local.get '$to_str) (i64.const 10))))
+                                                                            (local.set '$to_str (i64.div_u (local.get '$to_str) (i64.const 10)))
+                                                                            (br_if '$b (i64.eq (local.get '$to_str) (i64.const 0)))
+                                                                            (br '$l)
+                                                                        )
+                                                                    )
+
+                                                                    (local.get '$len_tmp)
                                                                 )
                                                             )
-
-                                                            (block '$b
-                                                                (_loop '$l
-                                                                    (local.set '$buf_tmp (i32.sub (local.get '$buf_tmp) (i32.const 1)))
-                                                                    (i64.store8 (local.get '$buf_tmp) (i64.add (i64.const #x30) (i64.rem_u (local.get '$to_str) (i64.const 10))))
-                                                                    (local.set '$to_str (i64.div_u (local.get '$to_str) (i64.const 10)))
-                                                                    (br_if '$b (i64.eq (local.get '$to_str) (i64.const 0)))
-                                                                    (br '$l)
-                                                                )
-                                                            )
-
-                                                            (local.get '$len_tmp)
                                                         )
                                                     )
                                                 )
@@ -1509,8 +1491,8 @@
                             )
                         )
                     )
-              ))
-              (print (func '$print '(param $to_print i64) '(local $iov i32) '(local $data_size i32)
+              ))))
+              ((k_print func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$print '(param $to_print i64) '(local $iov i32) '(local $data_size i32)
                     (local.set '$iov (call '$malloc (i32.add (i32.const 8)
                                                               (local.tee '$data_size (call '$str_len (local.get '$to_print))))))
                     (drop (call '$str_helper (local.get '$to_print) (i32.add (i32.const 8) (local.get '$iov))))
@@ -1524,14 +1506,59 @@
                     ))
                     (call '$free (local.get '$iov))
                     (call '$drop (local.get '$to_print))
-              ))
+              ))))
+
+              ((k_len func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$len '(param $it i64) '(result i64)
+                    (i64.and (i64.shr_u (local.get '$it) (i64.const 31)) (i64.const -2))
+              ))))
+
+              (compile_helper (rec-lambda recurse (datasi c) (cond
+                    ((val? c)   (let ((v (.val c)))
+                                     (cond ((int? v)    (array (<< v 1)   datasi))
+                                           ((= true v)  (array #b00111101 datasi))
+                                           ((= false v) (array #b00011101 datasi))
+                                           ((str? v)    (dlet (((c_loc c_len datasi) (alloc_data v datasi))
+                                                               (a (bor (<< c_len 32) c_loc #b011))
+                                                               ) (array a datasi)))
+                                           (true        (error (str "Can't compile value " v " right now"))))))
+                    ((marked_symbol? c) (cond ((.marked_symbol_is_val c) (dlet (((c_loc c_len datasi) (alloc_data (symbol->string (.marked_symbol_value c))  datasi))
+                                                                           (a (bor (<< c_len 32) c_loc #b111))
+                                                                           ) (array a datasi)))
+                                              (true                      (error (str "can't compile non-val symbols " c " right now")))))
+                    ((marked_array? c) (if (.marked_array_is_val c) (let ((actual_len (len (.marked_array_values c))))
+                                                                         (if (= 0 actual_len) (array nil_array_value datasi)
+                                                                            (dlet (((comp_values datasi) (foldr (dlambda (x (a datasi)) (dlet (((v datasi) (recurse datasi x)))
+                                                                                                                                      (array (cons v a) datasi))) (array (array) datasi) (.marked_array_values c)))
+                                                                                   ((c_loc c_len datasi) (alloc_data (apply concat (map i64_le_hexify comp_values)) datasi)))
+                                                                                  (array (bor (<< actual_len 32) c_loc #b101) datasi))))
+                                                                    (error (str "can't compile call right now " c))))
+
+                    ((marked_env? c) (dlet ((e (.env_marked c))
+                                            ((comp_values datasi) (foldr (dlambda ((k v) (a datasi)) (dlet (((kv datasi) (recurse datasi (marked_symbol true k)))
+                                                                                                            ((vv datasi) (recurse datasi v)))
+                                                                                                      (array (cons kv (cons vv a)) datasi))) (array (array) datasi) (slice e 0 -2)))
+                                            (u (idx e -1))
+                                            (_ (print "comp values are " comp_values))
+                                            ((uv datasi) (mif u (begin (print "turns out " u " did exist") (recurse datasi (idx e -1)))
+                                                                (begin (print "turns out " u " didn't exist, returning nil_array value") (array nil_array_value datasi))))
+                                            (all_hex (map i64_le_hexify (concat comp_values (array uv))))
+                                            (_ (print "all_hex " all_hex))
+                                            ((c_loc c_len datasi) (alloc_data (apply concat all_hex) datasi)))
+                                           (array (bor (<< c_loc 5) #b01001) datasi)))
+                    ((prim_comb? c) (cond ((= 'len_fake_real (.prim_comb_sym c))  (array (bor 1 (<< k_len 33)) datasi))
+                                          (true                                   (error (str "Can't compile prim comb " (.prim_comb_sym c) " right now")))))
+                    ((comb? c) (error "can't compile comb yet"))
+                    (true       (error (str "can't compile " c " right now")))
+                )))
+
               (_ (println "compiling partial evaled " (str_strip marked_code)))
-              ((compiled_value_ptr datasi) (compile_helper alloc_data datasi marked_code))
+              ((compiled_value_ptr datasi) (compile_helper datasi marked_code))
+              (_ (println "compiled it to  " compiled_value_ptr))
               (start (func '$start
                     (call '$print (i64.const compiled_value_ptr))
               ))
               ((watermark datas) datasi)
-          ) (concat (global '$data_end '(mut i32) (i32.const watermark)) datas int_digits str_len str_helper print start ))
+          ) (concat (global '$data_end '(mut i32) (i32.const watermark)) datas funcs start ))
           ;(elem (i32.const 0) '$start '$start)
           (export "memory" '(memory $mem))
           (export "_start" '(func   $start))
@@ -1673,111 +1700,114 @@
         (print "ok, hexify of 15 is " (i64_le_hexify 15))
         (print "ok, hexfy of 15 << 60 is " (i64_le_hexify (<< 15 60)))
         (let* (
-            (output1 (wasm_to_binary (module)))
-            (output2 (wasm_to_binary (module
-                  (import "wasi_unstable" "path_open"
-                          '(func $path_open  (param i32 i32 i32 i32 i32 i64 i64 i32 i32)
-                                             (result i32)))
-                  (import "wasi_unstable" "fd_prestat_dir_name"
-                          '(func $fd_prestat_dir_name  (param i32 i32 i32)
-                                           (result i32)))
-                  (import "wasi_unstable" "fd_read"
-                          '(func $fd_read  (param i32 i32 i32 i32)
-                                           (result i32)))
-                  (import "wasi_unstable" "fd_write"
-                          '(func $fd_write (param i32 i32 i32 i32)
-                                           (result i32)))
-                  (memory '$mem 1)
-                  (global '$gi 'i32       (i32.const 8))
-                  (global '$gb '(mut i64) (i64.const 9))
-                  (table  '$tab 2 'funcref)
-                  (data (i32.const 16) "HellH") ;; adder to put, then data
+            ;(output1 (wasm_to_binary (module)))
+            ;(output2 (wasm_to_binary (module
+            ;      (import "wasi_unstable" "path_open"
+            ;              '(func $path_open  (param i32 i32 i32 i32 i32 i64 i64 i32 i32)
+            ;                                 (result i32)))
+            ;      (import "wasi_unstable" "fd_prestat_dir_name"
+            ;              '(func $fd_prestat_dir_name  (param i32 i32 i32)
+            ;                               (result i32)))
+            ;      (import "wasi_unstable" "fd_read"
+            ;              '(func $fd_read  (param i32 i32 i32 i32)
+            ;                               (result i32)))
+            ;      (import "wasi_unstable" "fd_write"
+            ;              '(func $fd_write (param i32 i32 i32 i32)
+            ;                               (result i32)))
+            ;      (memory '$mem 1)
+            ;      (global '$gi 'i32       (i32.const 8))
+            ;      (global '$gb '(mut i64) (i64.const 9))
+            ;      (table  '$tab 2 'funcref)
+            ;      (data (i32.const 16) "HellH") ;; adder to put, then data
 
 
-                  (func '$start
-                        (i32.store (i32.const 8) (i32.const 16))  ;; adder of data
-                        (i32.store (i32.const 12) (i32.const 5)) ;; len of data
-                        ;; open file
-                        (call 0 ;$path_open
-                              (i32.const 3) ;; file descriptor
-                              (i32.const 0) ;; lookup flags
-                              (i32.const 16) ;; path string  *
-                              (i32.load (i32.const 12)) ;; path string  len
-                              (i32.const 1) ;; o flags
-                              (i64.const 66) ;; base rights
-                              (i64.const 66) ;; inheriting rights
-                              (i32.const 0) ;; fdflags
-                              (i32.const 4) ;; opened fd out ptr
-                         )
-                        (drop)
-                        (block '$a
-                            (block '$b
-                                (br '$a)
-                                (br_if  '$b
-                                        (i32.const 3))
-                                (_loop '$l
-                                    (br '$a)
-                                    (br '$l)
-                                )
-                                (_if '$myif
-                                    (i32.const 1)
-                                    (then
-                                        (i32.const 1)
-                                        (drop)
-                                        (br '$b)
-                                    )
-                                    (else
-                                        (br '$myif)
-                                    )
-                                )
-                                (_if '$another
-                                    (i32.const 1)
-                                    (br '$b))
-                                (i32.const 1)
-                                (_if '$third
-                                    (br '$b))
-                                (_if '$fourth
-                                    (br '$fourth))
-                            )
-                        )
-                        (call '$fd_read
-                              (i32.const 0) ;; file descriptor
-                              (i32.const 8) ;; *iovs
-                              (i32.const 1) ;; iovs_len
-                              (i32.const 12) ;; nwritten, overwrite buf len with it
-                        )
-                        (drop)
+            ;      (func '$start
+            ;            (i32.store (i32.const 8) (i32.const 16))  ;; adder of data
+            ;            (i32.store (i32.const 12) (i32.const 5)) ;; len of data
+            ;            ;; open file
+            ;            (call 0 ;$path_open
+            ;                  (i32.const 3) ;; file descriptor
+            ;                  (i32.const 0) ;; lookup flags
+            ;                  (i32.const 16) ;; path string  *
+            ;                  (i32.load (i32.const 12)) ;; path string  len
+            ;                  (i32.const 1) ;; o flags
+            ;                  (i64.const 66) ;; base rights
+            ;                  (i64.const 66) ;; inheriting rights
+            ;                  (i32.const 0) ;; fdflags
+            ;                  (i32.const 4) ;; opened fd out ptr
+            ;             )
+            ;            (drop)
+            ;            (block '$a
+            ;                (block '$b
+            ;                    (br '$a)
+            ;                    (br_if  '$b
+            ;                            (i32.const 3))
+            ;                    (_loop '$l
+            ;                        (br '$a)
+            ;                        (br '$l)
+            ;                    )
+            ;                    (_if '$myif
+            ;                        (i32.const 1)
+            ;                        (then
+            ;                            (i32.const 1)
+            ;                            (drop)
+            ;                            (br '$b)
+            ;                        )
+            ;                        (else
+            ;                            (br '$myif)
+            ;                        )
+            ;                    )
+            ;                    (_if '$another
+            ;                        (i32.const 1)
+            ;                        (br '$b))
+            ;                    (i32.const 1)
+            ;                    (_if '$third
+            ;                        (br '$b))
+            ;                    (_if '$fourth
+            ;                        (br '$fourth))
+            ;                )
+            ;            )
+            ;            (call '$fd_read
+            ;                  (i32.const 0) ;; file descriptor
+            ;                  (i32.const 8) ;; *iovs
+            ;                  (i32.const 1) ;; iovs_len
+            ;                  (i32.const 12) ;; nwritten, overwrite buf len with it
+            ;            )
+            ;            (drop)
 
-                        ;; print name
-                        (call '$fd_write
-                              (i32.load (i32.const 4)) ;; file descriptor
-                              (i32.const 8) ;; *iovs
-                              (i32.const 1) ;; iovs_len
-                              (i32.const 4) ;; nwritten
-                        )
-                        (drop)
-                  )
+            ;            ;; print name
+            ;            (call '$fd_write
+            ;                  (i32.load (i32.const 4)) ;; file descriptor
+            ;                  (i32.const 8) ;; *iovs
+            ;                  (i32.const 1) ;; iovs_len
+            ;                  (i32.const 4) ;; nwritten
+            ;            )
+            ;            (drop)
+            ;      )
 
-                  (elem (i32.const 0) '$start '$start)
-                  (export "memory" '(memory $mem))
-                  (export "_start" '(func   $start))
-            )))
+            ;      (elem (i32.const 0) '$start '$start)
+            ;      (export "memory" '(memory $mem))
+            ;      (export "_start" '(func   $start))
+            ;)))
             ;(output3 (compile (partial_eval (read-string "(array 1 (array ((vau (x) x) a) (array \"asdf\"))  2)"))))
             ;(output3 (compile (partial_eval (read-string "empty_env"))))
             ;(output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) 1 2) empty_env)"))))
-            (output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) empty_env 2) empty_env)"))))
+            ;(output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) empty_env 2) empty_env)"))))
+            ;(output3 (compile (partial_eval (read-string "(vau (x) x)"))))
+            ;(output3 (compile (partial_eval (read-string "len"))))
+            (output3 (compile (partial_eval (read-string "(array len 3 len)"))))
             ;(output3 (compile (partial_eval (read-string "(+ 1 1337 (+ 1 2))"))))
             ;(output3 (compile (partial_eval (read-string "\"hello world\""))))
             ;(output3 (compile (partial_eval (read-string "((vau (x) x) asdf)"))))
             ;(_ (print "to out " output3))
             (_ (write_file "./csc_out.wasm" output3))
             ;(_ (print "encoding -8 as a s32_LEB128 " (encode_LEB128 -8)))
-            (_ (print "ok, hexfy of 15 << 00 is " (i64_le_hexify (<< 15 00))))
-            (_ (print "ok, hexfy of 15 << 04 is " (i64_le_hexify (<< 15 04))))
-            (_ (print "ok, hexfy of 15 << 08 is " (i64_le_hexify (<< 15 08))))
-            (_ (print "ok, hexfy of 15 << 12 is " (i64_le_hexify (<< 15 12))))
-            (_ (print "ok, hexfy of 15 << 60 is " (i64_le_hexify (<< 15 60))))
-            (_ (print "ok, hexfy of 15 << 56 is " (i64_le_hexify (<< 15 56))))
+            ;(_ (print "ok, hexfy of 15 << 00 is " (i64_le_hexify (<< 15 00))))
+            ;(_ (print "ok, hexfy of 15 << 04 is " (i64_le_hexify (<< 15 04))))
+            ;(_ (print "ok, hexfy of 15 << 08 is " (i64_le_hexify (<< 15 08))))
+            ;(_ (print "ok, hexfy of 15 << 12 is " (i64_le_hexify (<< 15 12))))
+            ;(_ (print "ok, hexfy of 15 << 60 is " (i64_le_hexify (<< 15 60))))
+            ;(_ (print "ok, hexfy of 15 << 56 is " (i64_le_hexify (<< 15 56))))
         ) (void))
     ))))
 
