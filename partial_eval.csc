@@ -1200,6 +1200,9 @@
 
     ; Env
     ; 0..0<env_ptr32 but still aligned>01001
+    ;   Env object is <key_array_value><value_array_value><upper_env_value>
+    ;       each being the full 64 bit objects.
+    ;       This lets key_array exist in constant mem, and value array to come directly from passed params.
 
     ; True          / False
     ;  0..0 111001  /  0..0 011001
@@ -1257,7 +1260,7 @@
                     )
                     (local.get '$tmp)
               ))))
-              ((k_str_len func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str_len '(param $to_str_len i64) '(result i32) '(local $running_len_tmp i32) '(local $i_tmp i32) '(local $x_tmp i32) '(local $item i64)
+              ((k_str_len func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str_len '(param $to_str_len i64) '(result i32) '(local $running_len_tmp i32) '(local $i_tmp i32) '(local $x_tmp i32) '(local $y_tmp i32) '(local $ptr_tmp i32) '(local $item i64)
                     (_if '$is_true '(result i32)
                          (i64.eq (i64.const #b00111101) (local.get '$to_str_len))
                          (then (i32.const true_length))
@@ -1297,32 +1300,44 @@
                                                         (i64.eq (i64.const #b01001) (i64.and (i64.const #b11111) (local.get '$to_str_len)))
                                                         (then
                                                             (local.set '$running_len_tmp (i32.const 0))
-                                                            (local.set '$x_tmp (i32.wrap_i64 (i64.shr_u (local.get '$to_str_len) (i64.const 5))))
+
+                                                            ; ptr to env
+                                                            (local.set '$ptr_tmp (i32.wrap_i64 (i64.shr_u (local.get '$to_str_len) (i64.const 5))))
+                                                            ; ptr to start of array of symbols
+                                                            (local.set '$x_tmp (i32.wrap_i64 (i64.and (i64.load (local.get '$ptr_tmp)) (i64.const -8))))
+                                                            ; ptr to start of array of values
+                                                            (local.set '$y_tmp (i32.wrap_i64 (i64.and (i64.load (i32.add (i32.const 8) (local.get '$ptr_tmp))) (i64.const -8))))
+                                                            ; lenght of both arrays, pulled from array encoding of x
+                                                            (local.set '$i_tmp (i32.wrap_i64 (i64.shr_u (i64.load (local.get '$ptr_tmp)) (i64.const 32))))
+
                                                             (block '$b
                                                                 (_loop '$l
                                                                     (local.set '$running_len_tmp (i32.add (local.get '$running_len_tmp) (i32.const 2)))
-                                                                    (local.set '$item (i64.load (local.get '$x_tmp)))
-                                                                    (br_if '$b (i64.eq (local.get '$item) (i64.const nil_array_value)))
-                                                                    ;;;
-                                                                    ; Have to actually allow recursing here, not just looking for nil
-                                                                    ;;;
-                                                                    (_if '$is_upper_env
-                                                                        (i64.eq (i64.const #b01001) (i64.and (i64.const #b11111) (local.get '$item)))
-                                                                        (then
-                                                                            (local.set '$running_len_tmp (i32.add (local.get '$running_len_tmp) (i32.const 5)))
-                                                                            (local.set '$running_len_tmp (i32.add (local.get '$running_len_tmp) (call '$str_len (local.get '$item))))
-                                                                            (br '$b)
-                                                                        )
-                                                                    )
-                                                                    (local.set '$running_len_tmp (i32.add (local.get '$running_len_tmp) (call '$str_len (local.get '$item))))
-                                                                    (local.set '$x_tmp           (i32.add (local.get '$x_tmp)           (i32.const 8)))
+                                                                    ; break if 0 length left
+                                                                    (br_if '$b (i32.eq (local.get '$i_tmp) (i32.const 0)))
 
+                                                                    (local.set '$running_len_tmp (i32.add (local.get '$running_len_tmp)
+                                                                                                          (call '$str_len (i64.load (local.get '$x_tmp)))))
+                                                                    (local.set '$running_len_tmp (i32.add (local.get '$running_len_tmp)
+                                                                                                          (call '$str_len (i64.load (local.get '$y_tmp)))))
                                                                     (local.set '$running_len_tmp (i32.add (local.get '$running_len_tmp) (i32.const 2)))
-                                                                    (local.set '$item (i64.load (local.get '$x_tmp)))
+
                                                                     (local.set '$x_tmp           (i32.add (local.get '$x_tmp)           (i32.const 8)))
+                                                                    (local.set '$y_tmp           (i32.add (local.get '$y_tmp)           (i32.const 8)))
+                                                                    (local.set '$i_tmp           (i32.sub (local.get '$i_tmp)           (i32.const 1)))
                                                                     (br '$l)
                                                                 )
                                                             )
+                                                            ;; deal with upper
+                                                            (local.set '$item (i64.load (i32.add (i32.const 16) (local.get '$ptr_tmp))))
+                                                            (_if '$is_upper_env
+                                                                (i64.eq (i64.const #b01001) (i64.and (i64.const #b11111) (local.get '$item)))
+                                                                (then
+                                                                    (local.set '$running_len_tmp (i32.add (local.get '$running_len_tmp) (i32.const 1)))
+                                                                    (local.set '$running_len_tmp (i32.add (local.get '$running_len_tmp) (call '$str_len (local.get '$item))))
+                                                                )
+                                                            )
+
                                                             (local.get '$running_len_tmp)
                                                         )
                                                         (else
@@ -1347,7 +1362,7 @@
                         )
                     )
               ))))
-              ((k_str_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str_helper '(param $to_str i64) '(param $buf i32) '(result i32) '(local $len_tmp i32) '(local $buf_tmp i32) '(local $ptr_tmp i32) '(local $i_tmp i32) '(local $item i64)
+              ((k_str_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str_helper '(param $to_str i64) '(param $buf i32) '(result i32) '(local $len_tmp i32) '(local $buf_tmp i32) '(local $ptr_tmp i32) '(local $x_tmp i32) '(local $y_tmp i32) '(local $i_tmp i32) '(local $item i64)
                     (_if '$is_true '(result i32)
                          (i64.eq (i64.const #b00111101) (local.get '$to_str))
                          (then (memory.copy (local.get '$buf)
@@ -1408,44 +1423,54 @@
                                                     (_if '$is_env '(result i32)
                                                         (i64.eq (i64.const #b01001) (i64.and (i64.const #b11111) (local.get '$to_str)))
                                                         (then
-                                                            (local.set '$len_tmp (i32.const 1))
+                                                            (local.set '$len_tmp (i32.const 0))
+
+                                                            ; ptr to env
                                                             (local.set '$ptr_tmp (i32.wrap_i64 (i64.shr_u (local.get '$to_str) (i64.const 5))))
+                                                            ; ptr to start of array of symbols
+                                                            (local.set '$x_tmp (i32.wrap_i64 (i64.and (i64.load (local.get '$ptr_tmp)) (i64.const -8))))
+                                                            ; ptr to start of array of values
+                                                            (local.set '$y_tmp (i32.wrap_i64 (i64.and (i64.load (i32.add (i32.const 8) (local.get '$ptr_tmp))) (i64.const -8))))
+                                                            ; lenght of both arrays, pulled from array encoding of x
+                                                            (local.set '$i_tmp (i32.wrap_i64 (i64.shr_u (i64.load (local.get '$ptr_tmp)) (i64.const 32))))
+
                                                             (block '$b
                                                                 (_loop '$l
+                                                                    (i32.store8 (i32.add (local.get '$buf) (local.get '$len_tmp)) (i32.const #x20))
                                                                     (local.set '$len_tmp (i32.add (local.get '$len_tmp) (i32.const 1)))
-                                                                    (local.set '$item (i64.load (local.get '$ptr_tmp)))
-                                                                    (br_if '$b (i64.eq (local.get '$item) (i64.const nil_array_value)))
-                                                                    ;;;
-                                                                    ; Have to actually allow recursing here, not just looking for nil
-                                                                    ;;;
-                                                                    (_if '$is_upper_env
-                                                                        (i64.eq (i64.const #b01001) (i64.and (i64.const #b11111) (local.get '$item)))
-                                                                        (then
-                                                                            (i32.store8 (i32.add (local.get '$buf) (i32.sub (local.get '$len_tmp) (i32.const 2))) (i32.const #x20))
-                                                                            (i32.store8 (i32.add (local.get '$buf) (i32.sub (local.get '$len_tmp) (i32.const 1))) (i32.const #x7C))
-                                                                            (i32.store8 (i32.add (local.get '$len_tmp) (local.get '$buf)) (i32.const #x20))
-                                                                            (local.set '$len_tmp (i32.add (local.get '$len_tmp) (i32.const 1)))
-                                                                            (local.set '$len_tmp (i32.add (local.get '$len_tmp) (call '$str_helper (local.get '$item) (i32.add (local.get '$buf) (local.get '$len_tmp)))))
-                                                                            (local.set '$len_tmp (i32.add (local.get '$len_tmp) (i32.const 1)))
-                                                                            (br '$b)
-                                                                        )
-                                                                    )
-                                                                    (i32.store8 (i32.add (local.get '$buf) (i32.sub (local.get '$len_tmp) (i32.const 1))) (i32.const #x20))
-                                                                    (local.set '$len_tmp (i32.add (local.get '$len_tmp) (call '$str_helper (local.get '$item) (i32.add (local.get '$buf) (local.get '$len_tmp)))))
-                                                                    (local.set '$ptr_tmp (i32.add (local.get '$ptr_tmp) (i32.const 8)))
+                                                                    ; break if 0 length left
+                                                                    (br_if '$b (i32.eq (local.get '$i_tmp) (i32.const 0)))
+
+                                                                    (local.set '$len_tmp (i32.add (local.get '$len_tmp) (call '$str_helper (i64.load (local.get '$x_tmp)) (i32.add (local.get '$buf) (local.get '$len_tmp)))))
                                                                     (i32.store8 (i32.add (local.get '$len_tmp) (local.get '$buf)) (i32.const #x3A))
                                                                     (local.set '$len_tmp (i32.add (local.get '$len_tmp) (i32.const 1)))
                                                                     (i32.store8 (i32.add (local.get '$len_tmp) (local.get '$buf)) (i32.const #x20))
                                                                     (local.set '$len_tmp (i32.add (local.get '$len_tmp) (i32.const 1)))
-                                                                    (local.set '$len_tmp (i32.add (local.get '$len_tmp) (call '$str_helper (i64.load (local.get '$ptr_tmp)) (i32.add (local.get '$buf) (local.get '$len_tmp)))))
+                                                                    (local.set '$len_tmp (i32.add (local.get '$len_tmp) (call '$str_helper (i64.load (local.get '$y_tmp)) (i32.add (local.get '$buf) (local.get '$len_tmp)))))
                                                                     (i32.store8 (i32.add (local.get '$len_tmp) (local.get '$buf)) (i32.const #x2C))
-                                                                    (local.set '$ptr_tmp (i32.add (local.get '$ptr_tmp) (i32.const 8)))
                                                                     (local.set '$len_tmp (i32.add (local.get '$len_tmp) (i32.const 1)))
+
+                                                                    (local.set '$x_tmp           (i32.add (local.get '$x_tmp)           (i32.const 8)))
+                                                                    (local.set '$y_tmp           (i32.add (local.get '$y_tmp)           (i32.const 8)))
+                                                                    (local.set '$i_tmp           (i32.sub (local.get '$i_tmp)           (i32.const 1)))
                                                                     (br '$l)
                                                                 )
                                                             )
+                                                            ;; deal with upper
+                                                            (local.set '$item (i64.load (i32.add (i32.const 16) (local.get '$ptr_tmp))))
+                                                            (_if '$is_upper_env
+                                                                (i64.eq (i64.const #b01001) (i64.and (i64.const #b11111) (local.get '$item)))
+                                                                (then
+                                                                    (i32.store8 (i32.add (local.get '$buf) (i32.sub (local.get '$len_tmp) (i32.const 2))) (i32.const #x20))
+                                                                    (i32.store8 (i32.add (local.get '$buf) (i32.sub (local.get '$len_tmp) (i32.const 1))) (i32.const #x7C))
+                                                                    (i32.store8 (i32.add (local.get '$len_tmp) (local.get '$buf)) (i32.const #x20))
+                                                                    (local.set '$len_tmp (i32.add (local.get '$len_tmp) (i32.const 1)))
+                                                                    (local.set '$len_tmp (i32.add (local.get '$len_tmp) (call '$str_helper (local.get '$item) (i32.add (local.get '$buf) (local.get '$len_tmp)))))
+                                                                )
+                                                            )
                                                             (i32.store8 (local.get '$buf)                                   (i32.const #x7B))
-                                                            (i32.store8 (i32.add (local.get '$buf) (i32.sub (local.get '$len_tmp) (i32.const 1))) (i32.const #x7D))
+                                                            (i32.store8 (i32.add (local.get '$buf) (local.get '$len_tmp))   (i32.const #x7D))
+                                                            (local.set '$len_tmp (i32.add (local.get '$len_tmp) (i32.const 1)))
                                                             (local.get '$len_tmp)
                                                         )
                                                         (else
@@ -1513,47 +1538,62 @@
                     (i64.and (i64.shr_u (local.get '$it) (i64.const 31)) (i64.const -2))
               ))))
 
-              (compile_helper (rec-lambda recurse (datasi c) (cond
+              (compile_helper (rec-lambda recurse (datasi funcs c) (cond
                     ((val? c)   (let ((v (.val c)))
-                                     (cond ((int? v)    (array (<< v 1)   datasi))
-                                           ((= true v)  (array #b00111101 datasi))
-                                           ((= false v) (array #b00011101 datasi))
+                                     (cond ((int? v)    (array (<< v 1)   datasi funcs))
+                                           ((= true v)  (array #b00111101 datasi funcs))
+                                           ((= false v) (array #b00011101 datasi funcs))
                                            ((str? v)    (dlet (((c_loc c_len datasi) (alloc_data v datasi))
                                                                (a (bor (<< c_len 32) c_loc #b011))
-                                                               ) (array a datasi)))
+                                                               ) (array a datasi funcs)))
                                            (true        (error (str "Can't compile value " v " right now"))))))
                     ((marked_symbol? c) (cond ((.marked_symbol_is_val c) (dlet (((c_loc c_len datasi) (alloc_data (symbol->string (.marked_symbol_value c))  datasi))
                                                                            (a (bor (<< c_len 32) c_loc #b111))
-                                                                           ) (array a datasi)))
+                                                                           ) (array a datasi funcs)))
                                               (true                      (error (str "can't compile non-val symbols " c " right now")))))
                     ((marked_array? c) (if (.marked_array_is_val c) (let ((actual_len (len (.marked_array_values c))))
-                                                                         (if (= 0 actual_len) (array nil_array_value datasi)
-                                                                            (dlet (((comp_values datasi) (foldr (dlambda (x (a datasi)) (dlet (((v datasi) (recurse datasi x)))
-                                                                                                                                      (array (cons v a) datasi))) (array (array) datasi) (.marked_array_values c)))
+                                                                         (if (= 0 actual_len) (array nil_array_value datasi funcs)
+                                                                            (dlet (((comp_values datasi funcs) (foldr (dlambda (x (a datasi funcs)) (dlet (((v datasi funcs) (recurse datasi funcs x)))
+                                                                                                                                      (array (cons v a) datasi funcs))) (array (array) datasi funcs) (.marked_array_values c)))
                                                                                    ((c_loc c_len datasi) (alloc_data (apply concat (map i64_le_hexify comp_values)) datasi)))
-                                                                                  (array (bor (<< actual_len 32) c_loc #b101) datasi))))
+                                                                                  (array (bor (<< actual_len 32) c_loc #b101) datasi funcs))))
                                                                     (error (str "can't compile call right now " c))))
 
                     ((marked_env? c) (dlet ((e (.env_marked c))
-                                            ((comp_values datasi) (foldr (dlambda ((k v) (a datasi)) (dlet (((kv datasi) (recurse datasi (marked_symbol true k)))
-                                                                                                            ((vv datasi) (recurse datasi v)))
-                                                                                                      (array (cons kv (cons vv a)) datasi))) (array (array) datasi) (slice e 0 -2)))
+                                            ((kvs vvs datasi funcs) (foldr (dlambda ((k v) (ka va datasi funcs)) (dlet (((kv datasi funcs) (recurse datasi funcs (marked_symbol true k)))
+                                                                                                                        ((vv datasi funcs) (recurse datasi funcs v)))
+                                                                                                      (array (cons kv ka) (cons vv va) datasi funcs))) (array (array) (array) datasi funcs) (slice e 0 -2)))
                                             (u (idx e -1))
-                                            (_ (print "comp values are " comp_values))
-                                            ((uv datasi) (mif u (begin (print "turns out " u " did exist") (recurse datasi (idx e -1)))
-                                                                (begin (print "turns out " u " didn't exist, returning nil_array value") (array nil_array_value datasi))))
-                                            (all_hex (map i64_le_hexify (concat comp_values (array uv))))
+                                            (_ (print "comp values are " kvs " and " vvs))
+                                            ((kvs_array datasi) (if (= 0 (len kvs)) (array nil_array_value datasi)
+                                                                                    (dlet (((kvs_loc kvs_len datasi) (alloc_data (apply concat (map i64_le_hexify kvs)) datasi)))
+                                                                                          (array (bor (<< (len kvs) 32) kvs_loc #b101) datasi))))
+                                            ((vvs_array datasi) (if (= 0 (len vvs)) (array nil_array_value datasi)
+                                                                                    (dlet (((vvs_loc vvs_len datasi) (alloc_data (apply concat (map i64_le_hexify vvs)) datasi)))
+                                                                                          (array (bor (<< (len vvs) 32) vvs_loc #b101) datasi))))
+                                            ((uv datasi funcs) (mif u (begin (print "turns out " u " did exist") (recurse datasi funcs (idx e -1)))
+                                                                (begin (print "turns out " u " didn't exist, returning nil_array value") (array nil_array_value datasi funcs))))
+                                            (all_hex (map i64_le_hexify (array kvs_array vvs_array uv)))
                                             (_ (print "all_hex " all_hex))
                                             ((c_loc c_len datasi) (alloc_data (apply concat all_hex) datasi)))
-                                           (array (bor (<< c_loc 5) #b01001) datasi)))
-                    ((prim_comb? c) (cond ((= 'len_fake_real (.prim_comb_sym c))  (array (bor 1 (<< k_len 33)) datasi))
+                                           (array (bor (<< c_loc 5) #b01001) datasi funcs)))
+                    ((prim_comb? c) (cond ((= 'len_fake_real (.prim_comb_sym c))  (array (bor 1 (<< k_len 33)) datasi funcs))
                                           (true                                   (error (str "Can't compile prim comb " (.prim_comb_sym c) " right now")))))
-                    ((comb? c) (error "can't compile comb yet"))
+                    ((comb? c)  (dlet (
+
+                                    (our_func (func '$len '(param $it i64) '(result i64)
+                                                   (i64.and (i64.shr_u (local.get '$it) (i64.const 31)) (i64.const -2))
+                                              ))
+                                    (funcs (concat funcs our_func))
+                                    (our_func_idx (len funcs))
+                                    ; also insert env here
+                                    (result (bor 1 (<< our_func_idx 33)))
+                                ) (array result datasi funcs)))
                     (true       (error (str "can't compile " c " right now")))
                 )))
 
               (_ (println "compiling partial evaled " (str_strip marked_code)))
-              ((compiled_value_ptr datasi) (compile_helper datasi marked_code))
+              ((compiled_value_ptr datasi funcs) (compile_helper datasi funcs marked_code))
               (_ (println "compiled it to  " compiled_value_ptr))
               (start (func '$start
                     (call '$print (i64.const compiled_value_ptr))
@@ -1793,10 +1833,10 @@
             ;(output3 (compile (partial_eval (read-string "(array 1 (array ((vau (x) x) a) (array \"asdf\"))  2)"))))
             ;(output3 (compile (partial_eval (read-string "empty_env"))))
             ;(output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) 1 2) empty_env)"))))
-            ;(output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) empty_env 2) empty_env)"))))
+            (output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) empty_env 2) empty_env)"))))
             ;(output3 (compile (partial_eval (read-string "(vau (x) x)"))))
             ;(output3 (compile (partial_eval (read-string "len"))))
-            (output3 (compile (partial_eval (read-string "(array len 3 len)"))))
+            ;(output3 (compile (partial_eval (read-string "(array len 3 len)"))))
             ;(output3 (compile (partial_eval (read-string "(+ 1 1337 (+ 1 2))"))))
             ;(output3 (compile (partial_eval (read-string "\"hello world\""))))
             ;(output3 (compile (partial_eval (read-string "((vau (x) x) asdf)"))))
