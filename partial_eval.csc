@@ -1584,7 +1584,7 @@
               (get_passthrough (lambda (hash datasi funcs memo) (let ((r (get-value-or-false memo hash)))
                                                                      (if r (array r datasi funcs memo) #f))))
 
-              (compile_value (rec-lambda recurse (datasi funcs memo c) (cond
+              (compile_value (rec-lambda recurse-value (datasi funcs memo c) (cond
                     ((val? c)   (let ((v (.val c)))
                                      (cond ((int? v)    (array (<< v 1)   datasi funcs memo))
                                            ((= true v)  (array #b00111101 datasi funcs memo))
@@ -1600,7 +1600,7 @@
                                               (true                      (error (str "can't compile non-val symbols " c " right now")))))
                     ((marked_array? c) (if (.marked_array_is_val c) (or (get_passthrough (.hash c) datasi funcs memo) (let ((actual_len (len (.marked_array_values c))))
                                                                          (if (= 0 actual_len) (array nil_array_value datasi funcs memo)
-                                                                            (dlet (((comp_values datasi funcs memo) (foldr (dlambda (x (a datasi funcs memo)) (dlet (((v datasi funcs memo) (recurse datasi funcs memo x)))
+                                                                            (dlet (((comp_values datasi funcs memo) (foldr (dlambda (x (a datasi funcs memo)) (dlet (((v datasi funcs memo) (recurse-value datasi funcs memo x)))
                                                                                                                                       (array (cons v a) datasi funcs memo))) (array (array) datasi funcs memo) (.marked_array_values c)))
                                                                                    ((c_loc c_len datasi) (alloc_data (apply concat (map i64_le_hexify comp_values)) datasi))
                                                                                    (result (bor (<< actual_len 32) c_loc #b101))
@@ -1609,8 +1609,8 @@
                                                                     (error (str "can't compile call right now " c))))
 
                     ((marked_env? c) (or (get_passthrough (.hash c) datasi funcs memo) (dlet ((e (.env_marked c))
-                                            ((kvs vvs datasi funcs memo) (foldr (dlambda ((k v) (ka va datasi funcs memo)) (dlet (((kv datasi funcs memo) (recurse datasi funcs memo (marked_symbol true k)))
-                                                                                                                        ((vv datasi funcs memo) (recurse datasi funcs memo v)))
+                                            ((kvs vvs datasi funcs memo) (foldr (dlambda ((k v) (ka va datasi funcs memo)) (dlet (((kv datasi funcs memo) (recurse-value datasi funcs memo (marked_symbol true k)))
+                                                                                                                        ((vv datasi funcs memo) (recurse-value datasi funcs memo v)))
                                                                                                       (array (cons kv ka) (cons vv va) datasi funcs memo))) (array (array) (array) datasi funcs memo) (slice e 0 -2)))
                                             (u (idx e -1))
                                             (_ (print "comp values are " kvs " and " vvs))
@@ -1620,7 +1620,7 @@
                                             ((vvs_array datasi) (if (= 0 (len vvs)) (array nil_array_value datasi)
                                                                                     (dlet (((vvs_loc vvs_len datasi) (alloc_data (apply concat (map i64_le_hexify vvs)) datasi)))
                                                                                           (array (bor (<< (len vvs) 32) vvs_loc #b101) datasi))))
-                                            ((uv datasi funcs memo) (mif u (begin (print "turns out " u " did exist") (recurse datasi funcs memo (idx e -1)))
+                                            ((uv datasi funcs memo) (mif u (begin (print "turns out " u " did exist") (recurse-value datasi funcs memo (idx e -1)))
                                                                            (begin (print "turns out " u " didn't exist, returning nil_array value") (array nil_array_value datasi funcs memo))))
                                             (all_hex (map i64_le_hexify (array kvs_array vvs_array uv)))
                                             (_ (print "all_hex " all_hex))
@@ -1667,7 +1667,13 @@
                                           (true                                   (error (str "Can't compile prim comb " (.prim_comb_sym c) " right now")))))
                     ((comb? c) (or (get_passthrough (.hash c) datasi funcs memo) (dlet (
                                     ((wrap_level de? se variadic params body) (.comb c))
-                                    ((our_env_val datasi funcs memo) (recurse datasi funcs memo se))
+
+                                    ; This should change to figure out weather or not
+                                    ; this is env is real - if not, we should take it from the
+                                    ; env, which is more of a compile_code task, so we can just
+                                    ; return it without an env and have compile code sub in theirs
+                                    ; for us.
+                                    ((our_env_val datasi funcs memo) (recurse-value datasi funcs memo se))
                                     ;  <func_idx29>|<env_ptr29><wrap2>0001
                                     ;                       e29><2><4> = 6
                                     ; 0..0<env_ptr29><3 bits>01001
@@ -1677,8 +1683,25 @@
                                     ; x + 6 = y + 8
                                     ; x - 2 = y
                                     (located_env_ptr (band #x7FFFFFFC0 (>> our_env_val 2)))
+
+                                    (map_val (dlambda ((v datasi funcs memo) f) (array (f v) datasi funcs memo)))
+
+                                    (compile_code (rec-lambda recurse-code (datasi funcs memo c) (cond
+                                        ((val? c)                                         (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v))))
+                                        ((marked_symbol? c) (if (.marked_symbol_is_val c) (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v)))
+                                                                                          (error "symbol reference in code")))
+                                        ((marked_array? c) (if (.marked_array_is_val c)   (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v)))
+                                                                                          (error "call cuz array in code")))
+                                        ((prim_comb? c)                                   (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v))))
+                                        ((comb? c)  (error "can't compile code comb right now"))
+                                        (true       (error (str "can't compile-code " c " right now")))
+                                    )))
+
+
+                                    ; have to figure out how to communicate envs...
+                                    ((inner_code datasi funcs memo) (compile_code datasi funcs memo body))
                                     (our_func (func '$len '(param $it i64) '(result i64)
-                                                   (i64.and (i64.shr_u (local.get '$it) (i64.const 31)) (i64.const -2))
+                                                inner_code
                                               ))
                                     (funcs (concat funcs our_func))
                                     (our_func_idx (len funcs))
@@ -1929,12 +1952,13 @@
             ;      (export "_start" '(func   $start))
             ;)))
             ;(output3 (compile (partial_eval (read-string "(array 1 (array ((vau (x) x) a) (array \"asdf\"))  2)"))))
-            (output3 (compile (partial_eval (read-string "(array 1 (array 1 2 3 4) 2 (array 1 2 3 4))"))))
+            ;(output3 (compile (partial_eval (read-string "(array 1 (array 1 2 3 4) 2 (array 1 2 3 4))"))))
             ;(output3 (compile (partial_eval (read-string "empty_env"))))
             ;(output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) 1 2) empty_env)"))))
             ;(output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) empty_env 2) empty_env)"))))
             ;(output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x))))"))))
             ;(output3 (compile (partial_eval (read-string "(vau (x) x)"))))
+            (output3 (compile (partial_eval (read-string "(vau (x) 1)"))))
             ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) x))"))))
             ;(output3 (compile (partial_eval (read-string "len"))))
             ;(output3 (compile (partial_eval (read-string "vau"))))
