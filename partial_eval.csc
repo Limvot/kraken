@@ -134,7 +134,11 @@
                                       (e (mif (< e 0) (+ e l 1) e))
                                       (t (- e s)) )
                                (take (drop x s) t))))
-
+       (range   (rec-lambda recurse (a b)
+                    (cond ((= a b) nil)
+                          ((< a b) (cons a (recurse (+ a 1) b)))
+                          (true    (cons a (recurse (- a 1) b)))
+       )))
        (filter (rec-lambda recurse (f l) (cond ((nil? l)    nil)
                                                ((f (car l)) (cons (car l) (recurse f (cdr l))))
                                                (true        (recurse f (cdr l))))))
@@ -820,7 +824,7 @@
                 ;...
                 ((= op 'return)                 (array #x0F))
                 ((= op 'call)           (concat (array #x10) (encode_LEB128 (idx ins 1))))
-                ; call_indirect
+                ((= op 'call_indirect)  (concat (array #x11) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
                 ; skipping a bunch
                 ; Parametric Instructions
                 ((= op 'drop)                   (array #x1A))
@@ -877,6 +881,7 @@
                 ((= op 'i32.rem_s)              (array #x6F))
                 ((= op 'i32.rem_u)              (array #x70))
                 ((= op 'i32.and)                (array #x71))
+                ((= op 'i32.or)                 (array #x72))
                 ((= op 'i32.shl)                (array #x74))
                 ((= op 'i32.shr_s)              (array #x75))
                 ((= op 'i32.shr_u)              (array #x76))
@@ -888,6 +893,8 @@
                 ((= op 'i64.rem_s)              (array #x81))
                 ((= op 'i64.rem_u)              (array #x82))
                 ((= op 'i64.and)                (array #x83))
+                ((= op 'i64.or)                 (array #x84))
+                ((= op 'i64.shl)                (array #x86))
                 ((= op 'i64.shr_s)              (array #x87))
                 ((= op 'i64.shr_u)              (array #x88))
 
@@ -1065,6 +1072,7 @@
     (i32.rem_s      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.rem_s))))))
     (i32.rem_u      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.rem_u))))))
     (i32.and        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.and))))))
+    (i32.or         (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.or))))))
     (i64.add        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.add))))))
     (i64.sub        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.sub))))))
     (i64.mul        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.mul))))))
@@ -1073,6 +1081,7 @@
     (i64.rem_s      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.rem_s))))))
     (i64.rem_u      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.rem_u))))))
     (i64.and        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.and))))))
+    (i64.or         (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.or))))))
 
     (i32.eqz        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.eqz))))))
     (i32.eq         (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.eq))))))
@@ -1114,6 +1123,7 @@
     (memory.grow    (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'memory.grow))))))
     (i32.shl        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.shl))))))
     (i32.shr_u      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.shr_u))))))
+    (i64.shl        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.shl))))))
     (i64.shr_s      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.shr_s))))))
     (i64.shr_u      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.shr_u))))))
 
@@ -1148,6 +1158,7 @@
     (br        (lambda (block) (array (lambda (name_dict) (array 'br (if (int? block) block (- (get-value name_dict 'depth) (get-value name_dict block))))))))
     (br_if     (lambda (block . flatten) (concat (apply concat flatten)  (array (lambda (name_dict) (array 'br_if (if (int? block) block (- (get-value name_dict 'depth) (get-value name_dict block)))))))))
     (call      (lambda (f . flatten)  (concat (apply concat flatten)  (array (lambda (name_dict) (array 'call (if (int? f) f (get-value name_dict f))))))))
+    (call_indirect (lambda (type_idx table_idx . flatten)  (concat (apply concat flatten)  (array (lambda (name_dict) (array 'call_indirect type_idx table_idx))))))
 
     ;;;;;;;;;;;;;;;;;;;
     ; End Instructions
@@ -1181,7 +1192,7 @@
     ))))
 
     (elem (lambda (offset . entries) (array (lambda (name_dict type import function table memory global export start elem code data)
-        (array name_dict type import function table memory global export start (concat elem (array (array (map (lambda (x) (x empty_dict)) offset) (map (lambda (x) (get-value name_dict x)) entries)))) code data )
+        (array name_dict type import function table memory global export start (concat elem (array (array (map (lambda (x) (x empty_dict)) offset) (map (lambda (x) (if (int? x) x (get-value name_dict x))) entries)))) code data )
     ))))
 
     (data (lambda it (array (lambda (name_dict type import function table memory global export start elem code data)
@@ -1228,14 +1239,6 @@
 
           (memory '$mem 1)
           (global '$last_base '(mut i32) (i32.const 0))
-          (func '$malloc '(param $bytes i32) '(result i32)
-            (global.set '$last_base (i32.shl (memory.grow (i32.add (i32.const 1) (i32.shr_u (local.get '$bytes) (i32.const 16)))) (i32.const 16)))
-            (global.get '$last_base)
-          )
-          (func '$free '(param bytes i32)
-          )
-          (func '$drop '(param bytes i64)
-          )
           (dlet (
               (alloc_data (dlambda (d (watermark datas)) (cond ((str? d)      (let ((size (+ 8 (& (len d) -8)))) (array (+ watermark 8) (len d) (array (+ watermark 8 size) (concat datas (data (i32.const watermark) (concat "\\00\\00\\00\\00\\00\\00\\00\\80" d)))))))
                                                                (true          (error (str "can't alloc_data for anything else besides strings yet" d)))
@@ -1247,6 +1250,16 @@
 
               ; 0 is fd_write
               ((func_idx funcs) (array 1 (array)))
+
+              ((k_malloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$malloc '(param $bytes i32) '(result i32)
+                (global.set '$last_base (i32.shl (memory.grow (i32.add (i32.const 1) (i32.shr_u (local.get '$bytes) (i32.const 16)))) (i32.const 16)))
+                (global.get '$last_base)
+              ))))
+              ((k_free func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$free '(param bytes i32)
+              ))))
+              ((k_drop func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop '(param bytes i64)
+              ))))
+
               ((k_int_digits func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$int_digits '(param $int i64) '(result i32) '(local $tmp i32)
                     (_if '$is_neg
                         (i64.lt_s (local.get '$int) (i64.const 0))
@@ -1719,7 +1732,7 @@
                                                 inner_code
                                               ))
                                     (funcs (concat funcs our_func))
-                                    (our_func_idx (len funcs))
+                                    (our_func_idx (- (len funcs) k_len))
                                     ; also insert env here
                                     (result (bor (<< our_func_idx 35) located_env_ptr (<< wrap_level 4) #b0001))
                                     (memo (put memo (.hash c) result))
@@ -1730,8 +1743,10 @@
               (_ (println "compiling partial evaled " (str_strip marked_code)))
               (memo empty_dict)
               ((exit_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'exit)))
+              ((print_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'print)))
               ((error_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Not a legal monad (slurp/write_file/get_line/print/exit)")))
               ((exit_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Exiting with code:")))
+              ((root_marked_env_val datasi funcs memo) (compile_value datasi funcs memo root_marked_env))
               ((compiled_value_ptr datasi funcs memo) (compile_value datasi funcs memo marked_code))
               (_ (println "compiled it to  " compiled_value_ptr))
               ; Ok, so the outer loop handles the IO monads
@@ -1754,13 +1769,34 @@
                                 (_if '$is_exit
                                     (i64.eq (i64.const exit_val) (local.get '$monad_name))
                                     (then
-                                        ; Exit
                                         (call '$print (i64.const exit_msg_val))
                                         (call '$print (i64.load 8 (local.get '$ptr)))
                                         (br '$exit_block)
                                     )
                                 )
-                                ;(br '$l)
+                                (br_if '$error_block (i64.lt_u (i64.shr_u (local.get '$it) (i64.const 32)) (i64.const 3)))
+                                (_if '$is_print
+                                    (i64.eq (i64.const print_val) (local.get '$monad_name))
+                                    (then
+                                        (call '$print (i64.load 8 (local.get '$ptr)))
+                                        (local.set '$it (i64.load 16 (local.get '$ptr)))
+                                        (local.set '$it (call_indirect
+                                            ;type
+                                            k_vau
+                                            ;table
+                                            0
+                                            ;top_env
+                                            (i64.const root_marked_env_val)
+                                            ; static env
+                                            (i64.or (i64.shl (i64.and (local.get '$it) (i64.const #x3FFFFFFC0)) (i64.const 2)) (i64.const #b01001))
+                                            ;params
+                                            (i64.const nil_array_value)
+                                            ;func_idx
+                                            (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 35)))
+                                        ))
+                                        (br '$l)
+                                    )
+                                )
                             )
                         )
                         ; print error
@@ -1769,8 +1805,12 @@
                     )
               ))
               ((watermark datas) datasi)
-          ) (concat (global '$data_end '(mut i32) (i32.const watermark)) datas funcs start ))
-          ;(elem (i32.const 0) '$start '$start)
+          ) (concat
+              (global '$data_end '(mut i32) (i32.const watermark))
+              datas funcs start
+              (table  '$tab (len funcs) 'funcref)
+              (apply elem (cons (i32.const 0) (range k_len (+ 1 (len funcs)))))
+          ))
           (export "memory" '(memory $mem))
           (export "_start" '(func   $start))
     ))))
@@ -2008,7 +2048,8 @@
             ;(output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x))))"))))
             ;(output3 (compile (partial_eval (read-string "(vau (x) x)"))))
             ;(output3 (compile (partial_eval (read-string "(vau (x) 1)"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) exit) 1)"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) exit) 1)"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) print) \"waa\" (vau () (array ((vau (x) x) exit) 1)))"))))
             ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) x))"))))
             ;(output3 (compile (partial_eval (read-string "len"))))
             ;(output3 (compile (partial_eval (read-string "vau"))))
