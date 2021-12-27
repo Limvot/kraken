@@ -785,9 +785,9 @@
     ))
     (encode_export_section (lambda (x)
         (let (
-            (_ (print "encoding element " x))
+            ;(_ (print "encoding element " x))
             (encoded (encode_vector encode_export x))
-            (_ (print "donex"))
+            ;(_ (print "donex"))
         ) (concat (array #x07) (encode_LEB128 (len encoded)) encoded ))
     ))
 
@@ -799,9 +799,9 @@
 
     (encode_function_section (lambda (x)
         (let* (                                     ; nil functions are placeholders for improted functions
-            (_ (println "encoding function section " x))
+            ;(_ (println "encoding function section " x))
             (filtered (filter (lambda (i) (!= nil i)) x))
-            (_ (println "post filtered " filtered))
+            ;(_ (println "post filtered " filtered))
             (encoded (encode_vector encode_LEB128 filtered))
         ) (concat (array #x03) (encode_LEB128 (len encoded)) encoded ))
     ))
@@ -899,6 +899,8 @@
                 ((= op 'i64.shr_u)              (array #x88))
 
                 ((= op 'i32.wrap_i64)           (array #xA7))
+                ((= op 'i64.extend_i32_s)       (array #xAC))
+                ((= op 'i64.extend_i32_u)       (array #xAD))
 
                 ((= op 'memory.copy)            (array #xFC #x0A #x00 #x00))
         ))
@@ -925,7 +927,7 @@
                                                                              (true                 (error (str "bad mutablity " (idx t 1))))))))
     (encode_global_section (lambda (global_section)
         (let (
-            (_ (print "encoding exprs " global_section))
+            ;(_ (print "encoding exprs " global_section))
             (encoded (encode_vector (lambda (x) (concat (encode_global_type (idx x 0)) (encode_expr (idx x 1)))) global_section))
         ) (concat (array #x06) (encode_LEB128 (len encoded)) encoded ))
     ))
@@ -934,9 +936,9 @@
     (encode_element (lambda (x) (concat (array #x00) (encode_expr (idx x 0)) (encode_vector encode_LEB128 (idx x 1)))))
     (encode_element_section (lambda (x)
         (let (
-            (_ (print "encoding element " x))
+            ;(_ (print "encoding element " x))
             (encoded (encode_vector encode_element x))
-            (_ (print "donex"))
+            ;(_ (print "donex"))
         ) (concat (array #x09) (encode_LEB128 (len encoded)) encoded ))
     ))
 
@@ -988,7 +990,7 @@
 
     (func (lambda (name . inside) (array (lambda (name_dict type import function table memory global export start elem code data)
         (dlet (
-            (_ (print "ok, doing a func: " name " with inside " inside))
+            ;(_ (print "ok, doing a func: " name " with inside " inside))
             ((params result locals body) ((rec-lambda recurse (i pe re)
                                             (cond ((and (= false pe) (< i (len inside)) (array? (idx inside i)) (< 0 (len (idx inside i))) (= 'param (idx (idx inside i) 0)))
                                                              (recurse (+ i 1) pe re))
@@ -1005,11 +1007,11 @@
                                         ) 0 false false))
             (result (if (!= 0 (len result)) (array (idx (idx result 0) 1))
                                            result))
-            (_ (println "params " params " result " result " locals " locals " body " body))
+            ;(_ (println "params " params " result " result " locals " locals " body " body))
             (outer_name_dict (put name_dict name (len function)))
             ((num_params inner_name_dict) (foldl (lambda (a x) (array (+ (idx a 0) 1) (put (idx a 1) (idx x 1) (idx a 0)))) (array 0 outer_name_dict ) params))
             ((num_locals inner_name_dict) (foldl (lambda (a x) (array (+ (idx a 0) 1) (put (idx a 1) (idx x 1) (idx a 0)))) (array num_params inner_name_dict ) locals))
-            (_ (println "inner name dict" inner_name_dict))
+            ;(_ (println "inner name dict" inner_name_dict))
             (compressed_locals ((rec-lambda recurse (cur_list cur_typ cur_num i)
                 (cond ((and (= i (len locals)) (= 0 cur_num)) cur_list)
                            ((= i (len locals))                (concat cur_list (array (array cur_num cur_typ) )))
@@ -1017,14 +1019,14 @@
                       ((= nil cur_typ)                        (recurse cur_list                              (idx (idx locals i) 2) 1             (+ 1 i)))
                       (true                                   (recurse (concat cur_list (array (array cur_num cur_typ))) (idx (idx locals i) 2) 1             (+ 1 i))))
                ) (array) nil 0 0))
-            (_ (println "params: " params " result: " result))
+            ;(_ (println "params: " params " result: " result))
             (our_type (array (map (lambda (x) (idx x 2)) params) result))
             ;(inner_env (add-dict-to-env de (put inner_name_dict 'depth 0)))
             (inner_name_dict_with_depth (put inner_name_dict 'depth 0))
-            (_ (println "about to get our_code: " body))
+            ;(_ (println "about to get our_code: " body))
             (our_code (flat_map (lambda (inss) (map (lambda (ins) (ins inner_name_dict_with_depth)) inss))
                                 body))
-            (_ (println "resulting code " our_code))
+            ;(_ (println "resulting code " our_code))
         ) (array
             outer_name_dict
             ; type
@@ -1107,8 +1109,9 @@
     (i64.ge_u       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.ge_u))))))
 
     (mem_load   (lambda (op align) (lambda flatten (dlet (
-        (offset (if (int? (idx flatten 0)) (idx flatten 0) 0))
-        (flatten_rest (if (= 0 offset) flatten (slice flatten 1 -1)))
+        (explicit_offset (int? (idx flatten 0)))
+        (offset       (if explicit_offset (idx flatten 0)      0))
+        (flatten_rest (if explicit_offset (slice flatten 1 -1) flatten))
     ) (concat (apply concat flatten_rest) (array (lambda (name_dict) (array op align offset))))))))
 
     (i32.load       (mem_load 'i32.load 2))
@@ -1127,7 +1130,9 @@
     (i64.shr_s      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.shr_s))))))
     (i64.shr_u      (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.shr_u))))))
 
-    (i32.wrap_i64   (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.wrap_i64))))))
+    (i32.wrap_i64       (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.wrap_i64))))))
+    (i64.extend_i32_s   (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.extend_i32_s))))))
+    (i64.extend_i32_u   (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i64.extend_i32_u))))))
 
     (memory.copy    (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'memory.copy))))))
 
@@ -1235,8 +1240,6 @@
           (import "wasi_unstable" "fd_write"
                   '(func $fd_write (param i32 i32 i32 i32)
                                    (result i32)))
-          ;(table  '$tab 2 'funcref)
-
           (memory '$mem 1)
           (global '$last_base '(mut i32) (i32.const 0))
           (dlet (
@@ -1257,7 +1260,26 @@
               ))))
               ((k_free func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$free '(param bytes i32)
               ))))
+
               ((k_drop func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop '(param bytes i64)
+              ))))
+
+              ; 0..0<env_ptr32 but still aligned>01001
+              ((k_env_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$env_alloc '(param $keys i64) '(param $vals i64) '(param $upper i64) '(result i64) '(local $tmp i32)
+                    (local.set '$tmp (call '$malloc (i32.const (* 8 4))))
+                    (i64.store 0  (local.get '$tmp) (i64.const 0))
+                    (i64.store 8  (local.get '$tmp) (local.get '$keys))
+                    (i64.store 16 (local.get '$tmp) (local.get '$vals))
+                    (i64.store 24 (local.get '$tmp) (local.get '$upper))
+                    (i64.or (i64.shl (i64.extend_i32_u (i32.add (i32.const 8) (local.get '$tmp))) (i64.const 5)) (i64.const #b01001))
+              ))))
+
+              ;  <array_size32><array_ptr29>101 / 0..0 101
+              ((k_array1_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array1_alloc '(param $item i64) '(result i64) '(local $tmp i32)
+                    (local.set '$tmp (call '$malloc (i32.const (* 8 2))))
+                    (i64.store 0  (local.get '$tmp) (i64.const 0))
+                    (i64.store 8  (local.get '$tmp) (local.get '$item))
+                    (i64.or (i64.extend_i32_u (i32.add (i32.const 8) (local.get '$tmp))) (i64.const #x0000000100000005))
               ))))
 
               ((k_int_digits func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$int_digits '(param $int i64) '(result i32) '(local $tmp i32)
@@ -1636,17 +1658,17 @@
                                                                                                                         ((vv datasi funcs memo) (recurse-value datasi funcs memo v)))
                                                                                                       (array (cons kv ka) (cons vv va) datasi funcs memo))) (array (array) (array) datasi funcs memo) (slice e 0 -2)))
                                             (u (idx e -1))
-                                            (_ (print "comp values are " kvs " and " vvs))
+                                            ;(_ (print "comp values are " kvs " and " vvs))
                                             ((kvs_array datasi) (if (= 0 (len kvs)) (array nil_array_value datasi)
                                                                                     (dlet (((kvs_loc kvs_len datasi) (alloc_data (apply concat (map i64_le_hexify kvs)) datasi)))
                                                                                           (array (bor (<< (len kvs) 32) kvs_loc #b101) datasi))))
                                             ((vvs_array datasi) (if (= 0 (len vvs)) (array nil_array_value datasi)
                                                                                     (dlet (((vvs_loc vvs_len datasi) (alloc_data (apply concat (map i64_le_hexify vvs)) datasi)))
                                                                                           (array (bor (<< (len vvs) 32) vvs_loc #b101) datasi))))
-                                            ((uv datasi funcs memo) (mif u (begin (print "turns out " u " did exist") (recurse-value datasi funcs memo (idx e -1)))
-                                                                           (begin (print "turns out " u " didn't exist, returning nil_array value") (array nil_array_value datasi funcs memo))))
+                                            ((uv datasi funcs memo) (mif u (recurse-value datasi funcs memo (idx e -1))
+                                                                           (array nil_array_value datasi funcs memo)))
                                             (all_hex (map i64_le_hexify (array kvs_array vvs_array uv)))
-                                            (_ (print "all_hex " all_hex))
+                                            ;(_ (print "all_hex " all_hex))
                                             ((c_loc c_len datasi) (alloc_data (apply concat all_hex) datasi))
                                             (result (bor (<< c_loc 5) #b01001))
                                             (memo (put memo (.hash c) result))
@@ -1714,10 +1736,23 @@
 
                                     (map_val (dlambda ((v datasi funcs memo) f) (array (f v) datasi funcs memo)))
 
-                                    (compile_code (rec-lambda recurse-code (datasi funcs memo c) (cond
+                                    (compile_code (rec-lambda recurse-code (datasi funcs memo env c) (cond
                                         ((val? c)                                         (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v))))
                                         ((marked_symbol? c) (if (.marked_symbol_is_val c) (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v)))
-                                                                                          (error "symbol reference in code")))
+                                                                                          (dlet (
+                                                                                                    ;(_ (print "looking for " c " in " env))
+    (lookup_helper (rec-lambda lookup-recurse (dict key i code) (cond
+        ((and (= i (- (len dict) 1)) (= nil (idx dict i))) (error (str "for code-symbol lookup, couldn't find " key)))
+        ((= i (- (len dict) 1))                            (lookup-recurse (.env_marked (idx dict i)) key 0 (i64.load 16 (i32.wrap_i64 (i64.shr_u code (i64.const 5))))))
+        ((= key (idx (idx dict i) 0))                      (i64.load (* 8 i)                                               ; offset in array to value
+                                                               (i32.wrap_i64 (i64.and (i64.const -8)                       ; get ptr from array value
+                                                                                      (i64.load 8 (i32.wrap_i64 (i64.shr_u code
+                                                                                                                           (i64.const 5))))))))
+        (true                                              (lookup-recurse dict key (+ i 1) code)))))
+
+
+                                                                                            (result (lookup_helper (.env_marked env) (.marked_symbol_value c) 0 (local.get '$s_env)))
+                                                                                          ) (array result datasi funcs memo))))
                                         ((marked_array? c) (if (.marked_array_is_val c)   (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v)))
                                                                                           (error "call cuz array in code")))
                                         ((prim_comb? c)                                   (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v))))
@@ -1725,11 +1760,28 @@
                                         (true       (error (str "can't compile-code " c " right now")))
                                     )))
 
-
-                                    ; have to figure out how to communicate envs...
-                                    ((inner_code datasi funcs memo) (compile_code datasi funcs memo body))
+                                    ((inner_env setup_code datasi funcs memo) (if (= 0 (len params)) (array se (array) datasi funcs memo)
+                                                                                                     (dlet (
+                                        ((params_vec datasi funcs memo) (recurse-value datasi funcs memo (marked_array true params)))
+                                        ) (array (marked_env false 0 (concat (map (lambda (k) (array k 0)) params) (array se)))
+                                                 (local.set '$s_env (call '$env_alloc (i64.const params_vec) (local.get '$params) (local.get '$s_env)))
+                                                 datasi funcs memo
+                                          )
+                                    )))
+                                    ((inner_env setup_code datasi funcs memo) (if (= nil de?) (array inner_env setup_code datasi funcs memo)
+                                                                                                     (dlet (
+                                        ((de_array_val datasi funcs memo) (recurse-value datasi funcs memo (marked_array true (array (marked_symbol true de?)))))
+                                        ) (array (marked_env false 0 (array (array de? (marked_val 0)) inner_env))
+                                                 (concat setup_code
+                                                        (local.set '$s_env (call '$env_alloc (i64.const de_array_val)
+                                                                                      (call '$array1_alloc (local.get '$d_env))
+                                                                                      (local.get '$s_env))))
+                                                  datasi funcs memo
+                                          )
+                                    )))
+                                    ((inner_code datasi funcs memo) (compile_code datasi funcs memo inner_env body))
                                     (our_func (func '$len '(param $d_env i64) '(param $s_env i64) '(param $params i64) '(result i64)
-                                                inner_code
+                                                (concat setup_code inner_code)
                                               ))
                                     (funcs (concat funcs our_func))
                                     (our_func_idx (- (len funcs) k_len))
@@ -1748,7 +1800,7 @@
               ((exit_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Exiting with code:")))
               ((root_marked_env_val datasi funcs memo) (compile_value datasi funcs memo root_marked_env))
               ((compiled_value_ptr datasi funcs memo) (compile_value datasi funcs memo marked_code))
-              (_ (println "compiled it to  " compiled_value_ptr))
+              ;(_ (println "compiled it to  " compiled_value_ptr))
               ; Ok, so the outer loop handles the IO monads
                 ; ('slurp       "path"         <cont (data)>)
                 ; ('write_file  "path" "data"  <cont ()>)
@@ -2048,8 +2100,12 @@
             ;(output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x))))"))))
             ;(output3 (compile (partial_eval (read-string "(vau (x) x)"))))
             ;(output3 (compile (partial_eval (read-string "(vau (x) 1)"))))
+
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) exit) 1)"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) print) \"waa\" (vau () (array ((vau (x) x) exit) 1)))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) print) \"waa\" (vau () (array ((vau (x) x) exit) 1)))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) print) \"waa\" (vau e () e))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) get_line) (vau (input) input))"))))
+
             ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) x))"))))
             ;(output3 (compile (partial_eval (read-string "len"))))
             ;(output3 (compile (partial_eval (read-string "vau"))))
