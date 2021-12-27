@@ -1233,30 +1233,49 @@
     (nil_array_value #b0101)
     (to_hex_digit (lambda (x) (string (integer->char (if (< x 10) (+ x #x30)
                                                                   (+ x #x37))))))
-    (i64_le_hexify (lambda (x) ((rec-lambda recurse (x i) (if (= i 0) ""
-                                                                  (concat "\\" (to_hex_digit (remainder (quotient x 16) 16)) (to_hex_digit (remainder x 16)) (recurse (quotient x 256) (- i 1))))) x 8)))
+    (le_hexify_helper (rec-lambda recurse (x i) (if (= i 0) ""
+                                                                  (concat "\\" (to_hex_digit (remainder (quotient x 16) 16)) (to_hex_digit (remainder x 16)) (recurse (quotient x 256) (- i 1))))))
+    (i64_le_hexify (lambda (x) (le_hexify_helper x 8)))
+    (i32_le_hexify (lambda (x) (le_hexify_helper x 4)))
 
     (compile (lambda (marked_code) (wasm_to_binary (module
+          (import "wasi_unstable" "fd_read"
+                  '(func $fd_read  (param i32 i32 i32 i32)
+                                   (result i32)))
           (import "wasi_unstable" "fd_write"
                   '(func $fd_write (param i32 i32 i32 i32)
                                    (result i32)))
           (memory '$mem 1)
           (global '$last_base '(mut i32) (i32.const 0))
           (dlet (
-              (alloc_data (dlambda (d (watermark datas)) (cond ((str? d)      (let ((size (+ 8 (& (len d) -8)))) (array (+ watermark 8) (len d) (array (+ watermark 8 size) (concat datas (data (i32.const watermark) (concat "\\00\\00\\00\\00\\00\\00\\00\\80" d)))))))
+              (alloc_data (dlambda (d (watermark datas)) (cond ((str? d)      (let ((size (+ 8 (& (len d) -8))))
+                                                                                   (array (+ watermark 8)
+                                                                                          (len d)
+                                                                                          (array (+ watermark 8 size)
+                                                                                                 (concat datas
+                                                                                                         (data (i32.const watermark)
+                                                                                                               (concat (i32_le_hexify size) "\\00\\00\\00\\80" d)))))))
                                                                (true          (error (str "can't alloc_data for anything else besides strings yet" d)))
                                                          )
               ))
-              (datasi (array 8 (array)))
+              ; We won't use 0 because some impls seem to consider that NULL and crash on reading/writing?
+              (iov_tmp 8) ; <32bit len><32bit ptr> + <32bit numwitten>
+              (datasi (array (+ iov_tmp 16) (array)))
               ((true_loc true_length datasi) (alloc_data "true" datasi))
               ((false_loc false_length datasi) (alloc_data "false" datasi))
 
-              ; 0 is fd_write
-              ((func_idx funcs) (array 1 (array)))
+              ; 0 is fd_read, 1 is fd_write
+              ((func_idx funcs) (array 2 (array)))
 
+              ; malloc allocates with size and refcount in header
               ((k_malloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$malloc '(param $bytes i32) '(result i32)
-                (global.set '$last_base (i32.shl (memory.grow (i32.add (i32.const 1) (i32.shr_u (local.get '$bytes) (i32.const 16)))) (i32.const 16)))
-                (global.get '$last_base)
+                (global.set '$last_base (i32.shl (memory.grow (i32.add (i32.const 1)
+                                                                       (i32.shr_u (i32.add (i32.const 8) (local.get '$bytes)) (i32.const 16))))
+                                                 (i32.const 16)))
+                ; write count
+                (i32.store 0 (global.get '$last_base) (local.get '$bytes))
+                (i32.store 4 (global.get '$last_base) (i32.const 1))
+                (i32.add   (global.get '$last_base) (i32.const 8))
               ))))
               ((k_free func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$free '(param bytes i32)
               ))))
@@ -1266,20 +1285,24 @@
 
               ; 0..0<env_ptr32 but still aligned>01001
               ((k_env_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$env_alloc '(param $keys i64) '(param $vals i64) '(param $upper i64) '(result i64) '(local $tmp i32)
-                    (local.set '$tmp (call '$malloc (i32.const (* 8 4))))
-                    (i64.store 0  (local.get '$tmp) (i64.const 0))
-                    (i64.store 8  (local.get '$tmp) (local.get '$keys))
-                    (i64.store 16 (local.get '$tmp) (local.get '$vals))
-                    (i64.store 24 (local.get '$tmp) (local.get '$upper))
-                    (i64.or (i64.shl (i64.extend_i32_u (i32.add (i32.const 8) (local.get '$tmp))) (i64.const 5)) (i64.const #b01001))
+                    (local.set '$tmp (call '$malloc (i32.const (* 8 3))))
+                    (i64.store 0  (local.get '$tmp) (local.get '$keys))
+                    (i64.store 8 (local.get '$tmp) (local.get '$vals))
+                    (i64.store 16 (local.get '$tmp) (local.get '$upper))
+                    (i64.or (i64.shl (i64.extend_i32_u (local.get '$tmp)) (i64.const 5)) (i64.const #b01001))
               ))))
 
               ;  <array_size32><array_ptr29>101 / 0..0 101
               ((k_array1_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array1_alloc '(param $item i64) '(result i64) '(local $tmp i32)
-                    (local.set '$tmp (call '$malloc (i32.const (* 8 2))))
-                    (i64.store 0  (local.get '$tmp) (i64.const 0))
-                    (i64.store 8  (local.get '$tmp) (local.get '$item))
-                    (i64.or (i64.extend_i32_u (i32.add (i32.const 8) (local.get '$tmp))) (i64.const #x0000000100000005))
+                    (local.set '$tmp (call '$malloc (i32.const 8)))
+                    (i64.store 0  (local.get '$tmp) (local.get '$item))
+                    (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000100000005))
+              ))))
+              ((k_array2_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array2_alloc '(param $a i64) '(param $b i64) '(result i64) '(local $tmp i32)
+                    (local.set '$tmp (call '$malloc (i32.const 16)))
+                    (i64.store 0  (local.get '$tmp) (local.get '$a))
+                    (i64.store 8  (local.get '$tmp) (local.get '$b))
+                    (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000200000005))
               ))))
 
               ((k_int_digits func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$int_digits '(param $int i64) '(result i32) '(local $tmp i32)
@@ -1754,7 +1777,7 @@
                                                                                             (result (lookup_helper (.env_marked env) (.marked_symbol_value c) 0 (local.get '$s_env)))
                                                                                           ) (array result datasi funcs memo))))
                                         ((marked_array? c) (if (.marked_array_is_val c)   (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v)))
-                                                                                          (error "call cuz array in code")))
+                                                                                          (error (str "call cuz array in code" c))))
                                         ((prim_comb? c)                                   (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v))))
                                         ((comb? c)  (error "can't compile code comb right now"))
                                         (true       (error (str "can't compile-code " c " right now")))
@@ -1762,8 +1785,8 @@
 
                                     ((inner_env setup_code datasi funcs memo) (if (= 0 (len params)) (array se (array) datasi funcs memo)
                                                                                                      (dlet (
-                                        ((params_vec datasi funcs memo) (recurse-value datasi funcs memo (marked_array true params)))
-                                        ) (array (marked_env false 0 (concat (map (lambda (k) (array k 0)) params) (array se)))
+                                        ((params_vec datasi funcs memo) (recurse-value datasi funcs memo (marked_array true (map (lambda (k) (marked_symbol true k)) params))))
+                                        ) (array (marked_env false 0 (concat (map (lambda (k) (array k (marked_val 0))) params) (array se)))
                                                  (local.set '$s_env (call '$env_alloc (i64.const params_vec) (local.get '$params) (local.get '$s_env)))
                                                  datasi funcs memo
                                           )
@@ -1780,11 +1803,14 @@
                                           )
                                     )))
                                     ((inner_code datasi funcs memo) (compile_code datasi funcs memo inner_env body))
+                                    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                    ; We have to emit code that checks the length of the passed params
+                                    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                                     (our_func (func '$len '(param $d_env i64) '(param $s_env i64) '(param $params i64) '(result i64)
                                                 (concat setup_code inner_code)
                                               ))
                                     (funcs (concat funcs our_func))
-                                    (our_func_idx (- (len funcs) k_len))
+                                    (our_func_idx (- (len funcs) k_len -1))
                                     ; also insert env here
                                     (result (bor (<< our_func_idx 35) located_env_ptr (<< wrap_level 4) #b0001))
                                     (memo (put memo (.hash c) result))
@@ -1795,19 +1821,20 @@
               (_ (println "compiling partial evaled " (str_strip marked_code)))
               (memo empty_dict)
               ((exit_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'exit)))
-              ((print_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'print)))
-              ((error_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Not a legal monad (slurp/write_file/get_line/print/exit)")))
+              ((read_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'read)))
+              ((write_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'write)))
+              ((error_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Not a legal monad (read/write/exit)")))
+              ((bad_read_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "<error with read>")))
               ((exit_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Exiting with code:")))
               ((root_marked_env_val datasi funcs memo) (compile_value datasi funcs memo root_marked_env))
               ((compiled_value_ptr datasi funcs memo) (compile_value datasi funcs memo marked_code))
               ;(_ (println "compiled it to  " compiled_value_ptr))
               ; Ok, so the outer loop handles the IO monads
-                ; ('slurp       "path"         <cont (data)>)
-                ; ('write_file  "path" "data"  <cont ()>)
-                ; ('get_line                   <cont (data)>)
-                ; ('print       "data"         <cont ()>)
                 ; ('exit        code)
-              (start (func '$start '(local $it i64) '(local $ptr i32) '(local $monad_name i64)
+                ; ('read        fd   len       <cont (data/error?)>)
+                ; ('write       fd   "data"    <cont (num_written/error?)>)
+
+              (start (func '$start '(local $it i64) '(local $ptr i32) '(local $monad_name i64) '(local $len i32) '(local $buf i32) '(local $code i32) '(local $str i64) '(local $result i64)
                     (local.set '$it (i64.const compiled_value_ptr))
                     (block '$exit_block
                         (block '$error_block
@@ -1818,6 +1845,8 @@
                                 (br_if '$error_block (i64.lt_u (i64.shr_u (local.get '$it) (i64.const 32)) (i64.const 2)))
                                 (local.set '$ptr (i32.wrap_i64 (i64.and (local.get '$it) (i64.const -8))))
                                 (local.set '$monad_name (i64.load (local.get '$ptr)))
+
+                                ; ('exit        code)
                                 (_if '$is_exit
                                     (i64.eq (i64.const exit_val) (local.get '$monad_name))
                                     (then
@@ -1827,11 +1856,37 @@
                                     )
                                 )
                                 (br_if '$error_block (i64.lt_u (i64.shr_u (local.get '$it) (i64.const 32)) (i64.const 3)))
-                                (_if '$is_print
-                                    (i64.eq (i64.const print_val) (local.get '$monad_name))
+
+                                ; ('read        fd   len       <cont (data error_code)>)
+                                (_if '$is_read
+                                    (i64.eq (i64.const read_val) (local.get '$monad_name))
                                     (then
-                                        (call '$print (i64.load 8 (local.get '$ptr)))
-                                        (local.set '$it (i64.load 16 (local.get '$ptr)))
+                                        ; iov <32bit len><32bit addr> + <32bit num written>
+                                        (i32.store 0 (i32.const iov_tmp) (local.tee '$buf (call '$malloc (local.get '$len))))
+                                        (i32.store 4 (i32.const iov_tmp) (local.tee '$len (i32.wrap_i64 (i64.shr_u (i64.load 16 (local.get '$ptr)) (i64.const 1)))))
+                                        (local.set '$code (call '$fd_read
+                                              (i32.wrap_i64 (i64.shr_u (i64.load 8 (local.get '$ptr)) (i64.const 1)))    ;; file descriptor
+                                              (i32.const iov_tmp)                                                      ;; *iovs
+                                              (i32.const 1)                                                            ;; iovs_len
+                                              (i32.const (+ 8 iov_tmp))                                                ;; nwritten
+                                        ))
+                                        ;  <string_size32><string_ptr29>011
+                                        (local.set '$str (i64.or (i64.shl (i64.extend_i32_u (i32.load 8 (i32.const iov_tmp))) (i64.const 32))
+                                                                 (i64.extend_i32_u (i32.or (local.get '$buf) (i32.const #b011)))))
+                                        (_if '$is_error
+                                            (i32.eqz (local.get '$code))
+                                            (then
+                                                (local.set '$result (call '$array2_alloc (local.get '$str)
+                                                                                         (i64.const 0)))
+                                            )
+                                            (else
+                                                (call '$drop (local.get '$str))
+                                                (local.set '$result (call '$array2_alloc (i64.const bad_read_val)
+                                                                                         (i64.shl (i64.extend_i32_u (local.get '$code)) (i64.const 1))))
+                                            )
+                                        )
+
+                                        (local.set '$it (i64.load 24 (local.get '$ptr)))
                                         (local.set '$it (call_indirect
                                             ;type
                                             k_vau
@@ -1842,7 +1897,46 @@
                                             ; static env
                                             (i64.or (i64.shl (i64.and (local.get '$it) (i64.const #x3FFFFFFC0)) (i64.const 2)) (i64.const #b01001))
                                             ;params
-                                            (i64.const nil_array_value)
+                                            (local.get '$result)
+                                            ;func_idx
+                                            (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 35)))
+                                        ))
+                                        (br '$l)
+                                    )
+                                )
+
+                                ; ('write       fd   "data"    <cont (num_written error_code)>)
+                                (_if '$is_write
+                                    (i64.eq (i64.const write_val) (local.get '$monad_name))
+                                    (then
+
+                                        ;  <string_size32><string_ptr29>011
+                                        (local.set '$str (i64.load 16 (local.get '$ptr)))
+
+                                        ; iov <32bit len><32bit addr> + <32bit num written>
+                                        (i32.store 0 (i32.const iov_tmp) (i32.wrap_i64 (i64.and   (local.get '$str) (i64.const #xFFFFFFF8))))
+                                        (i32.store 4 (i32.const iov_tmp) (i32.wrap_i64 (i64.shr_u (local.get '$str) (i64.const 32))))
+                                        (local.set '$code (call '$fd_write
+                                              (i32.wrap_i64 (i64.shr_u (i64.load 8 (local.get '$ptr)) (i64.const 1)))  ;; file descriptor
+                                              (i32.const iov_tmp)                                                      ;; *iovs
+                                              (i32.const 1)                                                            ;; iovs_len
+                                              (i32.const (+ 8 iov_tmp))                                                ;; nwritten
+                                        ))
+                                        (local.set '$result (call '$array2_alloc (i64.shl (i64.extend_i32_u (i32.load (i32.const (+ 8 iov_tmp)))) (i64.const 1))
+                                                                                 (i64.shl (i64.extend_i32_u (local.get '$code))                   (i64.const 1))))
+
+                                        (local.set '$it (i64.load 24 (local.get '$ptr)))
+                                        (local.set '$it (call_indirect
+                                            ;type
+                                            k_vau
+                                            ;table
+                                            0
+                                            ;top_env
+                                            (i64.const root_marked_env_val)
+                                            ; static env
+                                            (i64.or (i64.shl (i64.and (local.get '$it) (i64.const #x3FFFFFFC0)) (i64.const 2)) (i64.const #b01001))
+                                            ;params
+                                            (local.get '$result)
                                             ;func_idx
                                             (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 35)))
                                         ))
@@ -1861,7 +1955,7 @@
               (global '$data_end '(mut i32) (i32.const watermark))
               datas funcs start
               (table  '$tab (len funcs) 'funcref)
-              (apply elem (cons (i32.const 0) (range k_len (+ 1 (len funcs)))))
+              (apply elem (cons (i32.const 0) (range k_len (+ 2 (len funcs)))))
           ))
           (export "memory" '(memory $mem))
           (export "_start" '(func   $start))
@@ -2102,8 +2196,14 @@
             ;(output3 (compile (partial_eval (read-string "(vau (x) 1)"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) exit) 1)"))))
-            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) print) \"waa\" (vau () (array ((vau (x) x) exit) 1)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) print) \"waa\" (vau e () e))"))))
+
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array ((vau (x) x) exit) 1)))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) written))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) code))"))))
+
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) data))"))))
+
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) print) \"waa\" (vau e () e))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) get_line) (vau (input) input))"))))
 
             ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) x))"))))
