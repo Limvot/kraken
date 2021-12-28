@@ -1289,7 +1289,7 @@
               ((k_env_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$env_alloc '(param $keys i64) '(param $vals i64) '(param $upper i64) '(result i64) '(local $tmp i32)
                     (local.set '$tmp (call '$malloc (i32.const (* 8 3))))
                     (i64.store 0  (local.get '$tmp) (local.get '$keys))
-                    (i64.store 8 (local.get '$tmp) (local.get '$vals))
+                    (i64.store 8  (local.get '$tmp) (local.get '$vals))
                     (i64.store 16 (local.get '$tmp) (local.get '$upper))
                     (i64.or (i64.shl (i64.extend_i32_u (local.get '$tmp)) (i64.const 5)) (i64.const #b01001))
               ))))
@@ -1606,6 +1606,38 @@
                     (call '$drop (local.get '$to_print))
               ))))
 
+              ((k_slice_impl func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice_impl '(param $array i64) '(param $s i32) '(param $e i32) '(result i64) '(local $size i32) '(local $new_size i32) '(local $i i32) '(local $ptr i32) '(local $new_ptr i32)
+                    (local.set '$size (i32.wrap_i64 (i64.shr_u (local.get '$array) (i64.const 32))))
+                    (local.set '$ptr  (i32.wrap_i64 (i64.and   (local.get '$array) (i64.const -8))))
+                    (_if '$s_lt_0
+                        (i32.lt_s (local.get '$s) (i32.const 0))
+                        (then
+                            (local.set '$s (i32.add (i32.const 1) (i32.add (local.get '$s) (local.get '$size))))
+                        )
+                    )
+                    (_if '$e_lt_0
+                        (i32.lt_s (local.get '$e) (i32.const 0))
+                        (then
+                            (local.set '$e (i32.add (i32.const 1) (i32.add (local.get '$e) (local.get '$size))))
+                        )
+                    )
+                    (local.set '$new_size (i32.sub (local.get '$e) (local.get '$s)))
+                    (local.set '$new_ptr  (call '$malloc (i32.shl (local.get '$new_size) (i32.const 3)))) ; malloc(size*8)
+
+                    (local.set '$i (i32.const 0))
+                    (block '$exit_loop
+                        (_loop '$l
+                            (br_if '$exit_loop (i32.eq (local.get '$i) (local.get '$new_size)))
+                            (i64.store (i32.add (local.get '$i) (local.get '$new_ptr)) (i64.load (i32.add (local.get '$s) (i32.add (local.get '$i) (local.get '$ptr))))) ; n[i] = o[i+s]
+                            (local.set '$i (i32.add (i32.const 1) (local.get '$i)))
+                            (br '$l)
+                        )
+                    )
+
+                    (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #x5))
+                            (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
+              ))))
+
               ((k_len func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$len '(param $it i64) '(param $d i64) '(param $s i64) '(result i64)
                     (i64.and (i64.shr_u (local.get '$it) (i64.const 31)) (i64.const -2))
               ))))
@@ -1669,7 +1701,7 @@
                                                                            (result (bor (<< c_len 32) c_loc #b111))
                                                                            (memo (put memo (.hash c) result))
                                                                            ) (array result datasi funcs memo))))
-                                              (true                      (error (str "can't compile non-val symbols " c " as val right now")))))
+                                              (true                      (error (str "can't compile non-val symbols " c " as val")))))
                     ((marked_array? c) (if (.marked_array_is_val c) (or (get_passthrough (.hash c) datasi funcs memo) (let ((actual_len (len (.marked_array_values c))))
                                                                          (if (= 0 actual_len) (array nil_array_value datasi funcs memo)
                                                                             (dlet (((comp_values datasi funcs memo) (foldr (dlambda (x (a datasi funcs memo)) (dlet (((v datasi funcs memo) (recurse-value datasi funcs memo x)))
@@ -1678,7 +1710,7 @@
                                                                                    (result (bor (<< actual_len 32) c_loc #b101))
                                                                                    (memo (put memo (.hash c) result))
                                                                                    ) (array result datasi funcs memo)))))
-                                                                    (error (str "can't compile call as value right now " c))))
+                                                                    (error (str "can't compile call as value" c))))
 
                     ((marked_env? c) (or (get_passthrough (.hash c) datasi funcs memo) (dlet ((e (.env_marked c))
                                             ((kvs vvs datasi funcs memo) (foldr (dlambda ((k v) (ka va datasi funcs memo)) (dlet (((kv datasi funcs memo) (recurse-value datasi funcs memo (marked_symbol true k)))
@@ -1790,7 +1822,7 @@
                                                                                                 (array (array) datasi funcs memo) func_param_values))
                                                         (result_code (concat
                                                                      param_code
-                                                                     (local.set '$param_ptr (call '$malloc (i32.const num_params)))
+                                                                     (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
                                                                      (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
                                                                                (range (- num_params 1) -1))
                                                                      (local.set '$tmp)
@@ -1827,16 +1859,23 @@
                                                                                       (local.get '$s_env)))
                                                  datasi funcs memo
                                               )))
-                                        ;;;;;;;;;;;;;;;;;;;;;;;;;;
-                                        ; Add support for variadic
-                                        ;;;;;;;;;;;;;;;;;;;;;;;;;;
-                                        (variadic (error "can't compile partially variadic functions right now"))
                                         (true                              (dlet (
                                             ((params_vec datasi funcs memo) (recurse-value datasi funcs memo
                                                                                            (marked_array true (map (lambda (k) (marked_symbol true k)) params))))
-                                            ) (array (marked_env false 0 (concat (map (lambda (k) (array k (marked_val 0))) params) (array se)))
-                                                 (local.set '$s_env (call '$env_alloc (i64.const params_vec) (local.get '$params) (local.get '$s_env)))
-                                                 datasi funcs memo
+                                            (new_env (marked_env false 0 (concat (map (lambda (k) (array k (marked_val 0))) params) (array se))))
+                                            (params_code (if variadic (concat
+                                                                         (local.set '$param_ptr (i32.wrap_i64 (i64.and (i64.const -8) (local.get '$params))))
+                                                                         (local.set '$tmp_ptr (call '$malloc (i32.const (* 8 (len params)))))
+                                                                         (flat_map (lambda (i) (i64.store (* i 8) (local.get '$tmp_ptr) (i64.load (* i 8) (local.get '$param_ptr))))
+                                                                                   (range 0 (- (len params) 1)))
+                                                                         (i64.store (* 8 (- (len params) 1)) (local.get '$tmp_ptr)
+                                                                                    (call '$slice_impl (local.get '$params) (i32.const (- (len params) 1)) (i32.const -1)))
+                                                                         (i64.or (i64.extend_i32_u (local.get '$tmp_ptr))
+                                                                                 (i64.const (bor (<< (len params) 32) #x5)))
+                                                                      )
+                                                                      (local.get '$params)))
+                                            (new_code (local.set '$s_env (call '$env_alloc (i64.const params_vec) params_code (local.get '$s_env))))
+                                            ) (array new_env new_code datasi funcs memo
                                               )))
                                     ))
                                     ((inner_env setup_code datasi funcs memo) (if (= nil de?) (array inner_env setup_code datasi funcs memo)
@@ -1861,7 +1900,7 @@
                                         ) setup_code
                                     ))
                                     ((inner_code datasi funcs memo) (compile_code datasi funcs memo inner_env body))
-                                    (our_func (func '$len '(param $params i64) '(param $d_env i64) '(param $s_env i64) '(result i64) '(local $param_ptr i32) '(local $tmp i64)
+                                    (our_func (func '$len '(param $params i64) '(param $d_env i64) '(param $s_env i64) '(result i64) '(local $param_ptr i32) '(local $tmp_ptr i32) '(local $tmp i64)
                                                 (concat setup_code inner_code)
                                               ))
                                     (funcs (concat funcs our_func))
@@ -2271,9 +2310,11 @@
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) written))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) code))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array 1337 written 1338 code 1339)))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array 1337 written 1338 code 1339)))"))))
+
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) args))"))))
-            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) args))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) a))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) args))"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) data))"))))
 
