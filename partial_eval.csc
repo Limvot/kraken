@@ -1263,6 +1263,8 @@
               (datasi (array (+ iov_tmp 16) (array)))
               ((true_loc true_length datasi) (alloc_data "true" datasi))
               ((false_loc false_length datasi) (alloc_data "false" datasi))
+              ((bad_params_loc bad_params_length datasi) (alloc_data "\nError: passed a bad number of parameters\n" datasi))
+              (bad_params_msg_val (bor (<< bad_params_length 32) bad_params_loc #b011))
 
               ; 0 is fd_read, 1 is fd_write
               ((func_idx funcs) (array 2 (array)))
@@ -1783,14 +1785,29 @@
                                         (true       (error (str "can't compile-code " c " right now")))
                                     )))
 
-                                    ((inner_env setup_code datasi funcs memo) (if (= 0 (len params)) (array se (array) datasi funcs memo)
-                                                                                                     (dlet (
-                                        ((params_vec datasi funcs memo) (recurse-value datasi funcs memo (marked_array true (map (lambda (k) (marked_symbol true k)) params))))
-                                        ) (array (marked_env false 0 (concat (map (lambda (k) (array k (marked_val 0))) params) (array se)))
+                                    ;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                    ; Add support for variadic
+                                    ;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                    ((inner_env setup_code datasi funcs memo) (cond
+                                        ((= 0 (len params))                (array se (array) datasi funcs memo))
+                                        ((and (= 1 (len params)) variadic) (dlet (
+                                            ((params_vec datasi funcs memo) (recurse-value datasi funcs memo
+                                                                                           (marked_array true (array (marked_symbol true (idx params 0))))))
+                                            ) (array (marked_env false 0 (concat (array (array (idx params 0) (marked_val 0))) (array se)))
+                                                 (local.set '$s_env (call '$env_alloc (i64.const params_vec)
+                                                                                      (call '$array1_alloc (local.get '$params))
+                                                                                      (local.get '$s_env)))
+                                                 datasi funcs memo
+                                              )))
+                                        (variadic (error "can't compile partially variadic functions right now"))
+                                        (true                              (dlet (
+                                            ((params_vec datasi funcs memo) (recurse-value datasi funcs memo
+                                                                                           (marked_array true (map (lambda (k) (marked_symbol true k)) params))))
+                                            ) (array (marked_env false 0 (concat (map (lambda (k) (array k (marked_val 0))) params) (array se)))
                                                  (local.set '$s_env (call '$env_alloc (i64.const params_vec) (local.get '$params) (local.get '$s_env)))
                                                  datasi funcs memo
-                                          )
-                                    )))
+                                              )))
+                                    ))
                                     ((inner_env setup_code datasi funcs memo) (if (= nil de?) (array inner_env setup_code datasi funcs memo)
                                                                                                      (dlet (
                                         ((de_array_val datasi funcs memo) (recurse-value datasi funcs memo (marked_array true (array (marked_symbol true de?)))))
@@ -1802,10 +1819,17 @@
                                                   datasi funcs memo
                                           )
                                     )))
+                                    (setup_code (concat
+                                        (_if '$params_len_good
+                                            (if variadic    (i64.lt_u (i64.shr_u (local.get '$params) (i64.const 32)) (i64.const (- (len params) 1)))
+                                                            (i64.ne   (i64.shr_u (local.get '$params) (i64.const 32)) (i64.const (len params))))
+                                            (then
+                                                (call '$print (i64.const bad_params_msg_val))
+                                                (unreachable)
+                                            )
+                                        ) setup_code
+                                    ))
                                     ((inner_code datasi funcs memo) (compile_code datasi funcs memo inner_env body))
-                                    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                                    ; We have to emit code that checks the length of the passed params
-                                    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                                     (our_func (func '$len '(param $d_env i64) '(param $s_env i64) '(param $params i64) '(result i64)
                                                 (concat setup_code inner_code)
                                               ))
@@ -1823,7 +1847,7 @@
               ((exit_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'exit)))
               ((read_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'read)))
               ((write_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'write)))
-              ((error_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Not a legal monad (read/write/exit)")))
+              ((error_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Not a legal monad ( ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['exit exit_code])")))
               ((bad_read_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "<error with read>")))
               ((exit_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Exiting with code:")))
               ((root_marked_env_val datasi funcs memo) (compile_value datasi funcs memo root_marked_env))
@@ -1844,23 +1868,33 @@
                                 ; less than len 2 -> out
                                 (br_if '$error_block (i64.lt_u (i64.shr_u (local.get '$it) (i64.const 32)) (i64.const 2)))
                                 (local.set '$ptr (i32.wrap_i64 (i64.and (local.get '$it) (i64.const -8))))
+                                ; second entry isn't an int -> out
+                                (br_if '$error_block (i64.ne (i64.and (i64.load 8 (local.get '$ptr)) (i64.const #b1)) (i64.const #b0)))
                                 (local.set '$monad_name (i64.load (local.get '$ptr)))
 
                                 ; ('exit        code)
                                 (_if '$is_exit
                                     (i64.eq (i64.const exit_val) (local.get '$monad_name))
                                     (then
+                                        ; len != 2
+                                        (br_if '$error_block (i64.ne (i64.shr_u (local.get '$it) (i64.const 32)) (i64.const 2)))
                                         (call '$print (i64.const exit_msg_val))
                                         (call '$print (i64.load 8 (local.get '$ptr)))
                                         (br '$exit_block)
                                     )
                                 )
-                                (br_if '$error_block (i64.lt_u (i64.shr_u (local.get '$it) (i64.const 32)) (i64.const 3)))
+
+                                ; if len != 4
+                                (br_if '$error_block (i64.ne (i64.shr_u (local.get '$it) (i64.const 32)) (i64.const 4)))
 
                                 ; ('read        fd   len       <cont (data error_code)>)
                                 (_if '$is_read
                                     (i64.eq (i64.const read_val) (local.get '$monad_name))
                                     (then
+                                        ; third entry isn't an int -> out
+                                        (br_if '$error_block (i64.ne (i64.and (i64.load 16 (local.get '$ptr)) (i64.const #b1)) (i64.const #b0)))
+                                        ; fourth entry isn't a comb -> out
+                                        (br_if '$error_block (i64.ne (i64.and (i64.load 24 (local.get '$ptr)) (i64.const #b1111)) (i64.const #b0001)))
                                         ; iov <32bit len><32bit addr> + <32bit num written>
                                         (i32.store 0 (i32.const iov_tmp) (local.tee '$buf (call '$malloc (local.get '$len))))
                                         (i32.store 4 (i32.const iov_tmp) (local.tee '$len (i32.wrap_i64 (i64.shr_u (i64.load 16 (local.get '$ptr)) (i64.const 1)))))
@@ -1909,7 +1943,10 @@
                                 (_if '$is_write
                                     (i64.eq (i64.const write_val) (local.get '$monad_name))
                                     (then
-
+                                        ; third entry isn't a string -> out
+                                        (br_if '$error_block (i64.ne (i64.and (i64.load 16 (local.get '$ptr)) (i64.const #b111)) (i64.const #b011)))
+                                        ; fourth entry isn't a comb -> out
+                                        (br_if '$error_block (i64.ne (i64.and (i64.load 24 (local.get '$ptr)) (i64.const #b1111)) (i64.const #b0001)))
                                         ;  <string_size32><string_ptr29>011
                                         (local.set '$str (i64.load 16 (local.get '$ptr)))
 
@@ -2198,13 +2235,15 @@
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) exit) 1)"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array ((vau (x) x) exit) 1)))"))))
+
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array ((vau (x) x) exit) written)))"))))
+
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) written))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) code))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) args))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) args))"))))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) data))"))))
-
-            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) print) \"waa\" (vau e () e))"))))
-            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) get_line) (vau (input) input))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) data))"))))
 
             ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) x))"))))
             ;(output3 (compile (partial_eval (read-string "len"))))
