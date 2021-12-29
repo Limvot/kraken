@@ -1777,12 +1777,8 @@
                     ((comb? c) (or (get_passthrough (.hash c) datasi funcs memo) (dlet (
                                     ((wrap_level de? se variadic params body) (.comb c))
 
-                                    ; This should change to figure out weather or not
-                                    ; this is env is real - if not, we should take it from the
-                                    ; env, which is more of a compile_code task, so we can just
-                                    ; return it without an env and have compile code sub in theirs
-                                    ; for us.
-                                    ((our_env_val datasi funcs memo) (recurse-value datasi funcs memo se))
+                                    ((our_env_val datasi funcs memo) (if (marked_env_real? se) (recurse-value datasi funcs memo se)
+                                                                                               (array 0 datasi funcs memo)))
                                     ;  <func_idx29>|<env_ptr29><wrap2>0001
                                     ;                       e29><2><4> = 6
                                     ; 0..0<env_ptr29><3 bits>01001
@@ -1844,7 +1840,9 @@
                                                                     )
                                                         ))) (array result_code datasi funcs memo))))
                                         ((prim_comb? c)                                   (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v))))
-                                        ((comb? c)  (error "can't compile code comb right now"))
+                                        ((comb? c)  (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.or (i64.const v)
+                                                                                                                     (i64.and (i64.const #x7FFFFFFC0) (i64.shr_u (local.get '$s_env)
+                                                                                                                                                                 (i64.const 2)))))))
                                         (true       (error (str "can't compile-code " c " right now")))
                                     )))
 
@@ -2314,9 +2312,10 @@
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) args))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) a))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) args))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) args))"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) data))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) (array ((vau (x) x) write) 1 data (vau (written code) (array written code)))))"))))
 
             ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) x))"))))
             ;(output3 (compile (partial_eval (read-string "len"))))
