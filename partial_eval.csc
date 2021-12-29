@@ -1812,16 +1812,29 @@
                                                                                           (dlet (
                                                         (func_param_values (.marked_array_values c))
                                                         (num_params (- (len func_param_values) 1))
+                                                        ((func_code datasi funcs memo) (recurse-code datasi funcs memo env (idx func_param_values 0)))
                                                         ((param_code datasi funcs memo) (foldr (dlambda (x (a datasi funcs memo))
                                                                                                     (dlet (((code datasi funcs memo) (recurse-code datasi funcs memo env x)))
                                                                                                         (array (concat code a) datasi funcs memo)))
-                                                                                                (array (array) datasi funcs memo) func_param_values))
+                                                                                                (array (array) datasi funcs memo) (slice func_param_values 1 -1)))
                                                         (result_code (concat
-                                                                     param_code
-                                                                     (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
-                                                                     (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
-                                                                               (range (- num_params 1) -1))
-                                                                     (local.set '$tmp)
+                                                                    func_code
+                                                                    (local.set '$tmp)
+                                                                    (_if '$is_wrap_1
+                                                                        (i64.eq (i64.const #x10) (i64.and (local.get '$tmp) (i64.const #x30)))
+                                                                        (then
+                                                                             (local.get '$tmp) ; saving ito restore it
+                                                                             param_code
+                                                                             (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
+                                                                             (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
+                                                                                       (range (- num_params 1) -1))
+                                                                             (local.set '$tmp) ; restoring tmp
+                                                                        )
+                                                                        (else
+                                                                            ; TODO: Handle other wrap levels
+                                                                            (unreachable)
+                                                                        )
+                                                                    )
                                                                      (call_indirect
                                                                         ;type
                                                                         k_vau
