@@ -505,24 +505,24 @@
             (pe_body (partial_eval_helper body inner_env (cons inner_env env_stack) (+ 1 indent)))
             (_ (print_strip (indent_str indent) "in vau, result of evaluating body was " pe_body))
         ) (marked_comb 0 de? de variadic vau_params pe_body)
-        )) 'vau_fake_real))
+        )) 'vau))
 
         (array 'wrap (marked_prim_comb (parameters_evaled_proxy 0 (dlambda (recurse de env_stack (evaled) indent)
               (mif (comb? evaled) (dlet (((wrap_level de? se variadic params body) (.comb evaled))
                                         (wrapped_marked_fun (marked_comb (+ 1 wrap_level) de? se variadic params body))
                                        ) wrapped_marked_fun)
-                                 (marked_array false (array (marked_prim_comb recurse 'wrap_fake_real) evaled))))
-        ) 'wrap_fake_real))
+                                 (marked_array false (array (marked_prim_comb recurse 'wrap) evaled))))
+        ) 'wrap))
 
         (array 'unwrap (marked_prim_comb (parameters_evaled_proxy 0 (dlambda (recurse de env_stack (evaled) indent)
              (mif (comb? evaled) (dlet (((wrap_level de? se variadic params body) (.comb evaled))
                                        (unwrapped_marked_fun (marked_comb (- wrap_level 1) de? se variadic params body))
                                       ) unwrapped_marked_fun)
-                                 (marked_array false (array (marked_prim_comb recurse 'unwrap_fake_real) evaled))))
-        ) 'unwrap_fake_real))
+                                 (marked_array false (array (marked_prim_comb recurse 'unwrap) evaled))))
+        ) 'unwrap))
 
         (array 'eval (marked_prim_comb (rec-lambda recurse (de env_stack params indent) (dlet (
-            (self (marked_prim_comb recurse 'eval_fake_real))
+            (self (marked_prim_comb recurse 'eval))
             (eval_env (mif (= 2 (len params)) (partial_eval_helper (idx params 1) de env_stack (+ 1 indent))
                                              de))
             (eval_env_v (mif (= 2 (len params)) (array eval_env) (array)))
@@ -540,7 +540,7 @@
             (body2 (mif (= self_fallback unval_body) self_fallback (partial_eval_helper unval_body eval_env env_stack (+ 1 indent))))
             (_ (print_strip (indent_str indent) "and body2 is " body2))
             ) body2))
-        )) 'eval_fake_real))
+        )) 'eval))
 
         (array 'cond (marked_prim_comb (rec-lambda recurse (de env_stack params indent)
             (mif (!= 0 (% (len params) 2)) (error (str "partial eval cond with odd params " params))
@@ -550,13 +550,13 @@
                                           (cond ((later? evaled_cond)            (recurse_inner (+ 2 i) (concat so_far (array evaled_cond
                                                                                                                               (partial_eval_helper (idx params (+ i 1)) de env_stack (+ 1 indent))))))
                                                 ((false? evaled_cond)            (recurse_inner (+ 2 i) so_far))
-                                                ((= (len params) i)              (marked_array false (cons (marked_prim_comb recurse 'cond_fake_real) so_far)))
+                                                ((= (len params) i)              (marked_array false (cons (marked_prim_comb recurse 'cond) so_far)))
                                                 (true                            (let ((evaled_body (partial_eval_helper (idx params (+ 1 i)) de env_stack (+ 1 indent))))
-                                                                                      (mif (!= (len so_far) 0) (marked_array false (cons (marked_prim_comb recurse 'cond_fake_real) (concat so_far (array evaled_cond evaled_body))))
+                                                                                      (mif (!= (len so_far) 0) (marked_array false (cons (marked_prim_comb recurse 'cond) (concat so_far (array evaled_cond evaled_body))))
                                                                                                                 evaled_body)))
                  ))) 0 (array))
             )
-        ) 'cond_fake_real))
+        ) 'cond))
 
         (needs_params_val_lambda symbol?)
         (needs_params_val_lambda int?)
@@ -565,16 +565,16 @@
         (array 'combiner? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond ((comb? evaled_param)          (marked_val true))
                   ((prim_comb? evaled_param)     (marked_val true))
-                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'combinerp_fake_real) evaled_param)))
+                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'combinerp) evaled_param)))
                   (true                          (marked_val false))
             )
-        )) 'combinerp_fake_real))
+        )) 'combinerp))
         (array 'env? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond ((marked_env? evaled_param)    (marked_val true))
-                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'envp_fake_real) evaled_param)))
+                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'envp) evaled_param)))
                   (true                          (marked_val false))
             )
-        )) 'envp_fake_real))
+        )) 'envp))
         (needs_params_val_lambda nil?)
         (needs_params_val_lambda bool?)
         (needs_params_val_lambda str-to-symbol)
@@ -582,43 +582,43 @@
 
         (array 'array? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond
-                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'arrayp_fake_real) evaled_param)))
+                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'arrayp) evaled_param)))
                   ((marked_array? evaled_param)  (marked_val true))
                   (true                          (marked_val false))
             )
-        )) 'arrayp_fake_real))
+        )) 'arrayp))
 
         ; This one's sad, might need to come back to it.
         ; We need to be able to differentiate between half-and-half arrays
         ; for when we ensure_params_values or whatever, because that's super wrong
         (array 'array (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
                                                 (mif (is_all_values evaled_params) (marked_array true evaled_params)
-                                                                                   (marked_array false (cons (marked_prim_comb recurse 'array_fake_real) evaled_params)))
-        )) 'array_fake_real))
+                                                                                   (marked_array false (cons (marked_prim_comb recurse 'array) evaled_params)))
+        )) 'array))
         (array 'len (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
-            (cond ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'len_fake_real) evaled_param)))
+            (cond ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'len) evaled_param)))
                   ((marked_array? evaled_param)  (marked_val (len (.marked_array_values evaled_param))))
                   (true                          (error (str "bad type to len " evaled_param)))
             )
-        )) 'len_fake_real))
+        )) 'len))
         (array 'idx (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_array evaled_idx) indent)
             (cond ((and (val? evaled_idx) (marked_array? evaled_array) (.marked_array_is_val evaled_array)) (idx (.marked_array_values evaled_array) (.val evaled_idx)))
-                  (true                                                                                     (marked_array false (array (marked_prim_comb recurse 'idx_fake_real) evaled_array evaled_idx)))
+                  (true                                                                                     (marked_array false (array (marked_prim_comb recurse 'idx) evaled_array evaled_idx)))
             )
-        )) 'idx_fake_real))
+        )) 'idx))
         (array 'slice (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_array evaled_begin evaled_end) indent)
             (cond ((and (val? evaled_begin) (val? evaled_end) (marked_array? evaled_array) (.marked_array_is_val evaled_array))
                             (marked_array true (slice (.marked_array_values evaled_array) (.val evaled_begin) (.val evaled_end))))
-                  (true     (marked_array false (array (marked_prim_comb recurse 'slice_fake_real) evaled_array evaled_idx evaled_begin evaled_end)))
+                  (true     (marked_array false (array (marked_prim_comb recurse 'slice) evaled_array evaled_idx evaled_begin evaled_end)))
             )
-        )) 'slice_fake_real))
+        )) 'slice))
         (array 'concat (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
             (cond ((foldl (lambda (a x) (and a (and (marked_array? x) (.marked_array_is_val x)))) true evaled_params) (marked_array true (lapply concat (map (lambda (x)
                                                                                                                                                              (.marked_array_values x))
                                                                                                                                                             evaled_params))))
-                  (true                                                                                               (marked_array false (cons (marked_prim_comb recurse 'concat_fake_real) evaled_params)))
+                  (true                                                                                               (marked_array false (cons (marked_prim_comb recurse 'concat) evaled_params)))
             )
-        )) 'concat_fake_real))
+        )) 'concat))
 
         (needs_params_val_lambda +)
         (needs_params_val_lambda -)
@@ -641,20 +641,20 @@
         (array 'and (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
             ((rec-lambda inner_recurse (i)
                                       (cond ((= i (- (len evaled_params) 1))          (idx evaled_params i))
-                                            ((later? (idx evaled_params i))           (marked_array false (cons (marked_prim_comb recurse 'and_fake_real) (slice evaled_params i -1))))
+                                            ((later? (idx evaled_params i))           (marked_array false (cons (marked_prim_comb recurse 'and) (slice evaled_params i -1))))
                                             ((false? (idx evaled_params i))           (idx evaled_params i))
                                             (true                                     (inner_recurse (+ 1 i))))
              ) 0)
-        )) 'and_fake_real))
+        )) 'and))
         ; see above for improvement
         (array 'or (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
             ((rec-lambda inner_recurse (i)
                                       (cond ((= i (- (len evaled_params) 1))          (idx evaled_params i))
-                                            ((later? (idx evaled_params i))           (marked_array false (cons (marked_prim_comb recurse 'or_fake_real) (slice evaled_params i -1))))
+                                            ((later? (idx evaled_params i))           (marked_array false (cons (marked_prim_comb recurse 'or) (slice evaled_params i -1))))
                                             ((false? (idx evaled_params i))           (recurse (+ 1 i)))
                                             (true                                     (idx evaled_params i)))
              ) 0)
-        )) 'or_fake_real))
+        )) 'or))
         ; should make not a built in and then do here
         ; OR not - I think it will actually lower correctly partially evaled
 
@@ -1230,6 +1230,7 @@
 
     ; True          / False
     ;  0..0 111001  /  0..0 011001
+
     (nil_array_value #b0101)
     (to_hex_digit (lambda (x) (string (integer->char (if (< x 10) (+ x #x30)
                                                                   (+ x #x37))))))
@@ -1248,6 +1249,8 @@
           (memory '$mem 1)
           (global '$malloc_head  '(mut i32) (i32.const 0))
           (dlet (
+              (true_val #b00111101)
+              (false_val #b00011101)
               (alloc_data (dlambda (d (watermark datas)) (cond ((str? d)      (let ((size (+ 8 (& (len d) -8))))
                                                                                    (array (+ watermark 8)
                                                                                           (len d)
@@ -1265,6 +1268,8 @@
               ((false_loc false_length datasi) (alloc_data "false" datasi))
               ((bad_params_loc bad_params_length datasi) (alloc_data "\nError: passed a bad number of parameters\n" datasi))
               (bad_params_msg_val (bor (<< bad_params_length 32) bad_params_loc #b011))
+              ((remaining_vau_loc remaining_vau_length datasi) (alloc_data "\nError: trying to call a remainin vau\n" datasi))
+              (remaining_vau_msg_val (bor (<< remaining_vau_length 32) remaining_vau_loc #b011))
 
               ; 0 is fd_read, 1 is fd_write
               ((func_idx funcs) (array 2 (array)))
@@ -1773,6 +1778,16 @@
                     ; static env is 0 by construction
               ))))
 
+              (ensure_2_params_set_ptr (concat (_if '$is_2_params
+                                                    (i64.ne (i64.shr_u (local.get '$p) (i64.const 32)) (i64.const 2))
+                                                    (then
+                                                        (call '$print (i64.const bad_params_msg_val))
+                                                        (unreachable)
+                                                    )
+                                                )
+                                                (local.set '$ptr (i32.wrap_i64 (i64.and (local.get '$p) (i64.const -8))))
+                                        ))
+
               ((k_vau           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
               ((k_read-string   func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$read-string   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
               ((k_log           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$log           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
@@ -1785,7 +1800,15 @@
               ((k_leq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$leq           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
               ((k_lt            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$lt            '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
               ((k_neq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$neq           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_eq            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eq            '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
+              ((k_eq            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eq            '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32)
+                ensure_2_params_set_ptr
+                (_if '$eq '(result i64)
+                    ; TODO: BAD BAD BAD this is ptr equality
+                    (i64.eq (i64.load 0 (local.get '$ptr)) (i64.load 8 (local.get '$ptr)))
+                    (then (i64.const true_val))
+                    (else (i64.const false_val))
+                )
+              ))))
               ((k_mod           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$mod           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
               ((k_div           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$div           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
               ((k_mul           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$mul           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
@@ -1824,8 +1847,8 @@
               (compile_value (rec-lambda recurse-value (datasi funcs memo c) (cond
                     ((val? c)   (let ((v (.val c)))
                                      (cond ((int? v)    (array (<< v 1)   datasi funcs memo))
-                                           ((= true v)  (array #b00111101 datasi funcs memo))
-                                           ((= false v) (array #b00011101 datasi funcs memo))
+                                           ((= true v)  (array true_val datasi funcs memo))
+                                           ((= false v) (array false_val datasi funcs memo))
                                            ((str? v)    (dlet (((c_loc c_len datasi) (alloc_data v datasi))
                                                                (a (bor (<< c_len 32) c_loc #b011))
                                                                ) (array a datasi funcs memo)))
@@ -1865,48 +1888,48 @@
                                             (result (bor (<< c_loc 5) #b01001))
                                             (memo (put memo (.hash c) result))
                                            ) (array result datasi funcs memo))))
-                    ((prim_comb? c) (cond ((= 'vau_fake_real         (.prim_comb_sym c))  (array (bor (<< (- k_vau k_len)           35) (<< 0 4) #b0001) datasi funcs memo))
-                                          ((= 'cond_fake_real        (.prim_comb_sym c))  (array (bor (<< (- k_cond k_len)          35) (<< 0 4) #b0001) datasi funcs memo))
-                                          ((= 'or_fake_real          (.prim_comb_sym c))  (array (bor (<< (- k_or k_len)            35) (<< 0 4) #b0001) datasi funcs memo))
-                                          ((= 'and_fake_real         (.prim_comb_sym c))  (array (bor (<< (- k_and k_len)           35) (<< 0 4) #b0001) datasi funcs memo))
-                                          ((= 'len_fake_real         (.prim_comb_sym c))  (array (bor (<< (- k_len k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'read-string           (.prim_comb_sym c))  (array (bor (<< (- k_read-string k_len)   35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'log                   (.prim_comb_sym c))  (array (bor (<< (- k_log k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'error                 (.prim_comb_sym c))  (array (bor (<< (- k_error k_len)         35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'str                   (.prim_comb_sym c))  (array (bor (<< (- k_str k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '>=                    (.prim_comb_sym c))  (array (bor (<< (- k_geq k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '>                     (.prim_comb_sym c))  (array (bor (<< (- k_gt k_len)            35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '<=                    (.prim_comb_sym c))  (array (bor (<< (- k_leq k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '<                     (.prim_comb_sym c))  (array (bor (<< (- k_lt k_len)            35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '!=                    (.prim_comb_sym c))  (array (bor (<< (- k_neq k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '=                     (.prim_comb_sym c))  (array (bor (<< (- k_eq k_len)            35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '%                     (.prim_comb_sym c))  (array (bor (<< (- k_mod k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '/                     (.prim_comb_sym c))  (array (bor (<< (- k_div k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '*                     (.prim_comb_sym c))  (array (bor (<< (- k_mul k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '+                     (.prim_comb_sym c))  (array (bor (<< (- k_add k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '-                     (.prim_comb_sym c))  (array (bor (<< (- k_sub k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '&                     (.prim_comb_sym c))  (array (bor (<< (- k_band k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'bor                   (.prim_comb_sym c))  (array (bor (<< (- k_bor k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '<<                    (.prim_comb_sym c))  (array (bor (<< (- k_ls k_len)            35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= '>>                    (.prim_comb_sym c))  (array (bor (<< (- k_rs k_len)            35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'concat_fake_real      (.prim_comb_sym c))  (array (bor (<< (- k_concat k_len)        35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'slice_fake_real       (.prim_comb_sym c))  (array (bor (<< (- k_slice k_len)         35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'idx_fake_real         (.prim_comb_sym c))  (array (bor (<< (- k_idx k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'array_fake_real       (.prim_comb_sym c))  (array (bor (<< (- k_array k_len)         35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'arrayp_fake_real      (.prim_comb_sym c))  (array (bor (<< (- k_arrayp k_len)        35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'get-text              (.prim_comb_sym c))  (array (bor (<< (- k_get-text k_len)      35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'str-to-symbol         (.prim_comb_sym c))  (array (bor (<< (- k_str-to-symbol k_len) 35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'bool?                 (.prim_comb_sym c))  (array (bor (<< (- k_bool? k_len)         35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'nil?                  (.prim_comb_sym c))  (array (bor (<< (- k_nil? k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'envp_fake_real        (.prim_comb_sym c))  (array (bor (<< (- k_env? k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'combinerp_fake_real   (.prim_comb_sym c))  (array (bor (<< (- k_combiner? k_len)     35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'string?               (.prim_comb_sym c))  (array (bor (<< (- k_string? k_len)       35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'int?                  (.prim_comb_sym c))  (array (bor (<< (- k_int? k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'symbol?               (.prim_comb_sym c))  (array (bor (<< (- k_symbol? k_len)       35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'eval_fake_real        (.prim_comb_sym c))  (array (bor (<< (- k_eval k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'unwrap_fake_real      (.prim_comb_sym c))  (array (bor (<< (- k_unwrap k_len)        35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'wrap_fake_real        (.prim_comb_sym c))  (array (bor (<< (- k_wrap k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
-                                          (true                                   (error (str "Can't compile prim comb " (.prim_comb_sym c) " right now")))))
+                    ((prim_comb? c) (cond ((= 'vau            (.prim_comb_sym c))  (array (bor (<< (- k_vau k_len)           35) (<< 0 4) #b0001) datasi funcs memo))
+                                          ((= 'cond           (.prim_comb_sym c))  (array (bor (<< (- k_cond k_len)          35) (<< 0 4) #b0001) datasi funcs memo))
+                                          ((= 'or             (.prim_comb_sym c))  (array (bor (<< (- k_or k_len)            35) (<< 0 4) #b0001) datasi funcs memo))
+                                          ((= 'and            (.prim_comb_sym c))  (array (bor (<< (- k_and k_len)           35) (<< 0 4) #b0001) datasi funcs memo))
+                                          ((= 'len            (.prim_comb_sym c))  (array (bor (<< (- k_len k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'read-string    (.prim_comb_sym c))  (array (bor (<< (- k_read-string k_len)   35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'log            (.prim_comb_sym c))  (array (bor (<< (- k_log k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'error          (.prim_comb_sym c))  (array (bor (<< (- k_error k_len)         35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'str            (.prim_comb_sym c))  (array (bor (<< (- k_str k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '>=             (.prim_comb_sym c))  (array (bor (<< (- k_geq k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '>              (.prim_comb_sym c))  (array (bor (<< (- k_gt k_len)            35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '<=             (.prim_comb_sym c))  (array (bor (<< (- k_leq k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '<              (.prim_comb_sym c))  (array (bor (<< (- k_lt k_len)            35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '!=             (.prim_comb_sym c))  (array (bor (<< (- k_neq k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '=              (.prim_comb_sym c))  (array (bor (<< (- k_eq k_len)            35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '%              (.prim_comb_sym c))  (array (bor (<< (- k_mod k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '/              (.prim_comb_sym c))  (array (bor (<< (- k_div k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '*              (.prim_comb_sym c))  (array (bor (<< (- k_mul k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '+              (.prim_comb_sym c))  (array (bor (<< (- k_add k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '-              (.prim_comb_sym c))  (array (bor (<< (- k_sub k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '&              (.prim_comb_sym c))  (array (bor (<< (- k_band k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'bor            (.prim_comb_sym c))  (array (bor (<< (- k_bor k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '<<             (.prim_comb_sym c))  (array (bor (<< (- k_ls k_len)            35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= '>>             (.prim_comb_sym c))  (array (bor (<< (- k_rs k_len)            35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'concat         (.prim_comb_sym c))  (array (bor (<< (- k_concat k_len)        35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'slice          (.prim_comb_sym c))  (array (bor (<< (- k_slice k_len)         35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'idx            (.prim_comb_sym c))  (array (bor (<< (- k_idx k_len)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'array          (.prim_comb_sym c))  (array (bor (<< (- k_array k_len)         35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'arrayp         (.prim_comb_sym c))  (array (bor (<< (- k_arrayp k_len)        35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'get-text       (.prim_comb_sym c))  (array (bor (<< (- k_get-text k_len)      35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'str-to-symbol  (.prim_comb_sym c))  (array (bor (<< (- k_str-to-symbol k_len) 35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'bool?          (.prim_comb_sym c))  (array (bor (<< (- k_bool? k_len)         35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'nil?           (.prim_comb_sym c))  (array (bor (<< (- k_nil? k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'envp           (.prim_comb_sym c))  (array (bor (<< (- k_env? k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'combinerp      (.prim_comb_sym c))  (array (bor (<< (- k_combiner? k_len)     35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'string?        (.prim_comb_sym c))  (array (bor (<< (- k_string? k_len)       35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'int?           (.prim_comb_sym c))  (array (bor (<< (- k_int? k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'symbol?        (.prim_comb_sym c))  (array (bor (<< (- k_symbol? k_len)       35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'eval           (.prim_comb_sym c))  (array (bor (<< (- k_eval k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'unwrap         (.prim_comb_sym c))  (array (bor (<< (- k_unwrap k_len)        35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'wrap           (.prim_comb_sym c))  (array (bor (<< (- k_wrap k_len)          35) (<< 1 4) #b0001) datasi funcs memo))
+                                          (true                                  (error (str "Can't compile prim comb " (.prim_comb_sym c) " right now")))))
                     ((comb? c) (or (get_passthrough (.hash c) datasi funcs memo) (dlet (
                                     ((wrap_level de? se variadic params body) (.comb c))
 
@@ -1945,46 +1968,74 @@
                                                                                           (dlet (
                                                         (func_param_values (.marked_array_values c))
                                                         (num_params (- (len func_param_values) 1))
-                                                        ((func_code datasi funcs memo) (recurse-code datasi funcs memo env (idx func_param_values 0)))
-                                                        ((param_code datasi funcs memo) (foldr (dlambda (x (a datasi funcs memo))
+                                                        ((param_codes datasi funcs memo) (foldr (dlambda (x (a datasi funcs memo))
                                                                                                     (dlet (((code datasi funcs memo) (recurse-code datasi funcs memo env x)))
-                                                                                                        (array (concat code a) datasi funcs memo)))
+                                                                                                        (array (cons code a) datasi funcs memo)))
                                                                                                 (array (array) datasi funcs memo) (slice func_param_values 1 -1)))
-                                                        (result_code (concat
-                                                                    func_code
-                                                                    (local.set '$tmp)
-                                                                    (_if '$is_wrap_1
-                                                                        (i64.eq (i64.const #x10) (i64.and (local.get '$tmp) (i64.const #x30)))
-                                                                        (then
-                                                                             (local.get '$tmp) ; saving ito restore it
-                                                                             param_code
-                                                                             (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
-                                                                             (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
-                                                                                       (range (- num_params 1) -1))
-                                                                             (local.set '$tmp) ; restoring tmp
-                                                                        )
-                                                                        (else
-                                                                            ; TODO: Handle other wrap levels
-                                                                            (unreachable)
-                                                                        )
-                                                                    )
-                                                                     (call_indirect
-                                                                        ;type
-                                                                        k_vau
-                                                                        ;table
-                                                                        0
-                                                                        ;params
-                                                                        (i64.or (i64.extend_i32_u (local.get '$param_ptr))
-                                                                                (i64.const (bor (<< num_params 32) #x5)))
-                                                                        ;dynamic env (is caller's static env)
-                                                                        (call '$dup (local.get '$s_env))
-                                                                        ; static env
-                                                                        (i64.or (i64.shl (i64.and (local.get '$tmp) (i64.const #x3FFFFFFC0))
-                                                                                         (i64.const 2)) (i64.const #b01001))
-                                                                        ;func_idx
-                                                                        (i32.wrap_i64 (i64.shr_u (local.get '$tmp) (i64.const 35)))
-                                                                    )
-                                                        ))) (array result_code datasi funcs memo))))
+                                                        ;; Insert test for the function being a constant to inline
+                                                        ;; Namely, cond
+                                                        (func_value (idx func_param_values 0))
+                                                        ) (cond
+                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'cond)) (array
+                                                                                                               ((rec-lambda recurse (codes i) (cond
+                                                                                                                        ((< i (- (len codes) 1)) (_if '_cond_flat '(result i64)
+                                                                                                                                            (i64.ne (i64.const #b01)
+                                                                                                                                                    ; This and is 1111100011
+                                                                                                                                                    ; The end ensuring 01 makes only
+                                                                                                                                                    ; array comb env and bool apply
+                                                                                                                                                    ; catching only 0array and false
+                                                                                                                                                    ; and a comb with func idx 0
+                                                                                                                                                    ; and null env. If we prevent
+                                                                                                                                                    ; this from happening, it's
+                                                                                                                                                    ; exactly what we want
+                                                                                                                                                    (i64.and (i64.const -29)
+                                                                                                                                                             (idx codes i)))
+                                                                                                                                                    (then (idx codes (+ i 1)))
+                                                                                                                                                    (else (recurse codes (+ i 2)))
+                                                                                                                                                ))
+                                                                                                                        ((= i (- (len codes) 1)) (error "compiling bad length comb"))
+                                                                                                                        (true                    (unreachable))
+                                                                                                                    )) param_codes 0)
+                                                                                                                                       datasi funcs memo))
+                                                            (true (dlet (
+                                                                ((func_code datasi funcs memo) (recurse-code datasi funcs memo env func_value))
+                                                                (result_code (concat
+                                                                                func_code
+                                                                                (local.set '$tmp)
+                                                                                (_if '$is_wrap_1
+                                                                                    (i64.eq (i64.const #x10) (i64.and (local.get '$tmp) (i64.const #x30)))
+                                                                                    (then
+                                                                                         (local.get '$tmp) ; saving ito restore it
+                                                                                         (apply concat param_codes)
+                                                                                         (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
+                                                                                         (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
+                                                                                                   (range (- num_params 1) -1))
+                                                                                         (local.set '$tmp) ; restoring tmp
+                                                                                    )
+                                                                                    (else
+                                                                                        ; TODO: Handle other wrap levels
+                                                                                        (call '$print (i64.const remaining_vau_msg_val))
+                                                                                        (unreachable)
+                                                                                    )
+                                                                                )
+                                                                                (call_indirect
+                                                                                    ;type
+                                                                                    k_vau
+                                                                                    ;table
+                                                                                    0
+                                                                                    ;params
+                                                                                    (i64.or (i64.extend_i32_u (local.get '$param_ptr))
+                                                                                            (i64.const (bor (<< num_params 32) #x5)))
+                                                                                    ;dynamic env (is caller's static env)
+                                                                                    (call '$dup (local.get '$s_env))
+                                                                                    ; static env
+                                                                                    (i64.or (i64.shl (i64.and (local.get '$tmp) (i64.const #x3FFFFFFC0))
+                                                                                                     (i64.const 2)) (i64.const #b01001))
+                                                                                    ;func_idx
+                                                                                    (i32.wrap_i64 (i64.shr_u (local.get '$tmp) (i64.const 35)))
+                                                                                )))
+                                                                ) (array result_code datasi funcs memo)))
+                                                        ))))
                                         ((prim_comb? c)                                   (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v))))
                                         ((comb? c)  (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.or (i64.const v)
                                                                                                                      (i64.and (i64.const #x7FFFFFFC0) (i64.shr_u (call '$dup (local.get '$s_env))
@@ -2463,12 +2514,14 @@
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) code))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array 1337 written 1338 code 1339)))"))))
 
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (cond (= 0 code) written true code)))"))))
+
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) args))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) a))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) args))"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) data))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) (array ((vau (x) x) write) 1 data (vau (written code) (array written code)))))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) (array ((vau (x) x) write) 1 data (vau (written code) (array written code)))))"))))
 
             ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) x))"))))
             ;(output3 (compile (partial_eval (read-string "len"))))
