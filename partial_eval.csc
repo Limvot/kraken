@@ -582,11 +582,11 @@
 
         (array 'array? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond
-                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'arrayp) evaled_param)))
+                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'array?) evaled_param)))
                   ((marked_array? evaled_param)  (marked_val true))
                   (true                          (marked_val false))
             )
-        )) 'arrayp))
+        )) 'array?))
 
         ; This one's sad, might need to come back to it.
         ; We need to be able to differentiate between half-and-half arrays
@@ -1229,7 +1229,7 @@
     ;       This lets key_array exist in constant mem, and value array to come directly from passed params.
 
     ; True          / False
-    ;  0..0 111001  /  0..0 011001
+    ;  0..0 1 11001  /  0..0 0 11001
 
     (nil_array_value #b0101)
     (to_hex_digit (lambda (x) (string (integer->char (if (< x 10) (+ x #x30)
@@ -1872,6 +1872,41 @@
                 (unreachable)
               ))))
 
+              (typecheck (dlambda (idx result_type (mask value) then_branch else_branch)
+                (_if '$matches result_type
+                    (i64.eq (i64.const value) (i64.and (i64.const mask) (i64.load (* 8 idx) (local.get '$ptr))))
+                    then_branch
+                    else_branch
+                )
+              ))
+
+              (pred_func    (lambda (name type_check) (func name '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+                (ensure_not_op_n_params_set_ptr_len i32.ne 1)
+                (typecheck 0 '(result i64)
+                    type_check
+                    (then (i64.const true_val))
+                    (else (i64.const false_val))
+                )
+                drop_p_d
+              )))
+
+              (type_int      (array #b1      #b0))
+              (type_string   (array #b111    #b011))
+              (type_symbol   (array #b111    #b111))
+              (type_array    (array #b111    #b101))
+              (type_combiner (array #b1111   #b0001))
+              (type_env      (array #b11111  #b01001))
+              (type_bool     (array #b11111  #b11001))
+
+              ((k_nil?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$nil?      (array -1 #x0000000000000005)))))
+              ((k_array?        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$array?    type_array))))
+              ((k_bool?         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$bool?     type_bool))))
+              ((k_env?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$env?      type_env))))
+              ((k_combiner?     func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$combiner  type_combiner))))
+              ((k_string?       func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$string?   type_string))))
+              ((k_int?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$int?      type_int))))
+              ((k_symbol?       func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$symbol?   type_symbol))))
+
               ((k_eq            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eq            '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.lt_u 2)
                 (_if '$eq '(result i64)
@@ -1945,15 +1980,6 @@
                 (call '$drop (local.get '$d))
                 ; s is 0
               ))))
-
-              ((k_array?        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$arrayp        '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_bool?         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$bool?         '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_nil?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$nil?          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_env?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$env?          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_combiner?     func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$combiner?     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_string?       func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$string?       '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_int?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$int?          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_symbol?       func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$symbol?       '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
 
               ((k_get-text      func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$get-text      '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
               ((k_str-to-symbol func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str-to-symbol '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
@@ -2040,7 +2066,7 @@
                                           ((= 'slice          (.prim_comb_sym c))  (array (bor (<< (- k_slice dyn_start)         35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'idx            (.prim_comb_sym c))  (array (bor (<< (- k_idx dyn_start)           35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'array          (.prim_comb_sym c))  (array (bor (<< (- k_array dyn_start)         35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'arrayp         (.prim_comb_sym c))  (array (bor (<< (- k_array? dyn_start)        35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'array?         (.prim_comb_sym c))  (array (bor (<< (- k_array? dyn_start)        35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'get-text       (.prim_comb_sym c))  (array (bor (<< (- k_get-text dyn_start)      35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'str-to-symbol  (.prim_comb_sym c))  (array (bor (<< (- k_str-to-symbol dyn_start) 35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'bool?          (.prim_comb_sym c))  (array (bor (<< (- k_bool? dyn_start)         35) (<< 1 4) #b0001) datasi funcs memo))
@@ -2639,9 +2665,12 @@
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (* written 1337)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (/ 1337 written)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (% 1337 written)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (& 1337 written)))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (& 1337 written)))"))))
             ;;;; Doesn't work because Scheme thinks | is special sigh
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (| 1337 written)))"))))
+
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array (nil? written) (array? written) (bool? written) (env? written) (combiner? written) (string? written) (int? written) (symbol? written))))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau de (written code) (array (nil? (cond written (array) true 4)) (array? (cond written (array 1 2) true 4)) (bool? (= 3 written)) (env? de) (combiner? (cond written (vau () 1) true 43)) (string? (cond written \"a\" 3 3)) (int? (cond written \"a\" 3 3)) (symbol? (cond written ((vau (x) x) x) 3 3)) written)))"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) args))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) a))"))))
