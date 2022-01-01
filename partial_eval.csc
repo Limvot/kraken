@@ -609,7 +609,7 @@
         (array 'slice (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_array evaled_begin evaled_end) indent)
             (cond ((and (val? evaled_begin) (val? evaled_end) (marked_array? evaled_array) (.marked_array_is_val evaled_array))
                             (marked_array true (slice (.marked_array_values evaled_array) (.val evaled_begin) (.val evaled_end))))
-                  (true     (marked_array false (array (marked_prim_comb recurse 'slice) evaled_array evaled_idx evaled_begin evaled_end)))
+                  (true     (marked_array false (array (marked_prim_comb recurse 'slice) evaled_array evaled_begin evaled_end)))
             )
         )) 'slice))
         (array 'concat (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
@@ -1231,7 +1231,6 @@
     ; True          / False
     ;  0..0 1 11001  /  0..0 0 11001
 
-    (nil_array_value #b0101)
     (to_hex_digit (lambda (x) (string (integer->char (if (< x 10) (+ x #x30)
                                                                   (+ x #x37))))))
     (le_hexify_helper (rec-lambda recurse (x i) (if (= i 0) ""
@@ -1249,7 +1248,7 @@
           (memory '$mem 1)
           (global '$malloc_head  '(mut i32) (i32.const 0))
           (dlet (
-              (nil_val       #b0101)
+              (nil_val        #b0101)
               (true_val  #b000111001)
               (false_val #b000011001)
               (alloc_data (dlambda (d (watermark datas)) (cond ((str? d)      (let ((size (+ 8 (& (len d) -8))))
@@ -1759,23 +1758,36 @@
                             (local.set '$e (i32.add (i32.const 1) (i32.add (local.get '$e) (local.get '$size))))
                         )
                     )
-                    (local.set '$new_size (i32.sub (local.get '$e) (local.get '$s)))
-                    (local.set '$new_ptr  (call '$malloc (i32.shl (local.get '$new_size) (i32.const 3)))) ; malloc(size*8)
 
-                    (local.set '$i (i32.const 0))
-                    (block '$exit_loop
-                        (_loop '$l
-                            (br_if '$exit_loop (i32.eq (local.get '$i) (local.get '$new_size)))
-                            (i64.store (i32.add (local.get '$i) (local.get '$new_ptr))
-                                       (call '$dup (i64.load (i32.add (local.get '$s) (i32.add (local.get '$i) (local.get '$ptr)))))) ; n[i] = dup(o[i+s])
-                            (local.set '$i (i32.add (i32.const 1) (local.get '$i)))
-                            (br '$l)
+                    (_if '$s_lt_0     (i32.lt_s (local.get '$s) (i32.const 0))      (then (unreachable)))
+                    (_if '$e_lt_s     (i32.lt_s (local.get '$e) (local.get '$s))    (then (unreachable)))
+                    (_if '$e_gt_size  (i32.gt_s (local.get '$e) (local.get '$size)) (then (unreachable)))
+
+                    (local.set '$new_size (i32.sub (local.get '$e) (local.get '$s)))
+                    (_if '$new_size_0 '(result i64)
+                        (i32.eq (i32.const 0) (local.get '$new_size))
+                        (then
+                            (i64.const nil_val)
+                        )
+                        (else
+                            (local.set '$new_ptr  (call '$malloc (i32.shl (local.get '$new_size) (i32.const 3)))) ; malloc(size*8)
+
+                            (local.set '$i (i32.const 0))
+                            (block '$exit_loop
+                                (_loop '$l
+                                    (br_if '$exit_loop (i32.eq (local.get '$i) (local.get '$new_size)))
+                                    (i64.store (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$new_ptr))
+                                               (call '$dup (i64.load (i32.add (i32.shl (i32.add (local.get '$s) (local.get '$i)) (i32.const 3)) (local.get '$ptr))))) ; n[i] = dup(o[i+s])
+                                    (local.set '$i (i32.add (i32.const 1) (local.get '$i)))
+                                    (br '$l)
+                                )
+                            )
+                            (call '$drop (local.get '$array))
+
+                            (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #x5))
+                                    (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
                         )
                     )
-                    (call '$drop (local.get '$array))
-
-                    (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #x5))
-                            (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
               ))))
 
               ; chose k_slice_impl because it will never be called, so that
@@ -1794,8 +1806,10 @@
               (truthy_test (lambda (x) (i64.ne (i64.const #b01) (i64.and (i64.const -29) x))))
               (falsey_test (lambda (x) (i64.eq (i64.const #b01) (i64.and (i64.const -29) x))))
 
-              (ensure_not_op_n_params_set_ptr_len (lambda (op n) (concat
-                                                                (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$p) (i64.const 32))))
+              (set_len_ptr (concat (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$p) (i64.const 32))))
+                                   (local.set '$ptr (i32.wrap_i64 (i64.and (local.get '$p) (i64.const -8))))
+              ))
+              (ensure_not_op_n_params_set_ptr_len (lambda (op n) (concat set_len_ptr
                                                                 (_if '$is_2_params
                                                                     (op (local.get '$len) (i32.const n))
                                                                     (then
@@ -1803,7 +1817,6 @@
                                                                         (unreachable)
                                                                     )
                                                                 )
-                                                                (local.set '$ptr (i32.wrap_i64 (i64.and (local.get '$p) (i64.const -8))))
                                                         )))
               (drop_p_d (concat 
                     (call '$drop (local.get '$p))
@@ -1989,16 +2002,97 @@
                 (call '$drop (local.get '$d))
               ))))
 
-              ((k_concat        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$concat        '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_slice         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice         '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_idx           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$idx           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_len           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$len           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
-                    ; TYPE CHECK
-                    (i64.and (i64.shr_u (local.get '$p) (i64.const 31)) (i64.const -2))
-                    drop_p_d
-              ))))
+              ((k_concat        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$concat  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $size i32) '(local $i i32) '(local $it i64) '(local $new_ptr i32) '(local $inner_ptr i32) '(local $inner_size i32) '(local $new_ptr_traverse i32)
+                set_len_ptr
+                (local.set '$size (i32.const 0))
+                (local.set '$i (i32.const 0))
+                (block '$b
+                    (_loop '$l
+                        (br_if '$b (i32.eq (local.get '$len) (local.get '$i)))
+                        (local.set '$it (i64.load (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$ptr))))
+                        (_if '$not_array (i64.ne (i64.const #b101) (i64.and (i64.const #b111) (local.get '$it)))
+                            (then (unreachable))
+                        )
+                        (local.set '$size (i32.add (local.get '$size) (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 32)))))
+                        (local.set '$i    (i32.add (local.get '$i)    (i32.const 1)))
+                        (br '$l)
+                    )
+                )
+                (_if '$size_0 '(result i64)
+                    (i32.eq (i32.const 0) (local.get '$size))
+                    (then (i64.const nil_val))
+                    (else
+                        (local.set '$new_ptr  (call '$malloc (i32.shl (local.get '$size) (i32.const 3)))) ; malloc(size*8)
+                        (local.set '$new_ptr_traverse (local.get '$new_ptr))
 
-              ((k_array         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array         '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+                        (local.set '$i (i32.const 0))
+                        (block '$exit_outer_loop
+                            (_loop '$outer_loop
+                                (br_if '$exit_outer_loop (i32.eq (local.get '$len) (local.get '$i)))
+                                (local.set '$it (i64.load (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$ptr))))
+                                ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                ; There's some serious optimization we could do here
+                                ; Moving the items from the sub arrays to this one without
+                                ; going through all the dup/drop
+                                ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+                                (local.set '$inner_ptr  (i32.wrap_i64 (i64.and   (local.get '$it) (i64.const -8))))
+                                (local.set '$inner_size (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 32))))
+
+                                (block '$exit_inner_loop
+                                    (_loop '$inner_loop
+                                        (br_if '$exit_inner_loop (i32.eqz (local.get '$inner_size)))
+                                        (i64.store (local.get '$new_ptr_traverse)
+                                                   (call '$dup (i64.load (local.get '$inner_ptr))))
+                                        (local.set '$inner_ptr           (i32.add (local.get '$inner_ptr)          (i32.const 8)))
+                                        (local.set '$new_ptr_traverse    (i32.add (local.get '$new_ptr_traverse)   (i32.const 8)))
+                                        (local.set '$inner_size          (i32.sub (local.get '$inner_size)         (i32.const 1)))
+                                        (br '$inner_loop)
+                                    )
+                                )
+                                (local.set '$i (i32.add (local.get '$i) (i32.const 1)))
+                                (br '$outer_loop)
+                            )
+                        )
+
+                        (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr)) (i64.const #x5))
+                                (i64.shl (i64.extend_i32_u (local.get '$size))    (i64.const 32)))
+                    )
+                )
+                drop_p_d
+              ))))
+              ((k_slice         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+                (ensure_not_op_n_params_set_ptr_len i32.ne 3)
+                (type_assert 0 type_array)
+                (type_assert 1 type_int)
+                (type_assert 2 type_int)
+                (call '$slice_impl (i64.load  0 (local.get '$ptr))
+                                   (i32.wrap_i64 (i64.shr_s (i64.load  8 (local.get '$ptr)) (i64.const 1)))
+                                   (i32.wrap_i64 (i64.shr_s (i64.load 16 (local.get '$ptr)) (i64.const 1))))
+                (call '$drop (local.get '$d))
+              ))))
+              ((k_idx           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$idx     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $array i64) '(local $idx i32) '(local $size i32)
+                (ensure_not_op_n_params_set_ptr_len i32.ne 2)
+                (type_assert 0 type_array)
+                (type_assert 1 type_int)
+                (local.set '$array (i64.load 0 (local.get '$ptr)))
+                (local.set '$idx  (i32.wrap_i64 (i64.shr_s (i64.load 8 (local.get '$ptr)) (i64.const 1))))
+                (local.set '$size (i32.wrap_i64 (i64.shr_u (local.get '$array) (i64.const 32))))
+
+                (_if '$i_lt_0     (i32.lt_s (local.get '$idx) (i32.const 0))      (then (unreachable)))
+                (_if '$i_ge_s     (i32.ge_s (local.get '$idx) (local.get '$size)) (then (unreachable)))
+
+                (call '$dup (i64.load (i32.add (i32.wrap_i64 (i64.and (local.get '$array) (i64.const -8)))
+                                               (i32.shl (local.get '$idx) (i32.const 3)))))
+                drop_p_d
+              ))))
+              ((k_len           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$len     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+                (ensure_not_op_n_params_set_ptr_len i32.ne 1)
+                (type_assert 0 type_array)
+                (i64.and (i64.shr_u (i64.load 0 (local.get '$ptr)) (i64.const 31)) (i64.const -2))
+                drop_p_d
+              ))))
+              ((k_array         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (local.get '$p)
                 (call '$drop (local.get '$d))
                 ; s is 0
@@ -2032,7 +2126,7 @@
                                                                            ) (array result datasi funcs memo))))
                                               (true                      (error (str "can't compile non-val symbols " c " as val")))))
                     ((marked_array? c) (if (.marked_array_is_val c) (or (get_passthrough (.hash c) datasi funcs memo) (let ((actual_len (len (.marked_array_values c))))
-                                                                         (if (= 0 actual_len) (array nil_array_value datasi funcs memo)
+                                                                         (if (= 0 actual_len) (array nil_val datasi funcs memo)
                                                                             (dlet (((comp_values datasi funcs memo) (foldr (dlambda (x (a datasi funcs memo)) (dlet (((v datasi funcs memo) (recurse-value datasi funcs memo x)))
                                                                                                                                       (array (cons v a) datasi funcs memo))) (array (array) datasi funcs memo) (.marked_array_values c)))
                                                                                    ((c_loc c_len datasi) (alloc_data (apply concat (map i64_le_hexify comp_values)) datasi))
@@ -2047,14 +2141,14 @@
                                                                                                       (array (cons kv ka) (cons vv va) datasi funcs memo))) (array (array) (array) datasi funcs memo) (slice e 0 -2)))
                                             (u (idx e -1))
                                             ;(_ (print "comp values are " kvs " and " vvs))
-                                            ((kvs_array datasi) (if (= 0 (len kvs)) (array nil_array_value datasi)
+                                            ((kvs_array datasi) (if (= 0 (len kvs)) (array nil_val datasi)
                                                                                     (dlet (((kvs_loc kvs_len datasi) (alloc_data (apply concat (map i64_le_hexify kvs)) datasi)))
                                                                                           (array (bor (<< (len kvs) 32) kvs_loc #b101) datasi))))
-                                            ((vvs_array datasi) (if (= 0 (len vvs)) (array nil_array_value datasi)
+                                            ((vvs_array datasi) (if (= 0 (len vvs)) (array nil_val datasi)
                                                                                     (dlet (((vvs_loc vvs_len datasi) (alloc_data (apply concat (map i64_le_hexify vvs)) datasi)))
                                                                                           (array (bor (<< (len vvs) 32) vvs_loc #b101) datasi))))
                                             ((uv datasi funcs memo) (mif u (recurse-value datasi funcs memo (idx e -1))
-                                                                           (array nil_array_value datasi funcs memo)))
+                                                                           (array nil_val datasi funcs memo)))
                                             (all_hex (map i64_le_hexify (array kvs_array vvs_array uv)))
                                             ;(_ (print "all_hex " all_hex))
                                             ((c_loc c_len datasi) (alloc_data (apply concat all_hex) datasi))
@@ -2065,7 +2159,7 @@
                                           ((= 'cond           (.prim_comb_sym c))  (array (bor (<< (- k_cond dyn_start)          35) (<< 0 4) #b0001) datasi funcs memo))
                                           ((= 'or             (.prim_comb_sym c))  (array (bor (<< (- k_or dyn_start)            35) (<< 0 4) #b0001) datasi funcs memo))
                                           ((= 'and            (.prim_comb_sym c))  (array (bor (<< (- k_and dyn_start)           35) (<< 0 4) #b0001) datasi funcs memo))
-                                          ((= 'len            (.prim_comb_sym c))  (array (bor (<< (- dyn_start dyn_start)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'len            (.prim_comb_sym c))  (array (bor (<< (- k_len dyn_start)           35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'read-string    (.prim_comb_sym c))  (array (bor (<< (- k_read-string dyn_start)   35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'log            (.prim_comb_sym c))  (array (bor (<< (- k_log dyn_start)           35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'error          (.prim_comb_sym c))  (array (bor (<< (- k_error dyn_start)         35) (<< 1 4) #b0001) datasi funcs memo))
@@ -2692,7 +2786,12 @@
             ;;;; Doesn't work because Scheme thinks | is special sigh
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (| 1337 written)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (<< 1337 written)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (>> 1337 written)))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (>> 1337 written)))"))))
+
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice args 1 -1)))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (len args)))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (idx args 0)))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice (concat args (array 1 2 3 4) args) 1 -2)))"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array (nil? written) (array? written) (bool? written) (env? written) (combiner? written) (string? written) (int? written) (symbol? written))))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau de (written code) (array (nil? (cond written (array) true 4)) (array? (cond written (array 1 2) true 4)) (bool? (= 3 written)) (env? de) (combiner? (cond written (vau () 1) true 43)) (string? (cond written \"a\" 3 3)) (int? (cond written \"a\" 3 3)) (symbol? (cond written ((vau (x) x) x) 3 3)) written)))"))))
