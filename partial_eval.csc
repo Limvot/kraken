@@ -1267,7 +1267,7 @@
               (datasi (array (+ iov_tmp 16) (array)))
               ((true_loc true_length datasi) (alloc_data "true" datasi))
               ((false_loc false_length datasi) (alloc_data "false" datasi))
-              ((bad_params_loc bad_params_length datasi) (alloc_data "\nError: passed a bad number of parameters\n" datasi))
+              ((bad_params_loc bad_params_length datasi) (alloc_data "\nError: passed a bad number (or type) of parameters\n" datasi))
               (bad_params_msg_val (bor (<< bad_params_length 32) bad_params_loc #b011))
               ((error_loc error_length datasi) (alloc_data "\nError: " datasi))
               (error_msg_val (bor (<< error_length 32) error_loc #b011))
@@ -1872,23 +1872,34 @@
                 (unreachable)
               ))))
 
-              (typecheck (dlambda (idx result_type (mask value) then_branch else_branch)
-                (_if '$matches result_type
-                    (i64.eq (i64.const value) (i64.and (i64.const mask) (i64.load (* 8 idx) (local.get '$ptr))))
+              (typecheck (dlambda (idx result_type op (mask value) then_branch else_branch)
+                (apply _if (concat (array '$matches) result_type
+                    (array (op (i64.const value) (i64.and (i64.const mask) (i64.load (* 8 idx) (local.get '$ptr)))))
                     then_branch
                     else_branch
-                )
+                ))
               ))
 
               (pred_func    (lambda (name type_check) (func name '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
-                (typecheck 0 '(result i64)
-                    type_check
-                    (then (i64.const true_val))
-                    (else (i64.const false_val))
+                (typecheck 0 (array '(result i64))
+                    i64.eq type_check
+                    (array (then (i64.const true_val)))
+                    (array (else (i64.const false_val)))
                 )
                 drop_p_d
               )))
+
+              (type_assert (lambda (i type_check)
+                (typecheck i (array)
+                    i64.ne type_check
+                    (array (then
+                        (call '$print (i64.const bad_params_msg_val))
+                        (unreachable)
+                    ))
+                    nil
+                )
+              ))
 
               (type_int      (array #b1      #b0))
               (type_string   (array #b111    #b011))
@@ -1963,8 +1974,20 @@
               ((k_band          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$band false i64.and))))
               ((k_bor           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$bor  false i64.or))))
 
-              ((k_ls            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$ls            '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_rs            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$rs            '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
+              ((k_ls            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$ls  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+                (ensure_not_op_n_params_set_ptr_len i32.ne 2)
+                (type_assert 0 type_int)
+                (type_assert 1 type_int)
+                (i64.shl (i64.load 0 (local.get '$ptr)) (i64.shr_s (i64.load 8 (local.get '$ptr)) (i64.const 1)))
+                (call '$drop (local.get '$d))
+              ))))
+              ((k_rs            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$rs  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+                (ensure_not_op_n_params_set_ptr_len i32.ne 2)
+                (type_assert 0 type_int)
+                (type_assert 1 type_int)
+                (i64.and (i64.const -2) (i64.shr_s (i64.load 0 (local.get '$ptr)) (i64.shr_s (i64.load 8 (local.get '$ptr)) (i64.const 1))))
+                (call '$drop (local.get '$d))
+              ))))
 
               ((k_concat        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$concat        '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
               ((k_slice         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice         '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
@@ -2668,9 +2691,11 @@
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (& 1337 written)))"))))
             ;;;; Doesn't work because Scheme thinks | is special sigh
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (| 1337 written)))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (<< 1337 written)))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (>> 1337 written)))"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array (nil? written) (array? written) (bool? written) (env? written) (combiner? written) (string? written) (int? written) (symbol? written))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau de (written code) (array (nil? (cond written (array) true 4)) (array? (cond written (array 1 2) true 4)) (bool? (= 3 written)) (env? de) (combiner? (cond written (vau () 1) true 43)) (string? (cond written \"a\" 3 3)) (int? (cond written \"a\" 3 3)) (symbol? (cond written ((vau (x) x) x) 3 3)) written)))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau de (written code) (array (nil? (cond written (array) true 4)) (array? (cond written (array 1 2) true 4)) (bool? (= 3 written)) (env? de) (combiner? (cond written (vau () 1) true 43)) (string? (cond written \"a\" 3 3)) (int? (cond written \"a\" 3 3)) (symbol? (cond written ((vau (x) x) x) 3 3)) written)))"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) args))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) a))"))))
