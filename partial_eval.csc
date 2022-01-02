@@ -567,10 +567,10 @@
         (array 'combiner? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond ((comb? evaled_param)          (marked_val true))
                   ((prim_comb? evaled_param)     (marked_val true))
-                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'combinerp) evaled_param)))
+                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'combiner?) evaled_param)))
                   (true                          (marked_val false))
             )
-        )) 'combinerp))
+        )) 'combiner?))
         (array 'env? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond ((marked_env? evaled_param)    (marked_val true))
                   ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'env?) evaled_param)))
@@ -820,6 +820,16 @@
                 ; memory
                 ((= op 'i32.load)       (concat (array #x28) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
                 ((= op 'i64.load)       (concat (array #x29) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i32.load8_s)    (concat (array #x2C) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i32.load8_u)    (concat (array #x2D) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i32.load16_s)   (concat (array #x2E) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i32.load16_u)   (concat (array #x2F) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i64.load8_s)    (concat (array #x30) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i64.load8_u)    (concat (array #x31) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i64.load16_s)   (concat (array #x32) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i64.load16_u)   (concat (array #x33) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i64.load32_s)   (concat (array #x34) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
+                ((= op 'i64.load32_u)   (concat (array #x35) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
                 ((= op 'i32.store)      (concat (array #x36) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
                 ((= op 'i64.store)      (concat (array #x37) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
                 ((= op 'i32.store8)     (concat (array #x3A) (encode_LEB128 (idx ins 1)) (encode_LEB128 (idx ins 2))))
@@ -1105,6 +1115,17 @@
     (i32.store16    (mem_load 'i32.store16 1))
     (i64.store8     (mem_load 'i64.store8 0))
     (i64.store16    (mem_load 'i64.store16 1))
+
+    (i32.load8_s    (mem_load 'i32.load8_s  0))
+    (i32.load8_u    (mem_load 'i32.load8_u  0))
+    (i32.load16_s   (mem_load 'i32.load16_s 1))
+    (i32.load16_u   (mem_load 'i32.load16_u 1))
+    (i64.load8_s    (mem_load 'i64.load8_s  0))
+    (i64.load8_u    (mem_load 'i64.load8_u  0))
+    (i64.load16_s   (mem_load 'i64.load16_s 1))
+    (i64.load16_u   (mem_load 'i64.load16_u 1))
+    (i64.load32_s   (mem_load 'i64.load32_s 2))
+    (i64.load32_u   (mem_load 'i64.load32_u 2))
 
     (memory.grow    (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'memory.grow))))))
     (i32.shl        (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'i32.shl))))))
@@ -1874,27 +1895,330 @@
               ((k_int?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$int?      type_int))))
               ((k_symbol?       func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$symbol?   type_symbol))))
 
-              ((k_eq            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eq            '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
-                (ensure_not_op_n_params_set_ptr_len i32.lt_u 2)
-                (_if '$eq '(result i64)
-                    ; TODO: BAD BAD BAD this is ptr equality
-                    (i64.eq (i64.load 0 (local.get '$ptr)) (i64.load 8 (local.get '$ptr)))
-                    (then (i64.const true_val))
-                    (else (i64.const false_val))
+              ((k_str_sym_comp func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str_sym_comp '(param $a i64) '(param $b i64) '(param $lt_val i64) '(param $eq_val i64) '(param $gt_val i64) '(result i64) '(local $result i64) '(local $a_len i32) '(local $b_len i32) '(local $a_ptr i32) '(local $b_ptr i32)
+                (local.set '$result (local.get '$eq_val))
+                (local.set '$a_len (i32.wrap_i64 (i64.shr_u (local.get '$a) (i64.const 32))))
+                (local.set '$b_len (i32.wrap_i64 (i64.shr_u (local.get '$b) (i64.const 32))))
+                (local.set '$a_ptr (i32.wrap_i64 (i64.and (local.get '$a) (i64.const #xFFFFFFF8))))
+                (local.set '$b_ptr (i32.wrap_i64 (i64.and (local.get '$b) (i64.const #xFFFFFFF8))))
+                (block '$b
+                    (_if '$a_len_lt_b_len
+                        (i32.lt_s (local.get '$a_len) (local.get '$b_len))
+                        (then (local.set '$result (local.get '$lt_val))
+                              (br '$b)))
+                    (_if '$a_len_gt_b_len
+                        (i32.gt_s (local.get '$a_len) (local.get '$b_len))
+                        (then (local.set '$result (local.get '$gt_val))
+                              (br '$b)))
+
+                    (_loop '$l
+                        (br_if '$b (i32.eqz (local.get '$a_len)))
+
+                        (local.set '$a (i64.load8_u (local.get '$a_ptr)))
+                        (local.set '$b (i64.load8_u (local.get '$b_ptr)))
+
+                        (_if '$a_lt_b
+                            (i64.lt_s (local.get '$a) (local.get '$b))
+                            (then (local.set '$result (local.get '$lt_val))
+                                  (br '$b)))
+                        (_if '$a_gt_b
+                            (i64.gt_s (local.get '$a) (local.get '$b))
+                            (then (local.set '$result (local.get '$gt_val))
+                                  (br '$b)))
+
+                        (local.set '$a_len (i32.sub (local.get '$a_len) (i32.const 1)))
+                        (local.set '$a_ptr (i32.add (local.get '$a_ptr) (i32.const 1)))
+                        (local.set '$b_ptr (i32.add (local.get '$b_ptr) (i32.const 1)))
+                        (br '$l)
+                    )
                 )
+                (local.get '$result)
+              ))))
+
+              ((k_comp_helper_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$comp_helper_helper '(param $a i64) '(param $b i64) '(param $lt_val i64) '(param $eq_val i64) '(param $gt_val i64) '(result i64) '(local $result i64) '(local $a_tmp i32) '(local $b_tmp i32) '(local $a_ptr i32) '(local $b_ptr i32) '(local $result_tmp i64)
+                (block '$b
+                    ;; INT
+                    (_if '$a_int
+                        (i64.eqz (i64.and (i64.const 1) (local.get '$a)))
+                        (then
+                            (_if '$b_int
+                                (i64.eqz (i64.and (i64.const 1) (local.get '$b)))
+                                (then
+                                    (_if '$a_lt_b
+                                        (i64.lt_s (local.get '$a) (local.get '$b))
+                                        (then (local.set '$result (local.get '$lt_val))
+                                              (br '$b)))
+                                    (_if '$a_gt_b
+                                        (i64.gt_s (local.get '$a) (local.get '$b))
+                                        (then (local.set '$result (local.get '$gt_val))
+                                              (br '$b)))
+                                    (local.set '$result (local.get '$eq_val))
+                                    (br '$b)
+                                )
+                            )
+                            ; Else, b is not an int, so a < b
+                            (local.set '$result (local.get '$lt_val))
+                            (br '$b)
+                        )
+                    )
+                    (_if '$b_int
+                        (i64.eqz (i64.and (i64.const 1) (local.get '$b)))
+                        (then
+                            (local.set '$result (local.get '$gt_val))
+                            (br '$b))
+                    )
+                    ;; STRING
+                    (_if '$a_string
+                        (i64.eq (i64.const #b011) (i64.and (i64.const #b111) (local.get '$a)))
+                        (then
+                            (_if '$b_string
+                                (i64.eq (i64.const #b011) (i64.and (i64.const #b111) (local.get '$b)))
+                                (then
+                                    (local.set '$result (call '$str_sym_comp (local.get '$a) (local.get '$b) (local.get '$lt_val) (local.get '$eq_val) (local.get '$gt_val)))
+                                    (br '$b))
+                            )
+                            ; else b is not an int or string, so bigger
+                            (local.set '$result (local.get '$lt_val))
+                            (br '$b)
+                        )
+                    )
+                    (_if '$b_string
+                        (i64.eq (i64.const #b011) (i64.and (i64.const #b111) (local.get '$b)))
+                        (then
+                            (local.set '$result (local.get '$gt_val))
+                            (br '$b))
+                    )
+                    ;; SYMBOL
+                    (_if '$a_symbol
+                        (i64.eq (i64.const #b111) (i64.and (i64.const #b111) (local.get '$a)))
+                        (then
+                            (_if '$b_symbol
+                                (i64.eq (i64.const #b111) (i64.and (i64.const #b111) (local.get '$b)))
+                                (then
+                                    (local.set '$result (call '$str_sym_comp (local.get '$a) (local.get '$b) (local.get '$lt_val) (local.get '$eq_val) (local.get '$gt_val)))
+                                    (br '$b))
+                            )
+                            ; else b is not an int or string or symbol, so bigger
+                            (local.set '$result (local.get '$lt_val))
+                            (br '$b)
+                        )
+                    )
+                    (_if '$b_symbol
+                        (i64.eq (i64.const #b111) (i64.and (i64.const #b111) (local.get '$b)))
+                        (then
+                            (local.set '$result (local.get '$gt_val))
+                            (br '$b))
+                    )
+                    ;; ARRAY
+                    (_if '$a_array
+                        (i64.eq (i64.const #b101) (i64.and (i64.const #b111) (local.get '$a)))
+                        (then
+                            (_if '$b_array
+                                (i64.eq (i64.const #b101) (i64.and (i64.const #b111) (local.get '$b)))
+                                (then
+                                    (local.set '$a_tmp (i32.wrap_i64 (i64.shr_u (local.get '$a) (i64.const 32))))
+                                    (local.set '$b_tmp (i32.wrap_i64 (i64.shr_u (local.get '$b) (i64.const 32))))
+
+                                    (_if '$a_len_lt_b_len
+                                        (i32.lt_s (local.get '$a_tmp) (local.get '$b_tmp))
+                                        (then (local.set '$result (local.get '$lt_val))
+                                              (br '$b)))
+                                    (_if '$a_len_gt_b_len
+                                        (i32.gt_s (local.get '$a_tmp) (local.get '$b_tmp))
+                                        (then (local.set '$result (local.get '$gt_val))
+                                              (br '$b)))
+
+                                    (local.set '$a_ptr (i32.wrap_i64 (i64.and (local.get '$a) (i64.const #xFFFFFFF8))))
+                                    (local.set '$b_ptr (i32.wrap_i64 (i64.and (local.get '$b) (i64.const #xFFFFFFF8))))
+
+                                    (_loop '$l
+                                        (br_if '$b (i32.eqz (local.get '$a_tmp)))
+
+                                        (local.set '$result_tmp (call '$comp_helper_helper (i64.load (local.get '$a_ptr))
+                                                                                           (i64.load (local.get '$b_ptr))
+                                                                                           (i64.const -1) (i64.const 0) (i64.const 1)))
+
+                                        (_if '$a_lt_b
+                                            (i64.eq (local.get '$result_tmp) (i64.const -1))
+                                            (then (local.set '$result (local.get '$lt_val))
+                                                  (br '$b)))
+                                        (_if '$a_gt_b
+                                            (i64.eq (local.get '$result_tmp) (i64.const 1))
+                                            (then (local.set '$result (local.get '$gt_val))
+                                                  (br '$b)))
+
+                                        (local.set '$a_tmp (i32.sub (local.get '$a_tmp) (i32.const 1)))
+                                        (local.set '$a_ptr (i32.add (local.get '$a_ptr) (i32.const 8)))
+                                        (local.set '$b_ptr (i32.add (local.get '$b_ptr) (i32.const 8)))
+                                        (br '$l)
+                                    )
+                                    (br '$b))
+                            )
+                            ; else b is not an int or string or symbol or array, so bigger
+                            (local.set '$result (local.get '$lt_val))
+                            (br '$b)
+                        )
+                    )
+                    (_if '$b_array
+                        (i64.eq (i64.const #b111) (i64.and (i64.const #b111) (local.get '$b)))
+                        (then
+                            (local.set '$result (local.get '$gt_val))
+                            (br '$b))
+                    )
+                    ;; COMBINER
+                    (_if '$a_comb
+                        (i64.eq (i64.const #b0001) (i64.and (i64.const #b1111) (local.get '$a)))
+                        (then
+                            (_if '$b_comb
+                                (i64.eq (i64.const #b0001) (i64.and (i64.const #b1111) (local.get '$b)))
+                                (then
+                                    ; compare func indicies first
+                                    (local.set '$a_tmp (i32.wrap_i64 (i64.shr_u (local.get '$a) (i64.const 35))))
+                                    (local.set '$b_tmp (i32.wrap_i64 (i64.shr_u (local.get '$b) (i64.const 35))))
+                                    (_if '$a_tmp_lt_b_tmp
+                                        (i32.lt_s (local.get '$a_tmp) (local.get '$b_tmp))
+                                        (then
+                                            (local.set '$result (local.get '$lt_val))
+                                            (br '$b))
+                                    )
+                                    (_if '$a_tmp_eq_b_tmp
+                                        (i32.gt_s (local.get '$a_tmp) (local.get '$b_tmp))
+                                        (then
+                                            (local.set '$result (local.get '$gt_val))
+                                            (br '$b))
+                                    )
+                                    ; Idx was the same, so recursively comp envs
+                                    (local.set '$result (call '$comp_helper_helper (i64.or (i64.shl (i64.extend_i32_u (local.get '$a_tmp)) (i64.const 5)) (i64.const #b01001))
+                                                                                   (i64.or (i64.shl (i64.extend_i32_u (local.get '$b_tmp)) (i64.const 5)) (i64.const #b01001))
+                                                                                   (local.get '$lt_val) (local.get '$eq_val) (local.get '$gt_val)))
+                                    (br '$b))
+                            )
+                            ; else b is not an int or string or symbol or array or combiner, so bigger
+                            (local.set '$result (local.get '$lt_val))
+                            (br '$b)
+                        )
+                    )
+                    (_if '$b_comb
+                        (i64.eq (i64.const #b0001) (i64.and (i64.const #b1111) (local.get '$b)))
+                        (then
+                            (local.set '$result (local.get '$gt_val))
+                            (br '$b))
+                    )
+                    ;; ENV
+                    (_if '$a_env
+                        (i64.eq (i64.const #b01001) (i64.and (i64.const #b11111) (local.get '$a)))
+                        (then
+                            (_if '$b_comb
+                                (i64.eq (i64.const #b01001) (i64.and (i64.const #b11111) (local.get '$b)))
+                                (then
+                                    (local.set '$a_ptr (i32.wrap_i64 (i64.shr_u (local.get '$a) (i64.const 5))))
+                                    (local.set '$b_ptr (i32.wrap_i64 (i64.shr_u (local.get '$b) (i64.const 5))))
+
+                                    ; First, compare their symbol arrays
+                                    (local.set '$result_tmp (call '$comp_helper_helper (i64.load 0 (local.get '$a_ptr))
+                                                                                       (i64.load 0 (local.get '$b_ptr))
+                                                                                       (i64.const -1) (i64.const 0) (i64.const 1)))
+                                    (_if '$a_lt_b
+                                        (i64.eq (local.get '$result_tmp) (i64.const -1))
+                                        (then (local.set '$result (local.get '$lt_val))
+                                              (br '$b)))
+                                    (_if '$a_gt_b
+                                        (i64.eq (local.get '$result_tmp) (i64.const 1))
+                                        (then (local.set '$result (local.get '$gt_val))
+                                              (br '$b)))
+
+                                    ; Second, compare their value arrays
+                                    (local.set '$result_tmp (call '$comp_helper_helper (i64.load 8 (local.get '$a_ptr))
+                                                                                       (i64.load 8 (local.get '$b_ptr))
+                                                                                       (i64.const -1) (i64.const 0) (i64.const 1)))
+                                    (_if '$a_lt_b
+                                        (i64.eq (local.get '$result_tmp) (i64.const -1))
+                                        (then (local.set '$result (local.get '$lt_val))
+                                              (br '$b)))
+                                    (_if '$a_gt_b
+                                        (i64.eq (local.get '$result_tmp) (i64.const 1))
+                                        (then (local.set '$result (local.get '$gt_val))
+                                              (br '$b)))
+
+                                    ; Finally, just accept the result of recursion
+                                    (local.set '$result (call '$comp_helper_helper (i64.load 16 (local.get '$a_ptr))
+                                                                                   (i64.load 16 (local.get '$b_ptr))
+                                                                                   (local.get '$lt_val) (local.get '$eq_val) (local.get '$gt_val)))
+
+                                    (br '$b))
+                            )
+                            ; else b is bool, so bigger
+                            (local.set '$result (local.get '$lt_val))
+                            (br '$b)
+                        )
+                    )
+                    (_if '$b_env
+                        (i64.eq (i64.const #b01001) (i64.and (i64.const #b11111) (local.get '$b)))
+                        (then
+                            (local.set '$result (local.get '$gt_val))
+                            (br '$b))
+                    )
+                    ;; BOOL hehe
+                    (_if '$a_lt_b
+                        (i64.lt_s (local.get '$a) (local.get '$b))
+                        (then
+                            (local.set '$result (local.get '$lt_val))
+                            (br '$b))
+                    )
+                    (_if '$a_eq_b
+                        (i64.eq (local.get '$a) (local.get '$b))
+                        (then
+                            (local.set '$result (local.get '$eq_val))
+                            (br '$b))
+                    )
+                    (local.set '$result (local.get '$gt_val))
+                    (br '$b)
+                )
+                (local.get '$result)
+              ))))
+
+              ((k_comp_helper   func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$comp_helper '(param $p i64) '(param $d i64) '(param $s i64) '(param $lt_val i64) '(param $eq_val i64) '(param $gt_val i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $result i64) '(local $a i64) '(local $b i64)
+                set_len_ptr
+                (local.set '$result (i64.const true_val))
+                (block '$b
+                    (_loop '$l
+                        (br_if '$b (i32.le_u (local.get '$len) (i32.const 1)))
+                        (local.set '$a (i64.load (local.get '$ptr)))
+                        (local.set '$ptr (i32.add (local.get '$ptr) (i32.const 8)))
+                        (local.set '$b (i64.load (local.get '$ptr)))
+                        (_if '$was_false
+                            (i64.eq (i64.const false_val) (call '$comp_helper_helper (local.get '$a) (local.get '$b) (local.get '$lt_val) (local.get '$eq_val) (local.get '$gt_val)))
+                            (then
+                                (local.set '$result (i64.const false_val))
+                                (br '$b)
+                            )
+                        )
+                        (local.set '$len (i32.sub (local.get '$len) (i32.const 1)))
+                        (br '$l)
+                    )
+                )
+                (local.get '$result)
                 drop_p_d
               ))))
-              ((k_neq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$neq           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
-                (_if '$neq '(result i64)
-                    (i64.eq (i64.const true_val) (call '$eq (local.get '$p) (local.get '$d) (local.get '$s)))
-                    (then (i64.const false_val))
-                    (else (i64.const true_val))
-                )
+
+              ((k_eq            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eq  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+                (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const false_val)  (i64.const true_val)  (i64.const false_val))
               ))))
-              ((k_geq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$geq           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_gt            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$gt            '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_leq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$leq           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
-              ((k_lt            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$lt            '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
+              ((k_neq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$neq '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+                (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const true_val)   (i64.const false_val) (i64.const true_val))
+              ))))
+              ((k_geq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$geq '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+                (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const false_val)  (i64.const true_val)  (i64.const true_val))
+              ))))
+              ((k_gt            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$gt  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+                (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const false_val)  (i64.const false_val) (i64.const true_val))
+              ))))
+              ((k_leq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$leq '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+                (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const true_val)   (i64.const true_val)  (i64.const false_val))
+              ))))
+              ((k_lt            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$lt  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+                (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const true_val)   (i64.const false_val) (i64.const false_val))
+              ))))
 
               (math_function (lambda (name sensitive op)
                 (func name           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $i i32) '(local $cur i64) '(local $next i64)
@@ -2143,7 +2467,7 @@
                                            ) (array result datasi funcs memo))))
                     ((prim_comb? c) (cond ((= 'vau            (.prim_comb_sym c))  (array (bor (<< (- k_vau dyn_start)           35) (<< 0 4) #b0001) datasi funcs memo))
                                           ((= 'cond           (.prim_comb_sym c))  (array (bor (<< (- k_cond dyn_start)          35) (<< 0 4) #b0001) datasi funcs memo))
-                                          ((= 'len            (.prim_comb_sym c))  (array (bor (<< (- k_len dyn_start)           35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'eval           (.prim_comb_sym c))  (array (bor (<< (- k_eval dyn_start)          35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'read-string    (.prim_comb_sym c))  (array (bor (<< (- k_read-string dyn_start)   35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'log            (.prim_comb_sym c))  (array (bor (<< (- k_log dyn_start)           35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'error          (.prim_comb_sym c))  (array (bor (<< (- k_error dyn_start)         35) (<< 1 4) #b0001) datasi funcs memo))
@@ -2165,21 +2489,21 @@
                                           ((= 'bnot           (.prim_comb_sym c))  (array (bor (<< (- k_bnot dyn_start)          35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= '<<             (.prim_comb_sym c))  (array (bor (<< (- k_ls dyn_start)            35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= '>>             (.prim_comb_sym c))  (array (bor (<< (- k_rs dyn_start)            35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'array          (.prim_comb_sym c))  (array (bor (<< (- k_array dyn_start)         35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'concat         (.prim_comb_sym c))  (array (bor (<< (- k_concat dyn_start)        35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'slice          (.prim_comb_sym c))  (array (bor (<< (- k_slice dyn_start)         35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'idx            (.prim_comb_sym c))  (array (bor (<< (- k_idx dyn_start)           35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'array          (.prim_comb_sym c))  (array (bor (<< (- k_array dyn_start)         35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'len            (.prim_comb_sym c))  (array (bor (<< (- k_len dyn_start)           35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'array?         (.prim_comb_sym c))  (array (bor (<< (- k_array? dyn_start)        35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'get-text       (.prim_comb_sym c))  (array (bor (<< (- k_get-text dyn_start)      35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'str-to-symbol  (.prim_comb_sym c))  (array (bor (<< (- k_str-to-symbol dyn_start) 35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'bool?          (.prim_comb_sym c))  (array (bor (<< (- k_bool? dyn_start)         35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'nil?           (.prim_comb_sym c))  (array (bor (<< (- k_nil? dyn_start)          35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'env?           (.prim_comb_sym c))  (array (bor (<< (- k_env? dyn_start)          35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'combinerp      (.prim_comb_sym c))  (array (bor (<< (- k_combiner? dyn_start)     35) (<< 1 4) #b0001) datasi funcs memo))
+                                          ((= 'combiner?      (.prim_comb_sym c))  (array (bor (<< (- k_combiner? dyn_start)     35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'string?        (.prim_comb_sym c))  (array (bor (<< (- k_string? dyn_start)       35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'int?           (.prim_comb_sym c))  (array (bor (<< (- k_int? dyn_start)          35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'symbol?        (.prim_comb_sym c))  (array (bor (<< (- k_symbol? dyn_start)       35) (<< 1 4) #b0001) datasi funcs memo))
-                                          ((= 'eval           (.prim_comb_sym c))  (array (bor (<< (- k_eval dyn_start)          35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'unwrap         (.prim_comb_sym c))  (array (bor (<< (- k_unwrap dyn_start)        35) (<< 1 4) #b0001) datasi funcs memo))
                                           ((= 'wrap           (.prim_comb_sym c))  (array (bor (<< (- k_wrap dyn_start)          35) (<< 1 4) #b0001) datasi funcs memo))
                                           (true                                  (error (str "Can't compile prim comb " (.prim_comb_sym c) " right now")))))
@@ -2771,9 +3095,11 @@
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (band 1337 written)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (bor 1337 written)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (bnot written)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (bxor 1337 written)))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (bxor 1337 written)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (<< 1337 written)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (>> 1337 written)))"))))
+
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (>= 1337 written)))"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice args 1 -1)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (len args)))"))))
