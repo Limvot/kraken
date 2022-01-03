@@ -79,6 +79,14 @@
                      )
                      `(let ((,v ,cond)) (if (and (not (equal? (array) ,v)) ,v) ,then ,else))))))
 
+; Adapted from https://stackoverflow.com/questions/16335454/reading-from-file-using-scheme WTH
+(define (slurp path)
+ (list->string (call-with-input-file path
+    (lambda (input-port)
+         (let loop ((x (read-char input-port)))
+                (cond
+                        ((eof-object? x) '())
+                                (#t (begin (cons x (loop (read-char input-port)))))))))))
 
 (let* (
        (= equal?)
@@ -1243,6 +1251,9 @@
     (i32_le_hexify (lambda (x) (le_hexify_helper x 4)))
 
     (compile (lambda (marked_code) (wasm_to_binary (module
+          (import "wasi_unstable" "path_open"
+                  '(func $path_open  (param i32 i32 i32 i32 i32 i64 i64 i32 i32)
+                                     (result i32)))
           (import "wasi_unstable" "fd_read"
                   '(func $fd_read  (param i32 i32 i32 i32)
                                    (result i32)))
@@ -1290,8 +1301,10 @@
               ((parse_remaining_loc              parse_remaining_length datasi) (alloc_data "\nLeft over after parsing, starting at byte offset:\n" datasi))
               ( parse_remaining_msg_val (bor (<< parse_remaining_length 32) parse_remaining_loc #b011))
 
-              ; 0 is fd_read, 1 is fd_write
-              ((func_idx funcs) (array 2 (array)))
+              ; 0 is path_open, 1 is fd_read, 2 is fd_write
+              ;(num_pre_functions 2)
+              (num_pre_functions 3)
+              ((func_idx funcs) (array num_pre_functions (array)))
 
               ; malloc allocates with size and refcount in header
               ((k_malloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$malloc '(param $bytes i32) '(result i32) '(local $result i32) '(local $ptr i32) '(local $last i32) '(local $pages i32)
@@ -2878,7 +2891,7 @@
                                                 (concat setup_code inner_code end_code)
                                               ))
                                     (funcs (concat funcs our_func))
-                                    (our_func_idx (- (len funcs) dyn_start -1))
+                                    (our_func_idx (+ (- (len funcs) dyn_start) (- num_pre_functions 1)))
                                     ; also insert env here
                                     (result (bor (<< our_func_idx 35) located_env_ptr (<< wrap_level 4) #b0001))
                                     (memo (put memo (.hash c) result))
@@ -2891,7 +2904,8 @@
               ((exit_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'exit)))
               ((read_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'read)))
               ((write_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'write)))
-              ((monad_error_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Not a legal monad ( ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['exit exit_code])")))
+              ((open_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'open)))
+              ((monad_error_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Not a legal monad ( ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])")))
               ((bad_read_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "<error with read>")))
               ((exit_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Exiting with code:")))
               ((root_marked_env_val datasi funcs memo) (compile_value datasi funcs memo root_marked_env))
@@ -2899,8 +2913,11 @@
               ;(_ (println "compiled it to  " compiled_value_ptr))
               ; Ok, so the outer loop handles the IO monads
                 ; ('exit        code)
-                ; ('read        fd   len       <cont (data/error?)>)
-                ; ('write       fd   "data"    <cont (num_written/error?)>)
+                ; ('read        fd   len       <cont (data error?)>)
+                ; ('write       fd   "data"    <cont (num_written error?)>)
+                ; ('open        fd   path      <cont (opened_fd error?)>)
+                ; Could add some to open like lookup flags, o flags, base rights
+                ;                             ineriting rights, fdflags
 
               (start (func '$start '(local $it i64) '(local $tmp i64) '(local $ptr i32) '(local $monad_name i64) '(local $len i32) '(local $buf i32) '(local $code i32) '(local $str i64) '(local $result i64)
                     (local.set '$it (i64.const compiled_value_ptr))
@@ -2995,7 +3012,7 @@
                                         ;  <string_size32><string_ptr29>011
                                         (local.set '$str (i64.load 16 (local.get '$ptr)))
 
-                                        ; iov <32bit len><32bit addr> + <32bit num written>
+                                        ; iov <32bit addr><32bit len> + <32bit num written>
                                         (i32.store 0 (i32.const iov_tmp) (i32.wrap_i64 (i64.and   (local.get '$str) (i64.const #xFFFFFFF8))))
                                         (i32.store 4 (i32.const iov_tmp) (i32.wrap_i64 (i64.shr_u (local.get '$str) (i64.const 32))))
                                         (local.set '$code (call '$fd_write
@@ -3006,6 +3023,51 @@
                                         ))
                                         (local.set '$result (call '$array2_alloc (i64.shl (i64.extend_i32_u (i32.load (i32.const (+ 8 iov_tmp)))) (i64.const 1))
                                                                                  (i64.shl (i64.extend_i32_u (local.get '$code))                   (i64.const 1))))
+
+                                        (local.set '$tmp (call '$dup (i64.load 24 (local.get '$ptr))))
+                                        (call '$drop (local.get '$it))
+                                        (local.set '$it (call_indirect
+                                            ;type
+                                            k_vau
+                                            ;table
+                                            0
+                                            ;params
+                                            (local.get '$result)
+                                            ;top_env
+                                            (i64.const root_marked_env_val)
+                                            ; static env
+                                            (i64.or (i64.shl (i64.and (local.get '$tmp) (i64.const #x3FFFFFFC0)) (i64.const 2)) (i64.const #b01001))
+                                            ;func_idx
+                                            (i32.wrap_i64 (i64.shr_u (local.get '$tmp) (i64.const 35)))
+                                        ))
+                                        (br '$l)
+                                    )
+                                )
+                                ; ('open        fd   path      <cont (opened_fd error?)>)
+                                (_if '$is_open
+                                    (i64.eq (i64.const open_val) (local.get '$monad_name))
+                                    (then
+                                        ; third entry isn't a string -> out
+                                        (br_if '$error_block (i64.ne (i64.and (i64.load 16 (local.get '$ptr)) (i64.const #b111)) (i64.const #b011)))
+                                        ; fourth entry isn't a comb -> out
+                                        (br_if '$error_block (i64.ne (i64.and (i64.load 24 (local.get '$ptr)) (i64.const #b1111)) (i64.const #b0001)))
+                                        ;  <string_size32><string_ptr29>011
+                                        (local.set '$str (i64.load 16 (local.get '$ptr)))
+
+                                        (local.set'$code (call '$path_open
+                                            (i32.wrap_i64 (i64.shr_u (i64.load 8 (local.get '$ptr)) (i64.const 1))) ;; file descriptor
+                                            (i32.const 0)                                                           ;; lookup flags
+                                            (i32.wrap_i64 (i64.and   (local.get '$str) (i64.const #xFFFFFFF8)))     ;; path string  *
+                                            (i32.wrap_i64 (i64.shr_u (local.get '$str) (i64.const 32)))             ;; path string  len
+                                            (i32.const 1)                                                           ;; o flags
+                                            (i64.const 66)                                                          ;; base rights
+                                            (i64.const 66)                                                          ;; inheriting rights
+                                            (i32.const 0)                                                           ;; fdflags
+                                            (i32.const iov_tmp)                                                     ;; opened fd out ptr
+                                        ))
+
+                                        (local.set '$result (call '$array2_alloc (i64.shl (i64.extend_i32_u (i32.load (i32.const iov_tmp))) (i64.const 1))
+                                                                                 (i64.shl (i64.extend_i32_u (local.get '$code))             (i64.const 1))))
 
                                         (local.set '$tmp (call '$dup (i64.load 24 (local.get '$ptr))))
                                         (call '$drop (local.get '$it))
@@ -3039,7 +3101,7 @@
               (global '$data_end '(mut i32) (i32.const watermark))
               datas funcs start
               (table  '$tab (len funcs) 'funcref)
-              (apply elem (cons (i32.const 0) (range dyn_start (+ 2 (len funcs)))))
+              (apply elem (cons (i32.const 0) (range dyn_start (+ num_pre_functions (len funcs)))))
           ))
           (export "memory" '(memory $mem))
           (export "_start" '(func   $start))
@@ -3314,8 +3376,13 @@
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     true   \" true 3))))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     false\" true 3))))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"(false (true () true) true)\" true 3))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"(false \\\"some string\\\" true)\" true 3))))"))))
-            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"(false \\\"some string true)\" true 3))))"))))
+
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_out\" (vau (fd code) (array ((vau (x) x) write) fd \"waa\" (vau (written code) (array written code)))))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_out\" (vau (fd code) (array ((vau (x) x) read) fd 10 (vau (data code) (array data code)))))"))))
+
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 3 100 (vau (data code) (read-string data)))"))))
+            (_ (print (slurp "./test.txt")))
+
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice args 1 -1)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (len args)))"))))
