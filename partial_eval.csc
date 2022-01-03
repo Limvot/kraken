@@ -2478,6 +2478,47 @@
                     (_if '$at_least1
                         (i32.ge_u (global.get '$phl) (i32.const 1))
                         (then
+                            ; string
+                            (_if '$is_open
+                                (i32.eq (i32.load8_u (global.get '$phs)) (i32.const #x22))
+                                (then
+                                    (global.set '$phs (i32.add (global.get '$phs) (i32.const 1)))
+                                    (global.set '$phl (i32.sub (global.get '$phl) (i32.const 1)))
+                                    (local.set '$asiz (i32.const 0))
+                                    (local.set '$bptr (global.get '$phs))
+                                    (_loop '$il
+                                        (_if '$doesnt_have_next
+                                            (i32.eqz (global.get '$phl))
+                                            (then
+                                                (local.set '$result (i64.const empty_parse_value))
+                                                (br '$b1)
+                                            )
+                                        )
+                                        (_if '$is_end
+                                            (i32.eq (i32.load8_u (global.get '$phs)) (i32.const #x22))
+                                            (then
+                                                (local.set '$aptr (call '$malloc (local.get '$asiz)))
+                                                (memory.copy (local.get '$aptr)
+                                                             (local.get '$bptr)
+                                                             (local.get '$asiz))
+                                                (local.set '$result (i64.or (i64.or  (i64.extend_i32_u (local.get '$aptr)) (i64.const #x3))
+                                                                            (i64.shl (i64.extend_i32_u (local.get '$asiz)) (i64.const 32))))
+                                                (global.set '$phs  (i32.add (global.get '$phs)  (i32.const 1)))
+                                                (global.set '$phl  (i32.sub (global.get '$phl)  (i32.const 1)))
+                                                (br '$b1)
+                                            )
+                                        )
+                                        (global.set '$phs  (i32.add (global.get '$phs)  (i32.const 1)))
+                                        (global.set '$phl  (i32.sub (global.get '$phl)  (i32.const 1)))
+                                        (local.set '$asiz (i32.add (local.get '$asiz) (i32.const 1)))
+                                        (br '$il)
+                                    )
+                                )
+                            )
+                            ; symbol
+                            ; int
+                            ; '
+                            ; []?
                             (_if '$is_open
                                 (i32.eq (i32.load8_u (global.get '$phs)) (i32.const #x28))
                                 (then
@@ -3272,7 +3313,9 @@
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     true\" true 3))))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     true   \" true 3))))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     false\" true 3))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"(false (true () true) true)\" true 3))))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"(false (true () true) true)\" true 3))))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"(false \\\"some string\\\" true)\" true 3))))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"(false \\\"some string true)\" true 3))))"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice args 1 -1)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (len args)))"))))
