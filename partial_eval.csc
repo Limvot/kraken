@@ -1251,6 +1251,8 @@
                                    (result i32)))
           (memory '$mem 1)
           (global '$malloc_head  '(mut i32) (i32.const 0))
+          (global '$phs          '(mut i32) (i32.const 0))
+          (global '$phl          '(mut i32) (i32.const 0))
           (dlet (
               (nil_val        #b0101)
               (true_val  #b000111001)
@@ -1280,6 +1282,13 @@
               (newline_msg_val (bor (<< newline_length 32) newline_loc #b011))
               ((remaining_vau_loc remaining_vau_length datasi) (alloc_data "\nError: trying to call a remainin vau\n" datasi))
               (remaining_vau_msg_val (bor (<< remaining_vau_length 32) remaining_vau_loc #b011))
+
+              ((couldnt_parse_1_loc              couldnt_parse_1_length datasi) (alloc_data "\nError: Couldn't parse:\n" datasi))
+              ( couldnt_parse_1_msg_val (bor (<< couldnt_parse_1_length 32) couldnt_parse_1_loc #b011))
+              ((couldnt_parse_2_loc              couldnt_parse_2_length datasi) (alloc_data "\nAt byte offset:\n" datasi))
+              ( couldnt_parse_2_msg_val (bor (<< couldnt_parse_2_length 32) couldnt_parse_2_loc #b011))
+              ((parse_remaining_loc              parse_remaining_length datasi) (alloc_data "\nLeft over after parsing, starting at byte offset:\n" datasi))
+              ( parse_remaining_msg_val (bor (<< parse_remaining_length 32) parse_remaining_loc #b011))
 
               ; 0 is fd_read, 1 is fd_write
               ((func_idx funcs) (array 2 (array)))
@@ -2413,7 +2422,92 @@
                 drop_p_d
               ))))
 
-              ((k_read-string   func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$read-string   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
+              ;true_val          #b000111001
+              ;false_val         #b00001100)
+              (empty_parse_value #b00101100)
+              ; *GLOBAL ALERT*
+              ((k_parse_helper  func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$parse_helper  '(result i64) '(local $result i64) '(local $tmp i32)
+                (block '$b1
+                    (block '$b2
+                        (_loop '$l
+                            (br_if '$b2 (i32.eqz (global.get '$phl)))
+                            (local.set '$tmp (i32.load8_u (global.get '$phs)))
+                            (call '$print (i64.shl (i64.extend_i32_u (local.get '$tmp)) (i64.const 1)))
+                            (_if '$whitespace (i32.or (i32.or (i32.eq (i32.const #x9)  (local.get '$tmp))    ; tab
+                                                              (i32.eq (i32.const #xA)  (local.get '$tmp)))   ; newline
+                                                      (i32.or (i32.eq (i32.const #xD)  (local.get '$tmp))    ; carrige return
+                                                              (i32.eq (i32.const #x20) (local.get '$tmp))))  ; space
+                                (then
+                                    (global.set '$phs (i32.add (global.get '$phs) (i32.const 1)))
+                                    (global.set '$phl (i32.sub (global.get '$phl) (i32.const 1)))
+                                    (br '$l)
+                                )
+                            )
+                        )
+                    )
+                    (local.set '$result (i64.const empty_parse_value))
+                    (_if '$is_true1
+                        (i32.ge_u (global.get '$phl) (i32.const 4))
+                        (then
+                            (_if '$is_true2
+                                (i32.eq (i32.load (global.get '$phs)) (i32.const #x65757274))
+                                (then
+                                    (local.set '$result (i64.const true_val))
+                                    (global.set '$phs (i32.add (global.get '$phs) (i32.const 4)))
+                                    (global.set '$phl (i32.sub (global.get '$phl) (i32.const 4)))
+                                    (br '$b1)
+                                )
+                            )
+                        )
+                    )
+                    (_if '$is_false1
+                        (i32.ge_u (global.get '$phl) (i32.const 5))
+                        (then
+                            (_if '$is_false2
+                                (i32.and (i32.eq (i32.load (global.get '$phs)) (i32.const #x736C6166)) (i32.eq (i32.load8_u 4 (global.get '$phs)) (i32.const #x65)))
+                                (then
+                                    (local.set '$result (i64.const false_val))
+                                    (global.set '$phs (i32.add (global.get '$phs) (i32.const 5)))
+                                    (global.set '$phl (i32.sub (global.get '$phl) (i32.const 5)))
+                                    (br '$b1)
+                                )
+                            )
+                        )
+                    )
+                )
+                (local.get '$result)
+              ))))
+              ((k_read-string   func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$read-string   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $str i64) '(local $result i64)
+                (ensure_not_op_n_params_set_ptr_len i32.ne 1)
+                (type_assert 0 type_string)
+                (local.set '$str (i64.load (local.get '$ptr)))
+                (call '$print (local.get '$str))
+                (global.set '$phl (i32.wrap_i64 (i64.shr_u (local.get '$str) (i64.const 32))))
+                (global.set '$phs (i32.wrap_i64 (i64.and   (local.get '$str) (i64.const #xFFFFFFF8))))
+                (local.set '$result (call '$parse_helper))
+                (_if '$was_empty_parse
+                    (i64.eq (i64.const empty_parse_value) (local.get '$result))
+                    (then
+                        (call '$print (i64.const couldnt_parse_1_msg_val))
+                        (call '$print (local.get '$str))
+                        (call '$print (i64.const couldnt_parse_2_msg_val))
+                        (call '$print (i64.shl (i64.sub (i64.shr_u (local.get '$str) (i64.const 32)) (i64.extend_i32_u (global.get '$phl))) (i64.const 1)))
+                        (call '$print (i64.const newline_msg_val))
+                        (unreachable)
+                    )
+                )
+                (_if '$remaining
+                    (i32.ne (i32.const 0) (global.get '$phl))
+                    (then
+                        (call '$print (i64.const parse_remaining_msg_val))
+                        (call '$print (i64.shl (i64.sub (i64.shr_u (local.get '$str) (i64.const 32)) (i64.extend_i32_u (global.get '$phl))) (i64.const 1)))
+                        (call '$print (i64.const newline_msg_val))
+                        (unreachable)
+                    )
+                )
+                (local.get '$result)
+                drop_p_d
+              ))))
               ((k_eval          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
               ((k_vau           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
               ((k_cond          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$cond          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) (unreachable)))))
@@ -3099,7 +3193,12 @@
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (<< 1337 written)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (>> 1337 written)))"))))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (>= 1337 written)))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (<= (array written) (array 1337))))"))))
+
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"true\" true 3))))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     true\" true 3))))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     true   \" true 3))))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     false\" true 3))))"))))
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice args 1 -1)))"))))
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (len args)))"))))
