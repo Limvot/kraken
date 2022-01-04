@@ -2441,7 +2441,7 @@
               (close_peren_value #b01001100)
               (error_parse_value #b01101100)
               ; *GLOBAL ALERT*
-              ((k_parse_helper  func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$parse_helper  '(result i64) '(local $result i64) '(local $tmp i32) '(local $sub_result i64) '(local $asiz i32) '(local $acap i32) '(local $aptr i32) '(local $bptr i32) '(local $bcap i32)
+              ((k_parse_helper  func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$parse_helper  '(result i64) '(local $result i64) '(local $tmp i32) '(local $sub_result i64) '(local $asiz i32) '(local $acap i32) '(local $aptr i32) '(local $bptr i32) '(local $bcap i32) '(local $neg_multiplier i64) '(local $radix i64)
                 (block '$b1
                     (block '$b2
                         (_loop '$l
@@ -2492,9 +2492,10 @@
                     (_if '$at_least1
                         (i32.ge_u (global.get '$phl) (i32.const 1))
                         (then
+                            (local.set '$tmp (i32.load8_u (global.get '$phs)))
                             ; string
                             (_if '$is_open
-                                (i32.eq (i32.load8_u (global.get '$phs)) (i32.const #x22))
+                                (i32.eq (local.get '$tmp) (i32.const #x22))
                                 (then
                                     (global.set '$phs (i32.add (global.get '$phs) (i32.const 1)))
                                     (global.set '$phl (i32.sub (global.get '$phl) (i32.const 1)))
@@ -2604,12 +2605,82 @@
                                     (br '$b1)
                                 )
                             )
+
                             ; symbol
+
+                            ; negative int
+                            (local.set '$neg_multiplier (i64.const 1))
+                            (_if '$is_dash_and_more
+                                (i32.and (i32.eq (local.get '$tmp) (i32.const #x2D)) (i32.ge_u (global.get '$phl) (i32.const 2)))
+                                (then
+                                    (_if '$next_is_letter
+                                        (i32.and (i32.ge_u (i32.load8_u 1 (global.get '$phs)) (i32.const #x30)) (i32.le_u (i32.load8_u 1 (global.get '$phs)) (i32.const #x39)))
+                                        (then
+                                            (global.set '$phs  (i32.add (global.get '$phs)  (i32.const 1)))
+                                            (global.set '$phl  (i32.sub (global.get '$phl)  (i32.const 1)))
+                                            (local.set '$tmp (i32.load8_u (global.get '$phs)))
+                                            (local.set '$neg_multiplier (i64.const -1))
+                                        )
+                                    )
+                                )
+                            )
                             ; int
+                            (local.set '$radix (i64.const 10))
+                            (_if '$is_zero_through_nine
+                                (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x30)) (i32.le_u (local.get '$tmp) (i32.const #x39)))
+                                (then
+                                    (local.set '$result (i64.const 0))
+                                    (_loop '$il
+                                        (_if '$is_zero_through_nine_inner
+                                            (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x30)) (i32.le_u (local.get '$tmp) (i32.const #x39)))
+                                            (then
+                                                (local.set '$tmp (i32.sub (local.get '$tmp) (i32.const #x30)))
+                                            )
+                                            (else
+                                                (local.set '$tmp (i32.sub (local.get '$tmp) (i32.const #x37)))
+                                            )
+                                        )
+                                        (local.set '$result (i64.add (i64.mul (local.get '$radix) (local.get '$result)) (i64.extend_i32_u (local.get '$tmp))))
+                                        (global.set '$phs  (i32.add (global.get '$phs)  (i32.const 1)))
+                                        (global.set '$phl  (i32.sub (global.get '$phl)  (i32.const 1)))
+                                        (_if '$at_least1
+                                            (i32.ge_u (global.get '$phl) (i32.const 1))
+                                            (then
+                                                (local.set '$tmp (i32.load8_u (global.get '$phs)))
+                                                (_if '$is_hex_and_more
+                                                    (i32.and (i32.eq (local.get '$tmp) (i32.const #x78)) (i32.ge_u (global.get '$phl) (i32.const 2)))
+                                                    (then
+                                                        (global.set '$phs  (i32.add (global.get '$phs)  (i32.const 1)))
+                                                        (global.set '$phl  (i32.sub (global.get '$phl)  (i32.const 1)))
+                                                        (local.set '$tmp (i32.load8_u (global.get '$phs)))
+                                                        (local.set '$radix (i64.const 16))
+                                                    )
+                                                    (else
+                                                        (_if '$is_hex_and_more
+                                                            (i32.and (i32.eq (local.get '$tmp) (i32.const #x62)) (i32.ge_u (global.get '$phl) (i32.const 2)))
+                                                            (then
+                                                                (global.set '$phs  (i32.add (global.get '$phs)  (i32.const 1)))
+                                                                (global.set '$phl  (i32.sub (global.get '$phl)  (i32.const 1)))
+                                                                (local.set '$tmp (i32.load8_u (global.get '$phs)))
+                                                                (local.set '$radix (i64.const 2))
+                                                            )
+                                                        )
+                                                    )
+                                                )
+                                                (br_if '$il (i32.or (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x30)) (i32.le_u (local.get '$tmp) (i32.const #x39)))
+                                                                    (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x41)) (i32.le_u (local.get '$tmp) (i32.const #x46)))))
+                                            )
+                                        )
+                                    )
+                                    (local.set '$result (i64.shl (i64.mul (local.get '$neg_multiplier) (local.get '$result)) (i64.const 1)))
+                                    (br '$b1)
+                                )
+                            )
+
                             ; '
                             ; []?
                             (_if '$is_open
-                                (i32.eq (i32.load8_u (global.get '$phs)) (i32.const #x28))
+                                (i32.eq (local.get '$tmp) (i32.const #x28))
                                 (then
                                     (global.set '$phs (i32.add (global.get '$phs) (i32.const 1)))
                                     (global.set '$phl (i32.sub (global.get '$phl) (i32.const 1)))
@@ -2667,7 +2738,7 @@
                                 )
                             )
                             (_if '$is_close
-                                (i32.eq (i32.load8_u (global.get '$phs)) (i32.const #x29))
+                                (i32.eq (local.get '$tmp) (i32.const #x29))
                                 (then
                                     (local.set '$result (i64.const close_peren_value))
                                     (global.set '$phs (i32.add (global.get '$phs) (i32.const 1)))
