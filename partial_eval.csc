@@ -1296,7 +1296,7 @@
 
               ((couldnt_parse_1_loc              couldnt_parse_1_length datasi) (alloc_data "\nError: Couldn't parse:\n" datasi))
               ( couldnt_parse_1_msg_val (bor (<< couldnt_parse_1_length 32) couldnt_parse_1_loc #b011))
-              ((couldnt_parse_2_loc              couldnt_parse_2_length datasi) (alloc_data "\nAt byte offset:\n" datasi))
+              ((couldnt_parse_2_loc              couldnt_parse_2_length datasi) (alloc_data "\nAt character:\n" datasi))
               ( couldnt_parse_2_msg_val (bor (<< couldnt_parse_2_length 32) couldnt_parse_2_loc #b011))
               ((parse_remaining_loc              parse_remaining_length datasi) (alloc_data "\nLeft over after parsing, starting at byte offset:\n" datasi))
               ( parse_remaining_msg_val (bor (<< parse_remaining_length 32) parse_remaining_loc #b011))
@@ -2460,6 +2460,18 @@
                                     (br '$l)
                                 )
                             )
+                            (_if '$comment (i32.eq (i32.const #x3B)  (local.get '$tmp))
+                                (then
+                                    (_loop '$li
+                                        (global.set '$phs (i32.add (global.get '$phs) (i32.const 1)))
+                                        (global.set '$phl (i32.sub (global.get '$phl) (i32.const 1)))
+                                        (br_if '$b2 (i32.eqz (global.get '$phl)))
+                                        (local.set '$tmp (i32.load8_u (global.get '$phs)))
+                                        (br_if '$li (i32.ne (i32.const #xA) (local.get '$tmp)))
+                                    )
+                                    (br '$l)
+                                )
+                            )
                         )
                     )
                     (local.set '$result (i64.const empty_parse_value))
@@ -2686,16 +2698,18 @@
                                 ; 28-29 (-)         X
                                 ; 2A-2F *-/
                                 ; 30-39 0-9         /
-                                ; 3A-40 :-@
+                                ; 3A    :
+                                ; 3B    ;
+                                ; 3C-40 <-@
                                 ; 41-5A A-Z
                                 ; 5B-60 [-`
                                 ; 61-7A a-z
                                 ; 7B-7E {-~
-                                (i32.or (i32.or (i32.eq (local.get '$tmp) (i32.const #x21))
-                                                (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x23)) (i32.le_u (local.get '$tmp) (i32.const #x26))))
-                                        (i32.or (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x2A)) (i32.le_u (local.get '$tmp) (i32.const #x2F)))
-                                                (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x3A)) (i32.le_u (local.get '$tmp) (i32.const #x7E)))))
-
+                                (i32.or (i32.or         (i32.eq (local.get '$tmp) (i32.const #x21))
+                                                        (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x23)) (i32.le_u (local.get '$tmp) (i32.const #x26))))
+                                        (i32.or         (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x2A)) (i32.le_u (local.get '$tmp) (i32.const #x2F)))
+                                                (i32.or (i32.eq (local.get '$tmp) (i32.const #x3A))
+                                                        (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x3C)) (i32.le_u (local.get '$tmp) (i32.const #x7E))))))
                                 (then
                                     (local.set '$asiz (i32.const 0))
                                     (local.set '$bptr (global.get '$phs))
@@ -2709,9 +2723,10 @@
                                                 (then (br '$loop_break))
                                             )
                                             (local.set '$tmp (i32.load8_u (global.get '$phs)))
-                                            (br_if '$il (i32.or (i32.or (i32.eq (local.get '$tmp) (i32.const #x21))
-                                                                        (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x23)) (i32.le_u (local.get '$tmp) (i32.const #x26))))
-                                                                        (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x2A)) (i32.le_u (local.get '$tmp) (i32.const #x7E)))))
+                                            (br_if '$il (i32.or (i32.or         (i32.eq (local.get '$tmp) (i32.const #x21))
+                                                                                (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x23)) (i32.le_u (local.get '$tmp) (i32.const #x26))))
+                                                                        (i32.or (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x2A)) (i32.le_u (local.get '$tmp) (i32.const #x3A)))
+                                                                                (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x3C)) (i32.le_u (local.get '$tmp) (i32.const #x7E))))))
                                         )
                                     )
                                     (_if '$is_true1
@@ -2838,7 +2853,7 @@
                         (call '$print (i64.const couldnt_parse_1_msg_val))
                         (call '$print (local.get '$str))
                         (call '$print (i64.const couldnt_parse_2_msg_val))
-                        (call '$print (i64.shl (i64.sub (i64.shr_u (local.get '$str) (i64.const 32)) (i64.extend_i32_u (global.get '$phl))) (i64.const 1)))
+                        (call '$print (i64.shl (i64.add (i64.const 1) (i64.sub (i64.shr_u (local.get '$str) (i64.const 32)) (i64.extend_i32_u (global.get '$phl)))) (i64.const 1)))
                         (call '$print (i64.const newline_msg_val))
                         (unreachable)
                     )
@@ -3610,7 +3625,7 @@
 
             (_ (print (slurp "test_parse_in")))
             (output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_parse_in\" (vau (fd code) (array ((vau (x) x) read) fd 1000 (vau (data code) (read-string data)))))"))))
-            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"test_parse_in\" (vau (written code) (array (array code))))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"test_parse_in\" (vau (written code) (array (array written))))"))))
 
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice args 1 -1)))"))))
@@ -3655,5 +3670,10 @@
         ) (void))
     ))))
 
+    (run-compiler (lambda ()
+        (write_file "./csc_out.wasm" (compile (partial_eval (read-string (slurp "to_compile.kp")))))
+    ))
+
 ) (test-all))
+;) (run-compiler))
 )
