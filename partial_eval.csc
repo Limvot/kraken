@@ -1768,7 +1768,6 @@
                               (local.get '$iov) ;; nwritten
                     ))
                     (call '$free (local.get '$iov))
-                    (call '$drop (local.get '$to_print))
               ))))
 
               ; Utility method, but does refcount
