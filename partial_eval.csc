@@ -1301,6 +1301,9 @@
               ((parse_remaining_loc              parse_remaining_length datasi) (alloc_data "\nLeft over after parsing, starting at byte offset:\n" datasi))
               ( parse_remaining_msg_val (bor (<< parse_remaining_length 32) parse_remaining_loc #b011))
 
+              ((quote_sym_loc quote_sym_length datasi) (alloc_data "quote" datasi))
+              (quote_sym_val (bor (<< quote_sym_length 32) quote_sym_loc #b111))
+
               ; 0 is path_open, 1 is fd_read, 2 is fd_write
               ;(num_pre_functions 2)
               (num_pre_functions 3)
@@ -2461,34 +2464,6 @@
                         )
                     )
                     (local.set '$result (i64.const empty_parse_value))
-                    (_if '$is_true1
-                        (i32.ge_u (global.get '$phl) (i32.const 4))
-                        (then
-                            (_if '$is_true2
-                                (i32.eq (i32.load (global.get '$phs)) (i32.const #x65757274))
-                                (then
-                                    (local.set '$result (i64.const true_val))
-                                    (global.set '$phs (i32.add (global.get '$phs) (i32.const 4)))
-                                    (global.set '$phl (i32.sub (global.get '$phl) (i32.const 4)))
-                                    (br '$b1)
-                                )
-                            )
-                        )
-                    )
-                    (_if '$is_false1
-                        (i32.ge_u (global.get '$phl) (i32.const 5))
-                        (then
-                            (_if '$is_false2
-                                (i32.and (i32.eq (i32.load (global.get '$phs)) (i32.const #x736C6166)) (i32.eq (i32.load8_u 4 (global.get '$phs)) (i32.const #x65)))
-                                (then
-                                    (local.set '$result (i64.const false_val))
-                                    (global.set '$phs (i32.add (global.get '$phs) (i32.const 5)))
-                                    (global.set '$phl (i32.sub (global.get '$phl) (i32.const 5)))
-                                    (br '$b1)
-                                )
-                            )
-                        )
-                    )
                     (_if '$at_least1
                         (i32.ge_u (global.get '$phl) (i32.const 1))
                         (then
@@ -2606,8 +2581,6 @@
                                 )
                             )
 
-                            ; symbol
-
                             ; negative int
                             (local.set '$neg_multiplier (i64.const 1))
                             (_if '$is_dash_and_more
@@ -2677,8 +2650,106 @@
                                 )
                             )
 
-                            ; '
                             ; []?
+                            ; '
+                            (_if '$is_quote
+                                (i32.eq (local.get '$tmp) (i32.const #x27))
+                                (then
+                                    (global.set '$phs (i32.add (global.get '$phs) (i32.const 1)))
+                                    (global.set '$phl (i32.sub (global.get '$phl) (i32.const 1)))
+                                    (local.set '$sub_result (call '$parse_helper))
+                                    (_if '$ended
+                                        (i64.eq (i64.const close_peren_value) (local.get '$sub_result))
+                                        (then
+                                            (local.set '$result (i64.const error_parse_value))
+                                            (br '$b1)
+                                        )
+                                    )
+                                    (_if '$error
+                                        (i32.or (i64.eq (i64.const error_parse_value) (local.get '$sub_result))
+                                                (i64.eq (i64.const empty_parse_value) (local.get '$sub_result)))
+                                        (then
+                                            (local.set '$result (local.get '$sub_result))
+                                            (br '$b1)
+                                        )
+                                    )
+                                    (local.set '$result (call '$array2_alloc (i64.const quote_sym_val) (local.get '$sub_result)))
+                                    (br '$b1)
+                                )
+                            )
+
+                            ; symbol
+                            (_if '$is_dash_and_more
+                                ; 21    !
+                                ; 22    "           X
+                                ; 23-26 #-&
+                                ; 27    '           X
+                                ; 28-29 (-)         X
+                                ; 2A-2F *-/
+                                ; 30-39 0-9         /
+                                ; 3A-40 :-@
+                                ; 41-5A A-Z
+                                ; 5B-60 [-`
+                                ; 61-7A a-z
+                                ; 7B-7E {-~
+                                (i32.or (i32.or (i32.eq (local.get '$tmp) (i32.const #x21))
+                                                (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x23)) (i32.le_u (local.get '$tmp) (i32.const #x26))))
+                                        (i32.or (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x2A)) (i32.le_u (local.get '$tmp) (i32.const #x2F)))
+                                                (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x3A)) (i32.le_u (local.get '$tmp) (i32.const #x7E)))))
+
+                                (then
+                                    (local.set '$asiz (i32.const 0))
+                                    (local.set '$bptr (global.get '$phs))
+                                    (block '$loop_break
+                                        (_loop '$il
+                                            (global.set '$phs  (i32.add (global.get '$phs)  (i32.const 1)))
+                                            (global.set '$phl  (i32.sub (global.get '$phl)  (i32.const 1)))
+                                            (local.set '$asiz (i32.add (local.get '$asiz) (i32.const 1)))
+                                            (_if '$doesnt_have_next
+                                                (i32.eqz (global.get '$phl))
+                                                (then (br '$loop_break))
+                                            )
+                                            (local.set '$tmp (i32.load8_u (global.get '$phs)))
+                                            (br_if '$il (i32.or (i32.or (i32.eq (local.get '$tmp) (i32.const #x21))
+                                                                        (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x23)) (i32.le_u (local.get '$tmp) (i32.const #x26))))
+                                                                        (i32.and (i32.ge_u (local.get '$tmp) (i32.const #x2A)) (i32.le_u (local.get '$tmp) (i32.const #x7E)))))
+                                        )
+                                    )
+                                    (_if '$is_true1
+                                        (i32.eq (local.get '$asiz) (i32.const 4))
+                                        (then
+                                            (_if '$is_true2
+                                                (i32.eq (i32.load (local.get '$bptr)) (i32.const #x65757274))
+                                                (then
+                                                    (local.set '$result (i64.const true_val))
+                                                    (br '$b1)
+                                                )
+                                            )
+                                        )
+                                    )
+                                    (_if '$is_false1
+                                        (i32.eq (local.get '$asiz) (i32.const 5))
+                                        (then
+                                            (_if '$is_false2
+                                                (i32.and (i32.eq (i32.load (local.get '$bptr)) (i32.const #x736C6166)) (i32.eq (i32.load8_u 4 (local.get '$bptr)) (i32.const #x65)))
+                                                (then
+                                                    (local.set '$result (i64.const false_val))
+                                                    (br '$b1)
+                                                )
+                                            )
+                                        )
+                                    )
+                                    (local.set '$aptr (call '$malloc (local.get '$asiz)))
+                                    (memory.copy (local.get '$aptr)
+                                                 (local.get '$bptr)
+                                                 (local.get '$asiz))
+                                    (local.set '$result (i64.or (i64.or  (i64.extend_i32_u (local.get '$aptr)) (i64.const #x7))
+                                                                (i64.shl (i64.extend_i32_u (local.get '$asiz)) (i64.const 32))))
+                                    (br '$b1)
+                                )
+                            )
+
+                            ; lists (arrays)!
                             (_if '$is_open
                                 (i32.eq (local.get '$tmp) (i32.const #x28))
                                 (then
@@ -2707,7 +2778,8 @@
                                             )
                                         )
                                         (_if '$error
-                                            (i64.eq (i64.const empty_parse_value) (local.get '$sub_result))
+                                            (i32.or (i64.eq (i64.const error_parse_value) (local.get '$sub_result))
+                                                    (i64.eq (i64.const empty_parse_value) (local.get '$sub_result)))
                                             (then
                                                 (local.set '$result (local.get '$sub_result))
                                                 (br '$b1)
@@ -3538,7 +3610,8 @@
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_out\" (vau (fd code) (array ((vau (x) x) read) fd 10 (vau (data code) (array data code)))))"))))
 
             (_ (print (slurp "test_parse_in")))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_parse_in\" (vau (fd code) (array ((vau (x) x) read) fd 100 (vau (data code) (read-string data)))))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_parse_in\" (vau (fd code) (array ((vau (x) x) read) fd 1000 (vau (data code) (read-string data)))))"))))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"test_parse_in\" (vau (written code) (array (array code))))"))))
 
 
             ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice args 1 -1)))"))))
