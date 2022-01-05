@@ -2886,7 +2886,7 @@
               (get_passthrough (lambda (hash datasi funcs memo) (let ((r (get-value-or-false memo hash)))
                                                                      (if r (array r datasi funcs memo) #f))))
 
-              (compile_value (rec-lambda recurse-value (datasi funcs memo c) (cond
+              (compile_value (rec-lambda recurse-value (datasi funcs memo allow_fake_env c) (cond
                     ((val? c)   (let ((v (.val c)))
                                      (cond ((int? v)    (array (<< v 1)   datasi funcs memo))
                                            ((= true v)  (array true_val datasi funcs memo))
@@ -2902,7 +2902,7 @@
                                               (true                      (error (str "can't compile non-val symbols " c " as val")))))
                     ((marked_array? c) (if (.marked_array_is_val c) (or (get_passthrough (.hash c) datasi funcs memo) (let ((actual_len (len (.marked_array_values c))))
                                                                          (if (= 0 actual_len) (array nil_val datasi funcs memo)
-                                                                            (dlet (((comp_values datasi funcs memo) (foldr (dlambda (x (a datasi funcs memo)) (dlet (((v datasi funcs memo) (recurse-value datasi funcs memo x)))
+                                                                            (dlet (((comp_values datasi funcs memo) (foldr (dlambda (x (a datasi funcs memo)) (dlet (((v datasi funcs memo) (recurse-value datasi funcs memo false x)))
                                                                                                                                       (array (cons v a) datasi funcs memo))) (array (array) datasi funcs memo) (.marked_array_values c)))
                                                                                    ((c_loc c_len datasi) (alloc_data (apply concat (map i64_le_hexify comp_values)) datasi))
                                                                                    (result (bor (<< actual_len 32) c_loc #b101))
@@ -2911,8 +2911,9 @@
                                                                     (error (str "can't compile call as value" c))))
 
                     ((marked_env? c) (or (get_passthrough (.hash c) datasi funcs memo) (dlet ((e (.env_marked c))
-                                            ((kvs vvs datasi funcs memo) (foldr (dlambda ((k v) (ka va datasi funcs memo)) (dlet (((kv datasi funcs memo) (recurse-value datasi funcs memo (marked_symbol true k)))
-                                                                                                                        ((vv datasi funcs memo) (recurse-value datasi funcs memo v)))
+                                            (_ (if (not (marked_env_real? c)) (error (print_strip "Trying to compile-value a fake env" c))))
+                                            ((kvs vvs datasi funcs memo) (foldr (dlambda ((k v) (ka va datasi funcs memo)) (dlet (((kv datasi funcs memo) (recurse-value datasi funcs memo false (marked_symbol true k)))
+                                                                                                                        ((vv datasi funcs memo) (recurse-value datasi funcs memo false v)))
                                                                                                       (array (cons kv ka) (cons vv va) datasi funcs memo))) (array (array) (array) datasi funcs memo) (slice e 0 -2)))
                                             (u (idx e -1))
                                             ;(_ (print "comp values are " kvs " and " vvs))
@@ -2922,7 +2923,7 @@
                                             ((vvs_array datasi) (if (= 0 (len vvs)) (array nil_val datasi)
                                                                                     (dlet (((vvs_loc vvs_len datasi) (alloc_data (apply concat (map i64_le_hexify vvs)) datasi)))
                                                                                           (array (bor (<< (len vvs) 32) vvs_loc #b101) datasi))))
-                                            ((uv datasi funcs memo) (mif u (recurse-value datasi funcs memo (idx e -1))
+                                            ((uv datasi funcs memo) (mif u (recurse-value datasi funcs memo false (idx e -1))
                                                                            (array nil_val datasi funcs memo)))
                                             (all_hex (map i64_le_hexify (array kvs_array vvs_array uv)))
                                             ;(_ (print "all_hex " all_hex))
@@ -2975,8 +2976,9 @@
                     ((comb? c) (or (get_passthrough (.hash c) datasi funcs memo) (dlet (
                                     ((wrap_level de? se variadic params body) (.comb c))
 
-                                    ((our_env_val datasi funcs memo) (if (marked_env_real? se) (recurse-value datasi funcs memo se)
-                                                                                               (array 0 datasi funcs memo)))
+                                    ((our_env_val datasi funcs memo) (cond ((marked_env_real? se) (recurse-value datasi funcs memo false se))
+                                                                           (allow_fake_env        (array 0 datasi funcs memo))
+                                                                           (true                  (error "Tried to compile-value a fake env without allow_fake_env"))))
                                     ;  <func_idx29>|<env_ptr29><wrap2>0001
                                     ;                       e29><2><4> = 6
                                     ; 0..0<env_ptr29><3 bits>01001
@@ -2988,10 +2990,13 @@
                                     (located_env_ptr (band #x7FFFFFFC0 (>> our_env_val 2)))
 
                                     (map_val (dlambda ((v datasi funcs memo) f) (array (f v) datasi funcs memo)))
-
+                                    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                    ; This needs to be extended to handle cases where compile-value can't do it, like
+                                    ; array values with <comb fake_env>s inside
+                                    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                                     (compile_code (rec-lambda recurse-code (datasi funcs memo env c) (cond
-                                        ((val? c)                                         (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v))))
-                                        ((marked_symbol? c) (if (.marked_symbol_is_val c) (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v)))
+                                        ((val? c)                                         (map_val (recurse-value datasi funcs memo false c) (lambda (v) (i64.const v))))
+                                        ((marked_symbol? c) (if (.marked_symbol_is_val c) (map_val (recurse-value datasi funcs memo false c) (lambda (v) (i64.const v)))
                                                                                           (dlet (
                                                                                                     ;(_ (print "looking for " c " in " env))
     (lookup_helper (rec-lambda lookup-recurse (dict key i code) (cond
@@ -3006,7 +3011,7 @@
 
                                                                                             (result (call '$dup (lookup_helper (.env_marked env) (.marked_symbol_value c) 0 (local.get '$s_env))))
                                                                                           ) (array result datasi funcs memo))))
-                                        ((marked_array? c) (if (.marked_array_is_val c)   (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v)))
+                                        ((marked_array? c) (if (.marked_array_is_val c)   (map_val (recurse-value datasi funcs memo false c) (lambda (v) (i64.const v)))
                                                                                           (dlet (
                                                         (func_param_values (.marked_array_values c))
                                                         (num_params (- (len func_param_values) 1))
@@ -3068,17 +3073,27 @@
                                                                                 )))
                                                                 ) (array result_code datasi funcs memo)))
                                                         ))))
-                                        ((prim_comb? c)                                   (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.const v))))
-                                        ((comb? c)  (map_val (recurse-value datasi funcs memo c) (lambda (v) (i64.or (i64.const v)
+                                        ((prim_comb? c)                                   (map_val (recurse-value datasi funcs memo false c) (lambda (v) (i64.const v))))
+                                        ((comb? c)  (map_val (recurse-value datasi funcs memo true c) (lambda (v) (i64.or (i64.const v)
                                                                                                                      (i64.and (i64.const #x7FFFFFFC0) (i64.shr_u (call '$dup (local.get '$s_env))
                                                                                                                                                                  (i64.const 2)))))))
-                                        (true       (error (str "can't compile-code " c " right now")))
+                                                                                          ; TODO: May want to come back to this, see if we can make constant
+                                                                                          ; the environment sometimes. Doesn't matter for now with the naive ref counting,
+                                                                                          ; but it will
+                                        ((marked_env? c)                                  ;(if (marked_env_real? se) (map_val (recurse-value datasi funcs memo false c) (lambda (v) (i64.const v)))
+                                                                                                                    (array (call '$dup ((rec-lambda env_recurse (i code)
+                                                                                                                        (if (= 0 i) code
+                                                                                                                                    (i64.load 16 (i32.wrap_i64 (i64.shr_u code (i64.const 5)))))
+                                                                                                                     ) (.marked_env_idx se) (local.get '$s_env))) datasi funcs memo)
+                                                                                          ;)
+                                                                                          )
+                                        (true       (error (print_strip "can't compile-code " c)))
                                     )))
 
                                     ((inner_env setup_code datasi funcs memo) (cond
                                         ((= 0 (len params))                (array se (array) datasi funcs memo))
                                         ((and (= 1 (len params)) variadic) (dlet (
-                                            ((params_vec datasi funcs memo) (recurse-value datasi funcs memo
+                                            ((params_vec datasi funcs memo) (recurse-value datasi funcs memo false
                                                                                            (marked_array true (array (marked_symbol true (idx params 0))))))
                                             ) (array (marked_env false 0 (concat (array (array (idx params 0) (marked_val 0))) (array se)))
                                                  (local.set '$s_env (call '$env_alloc (i64.const params_vec)
@@ -3087,7 +3102,7 @@
                                                  datasi funcs memo
                                               )))
                                         (true                              (dlet (
-                                            ((params_vec datasi funcs memo) (recurse-value datasi funcs memo
+                                            ((params_vec datasi funcs memo) (recurse-value datasi funcs memo false
                                                                                            (marked_array true (map (lambda (k) (marked_symbol true k)) params))))
                                             (new_env (marked_env false 0 (concat (map (lambda (k) (array k (marked_val 0))) params) (array se))))
                                             (params_code (if variadic (concat
@@ -3107,7 +3122,7 @@
                                     ))
                                     ((inner_env setup_code datasi funcs memo) (if (= nil de?) (array inner_env (concat setup_code (call '$drop (local.get '$d_env)))  datasi funcs memo)
                                                                                                      (dlet (
-                                        ((de_array_val datasi funcs memo) (recurse-value datasi funcs memo (marked_array true (array (marked_symbol true de?)))))
+                                        ((de_array_val datasi funcs memo) (recurse-value datasi funcs memo false (marked_array true (array (marked_symbol true de?)))))
                                         ) (array (marked_env false 0 (array (array de? (marked_val 0)) inner_env))
                                                  (concat setup_code
                                                         (local.set '$s_env (call '$env_alloc (i64.const de_array_val)
@@ -3145,15 +3160,15 @@
 
               (_ (println "compiling partial evaled " (str_strip marked_code)))
               (memo empty_dict)
-              ((exit_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'exit)))
-              ((read_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'read)))
-              ((write_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'write)))
-              ((open_val datasi funcs memo) (compile_value datasi funcs memo (marked_symbol true 'open)))
-              ((monad_error_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Not a legal monad ( ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])")))
-              ((bad_read_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "<error with read>")))
-              ((exit_msg_val datasi funcs memo) (compile_value datasi funcs memo (marked_val "Exiting with code:")))
-              ((root_marked_env_val datasi funcs memo) (compile_value datasi funcs memo root_marked_env))
-              ((compiled_value_ptr datasi funcs memo) (compile_value datasi funcs memo marked_code))
+              ((exit_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol true 'exit)))
+              ((read_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol true 'read)))
+              ((write_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol true 'write)))
+              ((open_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol true 'open)))
+              ((monad_error_msg_val datasi funcs memo) (compile_value datasi funcs memo false (marked_val "Not a legal monad ( ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])")))
+              ((bad_read_val datasi funcs memo) (compile_value datasi funcs memo false (marked_val "<error with read>")))
+              ((exit_msg_val datasi funcs memo) (compile_value datasi funcs memo false (marked_val "Exiting with code:")))
+              ((root_marked_env_val datasi funcs memo) (compile_value datasi funcs memo false root_marked_env))
+              ((compiled_value_ptr datasi funcs memo) (compile_value datasi funcs memo false marked_code))
               ;(_ (println "compiled it to  " compiled_value_ptr))
               ; Ok, so the outer loop handles the IO monads
                 ; ('exit        code)
@@ -3683,3 +3698,15 @@
 ;) (test-new))
 ) (run-compiler))
 )
+
+;;;;;;;;;;;;;;
+; Known TODOs
+;;;;;;;;;;;;;;
+;
+; * Finish supporting calling vaus in compiled code
+; * Rework compile-value & compile-code to handle "values" with things that require access to code inside, like array values with <comb FakeEnv>
+;       Needed to compile envs statically from code when possible, which should help a ton with non-naive ref counting
+; * NON NAIVE REFCOUNTING
+; * Of course, memoizing partial_eval
+;       Can optimize re-evaluation by storing the env de Bruijn indicies that would need to become real in order for re-evaluation to make a difference
+

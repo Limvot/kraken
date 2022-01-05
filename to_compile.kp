@@ -1,0 +1,29 @@
+
+
+((wrap (vau root_env (quote)
+((wrap (vau (let1)
+
+
+(let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
+(let1 current-env (vau de () de)
+(let1 cons (lambda (h t) (concat (array h) t))
+(let1 lapply (lambda (f p)     (eval (cons (unwrap f) p) (current-env)))
+
+
+(array 'open  3 "test_self_out" (lambda (fd code)
+(array 'write fd "waab" 		(lambda (written code)
+(array 'exit  written)))))
+
+
+; end of all lets
+))))
+
+; impl of let1
+; this would be the macro style version (((;)) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))
+)) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))
+; impl of quote
+)) (vau (x) x))
+
+
+
+;(array 'write  1 "test_self_out2" (vau (written code) 1))
