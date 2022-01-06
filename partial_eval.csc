@@ -388,7 +388,8 @@
     (partial_eval_helper (rec-lambda recurse (x env env_stack indent)
         (cond   ((val? x)            x)
                 ((marked_env? x)     (let ((dbi (.marked_env_idx x)))
-                                          (mif (and dbi (>= dbi 0)) (let* ((new_env (idx env_stack dbi))
+                                          ; compiler calls with empty env stack
+                                          (mif (and dbi (>= dbi 0) (!= 0 (len env_stack))) (let* ((new_env (idx env_stack dbi))
                                                          (ndbi (.marked_env_idx new_env))
                                                          (_ (mif (!= 0 ndbi) (error (str_strip "new env with non-zero dbis " x))))
                                                          (_ (println (str_strip "replacing " x) (str_strip " with " new_env)))
@@ -2998,7 +2999,7 @@
                                         ((val? c)                                         (map_val (recurse-value datasi funcs memo false c) (lambda (v) (i64.const v))))
                                         ((marked_symbol? c) (if (.marked_symbol_is_val c) (map_val (recurse-value datasi funcs memo false c) (lambda (v) (i64.const v)))
                                                                                           (dlet (
-                                                                                                    ;(_ (print "looking for " c " in " env))
+                                                                                                    (_ (print_strip "looking for " c " in " env))
     (lookup_helper (rec-lambda lookup-recurse (dict key i code) (cond
         ((and (= i (- (len dict) 1)) (= nil (idx dict i))) (error (str "for code-symbol lookup, couldn't find " key)))
         ((= i (- (len dict) 1))                            (lookup-recurse (.env_marked (idx dict i)) key 0 (i64.load 16 (i32.wrap_i64 (i64.shr_u code (i64.const 5))))))
@@ -3015,16 +3016,18 @@
                                                                                           (dlet (
                                                         (func_param_values (.marked_array_values c))
                                                         (num_params (- (len func_param_values) 1))
-                                                        ((param_codes datasi funcs memo) (foldr (dlambda (x (a datasi funcs memo))
+                                                        (get_param_codes (lambda (params) (foldr (dlambda (x (a datasi funcs memo))
                                                                                                     (dlet (((code datasi funcs memo) (recurse-code datasi funcs memo env x)))
                                                                                                         (array (cons code a) datasi funcs memo)))
-                                                                                                (array (array) datasi funcs memo) (slice func_param_values 1 -1)))
+                                                                                                (array (array) datasi funcs memo) params)))
                                                         ;; Insert test for the function being a constant to inline
                                                         ;; Namely, cond
                                                         (func_value (idx func_param_values 0))
                                                         ) (cond
-                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'cond)) (array
-                                                                                                               ((rec-lambda recurse (codes i) (cond
+                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'cond))
+                                                                                                               (dlet (
+                                                                                                                ((param_codes datasi funcs memo) (get_param_codes (slice func_param_values 1 -1)))
+                                                                                                               ) (array ((rec-lambda recurse (codes i) (cond
                                                                                                                         ((< i (- (len codes) 1)) (_if '_cond_flat '(result i64)
                                                                                                                                                     (truthy_test (idx codes i))
                                                                                                                                                     (then (idx codes (+ i 1)))
@@ -3033,15 +3036,31 @@
                                                                                                                         ((= i (- (len codes) 1)) (error "compiling bad length comb"))
                                                                                                                         (true                    (unreachable))
                                                                                                                     )) param_codes 0)
-                                                                                                                                       datasi funcs memo))
+                                                                                                                                       datasi funcs memo)))
                                                             (true (dlet (
                                                                 ((func_code datasi funcs memo) (recurse-code datasi funcs memo env func_value))
+                                                                ; Since we now know in this code path that it's being called by a function, we can partial_evaluate the parameters
+                                                                ((param_codes datasi funcs memo) (get_param_codes (map (lambda (x) (partial_eval_helper x env (array) 0))
+                                                                                                                   (slice func_param_values 1 -1))))
                                                                 (result_code (concat
                                                                                 func_code
                                                                                 (local.set '$tmp)
                                                                                 (_if '$is_wrap_1
                                                                                     (i64.eq (i64.const #x10) (i64.and (local.get '$tmp) (i64.const #x30)))
                                                                                     (then
+                                                                                         ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                                                                         ; Since we're not sure if it's going to be a vau or not,
+                                                                                         ; this code might not be compilable, so we should gracefully handle
+                                                                                         ; compiler errors and instead emit code that throws the error if this
+                                                                                         ; spot is ever reached at runtime. Additionally, on this side of the check,
+                                                                                         ; we can further partial eval the parameters here - this is even necessary
+                                                                                         ; at our current point, since some tricky situations may leave a vau here
+                                                                                         ; without being partial evaluated even though it should be, as the parameter of
+                                                                                         ; something that will always be a function. Namely, this happened in our Y combinator
+                                                                                         ; with  (f (lambda (& y) (lapply (x x) y))), where it wasn't sure what f was
+                                                                                         ; and thus did not partially evaluate out the lambda, but then on the lambda-is-function
+                                                                                         ; side of the compilation died because y wasn't defined.
+                                                                                         ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                                                                                          (local.get '$tmp) ; saving ito restore it
                                                                                          (apply concat param_codes)
                                                                                          (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
@@ -3095,7 +3114,7 @@
                                         ((and (= 1 (len params)) variadic) (dlet (
                                             ((params_vec datasi funcs memo) (recurse-value datasi funcs memo false
                                                                                            (marked_array true (array (marked_symbol true (idx params 0))))))
-                                            ) (array (marked_env false 0 (concat (array (array (idx params 0) (marked_val 0))) (array se)))
+                                            ) (array (marked_env false 0 (concat (array (array (idx params 0) (marked_symbol false (idx params 0)))) (array se)))
                                                  (local.set '$s_env (call '$env_alloc (i64.const params_vec)
                                                                                       (call '$array1_alloc (local.get '$params))
                                                                                       (local.get '$s_env)))
@@ -3104,7 +3123,7 @@
                                         (true                              (dlet (
                                             ((params_vec datasi funcs memo) (recurse-value datasi funcs memo false
                                                                                            (marked_array true (map (lambda (k) (marked_symbol true k)) params))))
-                                            (new_env (marked_env false 0 (concat (map (lambda (k) (array k (marked_val 0))) params) (array se))))
+                                            (new_env (marked_env false 0 (concat (map (lambda (k) (array k (marked_symbol false k))) params) (array se))))
                                             (params_code (if variadic (concat
                                                                          (local.set '$param_ptr (i32.wrap_i64 (i64.and (i64.const -8) (local.get '$params))))
                                                                          (local.set '$tmp_ptr (call '$malloc (i32.const (* 8 (len params)))))
@@ -3123,7 +3142,7 @@
                                     ((inner_env setup_code datasi funcs memo) (if (= nil de?) (array inner_env (concat setup_code (call '$drop (local.get '$d_env)))  datasi funcs memo)
                                                                                                      (dlet (
                                         ((de_array_val datasi funcs memo) (recurse-value datasi funcs memo false (marked_array true (array (marked_symbol true de?)))))
-                                        ) (array (marked_env false 0 (array (array de? (marked_val 0)) inner_env))
+                                        ) (array (marked_env false 0 (array (array de? (marked_symbol false de?)) inner_env))
                                                  (concat setup_code
                                                         (local.set '$s_env (call '$env_alloc (i64.const de_array_val)
                                                                                       (call '$array1_alloc (local.get '$d_env))
@@ -3692,6 +3711,12 @@
 
     (test-new (lambda () (begin
         (print (run_partial_eval_test "((vau (some_val) (array (vau (x) 4))) 1337)"))
+        ;(write_file "./csc_test_new.wasm" (compile (partial_eval (read-string "((wrap (vau (let1)
+        ;                           (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
+        ;                           (array ((vau (x) x) write) 1 \"hahah\" (vau (written code) ((lambda (x n) (x x n)) (lambda (recurse n) (cond (!= 0 n) (* n (recurse recurse (- n 1)))
+        ;                                                                             true     1                               )) written)))
+        ;                           ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))))
+        (write_file "./csc_test_new.wasm" (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) (data illegal)))"))))
     )))
 
 ;) (test-most))
@@ -3710,3 +3735,5 @@
 ; * Of course, memoizing partial_eval
 ;       Can optimize re-evaluation by storing the env de Bruijn indicies that would need to become real in order for re-evaluation to make a difference
 
+; GAH I THINK THAT VAU has a larger issue compiling, which is that deciding which is which at runtime means
+; you still have to compile an eager version in case it's not a vau, but it might not even be legal code to compile!

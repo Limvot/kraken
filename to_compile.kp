@@ -8,6 +8,10 @@
 (let1 current-env (vau de () de)
 (let1 cons (lambda (h t) (concat (array h) t))
 (let1 lapply (lambda (f p)     (eval (cons (unwrap f) p) (current-env)))
+;(let1 vapply (lambda (f p ede) (eval (cons f          p) ede))
+(let1 Y (lambda (f)
+    ((lambda (x) (x x))
+     (lambda (x) (f (lambda (& y) (lapply (x x) y))))))
 
 
 (array 'open  3 "test_self_out" (lambda (fd code)
@@ -16,6 +20,8 @@
 
 
 ; end of all lets
+)
+;)
 ))))
 
 ; impl of let1
