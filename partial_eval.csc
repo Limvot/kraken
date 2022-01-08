@@ -180,10 +180,12 @@
     (.marked_symbol_is_val  (lambda (x) (idx x 2)))
     (.marked_symbol_value   (lambda (x) (idx x 3)))
     (.comb                  (lambda (x) (slice x 2 -1)))
+    (.comb_env              (lambda (x) (idx x 4)))
     (.prim_comb_sym         (lambda (x) (idx x 3)))
     (.prim_comb             (lambda (x) (idx x 2)))
     (.marked_env            (lambda (x) (slice x 2 -1)))
     (.marked_env_idx        (lambda (x) (idx x 3)))
+    (.marked_env_upper      (lambda (x) (idx (idx x 4) -1)))
     (.env_marked            (lambda (x) (idx x 4)))
 
     (.hash                  (lambda (x) (idx x 1)))
@@ -224,20 +226,28 @@
 
 
 
-    (later? (rec-lambda recurse (x) (or (and (marked_array? x)  (or (= false (.marked_array_is_val x)) (foldl (lambda (a x) (or a (recurse x))) false (.marked_array_values x))))
-                                        (and (marked_symbol? x) (= false (.marked_symbol_is_val x)))
-                                   )))
+    (later_head? (rec-lambda recurse (x) (or (and (marked_array? x)  (or (= false (.marked_array_is_val x)) (foldl (lambda (a x) (or a (recurse x))) false (.marked_array_values x))))
+                                             (and (marked_symbol? x) (= false (.marked_symbol_is_val x)))
+                                         )))
+
+    (total_value? (rec-lambda recurse_total_value? (x) (begin (print "checking if " x " is total_value") (cond ((and (marked_array? x)  (= false (.marked_array_is_val x)))    false)
+                                    ((and (marked_array? x)  (= true  (.marked_array_is_val x)))    ((rec-lambda recurse-list (a i) (cond ((= i (len a)) true) ((not (recurse_total_value? (idx a i))) false) (true (recurse-list a (+ i 1))))) (.marked_array_values x) 0))
+                                    ((marked_symbol? x)                                             (.marked_symbol_is_val x))
+                                    ((marked_env? x)                                                (and (marked_env_real? x) (or (= nil (.marked_env_upper x)) (recurse_total_value? (.marked_env_upper x)))))
+                                    ((comb? x)                                                      (or (= nil (.comb_env x)) (recurse_total_value? (.comb_env x))))
+                                    ((prim_comb? x)                                                 true)
+                                    ((val? x)                                                       true)
+                                    (true                                                           (error "what is this?"))))))
+
+
+    (is_all_values (lambda (evaled_params) (foldl (lambda (a x) (and a (total_value? x))) true evaled_params)))
+    ;(is_all_head_values (lambda (evaled_params) (foldl (lambda (a x) (and a (not (later_head? x)))) true evaled_params)))
 
     (false? (lambda (x) (cond ((and (marked_array? x)  (= false (.marked_array_is_val x)))    (error "got a later marked_array passed to false? " x))
                               ((and (marked_symbol? x) (= false (.marked_symbol_is_val x)))   (error "got a later marked_symbol passed to false? " x))
                               ((val? x)                                                       (not (.val x)))
                               (true                                                           false))))
 
-    (env-lookup-helper (rec-lambda recurse (dict key i fail success) (cond ((and (= i (- (len dict) 1)) (= nil (idx dict i)))  (fail))
-                                                                           ((= i (- (len dict) 1))                             (recurse (.env_marked (idx dict i)) key 0 fail success))
-                                                                           ((= key (idx (idx dict i) 0))                       (success (idx (idx dict i) 1)))
-                                                                           (true                                               (recurse dict key (+ i 1) fail success)))))
-    (env-lookup (lambda (env key) (env-lookup-helper (.env_marked env) key 0 (lambda () (error key " not found in env " (.env_marked env))) (lambda (x) x))))
 
     (mark (rec-lambda recurse (x) (cond   ((env? x)        (error "called mark with an env " x))
                                           ((combiner? x)   (error "called mark with a combiner " x))
@@ -269,6 +279,12 @@
         )
     ) (idx args -1)))))))
     (print_strip (lambda args (println (apply str_strip args))))
+
+    (env-lookup-helper (rec-lambda recurse (dict key i fail success) (cond ((and (= i (- (len dict) 1)) (= nil (idx dict i)))  (fail))
+                                                                           ((= i (- (len dict) 1))                             (recurse (.env_marked (idx dict i)) key 0 fail success))
+                                                                           ((= key (idx (idx dict i) 0))                       (success (idx (idx dict i) 1)))
+                                                                           (true                                               (recurse dict key (+ i 1) fail success)))))
+    (env-lookup (lambda (env key) (env-lookup-helper (.env_marked env) key 0 (lambda () (error (print_strip key " not found in env " env))) (lambda (x) x))))
 
     (strip (let ((helper (rec-lambda recurse (x need_value)
         (cond ((val? x)           (.val x))
@@ -353,8 +369,6 @@
               (true              (error (str "Something odd passed to contains_symbols " x)))
     )))
 
-    (is_all_values (lambda (evaled_params) (foldl (lambda (a x) (and a (not (later? x)))) true evaled_params)))
-
     ; * TODO: allowing envs to be shead mif they're not used.
     (shift_envs (rec-lambda recurse (cutoff d x) (cond
         ((val? x)            (array true x))
@@ -389,7 +403,8 @@
         (cond   ((val? x)            x)
                 ((marked_env? x)     (let ((dbi (.marked_env_idx x)))
                                           ; compiler calls with empty env stack
-                                          (mif (and dbi (>= dbi 0) (!= 0 (len env_stack))) (let* ((new_env (idx env_stack dbi))
+                                          (mif (and dbi (>= dbi 0) (!= 0 (len env_stack))) (let* (
+                                                         (new_env (idx env_stack dbi))
                                                          (ndbi (.marked_env_idx new_env))
                                                          (_ (mif (!= 0 ndbi) (error (str_strip "new env with non-zero dbis " x))))
                                                          (_ (println (str_strip "replacing " x) (str_strip " with " new_env)))
@@ -449,11 +464,11 @@
                                                                                  (tmp_func_result (recurse body inner_env (cons inner_env env_stack) (+ 1 indent)))
                                                                                  (_ (print_strip (indent_str indent) "evaled result of function call  is " tmp_func_result))
                                                                                  ((able_to_sub_env func_result) (decrement_envs tmp_func_result))
-                                                                                 (result_is_later (later? func_result))
+                                                                                 (result_is_later (later_head? func_result))
                                                                                  (_ (print_strip (indent_str indent) "success? " able_to_sub_env " decremented result of function call  is " tmp_func_result))
                                                                                  (stop_envs ((rec-lambda ser (a e) (mif e (ser (cons e a) (idx (.env_marked e) -1)) a)) (array) se))
                                                                                  (result_closes_over (contains_symbols stop_envs (concat params (mif de? (array de?) (array))) func_result))
-                                                                                 (_ (println (indent_str indent) "func call able_to_sub: " able_to_sub_env " result is later? " result_is_later " and result_closes_over " result_closes_over))
+                                                                                 (_ (println (indent_str indent) "func call able_to_sub: " able_to_sub_env " result is later_head? " result_is_later " and result_closes_over " result_closes_over))
                                                                                  ; This could be improved to a specialized version of the function
                                                                                  ; just by re-wrapping it in a comb instead mif we wanted.
                                                                                  ; Something to think about!
@@ -462,7 +477,7 @@
                                                                                                                                                      literal_params)))
                                                                                                 func_result))
                                                                              ) result))))
-                                                           ((later? comb)    (marked_array false (cons comb literal_params)))
+                                                           ((later_head? comb)    (marked_array false (cons comb literal_params)))
                                                            (true             (error (str "impossible comb value " x))))))))
                 (true                (error (str "impossible partial_eval value " x)))
         )
@@ -484,6 +499,7 @@
                 ;_ (println "partial_evaling params in need_params_val_lambda for " f_sym " is " params)
                 (evaled_params (map (lambda (p) (partial_eval_helper p de env_stack (+ 1 indent))) params))
             )
+            ; TODO: Should this be  is_all_head_values?
             (mif (is_all_values evaled_params) (mark (apply actual_function (map strip evaled_params)))
                                               (marked_array false (cons (marked_prim_comb recurse f_sym) evaled_params))))))
         ) (array f_sym (marked_prim_comb handler f_sym)))))
@@ -560,7 +576,7 @@
                 ((rec-lambda recurse_inner (i so_far)
                                           (let* ((evaled_cond (partial_eval_helper (idx params i) de env_stack (+ 1 indent)))
                                                  (_ (print (indent_str indent) "in cond cond " (idx params i) " evaluated to " evaled_cond)))
-                                          (cond ((later? evaled_cond)            (recurse_inner (+ 2 i) (concat so_far (array evaled_cond
+                                          (cond ((later_head? evaled_cond)            (recurse_inner (+ 2 i) (concat so_far (array evaled_cond
                                                                                                                               (partial_eval_helper (idx params (+ i 1)) de env_stack (+ 1 indent))))))
                                                 ((false? evaled_cond)            (recurse_inner (+ 2 i) so_far))
                                                 ((= (len params) i)              (marked_array false (cons (marked_prim_comb recurse 'cond) so_far)))
@@ -578,13 +594,13 @@
         (array 'combiner? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond ((comb? evaled_param)          (marked_val true))
                   ((prim_comb? evaled_param)     (marked_val true))
-                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'combiner?) evaled_param)))
+                  ((later_head? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'combiner?) evaled_param)))
                   (true                          (marked_val false))
             )
         )) 'combiner?))
         (array 'env? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond ((marked_env? evaled_param)    (marked_val true))
-                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'env?) evaled_param)))
+                  ((later_head? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'env?) evaled_param)))
                   (true                          (marked_val false))
             )
         )) 'env?))
@@ -595,7 +611,7 @@
 
         (array 'array? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond
-                  ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'array?) evaled_param)))
+                  ((later_head? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'array?) evaled_param)))
                   ((marked_array? evaled_param)  (marked_val true))
                   (true                          (marked_val false))
             )
@@ -609,7 +625,7 @@
                                                                                    (marked_array false (cons (marked_prim_comb recurse 'array) evaled_params)))
         )) 'array))
         (array 'len (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
-            (cond ((later? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'len) evaled_param)))
+            (cond ((later_head? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'len) evaled_param)))
                   ((marked_array? evaled_param)  (marked_val (len (.marked_array_values evaled_param))))
                   (true                          (error (str "bad type to len " evaled_param)))
             )
@@ -3114,7 +3130,7 @@
                                         ((and (= 1 (len params)) variadic) (dlet (
                                             ((params_vec datasi funcs memo) (recurse-value datasi funcs memo false
                                                                                            (marked_array true (array (marked_symbol true (idx params 0))))))
-                                            ) (array (marked_env false 0 (concat (array (array (idx params 0) (marked_symbol false (idx params 0)))) (array se)))
+                                            ) (array (marked_env false 0 (concat (array (array (idx params 0) (marked_symbol false (idx params 0)))) (array (increment_envs se)))) ; TODO: This should probs be a call to make_tmp_inner_env, but will need combination with below
                                                  (local.set '$s_env (call '$env_alloc (i64.const params_vec)
                                                                                       (call '$array1_alloc (local.get '$params))
                                                                                       (local.get '$s_env)))
@@ -3123,7 +3139,7 @@
                                         (true                              (dlet (
                                             ((params_vec datasi funcs memo) (recurse-value datasi funcs memo false
                                                                                            (marked_array true (map (lambda (k) (marked_symbol true k)) params))))
-                                            (new_env (marked_env false 0 (concat (map (lambda (k) (array k (marked_symbol false k))) params) (array se))))
+                                            (new_env (marked_env false 0 (concat (map (lambda (k) (array k (marked_symbol false k))) params) (array (increment_envs se)))))
                                             (params_code (if variadic (concat
                                                                          (local.set '$param_ptr (i32.wrap_i64 (i64.and (i64.const -8) (local.get '$params))))
                                                                          (local.set '$tmp_ptr (call '$malloc (i32.const (* 8 (len params)))))
