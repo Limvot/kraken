@@ -41,7 +41,6 @@
                                                  ))))
 
                     (flat_items (flatten-helper items))
-                    (_ (print items " flattened " flat_items))
                   ) `(let* ,flat_items ,body)
              ))))
 (define-syntax dlambda
@@ -166,61 +165,106 @@
       )
 (let* (
 
-    (val?                   (lambda (x) (= 'val (idx x 0))))
-    (marked_array?          (lambda (x) (= 'marked_array (idx x 0))))
-    (marked_symbol?         (lambda (x) (= 'marked_symbol (idx x 0))))
-    (comb?                  (lambda (x) (= 'comb (idx x 0))))
-    (prim_comb?             (lambda (x) (= 'prim_comb (idx x 0))))
-    (marked_env?            (lambda (x) (= 'env (idx x 0))))
+    (val?                               (lambda (x) (= 'val (idx x 0))))
+    (marked_array?                      (lambda (x) (= 'marked_array (idx x 0))))
+    (marked_symbol?                     (lambda (x) (= 'marked_symbol (idx x 0))))
+    (comb?                              (lambda (x) (= 'comb (idx x 0))))
+    (prim_comb?                         (lambda (x) (= 'prim_comb (idx x 0))))
+    (marked_env?                        (lambda (x) (= 'env (idx x 0))))
 
-    (marked_env_real?       (lambda (x) (idx x 2)))
-    (.val                   (lambda (x) (idx x 2)))
-    (.marked_array_is_val   (lambda (x) (idx x 2)))
-    (.marked_array_values   (lambda (x) (idx x 3)))
-    (.marked_symbol_is_val  (lambda (x) (idx x 2)))
-    (.marked_symbol_value   (lambda (x) (idx x 3)))
-    (.comb                  (lambda (x) (slice x 2 -1)))
-    (.comb_env              (lambda (x) (idx x 4)))
-    (.prim_comb_sym         (lambda (x) (idx x 3)))
-    (.prim_comb             (lambda (x) (idx x 2)))
-    (.marked_env            (lambda (x) (slice x 2 -1)))
-    (.marked_env_idx        (lambda (x) (idx x 3)))
-    (.marked_env_upper      (lambda (x) (idx (idx x 4) -1)))
-    (.env_marked            (lambda (x) (idx x 4)))
+    (.hash                              (lambda (x) (idx x 1)))
 
-    (.hash                  (lambda (x) (idx x 1)))
+    (.val                               (lambda (x) (idx x 2)))
+
+    (.marked_array_is_val               (lambda (x) (idx x 2)))
+    (.marked_array_is_attempted         (lambda (x) (idx x 3)))
+    (.marked_array_needed_for_progress  (lambda (x) (idx x 4)))
+    (.marked_array_values               (lambda (x) (idx x 5)))
+
+    (.marked_symbol_needed_for_progress (lambda (x) (idx x 2)))
+    (.marked_symbol_is_val              (lambda (x) (= nil (.marked_symbol_needed_for_progress x))))
+    (.marked_symbol_value               (lambda (x) (idx x 3)))
+    (.comb                              (lambda (x) (slice x 2 -1)))
+    (.comb_env                          (lambda (x) (idx x 4)))
+    (.prim_comb_sym                     (lambda (x) (idx x 3)))
+    (.prim_comb                         (lambda (x) (idx x 2)))
+
+    (.marked_env                        (lambda (x) (slice x 2 -1)))
+    (.marked_env_has_vals               (lambda (x) (idx x 2)))
+    (.marked_env_needed_for_progress    (lambda (x) (idx x 3)))
+    (.marked_env_idx                    (lambda (x) (idx x 4)))
+    (.marked_env_upper                  (lambda (x) (idx (idx x 5) -1)))
+    (.env_marked                        (lambda (x) (idx x 5)))
+    (marked_env_real?                   (lambda (x) (= nil (.marked_env_needed_for_progress x))))
+
+    ; Results are either
+    ; #t            - any eval will do something
+    ; nil           - is a value, no eval will do anything
+    ; (3 4 1...)    - list of env de Bruijn indicies that would allow forward progress
+    (needed_for_progress (rec-lambda needed_for_progress (x) (cond ((marked_array? x)       (.marked_array_needed_for_progress  x))
+                                                                   ((marked_symbol? x)      (.marked_symbol_needed_for_progress x))
+                                                                   ((marked_env? x)         (.marked_env_needed_for_progress    x))
+                                                                   ; I had to think about comb for a good bit - as long as
+                                                                   ; our Vau only lets us construct combs out of true-value-bodies,
+                                                                   ; our se will cover everything out body needs to progress, and
+                                                                   ; we do need to real-ify our se, so we can just return our se's
+                                                                   ; needed to progress.
+                                                                   ; On the other hand, this means we count any change in our env chain
+                                                                   ; as a reason to re-eval, and get *no speedup at all*.
+                                                                   ; So we need to do something smarter about pulling it from our body.
+                                                                   ((comb? x)               (needed_for_progress (.comb_env x)))
+                                                                   ((prim_comb? x)          nil)
+                                                                   ((val? x)                nil)
+                                                                   (true                    (error "what is this? in need for progress")))))
 
     (combine_hash     (lambda (a b) (+ (* 37 a) b)))
     (hash_bool        (lambda (b) (if b 2 3)))
     (hash_num         (lambda (n) (combine_hash 5 n)))
     (hash_string      (lambda (s) (foldl combine_hash 7  (map char->integer (string->list s)))))
-    (hash_symbol      (lambda (is_val s) (combine_hash (if is_val 11 13) (hash_string (symbol->string s)))))
+    (hash_symbol      (lambda (progress_idxs s) (combine_hash (if (= true progress_idxs) 11 (foldl combine_hash 13 (map (lambda (x) (if (= true x) 13 (+ 1 x))) progress_idxs))) (hash_string (symbol->string s)))))
 
-    (hash_array       (lambda (is_val a) (foldl combine_hash (if is_val 17 19) (map .hash a))))
-    (hash_env         (lambda (is_real dbi arrs) (combine_hash (mif dbi (hash_num dbi) 59) (let* (
-                                                                (inner_hash (foldl (dlambda (c (s v)) (combine_hash c (combine_hash (hash_symbol false s) (.hash v))))
-                                                                                   (if is_real 23 29)
+    (hash_array       (lambda (is_val attempted a) (foldl combine_hash (if is_val 17 (if attempted 19 61)) (map .hash a))))
+    (hash_env         (lambda (progress_idxs dbi arrs) (combine_hash (mif dbi (hash_num dbi) 59) (let* (
+                                                                (inner_hash (foldl (dlambda (c (s v)) (combine_hash c (combine_hash (hash_symbol true s) (.hash v))))
+                                                                                   (cond ((= nil progress_idxs)     23)
+                                                                                         ((= true progress_idxs)    29)
+                                                                                         (true                      (foldl combine_hash 31 progress_idxs)))
                                                                                    (slice arrs 0 -2)))
                                                                 (end (idx arrs -1))
-                                                                (end_hash (mif end (.hash end) 31))
+                                                                (end_hash (mif end (.hash end) 41))
                                                                                                          ) (combine_hash inner_hash end_hash)))))
-    (hash_comb        (lambda (wrap_level de? se variadic params body) (combine_hash 41
-                                                                       (combine_hash (mif de? (hash_symbol false de?) 43)
+    (hash_comb        (lambda (wrap_level de? se variadic params body) (combine_hash 43
+                                                                       (combine_hash (mif de? (hash_symbol true de?) 47)
                                                                        (combine_hash (.hash se)
                                                                        (combine_hash (hash_bool variadic)
-                                                                       (combine_hash (foldl (lambda (c x) (combine_hash c (hash_symbol false x))) 47 params)
+                                                                       (combine_hash (foldl (lambda (c x) (combine_hash c (hash_symbol true x))) 53 params)
                                                                        (.hash body))))))))
-    (hash_prim_comb   (lambda (handler_fun real_or_name) (combine_hash 53 (hash_symbol false real_or_name))))
+    (hash_prim_comb   (lambda (handler_fun real_or_name) (combine_hash 59 (hash_symbol true real_or_name))))
     (hash_val         (lambda (x) (cond ((bool? x)     (hash_bool x))
                                         ((string? x)   (hash_string x))
                                         ((int? x)      (hash_num x))
                                         (true          (error (str "bad thing to hash_val " x))))))
-    ; 41 43 47 53 59 61 67 71
+    ; 67 71
 
-    (marked_symbol    (lambda (is_val x)                               (array 'marked_symbol    (hash_symbol is_val x)                             is_val x)))
-    (marked_array     (lambda (is_val x)                               (array 'marked_array     (hash_array is_val x)                              is_val x)))
+    (marked_symbol    (lambda (progress_idxs x)                        (array 'marked_symbol    (hash_symbol progress_idxs x)                      progress_idxs x)))
+    (marked_array     (lambda (is_val attempted x)                     (dlet (
+                                                                            (in (lambda (x a) ((rec-lambda recurse (x a i) (cond ((= i (len a))      false)
+                                                                                                                                 ((= x (idx a i))    true)
+                                                                                                                                 (true               (recurse x a (+ i 1)))))
+                                                                                              x a 0)))
+                                                                            (sub_progress_idxs (foldl (lambda (a x)
+                                                                                                    (if (or (= true a) (= true x)) true
+                                                                                                        (foldl (lambda (a xi) (if (in xi a) a (cons xi a))) a x)
+                                                                                                        )
+                                                                                                 ) (array) (map needed_for_progress x)))
+                                                                            ;(_ (print "got " sub_progress_idxs " out of " x))
+                                                                            ;(_ (print "\twhich evalated to " (map needed_for_progress x)))
+                                                                            (progress_idxs (cond ((and (= nil sub_progress_idxs) (not is_val) attempted)       nil)
+                                                                                                 ((and (= nil sub_progress_idxs) (not is_val) (not attempted)) true)
+                                                                                                 (true                                                        sub_progress_idxs)))
+                                                                        ) (array 'marked_array  (hash_array is_val attempted x)                    is_val attempted progress_idxs x))))
+    (marked_env       (lambda (has_vals progress_idxs dbi arrs)        (array 'env              (hash_env progress_idxs dbi arrs)                  has_vals progress_idxs dbi arrs)))
     (marked_val       (lambda (x)                                      (array 'val              (hash_val x)                                       x)))
-    (marked_env       (lambda (is_real dbi arrs)                       (array 'env              (hash_env is_real dbi arrs)                        is_real dbi arrs)))
     (marked_comb      (lambda (wrap_level de? se variadic params body) (array 'comb             (hash_comb wrap_level de? se variadic params body) wrap_level de? se variadic params body)))
     (marked_prim_comb (lambda (handler_fun real_or_name)               (array 'prim_comb        (hash_prim_comb handler_fun real_or_name)          handler_fun real_or_name)))
 
@@ -230,14 +274,13 @@
                                              (and (marked_symbol? x) (= false (.marked_symbol_is_val x)))
                                          )))
 
-    (total_value? (rec-lambda recurse_total_value? (x) (begin (print "checking if " x " is total_value") (cond ((and (marked_array? x)  (= false (.marked_array_is_val x)))    false)
-                                    ((and (marked_array? x)  (= true  (.marked_array_is_val x)))    ((rec-lambda recurse-list (a i) (cond ((= i (len a)) true) ((not (recurse_total_value? (idx a i))) false) (true (recurse-list a (+ i 1))))) (.marked_array_values x) 0))
-                                    ((marked_symbol? x)                                             (.marked_symbol_is_val x))
-                                    ((marked_env? x)                                                (and (marked_env_real? x) (or (= nil (.marked_env_upper x)) (recurse_total_value? (.marked_env_upper x)))))
-                                    ((comb? x)                                                      (or (= nil (.comb_env x)) (recurse_total_value? (.comb_env x))))
-                                    ((prim_comb? x)                                                 true)
-                                    ((val? x)                                                       true)
-                                    (true                                                           (error "what is this?"))))))
+    ; array is the only oe where (= nil (needed_for_progress x)) == total_value? isn't true.
+    ; Right now we only call functions when all parameters are values, which means you can't
+    ; create a true_value array with non-value memebers (*right now* anyway), but it does mean that
+    ; you can create a nil needed for progress array that isn't a value, namely for the give_up_*
+    ; primitive functions (extra namely, log and error, which are our two main sources of non-purity besides implicit runtime errors).
+    (total_value?  (lambda (x) (if (marked_array? x) (.marked_array_is_val x)
+                                                     (= nil (needed_for_progress x)))))
 
 
     (is_all_values (lambda (evaled_params) (foldl (lambda (a x) (and a (total_value? x))) true evaled_params)))
@@ -253,8 +296,8 @@
                                           ((combiner? x)   (error "called mark with a combiner " x))
                                           ((symbol? x)     (cond ((= 'true x)  (marked_val #t))
                                                                  ((= 'false x) (marked_val #f))
-                                                                 (#t           (marked_symbol false x))))
-                                          ((array? x)      (marked_array false (map recurse x)))
+                                                                 (#t           (marked_symbol true x))))
+                                          ((array? x)      (marked_array false false (map recurse x)))
                                           (true            (marked_val x)))))
 
     (indent_str (rec-lambda recurse (i) (mif (= i 0) ""
@@ -264,11 +307,11 @@
         (cond ((val? x)           (str (.val x)))
               ((marked_array? x)  (let ((stripped_values (map recurse (.marked_array_values x))))
                                         (mif (.marked_array_is_val x) (str "[" stripped_values "]")
-                                                                      (str stripped_values))))
+                                                                      (str "<a" (.marked_array_is_attempted x) ",n" (.marked_array_needed_for_progress x) ">" stripped_values))))
               ((marked_symbol? x) (mif (.marked_symbol_is_val x) (str "'" (.marked_symbol_value x))
                                                                  (str (.marked_symbol_value x))))
               ((comb? x)          (dlet (((wrap_level de? se variadic params body) (.comb x)))
-                                      (str "<(comb " wrap_level " " de? " " (recurse se) " " params " " (recurse body) ")>")))
+                                      (str "<n" (needed_for_progress x) "(comb " wrap_level " " de? " " (recurse se) " " params " " (recurse body) ")>")))
               ((prim_comb? x)     (str (idx x 3)))
               ((marked_env? x)    (let* ((e (.env_marked x))
                                          (index (.marked_env_idx x))
@@ -325,8 +368,8 @@
                                                                                                                        (array (and ok nok) (concat a (array p)))))
                                                                                                (array true (array))
                                                                                                (.marked_array_values x))))
-                                                                         (array sub_ok (marked_array false subs)))))
-              ((marked_symbol? x) (mif (.marked_symbol_is_val x) (array true (marked_symbol false (.marked_symbol_value x)))
+                                                                         (array sub_ok (marked_array false false subs)))))
+              ((marked_symbol? x) (mif (.marked_symbol_is_val x) (array true (marked_symbol true (.marked_symbol_value x)))
                                                                 (array false (fail_f x))))
               (true               (array true x))
         )
@@ -337,8 +380,8 @@
                                         x)))
 
     (ensure_val (rec-lambda recurse (x)
-        (cond ((marked_array? x)  (marked_array true (map recurse (.marked_array_values x))))
-              ((marked_symbol? x) (marked_symbol true (.marked_symbol_value x)))
+        (cond ((marked_array? x)  (marked_array true false (map recurse (.marked_array_values x))))
+              ((marked_symbol? x) (marked_symbol nil (.marked_symbol_value x)))
               (true               x)
         )
     ))
@@ -370,25 +413,29 @@
     )))
 
     ; * TODO: allowing envs to be shead mif they're not used.
-    (shift_envs (rec-lambda recurse (cutoff d x) (cond
+    (shift_envs (rec-lambda recurse (cutoff d x) (let ((map_progress_idxs (lambda (progress_idxs) (cond ((nil? progress_idxs)    nil)
+                                                                                                        ((= true progress_idxs)   true)
+                                                                                                        (true                     (map (lambda (x) (if (>= x cutoff) (+ x d) x)) progress_idxs)))))
+                                                      ) (cond
         ((val? x)            (array true x))
-        ((marked_env? x)     (dlet (((is_real dbi meat) (.marked_env x))
+        ((marked_env? x)     (dlet (((has_vals progress_idxs dbi meat) (.marked_env x))
                                     ((nmeat_ok nmeat) (foldl (dlambda ((ok r) (k v)) (dlet (((tok tv) (recurse cutoff d v))) (array (and ok tok) (concat r (array (array k tv)))))) (array true (array)) (slice meat 0 -2)))
                                     ((nupper_ok nupper) (mif (idx meat -1) (recurse cutoff d (idx meat -1)) (array true nil)))
                                     (ndbi (cond ((nil? dbi)      nil)
                                                 ((>= dbi cutoff) (+ dbi d))
                                                 (true            dbi)))
-                              ) (array (and nmeat_ok nupper_ok (or is_real (and ndbi (>= ndbi 0)))) (marked_env is_real ndbi (concat nmeat (array nupper))))))
+                                    (nprogress_idxs (map_progress_idxs progress_idxs))
+                              ) (array (and nmeat_ok nupper_ok (or (= nil progress_idxs) (and ndbi (>= ndbi 0)))) (marked_env has_vals nprogress_idxs ndbi (concat nmeat (array nupper))))))
         ((comb? x)           (dlet (((wrap_level de? se variadic params body) (.comb x))
                                     ((se_ok nse) (recurse cutoff d se))
                                     ((body_ok nbody) (recurse (+ cutoff 1) d body))
                                 ) (array (and se_ok body_ok) (marked_comb wrap_level de? nse variadic params nbody))))
         ((prim_comb? x)      (array true x))
-        ((marked_symbol? x)  (array true x))
+        ((marked_symbol? x)  (array true (marked_symbol (map_progress_idxs (.marked_symbol_needed_for_progress x)) (.marked_symbol_value x))))
         ((marked_array? x)   (dlet (((insides_ok insides) (foldl (dlambda ((ok r) tx) (dlet (((tok tr) (recurse cutoff d tx))) (array (and ok tok) (concat r (array tr))))) (array true (array)) (.marked_array_values x))))
-                                   (array insides_ok (marked_array (.marked_array_is_val x) insides))))
+                                   (array insides_ok (marked_array (.marked_array_is_val x) (.marked_array_is_attempted x) insides))))
         (true                (error (str "impossible shift_envs value " x)))
-    )))
+    ))))
     (increment_envs (lambda (x) (idx (shift_envs 0  1 x) 1)))
     (decrement_envs (lambda (x)      (shift_envs 0 -1 x)))
 
@@ -396,10 +443,22 @@
     ; ['ref de_bruijn_index_of_env index_into_env] or somesuch. Could really simplify
     ; compiling, and I think make partial-eval more efficient. More accurate closes_over analysis too, I think
     (make_tmp_inner_env (lambda (params de? de)
-            (marked_env false 0 (concat (map (lambda (p) (array p (marked_symbol false p))) params) (mif (= nil de?) (array) (array (array de? (marked_symbol false de?)) )) (array (increment_envs de))))))
+        (dlet ((new_de              (increment_envs de))
+               (param_entries       (map (lambda (p) (array p (marked_symbol (array 0) p))) params))
+               (possible_de_entry   (mif (= nil de?) (array) (array (array de? (marked_symbol (array 0) de?)))))
+               (progress_idxs       (cons 0 (needed_for_progress new_de)))
+            ) (marked_env false progress_idxs 0 (concat param_entries possible_de_entry (array new_de))))))
 
 
     (partial_eval_helper (rec-lambda recurse (x env env_stack indent)
+        (dlet ((for_progress (needed_for_progress x)) (_ (print_strip "for_progress " for_progress " for " x)))
+        (if (or true (= for_progress true)  ((rec-lambda rec (i) (cond ((= i (len for_progress)) false)
+                                                                       ; possible if called from a value context in the compiler
+                                                                       ; TODO: I think this should be removed and instead the value/code compilers should
+                                                                       ; keep track of actual env stacks
+                                                                       ((and (< (idx for_progress i) (len env_stack)) (.marked_env_has_vals (idx env_stack (idx for_progress i)))) true)
+                                                                       (true                                                                                                    (rec (+ i 1)))
+                                                           )) 0))
         (cond   ((val? x)            x)
                 ((marked_env? x)     (let ((dbi (.marked_env_idx x)))
                                           ; compiler calls with empty env stack
@@ -423,7 +482,7 @@
                                                                   (env-lookup env (.marked_symbol_value x))))
                 ((marked_array? x)   (cond ; This isn't true, because there might be comb like values in marked array that need to be further evaluated ((.marked_array_is_val x) x)
                                            ; to actually prevent redoing this work, marked_array should keep track of if everything inside is is head-values or pure done values
-                                           ((.marked_array_is_val x) (marked_array true (map (lambda (p) (recurse p env env_stack (+ 1 indent))) (.marked_array_values x))))
+                                           ((.marked_array_is_val x) (marked_array true false (map (lambda (p) (recurse p env env_stack (+ 1 indent))) (.marked_array_values x))))
                                            ((= 0 (len (.marked_array_values x))) (error "Partial eval on empty array"))
                                            (true (let* ((values (.marked_array_values x))
                                                         (_ (print_strip (indent_str indent) "partial_evaling comb " (idx values 0)))
@@ -449,15 +508,19 @@
                                                                                                 (array true pre_evaled)))
                                                                                     ) wrap_level ensure_val_params))
                                                                                  (ok_and_non_later (and ok (is_all_values appropriatly_evaled_params)))
-                                                                                 ) (mif (not ok_and_non_later) (marked_array false (cons comb (mif (> wrap_level 0) (map rp_eval literal_params)
+                                                                                 ) (mif (not ok_and_non_later) (marked_array false true (cons comb (mif (> wrap_level 0) (map rp_eval literal_params)
                                                                                                                                                      literal_params)))
                                                                                  (dlet (
                                                                                  (final_params (mif variadic (concat (slice appropriatly_evaled_params 0 (- (len params) 1))
-                                                                                                                   (array (marked_array true (slice appropriatly_evaled_params (- (len params) 1) -1))))
+                                                                                                                   (array (marked_array true false (slice appropriatly_evaled_params (- (len params) 1) -1))))
                                                                                                            appropriatly_evaled_params))
-                                                                                 ((de_real de_entry) (mif (!= nil de?) (array (marked_env_real? env) (array (array de? (increment_envs env) ) ) )
-                                                                                                                     (array true (array))))
-                                                                                 (inner_env (marked_env (and de_real (marked_env_real? se)) 0 (concat (zip params (map (lambda (x) (increment_envs x)) final_params)) de_entry (array (increment_envs se)))))
+                                                                                 ((de_progress_idxs de_entry) (mif (!= nil de?) (dlet ((incr_env (increment_envs env)))
+                                                                                                                     (array (needed_for_progress incr_env) (array (array de? incr_env))))
+                                                                                                                     (array nil (array))))
+                                                                                 (incr_se (increment_envs se))
+                                                                                 ;  Don't need to check params, they're all values!
+                                                                                 (inner_env_progress_idxs (concat de_progress_idxs (needed_for_progress incr_se)))
+                                                                                 (inner_env (marked_env true inner_env_progress_idxs 0 (concat (zip params (map (lambda (x) (increment_envs x)) final_params)) de_entry (array incr_se))))
                                                                                  (_ (print_strip (indent_str indent) " with inner_env is " inner_env))
                                                                                  (_ (print_strip (indent_str indent) "going to eval " body))
 
@@ -465,7 +528,8 @@
                                                                                  (_ (print_strip (indent_str indent) "evaled result of function call  is " tmp_func_result))
                                                                                  ((able_to_sub_env func_result) (decrement_envs tmp_func_result))
                                                                                  (result_is_later (later_head? func_result))
-                                                                                 (_ (print_strip (indent_str indent) "success? " able_to_sub_env " decremented result of function call  is " tmp_func_result))
+                                                                                 (_ (print_strip (indent_str indent) "success? " able_to_sub_env " non-decremented result of function call  is " tmp_func_result))
+                                                                                 (_ (print_strip (indent_str indent) "\tdecremented result of function call  is " func_result))
                                                                                  (stop_envs ((rec-lambda ser (a e) (mif e (ser (cons e a) (idx (.env_marked e) -1)) a)) (array) se))
                                                                                  (result_closes_over (contains_symbols stop_envs (concat params (mif de? (array de?) (array))) func_result))
                                                                                  (_ (println (indent_str indent) "func call able_to_sub: " able_to_sub_env " result is later_head? " result_is_later " and result_closes_over " result_closes_over))
@@ -473,14 +537,16 @@
                                                                                  ; just by re-wrapping it in a comb instead mif we wanted.
                                                                                  ; Something to think about!
                                                                                  (result (mif (or (not able_to_sub_env) (and result_is_later result_closes_over))
-                                                                                                (marked_array false (cons comb (mif (> wrap_level 0) (map rp_eval literal_params)
+                                                                                                (marked_array false true (cons comb (mif (> wrap_level 0) (map rp_eval literal_params)
                                                                                                                                                      literal_params)))
                                                                                                 func_result))
                                                                              ) result))))
-                                                           ((later_head? comb)    (marked_array false (cons comb literal_params)))
+                                                           ((later_head? comb)    (marked_array false true (cons comb literal_params)))
                                                            (true             (error (str "impossible comb value " x))))))))
                 (true                (error (str "impossible partial_eval value " x)))
         )
+        ; otherwise, we can't make progress yet
+        (begin (print_strip "Not evaluating " x) x)))
     ))
 
     ; !!!!!!
@@ -501,7 +567,7 @@
             )
             ; TODO: Should this be  is_all_head_values?
             (mif (is_all_values evaled_params) (mark (apply actual_function (map strip evaled_params)))
-                                              (marked_array false (cons (marked_prim_comb recurse f_sym) evaled_params))))))
+                                              (marked_array false true (cons (marked_prim_comb recurse f_sym) evaled_params))))))
         ) (array f_sym (marked_prim_comb handler f_sym)))))
 
     (give_up_eval_params_inner (lambda (f_sym actual_function) (let* (
@@ -509,11 +575,11 @@
                 ;_ (println "partial_evaling params in give_up_eval_params for " f_sym " is " params)
                 (evaled_params (map (lambda (p) (partial_eval_helper p de env_stack (+ 1 indent))) params))
             )
-            (marked_array false (cons (marked_prim_comb recurse f_sym) evaled_params)))))
+            (marked_array false true (cons (marked_prim_comb recurse f_sym) evaled_params)))))
         ) (array f_sym (marked_prim_comb handler f_sym)))))
 
 
-    (root_marked_env (marked_env true nil (array
+    (root_marked_env (marked_env true nil nil (array
 
         (array 'vau (marked_prim_comb (rec-lambda recurse (de env_stack params indent) (dlet (
             (mde?         (mif (= 3 (len params)) (idx params 0) nil))
@@ -540,14 +606,14 @@
               (mif (comb? evaled) (dlet (((wrap_level de? se variadic params body) (.comb evaled))
                                         (wrapped_marked_fun (marked_comb (+ 1 wrap_level) de? se variadic params body))
                                        ) wrapped_marked_fun)
-                                 (marked_array false (array (marked_prim_comb recurse 'wrap) evaled))))
+                                 (marked_array false true (array (marked_prim_comb recurse 'wrap) evaled))))
         ) 'wrap))
 
         (array 'unwrap (marked_prim_comb (parameters_evaled_proxy 0 (dlambda (recurse de env_stack (evaled) indent)
              (mif (comb? evaled) (dlet (((wrap_level de? se variadic params body) (.comb evaled))
                                        (unwrapped_marked_fun (marked_comb (- wrap_level 1) de? se variadic params body))
                                       ) unwrapped_marked_fun)
-                                 (marked_array false (array (marked_prim_comb recurse 'unwrap) evaled))))
+                                 (marked_array false true (array (marked_prim_comb recurse 'unwrap) evaled))))
         ) 'unwrap))
 
         (array 'eval (marked_prim_comb (rec-lambda recurse (de env_stack params indent) (dlet (
@@ -555,14 +621,14 @@
             (eval_env (mif (= 2 (len params)) (partial_eval_helper (idx params 1) de env_stack (+ 1 indent))
                                              de))
             (eval_env_v (mif (= 2 (len params)) (array eval_env) (array)))
-         ) (mif (not (marked_env? eval_env)) (marked_array false (cons self params))
+         ) (mif (not (marked_env? eval_env)) (marked_array false true (cons self params))
                                             (dlet (
             (_ (print_strip (indent_str indent) " partial_evaling_body the first time " (idx params 0)))
             (body1 (partial_eval_helper (idx params 0) de env_stack (+ 1 indent)))
             (_ (print_strip (indent_str indent) "after first eval of param " body1))
 
             ; With this, we don't actually fail as this is always a legitimate uneval
-            (fail_handler (lambda (failed) (marked_array false (concat (array self failed) eval_env_v))))
+            (fail_handler (lambda (failed) (marked_array false true (concat (array self failed) eval_env_v))))
             ((ok unval_body) (try_unval body1 fail_handler))
             (self_fallback (fail_handler body1))
             (_ (print_strip (indent_str indent) "partial_evaling body for the second time in eval " unval_body))
@@ -579,9 +645,9 @@
                                           (cond ((later_head? evaled_cond)            (recurse_inner (+ 2 i) (concat so_far (array evaled_cond
                                                                                                                               (partial_eval_helper (idx params (+ i 1)) de env_stack (+ 1 indent))))))
                                                 ((false? evaled_cond)            (recurse_inner (+ 2 i) so_far))
-                                                ((= (len params) i)              (marked_array false (cons (marked_prim_comb recurse 'cond) so_far)))
+                                                ((= (len params) i)              (marked_array false true (cons (marked_prim_comb recurse 'cond) so_far)))
                                                 (true                            (let ((evaled_body (partial_eval_helper (idx params (+ 1 i)) de env_stack (+ 1 indent))))
-                                                                                      (mif (!= (len so_far) 0) (marked_array false (cons (marked_prim_comb recurse 'cond) (concat so_far (array evaled_cond evaled_body))))
+                                                                                      (mif (!= (len so_far) 0) (marked_array false true (cons (marked_prim_comb recurse 'cond) (concat so_far (array evaled_cond evaled_body))))
                                                                                                                 evaled_body)))
                  ))) 0 (array))
             )
@@ -594,13 +660,13 @@
         (array 'combiner? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond ((comb? evaled_param)          (marked_val true))
                   ((prim_comb? evaled_param)     (marked_val true))
-                  ((later_head? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'combiner?) evaled_param)))
+                  ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'combiner?) evaled_param)))
                   (true                          (marked_val false))
             )
         )) 'combiner?))
         (array 'env? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond ((marked_env? evaled_param)    (marked_val true))
-                  ((later_head? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'env?) evaled_param)))
+                  ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'env?) evaled_param)))
                   (true                          (marked_val false))
             )
         )) 'env?))
@@ -611,7 +677,7 @@
 
         (array 'array? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
             (cond
-                  ((later_head? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'array?) evaled_param)))
+                  ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'array?) evaled_param)))
                   ((marked_array? evaled_param)  (marked_val true))
                   (true                          (marked_val false))
             )
@@ -620,32 +686,33 @@
         ; This one's sad, might need to come back to it.
         ; We need to be able to differentiate between half-and-half arrays
         ; for when we ensure_params_values or whatever, because that's super wrong
+        ; Maybe we can now with progress_idxs?
         (array 'array (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
-                                                (mif (is_all_values evaled_params) (marked_array true evaled_params)
-                                                                                   (marked_array false (cons (marked_prim_comb recurse 'array) evaled_params)))
+                                                (mif (is_all_values evaled_params) (marked_array true false evaled_params)
+                                                                                   (marked_array false true (cons (marked_prim_comb recurse 'array) evaled_params)))
         )) 'array))
         (array 'len (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_param) indent)
-            (cond ((later_head? evaled_param)         (marked_array false (array (marked_prim_comb recurse 'len) evaled_param)))
+            (cond ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'len) evaled_param)))
                   ((marked_array? evaled_param)  (marked_val (len (.marked_array_values evaled_param))))
                   (true                          (error (str "bad type to len " evaled_param)))
             )
         )) 'len))
         (array 'idx (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_array evaled_idx) indent)
             (cond ((and (val? evaled_idx) (marked_array? evaled_array) (.marked_array_is_val evaled_array)) (idx (.marked_array_values evaled_array) (.val evaled_idx)))
-                  (true                                                                                     (marked_array false (array (marked_prim_comb recurse 'idx) evaled_array evaled_idx)))
+                  (true                                                                                     (marked_array false true (array (marked_prim_comb recurse 'idx) evaled_array evaled_idx)))
             )
         )) 'idx))
         (array 'slice (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse de env_stack (evaled_array evaled_begin evaled_end) indent)
             (cond ((and (val? evaled_begin) (val? evaled_end) (marked_array? evaled_array) (.marked_array_is_val evaled_array))
-                            (marked_array true (slice (.marked_array_values evaled_array) (.val evaled_begin) (.val evaled_end))))
-                  (true     (marked_array false (array (marked_prim_comb recurse 'slice) evaled_array evaled_begin evaled_end)))
+                            (marked_array true false (slice (.marked_array_values evaled_array) (.val evaled_begin) (.val evaled_end))))
+                  (true     (marked_array false true (array (marked_prim_comb recurse 'slice) evaled_array evaled_begin evaled_end)))
             )
         )) 'slice))
         (array 'concat (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse de env_stack evaled_params indent)
-            (cond ((foldl (lambda (a x) (and a (and (marked_array? x) (.marked_array_is_val x)))) true evaled_params) (marked_array true (lapply concat (map (lambda (x)
+            (cond ((foldl (lambda (a x) (and a (and (marked_array? x) (.marked_array_is_val x)))) true evaled_params) (marked_array true false (lapply concat (map (lambda (x)
                                                                                                                                                              (.marked_array_values x))
                                                                                                                                                             evaled_params))))
-                  (true                                                                                               (marked_array false (cons (marked_prim_comb recurse 'concat) evaled_params)))
+                  (true                                                                                               (marked_array false true (cons (marked_prim_comb recurse 'concat) evaled_params)))
             )
         )) 'concat))
 
@@ -677,7 +744,7 @@
         (give_up_eval_params error)
         ;(give_up_eval_params recover)
         (needs_params_val_lambda read-string)
-        (array 'empty_env (marked_env true nil (array nil)))
+        (array 'empty_env (marked_env true nil nil (array nil)))
 
         nil
     )))
@@ -2929,7 +2996,7 @@
 
                     ((marked_env? c) (or (get_passthrough (.hash c) datasi funcs memo) (dlet ((e (.env_marked c))
                                             (_ (if (not (marked_env_real? c)) (error (print_strip "Trying to compile-value a fake env" c))))
-                                            ((kvs vvs datasi funcs memo) (foldr (dlambda ((k v) (ka va datasi funcs memo)) (dlet (((kv datasi funcs memo) (recurse-value datasi funcs memo false (marked_symbol true k)))
+                                            ((kvs vvs datasi funcs memo) (foldr (dlambda ((k v) (ka va datasi funcs memo)) (dlet (((kv datasi funcs memo) (recurse-value datasi funcs memo false (marked_symbol nil k)))
                                                                                                                         ((vv datasi funcs memo) (recurse-value datasi funcs memo false v)))
                                                                                                       (array (cons kv ka) (cons vv va) datasi funcs memo))) (array (array) (array) datasi funcs memo) (slice e 0 -2)))
                                             (u (idx e -1))
@@ -3125,12 +3192,20 @@
                                         (true       (error (print_strip "can't compile-code " c)))
                                     )))
 
+                                    ; Continued in the following TODO, but this is kinda nasty
+                                    ; because it's not unified with make_tmp_env because the compiler
+                                    ; splits de out into it's own environment so that it doesn't have to shift
+                                    ; all of the passed parameters, whereas the partial_eval keeps it in
+                                    ; the same env as the parameters.
                                     ((inner_env setup_code datasi funcs memo) (cond
                                         ((= 0 (len params))                (array se (array) datasi funcs memo))
                                         ((and (= 1 (len params)) variadic) (dlet (
                                             ((params_vec datasi funcs memo) (recurse-value datasi funcs memo false
-                                                                                           (marked_array true (array (marked_symbol true (idx params 0))))))
-                                            ) (array (marked_env false 0 (concat (array (array (idx params 0) (marked_symbol false (idx params 0)))) (array (increment_envs se)))) ; TODO: This should probs be a call to make_tmp_inner_env, but will need combination with below
+                                                                                           (marked_array true false (array (marked_symbol nil (idx params 0))))))
+                                            (incr_se (increment_envs se))
+                                            (new_progress_idxs (cons 0 (needed_for_progress incr_se)))
+                                            ; TODO: This should probs be a call to make_tmp_inner_env, but will need combination with below
+                                            ) (array (marked_env false new_progress_idxs 0 (concat (array (array (idx params 0) (marked_symbol (array 0) (idx params 0)))) (array incr_se)))
                                                  (local.set '$s_env (call '$env_alloc (i64.const params_vec)
                                                                                       (call '$array1_alloc (local.get '$params))
                                                                                       (local.get '$s_env)))
@@ -3138,8 +3213,10 @@
                                               )))
                                         (true                              (dlet (
                                             ((params_vec datasi funcs memo) (recurse-value datasi funcs memo false
-                                                                                           (marked_array true (map (lambda (k) (marked_symbol true k)) params))))
-                                            (new_env (marked_env false 0 (concat (map (lambda (k) (array k (marked_symbol false k))) params) (array (increment_envs se)))))
+                                                                                           (marked_array true false (map (lambda (k) (marked_symbol nil k)) params))))
+                                            (incr_se (increment_envs se))
+                                            (new_progress_idxs (cons 0 (needed_for_progress incr_se)))
+                                            (new_env (marked_env false new_progress_idxs 0 (concat (map (lambda (k) (array k (marked_symbol (array 0) k))) params) (array incr_se))))
                                             (params_code (if variadic (concat
                                                                          (local.set '$param_ptr (i32.wrap_i64 (i64.and (i64.const -8) (local.get '$params))))
                                                                          (local.set '$tmp_ptr (call '$malloc (i32.const (* 8 (len params)))))
@@ -3157,8 +3234,8 @@
                                     ))
                                     ((inner_env setup_code datasi funcs memo) (if (= nil de?) (array inner_env (concat setup_code (call '$drop (local.get '$d_env)))  datasi funcs memo)
                                                                                                      (dlet (
-                                        ((de_array_val datasi funcs memo) (recurse-value datasi funcs memo false (marked_array true (array (marked_symbol true de?)))))
-                                        ) (array (marked_env false 0 (array (array de? (marked_symbol false de?)) inner_env))
+                                        ((de_array_val datasi funcs memo) (recurse-value datasi funcs memo false (marked_array true false (array (marked_symbol nil de?)))))
+                                        ) (array (marked_env false (needed_for_progress inner_env) 0 (array (array de? (marked_symbol (array 0) de?)) inner_env))
                                                  (concat setup_code
                                                         (local.set '$s_env (call '$env_alloc (i64.const de_array_val)
                                                                                       (call '$array1_alloc (local.get '$d_env))
@@ -3195,10 +3272,10 @@
 
               (_ (println "compiling partial evaled " (str_strip marked_code)))
               (memo empty_dict)
-              ((exit_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol true 'exit)))
-              ((read_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol true 'read)))
-              ((write_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol true 'write)))
-              ((open_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol true 'open)))
+              ((exit_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol nil 'exit)))
+              ((read_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol nil 'read)))
+              ((write_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol nil 'write)))
+              ((open_val datasi funcs memo) (compile_value datasi funcs memo false (marked_symbol nil 'open)))
               ((monad_error_msg_val datasi funcs memo) (compile_value datasi funcs memo false (marked_val "Not a legal monad ( ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])")))
               ((bad_read_val datasi funcs memo) (compile_value datasi funcs memo false (marked_val "<error with read>")))
               ((exit_msg_val datasi funcs memo) (compile_value datasi funcs memo false (marked_val "Exiting with code:")))
@@ -3744,6 +3821,7 @@
 ; Known TODOs
 ;;;;;;;;;;;;;;
 ;
+; * ARRAY FUNCTIONS FOR STRINGS, in both PARTIAL_EVAL *AND* COMPILED
 ; * Finish supporting calling vaus in compiled code
 ; * Rework compile-value & compile-code to handle "values" with things that require access to code inside, like array values with <comb FakeEnv>
 ;       Needed to compile envs statically from code when possible, which should help a ton with non-naive ref counting
@@ -3753,3 +3831,9 @@
 
 ; GAH I THINK THAT VAU has a larger issue compiling, which is that deciding which is which at runtime means
 ; you still have to compile an eager version in case it's not a vau, but it might not even be legal code to compile!
+; So it'll have to recover from errors sensibly and compile to an unreachable.
+;
+;
+;
+; EVENTUALLY: Support some hard core partial_eval that an fully make (foldl or stuff) short circut effeciencly with double-inlining, finally
+;   addressing the strict-languages-don't-compose thing
