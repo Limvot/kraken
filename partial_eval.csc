@@ -452,7 +452,7 @@
 
     (partial_eval_helper (rec-lambda recurse (x env env_stack indent)
         (dlet ((for_progress (needed_for_progress x)) (_ (print_strip "for_progress " for_progress " for " x)))
-        (if (or true (= for_progress true)  ((rec-lambda rec (i) (cond ((= i (len for_progress)) false)
+        (if (or (= for_progress true)  ((rec-lambda rec (i) (cond ((= i (len for_progress)) false)
                                                                        ; possible if called from a value context in the compiler
                                                                        ; TODO: I think this should be removed and instead the value/code compilers should
                                                                        ; keep track of actual env stacks
@@ -498,18 +498,23 @@
                                                                                  (rp_eval (lambda (p) (recurse p env env_stack (+ 1 indent))))
                                                                                  ((wrap_level de? se variadic params body) (.comb comb))
                                                                                  (ensure_val_params (map ensure_val literal_params))
-                                                                                 ((ok appropriatly_evaled_params) ((rec-lambda param-recurse (wrap cparams)
+                                                                                 ((ok single_eval_params_if_appropriate appropriatly_evaled_params) ((rec-lambda param-recurse (wrap cparams single_eval_params_if_appropriate)
                                                                                         (dlet ((pre_evaled (map rp_eval cparams)))
                                                                                             (mif (!= 0 wrap)
                                                                                                 (dlet (((ok unval_params) (try_unval_array pre_evaled)))
                                                                                                      (mif (not ok) (array ok nil)
                                                                                                         (let* ((evaled_params (map rp_eval unval_params)))
-                                                                                                              (param-recurse (- wrap 1) evaled_params))))
-                                                                                                (array true pre_evaled)))
-                                                                                    ) wrap_level ensure_val_params))
+                                                                                                              (param-recurse (- wrap 1) evaled_params
+                                                                                                                             (cond ((= nil single_eval_params_if_appropriate) 1)
+                                                                                                                                   ((= 1   single_eval_params_if_appropriate) pre_evaled)
+                                                                                                                                   (true               single_eval_params_if_appropriate))
+                                                                                                                             ))))
+                                                                                                (array true (if (= 1 single_eval_params_if_appropriate) pre_evaled single_eval_params_if_appropriate) pre_evaled)))
+                                                                                    ) wrap_level ensure_val_params nil))
+                                                                                 (correct_fail_params (if (!= nil single_eval_params_if_appropriate) single_eval_params_if_appropriate
+                                                                                                                                                     literal_params))
                                                                                  (ok_and_non_later (and ok (is_all_values appropriatly_evaled_params)))
-                                                                                 ) (mif (not ok_and_non_later) (marked_array false true (cons comb (mif (> wrap_level 0) (map rp_eval literal_params)
-                                                                                                                                                     literal_params)))
+                                                                                 ) (mif (not ok_and_non_later) (marked_array false true (cons comb correct_fail_params))
                                                                                  (dlet (
                                                                                  (final_params (mif variadic (concat (slice appropriatly_evaled_params 0 (- (len params) 1))
                                                                                                                    (array (marked_array true false (slice appropriatly_evaled_params (- (len params) 1) -1))))
@@ -537,8 +542,7 @@
                                                                                  ; just by re-wrapping it in a comb instead mif we wanted.
                                                                                  ; Something to think about!
                                                                                  (result (mif (or (not able_to_sub_env) (and result_is_later result_closes_over))
-                                                                                                (marked_array false true (cons comb (mif (> wrap_level 0) (map rp_eval literal_params)
-                                                                                                                                                     literal_params)))
+                                                                                                (marked_array false true (cons comb correct_fail_params))
                                                                                                 func_result))
                                                                              ) result))))
                                                            ((later_head? comb)    (marked_array false true (cons comb literal_params)))
