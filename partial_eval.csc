@@ -440,12 +440,27 @@
               ((marked_env? x)   (let ((inner (.env_marked x)))
                                      (cond ((in_array (.marked_env_idx x) stop_envs)                                                     false)
                                            ((foldl (lambda (a x) (or a (recurse stop_envs symbols (idx x 1)))) false (slice inner 0 -2)) true)
-                                           ((idx inner -1)                                                                               (recurse stop_envs symbols (idx inner -1)))
+                                           ((!= nil (idx inner -1))                                                                      (recurse stop_envs symbols (idx inner -1)))
                                            (true                                                                                         false))))
               (true              (error (str "Something odd passed to contains_symbols " x)))
     )))
 
-    (check_for_env_id_in_result (rec-lambda check_for_env_id_in_result (env_id tmp_func_result) true))
+    (check_for_env_id_in_result (rec-lambda check_for_env_id_in_result (env_id x) (cond
+              ((val? x)           false)
+              ((marked_symbol? x) false)
+              ((marked_array? x)  (foldl (lambda (a x) (or a (check_for_env_id_in_result env_id x))) false (.marked_array_values x)))
+              ((comb? x)          (dlet (((wrap_level env_id de? se variadic params body) (.comb x)))
+                                      (or (check_for_env_id_in_result env_id se) (check_for_env_id_in_result env_id body))))
+
+              ((prim_comb? x)    false)
+              ((marked_env? x)   (let ((inner (.env_marked x)))
+                                     (cond ((and (not (marked_env_real? x)) (= env_id (.marked_env_idx x)))             true)
+                                           ((foldl (lambda (a x) (or a (check_for_env_id_in_result env_id (idx x 1))))
+                                                   false (slice inner 0 -2))                                            true)
+                                           ((!= nil (idx inner -1))                                                     (check_for_env_id_in_result env_id (idx inner -1)))
+                                           (true                                                                        false))))
+              (true              (error (str "Something odd passed to check_for_env_id_in_result " x)))
+    )))
 
     ; TODO: instead of returning the later symbols, we could create a new value of a new type
     ; ['ref de_bruijn_index_of_env index_into_env] or somesuch. Could really simplify
@@ -506,7 +521,6 @@
                                                         (_ (println (indent_str indent) "Going to do an array call!"))
                                                         (indent (+ 1 indent))
                                                         (_ (print_strip (indent_str indent) "total is " x))
-                                                        (_ (print_strip (indent_str indent) "evaled comb is  " comb))
                                                      )
                                                      (mif err (array env_counter err nil)
                                                      (cond ((prim_comb? comb) ((.prim_comb comb) only_head env env_stack env_counter literal_params (+ 1 indent)))
@@ -555,7 +569,7 @@
                                                                                  ((env_counter func_err func_result) (partial_eval_helper body only_head inner_env (cons inner_env env_stack) env_counter (+ 1 indent)))
                                                                                  ) (mif func_err (array env_counter func_err nil) (dlet (
                                                                                  (_ (print_strip (indent_str indent) "evaled result of function call  is " func_result))
-                                                                                 (able_to_sub_env (check_for_env_id_in_result env_id func_result))
+                                                                                 (able_to_sub_env (not (check_for_env_id_in_result env_id func_result)))
                                                                                  (result_is_later (later_head? func_result))
                                                                                  (_ (print (indent_str indent) "success? " able_to_sub_env))
                                                                                  (stop_envs ((rec-lambda ser (a e) (mif e (ser (cons (.marked_env_idx e) a) (idx (.env_marked e) -1)) a)) (array) se))
@@ -3087,6 +3101,7 @@
 
 
                                                             ((val err) (lookup_helper (.env_marked env) (.marked_symbol_value c) 0 (local.get '$s_env)))
+                                                            (err (mif err (str "got " err ", started searching in " (str_strip env)) err))
                                                             (result (mif val (call '$dup val)))
                                                           ) (array nil result err (array datasi funcs memo env env_counter))))))
                    ((marked_array? c) (if (.marked_array_is_val c) (or (get_passthrough (.hash c) ctx)
@@ -3120,13 +3135,15 @@
                                                                                                                       (array c (mif er er e) (concat ds (array d)))))
                                                                                                 (array env_counter nil (array))
                                                                                                 (slice func_param_values 1 -1)))
+                                                        ; TODO: This might fail because we don't have the real env stack, which we *should*!
+                                                        ; In the mean time, if it does, just fall back to the non-more-evaled ones.
+                                                        (to_code_params (mif err (slice func_param_values 1 -1) evaled_params))
                                                         (ctx (array datasi funcs memo env env_counter))
-                                                        ((param_codes err ctx) (mif err (array nil err ctx)
-                                                                                        (foldr (dlambda (x (a err ctx))
-                                                                                                    (mif err (array a err ctx)
+                                                        ((param_codes err ctx) (foldr (dlambda (x (a err ctx))
+                                                                                                   (mif err (array a err ctx)
                                                                                                              (dlet (((val code new_err ctx) (compile-inner ctx x)))
                                                                                                                    (array (cons (mif code code (i64.const val)) a) (or (mif err err false) new_err) ctx))))
-                                                                                (array (array) nil ctx) evaled_params)))
+                                                                                (array (array) nil ctx) to_code_params))
                                                         (func_value (idx func_param_values 0))
                                                         ((func_val func_code func_err ctx) (compile-inner ctx func_value))
                                                         ;(_ (mif err (error err)))
@@ -3206,7 +3223,7 @@
                                             (generate_env_access (dlambda ((datasi funcs memo env env_counter) env_id) ((rec-lambda recurse (code this_env)
                                                 (cond
                                                     ((= env_id (.marked_env_idx this_env)) (array nil (call '$dup code) nil (array datasi funcs memo env env_counter)))
-                                                    ((= nil (.marked_env_upper this_env))  (array nil nil "bad env" (array datasi funcs memo env env_counter)))
+                                                    ((= nil (.marked_env_upper this_env))  (array nil nil (str "bad env, upper is nil and we haven't found " env_id ", maxing out at " (str_strip this_env)) (array datasi funcs memo env env_counter)))
                                                     (true                                  (recurse (i64.load 16 (i32.wrap_i64 (i64.shr_u code (i64.const 5))))
                                                                                                     (.marked_env_upper this_env)))
                                                 )
@@ -3390,7 +3407,7 @@
                                     ; x+2+4 = y + 3 + 5
                                     ; x + 6 = y + 8
                                     ; x - 2 = y
-                                ) (mif env_val  (array (bor (band #x7FFFFFFC0 (>> env_val 2)) func_value) nil (or func_err env_err) ctx)
+                                ) (mif env_val  (array (bor (band #x7FFFFFFC0 (>> env_val 2)) func_value) nil (mif func_err func_err env_err) ctx)
                                                 (array nil (i64.or (i64.const func_value) (i64.and (i64.const #x7FFFFFFC0) (i64.shr_u env_code (i64.const 2)))) (mif func_err func_err env_err) ctx))
                                 ))
 
