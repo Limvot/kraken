@@ -116,7 +116,7 @@
 
        (nil? (lambda (x) (= nil x)))
        (bool? (lambda (x) (or (= #t x) (= #f x))))
-       ;(print (lambda x 0))
+       (print (lambda x 0))
        (println print)
 
        (read-string (lambda (s) (read (open-input-string s))))
@@ -336,7 +336,8 @@
                                                    (str "   " (recurse (- i 1))))))
 
     (str_strip (lambda args (apply str (concat (slice args 0 -2) (array ((rec-lambda recurse (x)
-        (cond ((val? x)           (str (.val x)))
+        (cond ((= nil x)          "<nil>")
+              ((val? x)           (str (.val x)))
               ((marked_array? x)  (let ((stripped_values (map recurse (.marked_array_values x))))
                                         (mif (.marked_array_is_val x) (str "[" stripped_values "]")
                                                                       (str "<a" (.marked_array_is_attempted x) ",n" (.marked_array_needed_for_progress x) ",r" (needed_for_progress x) ">" stripped_values))))
@@ -353,7 +354,7 @@
               (true               (error (str "some other str_strip? |" x "|")))
         )
     ) (idx args -1)))))))
-    ;(str_strip (lambda args 0))
+    (str_strip (lambda args 0))
     (print_strip (lambda args (println (apply str_strip args))))
 
     (env-lookup-helper (rec-lambda recurse (dict key i fail success) (cond ((and (= i (- (len dict) 1)) (= nil (idx dict i)))  (fail))
@@ -445,19 +446,19 @@
               (true              (error (str "Something odd passed to contains_symbols " x)))
     )))
 
-    (check_for_env_id_in_result (rec-lambda check_for_env_id_in_result (env_id x) (cond
+    (check_for_env_id_in_result (rec-lambda check_for_env_id_in_result (s_env_id x) (cond
               ((val? x)           false)
               ((marked_symbol? x) false)
-              ((marked_array? x)  (foldl (lambda (a x) (or a (check_for_env_id_in_result env_id x))) false (.marked_array_values x)))
-              ((comb? x)          (dlet (((wrap_level env_id de? se variadic params body) (.comb x)))
-                                      (or (check_for_env_id_in_result env_id se) (check_for_env_id_in_result env_id body))))
+              ((marked_array? x)  (foldl (lambda (a x) (or a (check_for_env_id_in_result s_env_id x))) false (.marked_array_values x)))
+              ((comb? x)          (dlet (((wrap_level i_env_id de? se variadic params body) (.comb x)))
+                                      (or (check_for_env_id_in_result s_env_id se) (and (!= s_env_id i_env_id) (check_for_env_id_in_result s_env_id body)))))
 
               ((prim_comb? x)    false)
               ((marked_env? x)   (let ((inner (.env_marked x)))
-                                     (cond ((and (not (marked_env_real? x)) (= env_id (.marked_env_idx x)))             true)
-                                           ((foldl (lambda (a x) (or a (check_for_env_id_in_result env_id (idx x 1))))
+                                     (cond ((and (not (marked_env_real? x)) (= s_env_id (.marked_env_idx x)))           true)
+                                           ((foldl (lambda (a x) (or a (check_for_env_id_in_result s_env_id (idx x 1))))
                                                    false (slice inner 0 -2))                                            true)
-                                           ((!= nil (idx inner -1))                                                     (check_for_env_id_in_result env_id (idx inner -1)))
+                                           ((!= nil (idx inner -1))                                                     (check_for_env_id_in_result s_env_id (idx inner -1)))
                                            (true                                                                        false))))
               (true              (error (str "Something odd passed to check_for_env_id_in_result " x)))
     )))
@@ -507,7 +508,7 @@
                 ((prim_comb? x)      (array env_counter nil x))
                 ((marked_symbol? x)  (mif (.marked_symbol_is_val x) x
                                                                     (env-lookup-helper (.env_marked env) (.marked_symbol_value x) 0
-                                                                                       (lambda ()  (array env_counter "oculdn't find" nil))
+                                                                                       (lambda ()  (array env_counter (str "could't find " (str_strip x) " in " (str_strip env))  nil))
                                                                                        (lambda (x) (array env_counter nil x)))))
                 ((marked_array? x)   (cond ((.marked_array_is_val x) (dlet ( ((env_counter err inner_arr) (foldl (dlambda ((c er ds) p) (dlet (((c e d) (partial_eval_helper p false env env_stack c (+ 1 indent)))) (array c (mif er er e) (concat ds (array d)))))
                                                                                                              (array env_counter nil (array))
@@ -574,7 +575,7 @@
                                                                                  (_ (print (indent_str indent) "success? " able_to_sub_env))
                                                                                  (stop_envs ((rec-lambda ser (a e) (mif e (ser (cons (.marked_env_idx e) a) (idx (.env_marked e) -1)) a)) (array) se))
                                                                                  (result_closes_over (contains_symbols stop_envs (concat params (mif de? (array de?) (array))) func_result))
-                                                                                 (_ (println (indent_str indent) "func call able_to_sub: " able_to_sub_env " result is later_head? " result_is_later " and result_closes_over " result_closes_over))
+                                                                                 (_ (println (indent_str indent) "func call able_to_sub: " able_to_sub_env " (based on env_id " env_id ") result is later_head? " result_is_later " and result_closes_over " result_closes_over))
                                                                                  ; This could be improved to a specialized version of the function
                                                                                  ; just by re-wrapping it in a comb instead mif we wanted.
                                                                                  ; Something to think about!
@@ -3965,10 +3966,11 @@
                                    "((wrap (vau root_env (quote)
                                     ((wrap (vau (let1)
 
-
                                     (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
-                                    (array 'write  1 \"test_self_out2\" (vau (written code) 1))
-                                    )
+                                    (let1 current-env (vau de () de)
+                                    (let1 lapply (lambda (f p)     (eval (concat (array (unwrap f)) p) (current-env)))
+                                    (array (quote write) 1 \"test_self_out2\" (vau (written code) 1))
+                                    )))
 
                                     )) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))
                                     )) (vau (x5) x5))"))))
