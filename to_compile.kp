@@ -9,9 +9,9 @@
 (let1 cons (lambda (h t) (concat (array h) t))
 (let1 lapply (lambda (f p)     (eval (cons (unwrap f) p) (current-env)))
 (let1 vapply (lambda (f p ede) (eval (cons f          p) ede))
-;(let1 Y (lambda (f)
-;    ((lambda (x1) (x1 x1))
-;     (lambda (x2) (f (lambda (& y) (lapply (x2 x2) y))))))
+(let1 Y (lambda (f)
+    ((lambda (x1) (x1 x1))
+     (lambda (x2) (f (lambda (& y) (lapply (x2 x2) y))))))
 ;(let1 vY (lambda (f)
 ;    ((lambda (x3) (x3 x3))
 ;     (lambda (x4) (f (vau de (& y) (vapply (x4 x4) y de))))))
@@ -27,7 +27,7 @@
 
 
 ; end of all lets
-))));)))
+)))));))
 )
 
 ; impl of let1

@@ -166,6 +166,12 @@
       )
 (let* (
 
+    (in_array (let ((helper (rec-lambda recurse (x a i) (cond ((= i (len a))   false)
+                                                              ((= x (idx a i)) true)
+                                                              (true            (recurse x a (+ i 1)))))))
+                   (lambda (x a) (helper x a 0))))
+
+
     (val?                               (lambda (x) (= 'val (idx x 0))))
     (marked_array?                      (lambda (x) (= 'marked_array (idx x 0))))
     (marked_symbol?                     (lambda (x) (= 'marked_symbol (idx x 0))))
@@ -186,6 +192,7 @@
     (.marked_symbol_is_val              (lambda (x) (= nil (.marked_symbol_needed_for_progress x))))
     (.marked_symbol_value               (lambda (x) (idx x 3)))
     (.comb                              (lambda (x) (slice x 2 -1)))
+    (.comb_id                           (lambda (x) (idx x 3)))
     (.comb_env                          (lambda (x) (idx x 5)))
     (.comb_body                         (lambda (x) (idx x 8)))
     (.prim_comb_sym                     (lambda (x) (idx x 3)))
@@ -206,40 +213,12 @@
     (needed_for_progress (rec-lambda needed_for_progress (x) (cond ((marked_array? x)       (.marked_array_needed_for_progress  x))
                                                                    ((marked_symbol? x)      (.marked_symbol_needed_for_progress x))
                                                                    ((marked_env? x)         (.marked_env_needed_for_progress    x))
-                                                                   ; I had to think about comb for a good bit - as long as
-                                                                   ; our Vau only lets us construct combs out of true-value-bodies,
-                                                                   ; our se will cover everything out body needs to progress, and
-                                                                   ; we do need to real-ify our se, so we can just return our se's
-                                                                   ; needed to progress.
-                                                                   ; On the other hand, this means we count any change in our env chain
-                                                                   ; as a reason to re-eval, and get *no speedup at all*.
-                                                                   ; So we need to do something smarter about pulling it from our body.
-                                                                   ((comb? x)               (needed_for_progress (.comb_env x)))
-                                                                   ;
-                                                                   ;
-                                                                   ; Either need to pull Envs out of comb if not used in body, *or*
-                                                                   ;    need to depend on the Envs somehow, without throwing out
-                                                                   ;    all our opts. Maybe it's a preference, where it swaps to
-                                                                   ;    env only after finishing the body?
-                                                                   ;
-                                                                   ;    Do also note that we have to be careful in that the env could be seen
-                                                                   ;    by a parameter being called cuz it might be a vau.
-                                                                   ;
-                                                                   ;    The MAYBE reason we have to do this is that even if a comb with a fake env
-                                                                   ;    but finished body counts as a value, it will fail the decrement_envs
-                                                                   ;    and function calls using it as a parameter will fail.
-                                                                   ;    But does it really? Is it really it failing sub when a real wouldn't?
-                                                                   ;
-                                                                   ;
-                                                                   ((comb? x)               (dlet ((body_needed (needed_for_progress (.comb_body x))))
-                                                                                                (if (= true body_needed) body_needed
-                                                                                                                         ; adding what would be our se
-                                                                                                                         (concat (if (marked_env_real? (.comb_env x)) (array) (array 0))
-                                                                                                                         ; This is preventing it from being considered a value, somehow
-                                                                                                                         ;(map (lambda (x) (- x 1))
-                                                                                                                         ;     (filter (lambda (x) (> x 0))
-                                                                                                                         ;             body_needed))
-                                                                                                                         )
+                                                                   ((comb? x)               (dlet ((id (.comb_id x))
+                                                                                                   (body_needed (needed_for_progress (.comb_body x)))
+                                                                                                   (se_needed   (needed_for_progress (.comb_env x))))
+                                                                                                (if (or (= true body_needed) (= true se_needed)) true
+                                                                                                        (foldl (lambda (a xi) (if (or (= id xi) (in_array xi a)) a (cons xi a)))
+                                                                                                               (array) (concat body_needed se_needed))
                                                                                                 )))
                                                                    ((prim_comb? x)          nil)
                                                                    ((val? x)                nil)
@@ -279,15 +258,15 @@
 
     (marked_symbol    (lambda (progress_idxs x)                        (array 'marked_symbol    (hash_symbol progress_idxs x)                      progress_idxs x)))
     (marked_array     (lambda (is_val attempted x)                     (dlet (
-                                                                            (in (lambda (x a) ((rec-lambda recurse (x a i) (cond ((= i (len a))      false)
-                                                                                                                                 ((= x (idx a i))    true)
-                                                                                                                                 (true               (recurse x a (+ i 1)))))
-                                                                                              x a 0)))
-                                                                            (sub_progress_idxs (foldl (lambda (a x)
-                                                                                                    (if (or (= true a) (= true x)) true
-                                                                                                        (foldl (lambda (a xi) (if (in xi a) a (cons xi a))) a x)
-                                                                                                        )
-                                                                                                 ) (array) (map needed_for_progress x)))
+                                                                            ; If not is_val, then if the first entry (combiner) is not done or is a combiner and not function
+                                                                            ; shouldn't add the rest of them, since they'll have to be passed without eval
+                                                                            ; We do this by ignoring trues for non-first
+                                                                            ((_ sub_progress_idxs) (foldl (dlambda ((f a) x)
+                                                                                                    (cond ((or (= true a) (and f (= true x))) (array false true))
+                                                                                                          ((= true x)                         (array false a))
+                                                                                                          (true                               (array false (foldl (lambda (a xi) (if (in_array xi a) a (cons xi a))) a x)))
+                                                                                                    )
+                                                                                                 ) (array true (array)) (map needed_for_progress x)))
                                                                             ;(_ (print "got " sub_progress_idxs " out of " x))
                                                                             ;(_ (print "\twhich evalated to " (map needed_for_progress x)))
                                                                             (progress_idxs (cond ((and (= nil sub_progress_idxs) (not is_val) attempted)       nil)
@@ -342,7 +321,7 @@
                                         (mif (.marked_array_is_val x) (str "[" stripped_values "]")
                                                                       (str "<a" (.marked_array_is_attempted x) ",n" (.marked_array_needed_for_progress x) ",r" (needed_for_progress x) ">" stripped_values))))
               ((marked_symbol? x) (mif (.marked_symbol_is_val x) (str "'" (.marked_symbol_value x))
-                                                                 (str (.marked_symbol_value x))))
+                                                                 (str (.marked_symbol_needed_for_progress x) "#" (.marked_symbol_value x))))
               ((comb? x)          (dlet (((wrap_level env_id de? se variadic params body) (.comb x)))
                                       (str "<n" (needed_for_progress x) "(comb " wrap_level " " env_id " " de? " " (recurse se) " " params " " (recurse body) ")>")))
               ((prim_comb? x)     (str (idx x 3)))
@@ -422,11 +401,6 @@
     ; This is a conservative analysis, since we can't always tell what constructs introduce
     ; a new binding scope & would be shadowing... we should at least be able to implement it for
     ; vau/lambda, but we won't at first
-    (in_array (let ((helper (rec-lambda recurse (x a i) (cond ((= i (len a))   false)
-                                                              ((= x (idx a i)) true)
-                                                              (true            (recurse x a (+ i 1)))))))
-                   (lambda (x a) (helper x a 0))))
-
     ; TODO: make this check for stop envs using de Bruijn indicies
     (contains_symbols (rec-lambda recurse (stop_envs symbols x) (cond
               ((val? x)           false)
@@ -446,7 +420,11 @@
               (true              (error (str "Something odd passed to contains_symbols " x)))
     )))
 
-    (check_for_env_id_in_result (rec-lambda check_for_env_id_in_result (s_env_id x) (cond
+    (check_for_env_id_in_result (rec-lambda check_for_env_id_in_result (s_env_id x) (dlet (
+        (fp (needed_for_progress x))
+        ) (cond
+              ((= nil fp)         false)
+              ((!= true fp)       (in_array s_env_id fp))
               ((val? x)           false)
               ((marked_symbol? x) false)
               ((marked_array? x)  (foldl (lambda (a x) (or a (check_for_env_id_in_result s_env_id x))) false (.marked_array_values x)))
@@ -461,7 +439,7 @@
                                            ((!= nil (idx inner -1))                                                     (check_for_env_id_in_result s_env_id (idx inner -1)))
                                            (true                                                                        false))))
               (true              (error (str "Something odd passed to check_for_env_id_in_result " x)))
-    )))
+    ))))
 
     ; TODO: instead of returning the later symbols, we could create a new value of a new type
     ; ['ref de_bruijn_index_of_env index_into_env] or somesuch. Could really simplify
@@ -475,16 +453,16 @@
 
     (partial_eval_helper (rec-lambda partial_eval_helper (x only_head env env_stack env_counter indent)
         (dlet ((for_progress (needed_for_progress x)) (_ (print_strip (indent_str indent) "for_progress " for_progress " for " x)))
-        (if (or (= for_progress true)  ((rec-lambda rr (i) (cond ((= i (len for_progress)) (begin (print "i done at " i " out of " (len for_progress)) false))
+        (if (or (= for_progress true)  ((rec-lambda rr (i) (cond ((= i (len for_progress))                                     false)
                                                                        ; possible if called from a value context in the compiler
                                                                        ; TODO: I think this should be removed and instead the value/code compilers should
                                                                        ; keep track of actual env stacks
-                                                                       ((and  ((rec-lambda ir (j) (cond ((= j (len env_stack)) (begin (print "j done ") false))
+                                                                       ((and  ((rec-lambda ir (j) (cond ((= j (len env_stack)) false)
 
-                                                                                                                                                ((and (begin (print "checking with i " i " and j " j " for " (idx for_progress i) " vs " (.marked_env_idx (idx env_stack j)) " and " (.marked_env_has_vals (idx env_stack j))) (= (idx for_progress i) (.marked_env_idx (idx env_stack j)))) (.marked_env_has_vals (idx env_stack j))) true)
-                                                                                                                                                (true                                                                                            (ir (+ j 1))))) 0)
+                                                                                                        ((and (= (idx for_progress i) (.marked_env_idx (idx env_stack j))) (.marked_env_has_vals (idx env_stack j))) true)
+                                                                                                        (true                                                                                                        (ir (+ j 1))))) 0)
                                                                                                                                                                                    ) true)
-                                                                       (true                                                                                                       (begin (print "incresing i from " i) (rr (+ i 1))))
+                                                                       (true                                                                                                       (rr (+ i 1)))
                                                            )) 0))
         (cond   ((val? x)            (array env_counter nil x))
                 ((marked_env? x)     (let ((dbi (.marked_env_idx x)))
@@ -495,7 +473,7 @@
                                                                      0))
                                                          (_ (println (str_strip "replacing " x) (str_strip " with (if nonnil) " new_env)))
                                                         )
-                                                        (array env_counter (mif (!= nil new_env) new_env x)))
+                                                        (array env_counter nil (if (!= nil new_env) new_env x)))
                                                   (array env_counter nil x))))
 
                 ((comb? x)           (dlet (((wrap_level env_id de? se variadic params body) (.comb x)))
@@ -517,7 +495,13 @@
                                            ((= 0 (len (.marked_array_values x))) (array env_counter "Partial eval on empty array" nil))
                                            (true (dlet ((values (.marked_array_values x))
                                                         (_ (print_strip (indent_str indent) "partial_evaling comb " (idx values 0)))
+
                                                         ((env_counter err comb) (partial_eval_helper (idx values 0) true env env_stack env_counter (+ 1 indent)))
+                                                        ; If we haven't evaluated the function before at all, we would like to partially evaluate it so we know
+                                                        ; what it needs. We'll see if this re-introduces exponentail (I think this should limit it to twice?)
+                                                        ((env_counter err comb) (if (and (= nil err) (= true (needed_for_progress comb)))
+                                                                                    (partial_eval_helper comb false env env_stack env_counter (+ 1 indent))
+                                                                                    (array env_counter err comb)))
                                                         (literal_params (slice values 1 -1))
                                                         (_ (println (indent_str indent) "Going to do an array call!"))
                                                         (indent (+ 1 indent))
@@ -552,7 +536,8 @@
                                                                                                                                                      literal_params))
                                                                                  (ok_and_non_later (and ok (is_all_values appropriatly_evaled_params)))
                                                                                  ) (mif err (array env_counter err nil)
-                                                                                   (mif (not ok_and_non_later) (begin (print (indent_str indent) "Can't evaluate params properly, delying")
+                                                                                   (mif (not ok_and_non_later) (begin (print_strip (indent_str indent) "Can't evaluate params properly, delying" x)
+                                                                                                                      (print_strip (indent_str indent) "so returning with " (marked_array false true (cons comb correct_fail_params)))
                                                                                                                       (array env_counter nil (marked_array false true (cons comb correct_fail_params))))
                                                                                  (dlet (
                                                                                  (final_params (mif variadic (concat (slice appropriatly_evaled_params 0 (- (len params) 1))
