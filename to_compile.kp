@@ -7,11 +7,13 @@
 (let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
 (let1 current-env (vau de () de)
 (let1 cons (lambda (h t) (concat (array h) t))
-(let1 lapply (lambda (f p)     (eval (cons (unwrap f) p) (current-env)))
-(let1 vapply (lambda (f p ede) (eval (cons f          p) ede))
-(let1 Y (lambda (f)
+(let1 lapply (lambda (f1 p)     (eval (cons (unwrap f1) p) (current-env)))
+(let1 vapply (lambda (f2 p ede) (eval (cons f2          p) ede))
+
+(let1 Y (lambda (f3)
     ((lambda (x1) (x1 x1))
-     (lambda (x2) (f (lambda (& y) (lapply (x2 x2) y))))))
+     (lambda (x2) (f3 (lambda (& y) (lapply (x2 x2) y))))))
+
 ;(let1 vY (lambda (f)
 ;    ((lambda (x3) (x3 x3))
 ;     (lambda (x4) (f (vau de (& y) (vapply (x4 x4) y de))))))
@@ -20,7 +22,7 @@
 
 
 (array 'open  3 "test_self_out" (lambda (fd code)
-(array 'write fd "wabcdefghi"   (lambda (written code)
+(array 'write fd "wabcdefghijk"   (lambda (written code)
 (array 'exit  written)))))
 
 ;(array 'write  1 "test_self_out2" (vau (written code) 1))

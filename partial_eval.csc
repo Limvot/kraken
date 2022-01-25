@@ -3095,7 +3095,7 @@
                                                                          (if (= 0 actual_len) (array nil_val nil nil ctx)
                                                                              (dlet (((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x)))
                                                                                                                                          (array (cons v a) (or (mif err err false) (mif e e false) (mif c (str "got code " c) false)) ctx))) (array (array) nil ctx) (.marked_array_values c)))
-                                                                                   ) (mif err (array nil nil err ctx) (dlet (
+                                                                                   ) (mif err (array nil nil (str err ", from an array value compile " (str_strip c)) ctx) (dlet (
                                                                                     ((datasi funcs memo env env_counter) ctx)
                                                                                     ;(_ (print_strip "made from " c))
                                                                                     ;(_ (print "pre le_hexify " comp_values))
@@ -3140,7 +3140,7 @@
                                                         ;; Insert test for the function being a constant to inline
                                                         ;; Namely, cond
                                                         ) (cond
-                                                            ((or (!= nil err) (!= nil func_err))    (array nil nil (mif err err func_err) ctx))
+                                                            ((or (!= nil err) (!= nil func_err))    (array nil nil (mif err (str err " from function params in call " (str_strip c)) (str func_err " from function itself  in call " (str_strip c))) ctx))
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'cond))
                                                                                                                (dlet (
                                                                                                                 ((datasi funcs memo env env_counter) ctx)
@@ -3221,16 +3221,18 @@
 
                                             ((kvs vvs ctx) (foldr (dlambda ((k v) (ka va ctx)) (dlet (((kv _    _   ctx) (compile-inner ctx (marked_symbol nil k)))
                                                                                                       ((vv code err ctx) (compile-inner ctx v))
-                                                                                                      ;(_ (print_strip "result of v compile-inner vv " vv " code " code " err " err ", based on " v))
+                                                                                                      (_ (print_strip "result of (kv is " kv ") v compile-inner vv " vv " code " code " err " err ", based on " v))
+                                                                                                      (_ (if (= nil vv) (print_strip "VAL NIL CODE IN ENV B/C " k " = " v) nil))
+                                                                                                      (_ (if (!= nil err) (print_strip "ERRR IN ENV B/C " err " " k " = " v) nil))
                                                                                                       )
-                                                                                                      (if (or (= false ka) (= nil vv) (!= nil err)) (array false false ctx)
+                                                                                                      (if (or (= false ka) (= nil vv) (!= nil err)) (array false k ctx)
                                                                                                                                          (array (cons kv ka) (cons vv va) ctx))))
                                                                   (array (array) (array) ctx)
                                                                   (slice e 0 -2)))
 
                                             ((uv ucode err ctx) (mif (idx e -1) (compile-inner ctx (idx e -1))
                                                                                 (array nil_val nil nil ctx)))
-                                            ) (mif (or (= false kvs) (= nil uv) (!= nil err)) (begin (print_strip "kvs " kvs " uv " uv " or err " err " based off of " c) (generate_env_access ctx (.marked_env_idx c)))
+                                            ) (mif (or (= false kvs) (= nil uv) (!= nil err)) (begin (print_strip "kvs " kvs " vvs " vvs " uv " uv " or err " err " based off of " c) (generate_env_access ctx (.marked_env_idx c)))
                                             (dlet (
                                                 ((datasi funcs memo env env_counter) ctx)
                                                 ((kvs_array datasi) (if (= 0 (len kvs)) (array nil_val datasi)
@@ -3362,7 +3364,8 @@
 
                                         ((datasi funcs memo env env_counter) ctx)
                                         ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env env_counter) body))
-                                        ((datasi funcs memo env env_counter) ctx)
+                                        ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
+                                        ((datasi funcs memo _was_inner_env env_counter) ctx)
                                         ;(_ (print_strip "inner_value for maybe const is " inner_value " inner_code is " inner_code " err is " err " this was for " body))
                                         (inner_code (mif inner_value (i64.const inner_value) inner_code))
                                         (end_code (call '$drop (local.get '$s_env)))
