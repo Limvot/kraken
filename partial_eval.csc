@@ -116,7 +116,9 @@
 
        (nil? (lambda (x) (= nil x)))
        (bool? (lambda (x) (or (= #t x) (= #f x))))
+       (true_print print)
        (print (lambda x 0))
+       ;(true_print print)
        (println print)
 
        (read-string (lambda (s) (read (open-input-string s))))
@@ -254,7 +256,7 @@
                                         ((string? x)   (hash_string x))
                                         ((int? x)      (hash_num x))
                                         (true          (error (str "bad thing to hash_val " x))))))
-    ; 67 71
+    ; 89 97 101 103 107 109 113 127 131 137 139 149 151 157 163 167 173
 
     (marked_symbol    (lambda (progress_idxs x)                        (array 'marked_symbol    (hash_symbol progress_idxs x)                      progress_idxs x)))
     (marked_array     (lambda (is_val attempted x)                     (dlet (
@@ -333,7 +335,9 @@
               (true               (error (str "some other str_strip? |" x "|")))
         )
     ) (idx args -1)))))))
+    (true_str_strip str_strip)
     (str_strip (lambda args 0))
+    ;(true_str_strip str_strip)
     (print_strip (lambda args (println (apply str_strip args))))
 
     (env-lookup-helper (rec-lambda recurse (dict key i fail success) (cond ((and (= i (- (len dict) 1)) (= nil (idx dict i)))  (fail))
@@ -451,20 +455,37 @@
             ) (marked_env false progress_idxs env_id (concat param_entries possible_de_entry (array de))))))
 
 
-    (partial_eval_helper (rec-lambda partial_eval_helper (x only_head env env_stack env_counter indent)
-        (dlet ((for_progress (needed_for_progress x)) (_ (print_strip (indent_str indent) "for_progress " for_progress " for " x)))
-        (if (or (= for_progress true)  ((rec-lambda rr (i) (cond ((= i (len for_progress))                                     false)
+    (pe_memo_hash (lambda (x only_head progress_now) (combine_hash                           (.hash x)
+                                                     (combine_hash (if only_head             67
+                                                                                             71)
+                                                                   (if (= true progress_now) 79
+                                                                                             (* 83 progress_now))
+                                                     ))))
+    (get_pe_passthrough (dlambda (hash (env_counter memo) x) (let ((r (get-value-or-false memo hash)))
+                                                                  (cond ((= r false) false)
+                                                                        ((= r nil)   (array (array env_counter memo) nil x)) ; Nil is for preventing infinite recursion
+                                                                        (true        (array (array env_counter memo) nil r))))))
+
+    (partial_eval_helper (rec-lambda partial_eval_helper (x only_head env env_stack pectx indent)
+        (dlet ((for_progress (needed_for_progress x))
+               (_ (print_strip (indent_str indent) "for_progress " for_progress " for " x))
+               (progress_now (or (= for_progress true)  ((rec-lambda rr (i) (if (= i (len for_progress)) false
+                                                                       (dlet (
                                                                        ; possible if called from a value context in the compiler
                                                                        ; TODO: I think this should be removed and instead the value/code compilers should
                                                                        ; keep track of actual env stacks
-                                                                       ((and  ((rec-lambda ir (j) (cond ((= j (len env_stack)) false)
-
-                                                                                                        ((and (= (idx for_progress i) (.marked_env_idx (idx env_stack j))) (.marked_env_has_vals (idx env_stack j))) true)
-                                                                                                        (true                                                                                                        (ir (+ j 1))))) 0)
-                                                                                                                                                                                   ) true)
-                                                                       (true                                                                                                       (rr (+ i 1)))
-                                                           )) 0))
-        (cond   ((val? x)            (array env_counter nil x))
+                                                                       (this_now ((rec-lambda ir (j) (cond ((= j (len env_stack))                                              false)
+                                                                                                           ((and (= (idx for_progress i) (.marked_env_idx (idx env_stack j)))
+                                                                                                                 (.marked_env_has_vals (idx env_stack j)))                     (idx for_progress i))
+                                                                                                           (true                                                               (ir (+ j 1))))
+                                                                                  ) 0))
+                                                                        ) (if this_now this_now (rr (+ i 1))))
+                                                           )) 0)))
+              )
+        (if progress_now
+        ; Man this like doubles the interpret length
+        (or (get_pe_passthrough (pe_memo_hash x only_head progress_now) pectx x)
+        (cond   ((val? x)            (array pectx nil x))
                 ((marked_env? x)     (let ((dbi (.marked_env_idx x)))
                                           ; compiler calls with empty env stack
                                           (mif dbi (let* ( (new_env ((rec-lambda rec (i) (cond ((= i (len env_stack))                           nil)
@@ -473,72 +494,74 @@
                                                                      0))
                                                          (_ (println (str_strip "replacing " x) (str_strip " with (if nonnil) " new_env)))
                                                         )
-                                                        (array env_counter nil (if (!= nil new_env) new_env x)))
-                                                  (array env_counter nil x))))
+                                                        (array pectx nil (if (!= nil new_env) new_env x)))
+                                                  (array pectx nil x))))
 
                 ((comb? x)           (dlet (((wrap_level env_id de? se variadic params body) (.comb x)))
                                         (mif (or (and (not (marked_env_real? env)) (not (marked_env_real? se)))   ; both aren't real, re-evaluation of creation site
                                                  (and      (marked_env_real? env)  (not (marked_env_real? se))))  ; new env real, but se isn't - creation!
                                              (dlet ((inner_env (make_tmp_inner_env params de? env env_id))
-                                                    ((env_counter err evaled_body) (partial_eval_helper body false inner_env (cons inner_env env_stack) env_counter (+ indent 1))))
-                                                   (array env_counter err (mif err nil (marked_comb wrap_level env_id de? env variadic params evaled_body))))
-                                             (array env_counter nil x))))
-                ((prim_comb? x)      (array env_counter nil x))
+                                                    ((pectx err evaled_body) (partial_eval_helper body false inner_env (cons inner_env env_stack) pectx (+ indent 1))))
+                                                   (array pectx err (mif err nil (marked_comb wrap_level env_id de? env variadic params evaled_body))))
+                                             (array pectx nil x))))
+                ((prim_comb? x)      (array pectx nil x))
                 ((marked_symbol? x)  (mif (.marked_symbol_is_val x) x
                                                                     (env-lookup-helper (.env_marked env) (.marked_symbol_value x) 0
-                                                                                       (lambda ()  (array env_counter (str "could't find " (str_strip x) " in " (str_strip env))  nil))
-                                                                                       (lambda (x) (array env_counter nil x)))))
-                ((marked_array? x)   (cond ((.marked_array_is_val x) (dlet ( ((env_counter err inner_arr) (foldl (dlambda ((c er ds) p) (dlet (((c e d) (partial_eval_helper p false env env_stack c (+ 1 indent)))) (array c (mif er er e) (concat ds (array d)))))
-                                                                                                             (array env_counter nil (array))
+                                                                                       (lambda ()  (array pectx (str "could't find " (str_strip x) " in " (str_strip env))  nil))
+                                                                                       (lambda (x) (array pectx nil x)))))
+                ((marked_array? x)   (cond ((.marked_array_is_val x) (dlet ( ((pectx err inner_arr) (foldl (dlambda ((c er ds) p) (dlet (((c e d) (partial_eval_helper p false env env_stack c (+ 1 indent)))) (array c (mif er er e) (concat ds (array d)))))
+                                                                                                             (array pectx nil (array))
                                                                                                              (.marked_array_values x)))
-                                                                           ) (array env_counter err (mif err nil (marked_array true false inner_arr)))))
-                                           ((= 0 (len (.marked_array_values x))) (array env_counter "Partial eval on empty array" nil))
+                                                                           ) (array pectx err (mif err nil (marked_array true false inner_arr)))))
+                                           ((= 0 (len (.marked_array_values x))) (array pectx "Partial eval on empty array" nil))
                                            (true (dlet ((values (.marked_array_values x))
                                                         (_ (print_strip (indent_str indent) "partial_evaling comb " (idx values 0)))
 
-                                                        ((env_counter err comb) (partial_eval_helper (idx values 0) true env env_stack env_counter (+ 1 indent)))
+                                                        ((pectx err comb) (partial_eval_helper (idx values 0) true env env_stack pectx (+ 1 indent)))
                                                         ; If we haven't evaluated the function before at all, we would like to partially evaluate it so we know
                                                         ; what it needs. We'll see if this re-introduces exponentail (I think this should limit it to twice?)
-                                                        ((env_counter err comb) (if (and (= nil err) (= true (needed_for_progress comb)))
-                                                                                    (partial_eval_helper comb false env env_stack env_counter (+ 1 indent))
-                                                                                    (array env_counter err comb)))
+                                                        ((pectx err comb) (if (and (= nil err) (= true (needed_for_progress comb)))
+                                                                                    (partial_eval_helper comb false env env_stack pectx (+ 1 indent))
+                                                                                    (array pectx err comb)))
                                                         (literal_params (slice values 1 -1))
                                                         (_ (println (indent_str indent) "Going to do an array call!"))
+                                                        ;(_ (true_print (indent_str indent) "Going to do an array call!"))
                                                         (indent (+ 1 indent))
                                                         (_ (print_strip (indent_str indent) "total is " x))
+                                                        ;(_ (true_print (indent_str indent) "total is " (true_str_strip x)))
                                                      )
-                                                     (mif err (array env_counter err nil)
-                                                     (cond ((prim_comb? comb) ((.prim_comb comb) only_head env env_stack env_counter literal_params (+ 1 indent)))
+                                                     (mif err (array pectx err nil)
+                                                     (cond ((prim_comb? comb) ((.prim_comb comb) only_head env env_stack pectx literal_params (+ 1 indent)))
                                                            ((comb? comb)      (dlet (
 
-                                                                                 (map_rp_eval (lambda (env_counter ps) (foldl (dlambda ((c er ds) p) (dlet (((c e d) (partial_eval_helper p false env env_stack c (+ 1 indent)))) (array c (mif er er e) (concat ds (array d)))))
-                                                                                                             (array env_counter nil (array))
+                                                                                 (map_rp_eval (lambda (pectx ps) (foldl (dlambda ((c er ds) p) (dlet (((c e d) (partial_eval_helper p false env env_stack c (+ 1 indent)))) (array c (mif er er e) (concat ds (array d)))))
+                                                                                                             (array pectx nil (array))
                                                                                                              ps)))
 
 
                                                                                  ((wrap_level env_id de? se variadic params body) (.comb comb))
                                                                                  (ensure_val_params (map ensure_val literal_params))
-                                                                                 ((ok env_counter err single_eval_params_if_appropriate appropriatly_evaled_params) ((rec-lambda param-recurse (wrap cparams env_counter single_eval_params_if_appropriate)
-                                                                                        (dlet (((env_counter er pre_evaled) (map_rp_eval env_counter cparams)))
-                                                                                            (mif er (array false env_counter er nil nil)
+                                                                                 ((ok pectx err single_eval_params_if_appropriate appropriatly_evaled_params) ((rec-lambda param-recurse (wrap cparams pectx single_eval_params_if_appropriate)
+                                                                                        (dlet (((pectx er pre_evaled) (map_rp_eval pectx cparams)))
+                                                                                            (mif er (array false pectx er nil nil)
                                                                                             (mif (!= 0 wrap)
                                                                                                 (dlet (((ok unval_params) (try_unval_array pre_evaled)))
-                                                                                                     (mif (not ok) (array ok env_counter nil single_eval_params_if_appropriate nil)
-                                                                                                        (dlet (((env_counter err evaled_params) (map_rp_eval env_counter unval_params)))
-                                                                                                              (param-recurse (- wrap 1) evaled_params env_counter
+                                                                                                     (mif (not ok) (array ok pectx nil single_eval_params_if_appropriate nil)
+                                                                                                        (dlet (((pectx err evaled_params) (map_rp_eval pectx unval_params)))
+                                                                                                              (param-recurse (- wrap 1) evaled_params pectx
                                                                                                                              (cond ((= nil single_eval_params_if_appropriate) 1)
                                                                                                                                    ((= 1   single_eval_params_if_appropriate) pre_evaled)
                                                                                                                                    (true               single_eval_params_if_appropriate))
                                                                                                                              ))))
-                                                                                                (array true env_counter nil (if (= 1 single_eval_params_if_appropriate) pre_evaled single_eval_params_if_appropriate) pre_evaled))))
-                                                                                    ) wrap_level ensure_val_params env_counter nil))
+                                                                                                (array true pectx nil (if (= 1 single_eval_params_if_appropriate) pre_evaled single_eval_params_if_appropriate) pre_evaled))))
+                                                                                    ) wrap_level ensure_val_params pectx nil))
                                                                                  (correct_fail_params (if (!= nil single_eval_params_if_appropriate) single_eval_params_if_appropriate
                                                                                                                                                      literal_params))
                                                                                  (ok_and_non_later (and ok (is_all_values appropriatly_evaled_params)))
-                                                                                 ) (mif err (array env_counter err nil)
+                                                                                 ) (mif err (array pectx err nil)
                                                                                    (mif (not ok_and_non_later) (begin (print_strip (indent_str indent) "Can't evaluate params properly, delying" x)
                                                                                                                       (print_strip (indent_str indent) "so returning with " (marked_array false true (cons comb correct_fail_params)))
-                                                                                                                      (array env_counter nil (marked_array false true (cons comb correct_fail_params))))
+                                                                                                                      (array pectx nil (marked_array false true (cons comb correct_fail_params))))
                                                                                  (dlet (
                                                                                  (final_params (mif variadic (concat (slice appropriatly_evaled_params 0 (- (len params) 1))
                                                                                                                    (array (marked_array true false (slice appropriatly_evaled_params (- (len params) 1) -1))))
@@ -552,8 +575,14 @@
                                                                                  (_ (print_strip (indent_str indent) " with inner_env is " inner_env))
                                                                                  (_ (print_strip (indent_str indent) "going to eval " body))
 
-                                                                                 ((env_counter func_err func_result) (partial_eval_helper body only_head inner_env (cons inner_env env_stack) env_counter (+ 1 indent)))
-                                                                                 ) (mif func_err (array env_counter func_err nil) (dlet (
+                                                                                 ; prevent infinite recursion
+                                                                                 ((env_counter memo) pectx)
+                                                                                 (this_hash (pe_memo_hash x only_head progress_now))
+                                                                                 (memo (put memo this_hash nil))
+                                                                                 (pectx (array env_counter memo))
+
+                                                                                 ((pectx func_err func_result) (partial_eval_helper body only_head inner_env (cons inner_env env_stack) pectx (+ 1 indent)))
+                                                                                 ) (mif func_err (array pectx func_err nil) (dlet (
                                                                                  (_ (print_strip (indent_str indent) "evaled result of function call  is " func_result))
                                                                                  (able_to_sub_env (not (check_for_env_id_in_result env_id func_result)))
                                                                                  (result_is_later (later_head? func_result))
@@ -567,55 +596,58 @@
                                                                                  (result (mif (or (not able_to_sub_env) (and result_is_later result_closes_over))
                                                                                                 (marked_array false true (cons comb correct_fail_params))
                                                                                                 func_result))
-                                                                             )    (array env_counter nil result))))))))
-                                                           ((later_head? comb)    (array env_counter nil (marked_array false true (cons comb literal_params))))
-                                                           (true                  (array env_counter (str "impossible comb value " x) nil))))))))
-                (true                (array env_counter (str "impossible partial_eval value " x) nil))
-        )
+                                                                                 ((env_counter memo) pectx)
+                                                                                 (memo (put memo this_hash result))
+                                                                                 (pectx (array env_counter memo))
+                                                                             )    (array pectx nil result))))))))
+                                                           ((later_head? comb)    (array pectx nil (marked_array false true (cons comb literal_params))))
+                                                           (true                  (array pectx (str "impossible comb value " x) nil))))))))
+                (true                (array pectx (str "impossible partial_eval value " x) nil))
+        ))
         ; otherwise, we can't make progress yet
-        (begin (print_strip (indent_str indent) "Not evaluating " x) (print (indent_str indent) "comparing to env stack " env_stack) (array env_counter nil x))))
+        (begin (print_strip (indent_str indent) "Not evaluating " x) (print (indent_str indent) "comparing to env stack " env_stack) (array pectx nil x))))
     ))
 
     ; !!!!!!
     ; ! I think needs_params_val_lambda should be combined with parameters_evaled_proxy
     ; !!!!!!
-    (parameters_evaled_proxy (rec-lambda recurse (pasthr_ie inner_f) (lambda (only_head de env_stack env_counter params indent) (dlet (
+    (parameters_evaled_proxy (rec-lambda recurse (pasthr_ie inner_f) (lambda (only_head de env_stack pectx params indent) (dlet (
         ;(_ (println "partial_evaling params in parameters_evaled_proxy is " params))
-        ((evaled_params l err env_counter) (foldl (dlambda ((ac i err env_counter) p) (dlet (((env_counter er p) (partial_eval_helper p (if (and only_head (= i pasthr_ie)) only_head false) de env_stack env_counter (+ 1 indent))))
-                                                         (array (concat ac (array p)) (+ i 1) (mif err err er) env_counter)))
-                                           (array (array) 0 nil env_counter)
+        ((evaled_params l err pectx) (foldl (dlambda ((ac i err pectx) p) (dlet (((pectx er p) (partial_eval_helper p (if (and only_head (= i pasthr_ie)) only_head false) de env_stack pectx (+ 1 indent))))
+                                                         (array (concat ac (array p)) (+ i 1) (mif err err er) pectx)))
+                                           (array (array) 0 nil pectx)
                                            params))
-    ) (mif err (array env_counter err nil)
-               (inner_f (lambda args (apply (recurse pasthr_ie inner_f) args)) only_head de env_stack env_counter evaled_params indent))))))
+    ) (mif err (array pectx err nil)
+               (inner_f (lambda args (apply (recurse pasthr_ie inner_f) args)) only_head de env_stack pectx evaled_params indent))))))
 
     (needs_params_val_lambda_inner (lambda (f_sym actual_function) (let* (
-        (handler (rec-lambda recurse (only_head de env_stack env_counter params indent) (dlet (
+        (handler (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
                 ;_ (println "partial_evaling params in need_params_val_lambda for " f_sym " is " params)
-                ((env_counter err evaled_params) (foldl (dlambda ((c err ds) p) (dlet (((c er d) (partial_eval_helper p false de env_stack c (+ 1 indent))))
+                ((pectx err evaled_params) (foldl (dlambda ((c err ds) p) (dlet (((c er d) (partial_eval_helper p false de env_stack c (+ 1 indent))))
                                                                                 (array c (mif err err er) (concat ds (array d)))))
-                                                        (array env_counter nil (array)) params))
+                                                        (array pectx nil (array)) params))
             )
             ; TODO: Should this be  is_all_head_values?
-            (mif err (array env_counter err nil)
-            (array env_counter nil (mif (is_all_values evaled_params) (mark (apply actual_function (map strip evaled_params)))
+            (mif err (array pectx err nil)
+            (array pectx nil (mif (is_all_values evaled_params) (mark (apply actual_function (map strip evaled_params)))
                                                                       (marked_array false true (cons (marked_prim_comb recurse f_sym) evaled_params))))))))
         ) (array f_sym (marked_prim_comb handler f_sym)))))
 
     (give_up_eval_params_inner (lambda (f_sym actual_function) (let* (
-        (handler (rec-lambda recurse (only_head de env_stack env_counter params indent) (dlet (
+        (handler (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
                 ;_ (println "partial_evaling params in give_up_eval_params for " f_sym " is " params)
-                ((env_counter err evaled_params) (foldl (dlambda ((c err ds) p) (dlet (((c er d) (partial_eval_helper p only_head de env_stack c (+ 1 indent))))
+                ((pectx err evaled_params) (foldl (dlambda ((c err ds) p) (dlet (((c er d) (partial_eval_helper p only_head de env_stack c (+ 1 indent))))
                                                                                 (array c (mif err err er) (concat ds (array d)))))
-                                                        (array env_counter nil (array)) params))
+                                                        (array pectx nil (array)) params))
             )
-            (mif err (array env_counter err nil)
-                     (array env_counter nil (marked_array false true (cons (marked_prim_comb recurse f_sym) evaled_params)))))))
+            (mif err (array pectx err nil)
+                     (array pectx nil (marked_array false true (cons (marked_prim_comb recurse f_sym) evaled_params)))))))
         ) (array f_sym (marked_prim_comb handler f_sym)))))
 
 
     (root_marked_env (marked_env true nil nil (array
 
-        (array 'vau (marked_prim_comb (rec-lambda recurse (only_head de env_stack env_counter params indent) (dlet (
+        (array 'vau (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
             (mde?         (mif (= 3 (len params)) (idx params 0) nil))
             (vau_mde?     (mif (= nil mde?) (array) (array mde?)))
             (_ (print (indent_str indent) "mde? is " mde?))
@@ -629,44 +661,46 @@
 
             ((variadic vau_params)  (foldl (dlambda ((v a) x) (mif (= x '&) (array true a) (array v (concat a (array x))))) (array false (array)) raw_params))
             (body        (mif (= nil de?) (idx params 1) (idx params 2)))
+            ((env_counter memo) pectx)
             (new_id env_counter)
             (env_counter (+ 1 env_counter))
-            ((env_counter err pe_body) (if only_head (begin (print "skipping inner eval cuz only_head") (array env_counter nil body))
+            (pectx (array env_counter memo))
+            ((pectx err pe_body) (if only_head (begin (print "skipping inner eval cuz only_head") (array pectx nil body))
                                        (dlet (
                                             (inner_env (make_tmp_inner_env vau_params de? de new_id))
                                             (_ (print_strip (indent_str indent) "in vau, evaluating body with 'later params - " body))
-                                            ((env_counter err pe_body) (partial_eval_helper body false inner_env (cons inner_env env_stack) env_counter (+ 1 indent)))
+                                            ((pectx err pe_body) (partial_eval_helper body false inner_env (cons inner_env env_stack) pectx (+ 1 indent)))
                                             (_ (print_strip (indent_str indent) "in vau, result of evaluating body was " pe_body))
-                                        ) (array env_counter err pe_body))))
-        ) (mif err (array env_counter err nil) (array env_counter nil (marked_comb 0 new_id de? de variadic vau_params pe_body)))
+                                        ) (array pectx err pe_body))))
+        ) (mif err (array pectx err nil) (array pectx nil (marked_comb 0 new_id de? de variadic vau_params pe_body)))
         )) 'vau))
 
-        (array 'wrap (marked_prim_comb (parameters_evaled_proxy 0 (dlambda (recurse only_head de env_stack env_counter (evaled) indent)
-              (array env_counter nil (mif (comb? evaled) (dlet (((wrap_level env_id de? se variadic params body) (.comb evaled))
+        (array 'wrap (marked_prim_comb (parameters_evaled_proxy 0 (dlambda (recurse only_head de env_stack pectx (evaled) indent)
+              (array pectx nil (mif (comb? evaled) (dlet (((wrap_level env_id de? se variadic params body) (.comb evaled))
                                            (wrapped_marked_fun (marked_comb (+ 1 wrap_level) env_id de? se variadic params body))
                                           ) wrapped_marked_fun)
                                      (marked_array false true (array (marked_prim_comb recurse 'wrap) evaled)))))
         ) 'wrap))
 
-        (array 'unwrap (marked_prim_comb (parameters_evaled_proxy 0 (dlambda (recurse only_head de env_stack env_counter (evaled) indent)
-             (array env_counter nil (mif (comb? evaled) (dlet (((wrap_level env_id de? se variadic params body) (.comb evaled))
+        (array 'unwrap (marked_prim_comb (parameters_evaled_proxy 0 (dlambda (recurse only_head de env_stack pectx (evaled) indent)
+             (array pectx nil (mif (comb? evaled) (dlet (((wrap_level env_id de? se variadic params body) (.comb evaled))
                                            (unwrapped_marked_fun (marked_comb (- wrap_level 1) env_id de? se variadic params body))
                                          ) unwrapped_marked_fun)
                                     (marked_array false true (array (marked_prim_comb recurse 'unwrap) evaled)))))
         ) 'unwrap))
 
-        (array 'eval (marked_prim_comb (rec-lambda recurse (only_head de env_stack env_counter params indent) (dlet (
+        (array 'eval (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
             (self (marked_prim_comb recurse 'eval))
 
             (_ (print_strip (indent_str indent) " partial_evaling_body the first time " (idx params 0)))
-            ((env_counter body_err body1) (partial_eval_helper (idx params 0) false de env_stack env_counter (+ 1 indent)))
+            ((pectx body_err body1) (partial_eval_helper (idx params 0) false de env_stack pectx (+ 1 indent)))
             (_ (print_strip (indent_str indent) "after first eval of param " body1))
 
-            ((env_counter env_err eval_env) (mif (= 2 (len params)) (partial_eval_helper (idx params 1) false de env_stack env_counter (+ 1 indent))
-                                                                    (array env_counter nil de)))
+            ((pectx env_err eval_env) (mif (= 2 (len params)) (partial_eval_helper (idx params 1) false de env_stack pectx (+ 1 indent))
+                                                                    (array pectx nil de)))
             (eval_env_v (mif (= 2 (len params)) (array eval_env) (array)))
-         ) (mif (or (!= nil body_err) (!= nil env_err)) (array env_counter (mif body_err body_err env_err) nil)
-           (mif (not (marked_env? eval_env)) (array env_counter (mif body_err body_err env_err) (marked_array false true (concat (array self body1) eval_env_v)))
+         ) (mif (or (!= nil body_err) (!= nil env_err)) (array pectx (mif body_err body_err env_err) nil)
+           (mif (not (marked_env? eval_env)) (array pectx (mif body_err body_err env_err) (marked_array false true (concat (array self body1) eval_env_v)))
                                             (dlet (
             ; Is this safe? Could this not move eval_env_v inside a comb?
             ; With this, we don't actually fail as this is always a legitimate uneval
@@ -674,28 +708,28 @@
             ((ok unval_body) (try_unval body1 fail_handler))
             (self_fallback (fail_handler body1))
             (_ (print_strip (indent_str indent) "partial_evaling body for the second time in eval " unval_body))
-            ((env_counter err body2) (mif (= self_fallback unval_body) (array env_counter nil self_fallback)
-                                                                       (partial_eval_helper unval_body only_head eval_env env_stack env_counter (+ 1 indent))))
+            ((pectx err body2) (mif (= self_fallback unval_body) (array pectx nil self_fallback)
+                                                                       (partial_eval_helper unval_body only_head eval_env env_stack pectx (+ 1 indent))))
             (_ (print_strip (indent_str indent) "and body2 is " body2))
-            ) (mif err (array env_counter err nil) (array env_counter nil body2)))))
+            ) (mif err (array pectx err nil) (array pectx nil body2)))))
         )) 'eval))
 
-        (array 'cond (marked_prim_comb (rec-lambda recurse (only_head de env_stack env_counter params indent)
-            (mif (!= 0 (% (len params) 2)) (array env_counter (str "partial eval cond with odd params " params) nil)
-                ((rec-lambda recurse_inner (i so_far env_counter)
-                                          (dlet (((env_counter err evaled_cond) (partial_eval_helper (idx params i) false de env_stack env_counter (+ 1 indent)))
+        (array 'cond (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx params indent)
+            (mif (!= 0 (% (len params) 2)) (array pectx (str "partial eval cond with odd params " params) nil)
+                ((rec-lambda recurse_inner (i so_far pectx)
+                                          (dlet (((pectx err evaled_cond) (partial_eval_helper (idx params i) false de env_stack pectx (+ 1 indent)))
                                                  (_ (print (indent_str indent) "in cond cond " (idx params i) " evaluated to " evaled_cond)))
-                                          (cond ((!= nil err)                   (array env_counter err nil))
-                                                ((later_head? evaled_cond)      (dlet ( ((env_counter err arm) (if only_head (array env_counter nil (idx params (+ i 1)))
-                                                                                                                             (partial_eval_helper (idx params (+ i 1)) false de env_stack env_counter (+ 1 indent))))
-                                                                                      ) (mif err (array env_counter err nil)
-                                                                                                 (recurse_inner (+ 2 i) (concat so_far (array evaled_cond arm)) env_counter))))
-                                                ((false? evaled_cond)            (recurse_inner (+ 2 i) so_far env_counter))
-                                                ((= (len params) i)              (array env_counter nil (marked_array false true (cons (marked_prim_comb recurse 'cond) so_far))))
-                                                (true                            (dlet (((env_counter err evaled_body) (partial_eval_helper (idx params (+ 1 i)) only_head de env_stack env_counter (+ 1 indent))))
-                                                                                       (mif err (array env_counter err nil) (array env_counter nil (mif (!= (len so_far) 0) (marked_array false true (cons (marked_prim_comb recurse 'cond) (concat so_far (array evaled_cond evaled_body))))
+                                          (cond ((!= nil err)                   (array pectx err nil))
+                                                ((later_head? evaled_cond)      (dlet ( ((pectx err arm) (if only_head (array pectx nil (idx params (+ i 1)))
+                                                                                                                             (partial_eval_helper (idx params (+ i 1)) false de env_stack pectx (+ 1 indent))))
+                                                                                      ) (mif err (array pectx err nil)
+                                                                                                 (recurse_inner (+ 2 i) (concat so_far (array evaled_cond arm)) pectx))))
+                                                ((false? evaled_cond)            (recurse_inner (+ 2 i) so_far pectx))
+                                                ((= (len params) i)              (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'cond) so_far))))
+                                                (true                            (dlet (((pectx err evaled_body) (partial_eval_helper (idx params (+ 1 i)) only_head de env_stack pectx (+ 1 indent))))
+                                                                                       (mif err (array pectx err nil) (array pectx nil (mif (!= (len so_far) 0) (marked_array false true (cons (marked_prim_comb recurse 'cond) (concat so_far (array evaled_cond evaled_body))))
                                                                                                                                    evaled_body)))))
-                 ))) 0 (array) env_counter)
+                 ))) 0 (array) pectx)
             )
         ) 'cond))
 
@@ -703,16 +737,16 @@
         (needs_params_val_lambda int?)
         (needs_params_val_lambda string?)
 
-        (array 'combiner? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack env_counter (evaled_param) indent)
-            (array env_counter nil (cond
+        (array 'combiner? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_param) indent)
+            (array pectx nil (cond
                   ((comb? evaled_param)          (marked_val true))
                   ((prim_comb? evaled_param)     (marked_val true))
                   ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'combiner?) evaled_param)))
                   (true                          (marked_val false))
             ))
         )) 'combiner?))
-        (array 'env? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack env_counter (evaled_param) indent)
-            (array env_counter nil (cond
+        (array 'env? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_param) indent)
+            (array pectx nil (cond
                   ((marked_env? evaled_param)    (marked_val true))
                   ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'env?) evaled_param)))
                   (true                          (marked_val false))
@@ -723,8 +757,8 @@
         (needs_params_val_lambda str-to-symbol)
         (needs_params_val_lambda get-text)
 
-        (array 'array? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack env_counter (evaled_param) indent)
-            (array env_counter nil (cond
+        (array 'array? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_param) indent)
+            (array pectx nil (cond
                   ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'array?) evaled_param)))
                   ((marked_array? evaled_param)  (marked_val true))
                   (true                          (marked_val false))
@@ -735,32 +769,32 @@
         ; We need to be able to differentiate between half-and-half arrays
         ; for when we ensure_params_values or whatever, because that's super wrong
         ; Maybe we can now with progress_idxs?
-        (array 'array (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse only_head de env_stack env_counter evaled_params indent)
-                                                (array env_counter nil (mif (is_all_values evaled_params) (marked_array true false evaled_params)
+        (array 'array (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse only_head de env_stack pectx evaled_params indent)
+                                                (array pectx nil (mif (is_all_values evaled_params) (marked_array true false evaled_params)
                                                                                                           (marked_array false true (cons (marked_prim_comb recurse 'array) evaled_params))))
         )) 'array))
-        (array 'len (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack env_counter (evaled_param) indent)
-            (array env_counter nil (cond
+        (array 'len (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_param) indent)
+            (array pectx nil (cond
                   ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'len) evaled_param)))
                   ((marked_array? evaled_param)  (marked_val (len (.marked_array_values evaled_param))))
                   (true                          (error (str "bad type to len " evaled_param)))
             ))
         )) 'len))
-        (array 'idx (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack env_counter (evaled_array evaled_idx) indent)
-            (array env_counter nil (cond
+        (array 'idx (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_array evaled_idx) indent)
+            (array pectx nil (cond
                   ((and (val? evaled_idx) (marked_array? evaled_array) (.marked_array_is_val evaled_array)) (idx (.marked_array_values evaled_array) (.val evaled_idx)))
                   (true                                                                                     (marked_array false true (array (marked_prim_comb recurse 'idx) evaled_array evaled_idx)))
             ))
         )) 'idx))
-        (array 'slice (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack env_counter (evaled_array evaled_begin evaled_end) indent)
-            (array env_counter nil (cond
+        (array 'slice (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_array evaled_begin evaled_end) indent)
+            (array pectx nil (cond
                   ((and (val? evaled_begin) (val? evaled_end) (marked_array? evaled_array) (.marked_array_is_val evaled_array))
                             (marked_array true false (slice (.marked_array_values evaled_array) (.val evaled_begin) (.val evaled_end))))
                   (true     (marked_array false true (array (marked_prim_comb recurse 'slice) evaled_array evaled_begin evaled_end)))
             ))
         )) 'slice))
-        (array 'concat (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse only_head de env_stack env_counter evaled_params indent)
-            (array env_counter nil (cond
+        (array 'concat (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse only_head de env_stack pectx evaled_params indent)
+            (array pectx nil (cond
                   ((foldl (lambda (a x) (and a (and (marked_array? x) (.marked_array_is_val x)))) true evaled_params) (marked_array true false (lapply concat (map (lambda (x)
                                                                                                                                                              (.marked_array_values x))
                                                                                                                                                             evaled_params))))
@@ -802,7 +836,7 @@
     )))
 
 
-    (partial_eval (lambda (x) (partial_eval_helper (mark x) false root_marked_env (array) 0 0)))
+    (partial_eval (lambda (x) (partial_eval_helper (mark x) false root_marked_env (array) (array 0 (array)) 0)))
     ;; WASM
 
     ; Vectors and Values
@@ -1387,7 +1421,7 @@
     (i64_le_hexify (lambda (x) (le_hexify_helper x 8)))
     (i32_le_hexify (lambda (x) (le_hexify_helper x 4)))
 
-    (compile (dlambda ((env_counter partial_eval_err marked_code)) (mif partial_eval_err (error partial_eval_err) (wasm_to_binary (module
+    (compile (dlambda ((pectx partial_eval_err marked_code)) (mif partial_eval_err (error partial_eval_err) (wasm_to_binary (module
           (import "wasi_unstable" "path_open"
                   '(func $path_open  (param i32 i32 i32 i32 i32 i64 i64 i32 i32)
                                      (result i32)))
@@ -3039,8 +3073,8 @@
                 (unreachable)
               ))))
 
-              (get_passthrough (dlambda (hash (datasi funcs memo env env_counter)) (let ((r (get-value-or-false memo hash)))
-                                                                     (if r (array r nil nil (array datasi funcs memo env env_counter)) #f))))
+              (get_passthrough (dlambda (hash (datasi funcs memo env pectx)) (let ((r (get-value-or-false memo hash)))
+                                                                     (if r (array r nil nil (array datasi funcs memo env pectx)) #f))))
 
               ; This is the second run at this, and is a little interesting
               ; It can return a value OR code OR an error string. An error string should be propegated,
@@ -3048,32 +3082,32 @@
               ; may not be a Vau. When it recurses, if the thing you're currently compiling could be a value
               ; but your recursive calls return code, you will likely have to swap back to code.
 
-              ; ctx is (datasi funcs memo env env_counter)
-              ; return is (value? code? error? (datasi funcs memo env env_counter))
+              ; ctx is (datasi funcs memo env pectx)
+              ; return is (value? code? error? (datasi funcs memo env pectx))
               (compile-inner (rec-lambda compile-inner (ctx c) (cond
                     ((val? c)   (let ((v (.val c)))
                                      (cond ((int? v)    (array  (<< v 1) nil nil ctx))
                                            ((= true v)  (array  true_val nil nil ctx))
                                            ((= false v) (array false_val nil nil ctx))
                                            ((str? v)    (or (get_passthrough (.hash c) ctx)
-                                                            (dlet ( ((datasi funcs memo env env_counter) ctx)
+                                                            (dlet ( ((datasi funcs memo env pectx) ctx)
                                                                     ((c_loc c_len datasi) (alloc_data v datasi))
                                                                     (a (bor (<< c_len 32) c_loc #b011))
                                                                     (memo (put memo (.hash c) a))
-                                                                  ) (array a nil nil (array datasi funcs memo env env_counter)))))
+                                                                  ) (array a nil nil (array datasi funcs memo env pectx)))))
                                            (true        (error (str "Can't compile impossible value " v))))))
                     ((marked_symbol? c) (cond ((.marked_symbol_is_val c) (or ;(begin (print "pre get_passthrough " (.hash c) "ctx is " ctx )
                                                                                     (get_passthrough (.hash c) ctx)
                                                                              ;)
-                                                                             (dlet ( ((datasi funcs memo env env_counter) ctx)
+                                                                             (dlet ( ((datasi funcs memo env pectx) ctx)
                                                                                      ((c_loc c_len datasi) (alloc_data (symbol->string (.marked_symbol_value c))  datasi))
                                                                                      (result (bor (<< c_len 32) c_loc #b111))
                                                                                      (memo (put memo (.hash c) result))
-                                                                                   ) (array result nil nil (array datasi funcs memo env env_counter)))))
+                                                                                   ) (array result nil nil (array datasi funcs memo env pectx)))))
 
 
 
-                                              (true (dlet ( ((datasi funcs memo env env_counter) ctx)
+                                              (true (dlet ( ((datasi funcs memo env pectx) ctx)
                                                             ; not a recoverable error, so just do here
                                                             (_ (if (= nil env) (error "nil env when trying to compile a non-value symbol")))
                                                             (lookup_helper (rec-lambda lookup-recurse (dict key i code) (cond
@@ -3089,14 +3123,14 @@
                                                             ((val err) (lookup_helper (.env_marked env) (.marked_symbol_value c) 0 (local.get '$s_env)))
                                                             (err (mif err (str "got " err ", started searching in " (str_strip env)) err))
                                                             (result (mif val (call '$dup val)))
-                                                          ) (array nil result err (array datasi funcs memo env env_counter))))))
+                                                          ) (array nil result err (array datasi funcs memo env pectx))))))
                    ((marked_array? c) (if (.marked_array_is_val c) (or (get_passthrough (.hash c) ctx)
                                                                        (let ((actual_len (len (.marked_array_values c))))
                                                                          (if (= 0 actual_len) (array nil_val nil nil ctx)
                                                                              (dlet (((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x)))
                                                                                                                                          (array (cons v a) (or (mif err err false) (mif e e false) (mif c (str "got code " c) false)) ctx))) (array (array) nil ctx) (.marked_array_values c)))
                                                                                    ) (mif err (array nil nil (str err ", from an array value compile " (str_strip c)) ctx) (dlet (
-                                                                                    ((datasi funcs memo env env_counter) ctx)
+                                                                                    ((datasi funcs memo env pectx) ctx)
                                                                                     ;(_ (print_strip "made from " c))
                                                                                     ;(_ (print "pre le_hexify " comp_values))
                                                                                     ;(_ (print "pre le_hexify, err was " err))
@@ -3104,7 +3138,7 @@
                                                                                     ((c_loc c_len datasi) (alloc_data (apply concat (map i64_le_hexify comp_values)) datasi))
                                                                                     (result (bor (<< actual_len 32) c_loc #b101))
                                                                                     (memo (put memo (.hash c) result))
-                                                                                   ) (array result nil nil (array datasi funcs memo env env_counter))))))))
+                                                                                   ) (array result nil nil (array datasi funcs memo env pectx))))))))
 
 
                                                                     (dlet (
@@ -3113,23 +3147,36 @@
 
                                                         ; In the paths where this is used, we know we can partial_evaluate the parameters
 
-                                                        ((datasi funcs memo env env_counter) ctx)
 
-                                                        ; This really should be able to recover from errors...
-                                                        (_ (print_strip "doing further partial eval for " c))
-                                                        ((env_counter err evaled_params) (foldl (dlambda ((c er ds) p) (dlet (((c e d) (partial_eval_helper p false env (array) c 1)))
+                                                        ;(_ (print_strip "doing further partial eval for " c))
+                                                        (_ (true_print "doing further partial eval for "))
+                                                        (_ (true_print "\t" (true_str_strip c)))
+                                                        ; This can weirdly cause infinate recursion on the compile side, if partial_eval
+                                                        ; returns something that, when compiled, will cause partial eval to return that thing again.
+                                                        ; Partial eval won't recurse infinately, since it has memo, but it can return something of that
+                                                        ; shape in that case which will cause compile to keep stepping.
+                                                        ((datasi funcs memo env pectx) ctx)
+                                                        ((pectx err evaled_params) (if (= 'RECURSE_FAIL (get-value-or-false memo (.hash c))) (begin (true_print "got a recurse, stoping") (array pectx "RECURSE FAIL" nil))
+                                                                                   (foldl (dlambda ((c er ds) p) (dlet (((c e d) (partial_eval_helper p false env (array) c 1)))
                                                                                                                       (array c (mif er er e) (concat ds (array d)))))
-                                                                                                (array env_counter nil (array))
-                                                                                                (slice func_param_values 1 -1)))
+                                                                                                (array pectx nil (array))
+                                                                                                (slice func_param_values 1 -1))))
+                                                        (_ (true_print "DONE further partial eval for "))
+                                                        (_ (true_print "\t" (true_str_strip c)))
                                                         ; TODO: This might fail because we don't have the real env stack, which we *should*!
                                                         ; In the mean time, if it does, just fall back to the non-more-evaled ones.
                                                         (to_code_params (mif err (slice func_param_values 1 -1) evaled_params))
-                                                        (ctx (array datasi funcs memo env env_counter))
+
+                                                        (memo (put memo (.hash c) 'RECURSE_FAIL))
+                                                        (ctx (array datasi funcs memo env pectx))
                                                         ((param_codes err ctx) (foldr (dlambda (x (a err ctx))
                                                                                                    (mif err (array a err ctx)
                                                                                                              (dlet (((val code new_err ctx) (compile-inner ctx x)))
                                                                                                                    (array (cons (mif code code (i64.const val)) a) (or (mif err err false) new_err) ctx))))
                                                                                 (array (array) nil ctx) to_code_params))
+                                                        ((datasi funcs memo env pectx) ctx)
+                                                        (memo (put memo (.hash c) 'RECURSE_OK))
+                                                        (ctx (array datasi funcs memo env pectx))
                                                         (func_value (idx func_param_values 0))
                                                         ((func_val func_code func_err ctx) (compile-inner ctx func_value))
                                                         ;(_ (mif err (error err)))
@@ -3143,7 +3190,7 @@
                                                             ((or (!= nil err) (!= nil func_err))    (array nil nil (mif err (str err " from function params in call " (str_strip c)) (str func_err " from function itself  in call " (str_strip c))) ctx))
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'cond))
                                                                                                                (dlet (
-                                                                                                                ((datasi funcs memo env env_counter) ctx)
+                                                                                                                ((datasi funcs memo env pectx) ctx)
                                                                                                                ) (array nil ((rec-lambda recurse (codes i) (cond
                                                                                                                         ((< i (- (len codes) 1)) (_if '_cond_flat '(result i64)
                                                                                                                                                     (truthy_test (idx codes i))
@@ -3206,10 +3253,10 @@
 
                     ((marked_env? c) (or (get_passthrough (.hash c) ctx) (dlet ((e (.env_marked c))
 
-                                            (generate_env_access (dlambda ((datasi funcs memo env env_counter) env_id) ((rec-lambda recurse (code this_env)
+                                            (generate_env_access (dlambda ((datasi funcs memo env pectx) env_id) ((rec-lambda recurse (code this_env)
                                                 (cond
-                                                    ((= env_id (.marked_env_idx this_env)) (array nil (call '$dup code) nil (array datasi funcs memo env env_counter)))
-                                                    ((= nil (.marked_env_upper this_env))  (array nil nil (str "bad env, upper is nil and we haven't found " env_id ", maxing out at " (str_strip this_env)) (array datasi funcs memo env env_counter)))
+                                                    ((= env_id (.marked_env_idx this_env)) (array nil (call '$dup code) nil (array datasi funcs memo env pectx)))
+                                                    ((= nil (.marked_env_upper this_env))  (array nil nil (str "bad env, upper is nil and we haven't found " env_id ", maxing out at " (str_strip this_env)) (array datasi funcs memo env pectx)))
                                                     (true                                  (recurse (i64.load 16 (i32.wrap_i64 (i64.shr_u code (i64.const 5))))
                                                                                                     (.marked_env_upper this_env)))
                                                 )
@@ -3234,7 +3281,7 @@
                                                                                 (array nil_val nil nil ctx)))
                                             ) (mif (or (= false kvs) (= nil uv) (!= nil err)) (begin (print_strip "kvs " kvs " vvs " vvs " uv " uv " or err " err " based off of " c) (generate_env_access ctx (.marked_env_idx c)))
                                             (dlet (
-                                                ((datasi funcs memo env env_counter) ctx)
+                                                ((datasi funcs memo env pectx) ctx)
                                                 ((kvs_array datasi) (if (= 0 (len kvs)) (array nil_val datasi)
                                                                                         (dlet (((kvs_loc kvs_len datasi) (alloc_data (apply concat (map i64_le_hexify kvs)) datasi)))
                                                                                               (array (bor (<< (len kvs) 32) kvs_loc #b101) datasi))))
@@ -3245,7 +3292,7 @@
                                                 ((c_loc c_len datasi) (alloc_data (apply concat all_hex) datasi))
                                                 (result (bor (<< c_loc 5) #b01001))
                                                 (memo (put memo (.hash c) result))
-                                            ) (array result nil nil (array datasi funcs memo env env_counter)))))))))
+                                            ) (array result nil nil (array datasi funcs memo env pectx)))))))))
 
                     ((prim_comb? c) (cond ((= 'vau            (.prim_comb_sym c))  (array (bor (<< (- k_vau dyn_start)           35) (<< 0 4) #b0001) nil nil ctx))
                                           ((= 'cond           (.prim_comb_sym c))  (array (bor (<< (- k_cond dyn_start)          35) (<< 0 4) #b0001) nil nil ctx))
@@ -3362,10 +3409,10 @@
                                             ) setup_code
                                         ))
 
-                                        ((datasi funcs memo env env_counter) ctx)
-                                        ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env env_counter) body))
+                                        ((datasi funcs memo env pectx) ctx)
+                                        ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx) body))
                                         ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
-                                        ((datasi funcs memo _was_inner_env env_counter) ctx)
+                                        ((datasi funcs memo _was_inner_env pectx) ctx)
                                         ;(_ (print_strip "inner_value for maybe const is " inner_value " inner_code is " inner_code " err is " err " this was for " body))
                                         (inner_code (mif inner_value (i64.const inner_value) inner_code))
                                         (end_code (call '$drop (local.get '$s_env)))
@@ -3378,7 +3425,7 @@
                                         (memo (put memo (.hash c) func_value))
                                         (_ (print_strip "the hash " (.hash c) " with value " func_value " corresponds to " c))
 
-                                        ) (array func_value nil err (array datasi funcs memo env env_counter)))
+                                        ) (array func_value nil err (array datasi funcs memo env pectx)))
                                     ))
                                     (_ (print_strip "returning " func_value " for " c))
                                     (_ (if (not (int? func_value)) (error "BADBADBADfunc")))
@@ -3404,8 +3451,9 @@
               )))
 
               (_ (println "compiling partial evaled " (str_strip marked_code)))
+              (_ (true_print "compiling partial evaled " (true_str_strip marked_code)))
               (memo empty_dict)
-              (ctx (array datasi funcs memo root_marked_env env_counter))
+              (ctx (array datasi funcs memo root_marked_env pectx))
 
               ((exit_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'exit)))
               ((read_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'read)))
@@ -3418,7 +3466,7 @@
 
 
               ((compiled_value_ptr compiled_value_code compiled_value_error ctx) (compile-inner ctx marked_code))
-              ((datasi funcs memo root_marked_env env_counter) ctx)
+              ((datasi funcs memo root_marked_env pectx) ctx)
               (_ (mif compiled_value_error (error compiled_value_error)))
               (_ (if (= nil compiled_value_ptr) (error (str "compiled top-level to code for some reason!? have code " compiled_value_code))))
 
@@ -3621,7 +3669,7 @@
 
     (run_partial_eval_test (lambda (s) (dlet (
                             (_ (print "\n\ngoing to partial eval " s))
-                            ((env_counter err result) (partial_eval (read-string s)))
+                            ((pectx err result) (partial_eval (read-string s)))
                             (_ (print "result of test \"" s "\" => " (str_strip result) " and err " err))
                             (_ (print "with a hash of " (.hash result)))
                             ) nil)))
