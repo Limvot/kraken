@@ -88,6 +88,7 @@
                                 (#t (begin (cons x (loop (read-char input-port)))))))))))
 
 (let* (
+       (lapply apply)
        (= equal?)
        (!= (lambda (a b) (not (= a b))))
        (array list)
@@ -414,10 +415,6 @@
               (true               x)
         )
     ))
-    ; This is a conservative analysis, since we can't always tell what constructs introduce
-    ; a new binding scope & would be shadowing... we should at least be able to implement it for
-    ; vau/lambda, but we won't at first
-    ; TODO: make this check for stop envs using de Bruijn indicies
     (contains_symbols (rec-lambda recurse (stop_envs symbols x) (cond
               ((val? x)           false)
               ((marked_symbol? x) (let* ((r (in_array (.marked_symbol_value x) symbols))
@@ -476,7 +473,7 @@
     (get_pe_passthrough (dlambda (hash (env_counter memo) x) (let ((r (get-value-or-false memo hash)))
                                                                   (cond ((= r false) false)
                                                                         ((= r nil)   (array (array env_counter memo) nil x)) ; Nil is for preventing infinite recursion
-                                                                        (true   false)
+                                                                        (true        false)
                                                                         ; This is causing bad compiles!
                                                                         ; Temporarily disabled. Somehow is re-introducing fake envs that aren't in scope or somesuch
                                                                         ;(true        (array (array env_counter memo) nil r))
@@ -612,18 +609,21 @@
                                                                                  ((pectx func_err func_result) (partial_eval_helper body only_head inner_env (cons inner_env env_stack) pectx (+ 1 indent)))
                                                                                  ) (mif func_err (array pectx func_err nil) (dlet (
                                                                                  (_ (print_strip (indent_str indent) "evaled result of function call  is " func_result))
-                                                                                 (able_to_sub_env (not (check_for_env_id_in_result env_id func_result)))
-                                                                                 (result_is_later (later_head? func_result))
-                                                                                 (_ (print (indent_str indent) "success? " able_to_sub_env))
-                                                                                 (stop_envs ((rec-lambda ser (a e) (mif e (ser (cons (.marked_env_idx e) a) (idx (.env_marked e) -1)) a)) (array) se))
-                                                                                 (result_closes_over (contains_symbols stop_envs (concat params (mif de? (array de?) (array))) func_result))
-                                                                                 (_ (println (indent_str indent) "func call able_to_sub: " able_to_sub_env " (based on env_id " env_id ") result is later_head? " result_is_later " and result_closes_over " result_closes_over))
+
+                                                                                 ;(failed (or (not able_to_sub_env) (and result_is_later result_closes_over)))
+                                                                                 ((failed reason) (cond ((check_for_env_id_in_result env_id func_result) (array true "has env id in result"))
+                                                                                                        ((not (later_head? func_result))                 (array false ""))
+                                                                                                        (true                                            (array (dlet ((stop_envs ((rec-lambda ser (a e) (mif e (ser (cons (.marked_env_idx e) a) (idx (.env_marked e) -1)) a)) (array) se)))
+                                                                                                                                                               (contains_symbols stop_envs (concat params (mif de? (array de?) (array))) func_result)) "both later and contains symbols"))
+                                                                                         ))
+
+                                                                                 (_ (println (indent_str indent) (if failed (str "failed because ")
+                                                                                                                            "function succeded!")))
                                                                                  ; This could be improved to a specialized version of the function
                                                                                  ; just by re-wrapping it in a comb instead mif we wanted.
                                                                                  ; Something to think about!
-                                                                                 (result (mif (or (not able_to_sub_env) (and result_is_later result_closes_over))
-                                                                                                (marked_array false true (cons comb correct_fail_params))
-                                                                                                func_result))
+                                                                                 (result (mif failed (marked_array false true (cons comb correct_fail_params))
+                                                                                                      func_result))
                                                                                  ((env_counter memo) pectx)
                                                                                  (memo (put memo this_hash result))
                                                                                  (pectx (array env_counter memo))
@@ -3180,20 +3180,21 @@
 
 
                                                         ;(_ (print_strip "doing further partial eval for " c))
-                                                        (_ (true_print "doing further partial eval for "))
-                                                        (_ (true_print "\t" (true_str_strip c)))
+                                                        ;(_ (true_print "doing further partial eval for "))
+                                                        ;(_ (true_print "\t" (true_str_strip c)))
                                                         ; This can weirdly cause infinate recursion on the compile side, if partial_eval
                                                         ; returns something that, when compiled, will cause partial eval to return that thing again.
                                                         ; Partial eval won't recurse infinately, since it has memo, but it can return something of that
                                                         ; shape in that case which will cause compile to keep stepping.
                                                         ((datasi funcs memo env pectx) ctx)
-                                                        ((pectx err evaled_params) (if (= 'RECURSE_FAIL (get-value-or-false memo (.hash c))) (begin (true_print "got a recurse, stoping") (array pectx "RECURSE FAIL" nil))
+                                                        ((pectx err evaled_params) (if (= 'RECURSE_FAIL (get-value-or-false memo (.hash c))) (begin ;(true_print "got a recurse, stoping")
+                                                                                                                                                    (array pectx "RECURSE FAIL" nil))
                                                                                    (foldl (dlambda ((c er ds) p) (dlet (((c e d) (partial_eval_helper p false env (array) c 1)))
                                                                                                                       (array c (mif er er e) (concat ds (array d)))))
                                                                                                 (array pectx nil (array))
                                                                                                 (slice func_param_values 1 -1))))
-                                                        (_ (true_print "DONE further partial eval for "))
-                                                        (_ (true_print "\t" (true_str_strip c)))
+                                                        ;(_ (true_print "DONE further partial eval for "))
+                                                        ;(_ (true_print "\t" (true_str_strip c)))
                                                         ; TODO: This might fail because we don't have the real env stack, which we *should*!
                                                         ; In the mean time, if it does, just fall back to the non-more-evaled ones.
                                                         (to_code_params (mif err (slice func_param_values 1 -1) evaled_params))

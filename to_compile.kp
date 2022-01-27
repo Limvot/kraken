@@ -20,10 +20,12 @@
 (let1 let (vY (lambda (recurse) (vau de (vs b) (cond (= (len vs) 0) (eval b de)
                                                      true           (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de)))))
 
+(let (a 1337)
 
 (array 'open  3 "test_self_out" (lambda (fd code)
 (array 'write fd "wabcdefghijk"   (lambda (written code)
-(array 'exit  written)))))
+(array 'exit  (+ a written))))))
+)
 
 ;(array 'write  1 "test_self_out2" (vau (written code) 1))
 
