@@ -17,8 +17,8 @@
 (let1 vY (lambda (f)
     ((lambda (x3) (x3 x3))
      (lambda (x4) (f (vau de (& y) (vapply (x4 x4) y de))))))
-;(let1 let (vY (lambda (recurse) (vau de (vs b) (cond (= (len vs) 0) (eval b de)
-;                                                     true           (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de)))))
+(let1 let (vY (lambda (recurse) (vau de (vs b) (cond (= (len vs) 0) (eval b de)
+                                                     true           (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de)))))
 
 
 (array 'open  3 "test_self_out" (lambda (fd code)
@@ -30,7 +30,7 @@
 
 ; end of all lets
 )))))))
-;)
+)
 
 ; impl of let1
 ; this would be the macro style version (((;)) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))
