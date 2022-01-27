@@ -476,7 +476,7 @@
     (get_pe_passthrough (dlambda (hash (env_counter memo) x) (let ((r (get-value-or-false memo hash)))
                                                                   (cond ((= r false) false)
                                                                         ((= r nil)   (array (array env_counter memo) nil x)) ; Nil is for preventing infinite recursion
-                                                                        (true   (array (array env_counter memo) nil x)) ; Nil is for preventing infinite recursion
+                                                                        (true   false)
                                                                         ; This is causing bad compiles!
                                                                         ; Temporarily disabled. Somehow is re-introducing fake envs that aren't in scope or somesuch
                                                                         ;(true        (array (array env_counter memo) nil r))
