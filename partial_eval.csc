@@ -244,14 +244,13 @@
                                                                 (end_hash (mif end (.hash end) 41))
                                                                                                          ) (combine_hash inner_hash end_hash)))))
     (hash_comb        (lambda (wrap_level env_id de? se variadic params body)
-                                                                              (combine_hash 43 env_id)))
-                                                                             ;(combine_hash 43
-                                                                             ;(combine_hash env_id
-                                                                             ;(combine_hash (mif de? (hash_symbol true de?) 47)
-                                                                             ;(combine_hash (.hash se)
-                                                                             ;(combine_hash (hash_bool variadic)
-                                                                             ;(combine_hash (foldl (lambda (c x) (combine_hash c (hash_symbol true x))) 53 params)
-                                                                             ;(.hash body)))))))))
+                                                                             (combine_hash 43
+                                                                             (combine_hash env_id
+                                                                             (combine_hash (mif de? (hash_symbol true de?) 47)
+                                                                             (combine_hash (.hash se)
+                                                                             (combine_hash (hash_bool variadic)
+                                                                             (combine_hash (foldl (lambda (c x) (combine_hash c (hash_symbol true x))) 53 params)
+                                                                             (.hash body)))))))))
     (hash_prim_comb   (lambda (handler_fun real_or_name) (combine_hash 59 (hash_symbol true real_or_name))))
     (hash_val         (lambda (x) (cond ((bool? x)     (hash_bool x))
                                         ((string? x)   (hash_string x))
@@ -319,6 +318,7 @@
 
     (str_strip (lambda args (apply str (concat (slice args 0 -2) (array (idx ((rec-lambda recurse (x done_envs)
         (cond ((= nil x)          (array "<nil>" done_envs))
+              ((string? x)        (array (str "<raw string " x ">") done_envs))
               ((val? x)           (array (str (.val x)) done_envs))
               ((marked_array? x)  (dlet (((stripped_values done_envs) (foldl (dlambda ((vs de) x) (dlet (((v de) (recurse x de))) (array (concat vs (array v)) de)))
                                                                              (array (array) done_envs) (.marked_array_values x))))
@@ -464,21 +464,6 @@
             ) (marked_env false progress_idxs env_id (concat param_entries possible_de_entry (array de))))))
 
 
-    (pe_memo_hash (lambda (x only_head progress_now) (combine_hash                           (.hash x)
-                                                     (combine_hash (if only_head             67
-                                                                                             71)
-                                                                   (if (= true progress_now) 79
-                                                                                             (* 83 progress_now))
-                                                     ))))
-    (get_pe_passthrough (dlambda (hash (env_counter memo) x) (let ((r (get-value-or-false memo hash)))
-                                                                  (cond ((= r false) false)
-                                                                        ((= r nil)   (array (array env_counter memo) nil x)) ; Nil is for preventing infinite recursion
-                                                                        (true        false)
-                                                                        ; This is causing bad compiles!
-                                                                        ; Temporarily disabled. Somehow is re-introducing fake envs that aren't in scope or somesuch
-                                                                        ;(true        (array (array env_counter memo) nil r))
-                                                                        ))))
-
     (partial_eval_helper (rec-lambda partial_eval_helper (x only_head env env_stack pectx indent)
         (dlet ((for_progress (needed_for_progress x))
                (_ (print_strip (indent_str indent) "for_progress " for_progress " for " x))
@@ -496,8 +481,6 @@
                                                            )) 0)))
               )
         (if progress_now
-        ; Man this like doubles the interpret length
-        (or (get_pe_passthrough (pe_memo_hash x only_head progress_now) pectx x)
         (cond   ((val? x)            (array pectx nil x))
                 ((marked_env? x)     (let ((dbi (.marked_env_idx x)))
                                           ; compiler calls with empty env stack
@@ -601,37 +584,44 @@
                                                                                  (_ (print_strip (indent_str indent) "going to eval " body))
 
                                                                                  ; prevent infinite recursion
+                                                                                 (hash (combine_hash (.hash body) (.hash inner_env)))
                                                                                  ((env_counter memo) pectx)
-                                                                                 (this_hash (pe_memo_hash x only_head progress_now))
-                                                                                 (memo (put memo this_hash nil))
-                                                                                 (pectx (array env_counter memo))
+                                                                                 ((pectx func_err func_result rec_stop) (if (!= false (get-value-or-false memo hash)) (array pectx nil "stoping for rec" true)
+                                                                                                                (dlet (
+                                                                                                                    (new_memo (put memo hash nil))
+                                                                                                                    (pectx (array env_counter new_memo))
+                                                                                                                    ((pectx func_err func_result) (partial_eval_helper body only_head inner_env
+                                                                                                                                                                       (cons inner_env env_stack)
+                                                                                                                                                                       pectx (+ 1 indent)))
+                                                                                                                    ((env_counter new_memo) pectx)
+                                                                                                                    (pectx (array env_counter memo))
+                                                                                                                ) (array pectx func_err func_result false))))
 
-                                                                                 ((pectx func_err func_result) (partial_eval_helper body only_head inner_env (cons inner_env env_stack) pectx (+ 1 indent)))
+                                                                                 ;((pectx func_err func_result) (partial_eval_helper body only_head inner_env (cons inner_env env_stack) pectx (+ 1 indent)))
+
                                                                                  ) (mif func_err (array pectx func_err nil) (dlet (
                                                                                  (_ (print_strip (indent_str indent) "evaled result of function call  is " func_result))
 
-                                                                                 ;(failed (or (not able_to_sub_env) (and result_is_later result_closes_over)))
-                                                                                 ((failed reason) (cond ((check_for_env_id_in_result env_id func_result) (array true "has env id in result"))
+                                                                                 ;(failed (or rec_stop (not able_to_sub_env) (and result_is_later result_closes_over)))
+                                                                                 ((failed reason) (cond (rec_stop                                        (array true "infinite recursion"))
+                                                                                                        ((check_for_env_id_in_result env_id func_result) (array true "has env id in result"))
                                                                                                         ((not (later_head? func_result))                 (array false ""))
                                                                                                         (true                                            (array (dlet ((stop_envs ((rec-lambda ser (a e) (mif e (ser (cons (.marked_env_idx e) a) (idx (.env_marked e) -1)) a)) (array) se)))
                                                                                                                                                                (contains_symbols stop_envs (concat params (mif de? (array de?) (array))) func_result)) "both later and contains symbols"))
                                                                                          ))
 
-                                                                                 (_ (println (indent_str indent) (if failed (str "failed because ")
+                                                                                 (_ (println (indent_str indent) (if failed (str "failed because " reason)
                                                                                                                             "function succeded!")))
                                                                                  ; This could be improved to a specialized version of the function
                                                                                  ; just by re-wrapping it in a comb instead mif we wanted.
                                                                                  ; Something to think about!
                                                                                  (result (mif failed (marked_array false true (cons comb correct_fail_params))
                                                                                                       func_result))
-                                                                                 ((env_counter memo) pectx)
-                                                                                 (memo (put memo this_hash result))
-                                                                                 (pectx (array env_counter memo))
                                                                              )    (array pectx nil result))))))))
                                                            ((later_head? comb)    (array pectx nil (marked_array false true (cons comb literal_params))))
                                                            (true                  (array pectx (str "impossible comb value " x) nil))))))))
                 (true                (array pectx (str "impossible partial_eval value " x) nil))
-        ))
+        )
         ; otherwise, we can't make progress yet
         (begin (print_strip (indent_str indent) "Not evaluating " x)
                ;(print (indent_str indent) "comparing to env stack " env_stack)
@@ -3170,7 +3160,7 @@
                                                                                     (memo (put memo (.hash c) result))
                                                                                    ) (array result nil nil (array datasi funcs memo env pectx))))))))
 
-                                                        (if need_value (array nil nil "errr, needed value and was call" ctx)
+                                                        (if need_value (array nil nil (str "errr, needed value and was call " (str_strip c)) ctx)
 
                                                                     (dlet (
                                                         (func_param_values (.marked_array_values c))
@@ -3300,9 +3290,9 @@
 
                                             ((kvs vvs ctx) (foldr (dlambda ((k v) (ka va ctx)) (dlet (((kv _    _   ctx) (compile-inner ctx (marked_symbol nil k) true))
                                                                                                       ((vv code err ctx) (compile-inner ctx v need_value))
-                                                                                                      (_ (print_strip "result of (kv is " kv ") v compile-inner vv " vv " code " code " err " err ", based on " v))
-                                                                                                      (_ (if (= nil vv) (print_strip "VAL NIL CODE IN ENV B/C " k " = " v) nil))
-                                                                                                      (_ (if (!= nil err) (print_strip "ERRR IN ENV B/C " err " " k " = " v) nil))
+                                                                                                      ;(_ (print_strip "result of (kv is " kv ") v compile-inner vv " vv " code " code " err " err ", based on " v))
+                                                                                                      ;(_ (if (= nil vv) (print_strip "VAL NIL CODE IN ENV B/C " k " = " v) nil))
+                                                                                                      ;(_ (if (!= nil err) (print_strip "ERRR IN ENV B/C " err " " k " = " v) nil))
                                                                                                       )
                                                                                                       (if (= false ka) (array false va ctx)
                                                                                                       (if (or (= nil vv) (!= nil err)) (array false (str "vv was " vv " err is " err " and we needed_value? " need_value " based on v " (str_strip v)) ctx)
@@ -3484,7 +3474,7 @@
                    (true        (error (str "Can't compile-inner impossible " c)))
               )))
 
-              (_ (println "compiling partial evaled " (str_strip marked_code)))
+              ;(_ (println "compiling partial evaled " (str_strip marked_code)))
               (_ (true_print "compiling partial evaled " (true_str_strip marked_code)))
               (memo empty_dict)
               (ctx (array datasi funcs memo root_marked_env pectx))
