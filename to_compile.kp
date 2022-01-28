@@ -5,14 +5,14 @@
 
 
 (let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
-;(let1 current-env (vau de () de)
+(let1 current-env (vau de () de)
 (let1 cons (lambda (h t) (concat (array h) t))
-;(let1 lapply (lambda (f1 p)     (eval (cons (unwrap f1) p) (current-env)))
+(let1 lapply (lambda (f1 p)     (eval (cons (unwrap f1) p) (current-env)))
 (let1 vapply (lambda (f2 p ede) (eval (cons f2          p) ede))
 
-;(let1 Y (lambda (f3)
-;    ((lambda (x1) (x1 x1))
-;     (lambda (x2) (f3 (lambda (& y) (lapply (x2 x2) y))))))
+(let1 Y (lambda (f3)
+    ((lambda (x1) (x1 x1))
+     (lambda (x2) (f3 (lambda (& y) (lapply (x2 x2) y))))))
 
 (let1 vY (lambda (f)
     ((lambda (x3) (x3 x3))
@@ -21,25 +21,33 @@
                                                      true           (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de)))))
 
 (let (
-        ;lcompose (lambda (g f) (lambda (& args) (lapply g (array (lapply f args)))))
-        ;monad (array 'write  1 "test_self_out3" (vau (written code) 1))
-        a 3
-        b 4
-
-        ;a 123
+        a 1
+        lcompose (lambda (g f) (lambda (& args) (lapply g (array (lapply f args)))))
+        rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
+        if (vau de (con than & else) (cond (eval con de) (eval than de)
+                                           (> (len else) 0) (eval (idx else 0) de)
+                                           true false))
+        map (lambda (f l)
+            (let (helper (rec-lambda recurse (f l n i)
+                                            (cond (= i (len l))         n
+                                                  (<= i (- (len l) 4))  (recurse f l (concat n (array
+                                                                                                (f (idx l (+ i 0)))
+                                                                                                (f (idx l (+ i 1)))
+                                                                                                (f (idx l (+ i 2)))
+                                                                                                (f (idx l (+ i 3)))
+                                                                                                )) (+ i 4))
+                                                  true                  (recurse f l (concat n (array (f (idx l i)))) (+ i 1)))))
+                 (helper f l (array) 0)))
+        test (map (lambda (x) (+ x 1)) (array 1 2))
         monad   (array 'open  3 "test_self_out" (lambda (fd code)
-                (array 'write fd "wabcdefghijk"   (lambda (written code)
-                (array 'exit  (+ a b written))))))
+                (array 'write fd "wabcdefghijklmnopqrstuvwx"   (lambda (written code)
+                (array 'exit  (if (= 0 written) 12 14))))))
 )
-;(+ b a)
 monad
-;(array 'write  1 "test_self_out2" (vau (written code) 1))
+;(array 'write  1 "test_self_out2" (vau (written code) 14))
 )
-
-
-
 ; end of all lets
-))));)))
+)))))))
 )
 
 ; impl of let1

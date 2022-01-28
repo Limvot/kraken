@@ -118,7 +118,7 @@
        (nil? (lambda (x) (= nil x)))
        (bool? (lambda (x) (or (= #t x) (= #f x))))
        (true_print print)
-       (print (lambda x 0))
+       ;(print (lambda x 0))
        ;(true_print print)
        (println print)
 
@@ -349,7 +349,7 @@
         )
     ) (idx args -1) (array)) 0))))))
     (true_str_strip str_strip)
-    (str_strip (lambda args 0))
+    ;(str_strip (lambda args 0))
     ;(true_str_strip str_strip)
     (print_strip (lambda args (println (apply str_strip args))))
 
@@ -362,30 +362,15 @@
     (strip (let ((helper (rec-lambda recurse (x need_value)
         (cond ((val? x)           (.val x))
               ((marked_array? x)  (let ((stripped_values (map (lambda (x) (recurse x need_value)) (.marked_array_values x))))
-                                      (mif (.marked_array_is_val x) (mif need_value (error (str "needed value for this strip but got" x)) (cons array stripped_values))
-                                                                   stripped_values)))
+                                      (mif (.marked_array_is_val x) stripped_values
+                                                                    (error (str "needed value for this strip but got" x)))))
               ((marked_symbol? x) (mif (.marked_symbol_is_val x) (mif need_value (error (str "needed value for this strip but got" x)) (array quote (.marked_symbol_value x)))
                                                                (.marked_symbol_value x)))
-              ((comb? x)          (dlet (((wrap_level env_id de? se variadic params body) (.comb x))
-                                         (de_entry (mif de? (array de?) (array)))
-                                         (final_params (mif variadic (concat (slice params 0 -2) '& (array (idx params -1))) params))
-                                         ; Honestly, could trim down the env to match what could be evaluated in the comb
-                                         ; Also mif this isn't real, lower to a call to vau
-                                         (se_env (mif (marked_env_real? se) (recurse se true) nil))
-                                         (body_v (recurse body false))
-                                         (ve (concat (array vau) de_entry (array final_params) (array body_v)))
-                                         (fe ((rec-lambda recurse (x i) (mif (= i 0) x (recurse (array wrap x) (- i 1)))) ve wrap_level))
-                                  ) (mif se_env (eval fe se_env) fe)))
+              ((comb? x)          (error "got comb for strip, won't work"))
               ((prim_comb? x)     (idx x 2))
                                          ; env emitting doesn't pay attention to real value right now, not sure mif that makes sense
                                          ; TODO: properly handle de Bruijn indexed envs
-              ((marked_env? x)    (cond ((and (not need_value) (= 0 (.marked_env_idx x))) (array current-env))
-                                        (true                                             (let ((_ (mif (not (marked_env_real? x)) (error (str_strip "trying to emit fake env!" x)))))
-                                                                                                (upper (idx (.env_marked x) -1))
-                                                                                                (upper_env (mif upper (recurse upper true) empty_env))
-                                                                                                (just_entries (slice (.env_marked x) 0 -2))
-                                                                                                (vdict (map (dlambda ((k v)) (array k (recurse v true))) just_entries))
-                                                                                        ) (add-dict-to-env upper_env vdict))))
+              ((marked_env? x)    (error "got env for strip, won't work"))
               (true               (error (str "some other strip? " x)))
         )
     )))  (lambda (x) (let* ((_ (print_strip "stripping: " x)) (r (helper x false)) (_ (println "result of strip " r))) r))))
@@ -1451,7 +1436,6 @@
           (import "wasi_unstable" "fd_write"
                   '(func $fd_write (param i32 i32 i32 i32)
                                    (result i32)))
-          (memory '$mem 1)
           (global '$malloc_head  '(mut i32) (i32.const 0))
           (global '$phs          '(mut i32) (i32.const 0))
           (global '$phl          '(mut i32) (i32.const 0))
@@ -3685,6 +3669,7 @@
               datas funcs start
               (table  '$tab (len funcs) 'funcref)
               (apply elem (cons (i32.const 0) (range dyn_start (+ num_pre_functions (len funcs)))))
+              (memory '$mem (+ 1 (>> watermark 16)))
           ))
           (export "memory" '(memory $mem))
           (export "_start" '(func   $start))
@@ -3766,6 +3751,11 @@
         (print (run_partial_eval_test "((wrap (vau (let1) (let1 a 12 (vau (x) (+ a 1))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
         (print (run_partial_eval_test "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (+ x a 1)))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
         (print (run_partial_eval_test "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
+
+        (print "\n\nnil test\n")
+        (print (run_partial_eval_test "nil"))
+        (print (run_partial_eval_test "(nil? 1)"))
+        (print (run_partial_eval_test "(nil? nil)"))
 
         (print "\n\nlet 4.3\n\n")
         (print (run_partial_eval_test "((wrap (vau (let1)
@@ -4004,6 +3994,8 @@
                                                                                      true     1                               )) written)))
                                    ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))))
             (_ (write_file "./csc_out.wasm" output3))
+            (output3 (compile (partial_eval (read-string "(nil? 1)"))))
+            (output3 (compile (partial_eval (read-string "(nil? nil)"))))
         ) (void))
     )))
 
