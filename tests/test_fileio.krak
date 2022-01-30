@@ -1,7 +1,0 @@
-import io:*
-import string:*
-
-fun main():int {
-    print(read_file(string("test_fileio.expected_results")))
-    return 0
-}

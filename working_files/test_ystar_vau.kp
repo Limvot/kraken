@@ -1,0 +1,6 @@
+(let-vrec (
+    first  (vau de (n) (eval n de))
+    second (vau de (n) (eval n de))
+    )
+    (first (second "Hi!"))
+)

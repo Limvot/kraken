@@ -1,6 +1,0 @@
-
-var sameVar: int;
-fun sameFun(): int { return 6; }
-obj classTester {
-    fun method(): int { return 9; }
-}

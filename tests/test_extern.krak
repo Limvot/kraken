@@ -1,9 +1,0 @@
-
-ext fun printf(format_str: *char, ...): int
-
-fun main():int {
-    printf("%s", "Hello extern!\n")
-    return 0
-}
-
-

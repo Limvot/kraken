@@ -1,9 +1,0 @@
-import io;
-
-fun nothing(): void {}
-
-fun main(): int {
-    nothing();
-    io::println("It was nothing");
-    return 0;
-}

@@ -1,0 +1,2 @@
+#lang (with_import "./types.kp" stlc) stlc_start_symbol
+(\ id . ((id println) (id "woo"))) \ x . x

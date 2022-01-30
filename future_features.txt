@@ -1,7 +1,0 @@
-correctly importing / running tests is a nightmare with relative paths.
-
-Namespaces
-Imports allow renaming of either entire scope or individual members, and can import from within a scope
-
-Fix // comment right before top level function declaration. Something to do
-with the return as /* comment */ does not have that problem

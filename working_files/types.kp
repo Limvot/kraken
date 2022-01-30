@@ -1,0 +1,141 @@
+(let (
+    ; First quick lookup function, since maps are not built in
+    lookup (let (lookup-helper (rec-lambda recurse (dict key i) (if (>= i (len dict))
+                                                                nil
+                                                                (if (= key (idx (idx dict i) 0))
+                                                                    (idx (idx dict i) 1)
+                                                                    (recurse dict key (+ i 1))))))
+                   (lambda (dict key) (lookup-helper dict key 0)))
+
+    contains (let (contains-helper (rec-lambda recurse (s x i) (cond (= i (len s))   false
+                                                                     (= x (idx s i)) true
+                                                                     true            (recurse s x (+ i 1)))))
+                   (lambda (s x) (contains-helper s x 0)))
+
+    applyST (rec-lambda recurse (S t)
+                (cond
+                    ;                                                              I think x should be (idx x 0)
+                    (meta t)    (with-meta (recurse (filter (lambda (x) (not (contains (meta t) x))) S) (with-meta t nil)) (meta t))
+                    (int? t)    (or  (lookup S t) t)
+                    (array? t)  (map (lambda (x) (recurse S x)) t)
+                    true t
+    ))
+    applySE (lambda (S env) (map (lambda (x) [(idx x 0) (applyST S (idx x 1))]) env))
+    applySS (lambda (S_0 S_1) (let (r (concat S_0 (applySE S_0 S_1)) _ (println "applySS of " S_0 " and " S_1 " is " r)) r))
+    fvT (rec-lambda recurse (t) (cond (meta t)    (filter (lambda (x) (not (contains (meta t) x))) (recurse (with-meta t nil)))
+                                      (int? t)    [t]
+                                      (array? t)  (flat_map recurse t)
+                                      true        []
+    ))
+    fvE (lambda (env) (flat_map (lambda (x) (fvT (idx x 1))) env))
+    varBind (lambda (a b) (cond
+                            (= a b) []
+                            (contains (fvT b) a) (error "Contains check failed for " a " and " b)
+                            true [ [a b] ]))
+    mgu (rec-lambda mgu (a b) (let (r (cond
+                        (and (array? a) (array? b) (= (len a) (len b))) ((rec-lambda recurse (S i) (if (= i (len a)) S
+                                                                                                                     (recurse (applySS (mgu (idx a i) (idx b i)) S) (+ 1 i)))) [] 0)
+                        (int? a) (varBind a b)
+                        (int? b) (varBind b a)
+                        (= a b)  []
+                        true     (error (str "Cannot unify " a " and " b))
+    ) _ (println "mgu of " a " and " b " is " r)) r))
+
+    generalize (lambda (env t) (do (println "generalize " t " with respect to " env) (let (free_T (fvT t)
+                                     free_E (fvE env))
+                                    (with-meta t (filter (lambda (x) (not (contains free_E x))) free_T)))))
+    instantiate (lambda (sigma idn) (do (println "instantiate " sigma " meta is " (meta sigma)) [(applyST (map_i (lambda (x i) [x (+ i idn)]) (meta sigma)) (with-meta sigma nil)) (+ idn (len (meta sigma)))]))
+
+    execute_type_com (lambda (tc e idn) (tc e idn))
+
+    simple_type_com (lambda (exp typ) (lambda (env idn) [exp typ [] idn]))
+    symbol_type_com (lambda (sym)     (lambda (env idn) (let (
+                                                            (t idn) (instantiate (lookup env sym) idn))
+                                                            [sym t [] idn])))
+
+    call_type_com (lambda (innards)
+        (lambda (env idn)
+            (if (= 0 (len innards)) (error "stlc_error: Can't have a 0-length call")
+                (let (
+                    (f_e f_t S_0 idn) (execute_type_com (idx innards 0) env idn)
+                    across_params (rec-lambda recurse (env S idn params i out_e out_t)
+                                    (if (= i (len params)) [out_e out_t S idn]
+                                                           (let (
+                                                                (p_e p_t S_i idn) (execute_type_com (idx params i) env idn)
+                                                                ) (recurse (applySE S_i env) (applySS S_i S) idn params (+ 1 i) (concat out_e [p_e]) (concat out_t [p_t])))))
+                    (p_es p_ts S_ps idn) (across_params (applySE S_0 env) [] idn (slice innards 1 -1) 0 [] [])
+                    (r_t idn) [idn (+ 1 idn)]
+                    S_f (mgu (applyST S_ps f_t) [p_ts r_t])
+                    _ (println "mgu of " (applyST S_ps f_t) " and " [p_ts r_t] " produces substitution " S_f)
+                    _ (println "For this call: " (cons f_e p_es) " the return type " r_t " transformed by " S_f " is " (applyST S_f r_t))
+                ) [(cons f_e p_es) (applyST S_f r_t) (applySS S_f (applySS S_ps S_0)) idn])
+            )
+        )
+    )
+
+    lambda_type_com (lambda (p t b)
+        (lambda (env idn)
+            (let (
+                (p_t idn) (if (= nil t) [idn (+ 1 idn)]
+                                        [t   idn])
+                extended_env (cons [p (with-meta p_t [])] env)
+                (b_e b_t S idn) (execute_type_com b extended_env idn)
+                f_e [lambda [p] b_e]
+                f_t [[ (applyST S p_t) ] b_t]
+            ) [f_e f_t S idn])
+        )
+    )
+
+    let_type_com (lambda (x e1 e2)
+        (lambda (env0 idn)
+            (let (
+                (e1_e e1_t S_0 idn) (execute_type_com e1 env0 idn)
+                env1 (applySE S_0 env0)
+                e1_sigma (generalize env1 e1_t)
+                extended_env (cons [x e1_sigma] env1)
+                (e2_e e2_t S_1 idn) (execute_type_com e2 extended_env idn)
+                l_e [[lambda [x] e2_e] e1_e]
+                l_t e2_t
+            ) [l_e l_t (applySS S_1 S_0) idn])
+        )
+    )
+
+    base_env [
+        [ '+       (with-meta [['int 'int] 'int]   []) ]
+        [ '-       (with-meta [['int 'int] 'int]   []) ]
+        [ '<       (with-meta [['int 'int] 'bool]  []) ]
+        [ '>       (with-meta [['int 'int] 'bool]  []) ]
+        [ 'println (with-meta [['str] 'void]       []) ]
+    ]
+    current_env (vau de () de)
+    syms (map (lambda (x) (idx x 0)) base_env)
+    builtin_real_env (eval (concat (vapply provide syms root_env) [[current_env]]) empty_env)
+    top-level-erase-and-check (lambda (e) (let (
+                                            (e t S idn) (execute_type_com e base_env 0)
+                                            _ (println "Type of program is " t " with sub " S)
+                                            _ (println "expression code is " e)
+                                          ) e))
+
+    stlc (concat basic_rules [
+
+        [ 'expr [ 'number ]          (lambda (x) (simple_type_com x 'int)) ]
+        [ 'expr [ 'string ]          (lambda (x) (simple_type_com x 'str)) ]
+        [ 'expr [ 'bool_nil_symbol ] (lambda (x) (cond  (= x true)  (simple_type_com x 'bool)
+                                                        (= x false) (simple_type_com x 'bool)
+                                                        (= x nil)   (simple_type_com x 'nil)
+                                                        true        (symbol_type_com x)
+                                                  )
+                                                 ) ]
+        [ 'expr [ "\\\\" 'WS * 'bool_nil_symbol 'WS * ":" 'WS * 'bool_nil_symbol 'WS * "." 'WS * 'expr ] (lambda (_ _ p _ _ _ t _ _ _ b) (lambda_type_com p t b)) ]
+        [ 'expr [ "\\\\" 'WS * 'bool_nil_symbol 'WS * "." 'WS * 'expr ] (lambda (_ _ p _ _ _ b) (lambda_type_com p nil b)) ]
+
+
+        [ 'call_innards [ 'WS * ]                 (lambda (_)   []) ]
+        [ 'call_innards [ 'expr [ 'WS 'expr ] * ] (lambda (f r) (cons f (map (lambda (x) (idx x 1)) r))) ]
+        [ 'expr [ "\\(" 'call_innards "\\)" ] (lambda (_ innards _) (call_type_com innards)) ]
+
+        [ 'stlc_start_symbol [ 'WS * 'expr 'WS * ] (lambda (_ e _) [eval (top-level-erase-and-check e) builtin_real_env]) ]
+
+   ]))
+   (provide stlc)
+)
