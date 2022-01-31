@@ -1,0 +1,273 @@
+\documentclass{beamer}
+%from https://www.overleaf.com/learn/latex/Beamer
+%Information to be included in the title page:
+\title{Efficient compilation of a functional Lisp based on Vau calculus}
+\author{Nathan Braswell}
+\institute{Georgia Tech}
+\date{2022}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}
+\frametitle{Combiners and Vau Introduction}
+Motivation and examples
+  \begin{enumerate}
+	\item<1-> Vau/Combiners unify and make first class functions, macros, and built-in forms in a single simple system
+	\item<2-> They are also much simpler conceptually than macro systems, which often end up quite complex (Racket has positive and negative evaluation levels, etc)
+	\item<3-> Downside: naively executing a language using combiners instead of macros is exceedingly slow
+	\begin{enumerate}
+		\item<4-> The code of the fexpr (analogus to a macro invocation) is re-executed at runtime, every time it is encountered
+		\item<5-> Additionally, because it is unclear what code will be evaluated as a parameter to a function call and what code must be passed unevaluated to the combiner, little optimization can be done.
+	\end{enumerate}
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}
+\frametitle{Solution: Partial Eval}
+  \begin{enumerate}
+    \item<1-> Partially evaluate a purely function version of this language in a nearly-single pass over the entire program
+    \item<2-> Environment chains consisting of both "real" environments with every contained symbol mapped to a value and "fake" environments that only have placeholder values.
+	\item<3-> Since the language is purely functional, we know that if a symbol evaluates to a value anywhere, it will always evaluate to that value at runtime, and we can perform inlining and continue partial evaluation.
+	\item<4-> If the resulting partially-evaluated program only contains static references to a subset of built in combiners and function (combiners that evaluate their parameters exactly once), the program can be compiled just like it was a normal Scheme program
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Smallest Example}
+\footnotesize
+\begin{verbatim}
+(wrap (vau (n) (* n 2)))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+(<wrap> (vau (n) (* n 2)))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+(<wrap> <comb wraplevel=0 (n) (* n 2)>)
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+<comb wraplevel=1 (n) (* n 2)>
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Small Example}
+\footnotesize
+\begin{verbatim}
+((wrap (vau (n) (* n 2))) (+ 2 2))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+((<wrap> (vau (n) (* n 2))) (+ 2 2))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+((<wrap> <comb wraplevel=0 (n) (* n 2)>) (+ 2 2))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+(<comb wraplevel=1 (n) (* n 2)> (+ 2 2))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+(<comb wraplevel=1 (n) (* n 2)> 4)
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{n: 4}(* n 2)
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{n: 4}(<*> 4 2)
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+8
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Larger Example}
+\footnotesize
+\begin{verbatim}
+((wrap (vau (let1)
+
+(let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
+  (lambda (n) (* n 2))
+)
+
+; impl of let1
+)) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de))
+                         de)))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+(<comb wraplevel=1 (let1)
+
+(let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
+  (lambda (n) (* n 2))
+)
+
+; impl of let1
+> (vau de (s v b) (eval (array (array vau (array s) b) (eval v de))
+                         de)))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+(<comb wraplevel=1 (let1)
+
+(let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
+  (lambda (n) (* n 2))
+)
+
+; impl of let1
+> <comb wraplevel=0 de (s v b) (eval [ [vau [s] b] (eval v de)] de)>)
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{let1: <comb wraplevel=0 de (s v b)
+ (eval [ [vau [s] b] (eval v de)] de)> }
+(let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
+  (lambda (n) (* n 2)))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+(<comb wraplevel=0 de (s v b) (eval [ [vau [s] b] (eval v de)] de)>
+		lambda
+		(vau se (p b1) (wrap (eval (array vau p b1) se)))
+  (lambda (n) (* n 2))
+)
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+ (eval [ [vau [lambda] (lambda (n) (* n 2)) ]
+	   	 (eval [vau se [p b1] [wrap [eval [array vau p b1] se]]] de) ] )
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+ (eval [ [vau [lambda] (lambda (n) (* n 2)) ]
+         <comb wraplevel=0 se (p b1)
+               (wrap (eval (array vau p b1) se))> ] )
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+ (<comb wraplevel=0 (lambda) (lambda (n) (* n 2))>
+                    <comb wraplevel=0 se (p b1)
+                          (wrap (eval (array vau p b1) se))>)
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{lambda: <comb wraplevel=0 se (p b1)
+                          (wrap (eval (array vau p b1) se))> }
+ (lambda (n) (* n 2))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+ (<comb wraplevel=0 se (p b1)
+        (wrap (eval (array vau p b1) se))> [n] [* n 2])
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+ (wrap (eval [vau [n] [* n 2]] se))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+ <comb wraplevel=1 (n) (* n 2)>
+\end{verbatim}
+\end{frame}
+
+\begin{frame}
+\frametitle{Partial Eval: How it works}
+  \begin{enumerate}
+	\item<1-> If some call sites are indeterminate, they can still be compiled, but there will have to be a runtime check inserted that splits evaluation based on if the combiner evaluates its parameters or not, and eval and all builtins will have to be compiled into the resulting executable.
+    \item<2-> When compiling, when compiling in the wraplevel=1 side of conditional, further partial evaluate the parameter value
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}
+\frametitle{Partial Eval: Current Status}
+  \begin{enumerate}
+    \item<1-> No longer super slow
+    \item<2-> Fixed most BigO algo problems (any naive traversal is exponential)
+	\item<3-> Otherwise, the implementation is slow (pure function, Chicken Scheme not built for it, mostly un-profiled and optimized, etc)
+	\item<4-> Placeholder for compiling wraplevel=0 vaus, but quite simple
+	\item<5-> Working through bugs - right now figuring out why some things don't partially evaluate as far as they should
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}
+\frametitle{Partial Eval: Future: Type System}
+  \begin{enumerate}
+    \item<1-> Compiletime: Drop optimizing compiled version if wraplevel=0, drop emitting constant code for if wraplevel=1
+    \item<2-> Runtime: Runtime check of wrap level
+  \end{enumerate}
+\end{frame}
+
+\end{document}
