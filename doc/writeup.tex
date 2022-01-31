@@ -111,62 +111,6 @@
   %%\postcode{43017-6221}
 }
 
-%%\author{Lars Th{\o}rv{\"a}ld}
-%%\affiliation{%
-%%  \institution{The Th{\o}rv{\"a}ld Group}
-%%  \streetaddress{1 Th{\o}rv{\"a}ld Circle}
-%%  \city{Hekla}
-%%  \country{Iceland}}
-%%\email{larst@affiliation.org}
-
-%%\author{Valerie B\'eranger}
-%%\affiliation{%
-%%  \institution{Inria Paris-Rocquencourt}
-%%  \city{Rocquencourt}
-%%  \country{France}
-%%}
-
-%%\author{Aparna Patel}
-%%\affiliation{%
-%% \institution{Rajiv Gandhi University}
-%% \streetaddress{Rono-Hills}
-%% \city{Doimukh}
-%% \state{Arunachal Pradesh}
-%% \country{India}}
-
-%%\author{Huifen Chan}
-%%\affiliation{%
-%%  \institution{Tsinghua University}
-%%  \streetaddress{30 Shuangqing Rd}
-%%  \city{Haidian Qu}
-%%  \state{Beijing Shi}
-%%  \country{China}}
-
-%%\author{Charles Palmer}
-%%\affiliation{%
-%%  \institution{Palmer Research Laboratories}
-%%  \streetaddress{8600 Datapoint Drive}
-%%  \city{San Antonio}
-%%  \state{Texas}
-%%  \country{USA}
-%%  \postcode{78229}}
-%%\email{cpalmer@prl.com}
-
-%%\author{John Smith}
-%%\affiliation{%
-%%  \institution{The Th{\o}rv{\"a}ld Group}
-%%  \streetaddress{1 Th{\o}rv{\"a}ld Circle}
-%%  \city{Hekla}
-%%  \country{Iceland}}
-%%\email{jsmith@affiliation.org}
-
-%%\author{Julius P. Kumquat}
-%%\affiliation{%
-%%  \institution{The Kumquat Consortium}
-%%  \city{New York}
-%%  \country{USA}}
-%%\email{jpkumquat@consortium.net}
-
 %%
 %% By default, the full list of authors will be used in the page
 %% headers. Often, this list is too long, and will overlap
@@ -179,8 +123,13 @@
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-  Naively executing a language using Vau and Fexprs instead of macros
-  is slow.
+  Vau and Fexprs, as formulated by John Shutt \cite{shutt2010fexprs}, provide a first class and more powerful alternative to
+  macros. On the other hand, naively executing a language using Vau and Fexprs instead of macros is exceedingly slow,
+  as the code of the fexpr (analogus to a macro invocation) is re-executed at runtime, every time it is encountered.
+  Additionally, because it is unclear what code will be evaluated as a parameter to a function call and what code
+  must be passed unevaluated to a combiner, little optimization can be done. We address this problem with, to our knowledge,
+  the first partial evaluation system that can completely optimize away fexprs that are used and written in the style of macros,
+  as well as some other more naturally written combiners.
 \end{abstract}
 
 %%
@@ -226,15 +175,44 @@
 %%
 %% This command processes the author and affiliation and title
 %% information and builds the first part of the formatted document.
-%%\maketitle
+\maketitle
 
 \section{Introduction and Motivation}
-    Vaus \cite{shutt2010fexprs} (at \url{https://web.wpi.edu/Pubs/ETD/Available/etd-090110-124904/unrestricted/jshutt.pdf})
-    All code available at \url{https://github.com/limvot/kraken}
+
+  Lisps generally have two different abstraction methods, functions and macros. Functions operate at runtime and always
+  evaluate their parameters, while macros operate at compiletime and do not evaluate their parameters. This generally
+  splits the language to a degree, and macros are not able to be used at runtime, though generally functions are
+  able to be used in macros, with various restrictions. The macro systems generally attempt to be hygenic, either preventing
+  or making it difficult to manipulate the environment of the code that the macro invocation will expand to. This is often
+  needed, however, and various escape hatches can be implemented.
+
+  Creating a powerful, safe, and easy to use macro system is quite difficult, and the resulting systems are often quite complex,
+  generally more complex than the base language in which the reside. Macros are also not first class, and cannot be passed
+  around as values and do not exist at all at runtime.
+
+  Vau and Fexprs, as formulated by John Shutt \cite{shutt2010fexprs}, (at \url{https://web.wpi.edu/Pubs/ETD/Available/etd-090110-124904/unrestricted/jshutt.pdf}),
+  provide a first class and more powerful alternative to macros, unifying functions, macros, and built-in language forms
+  into a single concept called a combiner. A combiner may evaluate its arguments 0 or more times,
+  and recieves the calling environment as an additional parameter. There is also an eval function which takes in an expression to evaluate
+  and an environment in which to do the evaluation. Note that functions, macros, and even built-in language constructs like if, cond, let can be implemented
+  as either user-defined or built in combiners, making both macros and what were previously Lisp special forms first class! They can be named,
+  passed to higher-order combiners, put into datastructures, etc.
+
+  On the other hand, naively executing a language using combiners instead of macros is exceedingly slow,
+  as the code of the fexpr (analogus to a macro invocation) is re-executed at runtime, every time it is encountered.
+  Additionally, because it is unclear what code will be evaluated as a parameter to a function call and what code
+  must be passed unevaluated to the combiner, little optimization can be done. We address this problem with, to our knowledge,
+  the first partial evaluation system that can completely optimize away fexprs that are used and written in the style of macros,
+  as well as some other more naturally written combiners. Our language is more restricted than Shutt's Kernel language, being
+  purely functional and allowing no mutation, making the tracking of environments and optimization of access tractable.
+
+  All code available at \url{https://github.com/limvot/kraken}
 
 \section{Prior Work}
 \begin{itemize}
-    \item{} Axis of Eval rundown of attempted implmentations - \url{https://axisofeval.blogspot.com/2011/09/kernel-underground.html} \\ 
+    \item{} Axis of Eval list of 22 attempted implmentations - \url{https://axisofeval.blogspot.com/2011/09/kernel-underground.html} \\ 
+      None doing partial evaluation, to my knowledge. I belive all abandond or linkrotted with the seeming exception of \url{https://github.com/rocketnia/fexpress},
+      which is taking a very different approach (Lisp-2, explicit apply form, etc) in Racket.
     \item{} Lambda The Ultimate small discussion of partial eval for Vau/Kernel - \url{http://lambda-the-ultimate.org/node/4346} \\ 
     \item{} Implementing a Vau-based Language With Multiple Evaluation Strategies - \cite{kearsleyimplementing} \\
       Talks about how partial evaluation could make efficient, doesn't do it.
@@ -244,11 +222,27 @@
 \end{itemize}
 
 \subsection{Issues}
-    Slow.
-\section{Solution}
-    Purely functional.
-    Tricky partial evaluation.
+  As described in the introduction, the main issue with basing a langauge off of Vau and combiners is slowness.
+  This comes from two main problems: one, the combiners taking the place of macros are re-executed every time
+  they are encountered instead of being expanded into intermediate code like in a macro system, and two, because
+  the compiler in general cannot tell if the combiner being called takes in its parameters by value or not, it cannot
+  do practically any optimization.
 
+\section{Solution}
+  We partially evaluate a purely function version of this language in a nearly-single pass over the entire program.
+  We allow environment chains consisting of both "real" environments with every contained symbol mapped to a value and "fake" environments
+  that only have placeholder values. Since the language is purely functional, we know that if a symbol evaluates to a value anywhere, it
+  will always evaluate to that value at runtime. With this, we can notice most calls to combiners that don't evaluate their parameters
+  (since if we can resolve the combiner to a value, we know that will always be the combiner called at that location) and we can perform
+  inlining and continue partial evaluation.
+
+  If the resulting partially-evaluated program only contains static references to a subset of built in combiners and function (combiners that
+  evaluate their parameters exactly once), the program can be compiled just like it was a normal Scheme program.
+  If some call sites are indeterminate, they can still be compiled, but there will have to be a runtime check inserted that splits
+  evaluation based on if the combiner evaluates its parameters or not, and eval and all builtins will have to be compiled into the resulting executable.
+
+  A Vau/combiner based language allows most of the language to be built up in the language itself, as combiners. For instance, even lambda and let
+  are derived instead of primitive. See below, where we define both let1 (a simple version of let binding only one variable) and lambda.
 \begin{verbatim}
 ((wrap (vau (let1)
 
