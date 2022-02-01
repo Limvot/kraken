@@ -195,7 +195,7 @@
   into a single concept called a combiner. A combiner may evaluate its arguments 0 or more times,
   and recieves the calling environment as an additional parameter. There is also an eval function which takes in an expression to evaluate
   and an environment in which to do the evaluation. Note that functions, macros, and even built-in language constructs like if, cond, let can be implemented
-  as either user-defined or built in combiners, making both macros and what were previously Lisp special forms first class! They can be named,
+  as either user-defined or built-in combiners, making both macros and what were previously Lisp special forms first class! They can be named,
   passed to higher-order combiners, put into datastructures, etc.
 
   On the other hand, naively executing a language using combiners instead of macros is exceedingly slow,
@@ -213,7 +213,7 @@
     \item{} Axis of Eval list of 22 attempted implmentations - \url{https://axisofeval.blogspot.com/2011/09/kernel-underground.html} \\ 
       None doing partial evaluation, to my knowledge. I belive all abandond or linkrotted with the seeming exception of \url{https://github.com/rocketnia/fexpress},
       which is taking a very different approach (Lisp-2, explicit apply form, etc) in Racket.
-    \item{} Lambda The Ultimate small discussion of partial eval for Vau/Kernel - \url{http://lambda-the-ultimate.org/node/4346} \\ 
+    \item{} Lambda The Ultimate small discussion of partial eval for Vau/Kernel - \url{http://lambda-the-ultimate.org/node/4346}
     \item{} Implementing a Vau-based Language With Multiple Evaluation Strategies - \cite{kearsleyimplementing} \\
       Talks about how partial evaluation could make efficient, doesn't do it.
     \item{} Google Groups email thread by Andres Navarro - \url{https://groups.google.com/g/klisp/c/Dva-Le8Hr-g/m/pyl1Ufu-vksJ} \\

@@ -27,10 +27,20 @@ Motivation and examples
 \begin{frame}
 \frametitle{Solution: Partial Eval}
   \begin{enumerate}
-    \item<1-> Partially evaluate a purely function version of this language in a nearly-single pass over the entire program
+    \item<1-> Partially evaluate a purely functional version of this language in a nearly-single pass over the entire program
     \item<2-> Environment chains consisting of both "real" environments with every contained symbol mapped to a value and "fake" environments that only have placeholder values.
 	\item<3-> Since the language is purely functional, we know that if a symbol evaluates to a value anywhere, it will always evaluate to that value at runtime, and we can perform inlining and continue partial evaluation.
-	\item<4-> If the resulting partially-evaluated program only contains static references to a subset of built in combiners and function (combiners that evaluate their parameters exactly once), the program can be compiled just like it was a normal Scheme program
+	\item<4-> If the resulting partially-evaluated program only contains static references to a subset of built in combiners and functions (combiners that evaluate their parameters exactly once), the program can be compiled just like it was a normal Scheme program
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Example time!}
+  \begin{enumerate}
+    \item<1-> We will wrap angle brackets $<>$ around values that are not representable in the syntax of the language - i.e. $+$ is a symbol that will be looked up in an environment, $<+>$ is the addition function.
+    \item<2->  We will use square brackets $[]$ to indiciate array values, and we will use a single quote to indicate symbol values $'$, for instance $'+$ is the symbol $+$ as a value.
+	\item<3-> Additionally, we will use curly braces ($\{\}$) to indicate the environment (mapping symbols to values). Elipses will be used to omit unnecessary information.
+	\item<4-> Finally, we will not show the static environment nested in combiners, but know that each combiner carries with it the environment it was created with, which becomes the upper environment when its body is executing (the immediate environment being populated with the parameters).
   \end{enumerate}
 \end{frame}
 
@@ -38,6 +48,7 @@ Motivation and examples
 \frametitle{Smallest Example}
 \footnotesize
 \begin{verbatim}
+{ ...root environment...}
 (wrap (vau (n) (* n 2)))
 \end{verbatim}
 \end{frame}
@@ -45,6 +56,7 @@ Motivation and examples
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
+{...}
 (<wrap> (vau (n) (* n 2)))
 \end{verbatim}
 \end{frame}
@@ -52,6 +64,15 @@ Motivation and examples
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
+{...}
+(<wrap> (<vau> (n) (* n 2)))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{...}
 (<wrap> <comb wraplevel=0 (n) (* n 2)>)
 \end{verbatim}
 \end{frame}
@@ -59,6 +80,7 @@ Motivation and examples
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
+{...}
 <comb wraplevel=1 (n) (* n 2)>
 \end{verbatim}
 \end{frame}
@@ -67,6 +89,7 @@ Motivation and examples
 \frametitle{Small Example}
 \footnotesize
 \begin{verbatim}
+{ ...root environment...}
 ((wrap (vau (n) (* n 2))) (+ 2 2))
 \end{verbatim}
 \end{frame}
@@ -74,6 +97,7 @@ Motivation and examples
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
+{...}
 ((<wrap> (vau (n) (* n 2))) (+ 2 2))
 \end{verbatim}
 \end{frame}
@@ -81,6 +105,15 @@ Motivation and examples
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
+{...}
+((<wrap> (<vau> (n) (* n 2))) (+ 2 2))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{...}
 ((<wrap> <comb wraplevel=0 (n) (* n 2)>) (+ 2 2))
 \end{verbatim}
 \end{frame}
@@ -88,6 +121,7 @@ Motivation and examples
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
+{...}
 (<comb wraplevel=1 (n) (* n 2)> (+ 2 2))
 \end{verbatim}
 \end{frame}
@@ -95,6 +129,15 @@ Motivation and examples
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
+{...}
+(<comb wraplevel=1 (n) (* n 2)> (<+> 2 2))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{...}
 (<comb wraplevel=1 (n) (* n 2)> 4)
 \end{verbatim}
 \end{frame}
@@ -102,14 +145,24 @@ Motivation and examples
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
-{n: 4}(* n 2)
+{n: 4 | upper: {...root environment...}}
+(* n 2)
 \end{verbatim}
 \end{frame}
 
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
-{n: 4}(<*> 4 2)
+{n: 4 | upper: {...root environment...}}
+(<*> n 2)
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{n: 4 | upper: {...root environment...}}
+(<*> 4 2)
 \end{verbatim}
 \end{frame}
 
@@ -124,6 +177,7 @@ Motivation and examples
 \frametitle{Larger Example}
 \footnotesize
 \begin{verbatim}
+{...root environment...}
 ((wrap (vau (let1)
 
 (let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
@@ -139,6 +193,55 @@ Motivation and examples
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
+{...}
+((<wrap> (vau (let1)
+
+(let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
+  (lambda (n) (* n 2))
+)
+
+; impl of let1
+)) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de))
+                         de)))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{...}
+((<wrap> (<vau> (let1)
+
+(let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
+  (lambda (n) (* n 2))
+)
+
+; impl of let1
+)) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de))
+                         de)))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{...}
+((<wrap> <comb wraplevel=0 (let1)
+
+(let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
+  (lambda (n) (* n 2))
+)
+
+; impl of let1
+>) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de))
+                         de)))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{...}
 (<comb wraplevel=1 (let1)
 
 (let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
@@ -154,6 +257,7 @@ Motivation and examples
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
+{...}
 (<comb wraplevel=1 (let1)
 
 (let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
@@ -161,7 +265,8 @@ Motivation and examples
 )
 
 ; impl of let1
-> <comb wraplevel=0 de (s v b) (eval [ [vau [s] b] (eval v de)] de)>)
+> <comb wraplevel=0 de (s v b) (eval (array (array vau (array s) b)
+                                            (eval v de)) de)>)
 \end{verbatim}
 \end{frame}
 
@@ -169,7 +274,7 @@ Motivation and examples
 \footnotesize
 \begin{verbatim}
 {let1: <comb wraplevel=0 de (s v b)
- (eval [ [vau [s] b] (eval v de)] de)> }
+ (eval (array (array vau (array s) b) (eval v de)) de)> | upper: {...}}
 (let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
   (lambda (n) (* n 2)))
 \end{verbatim}
@@ -178,7 +283,9 @@ Motivation and examples
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
-(<comb wraplevel=0 de (s v b) (eval [ [vau [s] b] (eval v de)] de)>
+{let1: ... | upper: {...}}
+(<comb wraplevel=0 de (s v b) (eval (array (array vau (array s) b)
+                                           (eval v de)) de)>
 		lambda
 		(vau se (p b1) (wrap (eval (array vau p b1) se)))
   (lambda (n) (* n 2))
@@ -187,93 +294,226 @@ Motivation and examples
 \end{frame}
 
 \begin{frame}[fragile]
+Note the de in the environment being the environment the combiner was called in,
+as well as the current environment's upper being not the environment with let, but
+	the root environment (the static environment from the function's creation).
 \footnotesize
 \begin{verbatim}
- (eval [ [vau [lambda] (lambda (n) (* n 2)) ]
-	   	 (eval [vau se [p b1] [wrap [eval [array vau p b1] se]]] de) ] )
+{s: 'lambda,
+ v: ['vau 'se ['p 'b1] ['wrap ['eval ['array 'vau 'p 'b1] 'se]]],
+ b: ['lambda ['n] ['* 'n 2]]
+ de: {let1: ... | upper: {root...}} | upper: {root...}}
+(eval (array (array vau (array s) b) (eval v de)) de)
 \end{verbatim}
 \end{frame}
 
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
- (eval [ [vau [lambda] (lambda (n) (* n 2)) ]
-         <comb wraplevel=0 se (p b1)
-               (wrap (eval (array vau p b1) se))> ] )
+{s: 'lambda,
+ v: ['vau 'se ['p 'b1] ['wrap ['eval ['array 'vau 'p 'b1] 'se]]],
+ b: ['lambda ['n] ['* 'n 2]]
+ de: {let1: ... | upper: {root...}} | upper: {root...}}
+(<eval> (array (array vau (array s) b) (eval v de)) de)
 \end{verbatim}
 \end{frame}
 
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
- (<comb wraplevel=0 (lambda) (lambda (n) (* n 2))>
-                    <comb wraplevel=0 se (p b1)
-                          (wrap (eval (array vau p b1) se))>)
+{s: 'lambda,
+ v: ['vau 'se ['p 'b1] ['wrap ['eval ['array 'vau 'p 'b1] 'se]]],
+ b: ['lambda ['n] ['* 'n 2]]
+ de: {let1: ... | upper: {root...}} | upper: {root...}}
+(<eval> (<array> (array vau (array s) b) (eval v de)) de)
 \end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{s: 'lambda,
+ v: ['vau 'se ['p 'b1] ['wrap ['eval ['array 'vau 'p 'b1] 'se]]],
+ b: ['lambda ['n] ['* 'n 2]]
+ de: {let1: ... | upper: {root...}} | upper: {root...}}
+(<eval> (<array> (<array> vau (array s) b) (eval v de)) de)
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+Ok, evaluating all parameters of the array at the same time to be (slightly) consise.
+Note the replacement of de with the de environment.
+\footnotesize
+\begin{verbatim}
+{s: 'lambda,
+ v: ['vau 'se ['p 'b1] ['wrap ['eval ['array 'vau 'p 'b1] 'se]]],
+ b: ['lambda ['n] ['* 'n 2]]
+ de: {let1: ... | upper: {root...}} | upper: {root...}}
+(<eval> (<array> (<array> <vau> ['lambda] ['lambda ['n] ['* 'n 2]])
+        <comb wraplevel=0 se (p b1) (wrap (eval (array vau p b1)
+		                                        se))>) {let1: ...
+												        | upper: {root...}})
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+Again, let's take a few steps til we get the arrays as values
+\footnotesize
+\begin{verbatim}
+(<eval> [ [ <vau> ['lambda] ['lambda ['n] ['* 'n 2]]]
+          <comb wraplevel=0 se (p b1) (wrap (eval (array vau p b1)
+		                                          se))>] {let1: ...
+												          | upper: {root...}})
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+Note that now that we are inside the eval call, our environment has swapped
+to that specified in the call.
+\footnotesize
+\begin{verbatim}
+{let1: ... | upper: {root...}}
+( ( <vau> (lambda) (lambda (n) (* n 2)))
+  <comb wraplevel=0 se (p b1) (wrap (eval (array vau p b1) se))>)
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{let1: ... | upper: {root...}}
+( <comb wraplevel=0 (lambda) (lambda (n) (* n 2))>
+  <comb wraplevel=0 se (p b1) (wrap (eval (array vau p b1) se))>)
+\end{verbatim}
+Ok, finally the let1 has reduced to a function application
 \end{frame}
 
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
 {lambda: <comb wraplevel=0 se (p b1)
-                          (wrap (eval (array vau p b1) se))> }
- (lambda (n) (* n 2))
+               (wrap (eval (array vau p b1) se))>
+ | upper: {let1: ... }}
+(lambda (n) (* n 2))
 \end{verbatim}
 \end{frame}
 
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
- (<comb wraplevel=0 se (p b1)
-        (wrap (eval (array vau p b1) se))> [n] [* n 2])
+{lambda: ...}
+(lambda (n) (* n 2))
+(<comb wraplevel=0 se (p b1) (wrap (eval (array vau p b1) se))>
+ (n) (* n 2))
 \end{verbatim}
 \end{frame}
 
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
- (wrap (eval [vau [n] [* n 2]] se))
+{p: ['n],
+ b1: ['* 'n 2],
+ se:{lambda: ...} | upper: {let1: ...}}
+(wrap (eval (array vau p b1) se))
 \end{verbatim}
 \end{frame}
 
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
- (<wrap> <comb wraplevel=0 (n) (* n 2)>)
+{p: ['n],
+ b1: ['* 'n 2],
+ se:{lambda: ...} | upper: {let1: ...}}
+(<wrap> (eval (array vau p b1) se))
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+We'll evaluate a few parameters at a time again
+\footnotesize
+\begin{verbatim}
+{p: ['n],
+ b1: ['* 'n 2],
+ se:{lambda: ...} | upper: {let1: ...}}
+(<wrap> (<eval> (<array> <vau> ['n] ['* 'n 2]) {lambda: ...}))
 \end{verbatim}
 \end{frame}
 
 \begin{frame}[fragile]
 \footnotesize
 \begin{verbatim}
- <comb wraplevel=1 (n) (* n 2)>
+{p: ['n],
+ b1: ['* 'n 2],
+ se:{lambda: ...} | upper: {let1: ...}}
+(<wrap> (<eval> [<vau> ['n] ['* 'n 2]] {lambda: ...}))
 \end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+{p: ['n],
+ b1: ['* 'n 2],
+ se:{lambda: ...} | upper: {let1: ...}}
+(<wrap> <comb wraplevel=0 (n) (* n 2)>)
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+\footnotesize
+\begin{verbatim}
+<comb wraplevel=1 (n) (* n 2)>
+\end{verbatim}
+\end{frame}
+
+\begin{frame}
+\frametitle{Conclusion: slow}
+  \begin{enumerate}
+	\item<1-> Look at all of the steps it took to simply get a function value that multiplies by 2!
+    \item<2-> This would make our program much slower if this happened at runtime, for every function in the program.
+	\item<3-> What's the solution? Partial Evaluation!
+  \end{enumerate}
 \end{frame}
 
 \begin{frame}
 \frametitle{Partial Eval: How it works}
   \begin{enumerate}
-	\item<1-> If some call sites are indeterminate, they can still be compiled, but there will have to be a runtime check inserted that splits evaluation based on if the combiner evaluates its parameters or not, and eval and all builtins will have to be compiled into the resulting executable.
-    \item<2-> When compiling, when compiling in the wraplevel=1 side of conditional, further partial evaluate the parameter value
+	\item<1-> Evaluate as much as possible ahead of time, at compile time.
+	\item<2-> If some call sites are indeterminate, they can still be compiled, but there will have to be a runtime check inserted that splits evaluation based on if the combiner evaluates its parameters or not, and eval and all builtins will have to be compiled into the resulting executable.
+    \item<3-> When compiling in the wraplevel=1 side of conditional, further partial evaluate the parameter value
   \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]
+Partial evaluation could have done all the work from that last big example at compile time, leaving only the final value to be compiled:
+\footnotesize
+\begin{verbatim}
+<comb wraplevel=1 (n) (* n 2)>
+\end{verbatim}
+	Additionally, if this was a more complex function that used other functions, those functions would also generally be fully partially evaluated at compile time.
+	It's the full power of Vau/Combiners/Fexprs with the expected runtime performance of Scheme!
 \end{frame}
 
 \begin{frame}
 \frametitle{Partial Eval: Current Status}
   \begin{enumerate}
-    \item<1-> No longer super slow
+    \item<1-> No longer *super* slow
     \item<2-> Fixed most BigO algo problems (any naive traversal is exponential)
 	\item<3-> Otherwise, the implementation is slow (pure function, Chicken Scheme not built for it, mostly un-profiled and optimized, etc)
-	\item<4-> Placeholder for compiling wraplevel=0 vaus, but quite simple
+	\item<4-> Compiles wraplevel=0 combs to a assert(false), but simple to implement.
 	\item<5-> Working through bugs - right now figuring out why some things don't partially evaluate as far as they should
   \end{enumerate}
 \end{frame}
 
 \begin{frame}
-\frametitle{Partial Eval: Future: Type System}
+\frametitle{Partial Eval: Future: Type System Hints}
+Allow type systems to be built using Vaus, like the type-systems-as-macros paper (\url{https://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf}).
+This type system could pass down type hints to the partial evaluator, enabling:
   \begin{enumerate}
-    \item<1-> Compiletime: Drop optimizing compiled version if wraplevel=0, drop emitting constant code for if wraplevel=1
-    \item<2-> Runtime: Runtime check of wrap level
+    \item<2-> Compiletime: Drop optimizing compiled version if wraplevel=0
+	\item<3-> Compiletime: Drop emitting constant code for if wraplevel=1
+    \item<4-> Runtime: Eliminate branch on wrap level
+    \item<5-> Runtime: Eliminate other typechecks for builtin functions
   \end{enumerate}
 \end{frame}
 
