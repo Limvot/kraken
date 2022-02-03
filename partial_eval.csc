@@ -375,8 +375,6 @@
         )
     )))  (lambda (x) (let* ((_ (print_strip "stripping: " x)) (r (helper x false)) (_ (println "result of strip " r))) r))))
 
-    ; A bit wild, but what if instead of is_value we had an evaluation level integer, kinda like wrap?
-    ; when lowering, it could just turn into multiple evals or somesuch, though we'd have to be careful of envs...
     (try_unval (rec-lambda recurse (x fail_f)
         (cond ((marked_array? x) (mif (not (.marked_array_is_val x)) (array false (fail_f x))
                                                                     (dlet (((sub_ok subs) (foldl (dlambda ((ok a) x) (dlet (((nok p) (recurse x fail_f)))
@@ -400,29 +398,9 @@
               (true               x)
         )
     ))
-    (contains_symbols (rec-lambda recurse (stop_envs symbols x) (cond
-              ((val? x)           false)
-              ((marked_symbol? x) (let* ((r (in_array (.marked_symbol_value x) symbols))
-                                         (_ (if r (println "!!! contains symbols found " x " in symbols " symbols))))
-                                        r))
-              ((marked_array? x)  (foldl (lambda (a x) (or a (recurse stop_envs symbols x))) false (.marked_array_values x)))
-              ((comb? x)          (dlet (((wrap_level env_id de? se variadic params body) (.comb x)))
-                                      (or (recurse stop_envs symbols se) (recurse stop_envs (filter (lambda (y) (not (or (= de? y) (in_array y params)))) symbols) body))))
 
-              ((prim_comb? x)    false)
-              ((marked_env? x)   (let ((inner (.env_marked x)))
-                                     (cond ((in_array (.marked_env_idx x) stop_envs)                                                     false)
-                                           ((foldl (lambda (a x) (or a (recurse stop_envs symbols (idx x 1)))) false (slice inner 0 -2)) true)
-                                           ((!= nil (idx inner -1))                                                                      (recurse stop_envs symbols (idx inner -1)))
-                                           (true                                                                                         false))))
-              (true              (error (str "Something odd passed to contains_symbols " x)))
-    )))
-
-    (check_for_env_id_in_result (rec-lambda check_for_env_id_in_result (s_env_id x) (dlet (
-        (fp (needed_for_progress x))
-        ) (cond
-              ((= nil fp)         false)
-              ((!= true fp)       (in_array s_env_id fp))
+    ; TODO: memoize!
+    (check_for_env_id_in_result (rec-lambda check_for_env_id_in_result (s_env_id x) (cond
               ((val? x)           false)
               ((marked_symbol? x) false)
               ((marked_array? x)  (foldl (lambda (a x) (or a (check_for_env_id_in_result s_env_id x))) false (.marked_array_values x)))
@@ -437,7 +415,20 @@
                                            ((!= nil (idx inner -1))                                                     (check_for_env_id_in_result s_env_id (idx inner -1)))
                                            (true                                                                        false))))
               (true              (error (str "Something odd passed to check_for_env_id_in_result " x)))
-    ))))
+    )))
+
+    (combiner_return_ok (rec-lambda combiner_return_ok (func_result env_id)
+        (if (not (later_head? func_result)) (check_for_env_id_in_result env_id func_result)
+        ; special cases now
+        ;   *(veval body {env}) => (combiner_return_ok {env})
+        ;       The reason we don't have to check body is that this form is only creatable via function call, so body *has* to either be or have-been a value and only need {env}
+        ;           Either it's created by eval, in which case it's fine, or it's created by something like (eval (array veval x de) de2) and the array has checked it, etc
+        ;       Might be easier to check for (eval body env) where (and (combiner_return_ok body) (combiner_return_ok {env}))
+        ;       NOTE: if we later allow calling combiners with head-vals, then veval makes more sense again
+        ;   (func ...params) => (and (doesn't take de func) (foldl combiner_return_ok (cons func params)))
+        false
+        )
+    ))
 
     ; TODO: instead of returning the later symbols, we could create a new value of a new type
     ; ['ref de_bruijn_index_of_env index_into_env] or somesuch. Could really simplify
@@ -522,6 +513,8 @@
 
                                                                                  ((wrap_level env_id de? se variadic params body) (.comb comb))
                                                                                  (ensure_val_params (map ensure_val literal_params))
+                                                                                 ; TODO: If I checked for is val before each part of the loop, try_unval
+                                                                                 ; wouldn't have to be falliable
                                                                                  ((ok pectx err single_eval_params_if_appropriate appropriatly_evaled_params) ((rec-lambda param-recurse (wrap cparams pectx single_eval_params_if_appropriate)
                                                                                         (dlet (
                                                                                                (_ (print (indent_str indent) "For initial rp_eval:"))
@@ -589,10 +582,8 @@
 
                                                                                  ;(failed (or rec_stop (not able_to_sub_env) (and result_is_later result_closes_over)))
                                                                                  ((failed reason) (cond (rec_stop                                        (array true "infinite recursion"))
-                                                                                                        ((check_for_env_id_in_result env_id func_result) (array true "has env id in result"))
-                                                                                                        ((not (later_head? func_result))                 (array false ""))
-                                                                                                        (true                                            (array (dlet ((stop_envs ((rec-lambda ser (a e) (mif e (ser (cons (.marked_env_idx e) a) (idx (.env_marked e) -1)) a)) (array) se)))
-                                                                                                                                                               (contains_symbols stop_envs (concat params (mif de? (array de?) (array))) func_result)) "both later and contains symbols"))
+                                                                                                        ((not (combiner_return_ok func_result env_id))   (array true "combiner return not ok"))
+                                                                                                        (true                                            (array false "wooo"))
                                                                                          ))
 
                                                                                  (_ (println (indent_str indent) (if failed (str "failed because " reason)
@@ -694,30 +685,54 @@
                                     (marked_array false true (array (marked_prim_comb recurse 'unwrap) evaled)))))
         ) 'unwrap))
 
-        (array 'eval (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
-            (self (marked_prim_comb recurse 'eval))
-
-            (_ (print_strip (indent_str indent) " partial_evaling_body the first time " (idx params 0)))
-            ((pectx body_err body1) (partial_eval_helper (idx params 0) false de env_stack pectx (+ 1 indent)))
-            (_ (print_strip (indent_str indent) "after first eval of param " body1))
-
-            ((pectx env_err eval_env) (mif (= 2 (len params)) (partial_eval_helper (idx params 1) false de env_stack pectx (+ 1 indent))
-                                                                    (array pectx nil de)))
-            (eval_env_v (mif (= 2 (len params)) (array eval_env) (array)))
-         ) (mif (or (!= nil body_err) (!= nil env_err)) (array pectx (mif body_err body_err env_err) nil)
-           (mif (not (marked_env? eval_env)) (array pectx (mif body_err body_err env_err) (marked_array false true (concat (array self body1) eval_env_v)))
-                                            (dlet (
-            ; Is this safe? Could this not move eval_env_v inside a comb?
-            ; With this, we don't actually fail as this is always a legitimate uneval
-            (fail_handler (lambda (failed) (marked_array false true (concat (array self failed) eval_env_v))))
-            ((ok unval_body) (try_unval body1 fail_handler))
-            (self_fallback (fail_handler body1))
-            (_ (print_strip (indent_str indent) "partial_evaling body for the second time in eval " unval_body))
-            ((pectx err body2) (mif (= self_fallback unval_body) (array pectx nil self_fallback)
-                                                                       (partial_eval_helper unval_body only_head eval_env env_stack pectx (+ 1 indent))))
-            (_ (print_strip (indent_str indent) "and body2 is " body2))
-            ) (mif err (array pectx err nil) (array pectx nil body2)))))
+        (array 'eval (marked_prim_comb (parameters_evaled_proxy 0 (lambda (recurse only_head de env_stack pectx evaled_params indent)
+            (if (not (is_all_values evaled_params))                                       (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'eval) evaled_params)))
+            (if (and (= 2 (len evaled_params)) (not (marked_env? (idx evaled_params 1)))) (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'eval) evaled_params)))
+            (dlet (
+                (body (idx evaled_params 0))
+                (implicit_env (!= 2 (len evaled_params)))
+                (eval_env (if implicit_env de (idx evaled_params 1)))
+                ((ok unval_body) (try_unval body (lambda (_) nil)))
+                (_ (if (not ok) (error "actually impossible eval unval")))
+                ((pectx err body2) (partial_eval_helper unval_body only_head eval_env env_stack pectx (+ 1 indent)))
+            ) (cond ((!= nil err)                                          (array pectx err nil))
+                    ; If our env was implicit, then our unval'd code can be inlined directly in our caller
+                    (implicit_env                                          (array pectx nil body2))
+                    ((combiner_return_ok body2 (.marked_env_idx eval_env)) (array pectx nil body2))
+                    ; TODO: Could replace this with (veval <body2> <eval_env>)
+                    (true                                                  (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'eval) evaled_params))))
+            ))))
         )) 'eval))
+
+        ;(array 'eval (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
+        ;    (self (marked_prim_comb recurse 'eval))
+
+        ;    (_ (print_strip (indent_str indent) " partial_evaling_body the first time " (idx params 0)))
+        ;    ((pectx body_err body1) (partial_eval_helper (idx params 0) false de env_stack pectx (+ 1 indent)))
+        ;    (_ (print_strip (indent_str indent) "after first eval of param " body1))
+
+        ;    ((pectx env_err eval_env) (mif (= 2 (len params)) (partial_eval_helper (idx params 1) false de env_stack pectx (+ 1 indent))
+        ;                                                            (array pectx nil de)))
+        ;    (eval_env_v (mif (= 2 (len params)) (array eval_env) (array)))
+        ; ) (mif (or (!= nil body_err) (!= nil env_err)) (array pectx (mif body_err body_err env_err) nil)
+        ;   (mif (not (marked_env? eval_env)) (array pectx (mif body_err body_err env_err) (marked_array false true (concat (array self body1) eval_env_v)))
+        ;                                    (dlet (
+
+        ;    ; WAIT, this doesn't enforce that the parameter is a value pre-uneval!
+        ;    ;   That means that it could have fake envs that will now change parent chain
+
+
+        ;    ; Is this safe? Could this not move eval_env_v inside a comb?
+        ;    ; With this, we don't actually fail as this is always a legitimate uneval
+        ;    (fail_handler (lambda (failed) (marked_array false true (concat (array self failed) eval_env_v))))
+        ;    ((ok unval_body) (try_unval body1 fail_handler))
+        ;    (self_fallback (fail_handler body1))
+        ;    (_ (print_strip (indent_str indent) "partial_evaling body for the second time in eval " unval_body))
+        ;    ((pectx err body2) (mif (= self_fallback unval_body) (array pectx nil self_fallback)
+        ;                                                               (partial_eval_helper unval_body only_head eval_env env_stack pectx (+ 1 indent))))
+        ;    (_ (print_strip (indent_str indent) "and body2 is " body2))
+        ;    ) (mif err (array pectx err nil) (array pectx nil body2)))))
+        ;)) 'eval))
 
         (array 'cond (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx params indent)
             (mif (!= 0 (% (len params) 2)) (array pectx (str "partial eval cond with odd params " params) nil)
@@ -3475,7 +3490,11 @@
 
               ((compiled_value_ptr compiled_value_code compiled_value_error ctx) (compile-inner ctx marked_code true))
               ((datasi funcs memo root_marked_env pectx) ctx)
+
+              ; Swap for when need to profile what would be an error
+              ;(compiled_value_ptr (mif compiled_value_error 0 compiled_value_ptr))
               (_ (mif compiled_value_error (error compiled_value_error)))
+
               (_ (if (= nil compiled_value_ptr) (error (str "compiled top-level to code for some reason!? have code " compiled_value_code))))
 
               ; Ok, so the outer loop handles the IO monads
@@ -4033,8 +4052,8 @@
         (write_file "./csc_out.wasm" (compile (partial_eval (read-string (slurp "to_compile.kp")))))
     ))
 
-;) (test-most))
-) (run-compiler))
+) (test-most))
+;) (run-compiler))
 ;) (single-test))
 )
 

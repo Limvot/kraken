@@ -1,60 +1,57 @@
-
-
 ((wrap (vau root_env (quote)
 ((wrap (vau (let1)
-
-
 (let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
 (let1 current-env (vau de () de)
 (let1 cons (lambda (h t) (concat (array h) t))
 (let1 lapply (lambda (f1 p)     (eval (cons (unwrap f1) p) (current-env)))
 (let1 vapply (lambda (f2 p ede) (eval (cons f2          p) ede))
-
 (let1 Y (lambda (f3)
     ((lambda (x1) (x1 x1))
      (lambda (x2) (f3 (lambda (& y) (lapply (x2 x2) y))))))
-
 (let1 vY (lambda (f)
     ((lambda (x3) (x3 x3))
-     (lambda (x4) (f (vau de (& y) (vapply (x4 x4) y de))))))
-(let1 let (vY (lambda (recurse) (vau de (vs b) (cond (= (len vs) 0) (eval b de)
-                                                     true           (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de)))))
-
+     (lambda (x4) (f (vau de1 (& y) (vapply (x4 x4) y de1))))))
+(let1 let (vY (lambda (recurse) (vau de2 (vs b) (cond (= (len vs) 0) (eval b de2)
+                                                     true           (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de2)))))
 (let (
-        a 1
-        lcompose (lambda (g f) (lambda (& args) (lapply g (array (lapply f args)))))
+        ;a 1
+        ;lcompose (lambda (g f) (lambda (& args) (lapply g (array (lapply f args)))))
         rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
-        if (vau de (con than & else) (cond (eval con de) (eval than de)
-                                           (> (len else) 0) (eval (idx else 0) de)
-                                           true false))
-        map (lambda (f l)
-            (let (helper (rec-lambda recurse (f l n i)
-                                            (cond (= i (len l))         n
-                                                  (<= i (- (len l) 4))  (recurse f l (concat n (array
-                                                                                                (f (idx l (+ i 0)))
-                                                                                                (f (idx l (+ i 1)))
-                                                                                                (f (idx l (+ i 2)))
-                                                                                                (f (idx l (+ i 3)))
-                                                                                                )) (+ i 4))
-                                                  true                  (recurse f l (concat n (array (f (idx l i)))) (+ i 1)))))
-                 (helper f l (array) 0)))
+        ;if (vau de (con than & else) (cond (eval con de) (eval than de)
+        ;                                   (> (len else) 0) (eval (idx else 0) de)
+        ;                                   true false))
+
+        ; The sticking point for map seemed to be a mis-step with being over conservitive finding de, so renaming de's to be unique lets it procede
+        ; Although, without that, it now runs 60x longer and then still has the same compiles to call problem.
+        ;   - Is it due to failure to compile cuasing re-attempts in an exponential way?
+        ;     - Nope, contains-symbols has come home to roost
+        map (lambda (f5 l5)
+            ; now maybe errors on can't find helper?
+            (let (helper (rec-lambda recurse (f4 l4 n4 i4)
+                                            (cond (= i4 (len l4))         n4
+                                                  ;(<= i (- (len l) 4))  (recurse f l (concat n (array
+                                                  ;                                              (f (idx l (+ i 0)))
+                                                  ;                                              (f (idx l (+ i 1)))
+                                                  ;                                              (f (idx l (+ i 2)))
+                                                  ;                                              (f (idx l (+ i 3)))
+                                                  ;                                              )) (+ i 4))
+                                                  true                  (recurse f4 l4 (concat n4 (array (f4 (idx l4 i4)))) (+ i4 1)))))
+                 (helper f5 l5 (array) 0)))
         test (map (lambda (x) (+ x 1)) (array 1 2))
-        monad   (array 'open  3 "test_self_out" (lambda (fd code)
-                (array 'write fd "wabcdefghijklmnopqrstuvwx"   (lambda (written code)
-                (array 'exit  (if (= 0 written) 12 14))))))
+        ;test ((rec-lambda recurse (n) (cond (= 0 n) 1
+        ;                                    true    (* n (recurse (- n 1))))) 5)
+        ;monad   (array 'open  3 "test_self_out" (lambda (fd code)
+        ;        (array 'write fd "wabcdefghijklmnopqrstuvwx"   (lambda (written code)
+        ;        (array 'exit  (if (= 0 written) 12 14))))))
+        monad (array 'write  1 "test_self_out2" (vau (written code) test))
 )
 monad
-;(array 'write  1 "test_self_out2" (vau (written code) 14))
 )
 ; end of all lets
 )))))))
 )
-
 ; impl of let1
 ; this would be the macro style version (((;)) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))
 )) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))
 ; impl of quote
 )) (vau (x5) x5))
-
-
-
