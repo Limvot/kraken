@@ -417,8 +417,9 @@
               (true              (error (str "Something odd passed to check_for_env_id_in_result " x)))
     )))
 
+    ; Handles a good bit, not let4.3, but yes lambda 1 & 2
     (combiner_return_ok (rec-lambda combiner_return_ok (func_result env_id)
-        (if (not (later_head? func_result)) (check_for_env_id_in_result env_id func_result)
+        (if (not (later_head? func_result)) (not (check_for_env_id_in_result env_id func_result))
         ; special cases now
         ;   *(veval body {env}) => (combiner_return_ok {env})
         ;       The reason we don't have to check body is that this form is only creatable via function call, so body *has* to either be or have-been a value and only need {env}
@@ -3208,8 +3209,9 @@
                                                         ;; Insert test for the function being a constant to inline
                                                         ;; Namely, cond
                                                         ) (cond
-                                                            ((or (!= nil err) (!= nil func_err))    (array nil nil (mif err (str err " from function params in call " (str_strip c)) (str func_err " from function itself  in call " (str_strip c))) ctx))
+                                                            ((!= nil func_err) (array nil nil (str func_err " from function itself in call " (str_strip c)) ctx))
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'cond))
+                                                                                        (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
                                                                                                                (dlet (
                                                                                                                 ((datasi funcs memo env pectx) ctx)
                                                                                                                ) (array nil ((rec-lambda recurse (codes i) (cond
@@ -3220,7 +3222,7 @@
                                                                                                                                                 ))
                                                                                                                         ((= i (- (len codes) 1)) (error "compiling bad length comb"))
                                                                                                                         (true                    (unreachable))
-                                                                                                                    )) param_codes 0) err ctx)))
+                                                                                                                    )) param_codes 0) err ctx))))
                                                             (true (dlet (
                                                                 (result_code (concat
                                                                                 func_code
@@ -3771,10 +3773,10 @@
         (print (run_partial_eval_test "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (+ x a 1)))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
         (print (run_partial_eval_test "((wrap (vau (let1) (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a))))))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))
 
-        (print "\n\nnil test\n")
-        (print (run_partial_eval_test "nil"))
-        (print (run_partial_eval_test "(nil? 1)"))
-        (print (run_partial_eval_test "(nil? nil)"))
+        ;(print "\n\nnil test\n")
+        ;(print (run_partial_eval_test "nil"))
+        ;(print (run_partial_eval_test "(nil? 1)"))
+        ;(print (run_partial_eval_test "(nil? nil)"))
 
         (print "\n\nlet 4.3\n\n")
         (print (run_partial_eval_test "((wrap (vau (let1)
@@ -4010,11 +4012,11 @@
             (output3 (compile (partial_eval (read-string "((wrap (vau (let1)
                                    (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
                                    (array ((vau (x) x) write) 1 \"hahah\" (vau (written code) ((lambda (x n) (x x n)) (lambda (recurse n) (cond (!= 0 n) (* n (recurse recurse (- n 1)))
-                                                                                     true     1                               )) written)))
+                                                                                                                                                true     1)) written)))
                                    ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))))
             (_ (write_file "./csc_out.wasm" output3))
             (output3 (compile (partial_eval (read-string "(nil? 1)"))))
-            (output3 (compile (partial_eval (read-string "(nil? nil)"))))
+            ;(output3 (compile (partial_eval (read-string "(nil? nil)"))))
         ) (void))
     )))
 
