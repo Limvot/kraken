@@ -51,7 +51,8 @@ monad
 )))))))
 )
 ; impl of let1
-; this would be the macro style version (((;)) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))
-)) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))
+; this would be the macro style version (((
+)) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))
+;)) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))
 ; impl of quote
 )) (vau (x5) x5))

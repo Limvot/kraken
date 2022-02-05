@@ -373,7 +373,7 @@
               ((marked_env? x)    (error "got env for strip, won't work"))
               (true               (error (str "some other strip? " x)))
         )
-    )))  (lambda (x) (let* ((_ (print_strip "stripping: " x)) (r (helper x false)) (_ (println "result of strip " r))) r))))
+    )))  (lambda (x) (let* ((_ (print_strip "stripping: " x)) (r (helper x true)) (_ (println "result of strip " r))) r))))
 
     (try_unval (rec-lambda recurse (x fail_f)
         (cond ((marked_array? x) (mif (not (.marked_array_is_val x)) (array false (fail_f x))
@@ -417,17 +417,56 @@
               (true              (error (str "Something odd passed to check_for_env_id_in_result " x)))
     )))
 
-    ; Handles a good bit, not let4.3, but yes lambda 1 & 2
+    (comb_takes_de? (lambda (x l) (cond
+        ((comb? x)      (dlet (((wrap_level env_id de? se variadic params body) (.comb x))) (!= nil de?)))
+        ((prim_comb? x) (cond (     (= (.prim_comb_sym x) 'vau)            true)
+                              ((and (= (.prim_comb_sym x) 'eval)  (= 1 l)) true)
+                              ((and (= (.prim_comb_sym x) 'veval) (= 1 l)) true)
+                              (true                                        false)))
+        ((and (marked_array? x) (not (.marked_array_is_val x)))            true)
+        (true           (error (str "illegal comb_takes_de? param " x)))
+    )))
+
+    ; Handles let 4.3 through macro level leaving it as (<comb wraplevel=1 (y) (+ y x 12)> 13)
+    ; need handling of symbols (which is illegal for eval but ok for calls) to push it farther
     (combiner_return_ok (rec-lambda combiner_return_ok (func_result env_id)
-        (if (not (later_head? func_result)) (not (check_for_env_id_in_result env_id func_result))
+        (cond   ((not (later_head? func_result)) (not (check_for_env_id_in_result env_id func_result)))
         ; special cases now
         ;   *(veval body {env}) => (combiner_return_ok {env})
-        ;       The reason we don't have to check body is that this form is only creatable via function call, so body *has* to either be or have-been a value and only need {env}
-        ;           Either it's created by eval, in which case it's fine, or it's created by something like (eval (array veval x de) de2) and the array has checked it, etc
-        ;       Might be easier to check for (eval body env) where (and (combiner_return_ok body) (combiner_return_ok {env}))
-        ;       NOTE: if we later allow calling combiners with head-vals, then veval makes more sense again
+        ;       The reason we don't have to check body is that this form is only creatable in ways that body was origionally a value and only need {env}
+        ;           Either it's created by eval, in which case it's fine, or it's created by something like (eval (array veval x de) de2) and the array has checked it,
+        ;           or it's created via literal vau invocation, in which case the body is a value.
+                ((and (marked_array? func_result)
+                      (prim_comb? (idx (.marked_array_values func_result) 0))
+                      (= 'venv (.prim_comb_sym (idx (.marked_array_values func_result) 0)))
+                      (= 3 (len (.marked_array_values func_result)))
+                      (combiner_return_ok (idx (.marked_array_values func_result) 2) env_id))                                       true)
         ;   (func ...params) => (and (doesn't take de func) (foldl combiner_return_ok (cons func params)))
-        false
+        ;
+                ((and (marked_array? func_result)
+                      (not (comb_takes_de? (idx (.marked_array_values func_result) 0) (len (.marked_array_values func_result))))
+                      (foldl (lambda (a x) (and a (combiner_return_ok x env_id))) true (.marked_array_values func_result)))         true)
+
+        ;   So that's enough for macro like, but we would like to take it farther
+        ;       For like (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a)))))
+        ;           we get to (+ 13 x 12) not being a value, and it reconstructs
+        ;           (<comb wraplevel=1 (y) (+ y x 12)> 13)
+        ;           and that's what eval gets, and eval then gives up as well.
+
+        ;           That will get caught by the above cases to remain the expansion (<comb wraplevel=1 (y) (+ y x 12)> 13),
+        ;           but ideally we really want another case to allow (+ 13 x 12) to bubble up
+        ;           I think it would be covered by the (func ...params) case if a case is added to allow symbols to be bubbled up if their
+        ;           needed for progress wasn't true or the current environment, BUT this doesn't work for eval, just for functions,
+        ;           since eval changes the entire env chain (but that goes back to case 1, and might be eliminated at compile if it's an env reachable from the func).
+        ;
+        ;
+        ;   Do note a key thing to be avoided is allowing any non-val inside a comb, since that can cause a fake env's ID to
+        ;   reference the wrong env/comb in the chain.
+        ;   We do allow calling eval with a fake env, but since it's only callable withbody value and is strict (by calling this)
+        ;   about it's return conditions, and the env it's called with must be ok in the chain, and eval doesn't introduce a new scope, it works ok.
+        ;   We do have to be careful about allowing returned later symbols from it though, since it could be an entirely different env chain.
+
+                (true false)
         )
     ))
 
@@ -687,7 +726,7 @@
         ) 'unwrap))
 
         (array 'eval (marked_prim_comb (parameters_evaled_proxy 0 (lambda (recurse only_head de env_stack pectx evaled_params indent)
-            (if (not (is_all_values evaled_params))                                       (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'eval) evaled_params)))
+            (if (not (total_value? (idx evaled_params 0)))                                (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'eval) evaled_params)))
             (if (and (= 2 (len evaled_params)) (not (marked_env? (idx evaled_params 1)))) (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'eval) evaled_params)))
             (dlet (
                 (body (idx evaled_params 0))
@@ -695,45 +734,21 @@
                 (eval_env (if implicit_env de (idx evaled_params 1)))
                 ((ok unval_body) (try_unval body (lambda (_) nil)))
                 (_ (if (not ok) (error "actually impossible eval unval")))
-                ((pectx err body2) (partial_eval_helper unval_body only_head eval_env env_stack pectx (+ 1 indent)))
-            ) (cond ((!= nil err)                                          (array pectx err nil))
+
+                (venv_inner (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
+                    (body (idx params 0))
+                    (implicit_env (!= 2 (len params)))
+                    (eval_env (if implicit_env de (idx params 1)))
+                    ((pectx err ebody) (partial_eval_helper body only_head eval_env env_stack pectx (+ 1 indent)))
+                ) (cond ((!= nil err)                                          (array pectx err nil))
                     ; If our env was implicit, then our unval'd code can be inlined directly in our caller
-                    (implicit_env                                          (array pectx nil body2))
-                    ((combiner_return_ok body2 (.marked_env_idx eval_env)) (array pectx nil body2))
-                    ; TODO: Could replace this with (veval <body2> <eval_env>)
-                    (true                                                  (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'eval) evaled_params))))
-            ))))
+                    (implicit_env                                          (array pectx nil ebody))
+                    ((combiner_return_ok ebody (.marked_env_idx eval_env)) (array pectx nil ebody))
+                    (true                                                  (array pectx nil (marked_array false true (array (marked_prim_comb recurse 'veval) ebody eval_env))))
+                ))))
+
+            ) (venv_inner only_head de env_stack pectx (if implicit_env (array unval_body) (array unval_body eval_env)) indent))))
         )) 'eval))
-
-        ;(array 'eval (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
-        ;    (self (marked_prim_comb recurse 'eval))
-
-        ;    (_ (print_strip (indent_str indent) " partial_evaling_body the first time " (idx params 0)))
-        ;    ((pectx body_err body1) (partial_eval_helper (idx params 0) false de env_stack pectx (+ 1 indent)))
-        ;    (_ (print_strip (indent_str indent) "after first eval of param " body1))
-
-        ;    ((pectx env_err eval_env) (mif (= 2 (len params)) (partial_eval_helper (idx params 1) false de env_stack pectx (+ 1 indent))
-        ;                                                            (array pectx nil de)))
-        ;    (eval_env_v (mif (= 2 (len params)) (array eval_env) (array)))
-        ; ) (mif (or (!= nil body_err) (!= nil env_err)) (array pectx (mif body_err body_err env_err) nil)
-        ;   (mif (not (marked_env? eval_env)) (array pectx (mif body_err body_err env_err) (marked_array false true (concat (array self body1) eval_env_v)))
-        ;                                    (dlet (
-
-        ;    ; WAIT, this doesn't enforce that the parameter is a value pre-uneval!
-        ;    ;   That means that it could have fake envs that will now change parent chain
-
-
-        ;    ; Is this safe? Could this not move eval_env_v inside a comb?
-        ;    ; With this, we don't actually fail as this is always a legitimate uneval
-        ;    (fail_handler (lambda (failed) (marked_array false true (concat (array self failed) eval_env_v))))
-        ;    ((ok unval_body) (try_unval body1 fail_handler))
-        ;    (self_fallback (fail_handler body1))
-        ;    (_ (print_strip (indent_str indent) "partial_evaling body for the second time in eval " unval_body))
-        ;    ((pectx err body2) (mif (= self_fallback unval_body) (array pectx nil self_fallback)
-        ;                                                               (partial_eval_helper unval_body only_head eval_env env_stack pectx (+ 1 indent))))
-        ;    (_ (print_strip (indent_str indent) "and body2 is " body2))
-        ;    ) (mif err (array pectx err nil) (array pectx nil body2)))))
-        ;)) 'eval))
 
         (array 'cond (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx params indent)
             (mif (!= 0 (% (len params) 2)) (array pectx (str "partial eval cond with odd params " params) nil)
@@ -3320,6 +3335,7 @@
 
                     ((prim_comb? c) (cond ((= 'vau            (.prim_comb_sym c))  (array (bor (<< (- k_vau dyn_start)           35) (<< 0 4) #b0001) nil nil ctx))
                                           ((= 'cond           (.prim_comb_sym c))  (array (bor (<< (- k_cond dyn_start)          35) (<< 0 4) #b0001) nil nil ctx))
+                                          ((= 'veval          (.prim_comb_sym c))  (array (bor (<< (- k_eval dyn_start)          35) (<< 0 4) #b0001) nil nil ctx))
                                           ((= 'eval           (.prim_comb_sym c))  (array (bor (<< (- k_eval dyn_start)          35) (<< 1 4) #b0001) nil nil ctx))
                                           ((= 'read-string    (.prim_comb_sym c))  (array (bor (<< (- k_read-string dyn_start)   35) (<< 1 4) #b0001) nil nil ctx))
                                           ((= 'log            (.prim_comb_sym c))  (array (bor (<< (- k_log dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
@@ -4054,8 +4070,8 @@
         (write_file "./csc_out.wasm" (compile (partial_eval (read-string (slurp "to_compile.kp")))))
     ))
 
-) (test-most))
-;) (run-compiler))
+;) (test-most))
+) (run-compiler))
 ;) (single-test))
 )
 
