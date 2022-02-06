@@ -399,23 +399,48 @@
         )
     ))
 
-    ; TODO: memoize!
-    (check_for_env_id_in_result (rec-lambda check_for_env_id_in_result (s_env_id x) (cond
-              ((val? x)           false)
-              ((marked_symbol? x) false)
-              ((marked_array? x)  (foldl (lambda (a x) (or a (check_for_env_id_in_result s_env_id x))) false (.marked_array_values x)))
-              ((comb? x)          (dlet (((wrap_level i_env_id de? se variadic params body) (.comb x)))
-                                      (or (check_for_env_id_in_result s_env_id se) (and (!= s_env_id i_env_id) (check_for_env_id_in_result s_env_id body)))))
+    (check_for_env_id_in_result (lambda (s_env_id x) (idx ((rec-lambda check_for_env_id_in_result (memo s_env_id x)
+        (dlet (
+            (hash (.hash x))
+            ;(result (if (or (comb? x) (marked_env? x)) (alist-ref hash memo) false))
+            ;(result (if (or (marked_array? x) (marked_env? x)) (alist-ref hash memo) false))
+            (result (if (marked_env? x) (alist-ref hash memo) false))
+        ) (if (array? result) (array memo (idx result 0)) (cond
+              ((val? x)           (array memo false))
+              ((marked_symbol? x) (array memo false))
+              ((marked_array? x)  (dlet (
+                                    (values (.marked_array_values x))
+                                    ((memo result) ((rec-lambda recurse (memo i) (if (= (len values) i) (array memo false)
+                                                                                      (dlet (((memo r) (check_for_env_id_in_result memo s_env_id (idx values i))))
+                                                                                          (if r (array memo true)
+                                                                                                (recurse memo (+ i 1))))))
+                                                    memo 0))
+                                    ;(memo (put memo hash result))
+                                  ) (array memo result)))
+              ((comb? x)          (dlet (
+                                    ((wrap_level i_env_id de? se variadic params body) (.comb x))
+                                    ((memo in_se) (check_for_env_id_in_result memo s_env_id se))
+                                    ((memo total) (if (and (not in_se) (!= s_env_id i_env_id)) (check_for_env_id_in_result memo s_env_id body)
+                                                                                               (array memo in_se)))
+                                    ;(memo (put memo hash total))
+                                  ) (array memo total)))
 
-              ((prim_comb? x)    false)
-              ((marked_env? x)   (let ((inner (.env_marked x)))
-                                     (cond ((and (not (marked_env_real? x)) (= s_env_id (.marked_env_idx x)))           true)
-                                           ((foldl (lambda (a x) (or a (check_for_env_id_in_result s_env_id (idx x 1))))
-                                                   false (slice inner 0 -2))                                            true)
-                                           ((!= nil (idx inner -1))                                                     (check_for_env_id_in_result s_env_id (idx inner -1)))
-                                           (true                                                                        false))))
+              ((prim_comb? x)    (array memo false))
+              ((marked_env? x)   (if (and (not (marked_env_real? x)) (= s_env_id (.marked_env_idx x))) (array memo true)
+                                         (dlet (
+                                            (values (slice (.env_marked x) 0 -2))
+                                            (upper  (idx (.env_marked x) -1))
+                                            ((memo result) ((rec-lambda recurse (memo i) (if (= (len values) i) (array memo false)
+                                                                                              (dlet (((memo r) (check_for_env_id_in_result memo s_env_id (idx (idx values i) 1))))
+                                                                                                  (if r (array memo true)
+                                                                                                        (recurse memo (+ i 1))))))
+                                                            memo 0))
+                                            ((memo result) (if (or result (= nil upper)) (array memo result)
+                                                                                         (check_for_env_id_in_result memo s_env_id upper)))
+                                            (memo (put memo hash result))
+                                         ) (array memo result))))
               (true              (error (str "Something odd passed to check_for_env_id_in_result " x)))
-    )))
+    )))) (array) s_env_id x) 1)))
 
     (comb_takes_de? (lambda (x l) (cond
         ((comb? x)      (dlet (((wrap_level env_id de? se variadic params body) (.comb x))) (!= nil de?)))
