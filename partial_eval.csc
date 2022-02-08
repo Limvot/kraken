@@ -198,8 +198,12 @@
     (.comb_id                           (lambda (x) (idx x 3)))
     (.comb_env                          (lambda (x) (idx x 5)))
     (.comb_body                         (lambda (x) (idx x 8)))
+    (.comb_wrap_level                   (lambda (x) (idx x 2)))
     (.prim_comb_sym                     (lambda (x) (idx x 3)))
-    (.prim_comb                         (lambda (x) (idx x 2)))
+    (.prim_comb_handler                 (lambda (x) (idx x 2)))
+    (.prim_comb_wrap_level              (lambda (x) (idx x 4)))
+    (.prim_comb_val_head_ok             (lambda (x) (idx x 5)))
+    (.prim_comb                         (lambda (x) (slice x 2 -1)))
 
     (.marked_env                        (lambda (x) (slice x 2 -1)))
     (.marked_env_has_vals               (lambda (x) (idx x 2)))
@@ -208,7 +212,9 @@
     (.marked_env_upper                  (lambda (x) (idx (idx x 5) -1)))
     (.env_marked                        (lambda (x) (idx x 5)))
     (marked_env_real?                   (lambda (x) (= nil (.marked_env_needed_for_progress x))))
-
+    (.any_comb_wrap_level               (lambda (x) (cond  ((prim_comb? x)   (.prim_comb_wrap_level x))
+                                                           ((comb? x)        (.comb_wrap_level x))
+                                                           (true             (error "bad .any_comb_level")))))
     ; Results are either
     ; #t            - any eval will do something
     ; nil           - is a value, no eval will do anything
@@ -251,12 +257,13 @@
                                                                              (combine_hash (hash_bool variadic)
                                                                              (combine_hash (foldl (lambda (c x) (combine_hash c (hash_symbol true x))) 53 params)
                                                                              (.hash body)))))))))
-    (hash_prim_comb   (lambda (handler_fun real_or_name) (combine_hash 59 (hash_symbol true real_or_name))))
+    (hash_prim_comb   (lambda (handler_fun real_or_name wrap_level val_head_ok) (combine_hash (combine_hash 59 (hash_symbol true real_or_name))
+                                                                                              (combine_hash (if val_head_ok 89 97) wrap_level))))
     (hash_val         (lambda (x) (cond ((bool? x)     (hash_bool x))
                                         ((string? x)   (hash_string x))
                                         ((int? x)      (hash_num x))
                                         (true          (error (str "bad thing to hash_val " x))))))
-    ; 89 97 101 103 107 109 113 127 131 137 139 149 151 157 163 167 173
+    ; 101 103 107 109 113 127 131 137 139 149 151 157 163 167 173
 
     (marked_symbol    (lambda (progress_idxs x)                        (array 'marked_symbol    (hash_symbol progress_idxs x)                      progress_idxs x)))
     (marked_array     (lambda (is_val attempted x)                     (dlet (
@@ -278,8 +285,13 @@
     (marked_env       (lambda (has_vals progress_idxs dbi arrs)        (array 'env              (hash_env progress_idxs dbi arrs)                  has_vals progress_idxs dbi arrs)))
     (marked_val       (lambda (x)                                      (array 'val              (hash_val x)                                       x)))
     (marked_comb      (lambda (wrap_level env_id de? se variadic params body) (array 'comb      (hash_comb wrap_level env_id de? se variadic params body) wrap_level env_id de? se variadic params body)))
-    (marked_prim_comb (lambda (handler_fun real_or_name)               (array 'prim_comb        (hash_prim_comb handler_fun real_or_name)          handler_fun real_or_name)))
+    (marked_prim_comb (lambda (handler_fun real_or_name wrap_level val_head_ok)    (array 'prim_comb        (hash_prim_comb handler_fun real_or_name wrap_level val_head_ok) handler_fun real_or_name wrap_level val_head_ok)))
 
+    (with_wrap_level                    (lambda (comb new_wrap) (cond  ((prim_comb? x)   (dlet (((handler_fun real_or_name wrap_level val_head_ok) (.prim_comb x)))
+                                                                                               (marked_prim_comb fun real_or_name new_wrap val_head_ok)))
+                                                                       ((comb? x)        (dlet (((wrap_level env_id de? se variadic params body) (.comb x)))
+                                                                                               (marked_comb new_wrap env_id de? se variadic params body)))
+                                                                       (true             (error "bad with_wrap_level")))))
 
 
     (later_head? (rec-lambda recurse (x) (or (and (marked_array? x)  (or (= false (.marked_array_is_val x)) (foldl (lambda (a x) (or a (recurse x))) false (.marked_array_values x))))
@@ -296,8 +308,8 @@
                                                      (= nil (needed_for_progress x)))))
 
 
-    (is_all_values (lambda (evaled_params) (foldl (lambda (a x) (and a (total_value? x))) true evaled_params)))
-    ;(is_all_head_values (lambda (evaled_params) (foldl (lambda (a x) (and a (not (later_head? x)))) true evaled_params)))
+    (is_all_values      (lambda (evaled_params) (foldl (lambda (a x) (and a      (total_value? x))) true evaled_params)))
+    (is_all_head_values (lambda (evaled_params) (foldl (lambda (a x) (and a (not (later_head? x)))) true evaled_params)))
 
     (false? (lambda (x) (cond ((and (marked_array? x)  (= false (.marked_array_is_val x)))    (error "got a later marked_array passed to false? " x))
                               ((and (marked_symbol? x) (= false (.marked_symbol_is_val x)))   (error "got a later marked_symbol passed to false? " x))
@@ -305,13 +317,18 @@
                               (true                                                           false))))
 
 
-    (mark (rec-lambda recurse (x) (cond   ((env? x)        (error "called mark with an env " x))
-                                          ((combiner? x)   (error "called mark with a combiner " x))
-                                          ((symbol? x)     (cond ((= 'true x)  (marked_val #t))
-                                                                 ((= 'false x) (marked_val #f))
-                                                                 (#t           (marked_symbol true x))))
-                                          ((array? x)      (marked_array false false (map recurse x)))
-                                          (true            (marked_val x)))))
+    (mark (rec-lambda recurse (eval_pos x) (cond   ((env? x)        (error "called mark with an env " x))
+                                                   ((combiner? x)   (error "called mark with a combiner " x))
+                                                   ((symbol? x)     (cond ((= 'true x)  (marked_val #t))
+                                                                          ((= 'false x) (marked_val #f))
+                                                                          (#t           (marked_symbol (if eval_pos true nil) x))))
+                                                   ((array? x)      (marked_array (not eval_pos) false
+                                                                                  (idx (foldl (dlambda ((ep a) x) (array false (concat a (array (recurse ep x)))))
+                                                                                              (array eval_pos (array))
+                                                                                              x)
+                                                                                       1)
+                                                                    ))
+                                                   (true            (marked_val x)))))
 
     (indent_str (rec-lambda recurse (i) (mif (= i 0) ""
                                                    (str "   " (recurse (- i 1))))))
@@ -330,7 +347,7 @@
                                          ((se_s done_envs)   (recurse se done_envs))
                                          ((body_s done_envs) (recurse body done_envs)))
                                       (array (str "<n" (needed_for_progress x) "(comb " wrap_level " " env_id " " de? " " se_s " " params " " body_s ")>") done_envs)))
-              ((prim_comb? x)     (array (str (idx x 3)) done_envs))
+              ((prim_comb? x)     (array (str "<wl=" (.prim_comb_wrap_level x) " " (.prim_comb_sym x) ">") done_envs))
               ((marked_env? x)    (dlet ((e (.env_marked x))
                                          (index (.marked_env_idx x))
                                          (u (idx e -1))
@@ -377,13 +394,13 @@
 
     (try_unval (rec-lambda recurse (x fail_f)
         (cond ((marked_array? x) (mif (not (.marked_array_is_val x)) (array false (fail_f x))
-                                                                    (dlet (((sub_ok subs) (foldl (dlambda ((ok a) x) (dlet (((nok p) (recurse x fail_f)))
-                                                                                                                       (array (and ok nok) (concat a (array p)))))
-                                                                                               (array true (array))
-                                                                                               (.marked_array_values x))))
-                                                                         (array sub_ok (marked_array false false subs)))))
+                                                                    (if (!= 0 (len (.marked_array_values x)))
+                                                                        (dlet ((values (.marked_array_values x))
+                                                                               ((ok f) (recurse (idx values 0) fail_f))
+                                                                        ) (array ok (marked_array false false (cons f (slice values 1 -1)))))
+                                                                        (array true (marked_array false false (array))))))
               ((marked_symbol? x) (mif (.marked_symbol_is_val x) (array true (marked_symbol true (.marked_symbol_value x)))
-                                                                (array false (fail_f x))))
+                                                                 (array false (fail_f x))))
               (true               (array true x))
         )
     ))
@@ -391,13 +408,6 @@
                                                                    (array (and ok nok) (concat a (array p)))))
                                         (array true (array))
                                         x)))
-
-    (ensure_val (rec-lambda recurse (x)
-        (cond ((marked_array? x)  (marked_array true false (map recurse (.marked_array_values x))))
-              ((marked_symbol? x) (marked_symbol nil (.marked_symbol_value x)))
-              (true               x)
-        )
-    ))
 
     (check_for_env_id_in_result (lambda (s_env_id x) (idx ((rec-lambda check_for_env_id_in_result (memo s_env_id x)
         (dlet (
@@ -464,7 +474,8 @@
         ;           or it's created via literal vau invocation, in which case the body is a value.
                 ((and (marked_array? func_result)
                       (prim_comb? (idx (.marked_array_values func_result) 0))
-                      (= 'venv (.prim_comb_sym (idx (.marked_array_values func_result) 0)))
+                      (= 'veval (.prim_comb_sym (idx (.marked_array_values func_result) 0)))
+                      (= 0 (.prim_comb_wrap_level (idx (.marked_array_values func_result) 0)))
                       (= 3 (len (.marked_array_values func_result)))
                       (combiner_return_ok (idx (.marked_array_values func_result) 2) env_id))                                       true)
         ;   (func ...params) => (and (doesn't take de func) (foldl combiner_return_ok (cons func params)))
@@ -501,6 +512,7 @@
                                                            (not (.marked_array_is_val x))
                                                            (prim_comb? (idx (.marked_array_values x) 0))
                                                            (= 'veval (.prim_comb_sym (idx (.marked_array_values x) 0)))
+                                                           (= 0 (.prim_comb_wrap_level (idx (.marked_array_values x) 0)))
                                                            (= 3 (len (.marked_array_values x)))
                                                            (not (marked_env_real? (idx (.marked_array_values x) 2)))
                                                            (= env_id (.marked_env_idx (idx (.marked_array_values x) 2)))) (drop_redundent_veval env_id (idx (.marked_array_values x) 1))
@@ -580,115 +592,90 @@
                                                         (_ (print_strip (indent_str indent) "partial_evaling comb " (idx values 0)))
 
                                                         ((pectx err comb) (partial_eval_helper (idx values 0) true env env_stack pectx (+ 1 indent)))
-                                                        ; If we haven't evaluated the function before at all, we would like to partially evaluate it so we know
-                                                        ; what it needs. We'll see if this re-introduces exponentail (I think this should limit it to twice?)
-                                                        ((pectx err comb) (if (and (= nil err) (= true (needed_for_progress comb)))
-                                                                                    (partial_eval_helper comb false env env_stack pectx (+ 1 indent))
-                                                                                    (array pectx err comb)))
-                                                        (literal_params (slice values 1 -1))
-                                                        (_ (println (indent_str indent) "Going to do an array call!"))
-                                                        ;(_ (true_print (indent_str indent) "Going to do an array call!"))
-                                                        (indent (+ 1 indent))
-                                                        (_ (print_strip (indent_str indent) "total (in env " (.marked_env_idx env) ") is (proceeding err " err ") " x))
-                                                        ; would need to handle err if we want it(_ (print_strip (indent_str indent) "total (in env " (.marked_env_idx env) ") is (proceeding err " err ") " (str_strip x) ", that is " (marked_array false true (cons comb literal_params))))
-                                                        ;(_ (true_print (indent_str indent) "total is " (true_str_strip x)))
-                                                     )
-                                                     (mif err (array pectx err nil)
-                                                     (cond ((prim_comb? comb) (begin (if (= 'wrap (.prim_comb_sym comb)) (print_strip (indent_str indent) "calling wrap in " x))
-                                                                                ((.prim_comb comb) only_head env env_stack pectx literal_params (+ 1 indent))
-                                                                              ))
-                                                           ((comb? comb)      (dlet (
-
-                                                                                 (map_rp_eval (lambda (pectx ps) (foldl (dlambda ((c er ds) p) (dlet ((_ (print_strip (indent_str indent) "rp_evaling " p)) ((c e d) (partial_eval_helper p false env env_stack c (+ 1 indent))) (_ (print_strip (indent_str indent) "result of rp_eval was err " e " and value " d))) (array c (mif er er e) (concat ds (array d)))))
-                                                                                                             (array pectx nil (array))
-                                                                                                             ps)))
+                                                       ) (cond ((!= nil err) (array pectx err nil))
+                                                               ((later_head? comb)                               (array pectx nil (marked_array false true (cons comb literal_params))))
+                                                               ((not (or (comb? comb) (prim_comb? comb))) (array pectx (str "impossible comb value " x) nil))
+                                                               (true    (dlet (
+                                                                            ; If we haven't evaluated the function before at all, we would like to partially evaluate it so we know
+                                                                            ; what it needs. We'll see if this re-introduces exponentail (I think this should limit it to twice?)
+                                                                            ((pectx comb_err comb) (if (and (= nil err) (= true (needed_for_progress comb)))
+                                                                                                        (partial_eval_helper comb false env env_stack pectx (+ 1 indent))
+                                                                                                        (array pectx err comb)))
+                                                                            (literal_params (slice values 1 -1))
+                                                                            (_ (println (indent_str indent) "Going to do an array call!"))
+                                                                            (indent (+ 1 indent))
+                                                                            ;(_ (print_strip (indent_str indent) "total (in env " (.marked_env_idx env) ") is (proceeding err " err ") " x))
+                                                                            ; would need to handle err if we want it(_ (print_strip (indent_str indent) "total (in env " (.marked_env_idx env) ") is (proceeding err " err ") " (str_strip x) ", that is " (marked_array false true (cons comb literal_params))))
 
 
-                                                                                 ((wrap_level env_id de? se variadic params body) (.comb comb))
-                                                                                 (ensure_val_params (map ensure_val literal_params))
-                                                                                 ; TODO: If I checked for is val before each part of the loop, try_unval
-                                                                                 ; wouldn't have to be falliable
-                                                                                 ((ok pectx err single_eval_params_if_appropriate appropriatly_evaled_params) ((rec-lambda param-recurse (wrap cparams pectx single_eval_params_if_appropriate)
-                                                                                        (dlet (
-                                                                                               (_ (print (indent_str indent) "For initial rp_eval:"))
-                                                                                               (_ (map (lambda (x) (print_strip (indent_str indent) "item " x)) cparams))
-                                                                                               ((pectx er pre_evaled) (map_rp_eval pectx cparams))
-                                                                                               (_ (print (indent_str indent) "er for intial  rp_eval: " er))
-                                                                                              )
-                                                                                            (mif er (array false pectx er nil nil)
-                                                                                            (mif (!= 0 wrap)
-                                                                                                (dlet (((ok unval_params) (try_unval_array pre_evaled)))
-                                                                                                     (mif (not ok) (array ok pectx nil single_eval_params_if_appropriate nil)
-                                                                                                        (dlet (
-                                                                                                               (_ (print (indent_str indent) "For second rp_eval:"))
-                                                                                                               (_ (map (lambda (x) (print_strip (indent_str indent) "item " x)) unval_params))
-                                                                                                               ((pectx err evaled_params) (map_rp_eval pectx unval_params))
-                                                                                                               (_ (print (indent_str indent) "er for second  rp_eval: " err))
-                                                                                                              )
-                                                                                                              (mif err (array false pectx nil single_eval_params_if_appropriate nil)
-                                                                                                              (param-recurse (- wrap 1) evaled_params pectx
-                                                                                                                             (cond ((= nil single_eval_params_if_appropriate) 1)
-                                                                                                                                   ((= 1   single_eval_params_if_appropriate) pre_evaled)
-                                                                                                                                   (true               single_eval_params_if_appropriate))
-                                                                                                                             )))))
-                                                                                                (array true pectx nil (if (= 1 single_eval_params_if_appropriate) pre_evaled single_eval_params_if_appropriate) pre_evaled))))
-                                                                                    ) wrap_level ensure_val_params pectx nil))
-                                                                                 (correct_fail_params (if (and (!= 1 single_eval_params_if_appropriate) (!= nil single_eval_params_if_appropriate))
-                                                                                                          single_eval_params_if_appropriate
-                                                                                                          literal_params))
-                                                                                 (ok_and_non_later (and ok (is_all_values appropriatly_evaled_params)))
-                                                                                 ) (mif err (array pectx err nil)
-                                                                                   (mif (not ok_and_non_later) (begin (print_strip (indent_str indent) "Can't evaluate params properly, delying" x)
-                                                                                                                      (print_strip (indent_str indent) "so returning with " (marked_array false true (cons comb correct_fail_params)))
-                                                                                                                      (array pectx nil (marked_array false true (cons comb correct_fail_params))))
-                                                                                 (dlet (
-                                                                                 (final_params (mif variadic (concat (slice appropriatly_evaled_params 0 (- (len params) 1))
-                                                                                                                   (array (marked_array true false (slice appropriatly_evaled_params (- (len params) 1) -1))))
-                                                                                                           appropriatly_evaled_params))
-                                                                                 ((de_progress_idxs de_entry) (mif (!= nil de?)
-                                                                                                                     (array (needed_for_progress env) (array (array de? env)))
-                                                                                                                     (array nil (array))))
-                                                                                 ;  Don't need to check params, they're all values!
-                                                                                 (inner_env_progress_idxs (concat de_progress_idxs (needed_for_progress se)))
-                                                                                 (inner_env (marked_env true inner_env_progress_idxs env_id (concat (zip params final_params) de_entry (array se))))
-                                                                                 (_ (print_strip (indent_str indent) " with inner_env is " inner_env))
-                                                                                 (_ (print_strip (indent_str indent) "going to eval " body))
+                                                                            (map_rp_eval (lambda (pectx ps) (foldl (dlambda ((c er ds) p) (dlet ((_ (print_strip (indent_str indent) "rp_evaling " p)) ((c e d) (partial_eval_helper p false env env_stack c (+ 1 indent))) (_ (print_strip (indent_str indent) "result of rp_eval was err " e " and value " d))) (array c (mif er er e) (concat ds (array d)))))
+                                                                                                        (array pectx nil (array))
+                                                                                                        ps)))
+                                                                            ((remaining_wrap param_err evaled_params pectx) ((rec-lambda param-recurse (wrap cparams pectx)
+                                                                                   (dlet (
+                                                                                          (_ (print (indent_str indent) "For initial rp_eval:"))
+                                                                                          (_ (map (lambda (x) (print_strip (indent_str indent) "item " x)) cparams))
+                                                                                          ((pectx er pre_evaled) (map_rp_eval pectx cparams))
+                                                                                          (_ (print (indent_str indent) "er for intial  rp_eval: " er))
+                                                                                         )
+                                                                                       (mif er (array wrap er nil pectx)
+                                                                                       (mif (!= 0 wrap)
+                                                                                           (dlet (((ok unval_params) (try_unval_array pre_evaled)))
+                                                                                                (mif (not ok) (array wrap nil pre_evaled pectx)
+                                                                                                              (param-recurse (- wrap 1) unval_params pectx)))))))
+                                                                                                                        (.any_comb_wrap_level comb) literal_params pectx))
 
-                                                                                 ; prevent infinite recursion
-                                                                                 (hash (combine_hash (.hash body) (.hash inner_env)))
-                                                                                 ((env_counter memo) pectx)
-                                                                                 ((pectx func_err func_result rec_stop) (if (!= false (get-value-or-false memo hash)) (array pectx nil "stoping for rec" true)
-                                                                                                                (dlet (
-                                                                                                                    (new_memo (put memo hash nil))
-                                                                                                                    (pectx (array env_counter new_memo))
-                                                                                                                    ((pectx func_err func_result) (partial_eval_helper body only_head inner_env
-                                                                                                                                                                       (cons inner_env env_stack)
-                                                                                                                                                                       pectx (+ 1 indent)))
-                                                                                                                    ((env_counter new_memo) pectx)
-                                                                                                                    (pectx (array env_counter memo))
-                                                                                                                ) (array pectx func_err func_result false))))
 
-                                                                                 ;((pectx func_err func_result) (partial_eval_helper body only_head inner_env (cons inner_env env_stack) pectx (+ 1 indent)))
+                                                                            (later_call_array (marked_array false true (cons (with_wrap_level comb remaining_wrap) evaled_params)))
+                                                                            (ok_and_non_later (and (= 0 remaining_wrap) (if (and (prim_comb? comb) (.prim_comb_val_head_ok comb))
+                                                                                                                            (is_all_head_values evaled_params)
+                                                                                                                            (is_all_values evaled_params))))
+                                                                        ) (cond ((!= nil comb_err)      (array pectx comb_err nil))
+                                                                                ((!= nil param_err)     (array pectx param_err nil))
+                                                                                ((not ok_and_non_later) (array pectx nil later_call_array))
+                                                                                ((prim_comb? comb) (dlet (
+                                                                                                    ((pectx err result) ((.prim_comb_handler comb) only_head env env_stack pectx literal_params (+ 1 indent)))
+                                                                                                    ) (if (= 'LATER err) (array pectx nil later_call_array)
+                                                                                                                         (array pectx err result))))
+                                                                                ((comb? comb)      (dlet (
+                                                                                     ((wrap_level env_id de? se variadic params body) (.comb comb))
 
-                                                                                 (_ (print_strip (indent_str indent) "evaled result of function call (in env " (.marked_env_idx env) ", with inner " env_id ") and err " func_err "  is " func_result))
-                                                                                 ) (mif func_err (array pectx func_err nil) (dlet (
 
-                                                                                 ;(failed (or rec_stop (not able_to_sub_env) (and result_is_later result_closes_over)))
-                                                                                 ((failed reason) (cond (rec_stop                                        (array true "infinite recursion"))
-                                                                                                        ((not (combiner_return_ok func_result env_id))   (array true (str "combiner return not ok (was looking for env_id " env_id ")")))
-                                                                                                        (true                                            (array false "wooo"))
-                                                                                         ))
+                                                                                     (final_params (mif variadic (concat (slice evaled_params 0 (- (len params) 1))
+                                                                                                                       (array (marked_array true false (slice evaled_params (- (len params) 1) -1))))
+                                                                                                                 evaled_params))
+                                                                                     ((de_progress_idxs de_entry) (mif (!= nil de?)
+                                                                                                                         (array (needed_for_progress env) (array (array de? env)))
+                                                                                                                         (array nil (array))))
+                                                                                     ;  Don't need to check params, they're all values!
+                                                                                     (inner_env_progress_idxs (concat de_progress_idxs (needed_for_progress se)))
+                                                                                     (inner_env (marked_env true inner_env_progress_idxs env_id (concat (zip params final_params) de_entry (array se))))
+                                                                                     (_ (print_strip (indent_str indent) " with inner_env is " inner_env))
+                                                                                     (_ (print_strip (indent_str indent) "going to eval " body))
 
-                                                                                 (_ (println (indent_str indent) (if failed (str "failed because " reason)
-                                                                                                                            "function succeded!")))
-                                                                                 ; This could be improved to a specialized version of the function
-                                                                                 ; just by re-wrapping it in a comb instead mif we wanted.
-                                                                                 ; Something to think about!
-                                                                                 (result (mif failed (marked_array false true (cons comb correct_fail_params))
-                                                                                                     (drop_redundent_veval (.marked_env_idx env) func_result)))
-                                                                             )    (array pectx nil result))))))))
-                                                           ((later_head? comb)    (array pectx nil (marked_array false true (cons comb literal_params))))
-                                                           (true                  (array pectx (str "impossible comb value " x) nil))))))))
+                                                                                     ; prevent infinite recursion
+                                                                                     (hash (combine_hash (.hash body) (.hash inner_env)))
+                                                                                     ((env_counter memo) pectx)
+                                                                                     ((pectx func_err func_result rec_stop) (if (!= false (get-value-or-false memo hash))
+                                                                                                                                (array pectx nil "stoping for rec" true)
+                                                                                                                    (dlet (
+                                                                                                                        (new_memo (put memo hash nil))
+                                                                                                                        (pectx (array env_counter new_memo))
+                                                                                                                        ((pectx func_err func_result) (partial_eval_helper body only_head inner_env
+                                                                                                                                                                           (cons inner_env env_stack)
+                                                                                                                                                                           pectx (+ 1 indent)))
+                                                                                                                        ((env_counter new_memo) pectx)
+                                                                                                                        (pectx (array env_counter memo))
+                                                                                                                    ) (array pectx func_err func_result false))))
+
+                                                                                     (_ (print_strip (indent_str indent) "evaled result of function call (in env " (.marked_env_idx env) ", with inner " env_id ") and err " func_err "  is " func_result))
+                                                                                     ) (if (!= nil func_err) (array pectx func_err nil)
+                                                                                             (array pectx nil (if (or rec_stop (not (combiner_return_ok func_result env_id)))
+                                                                                                 (marked_array false true (cons (with_wrap_level comb remaining_wrap) evaled_params))
+                                                                                                 (drop_redundent_veval (.marked_env_idx env) func_result))))))
+                                                                        )))
+                                                               )))))
+
                 (true                (array pectx (str "impossible partial_eval value " x) nil))
         )
         ; otherwise, we can't make progress yet
@@ -697,46 +684,19 @@
                (array pectx nil (drop_redundent_veval (.marked_env_idx env) x)))))
     ))
 
-    ; !!!!!!
-    ; ! I think needs_params_val_lambda should be combined with parameters_evaled_proxy
-    ; !!!!!!
-    (parameters_evaled_proxy (rec-lambda recurse (pasthr_ie inner_f) (lambda (only_head de env_stack pectx params indent) (dlet (
-        ;(_ (println "partial_evaling params in parameters_evaled_proxy is " params))
-        ((evaled_params l err pectx) (foldl (dlambda ((ac i err pectx) p) (dlet (((pectx er p) (partial_eval_helper p (if (and only_head (= i pasthr_ie)) only_head false) de env_stack pectx (+ 1 indent))))
-                                                         (array (concat ac (array p)) (+ i 1) (mif err err er) pectx)))
-                                           (array (array) 0 nil pectx)
-                                           params))
-    ) (mif err (array pectx err nil)
-               (inner_f (lambda args (apply (recurse pasthr_ie inner_f) args)) only_head de env_stack pectx evaled_params indent))))))
-
     (needs_params_val_lambda_inner (lambda (f_sym actual_function) (let* (
-        (handler (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
-                ;_ (println "partial_evaling params in need_params_val_lambda for " f_sym " is " params)
-                ((pectx err evaled_params) (foldl (dlambda ((c err ds) p) (dlet (((c er d) (partial_eval_helper p false de env_stack c (+ 1 indent))))
-                                                                                (array c (mif err err er) (concat ds (array d)))))
-                                                        (array pectx nil (array)) params))
-            )
-            ; TODO: Should this be  is_all_head_values?
-            (mif err (array pectx err nil)
-            (array pectx nil (mif (is_all_values evaled_params) (mark (apply actual_function (map strip evaled_params)))
-                                                                      (marked_array false true (cons (marked_prim_comb recurse f_sym) evaled_params))))))))
-        ) (array f_sym (marked_prim_comb handler f_sym)))))
+        (handler (rec-lambda recurse (only_head de env_stack pectx params indent)
+                                     (array pectx nil (mark false (apply actual_function (map strip evaled_params))))))
+        ) (array f_sym (marked_prim_comb handler f_sym 1 false)))))
 
     (give_up_eval_params_inner (lambda (f_sym actual_function) (let* (
-        (handler (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
-                ;_ (println "partial_evaling params in give_up_eval_params for " f_sym " is " params)
-                ((pectx err evaled_params) (foldl (dlambda ((c err ds) p) (dlet (((c er d) (partial_eval_helper p only_head de env_stack c (+ 1 indent))))
-                                                                                (array c (mif err err er) (concat ds (array d)))))
-                                                        (array pectx nil (array)) params))
-            )
-            (mif err (array pectx err nil)
-                     (array pectx nil (marked_array false true (cons (marked_prim_comb recurse f_sym) evaled_params)))))))
-        ) (array f_sym (marked_prim_comb handler f_sym)))))
+        (handler (lambda (only_head de env_stack pectx params indent) (array pectx 'LATER nil)))
+        ) (array f_sym (marked_prim_comb handler f_sym 1 false)))))
 
 
     (root_marked_env (marked_env true nil nil (array
 
-        (array 'vau (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
+        (array 'vau (marked_prim_comb (lambda (only_head de env_stack pectx params indent) (dlet (
             (mde?         (mif (= 3 (len params)) (idx params 0) nil))
             (vau_mde?     (mif (= nil mde?) (array) (array mde?)))
             (_ (print (indent_str indent) "mde? is " mde?))
@@ -749,7 +709,8 @@
                                             (.marked_symbol_value x))) (.marked_array_values raw_marked_params)))
 
             ((variadic vau_params)  (foldl (dlambda ((v a) x) (mif (= x '&) (array true a) (array v (concat a (array x))))) (array false (array)) raw_params))
-            (body        (mif (= nil de?) (idx params 1) (idx params 2)))
+            ((ok body) (try_unval (mif (= nil de?) (idx params 1) (idx params 2)) (lambda (_) nil)))
+            (_ (if (not ok) (error "actually impossible vau unval")))
             ((env_counter memo) pectx)
             (new_id env_counter)
             (env_counter (+ 1 env_counter))
@@ -762,26 +723,25 @@
                                             (_ (print_strip (indent_str indent) "in vau, result of evaluating body was " pe_body))
                                         ) (array pectx err pe_body))))
         ) (mif err (array pectx err nil) (array pectx nil (marked_comb 0 new_id de? de variadic vau_params pe_body)))
-        )) 'vau))
+        )) 'vau 0 true))
 
-        (array 'wrap (marked_prim_comb (parameters_evaled_proxy 0 (dlambda (recurse only_head de env_stack pectx (evaled) indent)
-              (begin (print_strip (indent_str indent) "calling wrap with " evaled)
-              (array pectx nil (mif (comb? evaled) (dlet (((wrap_level env_id de? se variadic params body) (.comb evaled))
+        (array 'wrap (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled) indent)
+              (mif (comb? evaled) (array pectx nil (dlet (((wrap_level env_id de? se variadic params body) (.comb evaled))
                                            (wrapped_marked_fun (marked_comb (+ 1 wrap_level) env_id de? se variadic params body))
-                                          ) wrapped_marked_fun)
-                                     (marked_array false true (array (marked_prim_comb recurse 'wrap) evaled))))))
-        ) 'wrap))
+                                          ) wrapped_marked_fun))
+                                  (array pectx "bad passed to wrap" nil))
+        ) 'wrap 1 true))
 
-        (array 'unwrap (marked_prim_comb (parameters_evaled_proxy 0 (dlambda (recurse only_head de env_stack pectx (evaled) indent)
-             (array pectx nil (mif (comb? evaled) (dlet (((wrap_level env_id de? se variadic params body) (.comb evaled))
-                                           (unwrapped_marked_fun (marked_comb (- wrap_level 1) env_id de? se variadic params body))
-                                         ) unwrapped_marked_fun)
-                                    (marked_array false true (array (marked_prim_comb recurse 'unwrap) evaled)))))
-        ) 'unwrap))
+        (array 'unwrap (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled) indent)
+              (mif (comb? evaled) (array pectx nil (dlet (((wrap_level env_id de? se variadic params body) (.comb evaled))
+                                           (wrapped_marked_fun (marked_comb (- wrap_level 1) env_id de? se variadic params body))
+                                          ) wrapped_marked_fun))
+                                  (array pectx "bad passed to unwrap" nil))
+        ) 'unwrap 1 true))
 
-        (array 'eval (marked_prim_comb (parameters_evaled_proxy 0 (lambda (recurse only_head de env_stack pectx evaled_params indent)
-            (if (not (total_value? (idx evaled_params 0)))                                (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'eval) evaled_params)))
-            (if (and (= 2 (len evaled_params)) (not (marked_env? (idx evaled_params 1)))) (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'eval) evaled_params)))
+        (array 'eval (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx evaled_params indent)
+            (if (not (total_value? (idx evaled_params 0)))                                (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'eval 0 true) evaled_params)))
+            (if (and (= 2 (len evaled_params)) (not (marked_env? (idx evaled_params 1)))) (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'eval 0 true) evaled_params)))
             (dlet (
                 (body (idx evaled_params 0))
                 (implicit_env (!= 2 (len evaled_params)))
@@ -789,7 +749,7 @@
                 ((ok unval_body) (try_unval body (lambda (_) nil)))
                 (_ (if (not ok) (error "actually impossible eval unval")))
 
-                (venv_inner (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
+                (veval_inner (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
                     (body (idx params 0))
                     (implicit_env (!= 2 (len params)))
                     (eval_env (if implicit_env de (idx params 1)))
@@ -803,13 +763,16 @@
                     ; If our env was implicit, then our unval'd code can be inlined directly in our caller
                     (implicit_env                                          (array pectx nil (drop_redundent_veval (.marked_env_idx de) ebody)))
                     ((combiner_return_ok ebody (.marked_env_idx eval_env)) (array pectx nil (drop_redundent_veval (.marked_env_idx de) ebody)))
-                    (true                                                  (array pectx nil (drop_redundent_veval (.marked_env_idx de) (marked_array false true (array (marked_prim_comb recurse 'veval) ebody eval_env)))))
+                    (true                                                  (array pectx nil (drop_redundent_veval (.marked_env_idx de) (marked_array false true (array (marked_prim_comb recurse 'veval 0 true) ebody eval_env)))))
                 ))))
 
-            ) (venv_inner only_head de env_stack pectx (if implicit_env (array unval_body) (array unval_body eval_env)) indent))))
-        )) 'eval))
+            ) (veval_inner only_head de env_stack pectx (if implicit_env (array unval_body) (array unval_body eval_env)) indent))))
+        ) 'eval 1 true))
 
+        ; Todo - add stripping
         (array 'cond (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx params indent)
+            ( begin 
+        (error "FIXME")
             (mif (!= 0 (% (len params) 2)) (array pectx (str "partial eval cond with odd params " params) nil)
                 ((rec-lambda recurse_inner (i so_far pectx)
                                           (dlet (((pectx err evaled_cond) (partial_eval_helper (idx params i) false de env_stack pectx (+ 1 indent)))
@@ -820,82 +783,74 @@
                                                                                       ) (mif err (array pectx err nil)
                                                                                                  (recurse_inner (+ 2 i) (concat so_far (array evaled_cond arm)) pectx))))
                                                 ((false? evaled_cond)            (recurse_inner (+ 2 i) so_far pectx))
-                                                ((= (len params) i)              (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'cond) so_far))))
+                                                ((= (len params) i)              (array pectx nil (marked_array false true (cons (marked_prim_comb recurse 'cond 0 true) so_far))))
                                                 (true                            (dlet (((pectx err evaled_body) (partial_eval_helper (idx params (+ 1 i)) only_head de env_stack pectx (+ 1 indent))))
-                                                                                       (mif err (array pectx err nil) (array pectx nil (mif (!= (len so_far) 0) (marked_array false true (cons (marked_prim_comb recurse 'cond) (concat so_far (array evaled_cond evaled_body))))
+                                                                                       (mif err (array pectx err nil) (array pectx nil (mif (!= (len so_far) 0) (marked_array false true (cons (marked_prim_comb recurse 'cond 0 true) (concat so_far (array evaled_cond evaled_body))))
                                                                                                                                    evaled_body)))))
                  ))) 0 (array) pectx)
-            )
-        ) 'cond))
+            ))
+        ) 'cond 0 true))
 
         (needs_params_val_lambda symbol?)
         (needs_params_val_lambda int?)
         (needs_params_val_lambda string?)
 
-        (array 'combiner? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_param) indent)
+        (array 'combiner? (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled_param) indent)
             (array pectx nil (cond
                   ((comb? evaled_param)          (marked_val true))
                   ((prim_comb? evaled_param)     (marked_val true))
-                  ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'combiner?) evaled_param)))
                   (true                          (marked_val false))
             ))
-        )) 'combiner?))
-        (array 'env? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_param) indent)
+        ) 'combiner? 1 true))
+        (array 'env? (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled_param) indent)
             (array pectx nil (cond
                   ((marked_env? evaled_param)    (marked_val true))
-                  ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'env?) evaled_param)))
                   (true                          (marked_val false))
             ))
-        )) 'env?))
+        ) 'env? 1 true))
         (needs_params_val_lambda nil?)
         (needs_params_val_lambda bool?)
         (needs_params_val_lambda str-to-symbol)
         (needs_params_val_lambda get-text)
 
-        (array 'array? (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_param) indent)
+        (array 'array? (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled_param) indent)
             (array pectx nil (cond
-                  ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'array?) evaled_param)))
                   ((marked_array? evaled_param)  (marked_val true))
                   (true                          (marked_val false))
             ))
-        )) 'array?))
+        ) 'array? 1 true))
 
-        ; This one's sad, might need to come back to it.
-        ; We need to be able to differentiate between half-and-half arrays
-        ; for when we ensure_params_values or whatever, because that's super wrong
-        ; Maybe we can now with progress_idxs?
-        (array 'array (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse only_head de env_stack pectx evaled_params indent)
-                                                (array pectx nil (mif (is_all_values evaled_params) (marked_array true false evaled_params)
-                                                                                                          (marked_array false true (cons (marked_prim_comb recurse 'array) evaled_params))))
-        )) 'array))
-        (array 'len (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_param) indent)
-            (array pectx nil (cond
-                  ((later_head? evaled_param)    (marked_array false true (array (marked_prim_comb recurse 'len) evaled_param)))
-                  ((marked_array? evaled_param)  (marked_val (len (.marked_array_values evaled_param))))
-                  (true                          (error (str "bad type to len " evaled_param)))
-            ))
-        )) 'len))
-        (array 'idx (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_array evaled_idx) indent)
-            (array pectx nil (cond
-                  ((and (val? evaled_idx) (marked_array? evaled_array) (.marked_array_is_val evaled_array)) (idx (.marked_array_values evaled_array) (.val evaled_idx)))
-                  (true                                                                                     (marked_array false true (array (marked_prim_comb recurse 'idx) evaled_array evaled_idx)))
-            ))
-        )) 'idx))
-        (array 'slice (marked_prim_comb (parameters_evaled_proxy nil (dlambda (recurse only_head de env_stack pectx (evaled_array evaled_begin evaled_end) indent)
-            (array pectx nil (cond
-                  ((and (val? evaled_begin) (val? evaled_end) (marked_array? evaled_array) (.marked_array_is_val evaled_array))
-                            (marked_array true false (slice (.marked_array_values evaled_array) (.val evaled_begin) (.val evaled_end))))
-                  (true     (marked_array false true (array (marked_prim_comb recurse 'slice) evaled_array evaled_begin evaled_end)))
-            ))
-        )) 'slice))
-        (array 'concat (marked_prim_comb (parameters_evaled_proxy nil (lambda (recurse only_head de env_stack pectx evaled_params indent)
-            (array pectx nil (cond
-                  ((foldl (lambda (a x) (and a (and (marked_array? x) (.marked_array_is_val x)))) true evaled_params) (marked_array true false (lapply concat (map (lambda (x)
+        ; Look into eventually allowing some non values, perhaps, when we look at combiner non all value params
+        (array 'array (marked_prim_comb (lambda (only_head de env_stack pectx evaled_params indent)
+                                                (array pectx nil (marked_array true false evaled_params))
+        ) 'array 1 false))
+        (array 'len (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled_param) indent)
+            (cond
+                  ((marked_array? evaled_param)  (array pectx nil (marked_val (len (.marked_array_values evaled_param)))))
+                  (true                          (array pectx (str "bad type to len " evaled_param) nil))
+            )
+        ) 'len 1 true))
+        (array 'idx (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled_array evaled_idx) indent)
+            (cond
+                  ((and (val? evaled_idx) (marked_array? evaled_array)) (array pectx nil (idx (.marked_array_values evaled_array) (.val evaled_idx))))
+                  (true                                                 (array pectx "bad type to idx" nil))
+            )
+        ) 'idx 1 true))
+        (array 'slice (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled_array evaled_begin evaled_end) indent)
+            (cond
+                  ((and (val? evaled_begin) (val? evaled_end) (marked_array? evaled_array))
+                            (array pectx nil (marked_array true false (slice (.marked_array_values evaled_array) (.val evaled_begin) (.val evaled_end)))))
+                  (true     (array pectx "bad params to slice" nil))
+            )
+        ) 'slice 1 true))
+        (array 'concat (marked_prim_comb (lambda (only_head de env_stack pectx evaled_params indent)
+            (cond
+                  ((foldl (lambda (a x) (and a (marked_array? x))) true evaled_params) (array pectx nil (marked_array true false (lapply concat (map (lambda (x)
                                                                                                                                                              (.marked_array_values x))
-                                                                                                                                                            evaled_params))))
-                  (true                                                                                               (marked_array false true (cons (marked_prim_comb recurse 'concat) evaled_params)))
-            ))
-        )) 'concat))
+                                                                                                                                                            evaled_params)))))
+                  (true                                                                (array pectx "bad params to concat" nil))
+            )
+        ) 'concat 1 true))
 
         (needs_params_val_lambda +)
         (needs_params_val_lambda -)
@@ -931,7 +886,7 @@
     )))
 
 
-    (partial_eval (lambda (x) (partial_eval_helper (mark x) false root_marked_env (array) (array 0 (array)) 0)))
+    (partial_eval (lambda (x) (partial_eval_helper (mark true x) false root_marked_env (array) (array 0 (array)) 0)))
     ;; WASM
 
     ; Vectors and Values
@@ -4144,8 +4099,8 @@
         (write_file "./csc_out.wasm" (compile (partial_eval (read-string (slurp "to_compile.kp")))))
     ))
 
-;) (test-most))
-) (run-compiler))
+) (test-most))
+;) (run-compiler))
 ;) (single-test))
 )
 
