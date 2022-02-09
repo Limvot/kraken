@@ -508,16 +508,21 @@
 
     (drop_redundent_veval (rec-lambda drop_redundent_veval (env_id x) (dlet ((r (if
                                                       (and (marked_array? x)
-                                                           (not (.marked_array_is_val x))
-                                                           (prim_comb? (idx (.marked_array_values x) 0))
-                                                           (= 'veval (.prim_comb_sym (idx (.marked_array_values x) 0)))
-                                                           (= 3 (len (.marked_array_values x)))
-                                                           (not (marked_env_real? (idx (.marked_array_values x) 2)))
-                                                           (= env_id (.marked_env_idx (idx (.marked_array_values x) 2)))) (drop_redundent_veval env_id (idx (.marked_array_values x) 1))
+                                                           (not (.marked_array_is_val x)))
+                                                           (if (and (prim_comb? (idx (.marked_array_values x) 0))
+                                                                    (= 'veval (.prim_comb_sym (idx (.marked_array_values x) 0)))
+                                                                    (= 3 (len (.marked_array_values x)))
+                                                                    (not (marked_env_real? (idx (.marked_array_values x) 2)))
+                                                                    (= env_id (.marked_env_idx (idx (.marked_array_values x) 2)))) (drop_redundent_veval env_id (idx (.marked_array_values x) 1))
+                                                                                                                                   (marked_array false
+                                                                                                                                                 (.marked_array_is_attempted x)
+                                                                                                                                                 (map (lambda (it) (drop_redundent_veval env_id it))
+                                                                                                                                                      (.marked_array_values x))))
                                                                                                                           x)))
 
 
-                                                    (begin (print_strip "result of drop_redundent_veval (with " env_id ") (problem was " (cond
+                                                    (begin (error "if we do a drop_redundent_veval and it does, we need to re-evaluate because the veval might have been blocking")
+                                                           (print_strip "result of drop_redundent_veval (with " env_id ") (problem was " (cond
                                                            ((not (marked_array? x)) "(marked_array? x)")
                                                            ((not (not (.marked_array_is_val x)))    "(not (.marked_array_is_val x))")
                                                            ((not (prim_comb? (idx (.marked_array_values x) 0))) "(prim_comb? (idx (.marked_array_values x) 0))")
@@ -761,16 +766,17 @@
                     ; If our env was implicit, then our unval'd code can be inlined directly in our caller
                     (implicit_env                                          (array pectx nil (drop_redundent_veval (.marked_env_idx de) ebody)))
                     ((combiner_return_ok ebody (.marked_env_idx eval_env)) (array pectx nil (drop_redundent_veval (.marked_env_idx de) ebody)))
+                    (true       (error "FIXME - veval needs to re-val it's body, including? somehow? any env references or the main call will re-partial-eval them in the wrong env"))
                     (true                                                  (array pectx nil (drop_redundent_veval (.marked_env_idx de) (marked_array false true (array (marked_prim_comb recurse 'veval 0 true) ebody eval_env)))))
                 ))))
 
             ) (veval_inner only_head de env_stack pectx (if implicit_env (array unval_body) (array unval_body eval_env)) indent))))
         ) 'eval 1 true))
 
-        ; This will have to evaluate the other sides?
         (array 'cond (marked_prim_comb ((rec-lambda recurse (first_evaled_already) (lambda (only_head de env_stack pectx params indent)
             (mif (!= 0 (% (len params) 2)) (array pectx (str "partial eval cond with odd params " params) nil)
                 (dlet (
+                    (_ (error "This will have to evaluate the other sides? Also, if we figure out veval re-val, maybe this can collapse back into cond"))
                     (eval_helper    (lambda (to_eval pectx)
                                        (dlet (((ok unvald) (try_unval to_eval (lambda (_) nil))))
                                              (mif (not ok)
@@ -3151,6 +3157,7 @@
               ; ctx is (datasi funcs memo env pectx)
               ; return is (value? code? error? (datasi funcs memo env pectx))
               (compile-inner (rec-lambda compile-inner (ctx c need_value) (cond
+                    (true       (_ (error "The entire compiler needs to support our new value-default thing, esp for cond and unval'ing function call params")))
                     ((val? c)   (let ((v (.val c)))
                                      (cond ((int? v)    (array  (<< v 1) nil nil ctx))
                                            ((= true v)  (array  true_val nil nil ctx))
