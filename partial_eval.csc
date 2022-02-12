@@ -3234,7 +3234,8 @@
                                                                                     (memo (put memo (.hash c) result))
                                                                                    ) (array result nil nil (array datasi funcs memo env pectx))))))))
 
-                                                        (if need_value (array nil nil (str "errr, needed value and was call " (str_strip c)) ctx)
+                                                        (if need_value                            (array nil nil (str "errr, needed value and was call " (str_strip c)) ctx)
+                                                        (if (= 0 (len (.marked_array_values c)))  (array nil nil (str "errr, empty call array" (str_strip c)) ctx)
                                                                        (dlet (
 
                                                         ; This can weirdly cause infinate recursion on the compile side, if partial_eval
@@ -3369,7 +3370,7 @@
                                                                                     (i32.wrap_i64 (i64.shr_u (local.get '$tmp) (i64.const 35)))
                                                                                 )))
                                                                 ) (array nil result_code func_err ctx)))
-                                                        )))))
+                                                        ))))))
 
                     ((marked_env? c) (or (get_passthrough (.hash c) ctx) (dlet ((e (.env_marked c))
 
@@ -4170,8 +4171,8 @@
         (write_file "./csc_out.wasm" (compile (partial_eval (read-string (slurp "to_compile.kp")))))
     ))
 
-) (test-most))
-;) (run-compiler))
+;) (test-most))
+) (run-compiler))
 ;) (single-test))
 )
 
