@@ -1562,20 +1562,14 @@
               ((remaining_eval_loc remaining_eval_length datasi) (alloc_data "\nError: trying to call remainin eval\n" datasi))
               (remaining_eval_msg_val (bor (<< remaining_eval_length 32) remaining_eval_loc #b011))
 
-              ((remaining_veval_loc remaining_veval_length datasi) (alloc_data "\nError: trying to call remainin veval\n" datasi))
-              (remaining_veval_msg_val (bor (<< remaining_veval_length 32) remaining_veval_loc #b011))
-
               ((remaining_vau_loc remaining_vau_length datasi) (alloc_data "\nError: trying to call remainin vau (primitive)\n" datasi))
               (remaining_vau_msg_val (bor (<< remaining_vau_length 32) remaining_vau_loc #b011))
-
-              ((remaining_vcond_loc remaining_vcond_length datasi) (alloc_data "\nError: trying to call remainin vcond\n" datasi))
-              (remaining_vcond_msg_val (bor (<< remaining_vcond_length 32) remaining_vcond_loc #b011))
 
               ((remaining_cond_loc remaining_cond_length datasi) (alloc_data "\nError: trying to call remainin cond\n" datasi))
               (remaining_cond_msg_val (bor (<< remaining_cond_length 32) remaining_cond_loc #b011))
 
-              ((remaining_vau_loc remaining_vau_length datasi) (alloc_data "\nError: trying to call a remainin vau\n" datasi))
-              (remaining_vau_msg_val (bor (<< remaining_vau_length 32) remaining_vau_loc #b011))
+              ((weird_wrap_loc weird_wrap_length datasi) (alloc_data "\nError: trying to call a combiner with a weird wrap (not 0 or 1)\n" datasi))
+              (weird_wrap_msg_val (bor (<< weird_wrap_length 32) weird_wrap_loc #b011))
 
               ((bad_not_vau_loc bad_not_vau_length datasi) (alloc_data "\nError: Trying to call a function (not vau) but the parameters caused a compile error\n" datasi))
               (bad_not_vau_msg_val (bor (<< bad_not_vau_length 32) bad_not_vau_loc #b011))
@@ -3163,11 +3157,6 @@
                 (local.get '$result)
                 drop_p_d
               ))))
-              ((k_veval         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
-
-                (call '$print (i64.const remaining_veval_msg_val))
-                (unreachable)
-              ))))
               ((k_eval          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
 
                 (call '$print (i64.const remaining_eval_msg_val))
@@ -3175,10 +3164,6 @@
               ))))
               ((k_vau           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$print (i64.const remaining_vau_msg_val))
-                (unreachable)
-              ))))
-              ((k_vcond         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$cond          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
-                (call '$print (i64.const remaining_vcond_msg_val))
                 (unreachable)
               ))))
               ((k_cond          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$cond          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
@@ -3198,7 +3183,6 @@
               ; ctx is (datasi funcs memo env pectx)
               ; return is (value? code? error? (datasi funcs memo env pectx))
               (compile-inner (rec-lambda compile-inner (ctx c need_value) (cond
-                    (true       (error "The entire compiler needs to support our new value-default thing, esp for cond and unval'ing function call params"))
                     ((val? c)   (let ((v (.val c)))
                                      (cond ((int? v)    (array  (<< v 1) nil nil ctx))
                                            ((= true v)  (array  true_val nil nil ctx))
@@ -3245,66 +3229,68 @@
                                                                                                                                          (array (cons v a) (or (mif err err false) (mif e e false) (mif c (str "got code " c) false)) ctx))) (array (array) nil ctx) (.marked_array_values c)))
                                                                                    ) (mif err (array nil nil (str err ", from an array value compile " (str_strip c)) ctx) (dlet (
                                                                                     ((datasi funcs memo env pectx) ctx)
-                                                                                    ;(_ (print_strip "made from " c))
-                                                                                    ;(_ (print "pre le_hexify " comp_values))
-                                                                                    ;(_ (print "pre le_hexify, err was " err))
-                                                                                    ;(_ (mif err (error err)))
                                                                                     ((c_loc c_len datasi) (alloc_data (apply concat (map i64_le_hexify comp_values)) datasi))
                                                                                     (result (bor (<< actual_len 32) c_loc #b101))
                                                                                     (memo (put memo (.hash c) result))
                                                                                    ) (array result nil nil (array datasi funcs memo env pectx))))))))
 
                                                         (if need_value (array nil nil (str "errr, needed value and was call " (str_strip c)) ctx)
+                                                                       (dlet (
 
-                                                                    (dlet (
-                                                        (func_param_values (.marked_array_values c))
-                                                        (num_params (- (len func_param_values) 1))
-
-                                                        ; In the paths where this is used, we know we can partial_evaluate the parameters
-
-
-                                                        ;(_ (print_strip "doing further partial eval for " c))
-                                                        ;(_ (true_print "doing further partial eval for "))
-                                                        ;(_ (true_print "\t" (true_str_strip c)))
                                                         ; This can weirdly cause infinate recursion on the compile side, if partial_eval
                                                         ; returns something that, when compiled, will cause partial eval to return that thing again.
                                                         ; Partial eval won't recurse infinately, since it has memo, but it can return something of that
                                                         ; shape in that case which will cause compile to keep stepping.
-                                                        ((datasi funcs memo env pectx) ctx)
-                                                        ((pectx err evaled_params) (if (= 'RECURSE_FAIL (get-value-or-false memo (.hash c))) (begin ;(true_print "got a recurse, stoping")
-                                                                                                                                                    (array pectx "RECURSE FAIL" nil))
-                                                                                   (foldl (dlambda ((c er ds) p) (dlet (((c e d) (partial_eval_helper p false env (array) c 1 false)))
-                                                                                                                      (array c (mif er er e) (concat ds (array d)))))
-                                                                                                (array pectx nil (array))
-                                                                                                (slice func_param_values 1 -1))))
-                                                        ;(_ (true_print "DONE further partial eval for "))
-                                                        ;(_ (true_print "\t" (true_str_strip c)))
-                                                        ; TODO: This might fail because we don't have the real env stack, which we *should*!
-                                                        ; In the mean time, if it does, just fall back to the non-more-evaled ones.
-                                                        (to_code_params (mif err (slice func_param_values 1 -1) evaled_params))
 
-                                                        (memo (put memo (.hash c) 'RECURSE_FAIL))
-                                                        (ctx (array datasi funcs memo env pectx))
-                                                        ((param_codes err ctx) (foldr (dlambda (x (a err ctx))
-                                                                                                   (mif err (array a err ctx)
-                                                                                                            (dlet (((val code new_err ctx) (compile-inner ctx x false)))
-                                                                                                                  (array (cons (mif code code (i64.const val)) a) new_err ctx))))
-                                                                                (array (array) nil ctx) to_code_params))
                                                         ((datasi funcs memo env pectx) ctx)
-                                                        (memo (put memo (.hash c) 'RECURSE_OK))
-                                                        (ctx (array datasi funcs memo env pectx))
+                                                        (hit_recursion (= 'RECURSE_FAIL (get-value-or-false memo (.hash c))))
+
+                                                        (compile_params (lambda (unval_and_eval ctx params)
+                                                                (foldr (dlambda (x (a err ctx)) (dlet (
+
+                                                                    ((datasi funcs memo env pectx) ctx)
+                                                                    ((x err ctx) (mif err                 (array nil err ctx)
+                                                                                 (if (not unval_and_eval) (array x err ctx)
+                                                                                                          (dlet (
+                                                                                                            ((ok x) (try_unval x (lambda (_) nil)))
+                                                                                                            (err (if (not ok) "couldn't unval in compile" err))
+
+                                                                                                    ; TODO: This might fail because we don't have the real env stack, which we *should*!
+                                                                                                    ; In the mean time, if it does, just fall back to the non-more-evaled ones.
+                                                                                                            ((pectx e pex) (if (or (!= nil err) hit_recursion)
+                                                                                                                               (array pectx err nil)
+                                                                                                                               (partial_eval_helper x false env (array) pectx 1 false)))
+
+                                                                                                            (ctx (array datasi funcs memo env pectx))
+
+                                                                                                          ) (array (mif e x pex) err ctx)))))
+                                                                    ((datasi funcs memo env pectx) ctx)
+                                                                    (memo (put memo (.hash c) 'RECURSE_FAIL))
+                                                                    (ctx (array datasi funcs memo env pectx))
+                                                                    ((val code err ctx) (mif err (array nil nil err ctx)
+                                                                                                 (compile-inner ctx x false)))
+                                                                    ((datasi funcs memo env pectx) ctx)
+                                                                    (memo (put memo (.hash c) 'RECURSE_OK))
+                                                                    (ctx (array datasi funcs memo env pectx))
+                                                                    ) (array (cons (mif val (i64.const val) code) a) err ctx)))
+
+                                                                (array (array) nil ctx) params)))
+
+                                                        (func_param_values (.marked_array_values c))
+                                                        (num_params (- (len func_param_values) 1))
+                                                        (params (slice func_param_values 1 -1))
                                                         (func_value (idx func_param_values 0))
-                                                        ((func_val func_code func_err ctx) (compile-inner ctx func_value false))
-                                                        ;(_ (mif err (error err)))
-                                                        ;(_ (mif func_err (error func_err)))
-                                                        (_ (mif func_code (print_strip  "Got code for function " func_value)))
-                                                        (_ (print_strip "func val " func_val " func code " func_code " func err " func_err " param_codes " param_codes " err " err " from " func_value))
-                                                        (func_code (mif func_val (i64.const func_val) func_code))
+                                                        ((param_codes err ctx) (compile_params false ctx params))
+
+                                                        (wrap_level (if (or (comb? func_value) (prim_comb? func_value)) (.any_comb_wrap_level func_value) nil))
+                                                        ; I don't think it makes any sense for a function literal to have wrap > 0
+                                                        (_ (if (and (!= nil wrap_level) (> wrap_level 0)) (error "call to function literal has wrap >0")))
+
                                                         ;; Insert test for the function being a constant to inline
-                                                        ;; Namely, cond
+                                                        ;; Namely, vcond
                                                         ) (cond
-                                                            ((!= nil func_err) (array nil nil (str func_err " from function itself in call " (str_strip c)) ctx))
-                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'cond))
+                                                            ((!= nil err)      (array nil nil (str err " from function params (non-unval-evaled) in call " (str_strip c)) ctx))
+                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'vcond))
                                                                                         (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
                                                                                                                (dlet (
                                                                                                                 ((datasi funcs memo env pectx) ctx)
@@ -3318,35 +3304,52 @@
                                                                                                                         (true                    (unreachable))
                                                                                                                     )) param_codes 0) err ctx))))
                                                             (true (dlet (
+                                                                ((func_val func_code func_err ctx) (compile-inner ctx func_value false))
+                                                                ;(_ (print_strip "func val " func_val " func code " func_code " func err " func_err " param_codes " param_codes " err " err " from " func_value))
+                                                                (func_code (mif func_val (i64.const func_val) func_code))
+                                                                ((unval_param_codes err ctx) (compile_params true ctx params))
+                                                                ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (str_strip c))) true))
                                                                 (result_code (concat
                                                                                 func_code
                                                                                 (local.set '$tmp)
-                                                                                (_if '$is_wrap_1
-                                                                                    (i64.eq (i64.const #x10) (i64.and (local.get '$tmp) (i64.const #x30)))
+                                                                                (_if '$is_wrap_0
+                                                                                    (i64.eq (i64.const #x00) (i64.and (local.get '$tmp) (i64.const #x30)))
                                                                                     (then
-                                                                                         ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                                                                                         ; Since we're not sure if it's going to be a vau or not,
-                                                                                         ; this code might not be compilable, so we gracefully handle
-                                                                                         ; compiler errors and instead emit code that throws the error if this
-                                                                                         ; spot is ever reached at runtime.
-                                                                                         ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                                                                                         (mif err (concat
-                                                                                                    (call '$print (i64.const bad_not_vau_msg_val))
-                                                                                                    (unreachable)
-                                                                                                  )
-                                                                                                  (concat
-                                                                                                     (local.get '$tmp) ; saving ito restore it
-                                                                                                     (apply concat param_codes)
-                                                                                                     (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
-                                                                                                     (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
-                                                                                                               (range (- num_params 1) -1))
-                                                                                                     (local.set '$tmp) ; restoring tmp
-                                                                                                  ))
+                                                                                        (local.get '$tmp) ; saving ito restore it
+                                                                                        (apply concat param_codes)
+                                                                                        (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
+                                                                                        (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
+                                                                                                  (range (- num_params 1) -1))
+                                                                                        (local.set '$tmp) ; restoring tmp
                                                                                     )
                                                                                     (else
-                                                                                        ; TODO: Handle other wrap levels
-                                                                                        (call '$print (i64.const remaining_vau_msg_val))
-                                                                                        (unreachable)
+                                                                                        (_if '$is_wrap_1
+                                                                                            (i64.eq (i64.const #x10) (i64.and (local.get '$tmp) (i64.const #x30)))
+                                                                                            (then
+                                                                                                 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                                                                                 ; Since we're not sure if it's going to be a vau or not,
+                                                                                                 ; this code might not be compilable, so we gracefully handle
+                                                                                                 ; compiler errors and instead emit code that throws the error if this
+                                                                                                 ; spot is ever reached at runtime.
+                                                                                                 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                                                                                 (mif err (concat (call '$print (i64.const bad_not_vau_msg_val))
+                                                                                                                  (call '$print (i64.const bad_unval_params_msg_val))
+                                                                                                                  (unreachable))
+                                                                                                          (concat
+                                                                                                              (local.get '$tmp) ; saving ito restore it
+                                                                                                              (apply concat unval_param_codes)
+                                                                                                              (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
+                                                                                                              (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
+                                                                                                                        (range (- num_params 1) -1))
+                                                                                                              (local.set '$tmp) ; restoring tmp
+                                                                                                          ))
+                                                                                            )
+                                                                                            (else
+                                                                                                ; TODO: Handle other wrap levels
+                                                                                                (call '$print (i64.const weird_wrap_msg_val))
+                                                                                                (unreachable)
+                                                                                            )
+                                                                                        )
                                                                                     )
                                                                                 )
                                                                                 (call_indirect
@@ -3412,50 +3415,48 @@
                                                 (memo (put memo (.hash c) result))
                                             ) (array result nil nil (array datasi funcs memo env pectx)))))))))
 
-                    ((prim_comb? c) (cond ((= 'vau            (.prim_comb_sym c))  (array (bor (<< (- k_vau dyn_start)           35) (<< 0 4) #b0001) nil nil ctx))
-                                          ((= 'vcond          (.prim_comb_sym c))  (array (bor (<< (- k_vcond dyn_start)         35) (<< 0 4) #b0001) nil nil ctx))
-                                          ((= 'cond           (.prim_comb_sym c))  (array (bor (<< (- k_cond dyn_start)          35) (<< 0 4) #b0001) nil nil ctx))
-                                          ((= 'veval          (.prim_comb_sym c))  (array (bor (<< (- k_veval dyn_start)         35) (<< 0 4) #b0001) nil nil ctx))
-                                          ((= 'eval           (.prim_comb_sym c))  (array (bor (<< (- k_eval dyn_start)          35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'read-string    (.prim_comb_sym c))  (array (bor (<< (- k_read-string dyn_start)   35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'log            (.prim_comb_sym c))  (array (bor (<< (- k_log dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'error          (.prim_comb_sym c))  (array (bor (<< (- k_error dyn_start)         35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'str            (.prim_comb_sym c))  (array (bor (<< (- k_str dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '>=             (.prim_comb_sym c))  (array (bor (<< (- k_geq dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '>              (.prim_comb_sym c))  (array (bor (<< (- k_gt dyn_start)            35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '<=             (.prim_comb_sym c))  (array (bor (<< (- k_leq dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '<              (.prim_comb_sym c))  (array (bor (<< (- k_lt dyn_start)            35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '!=             (.prim_comb_sym c))  (array (bor (<< (- k_neq dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '=              (.prim_comb_sym c))  (array (bor (<< (- k_eq dyn_start)            35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '%              (.prim_comb_sym c))  (array (bor (<< (- k_mod dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '/              (.prim_comb_sym c))  (array (bor (<< (- k_div dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '*              (.prim_comb_sym c))  (array (bor (<< (- k_mul dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '+              (.prim_comb_sym c))  (array (bor (<< (- k_add dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '-              (.prim_comb_sym c))  (array (bor (<< (- k_sub dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'band           (.prim_comb_sym c))  (array (bor (<< (- k_band dyn_start)          35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'bor            (.prim_comb_sym c))  (array (bor (<< (- k_bor dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'bxor           (.prim_comb_sym c))  (array (bor (<< (- k_bxor dyn_start)          35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'bnot           (.prim_comb_sym c))  (array (bor (<< (- k_bnot dyn_start)          35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '<<             (.prim_comb_sym c))  (array (bor (<< (- k_ls dyn_start)            35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= '>>             (.prim_comb_sym c))  (array (bor (<< (- k_rs dyn_start)            35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'array          (.prim_comb_sym c))  (array (bor (<< (- k_array dyn_start)         35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'concat         (.prim_comb_sym c))  (array (bor (<< (- k_concat dyn_start)        35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'slice          (.prim_comb_sym c))  (array (bor (<< (- k_slice dyn_start)         35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'idx            (.prim_comb_sym c))  (array (bor (<< (- k_idx dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'len            (.prim_comb_sym c))  (array (bor (<< (- k_len dyn_start)           35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'array?         (.prim_comb_sym c))  (array (bor (<< (- k_array? dyn_start)        35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'get-text       (.prim_comb_sym c))  (array (bor (<< (- k_get-text dyn_start)      35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'str-to-symbol  (.prim_comb_sym c))  (array (bor (<< (- k_str-to-symbol dyn_start) 35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'bool?          (.prim_comb_sym c))  (array (bor (<< (- k_bool? dyn_start)         35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'nil?           (.prim_comb_sym c))  (array (bor (<< (- k_nil? dyn_start)          35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'env?           (.prim_comb_sym c))  (array (bor (<< (- k_env? dyn_start)          35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'combiner?      (.prim_comb_sym c))  (array (bor (<< (- k_combiner? dyn_start)     35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'string?        (.prim_comb_sym c))  (array (bor (<< (- k_string? dyn_start)       35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'int?           (.prim_comb_sym c))  (array (bor (<< (- k_int? dyn_start)          35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'symbol?        (.prim_comb_sym c))  (array (bor (<< (- k_symbol? dyn_start)       35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'unwrap         (.prim_comb_sym c))  (array (bor (<< (- k_unwrap dyn_start)        35) (<< 1 4) #b0001) nil nil ctx))
-                                          ((= 'wrap           (.prim_comb_sym c))  (array (bor (<< (- k_wrap dyn_start)          35) (<< 1 4) #b0001) nil nil ctx))
-                                          (true                                  (error (str "Can't compile prim comb " (.prim_comb_sym c) " right now")))))
+                    ((prim_comb? c) (cond ((= 'vau           (.prim_comb_sym c))  (array (bor (<< (- k_vau dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'cond          (.prim_comb_sym c))  (array (bor (<< (- k_cond dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'eval          (.prim_comb_sym c))  (array (bor (<< (- k_eval dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'read-string   (.prim_comb_sym c))  (array (bor (<< (- k_read-string dyn_start)   35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'log           (.prim_comb_sym c))  (array (bor (<< (- k_log dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'error         (.prim_comb_sym c))  (array (bor (<< (- k_error dyn_start)         35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'str           (.prim_comb_sym c))  (array (bor (<< (- k_str dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '>=            (.prim_comb_sym c))  (array (bor (<< (- k_geq dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '>             (.prim_comb_sym c))  (array (bor (<< (- k_gt dyn_start)            35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '<=            (.prim_comb_sym c))  (array (bor (<< (- k_leq dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '<             (.prim_comb_sym c))  (array (bor (<< (- k_lt dyn_start)            35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '!=            (.prim_comb_sym c))  (array (bor (<< (- k_neq dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '=             (.prim_comb_sym c))  (array (bor (<< (- k_eq dyn_start)            35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '%             (.prim_comb_sym c))  (array (bor (<< (- k_mod dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '/             (.prim_comb_sym c))  (array (bor (<< (- k_div dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '*             (.prim_comb_sym c))  (array (bor (<< (- k_mul dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '+             (.prim_comb_sym c))  (array (bor (<< (- k_add dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '-             (.prim_comb_sym c))  (array (bor (<< (- k_sub dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'band          (.prim_comb_sym c))  (array (bor (<< (- k_band dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'bor           (.prim_comb_sym c))  (array (bor (<< (- k_bor dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'bxor          (.prim_comb_sym c))  (array (bor (<< (- k_bxor dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'bnot          (.prim_comb_sym c))  (array (bor (<< (- k_bnot dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '<<            (.prim_comb_sym c))  (array (bor (<< (- k_ls dyn_start)            35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= '>>            (.prim_comb_sym c))  (array (bor (<< (- k_rs dyn_start)            35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'array         (.prim_comb_sym c))  (array (bor (<< (- k_array dyn_start)         35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'concat        (.prim_comb_sym c))  (array (bor (<< (- k_concat dyn_start)        35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'slice         (.prim_comb_sym c))  (array (bor (<< (- k_slice dyn_start)         35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'idx           (.prim_comb_sym c))  (array (bor (<< (- k_idx dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'len           (.prim_comb_sym c))  (array (bor (<< (- k_len dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'array?        (.prim_comb_sym c))  (array (bor (<< (- k_array? dyn_start)        35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'get-text      (.prim_comb_sym c))  (array (bor (<< (- k_get-text dyn_start)      35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'str-to-symbol (.prim_comb_sym c))  (array (bor (<< (- k_str-to-symbol dyn_start) 35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'bool?         (.prim_comb_sym c))  (array (bor (<< (- k_bool? dyn_start)         35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'nil?          (.prim_comb_sym c))  (array (bor (<< (- k_nil? dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'env?          (.prim_comb_sym c))  (array (bor (<< (- k_env? dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'combiner?     (.prim_comb_sym c))  (array (bor (<< (- k_combiner? dyn_start)     35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'string?       (.prim_comb_sym c))  (array (bor (<< (- k_string? dyn_start)       35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'int?          (.prim_comb_sym c))  (array (bor (<< (- k_int? dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'symbol?       (.prim_comb_sym c))  (array (bor (<< (- k_symbol? dyn_start)       35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'unwrap        (.prim_comb_sym c))  (array (bor (<< (- k_unwrap dyn_start)        35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'wrap          (.prim_comb_sym c))  (array (bor (<< (- k_wrap dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          (true                                   (error (str "Can't compile prim comb " (.prim_comb_sym c) " right now")))))
 
 
 
