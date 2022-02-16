@@ -464,6 +464,8 @@
         ((prim_comb? x) (cond (     (= (.prim_comb_sym x) 'vau)            true)
                               ((and (= (.prim_comb_sym x) 'eval)  (= 1 l)) true)
                               ((and (= (.prim_comb_sym x) 'veval) (= 1 l)) true)
+                              (     (= (.prim_comb_sym x) 'lapply)         true)
+                              (     (= (.prim_comb_sym x) 'vapply)         true)
                               (     (= (.prim_comb_sym x) 'cond)           true) ; but not vcond
                               (true                                        false)))
         ((and (marked_array? x)  (not (.marked_array_is_val  x)))          true)
@@ -716,8 +718,45 @@
         (handler (lambda (only_head de env_stack pectx params indent) (array pectx 'LATER nil)))
         ) (array f_sym (marked_prim_comb handler f_sym 1 false)))))
 
+    (veval_inner (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
+        (body (idx params 0))
+        (implicit_env (!= 2 (len params)))
+        (eval_env (if implicit_env de (idx params 1)))
+        ((pectx err eval_env)  (if implicit_env (array pectx nil de)
+                                                (partial_eval_helper (idx params 1) only_head de env_stack pectx (+ 1 indent) false)))
+        ((pectx err ebody) (if (or (!= nil err) (not (marked_env? eval_env)))
+                               (array pectx err body)
+                               (partial_eval_helper body only_head eval_env env_stack pectx (+ 1 indent) false)))
+    ) (cond
+        ((!= nil err)                                          (begin (print (indent_str indent) "got err " err) (array pectx err nil)))
+        ; If our env was implicit, then our unval'd code can be inlined directly in our caller
+        (implicit_env                                          (drop_redundent_veval partial_eval_helper ebody de env_stack pectx indent))
+        ((combiner_return_ok ebody (.marked_env_idx eval_env)) (drop_redundent_veval partial_eval_helper ebody de env_stack pectx indent))
+        (true                                                  (drop_redundent_veval partial_eval_helper (marked_array false true nil (array (marked_prim_comb recurse 'veval -1 true) ebody eval_env)) de env_stack pectx indent))
+    ))))
 
     (root_marked_env (marked_env true nil nil (array
+
+        (array 'eval (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx evaled_params indent)
+            (if (not (total_value? (idx evaled_params 0)))                                (array pectx nil (marked_array false true nil (cons (marked_prim_comb recurse 'eval 0 true) evaled_params)))
+            (if (and (= 2 (len evaled_params)) (not (marked_env? (idx evaled_params 1)))) (array pectx nil (marked_array false true nil (cons (marked_prim_comb recurse 'eval 0 true) evaled_params)))
+            (dlet (
+                (body (idx evaled_params 0))
+                (implicit_env (!= 2 (len evaled_params)))
+                (eval_env (if implicit_env de (idx evaled_params 1)))
+                ((ok unval_body) (try_unval body (lambda (_) nil)))
+                (_ (if (not ok) (error "actually impossible eval unval")))
+
+
+            ) (veval_inner only_head de env_stack pectx (if implicit_env (array unval_body) (array unval_body eval_env)) indent))))
+        ) 'eval 1 true))
+
+        (array 'vapply (marked_prim_comb (dlambda (only_head de env_stack pectx (f ps ide) indent)
+            (veval_inner only_head de env_stack pectx (array (marked_array false false nil (cons f (.marked_array_values ps))) ide) (+ 1 indent))
+        ) 'vapply 1 true))
+        (array 'lapply (marked_prim_comb (dlambda (only_head de env_stack pectx (f ps) indent)
+            (veval_inner only_head de env_stack pectx (array (marked_array false false nil (cons (with_wrap_level f (- (.any_comb_wrap_level f) 1)) (.marked_array_values ps)))) (+ 1 indent))
+        ) 'lapply 1 true))
 
         (array 'vau (marked_prim_comb (lambda (only_head de env_stack pectx params indent) (dlet (
             (mde?         (mif (= 3 (len params)) (idx params 0) nil))
@@ -749,48 +788,14 @@
         )) 'vau 0 true))
 
         (array 'wrap (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled) indent)
-              (mif (comb? evaled) (array pectx nil (dlet (((wrap_level env_id de? se variadic params body) (.comb evaled))
-                                           (wrapped_marked_fun (marked_comb (+ 1 wrap_level) env_id de? se variadic params body))
-                                          ) wrapped_marked_fun))
-                                  (array pectx "bad passed to wrap" nil))
+              (if (comb? evaled) (array pectx nil (with_wrap_level evaled (+ (.any_comb_wrap_level evaled) 1)))
+                                 (array pectx "bad passed to wrap" nil))
         ) 'wrap 1 true))
 
         (array 'unwrap (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled) indent)
-              (mif (comb? evaled) (array pectx nil (dlet (((wrap_level env_id de? se variadic params body) (.comb evaled))
-                                           (wrapped_marked_fun (marked_comb (- wrap_level 1) env_id de? se variadic params body))
-                                          ) wrapped_marked_fun))
-                                  (array pectx "bad passed to unwrap" nil))
+              (if (comb? evaled) (array pectx nil (with_wrap_level evaled (- (.any_comb_wrap_level evaled) 1)))
+                                 (array pectx "bad passed to unwrap" nil))
         ) 'unwrap 1 true))
-
-        (array 'eval (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx evaled_params indent)
-            (if (not (total_value? (idx evaled_params 0)))                                (array pectx nil (marked_array false true nil (cons (marked_prim_comb recurse 'eval 0 true) evaled_params)))
-            (if (and (= 2 (len evaled_params)) (not (marked_env? (idx evaled_params 1)))) (array pectx nil (marked_array false true nil (cons (marked_prim_comb recurse 'eval 0 true) evaled_params)))
-            (dlet (
-                (body (idx evaled_params 0))
-                (implicit_env (!= 2 (len evaled_params)))
-                (eval_env (if implicit_env de (idx evaled_params 1)))
-                ((ok unval_body) (try_unval body (lambda (_) nil)))
-                (_ (if (not ok) (error "actually impossible eval unval")))
-
-                (veval_inner (rec-lambda recurse (only_head de env_stack pectx params indent) (dlet (
-                    (body (idx params 0))
-                    (implicit_env (!= 2 (len params)))
-                    (eval_env (if implicit_env de (idx params 1)))
-                    ((pectx err eval_env)  (if implicit_env (array pectx nil de)
-                                                            (partial_eval_helper (idx params 1) only_head de env_stack pectx (+ 1 indent) false)))
-                    ((pectx err ebody) (if (or (!= nil err) (not (marked_env? eval_env)))
-                                           (array pectx err body)
-                                           (partial_eval_helper body only_head eval_env env_stack pectx (+ 1 indent) false)))
-                ) (cond
-                    ((!= nil err)                                          (begin (print (indent_str indent) "got err " err) (array pectx err nil)))
-                    ; If our env was implicit, then our unval'd code can be inlined directly in our caller
-                    (implicit_env                                          (drop_redundent_veval partial_eval_helper ebody de env_stack pectx indent))
-                    ((combiner_return_ok ebody (.marked_env_idx eval_env)) (drop_redundent_veval partial_eval_helper ebody de env_stack pectx indent))
-                    (true                                                  (drop_redundent_veval partial_eval_helper (marked_array false true nil (array (marked_prim_comb recurse 'veval -1 true) ebody eval_env)) de env_stack pectx indent))
-                ))))
-
-            ) (veval_inner only_head de env_stack pectx (if implicit_env (array unval_body) (array unval_body eval_env)) indent))))
-        ) 'eval 1 true))
 
         (array 'cond (marked_prim_comb ((rec-lambda recurse (already_stripped) (lambda (only_head de env_stack pectx params indent)
             (mif (!= 0 (% (len params) 2)) (array pectx (str "partial eval cond with odd params " params) nil)
@@ -2717,6 +2722,68 @@
                 drop_p_d
               ))))
 
+              ((k_lapply          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$lapply          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $params i64) '(local $wrap_level i64)
+                (ensure_not_op_n_params_set_ptr_len i32.ne 2)
+                (type_assert 0 type_combiner)
+                (type_assert 1 type_array)
+                (local.set '$comb   (call '$dup (i64.load 0 (local.get '$ptr))))
+                (local.set '$params (call '$dup (i64.load 8 (local.get '$ptr))))
+                (call '$drop (local.get '$d))
+                (local.set '$wrap_level (i64.and (i64.shr_u (local.get '$comb) (i64.const 4)) (i64.const #b11)))
+                (_if '$wrap_level_ne_1
+                    (i64.ne (i64.const 1) (local.get '$wrap_level))
+                    (then (unreachable))
+                )
+
+                (call_indirect
+                    ;type
+                    k_wrap
+                    ;table
+                    0
+                    ;params
+                    (local.get '$params)
+                    ; pass through d env
+                    (local.get '$d)
+                    ; static env
+                    (i64.or (i64.shl (i64.and (local.get '$comb) (i64.const #x3FFFFFFC0))
+                                     (i64.const 2)) (i64.const #b01001))
+                    ;func_idx
+                    (i32.wrap_i64 (i64.shr_u (local.get '$comb) (i64.const 35)))
+                )
+              ))))
+
+              ((k_vapply          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vapply          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $params i64) '(local $wrap_level i64) '(local $denv i64)
+                (ensure_not_op_n_params_set_ptr_len i32.ne 3)
+                (type_assert 0 type_combiner)
+                (type_assert 1 type_array)
+                (type_assert 2 type_env)
+                (local.set '$comb   (call '$dup (i64.load 0 (local.get '$ptr))))
+                (local.set '$params (call '$dup (i64.load 8 (local.get '$ptr))))
+                (local.set '$denv   (call '$dup (i64.load 16 (local.get '$ptr))))
+                drop_p_d
+                (local.set '$wrap_level (i64.and (i64.shr_u (local.get '$comb) (i64.const 4)) (i64.const #b11)))
+                (_if '$wrap_level_ne_0
+                    (i64.ne (i64.const 0) (local.get '$wrap_level))
+                    (then (unreachable))
+                )
+
+                (call_indirect
+                    ;type
+                    k_wrap
+                    ;table
+                    0
+                    ;params
+                    (local.get '$params)
+                    ; passed in denv, not our $d env
+                    (local.get '$denv)
+                    ; static env
+                    (i64.or (i64.shl (i64.and (local.get '$comb) (i64.const #x3FFFFFFC0))
+                                     (i64.const 2)) (i64.const #b01001))
+                    ;func_idx
+                    (i32.wrap_i64 (i64.shr_u (local.get '$comb) (i64.const 35)))
+                )
+              ))))
+
               ;true_val          #b000111001
               ;false_val         #b00001100)
               (empty_parse_value #b00101100)
@@ -3456,6 +3523,8 @@
                                           ((= 'int?          (.prim_comb_sym c))  (array (bor (<< (- k_int? dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'symbol?       (.prim_comb_sym c))  (array (bor (<< (- k_symbol? dyn_start)       35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'unwrap        (.prim_comb_sym c))  (array (bor (<< (- k_unwrap dyn_start)        35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'vapply        (.prim_comb_sym c))  (array (bor (<< (- k_vapply dyn_start)        35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'lapply        (.prim_comb_sym c))  (array (bor (<< (- k_lapply dyn_start)        35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'wrap          (.prim_comb_sym c))  (array (bor (<< (- k_wrap dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           (true                                   (error (str "Can't compile prim comb " (.prim_comb_sym c) " right now")))))
 
