@@ -274,7 +274,8 @@
 
     (marked_symbol    (lambda (progress_idxs x)                        (array 'marked_symbol    (hash_symbol progress_idxs x)                      progress_idxs x)))
     (marked_array     (lambda (is_val attempted resume_hashes x)       (dlet (
-                                                                            (array_union (lambda (a b) (foldl (lambda (a bi) (if (in_array bi a) a (cons bi a))) a b)))
+                                                                            (array_item_union (lambda (a bi) (if (in_array bi a) a (cons bi a))))
+                                                                            (array_union (lambda (a b) (foldl array_item_union a b)))
                                                                             ; If not is_val, then if the first entry (combiner) is not done or is a combiner and not function
                                                                             ; shouldn't add the rest of them, since they'll have to be passed without eval
                                                                             ; We do this by ignoring trues for non-first
@@ -290,7 +291,9 @@
                                                                             (progress_idxs (cond ((and (= nil sub_progress_idxs) (not is_val) (= true attempted))  nil)
                                                                                                  ((and (= nil sub_progress_idxs) (not is_val) (= false attempted)) true)
                                                                                                  ((and (= nil sub_progress_idxs) (not is_val) (int? attempted))    (array attempted))
-                                                                                                 (true                                                             sub_progress_idxs)))
+                                                                                                 (true                                                             (if (int? attempted)
+                                                                                                                                                                       (array_item_union sub_progress_idxs attempted)
+                                                                                                                                                                       sub_progress_idxs))))
                                                                         ) (array 'marked_array  (hash_array is_val attempted x)                    is_val attempted (array progress_idxs hashes) x))))
     (marked_env       (lambda (has_vals progress_idxs dbi arrs)        (array 'env              (hash_env progress_idxs dbi arrs)                  has_vals progress_idxs dbi arrs)))
     (marked_val       (lambda (x)                                      (array 'val              (hash_val x)                                       x)))
