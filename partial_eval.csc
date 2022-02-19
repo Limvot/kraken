@@ -118,7 +118,7 @@
        (nil? (lambda (x) (= nil x)))
        (bool? (lambda (x) (or (= #t x) (= #f x))))
        (true_print print)
-       ;(print (lambda x 0))
+       (print (lambda x 0))
        ;(true_print print)
        (println print)
 
@@ -196,6 +196,7 @@
     (.marked_symbol_value               (lambda (x) (idx x 3)))
     (.comb                              (lambda (x) (slice x 2 -1)))
     (.comb_id                           (lambda (x) (idx x 3)))
+    (.comb_des                          (lambda (x) (idx x 4)))
     (.comb_env                          (lambda (x) (idx x 5)))
     (.comb_body                         (lambda (x) (idx x 8)))
     (.comb_wrap_level                   (lambda (x) (idx x 2)))
@@ -243,7 +244,9 @@
     (hash_string      (lambda (s) (foldl combine_hash 7  (map char->integer (string->list s)))))
     (hash_symbol      (lambda (progress_idxs s) (combine_hash (if (= true progress_idxs) 11 (foldl combine_hash 13 (map (lambda (x) (if (= true x) 13 (+ 1 x))) progress_idxs))) (hash_string (symbol->string s)))))
 
-    (hash_array       (lambda (is_val attempted a) (foldl combine_hash (if is_val 17 (if attempted 19 61)) (map .hash a))))
+    (hash_array       (lambda (is_val attempted a) (foldl combine_hash (if is_val 17 (cond ((int? attempted) (combine_hash attempted 19))
+                                                                                            (attempted       61)
+                                                                                            (true            107))) (map .hash a))))
     (hash_env         (lambda (progress_idxs dbi arrs) (combine_hash (mif dbi (hash_num dbi) 59) (let* (
                                                                 (inner_hash (foldl (dlambda (c (s v)) (combine_hash c (combine_hash (hash_symbol true s) (.hash v))))
                                                                                    (cond ((= nil progress_idxs)     23)
@@ -284,9 +287,10 @@
                                                                                                  ) (array true (array) resume_hashes) (map needed_for_progress x)))
                                                                             ;(_ (print "got " sub_progress_idxs " out of " x))
                                                                             ;(_ (print "\twhich evalated to " (map needed_for_progress x)))
-                                                                            (progress_idxs (cond ((and (= nil sub_progress_idxs) (not is_val) attempted)       nil)
-                                                                                                 ((and (= nil sub_progress_idxs) (not is_val) (not attempted)) true)
-                                                                                                 (true                                                        sub_progress_idxs)))
+                                                                            (progress_idxs (cond ((and (= nil sub_progress_idxs) (not is_val) (= true attempted))  nil)
+                                                                                                 ((and (= nil sub_progress_idxs) (not is_val) (= false attempted)) true)
+                                                                                                 ((and (= nil sub_progress_idxs) (not is_val) (int? attempted))    (array attempted))
+                                                                                                 (true                                                             sub_progress_idxs)))
                                                                         ) (array 'marked_array  (hash_array is_val attempted x)                    is_val attempted (array progress_idxs hashes) x))))
     (marked_env       (lambda (has_vals progress_idxs dbi arrs)        (array 'env              (hash_env progress_idxs dbi arrs)                  has_vals progress_idxs dbi arrs)))
     (marked_val       (lambda (x)                                      (array 'val              (hash_val x)                                       x)))
@@ -347,7 +351,7 @@
               ((marked_array? x)  (dlet (((stripped_values done_envs) (foldl (dlambda ((vs de) x) (dlet (((v de) (recurse x de))) (array (concat vs (array v)) de)))
                                                                              (array (array) done_envs) (.marked_array_values x))))
                                         (mif (.marked_array_is_val x) (array (str "[" stripped_values "]") done_envs)
-                                                                      (array (str "<a" (.marked_array_is_attempted x) ",n" (.marked_array_needed_for_progress x) ",r" (needed_for_progress x) ">" stripped_values) done_envs))))
+                                                                      (array (str "<a" (.marked_array_is_attempted x) ",r" (needed_for_progress x) ">" stripped_values) done_envs))))
               ((marked_symbol? x) (mif (.marked_symbol_is_val x) (array (str "'" (.marked_symbol_value x)) done_envs)
                                                                  (array (str (.marked_symbol_needed_for_progress x) "#" (.marked_symbol_value x)) done_envs)))
               ((comb? x)          (dlet (((wrap_level env_id de? se variadic params body) (.comb x))
@@ -373,7 +377,7 @@
         )
     ) (idx args -1) (array)) 0))))))
     (true_str_strip str_strip)
-    ;(str_strip (lambda args 0))
+    (str_strip (lambda args 0))
     ;(true_str_strip str_strip)
     (print_strip (lambda args (println (apply str_strip args))))
 
@@ -397,7 +401,11 @@
               ((marked_env? x)    (error "got env for strip, won't work"))
               (true               (error (str "some other strip? " x)))
         )
-    )))  (lambda (x) (let* ((_ (print_strip "stripping: " x)) (r (helper x true)) (_ (println "result of strip " r))) r))))
+    )))  (lambda (x) (let* (
+                            ;(_ (print_strip "stripping: " x))
+                            (r (helper x true))
+                            ;(_ (println "result of strip " r))
+                            ) r))))
 
     (try_unval (rec-lambda recurse (x fail_f)
         (cond ((marked_array? x) (mif (not (.marked_array_is_val x)) (array false (fail_f x))
@@ -460,7 +468,7 @@
     )))) (array) s_env_id x) 1)))
 
     (comb_takes_de? (lambda (x l) (cond
-        ((comb? x)      (dlet (((wrap_level env_id de? se variadic params body) (.comb x))) (!= nil de?)))
+        ((comb? x)      (!= nil (.comb_des x)))
         ((prim_comb? x) (cond (     (= (.prim_comb_sym x) 'vau)            true)
                               ((and (= (.prim_comb_sym x) 'eval)  (= 1 l)) true)
                               ((and (= (.prim_comb_sym x) 'veval) (= 1 l)) true)
@@ -601,6 +609,7 @@
                                                                     (env-lookup-helper (.env_marked env) (.marked_symbol_value x) 0
                                                                                        (lambda ()  (array pectx (str "could't find " (str_strip x) " in " (str_strip env))  nil))
                                                                                        (lambda (x) (array pectx nil x)))))
+                                                                     ; Does this ever happen? non-fully-value arrays?
                 ((marked_array? x)   (cond ((.marked_array_is_val x) (dlet ( ((pectx err inner_arr) (foldl (dlambda ((c er ds) p) (dlet (((c e d) (partial_eval_helper p false env env_stack c (+ 1 indent) false))) (array c (mif er er e) (concat ds (array d)))))
                                                                                                              (array pectx nil (array))
                                                                                                              (.marked_array_values x)))
@@ -694,9 +703,12 @@
                                                                                                                     ) (array pectx func_err func_result false))))
 
                                                                                      (_ (print_strip (indent_str indent) "evaled result of function call (in env " (.marked_env_idx env) ", with inner " env_id ") and err " func_err "  is " func_result))
+                                                                                     (must_stop_maybe_id (or rec_stop (if (not (combiner_return_ok func_result env_id))
+                                                                                                                          (if (!= nil de?) (.marked_env_idx env) true)
+                                                                                                                          false)))
                                                                                      ) (if (!= nil func_err) (array pectx func_err nil)
-                                                                                             (if (or rec_stop (not (combiner_return_ok func_result env_id)))
-                                                                                                 (array pectx nil (marked_array false true (if rec_stop (array hash) nil) (cons (with_wrap_level comb remaining_wrap) evaled_params)))
+                                                                                             (if must_stop_maybe_id
+                                                                                                 (array pectx nil (marked_array false must_stop_maybe_id (if rec_stop (array hash) nil) (cons (with_wrap_level comb remaining_wrap) evaled_params)))
                                                                                                  (drop_redundent_veval partial_eval_helper func_result env env_stack pectx indent)))))
                                                                         )))
                                                                )))))
@@ -3881,6 +3893,8 @@
         (print (slice '(1 2 3) -2 -1))
 
         (print "ASWDF")
+        (print (str-to-symbol (str '(a b))))
+        (print (symbol? (str-to-symbol (str '(a b)))))
         (print ( (dlambda ((a b)) a) '(1337 1338)))
         (print ( (dlambda ((a b)) b) '(1337 1338)))
 
