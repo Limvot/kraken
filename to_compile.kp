@@ -110,12 +110,17 @@
         only_symbols (rec-lambda recurse (a i) (cond (= i (len a))       true
                                                      (symbol? (idx a i)) (recurse a (+ i 1))
                                                      true                false))
-        lambda (vau se (p b) (if (only_symbols p 0) (vapply lambda (array p b) se)
-            (let (
-                sym_params (map (lambda (param) (if (symbol? param) param
-                                                                    (str-to-symbol (str param)))) p)
-                body (array let (flat_map_i (lambda (i x) (array (idx p i) x)) sym_params) b)
-            ) (wrap (eval (array vau sym_params body) se)))))
+
+        ; Note that if macro_helper is inlined, the mapping lambdas will close over
+        ; se, and then not be able to be taken in as values to the maps, and the vau
+        ; will fail to partially evaluate away.
+        lambda (let (macro_helper (lambda (p b) (let (
+                        sym_params (map (lambda (param) (if (symbol? param) param
+                                                                            (str-to-symbol (str param)))) p)
+                        body (array let (flat_map_i (lambda (i x) (array (idx p i) x)) sym_params) b)
+                      ) (array vau sym_params body))))
+                    (vau se (p b) (if (only_symbols p 0) (vapply lambda (array p b) se)
+                                                         (wrap (eval (macro_helper p b) se)))))
 
         ; and rec-lambda - yes it's the same definition again
         rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
