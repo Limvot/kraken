@@ -8,5 +8,6 @@ mkShell {
     wabt
     wasmtime
     wasm3
+    kakoune
   ];
 }
