@@ -30,7 +30,7 @@
                                                   (#t           (let* (
                                                                        (clause (car items))
                                                                        (result (cond
-                                                                                ((list? (car clause)) (let ((s (gensym)))
+                                                                                ((list? (car clause)) (let ((s (gensym 'dlet_s)))
                                                                                     (cons `(,s ,(car (cdr clause)))
                                                                                      (flat_map_i (lambda (i x)
                                                                                                   (recurse `((,x (list-ref ,s ,i))))
@@ -48,7 +48,7 @@
          (lambda (x r c)
                 (let (
                          (params (list-ref x 1))
-                         (param_sym (gensym))
+                         (param_sym (gensym 'dlambda_s))
                          (body (list-ref x 2))
                      )
                      `(lambda ,param_sym (dlet ( (,params ,param_sym) ) ,body))))))
@@ -72,7 +72,7 @@
          (lambda (x r c)
                 (let (
                         (cond (list-ref x 1))
-                        (v (gensym))
+                        (v (gensym 'mif_s))
                         (then (list-ref x 2))
                         (else (if (equal? 4 (length x)) (list-ref x 3) ''()))
                      )
@@ -248,6 +248,8 @@
                                                                                             (attempted       61)
                                                                                             (true            107))) (map .hash a))))
     (hash_env         (lambda (progress_idxs dbi arrs) (combine_hash (mif dbi (hash_num dbi) 59) (let* (
+                                                                (_ (begin (true_print "pre slice " (slice arrs 0 -2)) 0))
+                                                                (_ (begin (true_print "about to do a fold " progress_idxs " and " (slice arrs 0 -2)) 0))
                                                                 (inner_hash (foldl (dlambda (c (s v)) (combine_hash c (combine_hash (hash_symbol true s) (.hash v))))
                                                                                    (cond ((= nil progress_idxs)     23)
                                                                                          ((= true progress_idxs)    29)
@@ -295,7 +297,7 @@
                                                                                                                                                                        (array_item_union sub_progress_idxs attempted)
                                                                                                                                                                        sub_progress_idxs))))
                                                                         ) (array 'marked_array  (hash_array is_val attempted x)                    is_val attempted (array progress_idxs hashes) x))))
-    (marked_env       (lambda (has_vals progress_idxs dbi arrs)        (array 'env              (hash_env progress_idxs dbi arrs)                  has_vals progress_idxs dbi arrs)))
+    (marked_env       (lambda (has_vals progress_idxs dbi arrs)        (array 'env              (begin (true_print "marked_env ( " arrs ")") (hash_env progress_idxs dbi arrs))                  has_vals progress_idxs dbi arrs)))
     (marked_val       (lambda (x)                                      (array 'val              (hash_val x)                                       x)))
     (marked_comb      (lambda (wrap_level env_id de? se variadic params body) (array 'comb      (hash_comb wrap_level env_id de? se variadic params body) wrap_level env_id de? se variadic params body)))
     (marked_prim_comb (lambda (handler_fun real_or_name wrap_level val_head_ok)    (array 'prim_comb        (hash_prim_comb handler_fun real_or_name wrap_level val_head_ok) handler_fun real_or_name wrap_level val_head_ok)))
@@ -566,7 +568,7 @@
         (dlet ((param_entries       (map (lambda (p) (array p (marked_symbol (array env_id) p))) params))
                (possible_de_entry   (mif (= nil de?) (array) (array (array de? (marked_symbol (array env_id) de?)))))
                (progress_idxs       (cons env_id (needed_for_progress_slim de)))
-            ) (marked_env false progress_idxs env_id (concat param_entries possible_de_entry (array de))))))
+            ) (begin (true_print "in make_tmp_inner_env based on concat " param_entries " " possible_de_entry " " (array de)) (marked_env false progress_idxs env_id (concat param_entries possible_de_entry (array de)))))))
 
 
     (partial_eval_helper (rec-lambda partial_eval_helper (x only_head env env_stack pectx indent force)
@@ -686,7 +688,7 @@
                                                                                                                          (array nil (array))))
                                                                                      ;  Don't need to check params, they're all values!
                                                                                      (inner_env_progress_idxs (concat de_progress_idxs (needed_for_progress_slim se)))
-                                                                                     (inner_env (marked_env true inner_env_progress_idxs env_id (concat (zip params final_params) de_entry (array se))))
+                                                                                     (inner_env (begin (true_print "Environment pre marked_env, gonna concat (zip of " params " " final_params ") " (zip params final_params) " " de_entry " " (array se)) (marked_env true inner_env_progress_idxs env_id (concat (zip params final_params) de_entry (array se)))))
                                                                                      (_ (print_strip (indent_str indent) " with inner_env is " inner_env))
                                                                                      (_ (print_strip (indent_str indent) "going to eval " body))
 
