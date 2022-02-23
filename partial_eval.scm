@@ -31,6 +31,21 @@
     ((_ name params body) (rec name (lambda params body)))))
 
 
+; Based off of http://www.phyast.pitt.edu/~micheles/scheme/scheme15.html
+; many thanks!
+(define-syntax dlet
+  (syntax-rules ()
+    ((_ expr) expr)
+    ((_ (() lst) expr) expr)
+    ((_ ((arg1 arg2 ...) lst) expr)
+            (let ((ls lst))
+              (dlet (arg1 (car ls))
+                    (dlet ((arg2 ...) (cdr ls)) expr))))
+   ((_ (name value) expr) (let ((name value)) expr))
+   ((_ (name value) (n v) ... expr) (dlet (name value) (dlet (n v) ... expr)))
+))
+
+
 (let* (
        ; In Chez scheme it's
        (arithmetic-shift bitwise-arithmetic-shift)
@@ -133,6 +148,14 @@
        (print (str 1 2 3 (array 1 23 4) "a" "B"))
 
        ;(print (dlet ( (x 2) ((a b) '(1 2)) (((i i2) i3) '((5 6) 7)) ) (+  x a b i i2 i3)))
+       (print (dlet 1))
+       (print (dlet (x 1) x))
+       (print "first destructure test")
+       (print (dlet ((x) '(1)) x))
+       (print (dlet ((x y) (list 1 2)) x))
+       (print (dlet ((x y) (list 1 2)) y))
+       (print (dlet ((x y) (list 1 2)) (+ x y)))
+       (print (dlet ((x y) (list 1 2)) ((e f g) (list 4 5 6)) (+ x y e f g)))
 
        (print (array 1 2 3))
        (print (command-line-arguments))
