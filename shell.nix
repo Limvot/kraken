@@ -5,7 +5,8 @@ mkShell {
   LANG="en_US.UTF-8";
   nativeBuildInputs = [
     chicken
-    gambit
+    #gambit
+    gambit-unstable
     chez
     wabt
     wasmtime

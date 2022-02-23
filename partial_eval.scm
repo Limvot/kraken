@@ -1,12 +1,38 @@
 
+; both Gambit and Chez define pretty-print. Chicken doesn't obv
+; In Chez, arithmetic-shift is bitwise-arithmetic-shift
 
-; For chicken
-;(import (chicken process-context))
-;(import (chicken port))
-;(import (chicken io))
-;(import (chicken bitwise))
-;(import (chicken string))
-;(import (r5rs))
+; Chicken
+;(import (chicken process-context)) (import (chicken port)) (import (chicken io)) (import (chicken bitwise)) (import (chicken string)) (import (r5rs))
+
+; Chez
+;(define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift)
+
+; Gambit - Gambit also has a problem with the dlet definition (somehow recursing and making (cdr nil) for (cdr ls)?), even if using the unstable one that didn't break syntax-rules
+;(define print pretty-print)
+
+(define-syntax rec-lambda
+  (syntax-rules ()
+    ((_ name params body) (letrec ((name (lambda params body))) name))))
+
+
+; Based off of http://www.phyast.pitt.edu/~micheles/scheme/scheme15.html
+; many thanks!
+(define-syntax dlet
+  (syntax-rules ()
+    ((_ () expr) expr)
+    ((_ ((() bad)) expr) expr)
+    ((_ (((arg1 arg2 ...) lst)) expr)
+            (let ((ls lst))
+              (dlet ((arg1 (car ls)))
+                    (dlet (((arg2 ...) (cdr ls))) expr))))
+   ((_ ((name value)) expr) (let ((name value)) expr))
+   ((_ ((name value) (n v) ...) expr) (dlet ((name value)) (dlet ((n v) ...) expr)))
+))
+
+(define-syntax dlambda
+  (syntax-rules ()
+    ((_ params body) (lambda fullparams (dlet ((params fullparams)) body)))))
 
 ; Adapted from https://stackoverflow.com/questions/16335454/reading-from-file-using-scheme WTH
 (define (slurp path)
@@ -17,38 +43,7 @@
                         ((eof-object? x) '())
                                 (#t (begin (cons x (loop (read-char input-port)))))))))))
 
-;(define-syntax rec-lambda
-;    (er-macro-transformer
-;         (lambda (x ue me)
-;                (let (
-;                         (name (car (cdr x)))
-;                         (params (car (cdr (cdr x))))
-;                         (body (car (cdr (cdr (cdr x)))))
-;                     )
-;                     `(rec ,name (lambda ,params ,body))))))
-(define-syntax rec-lambda
-  (syntax-rules ()
-    ((_ name params body) (rec name (lambda params body)))))
-
-
-; Based off of http://www.phyast.pitt.edu/~micheles/scheme/scheme15.html
-; many thanks!
-(define-syntax dlet
-  (syntax-rules ()
-    ((_ expr) expr)
-    ((_ (() lst) expr) expr)
-    ((_ ((arg1 arg2 ...) lst) expr)
-            (let ((ls lst))
-              (dlet (arg1 (car ls))
-                    (dlet ((arg2 ...) (cdr ls)) expr))))
-   ((_ (name value) expr) (let ((name value)) expr))
-   ((_ (name value) (n v) ... expr) (dlet (name value) (dlet (n v) ... expr)))
-))
-
-
 (let* (
-       ; In Chez scheme it's
-       (arithmetic-shift bitwise-arithmetic-shift)
       (lapply apply)
       (= equal?)
       (!= (lambda (a b) (not (= a b))))
@@ -124,8 +119,7 @@
                            ((rec-lambda recurse (x) (if (and x (!= nil x)) (begin (display (car x) mp) (recurse (cdr x))) nil)) args)
                            (get-output-string mp))))
 
-      ;; both Gambit and Chez define pretty-print. Chicken doesn't obv
-      (print (lambda args (pretty-print (apply str args))))
+      (print (lambda args (print (apply str args))))
 
       (write_file (lambda (file bytes) (call-with-output-file file (lambda (out) (foldl (lambda (_ o) (write-byte o out)) (void) bytes)))))
       )
@@ -142,20 +136,21 @@
        (print "ASWDF")
        (print (str-to-symbol (str '(a b))))
        (print (symbol? (str-to-symbol (str '(a b)))))
-       ;(print ( (dlambda ((a b)) a) '(1337 1338)))
-       ;(print ( (dlambda ((a b)) b) '(1337 1338)))
+       (print "first dlambda test")
+       (print ( (dlambda ((a b)) a) '(1337 1338)))
+       (print ( (dlambda ((a b)) b) '(1337 1338)))
 
        (print (str 1 2 3 (array 1 23 4) "a" "B"))
 
-       ;(print (dlet ( (x 2) ((a b) '(1 2)) (((i i2) i3) '((5 6) 7)) ) (+  x a b i i2 i3)))
-       (print (dlet 1))
-       (print (dlet (x 1) x))
        (print "first destructure test")
-       (print (dlet ((x) '(1)) x))
-       (print (dlet ((x y) (list 1 2)) x))
-       (print (dlet ((x y) (list 1 2)) y))
-       (print (dlet ((x y) (list 1 2)) (+ x y)))
-       (print (dlet ((x y) (list 1 2)) ((e f g) (list 4 5 6)) (+ x y e f g)))
+       (print (dlet ( (x 2) ((a b) '(1 2)) (((i i2) i3) '((5 6) 7)) ) (+  x a b i i2 i3)))
+       (print (dlet () 1))
+       (print (dlet ((x 1)) x))
+       (print (dlet (((x) '(1))) x))
+       (print (dlet (((x y) (list 1 2))) x))
+       (print (dlet (((x y) (list 1 2))) y))
+       (print (dlet (((x y) (list 1 2))) (+ x y)))
+       (print (dlet (((x y) (list 1 2)) ((e f g) (list 4 5 6))) (+ x y e f g)))
 
        (print (array 1 2 3))
        (print (command-line-arguments))
