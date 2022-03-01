@@ -3,10 +3,11 @@
 ; In Chez, arithmetic-shift is bitwise-arithmetic-shift
 
 ; Chicken
-(import (chicken process-context)) (import (chicken port)) (import (chicken io)) (import (chicken bitwise)) (import (chicken string)) (import (r5rs)) (define write_file (lambda (file bytes) (call-with-output-file file (lambda (out) (foldl (lambda (_ o) (write-byte o out)) (void) bytes)))))
+;(import (chicken process-context)) (import (chicken port)) (import (chicken io)) (import (chicken bitwise)) (import (chicken string)) (import (r5rs)) (define write_file (lambda (file bytes) (call-with-output-file file (lambda (out) (foldl (lambda (_ o) (write-byte o out)) (void) bytes)))))
 
 ; Chez
-;(define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift) (define foldl fold-left) (define foldr fold-right) (define write_file (lambda (file bytes) (let* ( (port (open-file-output-port file)) (_ (foldl (lambda (_ o) (put-u8 port o)) (void) bytes)) (_ (close-port port))) '())))
+(define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift) (define foldl fold-left) (define foldr fold-right) (define write_file (lambda (file bytes) (let* ( (port (open-file-output-port file)) (_ (foldl (lambda (_ o) (put-u8 port o)) (void) bytes)) (_ (close-port port))) '())))
+(compile-profile 'source)
 
 ; Gambit - Gambit also has a problem with the dlet definition (somehow recursing and making (cdr nil) for (cdr ls)?), even if using the unstable one that didn't break syntax-rules
 ;(define print pretty-print)
@@ -322,6 +323,7 @@
 
     (indent_str (rec-lambda recurse (i) (mif (= i 0) ""
                                                    (str "   " (recurse (- i 1))))))
+    (indent_str (lambda (i) ""))
 
     (str_strip (lambda args (apply str (concat (slice args 0 -2) (array (idx ((rec-lambda recurse (x done_envs)
         (cond ((= nil x)          (array "<nil>" done_envs))
@@ -410,7 +412,6 @@
             ;(result (if (or (marked_array? x) (marked_env? x)) (alist-ref hash memo) false))
             (result (if (marked_env? x) (my-alist-ref hash memo) false))
         ) (if (array? result) (array memo (idx result 0)) (cond
-              ((val? x)           (array memo false))
               ((marked_symbol? x) (array memo false))
               ((marked_array? x)  (dlet (
                                     (values (.marked_array_values x))
@@ -421,6 +422,8 @@
                                                     memo 0))
                                     ;(memo (put memo hash result))
                                   ) (array memo result)))
+              ((prim_comb? x)    (array memo false))
+              ((val? x)           (array memo false))
               ((comb? x)          (dlet (
                                     ((wrap_level i_env_id de? se variadic params body) (.comb x))
                                     ((memo in_se) (check_for_env_id_in_result memo s_env_id se))
@@ -429,7 +432,6 @@
                                     ;(memo (put memo hash total))
                                   ) (array memo total)))
 
-              ((prim_comb? x)    (array memo false))
               ((marked_env? x)   (if (and (not (marked_env_real? x)) (= s_env_id (.marked_env_idx x))) (array memo true)
                                          (dlet (
                                             (values (slice (.env_marked x) 0 -2))
@@ -3395,17 +3397,19 @@
                                                             (_ (if (= nil env) (error "nil env when trying to compile a non-value symbol")))
                                                             (lookup_helper (rec-lambda lookup-recurse (dict key i code) (cond
                                                                 ((and (= i (- (len dict) 1)) (= nil (idx dict i))) (array nil (str "for code-symbol lookup, couldn't find " key)))
-                                                                ((= i (- (len dict) 1))                            (lookup-recurse (.env_marked (idx dict i)) key 0 (i64.load 16 (i32.wrap_i64 (i64.shr_u code (call '$print (i64.const going_up_msg_val)) (i64.const 5))))))
+                                                                ((= i (- (len dict) 1))                            (lookup-recurse (.env_marked (idx dict i)) key 0 (i64.load 16 (i32.wrap_i64 (i64.shr_u code ;(call '$print (i64.const going_up_msg_val))
+                                                                                                                                                                                                               (i64.const 5))))))
                                                                 ((= key (idx (idx dict i) 0))                      (array (i64.load (* 8 i)                                               ; offset in array to value
                                                                                                                         (i32.wrap_i64 (i64.and (i64.const -8)                       ; get ptr from array value
                                                                                                                                                (i64.load 8 (i32.wrap_i64 (i64.shr_u code
-                                                                                                                                                             (i64.const 5)) (call '$print (i64.const got_it_msg_val)) ))))) nil))
+                                                                                                                                                             (i64.const 5)) ;(call '$print (i64.const got_it_msg_val))
+                                                                                                                                                                         ))))) nil))
                                                                 (true                                              (lookup-recurse dict key (+ i 1) code)))))
 
 
                                                             ((val err) (lookup_helper (.env_marked env) (.marked_symbol_value c) 0 (concat
-                                                                                                                                          (call '$print (i64.const starting_from_msg_val))
-                                                                                                                                          (call '$print (local.get '$s_env))
+                                                                                                                                         ;(call '$print (i64.const starting_from_msg_val))
+                                                                                                                                         ;(call '$print (local.get '$s_env))
                                                                                                                                           (local.get '$s_env))))
                                                             (err (mif err (str "got " err ", started searching in " (str_strip env)) (if need_value (str "needed value, but non val symbol " (.marked_symbol_value c)) nil)))
                                                             (result (mif val (call '$dup val)))
@@ -3657,7 +3661,7 @@
                                     ((func_value _ func_err ctx) (mif maybe_func maybe_func
                                         (dlet (
                                         ((wrap_level env_id de? se variadic params body) (.comb c))
-                                        ((name_msg_value _ _ ctx) (compile-inner ctx (marked_val (str "\n\ncalling function " (true_str_strip c) " with: ")) true))
+                                        ;((name_msg_value _ _ ctx) (compile-inner ctx (marked_val (str "\n\ncalling function " (true_str_strip c) " with: ")) true))
 
                                         ; This can be optimized for common cases, esp with no de? and varidaic to make it much faster
                                         ; But not prematurely, I just had to redo it after doing that the first time, we'll get there when we get there
@@ -3688,14 +3692,14 @@
                                                      ))
 
                                         (setup_code (concat
-                                            (call '$print (i64.const name_msg_value))
-                                            (call '$print (local.get '$params))
-                                            (call '$print (i64.const space_msg_val))
-                                            (call '$print (i64.shl (i64.shr_u (local.get '$params) (i64.const 32)) (i64.const 1)))
-                                            (call '$print (i64.const space_msg_val))
-                                            (call '$print (i64.const (<< (len params) 1)))
-                                            (call '$print (i64.const newline_msg_val))
-                                            (call '$print (i64.const newline_msg_val))
+                                           ;(call '$print (i64.const name_msg_value))
+                                           ;(call '$print (local.get '$params))
+                                           ;(call '$print (i64.const space_msg_val))
+                                           ;(call '$print (i64.shl (i64.shr_u (local.get '$params) (i64.const 32)) (i64.const 1)))
+                                           ;(call '$print (i64.const space_msg_val))
+                                           ;(call '$print (i64.const (<< (len params) 1)))
+                                           ;(call '$print (i64.const newline_msg_val))
+                                           ;(call '$print (i64.const newline_msg_val))
                                             (_if '$params_len_good
                                                 (if variadic    (i64.lt_u (i64.shr_u (local.get '$params) (i64.const 32)) (i64.const (- (len params) 1)))
                                                                 (i64.ne   (i64.shr_u (local.get '$params) (i64.const 32)) (i64.const (len params))))
@@ -3707,10 +3711,10 @@
                                                     (unreachable)
                                                 )
                                                 (else
-                                                    (call '$print (i64.const call_ok_msg_val))
-                                                    (call '$print (i64.const newline_msg_val))
+                                                    ;(call '$print (i64.const call_ok_msg_val))
+                                                    ;(call '$print (i64.const newline_msg_val))
                                                     ;(call '$print (local.get '$s_env))
-                                                    (call '$print (i64.const newline_msg_val))
+                                                    ;(call '$print (i64.const newline_msg_val))
                                                 )
                                             ) env_setup_code
                                         ))
@@ -3768,7 +3772,8 @@
               )))
 
               ;(_ (println "compiling partial evaled " (str_strip marked_code)))
-              (_ (true_print "compiling partial evaled " (true_str_strip marked_code)))
+              ;(_ (true_print "compiling partial evaled " (true_str_strip marked_code)))
+              (_ (true_print "compiling partial evaled "))
               (memo empty_dict)
               (ctx (array datasi funcs memo root_marked_env pectx))
 
@@ -4394,6 +4399,8 @@
        ; (test-most)
        ; (single-test)
        (run-compiler)
+       (profile-dump-html)
+       ;(profile-dump-list)
    )
 )
 
