@@ -40,7 +40,15 @@
     ((_ con then     ) (if (let ((x con)) (and (not (equal? (list) x)) x)) then '()))
     ((_ con then else) (if (let ((x con)) (and (not (equal? (list) x)) x)) then else))))
 
-(define error (lambda args (apply error args)))
+
+
+(define str (lambda args (begin
+                     (define mp (open-output-string))
+                     ((rec-lambda recurse (x) (if (and x (not (equal? '() x))) (begin (display (car x) mp) (recurse (cdr x))) '())) args)
+                     (get-output-string mp))))
+
+(define true_error error)
+(define error (lambda args (begin (print "ERROR! About to Error! args are\n") (print (str args)) (apply true_error args))))
 
 ; Adapted from https://stackoverflow.com/questions/16335454/reading-from-file-using-scheme WTH
 (define (slurp path)
@@ -88,13 +96,14 @@
 
       (empty_dict (array))
       (put (lambda (m k v) (cons (array k v) m)))
+      ;(my-alist-ref alist-ref)
       (my-alist-ref (lambda (k d) ((rec-lambda recurse (d k i) (cond ((= (len d) i)           false)
                                                                      ((= k (idx (idx d i) 0)) (array (idx (idx d i) 1)))
                                                                      (true                    (recurse d k (+ 1 i)))))
                                 d k 0)))
       (get-value (lambda (d k) (let ((result (my-alist-ref k d)))
                                     (if (array? result) (idx result 0)
-                                                        (error (print "could not find " k " in " d))))))
+                                                        (error (str "could not find " k " in " d))))))
       (get-value-or-false (lambda (d k) (let ((result (my-alist-ref k d)))
                                     (if (array? result) (idx result 0)
                                                         false))))
@@ -126,10 +135,6 @@
                                                                ((equal? '() l) '())
                                                                (#t      (append (f (car l)) (recurse f (cdr l)))))
                                               )) f l)))
-      (str (lambda args (begin
-                           (define mp (open-output-string))
-                           ((rec-lambda recurse (x) (if (and x (!= nil x)) (begin (display (car x) mp) (recurse (cdr x))) nil)) args)
-                           (get-output-string mp))))
 
       (print (lambda args (print (apply str args))))
       (true_print print)
@@ -233,12 +238,13 @@
                                                                                                          ) (combine_hash inner_hash end_hash)))))
     (hash_comb        (lambda (wrap_level env_id de? se variadic params body)
                                                                              (combine_hash 43
+                                                                             (combine_hash wrap_level
                                                                              (combine_hash env_id
                                                                              (combine_hash (mif de? (hash_symbol true de?) 47)
                                                                              (combine_hash (.hash se)
                                                                              (combine_hash (hash_bool variadic)
                                                                              (combine_hash (foldl (lambda (c x) (combine_hash c (hash_symbol true x))) 53 params)
-                                                                             (.hash body)))))))))
+                                                                             (.hash body))))))))))
     (hash_prim_comb   (lambda (handler_fun real_or_name wrap_level val_head_ok) (combine_hash (combine_hash 59 (hash_symbol true real_or_name))
                                                                                               (combine_hash (if val_head_ok 89 97) wrap_level))))
     (hash_val         (lambda (x) (cond ((bool? x)     (hash_bool x))
@@ -358,7 +364,7 @@
         )
     ) (idx args -1) (array)) 0))))))
     (true_str_strip str_strip)
-    (str_strip (lambda args 0))
+    ;(str_strip (lambda args 0))
     ;(true_str_strip str_strip)
     (print_strip (lambda args (println (apply str_strip args))))
 
@@ -366,7 +372,7 @@
                                                                            ((= i (- (len dict) 1))                             (recurse (.env_marked (idx dict i)) key 0 fail success))
                                                                            ((= key (idx (idx dict i) 0))                       (success (idx (idx dict i) 1)))
                                                                            (true                                               (recurse dict key (+ i 1) fail success)))))
-    (env-lookup (lambda (env key) (env-lookup-helper (.env_marked env) key 0 (lambda () (error (print_strip key " not found in env " env))) (lambda (x) x))))
+    (env-lookup (lambda (env key) (env-lookup-helper (.env_marked env) key 0 (lambda () (error (str key " not found in env " (str_strip env)))) (lambda (x) x))))
 
     (strip (let ((helper (rec-lambda recurse (x need_value)
         (cond ((val? x)           (.val x))
@@ -2159,11 +2165,6 @@
                     (call '$drop (local.get '$p))
                     (call '$drop (local.get '$d))))
 
-
-
-              ((bad_not_vau_loc bad_not_vau_length datasi) (alloc_data "\nError: Trying to call a function (not vau) but the parameters caused a compile error\n" datasi))
-              (bad_not_vau_msg_val (bor (<< bad_not_vau_length 32) bad_not_vau_loc #b011))
-
               ((k_log_loc k_log_length datasi) (alloc_data "k_log" datasi))
               (k_log_msg_val (bor (<< k_log_length 32) k_log_loc #b011))
               ((k_log           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$log           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
@@ -3417,7 +3418,7 @@
                    ((marked_array? c) (if (.marked_array_is_val c) (or (get_passthrough (.hash c) ctx)
                                                                        (let ((actual_len (len (.marked_array_values c))))
                                                                          (if (= 0 actual_len) (array nil_val nil nil ctx)
-                                                                             (dlet (((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x need_value)))
+                                                                             (dlet ( ((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x need_value)))
                                                                                                                                          (array (cons v a) (or (mif err err false) (mif e e false) (mif c (str "got code " c) false)) ctx))) (array (array) nil ctx) (.marked_array_values c)))
                                                                                    ) (mif err (array nil nil (str err ", from an array value compile " (str_strip c)) ctx) (dlet (
                                                                                     ((datasi funcs memo env pectx) ctx)
@@ -3437,6 +3438,7 @@
 
                                                         ((datasi funcs memo env pectx) ctx)
                                                         (hit_recursion (= 'RECURSE_FAIL (get-value-or-false memo (.hash c))))
+                                                        ;(_ (true_print "hit recursion? " hit_recursion))
 
                                                         (compile_params (lambda (unval_and_eval ctx params)
                                                                 (foldr (dlambda (x (a err ctx)) (dlet (
@@ -3473,21 +3475,40 @@
                                                         (num_params (- (len func_param_values) 1))
                                                         (params (slice func_param_values 1 -1))
                                                         (func_value (idx func_param_values 0))
-                                                        ((param_codes err ctx) (compile_params false ctx params))
 
                                                         (wrap_level (if (or (comb? func_value) (prim_comb? func_value)) (.any_comb_wrap_level func_value) nil))
                                                         ; I don't think it makes any sense for a function literal to have wrap > 0
                                                         (_ (if (and (!= nil wrap_level) (> wrap_level 0)) (error "call to function literal has wrap >0")))
 
-                                                        ;; Insert test for the function being a constant to inline
-                                                        ;; Namely, vcond
+                                                        ;; Test for the function being a constant to inline
+                                                        ;; Namely, vcond (also veval!)
                                                         ) (cond
-                                                            ((!= nil err)      (array nil nil (str err " from function params (non-unval-evaled) in call " (str_strip c)) ctx))
+                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'veval)) (dlet (
+
+                            (_ (if (!= 2 (len params)) (error "call to veval has != 2 params!")))
+                            ((datasi funcs memo env pectx) ctx)
+                            ((val code err (datasi funcs memo ienv pectx)) (compile-inner (array datasi funcs memo (idx params 1) pectx) (idx params 0) false))
+                            (ctx (array datasi funcs memo env pectx))
+                            ; If it's actual code, we have to set and reset s_env
+                            ((code env_err ctx) (mif code (dlet (
+                                                              ((env_val env_code env_err ctx) (compile-inner ctx (idx params 1) false))
+                                                              (full_code (concat (local.get '$s_env)
+                                                                                 (local.set '$s_env (mif env_val (i64.const env_val) env_code))
+                                                                                 code
+                                                                                 (local.set '$tmp)
+                                                                                 (local.set '$s_env)
+                                                                                 (local.get '$tmp)))
+                                                              ) (array full_code env_err ctx))
+                                                           (array code nil ctx)))
+
+                                                                                                                                         ) (array val code (mif err err env_err) ctx)))
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'vcond))
-                                                                                        (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
                                                                                                                (dlet (
                                                                                                                 ((datasi funcs memo env pectx) ctx)
-                                                                                                               ) (array nil ((rec-lambda recurse (codes i) (cond
+                                                                                                                ((param_codes err ctx) (compile_params false ctx params))
+                                                                                                               )
+                                                                                        (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
+                                                                                                                     (array nil ((rec-lambda recurse (codes i) (cond
                                                                                                                         ((< i (- (len codes) 1)) (_if '_cond_flat '(result i64)
                                                                                                                                                     (truthy_test (idx codes i))
                                                                                                                                                     (then (idx codes (+ i 1)))
@@ -3497,6 +3518,7 @@
                                                                                                                         (true                    (unreachable))
                                                                                                                     )) param_codes 0) err ctx))))
                                                             (true (dlet (
+                                                                ((param_codes first_params_err ctx) (compile_params false ctx params))
                                                                 ((func_val func_code func_err ctx) (compile-inner ctx func_value false))
                                                                 ;(_ (print_strip "func val " func_val " func code " func_code " func err " func_err " param_codes " param_codes " err " err " from " func_value))
                                                                 (func_code (mif func_val (i64.const func_val) func_code))
@@ -3527,6 +3549,7 @@
                                                                                                  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                                                                                                  (mif err (concat (call '$print (i64.const bad_not_vau_msg_val))
                                                                                                                   (call '$print (i64.const bad_unval_params_msg_val))
+                                                                                                                  (call '$print (i64.shl (local.get '$tmp) (i64.const 1)))
                                                                                                                   (unreachable))
                                                                                                           (concat
                                                                                                               (local.get '$tmp) ; saving ito restore it
@@ -3561,7 +3584,7 @@
                                                                                     ;func_idx
                                                                                     (i32.wrap_i64 (i64.shr_u (local.get '$tmp) (i64.const 35)))
                                                                                 )))
-                                                                ) (array nil result_code func_err ctx)))
+                                                                ) (array nil result_code (mif func_err func_err first_params_err) ctx)))
                                                         ))))))
 
                     ((marked_env? c) (or (get_passthrough (.hash c) ctx) (dlet ((e (.env_marked c))
@@ -3590,7 +3613,6 @@
                                                                                                                                        (array (cons kv ka) (cons vv va) ctx)))))
                                                                   (array (array) (array) ctx)
                                                                   (slice e 0 -2)))
-
                                             ((uv ucode err ctx) (mif (idx e -1) (compile-inner ctx (idx e -1) need_value)
                                                                                 (array nil_val nil nil ctx)))
                                             ) (mif (or (= false kvs) (= nil uv) (!= nil err)) (begin (print_strip "kvs " kvs " vvs " vvs " uv " uv " or err " err " based off of " c) (if need_value (array nil nil (str "had to generate env access (course " need_value ") for " (str_strip c) "vvs is " vvs " err was " err) ctx) (generate_env_access ctx (.marked_env_idx c) (str " vvs " vvs " uv " uv " or err " err " based off of " (str_strip c)))))
@@ -3651,7 +3673,7 @@
                                           ((= 'vapply        (.prim_comb_sym c))  (array (bor (<< (- k_vapply dyn_start)        35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'lapply        (.prim_comb_sym c))  (array (bor (<< (- k_lapply dyn_start)        35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'wrap          (.prim_comb_sym c))  (array (bor (<< (- k_wrap dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
-                                          (true                                   (error (str "Can't compile prim comb " (.prim_comb_sym c) " right now")))))
+                                                                                         (error (str "Can't compile prim comb " (.prim_comb_sym c) " right now"))))
 
 
 
@@ -4058,7 +4080,7 @@
         (print "zip " (zip '(1 2 3) '(4 5 6) '(7 8 9)))
 
         (print (run_partial_eval_test "(+ 1 2)"))
-        (print) (print)
+        ;(print) (print)
         (print (run_partial_eval_test "(cond false 1 true 2)"))
         (print (run_partial_eval_test "(log 1)"))
         (print (run_partial_eval_test "((vau (x) (+ x 1)) 2)"))
@@ -4391,13 +4413,23 @@
     ) void)))
 
     (run-compiler (lambda ()
-        (write_file "./csc_out.wasm" (compile (partial_eval (read-string (slurp "to_compile.kp")))))
+      (let* (
+            (_ (true_print "reading in!"))
+            (read_in    (read-string (slurp "to_compile.kp")))
+            (_ (true_print "read in, now evaluating"))
+            (evaled     (partial_eval read_in))
+            (_ (true_print "done partialy evaling, now compiling"))
+            (bytes      (compile evaled))
+            (_ (true_print "compiled, writng out"))
+            (_          (write_file "./csc_out.wasm" bytes))
+            (_ (true_print "written out"))
+        ) (void))
     ))
 
 )
    (begin
-       ; (test-most)
-       ; (single-test)
+       ;(test-most)
+       ;(single-test)
        (run-compiler)
        (profile-dump-html)
        ;(profile-dump-list)

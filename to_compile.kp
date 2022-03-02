@@ -126,6 +126,20 @@
         rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
 
 
+
+        foldl (let (helper (rec-lambda recurse (f z vs i) (if (= i (len (idx vs 0))) z
+                                                                           (recurse f (lapply f (cons z (map (lambda (x) (idx x i)) vs))) vs (+ i 1)))))
+                   (lambda (f z & vs) (helper f z vs 0)))
+        foldr (let (helper (rec-lambda recurse (f z vs i) (if (= i (len (idx vs 0))) z
+                                                                           (lapply f (cons (recurse f z vs (+ i 1)) (map (lambda (x) (idx x i)) vs))))))
+                   (lambda (f z & vs) (helper f z vs 0)))
+        reverse (lambda (x) (foldl (lambda (acc i) (cons i acc)) (array) x))
+        zip (lambda (& xs) (lapply foldr (concat (array (lambda (a & ys) (cons ys a)) (array)) xs)))
+
+
+
+
+
          test0 (map        (lambda (x)   (+ x 1))   (array 1 2))
          test1 (map_i      (lambda (i x) (+ x i 1)) (array 1 2))
          test2 (filter_i   (lambda (i x) (> i 0))   (array 1 2))
@@ -138,6 +152,8 @@
                                              true    (* n (recurse (- n 1))))) 5)
          test8 ((lambda (a b c) (+ a b c)) 1 13 14)
          test9 ((lambda (a (b c)) (+ a b c)) 1 (array 13 14))
+         test10 (foldl + 0 (array 1 2 3 4 1337))
+
          ;monad   (array 'open  3 "test_self_out" (lambda (fd code)
          ;        (array 'write fd "wabcdefghijklmnopqrstuvwx"   (lambda (written code)
          ;        (array 'exit  (if (= 0 written) 12 14))))))
@@ -152,7 +168,13 @@
          ;monad (array 'write  1 "test_self_out2" (vau (written code) (flat_map (lambda (x) (array 1 x 2)) (array written code))))
          ;monad (array 'write  1 "test_self_out2" (vau (written code) (flat_map_i (lambda (i x) (array i x 2)) (array written code))))
          ;monad (array 'write  1 "test_self_out2" (vau (written code) (let ( (a b) (array written code) c (+ a b test8 test9)) c)))
-         monad (array 'write  1 "test_self_out2" (vau (written code) ((lambda (a (b c)) (+ a b c)) 1 (array written code))))
+         ;monad (array 'write  1 "test_self_out2" (vau (written code) ((lambda (a (b c)) (+ a b c)) 1 (array written code))))
+
+
+         ;monad (array 'write  1 "test_self_out2" (vau (written code) test10))
+         monad (array 'write  1 "test_self_out2" (vau (written code) (foldl + 0 (array written code 1337))))
+
+         ;monad (array 'write  1 "test_self_out2" (vau (written code) 7))
  )
  monad
  )
