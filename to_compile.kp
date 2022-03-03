@@ -53,8 +53,6 @@
                     (helper f l (array) 0)))
         filter (lambda (f l) (filter_i (lambda (i x) (f x)) l))
 
-        not (lambda (x) (if x false true))
-
         ; Huge thanks to Oleg Kiselyov for his fantastic website
         ; http://okmij.org/ftp/Computation/fixed-point-combinators.html
         Y* (lambda (& l)
@@ -125,6 +123,17 @@
         ; and rec-lambda - yes it's the same definition again
         rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
 
+        nil (array)
+        not (lambda (x) (if x false true))
+        or  (let (macro_helper (rec-lambda recurse (bs i) (cond (= i       (len bs)) false
+                                                                (= (+ 1 i) (len bs)) (idx bs i)
+                                                                true       (array let (array 'tmp (idx bs i)) (array if 'tmp 'tmp (recurse bs (+ i 1)))))))
+                 (vau se (& bs) (eval (macro_helper bs 0) se)))
+        and (let (macro_helper (rec-lambda recurse (bs i) (cond (= i       (len bs)) true
+                                                                (= (+ 1 i) (len bs)) (idx bs i)
+                                                                true       (array let (array 'tmp (idx bs i)) (array if 'tmp (recurse bs (+ i 1)) 'tmp)))))
+                 (vau se (& bs) (eval (macro_helper bs 0) se)))
+
 
 
         foldl (let (helper (rec-lambda recurse (f z vs i) (if (= i (len (idx vs 0))) z
@@ -142,7 +151,6 @@
         test7 ((rec-lambda recurse (n) (cond (= 0 n) 1
                                             true    (* n (recurse (- n 1))))) 5)
 
-        nil (array)
 
         cond (vau se (& inners) (vapply cond (lapply concat inners) se))
 
@@ -210,7 +218,7 @@
          monad (array 'write  1 "test_self_out2" (vau (written code) (zip (array 1 2 3) (array written code 1337))))
 
 
-         test17 (dlet ( (a 1) (b 2) ((c d) (array 3 4)) ) (+ a b c d))
+         ;test17 (dlet ( (a 1) (b 2) ((c d) (array 3 4)) ) (+ a b c d))
 
          ;monad (array 'write  1 "test_self_out2" (vau (written code) test17))
          ;monad (array 'write  1 "test_self_out2" (vau (written code) (+ test7 test18)))
@@ -280,13 +288,13 @@
     (needed_for_progress (rec-lambda needed_for_progress (x) (cond ((marked_array? x)       (.marked_array_needed_for_progress  x))
                                                                    ((marked_symbol? x)      (array (.marked_symbol_needed_for_progress x) nil))
                                                                    ((marked_env? x)         (array (.marked_env_needed_for_progress    x) nil))
-                                                                  ;((comb? x)               (dlet ((id (.comb_id x))
-                                                                  ;                                (body_needed (idx (needed_for_progress (.comb_body x)) 0))
-                                                                  ;                                (se_needed   (idx (needed_for_progress (.comb_env  x)) 0)))
-                                                                  ;                             (if (or (= true body_needed) (= true se_needed)) (array true nil)
-                                                                  ;                                     (array (foldl (lambda (a xi) (if (or (= id xi) (in_array xi a)) a (cons xi a)))
-                                                                  ;                                            (array) (concat body_needed se_needed)) nil)
-                                                                  ;                             )))
+                                                                   ((comb? x)               (dlet ((id (.comb_id x))
+                                                                                                   (body_needed (idx (needed_for_progress (.comb_body x)) 0))
+                                                                                                   (se_needed   (idx (needed_for_progress (.comb_env  x)) 0)))
+                                                                                                (if (or (= true body_needed) (= true se_needed)) (array true nil)
+                                                                                                        (array (foldl (lambda (a xi) (if (or (= id xi) (in_array xi a)) a (cons xi a)))
+                                                                                                               (array) (concat body_needed se_needed)) nil)
+                                                                                                )))
                                                                    ((prim_comb? x)          (array nil nil))
                                                                    ((val? x)                (array nil nil))
                                                                    (true                    (error (str "what is this? in need for progress" x))))))
@@ -296,7 +304,10 @@
 
 
 
-    (monad (array 'write  1 "test_self_out2" (vau (written code) (dlet ((_ (print 1234))) (in_array 0 (array written code))))))
+    (test17 (or false 1 "a" true))
+    (test18 (and 1 "a" nil true))
+    (monad (array 'write  1 "test_self_out2" (vau (written code) (array (or written code) test17 (or false nil 0) (and written code) test18 (and nil 0 false)))))
+    ;(monad (array 'write  1 "test_self_out2" (vau (written code) (dlet ((_ (print 1234))) (in_array 0 (array written code))))))
 
  ) monad)
  )
