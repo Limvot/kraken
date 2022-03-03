@@ -59,6 +59,8 @@
                         ((eof-object? x) '())
                                 (#t (begin (cons x (loop (read-char input-port)))))))))))
 
+(define speed_hack #t)
+
 (let* (
       (lapply apply)
       (= equal?)
@@ -136,9 +138,10 @@
                                                                (#t      (append (f (car l)) (recurse f (cdr l)))))
                                               )) f l)))
 
+      (str (if speed_hack (lambda args "") str))
       (print (lambda args (print (apply str args))))
       (true_print print)
-      (print (lambda x 0))
+      (print (if speed_hack (lambda x 0) print))
       ;(true_print print)
       (println print)
 
@@ -146,7 +149,7 @@
 
 
     ; Ok, actual definitions
-    (in_array (let ((helper (rec-lambda recurse (x a i) (cond ((= i (len a))   false)
+    (in_array (dlet ((helper (rec-lambda recurse (x a i) (cond ((= i (len a))   false)
                                                               ((= x (idx a i)) true)
                                                               (true            (recurse x a (+ i 1)))))))
                    (lambda (x a) (helper x a 0))))
@@ -225,7 +228,7 @@
     (hash_array       (lambda (is_val attempted a) (foldl combine_hash (if is_val 17 (cond ((int? attempted) (combine_hash attempted 19))
                                                                                             (attempted       61)
                                                                                             (true            107))) (map .hash a))))
-    (hash_env         (lambda (progress_idxs dbi arrs) (combine_hash (mif dbi (hash_num dbi) 59) (let* (
+    (hash_env         (lambda (progress_idxs dbi arrs) (combine_hash (mif dbi (hash_num dbi) 59) (dlet (
                                                                 ;(_ (begin (true_print "pre slice " (slice arrs 0 -2)) 0))
                                                                 ;(_ (begin (true_print "about to do a fold " progress_idxs " and " (slice arrs 0 -2)) 0))
                                                                 (inner_hash (foldl (dlambda (c (s v)) (combine_hash c (combine_hash (hash_symbol true s) (.hash v))))
@@ -329,7 +332,7 @@
 
     (indent_str (rec-lambda recurse (i) (mif (= i 0) ""
                                                    (str "   " (recurse (- i 1))))))
-    (indent_str (lambda (i) ""))
+    (indent_str (if speed_hack (lambda (i) "") indent_str))
 
     (str_strip (lambda args (apply str (concat (slice args 0 -2) (array (idx ((rec-lambda recurse (x done_envs)
         (cond ((= nil x)          (array "<nil>" done_envs))
@@ -364,7 +367,7 @@
         )
     ) (idx args -1) (array)) 0))))))
     (true_str_strip str_strip)
-    ;(str_strip (lambda args 0))
+    (str_strip (if speed_hack (lambda args 0) str_strip))
     ;(true_str_strip str_strip)
     (print_strip (lambda args (println (apply str_strip args))))
 
@@ -374,9 +377,9 @@
                                                                            (true                                               (recurse dict key (+ i 1) fail success)))))
     (env-lookup (lambda (env key) (env-lookup-helper (.env_marked env) key 0 (lambda () (error (str key " not found in env " (str_strip env)))) (lambda (x) x))))
 
-    (strip (let ((helper (rec-lambda recurse (x need_value)
+    (strip (dlet ((helper (rec-lambda recurse (x need_value)
         (cond ((val? x)           (.val x))
-              ((marked_array? x)  (let ((stripped_values (map (lambda (x) (recurse x need_value)) (.marked_array_values x))))
+              ((marked_array? x)  (dlet ((stripped_values (map (lambda (x) (recurse x need_value)) (.marked_array_values x))))
                                       (mif (.marked_array_is_val x) stripped_values
                                                                     (error (str "needed value for this strip but got" x)))))
               ((marked_symbol? x) (mif (.marked_symbol_is_val x) (.marked_symbol_value x)
@@ -388,7 +391,7 @@
               ((marked_env? x)    (error "got env for strip, won't work"))
               (true               (error (str "some other strip? " x)))
         )
-    )))  (lambda (x) (let* (
+    )))  (lambda (x) (dlet (
                             ;(_ (print_strip "stripping: " x))
                             (r (helper x true))
                             ;(_ (println "result of strip " r))
@@ -575,9 +578,9 @@
               )
         (if (or force hashes_now progress_now)
         (cond   ((val? x)            (array pectx nil x))
-                ((marked_env? x)     (let ((dbi (.marked_env_idx x)))
+                ((marked_env? x)     (dlet ((dbi (.marked_env_idx x)))
                                           ; compiler calls with empty env stack
-                                          (mif dbi (let* ( (new_env ((rec-lambda rec (i) (cond ((= i (len env_stack))                           nil)
+                                          (mif dbi (dlet ( (new_env ((rec-lambda rec (i) (cond ((= i (len env_stack))                           nil)
                                                                                                ((= dbi (.marked_env_idx (idx env_stack i)))     (idx env_stack i))
                                                                                                (true                                            (rec (+ i 1)))))
                                                                      0))
@@ -711,12 +714,12 @@
                (drop_redundent_veval partial_eval_helper x env env_stack pectx indent))))
     ))
 
-    (needs_params_val_lambda (lambda (f_sym actual_function) (let* (
+    (needs_params_val_lambda (lambda (f_sym actual_function) (dlet (
         (handler (rec-lambda recurse (only_head de env_stack pectx params indent)
                                      (array pectx nil (mark false (apply actual_function (map strip params))))))
         ) (array f_sym (marked_prim_comb handler f_sym 1 false)))))
 
-    (give_up_eval_params (lambda (f_sym actual_function) (let* (
+    (give_up_eval_params (lambda (f_sym actual_function) (dlet (
         (handler (lambda (only_head de env_stack pectx params indent) (array pectx 'LATER nil)))
         ) (array f_sym (marked_prim_comb handler f_sym 1 false)))))
 
@@ -803,7 +806,6 @@
         (array 'cond (marked_prim_comb ((rec-lambda recurse (already_stripped) (lambda (only_head de env_stack pectx params indent)
             (mif (!= 0 (% (len params) 2)) (array pectx (str "partial eval cond with odd params " params) nil)
                 (dlet (
-                    ;(_ (error "This will have to evaluate the other sides? Also, if we figure out veval re-val, maybe this can collapse back into cond"))
                     (eval_helper    (lambda (to_eval pectx)
                                        (dlet (((ok unvald) (if already_stripped (array true to_eval)
                                                                                 (try_unval to_eval (lambda (_) nil)))))
@@ -950,7 +952,7 @@
 
     ; Note that the shift must be arithmatic
     (encode_LEB128 (rec-lambda recurse (x)
-        (let ((b (band #x7F x))
+        (dlet ((b (band #x7F x))
               (v (>> x 7)))
 
             (cond ((or (and (= v 0) (= (band b #x40) 0)) (and (= v -1) (!= (band b #x40) 0))) (array b))
@@ -963,7 +965,7 @@
     (encode_name (lambda (name)
         (encode_vector (lambda (x) (array x)) (map char->integer (string->list name)))
     ))
-    (hex_digit (lambda (digit) (let ((d (char->integer digit)))
+    (hex_digit (lambda (digit) (dlet ((d (char->integer digit)))
                                     (cond ((< d #x3A) (- d #x30))
                                           ((< d #x47) (- d #x37))
                                           (true       (- d #x57))))))
@@ -1003,7 +1005,7 @@
                                        ((= t 'externref) (array #x6F))
                                        (true             (error (str "Bad ref type " t))))))
     (encode_type_section (lambda (x)
-        (let (
+        (dlet (
             (encoded (encode_vector encode_function_type x))
         ) (concat (array #x01) (encode_LEB128 (len encoded)) encoded ))
     ))
@@ -1020,7 +1022,7 @@
         )
     ))
     (encode_import_section (lambda (x)
-        (let (
+        (dlet (
             (encoded (encode_vector encode_import x))
         ) (concat (array #x02) (encode_LEB128 (len encoded)) encoded ))
     ))
@@ -1028,12 +1030,12 @@
     (encode_table_type (lambda (t) (concat (encode_ref_type (idx t 0)) (encode_limits (idx t 1)))))
 
     (encode_table_section (lambda (x)
-        (let (
+        (dlet (
             (encoded (encode_vector encode_table_type x))
         ) (concat (array #x04) (encode_LEB128 (len encoded)) encoded ))
     ))
     (encode_memory_section (lambda (x)
-        (let (
+        (dlet (
             (encoded (encode_vector encode_limits x))
         ) (concat (array #x05) (encode_LEB128 (len encoded)) encoded ))
     ))
@@ -1050,7 +1052,7 @@
         ))
     ))
     (encode_export_section (lambda (x)
-        (let (
+        (dlet (
             ;(_ (print "encoding element " x))
             (encoded (encode_vector encode_export x))
             ;(_ (print "donex"))
@@ -1059,12 +1061,12 @@
 
     (encode_start_section (lambda (x)
         (cond ((= 0 (len x)) (array))
-              ((= 1 (len x)) (let ((encoded (encode_LEB128 (idx x 0)))) (concat (array #x08) (encode_LEB128 (len encoded)) encoded )))
+              ((= 1 (len x)) (dlet ((encoded (encode_LEB128 (idx x 0)))) (concat (array #x08) (encode_LEB128 (len encoded)) encoded )))
               (true          (error (str "bad lenbgth for start section " (len x) " was " x))))
     ))
 
     (encode_function_section (lambda (x)
-        (let* (                                     ; nil functions are placeholders for improted functions
+        (dlet (                                     ; nil functions are placeholders for improted functions
             ;(_ (println "encoding function section " x))
             (filtered (filter (lambda (i) (!= nil i)) x))
             ;(_ (println "post filtered " filtered))
@@ -1077,7 +1079,7 @@
                                    )))
 
     (encode_ins (rec-lambda recurse (ins)
-        (let (
+        (dlet (
             (op (idx ins 0))
         ) (cond ((= op 'unreachable)            (array #x00))
                 ((= op 'nop)                    (array #x01))
@@ -1194,7 +1196,7 @@
         ) (concat (encode_LEB128 (len code_bytes)) code_bytes))
     ))
     (encode_code_section (lambda (x)
-        (let (
+        (dlet (
             (encoded (encode_vector encode_code x))
         ) (concat (array #x0A) (encode_LEB128 (len encoded)) encoded ))
     ))
@@ -1203,7 +1205,7 @@
                                                                              ((= (idx t 1) 'mut)   (array #x01))
                                                                              (true                 (error (str "bad mutablity " (idx t 1))))))))
     (encode_global_section (lambda (global_section)
-        (let (
+        (dlet (
             ;(_ (print "encoding exprs " global_section))
             (encoded (encode_vector (lambda (x) (concat (encode_global_type (idx x 0)) (encode_expr (idx x 1)))) global_section))
         ) (concat (array #x06) (encode_LEB128 (len encoded)) encoded ))
@@ -1212,7 +1214,7 @@
     ; only supporting one type of element section for now, active funcrefs with offset
     (encode_element (lambda (x) (concat (array #x00) (encode_expr (idx x 0)) (encode_vector encode_LEB128 (idx x 1)))))
     (encode_element_section (lambda (x)
-        (let (
+        (dlet (
             ;(_ (print "encoding element " x))
             (encoded (encode_vector encode_element x))
             ;(_ (print "donex"))
@@ -1225,7 +1227,7 @@
                                       ((= 3 (len data)) (concat (array #x02) (encode_LEB128 (idx data 0)) (encode_expr (idx data 1)) (encode_bytes (idx data 2))))
                                       (true             (error (str "bad data" data))))))
     (encode_data_section (lambda (x)
-        (let (
+        (dlet (
             (encoded (encode_vector encode_data x))
         ) (concat (array #x0B) (encode_LEB128 (len encoded)) encoded ))
     ))
@@ -1248,12 +1250,12 @@
             (elem     (encode_element_section element_section))
             (code     (encode_code_section code_section))
             (data     (encode_data_section data_section))
-            ;data_count (let (body (encode_LEB128 (len data_section))) (concat (array #x0C) (encode_LEB128 (len body)) body))
+            ;data_count (dlet (body (encode_LEB128 (len data_section))) (concat (array #x0C) (encode_LEB128 (len body)) body))
             (data_count (array))
         ) (concat magic version type import function table memory global export data_count start elem code data))
     ))
 
-    (module (lambda args (let (
+    (module (lambda args (dlet (
         (helper (rec-lambda recurse (entries i name_dict type import function table memory global export start elem code data)
             (if (= i (len entries)) (array  type import function table memory global export start elem code data)
                 (dlet (
@@ -1428,7 +1430,7 @@
 
     (memory.copy    (lambda flatten  (concat (apply concat flatten)      (array (lambda (name_dict) (array 'memory.copy))))))
 
-    (block_like_body (lambda (name_dict name inner) (let* (
+    (block_like_body (lambda (name_dict name inner) (dlet (
                                                     (new_depth (+ 1 (get-value name_dict 'depth)))
                                                     (inner_env (put (put name_dict name new_depth) 'depth new_depth))
                                                 ) (flat_map (lambda (inss) (map (lambda (ins) (ins inner_env)) inss)) inner))))
@@ -1549,7 +1551,7 @@
               (nil_val        #b0101)
               (true_val  #b000111001)
               (false_val #b000011001)
-              (alloc_data (dlambda (d (watermark datas)) (cond ((str? d)      (let ((size (+ 8 (band (len d) -8))))
+              (alloc_data (dlambda (d (watermark datas)) (cond ((str? d)      (dlet ((size (+ 8 (band (len d) -8))))
                                                                                    (array (+ watermark 8)
                                                                                           (len d)
                                                                                           (array (+ watermark 8 size)
@@ -3359,7 +3361,7 @@
                 (unreachable)
               ))))
 
-              (get_passthrough (dlambda (hash (datasi funcs memo env pectx)) (let ((r (get-value-or-false memo hash)))
+              (get_passthrough (dlambda (hash (datasi funcs memo env pectx)) (dlet ((r (get-value-or-false memo hash)))
                                                                      (if r (array r nil nil (array datasi funcs memo env pectx)) #f))))
 
               ; This is the second run at this, and is a little interesting
@@ -3371,7 +3373,7 @@
               ; ctx is (datasi funcs memo env pectx)
               ; return is (value? code? error? (datasi funcs memo env pectx))
               (compile-inner (rec-lambda compile-inner (ctx c need_value) (cond
-                    ((val? c)   (let ((v (.val c)))
+                    ((val? c)   (dlet ((v (.val c)))
                                      (cond ((int? v)    (array  (<< v 1) nil nil ctx))
                                            ((= true v)  (array  true_val nil nil ctx))
                                            ((= false v) (array false_val nil nil ctx))
@@ -3416,7 +3418,7 @@
                                                             (result (mif val (call '$dup val)))
                                                           ) (array nil result err (array datasi funcs memo env pectx))))))
                    ((marked_array? c) (if (.marked_array_is_val c) (or (get_passthrough (.hash c) ctx)
-                                                                       (let ((actual_len (len (.marked_array_values c))))
+                                                                       (dlet ((actual_len (len (.marked_array_values c))))
                                                                          (if (= 0 actual_len) (array nil_val nil nil ctx)
                                                                              (dlet ( ((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x need_value)))
                                                                                                                                          (array (cons v a) (or (mif err err false) (mif e e false) (mif c (str "got code " c) false)) ctx))) (array (array) nil ctx) (.marked_array_values c)))
@@ -4197,7 +4199,7 @@
         (print "ok, hexify of 10 is " (i64_le_hexify 10))
         (print "ok, hexify of 15 is " (i64_le_hexify 15))
         (print "ok, hexfy of 15 << 60 is " (i64_le_hexify (<< 15 60)))
-        (let* (
+        (dlet (
             ;(output1 (wasm_to_binary (module)))
             ;(output2 (wasm_to_binary (module
             ;      (import "wasi_unstable" "path_open"
@@ -4412,10 +4414,10 @@
         (_ (write_file "./csc_out.wasm" output3))
     ) void)))
 
-    (run-compiler (lambda ()
-      (let* (
+    (run-compiler (lambda (f)
+      (dlet (
             (_ (true_print "reading in!"))
-            (read_in    (read-string (slurp "to_compile.kp")))
+            (read_in    (read-string (slurp f)))
             (_ (true_print "read in, now evaluating"))
             (evaled     (partial_eval read_in))
             (_ (true_print "done partialy evaling, now compiling"))
@@ -4430,7 +4432,8 @@
    (begin
        ;(test-most)
        ;(single-test)
-       (run-compiler)
+       ;(run-compiler "small_test.kp")
+       (run-compiler "to_compile.kp")
        (profile-dump-html)
        ;(profile-dump-list)
    )

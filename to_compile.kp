@@ -136,23 +136,49 @@
         reverse (lambda (x) (foldl (lambda (acc i) (cons i acc)) (array) x))
         zip (lambda (& xs) (lapply foldr (concat (array (lambda (a & ys) (cons ys a)) (array)) xs)))
 
+        id (lambda (x) x)
+        dlet (vau se (inners body) (vapply let (array (lapply concat inners) body) se))
+
+        test7 ((rec-lambda recurse (n) (cond (= 0 n) 1
+                                            true    (* n (recurse (- n 1))))) 5)
+
+        nil (array)
+
+        cond (vau se (& inners) (vapply cond (lapply concat inners) se))
+
+
+        test18 ((rec-lambda recurse (n) (cond ((= 0 n) 1)
+                                              (true    (* n (recurse (- n 1)))))) 5)
 
 
 
+         ;test0 (map        (lambda (x)   (+ x 1))   (array 1 2))
+         ;test1 (map_i      (lambda (i x) (+ x i 1)) (array 1 2))
+         ;test2 (filter_i   (lambda (i x) (> i 0))   (array 1 2))
+         ;test2 (filter     (lambda (  x) (> x 1))   (array 1 2))
+         ;test3 (not 1)
+         ;test4 (flat_map   (lambda (x) (array 1 x 2))  (array 1 2))
+         ;test5 (flat_map_i (lambda (i x) (array i x 2))  (array 1 2))
+         ;test6 (let (  (a b) (array 1 2) c (+ a b) ) c)
+         ;test8 ((lambda (a b c) (+ a b c)) 1 13 14)
+         ;test9 ((lambda (a (b c)) (+ a b c)) 1 (array 13 14))
 
-         test0 (map        (lambda (x)   (+ x 1))   (array 1 2))
-         test1 (map_i      (lambda (i x) (+ x i 1)) (array 1 2))
-         test2 (filter_i   (lambda (i x) (> i 0))   (array 1 2))
-         test2 (filter     (lambda (  x) (> x 1))   (array 1 2))
-         test3 (not 1)
-         test4 (flat_map   (lambda (x) (array 1 x 2))  (array 1 2))
-         test5 (flat_map_i (lambda (i x) (array i x 2))  (array 1 2))
-         test6 (let (  (a b) (array 1 2) c (+ a b) ) c)
-         test7 ((rec-lambda recurse (n) (cond (= 0 n) 1
-                                             true    (* n (recurse (- n 1))))) 5)
-         test8 ((lambda (a b c) (+ a b c)) 1 13 14)
-         test9 ((lambda (a (b c)) (+ a b c)) 1 (array 13 14))
-         test10 (foldl + 0 (array 1 2 3 4 1337))
+         ;test10 (foldl + 0 (array 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 13371 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337))
+         ;test11 (foldl + 0 (array 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 13371 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337))
+         ;test12 (foldl + 0 (array 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 13371 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337))
+         ;test13 (foldl + 0 (array 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 13371 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337))
+
+         ;test10 (foldl + 0 (array 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337))
+         ;test11 (foldl + 0 (array 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337))
+
+         ;test10 (foldl + 0 (array 1 2 3 4 1337 6 4 4 4 1337 1 2 3 4 1337 6 4 4 4 1337))
+         ;test11 (foldl + 0 (array 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337))
+         ;test12 (foldl + 0 (array 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337))
+         ;test13 (foldl + 0 (array 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337))
+
+         ;test14 (foldr + 0 (array 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337))
+         ;test15 (reverse (array 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337))
+         ;test16 (zip (array 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337 1 2 3 4 1337) (array 2 3 4 5 1338 2 3 4 5 1338 2 3 4 5 1338 2 3 4 5 1338))
 
          ;monad   (array 'open  3 "test_self_out" (lambda (fd code)
          ;        (array 'write fd "wabcdefghijklmnopqrstuvwx"   (lambda (written code)
@@ -172,11 +198,107 @@
 
 
          ;monad (array 'write  1 "test_self_out2" (vau (written code) test10))
-         monad (array 'write  1 "test_self_out2" (vau (written code) (foldl + 0 (array written code 1337))))
+
+         ;monad (array 'write  1 "test_self_out2" (vau (written code) (foldl + 0 (array written code 1337))))
+         ;monad (array 'write  1 "test_self_out2" (vau (written code) test14))
+         ;monad (array 'write  1 "test_self_out2" (vau (written code) (foldr + 0 (array written code 1337))))
+
+         ;monad (array 'write  1 "test_self_out2" (vau (written code) test15))
+         ;monad (array 'write  1 "test_self_out2" (vau (written code) (reverse (array written code 1337))))
+
+         ;monad (array 'write  1 "test_self_out2" (vau (written code) test16))
+         monad (array 'write  1 "test_self_out2" (vau (written code) (zip (array 1 2 3) (array written code 1337))))
+
+
+         test17 (dlet ( (a 1) (b 2) ((c d) (array 3 4)) ) (+ a b c d))
+
+         ;monad (array 'write  1 "test_self_out2" (vau (written code) test17))
+         ;monad (array 'write  1 "test_self_out2" (vau (written code) (+ test7 test18)))
 
          ;monad (array 'write  1 "test_self_out2" (vau (written code) 7))
+
+         print   log
+         println log
+
  )
- monad
+; monad
+ (dlet (
+    (in_array (dlet ((helper (rec-lambda recurse (x a i) (cond ((= i (len a))   false)
+                                                              ((= x (idx a i)) true)
+                                                              (true            (recurse x a (+ i 1)))))))
+                   (lambda (x a) (helper x a 0))))
+
+    (val?                               (lambda (x) (= 'val (idx x 0))))
+    (marked_array?                      (lambda (x) (= 'marked_array (idx x 0))))
+    (marked_symbol?                     (lambda (x) (= 'marked_symbol (idx x 0))))
+    (comb?                              (lambda (x) (= 'comb (idx x 0))))
+    (prim_comb?                         (lambda (x) (= 'prim_comb (idx x 0))))
+    (marked_env?                        (lambda (x) (= 'env (idx x 0))))
+
+    (.hash                              (lambda (x) (idx x 1)))
+
+    (.val                               (lambda (x) (idx x 2)))
+
+    (.marked_array_is_val               (lambda (x) (idx x 2)))
+    (.marked_array_is_attempted         (lambda (x) (idx x 3)))
+    (.marked_array_needed_for_progress  (lambda (x) (idx x 4)))
+    (.marked_array_values               (lambda (x) (idx x 5)))
+
+    (.marked_symbol_needed_for_progress (lambda (x) (idx x 2)))
+    (.marked_symbol_is_val              (lambda (x) (= nil (.marked_symbol_needed_for_progress x))))
+    (.marked_symbol_value               (lambda (x) (idx x 3)))
+    (.comb                              (lambda (x) (slice x 2 -1)))
+    (.comb_id                           (lambda (x) (idx x 3)))
+    (.comb_des                          (lambda (x) (idx x 4)))
+    (.comb_env                          (lambda (x) (idx x 5)))
+    (.comb_body                         (lambda (x) (idx x 8)))
+    (.comb_wrap_level                   (lambda (x) (idx x 2)))
+    (.prim_comb_sym                     (lambda (x) (idx x 3)))
+    (.prim_comb_handler                 (lambda (x) (idx x 2)))
+    (.prim_comb_wrap_level              (lambda (x) (idx x 4)))
+    (.prim_comb_val_head_ok             (lambda (x) (idx x 5)))
+    (.prim_comb                         (lambda (x) (slice x 2 -1)))
+
+    (.marked_env                        (lambda (x) (slice x 2 -1)))
+    (.marked_env_has_vals               (lambda (x) (idx x 2)))
+    (.marked_env_needed_for_progress    (lambda (x) (idx x 3)))
+    (.marked_env_idx                    (lambda (x) (idx x 4)))
+    (.marked_env_upper                  (lambda (x) (idx (idx x 5) -1)))
+    (.env_marked                        (lambda (x) (idx x 5)))
+    (marked_env_real?                   (lambda (x) (= nil (.marked_env_needed_for_progress x))))
+    (.any_comb_wrap_level               (lambda (x) (cond  ((prim_comb? x)   (.prim_comb_wrap_level x))
+                                                           ((comb? x)        (.comb_wrap_level x))
+                                                           (true             (error "bad .any_comb_level")))))
+
+    ; The actual needed_for_progress values are either
+    ; #t            - any eval will do something
+    ; nil           - is a value, no eval will do anything
+    ; (3 4 1...)    - list of env ids that would allow forward progress
+    ; But these are paired with another list of hashes that if you're not inside
+    ; of an evaluation of, then it could progress futher. These are all caused by
+    ; the infinite recursion stopper.
+    (needed_for_progress (rec-lambda needed_for_progress (x) (cond ((marked_array? x)       (.marked_array_needed_for_progress  x))
+                                                                   ((marked_symbol? x)      (array (.marked_symbol_needed_for_progress x) nil))
+                                                                   ((marked_env? x)         (array (.marked_env_needed_for_progress    x) nil))
+                                                                  ;((comb? x)               (dlet ((id (.comb_id x))
+                                                                  ;                                (body_needed (idx (needed_for_progress (.comb_body x)) 0))
+                                                                  ;                                (se_needed   (idx (needed_for_progress (.comb_env  x)) 0)))
+                                                                  ;                             (if (or (= true body_needed) (= true se_needed)) (array true nil)
+                                                                  ;                                     (array (foldl (lambda (a xi) (if (or (= id xi) (in_array xi a)) a (cons xi a)))
+                                                                  ;                                            (array) (concat body_needed se_needed)) nil)
+                                                                  ;                             )))
+                                                                   ((prim_comb? x)          (array nil nil))
+                                                                   ((val? x)                (array nil nil))
+                                                                   (true                    (error (str "what is this? in need for progress" x))))))
+    (needed_for_progress_slim (lambda (x) (idx (needed_for_progress x) 0)))
+
+
+
+
+
+    (monad (array 'write  1 "test_self_out2" (vau (written code) (dlet ((_ (print 1234))) (in_array 0 (array written code))))))
+
+ ) monad)
  )
  ;(array 'write  1 "test_self_out2" (vau (written code) 7))
 ; end of all lets
