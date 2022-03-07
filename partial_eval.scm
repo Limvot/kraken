@@ -88,6 +88,13 @@
       (<<   arithmetic-shift)
       (>>   (lambda (a b) (arithmetic-shift a (- b))))
 
+      (print (lambda args (print (apply str args))))
+      (str (if speed_hack (lambda args "") str))
+      (true_print print)
+      (print (if speed_hack (lambda x 0) print))
+      ;(true_print print)
+      (println print)
+
 
       (nil? (lambda (x) (= nil x)))
       (bool? (lambda (x) (or (= #t x) (= #f x))))
@@ -96,19 +103,61 @@
 
       (zip (lambda args (apply map list args)))
 
-      (empty_dict (array))
-      (put (lambda (m k v) (cons (array k v) m)))
       ;(my-alist-ref alist-ref)
-      (my-alist-ref (lambda (k d) ((rec-lambda recurse (d k i) (cond ((= (len d) i)           false)
-                                                                     ((= k (idx (idx d i) 0)) (array (idx (idx d i) 1)))
-                                                                     (true                    (recurse d k (+ 1 i)))))
-                                d k 0)))
-      (get-value (lambda (d k) (let ((result (my-alist-ref k d)))
-                                    (if (array? result) (idx result 0)
-                                                        (error (str "could not find " k " in " d))))))
-      (get-value-or-false (lambda (d k) (let ((result (my-alist-ref k d)))
-                                    (if (array? result) (idx result 0)
-                                                        false))))
+
+      (empty_dict-list (array))
+      (put-list (lambda (m k v) (cons (array k v) m)))
+      (get-list (lambda (d k) ((rec-lambda recurse (k d len_d i) (cond ((= len_d i)       false)
+                                                                  ((= k (idx (idx d i) 0)) (idx d i))
+                                                                  (true                    (recurse k d len_d (+ 1 i)))))
+                                k d (len d) 0)))
+
+
+      ;(combine_hash     (lambda (a b) (+ (* 37 a) b)))
+      (combine_hash     (lambda (a b) (bitwise-and #xFFFFFFFFFFFFFF (+ (* 37 a) b))))
+      (hash_bool        (lambda (b) (if b 2 3)))
+      (hash_num         (lambda (n) (combine_hash 5 n)))
+      (hash_string      (lambda (s) (foldl combine_hash 7  (map char->integer (string->list s)))))
+      ;(hash_string      (lambda (s) (foldl combine_hash 102233  (map char->integer (string->list s)))))
+
+      (empty_dict-tree nil)
+      (trans-key (lambda (k) (cond ((string? k) (cons (hash_string k) k))
+                                   ((symbol? k) (cons (hash_string (symbol->string k)) k))
+                                   (true        (cons k k)))))
+      (put-helper (rec-lambda put-helper (m k v) (cond ((nil? m)        (cons (list k v) (cons nil                       nil)))
+                                                       ((and (= (car k) (caaar m))
+                                                             (= (cdr k) (cdaar m)))      (cons (list k v) (cons (cadr m)                  (cddr m))))
+                                                       ((< (car k) (caaar m))            (cons (car m)    (cons (put-helper (cadr m) k v) (cddr m))))
+                                                       (true                             (cons (car m)    (cons (cadr m)                  (put-helper (cddr m) k v)))))))
+      (put-tree (lambda (m k v) (put-helper m (trans-key k) v)))
+      (get-helper (rec-lambda get-helper (m k) (cond ((nil? m)                     false)
+                                                     ((and (= (car k) (caaar m))
+                                                           (= (cdr k) (cdaar m)))  (car m))
+                                                     ((< (car k) (caaar m))        (get-helper (cadr m) k))
+                                                     (true                         (get-helper (cddr m) k)))))
+      (get-tree (lambda (m k) (get-helper m (trans-key k))))
+
+      ;(empty_dict empty_dict-list)
+      ;(put put-list)
+      ;(get get-list)
+      (empty_dict empty_dict-tree)
+      (put put-tree)
+      (get get-tree)
+
+      ;(empty_dict (list empty_dict-list empty_dict-tree))
+      ;(put (lambda (m k v) (list (put-list (idx m 0) k v) (put-tree (idx m 1) k v))))
+      ;(get (lambda (m k) (dlet (  ;(_ (true_print "doing a get " m " " k)) 
+      ;                            (list-result (get-list (idx m 0) k))
+      ;                            (tree-result (get-tree (idx m 1) k))
+      ;                            (_ (if (and (!= list-result tree-result) (!= (idx list-result 1) (idx tree-result 1))) (error "BAD GET " list-result " vs " tree-result)))
+      ;                            ) tree-result)))
+
+      (get-value (lambda (d k) (let ((result (get d k)))
+                                    (if (pair? result) (cadr result)
+                                                       (error (str "could not find " k " in " d))))))
+      (get-value-or-false (lambda (d k) (let ((result (get d k)))
+                                    (if (pair? result) (cadr result)
+                                                       false))))
 
       (% modulo)
       (int? integer?)
@@ -138,21 +187,12 @@
                                                                (#t      (append (f (car l)) (recurse f (cdr l)))))
                                               )) f l)))
 
-      (str (if speed_hack (lambda args "") str))
-      (print (lambda args (print (apply str args))))
-      (true_print print)
-      (print (if speed_hack (lambda x 0) print))
-      ;(true_print print)
-      (println print)
-
-
-
 
     ; Ok, actual definitions
-    (in_array (dlet ((helper (rec-lambda recurse (x a i) (cond ((= i (len a))   false)
-                                                              ((= x (idx a i)) true)
-                                                              (true            (recurse x a (+ i 1)))))))
-                   (lambda (x a) (helper x a 0))))
+    (in_array (dlet ((helper (rec-lambda recurse (x a len_a i) (cond ((= i len_a)     false)
+                                                                     ((= x (idx a i)) true)
+                                                                     (true            (recurse x a len_a (+ i 1)))))))
+                   (lambda (x a) (helper x a (len a) 0))))
     (array_item_union (lambda (a bi) (if (in_array bi a) a (cons bi a))))
     (array_union (lambda (a b) (foldl array_item_union a b)))
     (array_union_without (lambda (wo a b)
@@ -223,11 +263,6 @@
                                                                    ((val? x)                (array nil nil nil))
                                                                    (true                    (error (str "what is this? in need for progress" x))))))
     (needed_for_progress_slim (lambda (x) (idx (needed_for_progress x) 0)))
-
-    (combine_hash     (lambda (a b) (+ (* 37 a) b)))
-    (hash_bool        (lambda (b) (if b 2 3)))
-    (hash_num         (lambda (n) (combine_hash 5 n)))
-    (hash_string      (lambda (s) (foldl combine_hash 7  (map char->integer (string->list s)))))
     (hash_symbol      (lambda (progress_idxs s) (combine_hash (if (= true progress_idxs) 11 (foldl combine_hash 13 (map (lambda (x) (if (= true x) 13 (+ 1 x))) progress_idxs))) (hash_string (symbol->string s)))))
 
     (hash_array       (lambda (is_val attempted a) (foldl combine_hash (if is_val 17 (cond ((int? attempted) (combine_hash attempted 19))
@@ -439,8 +474,9 @@
                     (hash (.hash x))
                     ;(result (if (or (comb? x) (marked_env? x)) (alist-ref hash memo) false))
                     ;(result (if (or (marked_array? x) (marked_env? x)) (alist-ref hash memo) false))
-                    (result (if (marked_env? x) (my-alist-ref hash memo) false))
-                ) (if (array? result) (array memo (idx result 0)) (cond
+                    ;(result (if (marked_env? x) (my-alist-ref hash memo) false))
+                    (result (if (marked_env? x) (get memo hash) false))
+                ) (if (array? result) (array memo (idx result 1)) (cond
                       ((marked_symbol? x) (array memo false))
                       ((marked_array? x)  (dlet (
                                             (values (.marked_array_values x))
@@ -582,27 +618,28 @@
                (_ (print_strip (indent_str indent) "for_progress " for_progress ", for_progress_hashes " for_progress_hashes " for " x))
                ((env_counter memo) pectx)
                (hashes_now (foldl (lambda (a hash) (or a (= false (get-value-or-false memo hash)))) false for_progress_hashes))
-               (progress_now (or (= for_progress true)  ((rec-lambda rr (i) (if (= i (len for_progress)) false
+               (len_for_progress (if (!= true for_progress) (len for_progress) 0))
+               (progress_now (or (= for_progress true)  ((rec-lambda rr (i len_env_stack) (if (= i len_for_progress) false
                                                                        (dlet (
                                                                        ; possible if called from a value context in the compiler
                                                                        ; TODO: I think this should be removed and instead the value/code compilers should
                                                                        ; keep track of actual env stacks
-                                                                       (this_now ((rec-lambda ir (j) (cond ((= j (len env_stack))                                              false)
+                                                                       (this_now ((rec-lambda ir (j) (cond ((= j len_env_stack)                                              false)
                                                                                                            ((and (= (idx for_progress i) (.marked_env_idx (idx env_stack j)))
                                                                                                                  (.marked_env_has_vals (idx env_stack j)))                     (idx for_progress i))
                                                                                                            (true                                                               (ir (+ j 1))))
                                                                                   ) 0))
-                                                                        ) (if this_now this_now (rr (+ i 1))))
-                                                           )) 0)))
+                                                                        ) (if this_now this_now (rr (+ i 1) len_env_stack)))
+                                                           )) 0 (len env_stack))))
               )
         (if (or force hashes_now progress_now)
         (cond   ((val? x)            (array pectx nil x))
                 ((marked_env? x)     (dlet ((dbi (.marked_env_idx x)))
                                           ; compiler calls with empty env stack
-                                          (mif dbi (dlet ( (new_env ((rec-lambda rec (i) (cond ((= i (len env_stack))                           nil)
+                                          (mif dbi (dlet ( (new_env ((rec-lambda rec (i len_env_stack) (cond ((= i len_env_stack)                           nil)
                                                                                                ((= dbi (.marked_env_idx (idx env_stack i)))     (idx env_stack i))
-                                                                                               (true                                            (rec (+ i 1)))))
-                                                                     0))
+                                                                                               (true                                            (rec (+ i 1) len_env_stack))))
+                                                                     0 (len env_stack)))
                                                          (_ (println (str_strip "replacing " x) (str_strip " with (if nonnil) " new_env)))
                                                         )
                                                         (array pectx nil (if (!= nil new_env) new_env x)))
@@ -953,7 +990,7 @@
         (array 'empty_env (marked_env true nil nil nil nil nil))
     )))
 
-    (partial_eval (lambda (x) (partial_eval_helper (mark true x) false root_marked_env (array) (array 0 (array)) 0 false)))
+    (partial_eval (lambda (x) (partial_eval_helper (mark true x) false root_marked_env (array) (array 0 empty_dict) 0 false)))
 
 
     ;; WASM
@@ -1319,6 +1356,7 @@
             (our_code (flat_map (lambda (inss) (map (lambda (ins) (ins inner_name_dict_with_depth)) inss))
                                 body))
             ;(_ (println "resulting code " our_code))
+            (final_code (concat code (array (array compressed_locals our_code ) )))
         ) (array
             outer_name_dict
             ; type
@@ -1340,7 +1378,7 @@
             ; element
             elem
             ; code
-            (concat code (array (array compressed_locals our_code ) ))
+            final_code
             ; data
             data
         ))
