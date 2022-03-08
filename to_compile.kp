@@ -360,7 +360,7 @@
 
 
     (and_fold (foldl and true '(true true false true)))
-    (monad (array 'write  1 "test_self_out2" (vau (written code) and_fold)))
+    (monad (array 'write  1 (str "Hello from compiled code! " and_fold "\n") (vau (written code) (array 'exit 0))))
 
  ) monad)
  )
