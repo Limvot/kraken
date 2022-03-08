@@ -7,7 +7,7 @@
 
 ; Chez
 (define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift) (define foldl fold-left) (define foldr fold-right) (define write_file (lambda (file bytes) (let* ( (port (open-file-output-port file)) (_ (foldl (lambda (_ o) (put-u8 port o)) (void) bytes)) (_ (close-port port))) '())))
-(compile-profile 'source)
+;(compile-profile 'source)
 
 ; Gambit - Gambit also has a problem with the dlet definition (somehow recursing and making (cdr nil) for (cdr ls)?), even if using the unstable one that didn't break syntax-rules
 ;(define print pretty-print)
@@ -60,6 +60,7 @@
                                 (#t (begin (cons x (loop (read-char input-port)))))))))))
 
 (define speed_hack #t)
+;(define GLOBAL_MAX 0)
 
 (let* (
       (lapply apply)
@@ -103,62 +104,6 @@
 
       (zip (lambda args (apply map list args)))
 
-      ;(my-alist-ref alist-ref)
-
-      (empty_dict-list (array))
-      (put-list (lambda (m k v) (cons (array k v) m)))
-      (get-list (lambda (d k) ((rec-lambda recurse (k d len_d i) (cond ((= len_d i)       false)
-                                                                  ((= k (idx (idx d i) 0)) (idx d i))
-                                                                  (true                    (recurse k d len_d (+ 1 i)))))
-                                k d (len d) 0)))
-
-
-      ;(combine_hash     (lambda (a b) (+ (* 37 a) b)))
-      (combine_hash     (lambda (a b) (bitwise-and #xFFFFFFFFFFFFFF (+ (* 37 a) b))))
-      (hash_bool        (lambda (b) (if b 2 3)))
-      (hash_num         (lambda (n) (combine_hash 5 n)))
-      (hash_string      (lambda (s) (foldl combine_hash 7  (map char->integer (string->list s)))))
-      ;(hash_string      (lambda (s) (foldl combine_hash 102233  (map char->integer (string->list s)))))
-
-      (empty_dict-tree nil)
-      (trans-key (lambda (k) (cond ((string? k) (cons (hash_string k) k))
-                                   ((symbol? k) (cons (hash_string (symbol->string k)) k))
-                                   (true        (cons k k)))))
-      (put-helper (rec-lambda put-helper (m k v) (cond ((nil? m)        (cons (list k v) (cons nil                       nil)))
-                                                       ((and (= (car k) (caaar m))
-                                                             (= (cdr k) (cdaar m)))      (cons (list k v) (cons (cadr m)                  (cddr m))))
-                                                       ((< (car k) (caaar m))            (cons (car m)    (cons (put-helper (cadr m) k v) (cddr m))))
-                                                       (true                             (cons (car m)    (cons (cadr m)                  (put-helper (cddr m) k v)))))))
-      (put-tree (lambda (m k v) (put-helper m (trans-key k) v)))
-      (get-helper (rec-lambda get-helper (m k) (cond ((nil? m)                     false)
-                                                     ((and (= (car k) (caaar m))
-                                                           (= (cdr k) (cdaar m)))  (car m))
-                                                     ((< (car k) (caaar m))        (get-helper (cadr m) k))
-                                                     (true                         (get-helper (cddr m) k)))))
-      (get-tree (lambda (m k) (get-helper m (trans-key k))))
-
-      ;(empty_dict empty_dict-list)
-      ;(put put-list)
-      ;(get get-list)
-      (empty_dict empty_dict-tree)
-      (put put-tree)
-      (get get-tree)
-
-      ;(empty_dict (list empty_dict-list empty_dict-tree))
-      ;(put (lambda (m k v) (list (put-list (idx m 0) k v) (put-tree (idx m 1) k v))))
-      ;(get (lambda (m k) (dlet (  ;(_ (true_print "doing a get " m " " k)) 
-      ;                            (list-result (get-list (idx m 0) k))
-      ;                            (tree-result (get-tree (idx m 1) k))
-      ;                            (_ (if (and (!= list-result tree-result) (!= (idx list-result 1) (idx tree-result 1))) (error "BAD GET " list-result " vs " tree-result)))
-      ;                            ) tree-result)))
-
-      (get-value (lambda (d k) (let ((result (get d k)))
-                                    (if (pair? result) (cadr result)
-                                                       (error (str "could not find " k " in " d))))))
-      (get-value-or-false (lambda (d k) (let ((result (get d k)))
-                                    (if (pair? result) (cadr result)
-                                                       false))))
-
       (% modulo)
       (int? integer?)
       (str? string?)
@@ -187,17 +132,142 @@
                                                                (#t      (append (f (car l)) (recurse f (cdr l)))))
                                               )) f l)))
 
+      ;;;;;;;;;;;;;;;;;;
+      ; End kludges
+      ;;;;;;;;;;;;;;;;;;
 
-    ; Ok, actual definitions
+
+      (empty_dict-list (array))
+      (put-list (lambda (m k v) (cons (array k v) m)))
+      (get-list (lambda (d k) ((rec-lambda recurse (k d len_d i) (cond ((= len_d i)             false)
+                                                                       ((= k (idx (idx d i) 0)) (idx d i))
+                                                                       (true                    (recurse k d len_d (+ 1 i)))))
+                                k d (len d) 0)))
+
+      ;(combine_hash     (lambda (a b) (+ (* 37 a) b)))
+      (combine_hash     (lambda (a b) (band #xFFFFFFFFFFFFFF (+ (* 37 a) b))))
+      (hash_bool        (lambda (b) (if b 2 3)))
+      (hash_num         (lambda (n) (combine_hash 5 n)))
+      (hash_string      (lambda (s) (foldl combine_hash 7  (map char->integer (string->list s)))))
+      ;(hash_string      (lambda (s) (foldl combine_hash 7  s)))
+      ;(hash_string      (lambda (s) (foldl combine_hash 102233  (map char->integer (string->list s)))))
+
+      (empty_dict-tree nil)
+      ;(trans-key (lambda (k) (cond ((string? k) (cons (hash_string k) k))
+      ;                             ((symbol? k) (cons (hash_string (symbol->string k)) k))
+      ;                             (true        (cons k k)))))
+      ;(put-helper (rec-lambda put-helper (m k v) (cond ((nil? m)        (cons (list k v) (cons nil                       nil)))
+      ;                                                 ((and (= (car k) (caaar m))
+      ;                                                       (= (cdr k) (cdaar m)))      (cons (list k v) (cons (cadr m)                  (cddr m))))
+      ;                                                 ((< (car k) (caaar m))            (cons (car m)    (cons (put-helper (cadr m) k v) (cddr m))))
+      ;                                                 (true                             (cons (car m)    (cons (cadr m)                  (put-helper (cddr m) k v)))))))
+      ;(put-tree (lambda (m k v) (put-helper m (trans-key k) v)))
+      ;(get-helper (rec-lambda get-helper (m k) (cond ((nil? m)                     false)
+      ;                                               ((and (= (car k) (caaar m))
+      ;                                                     (= (cdr k) (cdaar m)))  (car m))
+      ;                                               ((< (car k) (caaar m))        (get-helper (cadr m) k))
+      ;                                               (true                         (get-helper (cddr m) k)))))
+      (trans-key (lambda (k) (cond ((string? k) (hash_string k))
+                                   ((symbol? k) (hash_string (get-text k)))
+                                   (true        k))))
+      (put-helper (rec-lambda put-helper (m hk k v) (cond ((nil? m)                (array hk        k         v          nil                           nil))
+                                                           ((and (= hk (idx m 0))
+                                                                 (= k  (idx m 1))) (array hk        k         v         (idx m 3)                     (idx m 4)))
+                                                           ((< hk (idx m 0))       (array (idx m 0) (idx m 1) (idx m 2) (put-helper (idx m 3) hk k v) (idx m 4)))
+                                                           (true                   (array (idx m 0) (idx m 1) (idx m 2) (idx m 3)                     (put-helper (idx m 4) hk k v))))))
+      (put-tree (lambda (m k v) (put-helper m (trans-key k) k v)))
+      (get-helper (rec-lambda get-helper (m hk k) (cond ((nil? m)                     false)
+                                                        ((and (= hk (idx m 0))
+                                                              (= k  (idx m 1)))       (array k (idx m 2)))
+                                                        ((< hk (idx m 0))             (get-helper (idx m 3) hk k))
+                                                        (true                         (get-helper (idx m 4) hk k)))))
+      (get-tree (lambda (m k) (get-helper m (trans-key k) k)))
+
+      ;(empty_dict empty_dict-list)
+      ;(put put-list)
+      ;(get get-list)
+      (empty_dict empty_dict-tree)
+      (put put-tree)
+      (get get-tree)
+
+      ;(empty_dict (list empty_dict-list empty_dict-tree))
+      ;(put (lambda (m k v) (list (put-list (idx m 0) k v) (put-tree (idx m 1) k v))))
+      ;(get (lambda (m k) (dlet (  ;(_ (true_print "doing a get " m " " k))
+      ;                            (list-result (get-list (idx m 0) k))
+      ;                            (tree-result (get-tree (idx m 1) k))
+      ;                            (_ (if (and (!= list-result tree-result) (!= (idx list-result 1) (idx tree-result 1))) (error "BAD GET " list-result " vs " tree-result)))
+      ;                            ) tree-result)))
+
+      (get-value (lambda (d k) (dlet ((result (get d k)))
+                                    (if (array? result) (idx result 1)
+                                                       (error (str "could not find " k " in " d))))))
+      (get-value-or-false (lambda (d k) (dlet ((result (get d k)))
+                                    (if (array? result) (idx result 1)
+                                                       false))))
+
     (in_array (dlet ((helper (rec-lambda recurse (x a len_a i) (cond ((= i len_a)     false)
                                                                      ((= x (idx a i)) true)
                                                                      (true            (recurse x a len_a (+ i 1)))))))
                    (lambda (x a) (helper x a (len a) 0))))
     (array_item_union (lambda (a bi) (if (in_array bi a) a (cons bi a))))
     (array_union (lambda (a b) (foldl array_item_union a b)))
-    (array_union_without (lambda (wo a b)
-                           (foldl (lambda (o xi) (if (or (= wo xi) (in_array xi o)) o (cons xi o)))
-                                  (array) (concat a b))))
+
+
+    (intset_word_size 64)
+    (in_intset (rec-lambda in_intset (x a) (cond ((nil? a) false)
+                                                 ((>= x intset_word_size) (in_intset (- x intset_word_size) (cdr a)))
+                                                 (true                    (!= (band (>> (car a) x) 1) 0)))))
+    (intset_item_union (rec-lambda intset_item_union (a bi) (cond ((nil? a)                 (intset_item_union (list 0) bi))
+                                                                  ((>= bi intset_word_size) (cons (car a) (intset_item_union (cdr a) (- bi intset_word_size))))
+                                                                  (true                     (cons (bor (car a) (<< 1 bi)) (cdr a))))))
+    (intset_item_remove (rec-lambda intset_item_remove (a bi) (cond ((nil? a)                 nil)
+                                                                    ((>= bi intset_word_size) (dlet ((new_tail (intset_item_remove (cdr a) (- bi intset_word_size))))
+                                                                                                    (if (and (nil? new_tail) (= 0 (car a))) nil
+                                                                                                                                            (cons (car a) new_tail))))
+                                                                    (true                     (dlet ((new_int (band (car a) (bnot (<< 1 bi)))))
+                                                                                                    (if (and (nil? (cdr a)) (= 0 new_int)) nil
+                                                                                                                                           (cons new_int (cdr a))))))))
+    (intset_union (rec-lambda intset_union (a b) (cond ((and (nil? a) (nil? b)) nil)
+                                                       ((nil? a)                b)
+                                                       ((nil? b)                a)
+                                                       (true                    (cons (bor (car a) (car b)) (intset_union (cdr a) (cdr b)))))))
+
+    ;(_ (true_print "of 1 " (intset_item_union nil 1)))
+    ;(_ (true_print "of 1 and 2 " (intset_item_union (intset_item_union nil 1) 2)))
+    ;(_ (true_print "of 1 and 2 union 3 4" (intset_union (intset_item_union (intset_item_union nil 1) 2) (intset_item_union (intset_item_union nil 3) 4))))
+
+    ;(_ (true_print "of 100 " (intset_item_union nil 100)))
+    ;(_ (true_print "of 100 and 200 " (intset_item_union (intset_item_union nil 100) 200)))
+    ;(_ (true_print "of 100 and 200 union 300 400" (intset_union (intset_item_union (intset_item_union nil 100) 200) (intset_item_union (intset_item_union nil 300) 400))))
+
+    ;(_ (true_print "1 in 1 " (in_intset 1 (intset_item_union nil 1))))
+    ;(_ (true_print "1 in 1 and 2 " (in_intset 1 (intset_item_union (intset_item_union nil 1) 2))))
+    ;(_ (true_print "1 in 1 and 2 union 3 4" (in_intset 1 (intset_union (intset_item_union (intset_item_union nil 1) 2) (intset_item_union (intset_item_union nil 3) 4)))))
+
+    ;(_ (true_print "1 in 1 "                (in_intset 1 (intset_item_union nil 1))))
+    ;(_ (true_print "1 in 1 and 2 "          (in_intset 1 (intset_item_union (intset_item_union nil 1) 2))))
+    ;(_ (true_print "1 in 1 and 2 union 3 4" (in_intset 1 (intset_union (intset_item_union (intset_item_union nil 1) 2) (intset_item_union (intset_item_union nil 3) 4)))))
+
+    ;(_ (true_print "5 in 1 "                (in_intset 5 (intset_item_union nil 1))))
+    ;(_ (true_print "5 in 1 and 2 "          (in_intset 5 (intset_item_union (intset_item_union nil 1) 2))))
+    ;(_ (true_print "5 in 1 and 2 union 3 4" (in_intset 5 (intset_union (intset_item_union (intset_item_union nil 1) 2) (intset_item_union (intset_item_union nil 3) 4)))))
+
+    ;(_ (true_print "1 in 100 "                      (in_intset 1 (intset_item_union nil 100))))
+    ;(_ (true_print "1 in 100 and 200 "              (in_intset 1 (intset_item_union (intset_item_union nil 100) 200))))
+    ;(_ (true_print "1 in 100 and 200 union 300 400" (in_intset 1 (intset_union (intset_item_union (intset_item_union nil 100) 200) (intset_item_union (intset_item_union nil 300) 400)))))
+    ;(_ (true_print "5 in 100 "                      (in_intset 5 (intset_item_union nil 100))))
+    ;(_ (true_print "5 in 100 and 200 "              (in_intset 5 (intset_item_union (intset_item_union nil 100) 200))))
+    ;(_ (true_print "5 in 100 and 200 union 300 400" (in_intset 5 (intset_union (intset_item_union (intset_item_union nil 100) 200) (intset_item_union (intset_item_union nil 300) 400)))))
+    ;(_ (true_print "100 in 100 "                      (in_intset 100 (intset_item_union nil 100))))
+    ;(_ (true_print "100 in 100 and 200 "              (in_intset 100 (intset_item_union (intset_item_union nil 100) 200))))
+    ;(_ (true_print "100 in 100 and 200 union 300 400" (in_intset 100 (intset_union (intset_item_union (intset_item_union nil 100) 200) (intset_item_union (intset_item_union nil 300) 400)))))
+    ;(_ (true_print "500 in 100 "                      (in_intset 500 (intset_item_union nil 100))))
+    ;(_ (true_print "500 in 100 and 200 "              (in_intset 500 (intset_item_union (intset_item_union nil 100) 200))))
+    ;(_ (true_print "500 in 100 and 200 union 300 400" (in_intset 500 (intset_union (intset_item_union (intset_item_union nil 100) 200) (intset_item_union (intset_item_union nil 300) 400)))))
+
+    ;(_ (true_print "all removed in 100 and 200 union 300 400" (intset_item_remove (intset_item_remove (intset_item_remove (intset_item_remove (intset_union (intset_item_union (intset_item_union nil 100) 200) (intset_item_union (intset_item_union nil 300) 400)) 100) 200) 300) 400)))
+
+    (intset_union_without (lambda (wo a b) (intset_item_remove (intset_union a b) wo)))
 
     (val?                               (lambda (x) (= 'val (idx x 0))))
     (marked_array?                      (lambda (x) (= 'marked_array (idx x 0))))
@@ -250,20 +320,22 @@
     ; of an evaluation of, then it could progress futher. These are all caused by
     ; the infinite recursion stopper.
     (needed_for_progress (rec-lambda needed_for_progress (x) (cond ((marked_array? x)       (.marked_array_needed_for_progress  x))
-                                                                   ((marked_symbol? x)      (array (.marked_symbol_needed_for_progress x) nil nil))
+                                                                   ((marked_symbol? x)      (dlet ((n (.marked_symbol_needed_for_progress x))) (array (if (int? n) (intset_item_union nil n) n) nil nil)))
                                                                    ((marked_env? x)         (.marked_env_needed_for_progress    x))
                                                                    ((comb? x)               (dlet ((id (.comb_id x))
                                                                                                    ((body_needed _hashes extra1) (needed_for_progress (.comb_body x)))
                                                                                                    ((se_needed   _hashes extra2) (needed_for_progress (.comb_env  x))))
                                                                                                 (if (or (= true body_needed) (= true se_needed)) (array true nil nil)
-                                                                                                        (array (array_union_without id body_needed se_needed)
-                                                                                                               nil (array_union_without id extra1 extra2))
+                                                                                                        (array (intset_union_without id body_needed se_needed)
+                                                                                                               nil (intset_union_without id extra1 extra2))
                                                                                                 )))
                                                                    ((prim_comb? x)          (array nil nil nil))
                                                                    ((val? x)                (array nil nil nil))
                                                                    (true                    (error (str "what is this? in need for progress" x))))))
     (needed_for_progress_slim (lambda (x) (idx (needed_for_progress x) 0)))
-    (hash_symbol      (lambda (progress_idxs s) (combine_hash (if (= true progress_idxs) 11 (foldl combine_hash 13 (map (lambda (x) (if (= true x) 13 (+ 1 x))) progress_idxs))) (hash_string (symbol->string s)))))
+    (hash_symbol      (lambda (progress_idx s) (combine_hash (cond ((= true progress_idx) 11)
+                                                                   ((int? progress_idx)   (combine_hash 13 progress_idx))
+                                                                   (true                  113)) (hash_string (get-text s)))))
 
     (hash_array       (lambda (is_val attempted a) (foldl combine_hash (if is_val 17 (cond ((int? attempted) (combine_hash attempted 19))
                                                                                             (attempted       61)
@@ -295,21 +367,21 @@
                                         ((string? x)   (hash_string x))
                                         ((int? x)      (hash_num x))
                                         (true          (error (str "bad thing to hash_val " x))))))
-    ; 113 127 131 137 139 149 151 157 163 167 173
+    ; 127 131 137 139 149 151 157 163 167 173
 
-    (marked_symbol    (lambda (progress_idxs x)                        (array 'marked_symbol    (hash_symbol progress_idxs x)                      progress_idxs x)))
+    (marked_symbol    (lambda (progress_idx x)                        (array 'marked_symbol    (hash_symbol progress_idx x)                      progress_idx x)))
     (marked_array     (lambda (is_val attempted resume_hashes x)       (dlet (
                                                                             ((sub_progress_idxs hashes extra) (foldl (dlambda ((a ahs aeei) (x xhs x_extra_env_ids))
                                                                                                     (array (cond ((or (= true a) (= true x)) true)
-                                                                                                                 (true           (array_union a x)))
+                                                                                                                 (true           (intset_union a x)))
                                                                                                            (array_union ahs xhs)
-                                                                                                           (array_union aeei x_extra_env_ids))
+                                                                                                           (intset_union aeei x_extra_env_ids))
                                                                                                  ) (array (array) resume_hashes (array)) (map needed_for_progress x)))
                                                                             (progress_idxs (cond ((and (= nil sub_progress_idxs) (not is_val) (= true attempted))  nil)
                                                                                                  ((and (= nil sub_progress_idxs) (not is_val) (= false attempted)) true)
                                                                                                  ((and (= nil sub_progress_idxs) (not is_val) (int? attempted))    (array attempted))
                                                                                                  (true                                                             (if (int? attempted)
-                                                                                                                                                                       (array_item_union sub_progress_idxs attempted)
+                                                                                                                                                                       (intset_item_union sub_progress_idxs attempted)
                                                                                                                                                                        sub_progress_idxs))))
                                                                         ) (array 'marked_array  (hash_array is_val attempted x)                    is_val attempted (array progress_idxs hashes extra) x))))
 
@@ -319,10 +391,10 @@
                                   (full_arrs (concat arrs de_entry (array ue)))
                                   ((progress_idxs1 _hashes extra1) (mif ue  (needed_for_progress ue) (array nil nil nil)))
                                   ((progress_idxs2 _hashes extra2) (mif de? (needed_for_progress de) (array nil nil nil)))
-                                  (progress_idxs (array_union progress_idxs1 progress_idxs2))
-                                  (extra (array_union extra1 extra2))
-                                  (progress_idxs (if (not has_vals) (cons dbi progress_idxs) progress_idxs))
-                                  (extra         (if (!= nil progress_idxs) (cons dbi extra) extra))
+                                  (progress_idxs (intset_union progress_idxs1 progress_idxs2))
+                                  (extra (intset_union extra1 extra2))
+                                  (progress_idxs (if (not has_vals) (intset_item_union progress_idxs dbi) progress_idxs))
+                                  (extra         (if (!= nil progress_idxs) (intset_item_union extra dbi) extra))
                                 ) (array 'env              (hash_env has_vals progress_idxs dbi full_arrs)                  has_vals (array progress_idxs nil extra) dbi full_arrs))))
 
 
@@ -335,6 +407,9 @@
                                                                     ((comb? x)        (dlet (((wrap_level env_id de? se variadic params body) (.comb x)))
                                                                                              (marked_comb new_wrap env_id de? se variadic params body)))
                                                                     (true             (error "bad with_wrap_level")))))
+
+
+
 
 
     (later_head? (rec-lambda recurse (x) (or (and (marked_array? x)  (or (= false (.marked_array_is_val x)) (foldl (lambda (a x) (or a (recurse x))) false (.marked_array_values x))))
@@ -462,8 +537,8 @@
     (check_for_env_id_in_result (lambda (s_env_id x) (idx ((rec-lambda check_for_env_id_in_result (memo s_env_id x)
         (dlet (
             ((need _hashes extra) (needed_for_progress x))
-            (in_need (if (!= true need) (in_array s_env_id need) false))
-            (in_extra (in_array s_env_id extra))
+            (in_need (if (!= true need) (in_intset s_env_id need) false))
+            (in_extra (in_intset s_env_id extra))
               ;(or in_need in_extra) (array memo true)
               ;(!= true need)        (array memo false)
         ) (cond ((or in_need in_extra) (array memo true))
@@ -608,8 +683,8 @@
                                                     r)))
 
     (make_tmp_inner_env (lambda (params de? ue env_id)
-        (dlet ((param_entries       (map (lambda (p) (array p (marked_symbol (array env_id) p))) params))
-               (possible_de         (mif (= nil de?) (array) (marked_symbol (array env_id) de?)))
+        (dlet ((param_entries       (map (lambda (p) (array p (marked_symbol env_id p))) params))
+               (possible_de         (mif (= nil de?) (array) (marked_symbol  env_id de?)))
             ) (marked_env false de? possible_de ue env_id param_entries))))
 
 
@@ -619,18 +694,11 @@
                ((env_counter memo) pectx)
                (hashes_now (foldl (lambda (a hash) (or a (= false (get-value-or-false memo hash)))) false for_progress_hashes))
                (len_for_progress (if (!= true for_progress) (len for_progress) 0))
-               (progress_now (or (= for_progress true)  ((rec-lambda rr (i len_env_stack) (if (= i len_for_progress) false
-                                                                       (dlet (
-                                                                       ; possible if called from a value context in the compiler
-                                                                       ; TODO: I think this should be removed and instead the value/code compilers should
-                                                                       ; keep track of actual env stacks
-                                                                       (this_now ((rec-lambda ir (j) (cond ((= j len_env_stack)                                              false)
-                                                                                                           ((and (= (idx for_progress i) (.marked_env_idx (idx env_stack j)))
-                                                                                                                 (.marked_env_has_vals (idx env_stack j)))                     (idx for_progress i))
-                                                                                                           (true                                                               (ir (+ j 1))))
-                                                                                  ) 0))
-                                                                        ) (if this_now this_now (rr (+ i 1) len_env_stack)))
-                                                           )) 0 (len env_stack))))
+               (progress_now (or (= for_progress true) ((rec-lambda rr (i len_env_stack) (cond ((= i len_env_stack)                                                false)
+                                                                                               ((and (.marked_env_has_vals (idx env_stack i))
+                                                                                                     (in_intset (.marked_env_idx (idx env_stack i)) for_progress)) true)
+                                                                                               (true                                                               (rr (+ i 1) len_env_stack))))
+                                                        0 (len env_stack))))
               )
         (if (or force hashes_now progress_now)
         (cond   ((val? x)            (array pectx nil x))
@@ -747,9 +815,10 @@
                                                                                                                     ) (array pectx func_err func_result false))))
 
                                                                                      (_ (print_strip (indent_str indent) "evaled result of function call (in env " (.marked_env_idx env) ", with inner " env_id ") and err " func_err "  is " func_result))
-                                                                                     (must_stop_maybe_id (or rec_stop (if (not (combiner_return_ok func_result env_id))
-                                                                                                                          (if (!= nil de?) (.marked_env_idx env) true)
-                                                                                                                          false)))
+                                                                                     (must_stop_maybe_id (and (= nil func_err)
+                                                                                                              (or rec_stop (if (not (combiner_return_ok func_result env_id))
+                                                                                                                           (if (!= nil de?) (.marked_env_idx env) true)
+                                                                                                                           false))))
                                                                                      ) (if (!= nil func_err) (array pectx func_err nil)
                                                                                              (if must_stop_maybe_id
                                                                                                  (array pectx nil (marked_array false must_stop_maybe_id (if rec_stop (array hash) nil) (cons (with_wrap_level comb remaining_wrap) evaled_params)))
@@ -3437,7 +3506,7 @@
                                                                                     (get_passthrough (.hash c) ctx)
                                                                              ;)
                                                                              (dlet ( ((datasi funcs memo env pectx) ctx)
-                                                                                     ((c_loc c_len datasi) (alloc_data (symbol->string (.marked_symbol_value c))  datasi))
+                                                                                     ((c_loc c_len datasi) (alloc_data (get-text (.marked_symbol_value c))  datasi))
                                                                                      (result (bor (<< c_len 32) c_loc #b111))
                                                                                      (memo (put memo (.hash c) result))
                                                                                    ) (array result nil nil (array datasi funcs memo env pectx)))))
@@ -4483,7 +4552,8 @@
        ;(single-test)
        ;(run-compiler "small_test.kp")
        (run-compiler "to_compile.kp")
-       (profile-dump-html)
+       ;(true_print "GLOBAL_MAX was " GLOBAL_MAX)
+       ;(profile-dump-html)
        ;(profile-dump-list)
    )
 )
