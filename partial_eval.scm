@@ -3,11 +3,10 @@
 ; In Chez, arithmetic-shift is bitwise-arithmetic-shift
 
 ; Chicken
-;(import (chicken process-context)) (import (chicken port)) (import (chicken io)) (import (chicken bitwise)) (import (chicken string)) (import (r5rs)) (define write_file (lambda (file bytes) (call-with-output-file file (lambda (out) (foldl (lambda (_ o) (write-byte o out)) (void) bytes)))))
+;(import (chicken process-context)) (import (chicken port)) (import (chicken io)) (import (chicken bitwise)) (import (chicken string)) (import (r5rs)) (define write_file (lambda (file bytes) (call-with-output-file file (lambda (out) (foldl (lambda (_ o) (write-byte o out)) (void) bytes))))) (define args (command-line-arguments))
 
 ; Chez
-(define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift) (define foldl fold-left) (define foldr fold-right) (define write_file (lambda (file bytes) (let* ( (port (open-file-output-port file)) (_ (foldl (lambda (_ o) (put-u8 port o)) (void) bytes)) (_ (close-port port))) '())))
-(define args (command-line))
+(define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift) (define foldl fold-left) (define foldr fold-right) (define write_file (lambda (file bytes) (let* ( (port (open-file-output-port file)) (_ (foldl (lambda (_ o) (put-u8 port o)) (void) bytes)) (_ (close-port port))) '()))) (define args (cdr (command-line)))
 ;(compile-profile 'source)
 
 ; Gambit - Gambit also has a problem with the dlet definition (somehow recursing and making (cdr nil) for (cdr ls)?), even if using the unstable one that didn't break syntax-rules
@@ -92,7 +91,7 @@
 
       (print (lambda args (print (apply str args))))
       (true_str str)
-      (str (if speed_hack (lambda args "") str))
+      ;(str (if speed_hack (lambda args "") str))
       (true_print print)
       (print (if speed_hack (lambda x 0) print))
       ;(true_print print)
@@ -219,9 +218,11 @@
     (in_intset (rec-lambda in_intset (x a) (cond ((nil? a) false)
                                                  ((>= x intset_word_size) (in_intset (- x intset_word_size) (cdr a)))
                                                  (true                    (!= (band (>> (car a) x) 1) 0)))))
-    (intset_item_union (rec-lambda intset_item_union (a bi) (cond ((nil? a)                 (intset_item_union (list 0) bi))
-                                                                  ((>= bi intset_word_size) (cons (car a) (intset_item_union (cdr a) (- bi intset_word_size))))
-                                                                  (true                     (cons (bor (car a) (<< 1 bi)) (cdr a))))))
+
+    (intset_item_union (rec-lambda intset_item_union   (a bi) (cond ((nil? a)                 (intset_item_union (array 0) bi))
+                                                                    ((>= bi intset_word_size) (cons (car a) (intset_item_union (cdr a) (- bi intset_word_size))))
+                                                                    (true                     (cons (bor (car a) (<< 1 bi)) (cdr a))))))
+
     (intset_item_remove (rec-lambda intset_item_remove (a bi) (cond ((nil? a)                 nil)
                                                                     ((>= bi intset_word_size) (dlet ((new_tail (intset_item_remove (cdr a) (- bi intset_word_size))))
                                                                                                     (if (and (nil? new_tail) (= 0 (car a))) nil
@@ -233,6 +234,10 @@
                                                        ((nil? a)                b)
                                                        ((nil? b)                a)
                                                        (true                    (cons (bor (car a) (car b)) (intset_union (cdr a) (cdr b)))))))
+
+    (intset_intersection_nonempty (rec-lambda intset_intersection_nonempty (a b) (cond ((nil? a)  false)
+                                                                                       ((nil? b)  false)
+                                                                                       (true      (or (!= 0 (band (car a) (car b))) (intset_intersection_nonempty (cdr a) (cdr b)))))))
 
     ;(_ (true_print "of 1 " (intset_item_union nil 1)))
     ;(_ (true_print "of 1 and 2 " (intset_item_union (intset_item_union nil 1) 2)))
@@ -675,10 +680,11 @@
                                                                                                     ) (array c err (concat ds (array d)) changed)))
                                                                                                  (array pectx nil (array) false)
                                                                                                  (.marked_array_values x)))
-                                                                        (new_array (marked_array false (.marked_array_is_attempted x) nil ress))
                                                                         ((pectx err new_array) (if (or (!= nil err) (not changed))
-                                                                                                   (array pectx err new_array)
-                                                                                                   (partial_eval_helper new_array false de env_stack pectx (+ indent 1) true)))
+                                                                                                   (array pectx err x)
+                                                                                                   (partial_eval_helper (marked_array false (.marked_array_is_attempted x) nil ress)
+                                                                                                                        false de env_stack pectx (+ indent 1) true)))
+
                                                                        ) (array pectx err new_array))
                                                                 (array pectx nil x))
                                                             ) (array pectx nil x))))
@@ -696,21 +702,15 @@
                (_ (print_strip (indent_str indent) "for_progress " for_progress ", for_progress_hashes " for_progress_hashes " for " x))
                ((env_counter memo) pectx)
                (hashes_now (foldl (lambda (a hash) (or a (= false (get-value-or-false memo hash)))) false for_progress_hashes))
-               (len_for_progress (if (!= true for_progress) (len for_progress) 0))
-               (progress_now (or (= for_progress true) ((rec-lambda rr (i len_env_stack) (cond ((= i len_env_stack)                                                false)
-                                                                                               ((and (.marked_env_has_vals (idx env_stack i))
-                                                                                                     (in_intset (.marked_env_idx (idx env_stack i)) for_progress)) true)
-                                                                                               (true                                                               (rr (+ i 1) len_env_stack))))
-                                                        0 (len env_stack))))
               )
-        (if (or force hashes_now progress_now)
+        (if (or force hashes_now (= for_progress true) (intset_intersection_nonempty for_progress (idx env_stack 0)))
         (cond   ((val? x)            (array pectx nil x))
                 ((marked_env? x)     (dlet ((dbi (.marked_env_idx x)))
                                           ; compiler calls with empty env stack
                                           (mif dbi (dlet ( (new_env ((rec-lambda rec (i len_env_stack) (cond ((= i len_env_stack)                           nil)
-                                                                                               ((= dbi (.marked_env_idx (idx env_stack i)))     (idx env_stack i))
+                                                                                               ((= dbi (.marked_env_idx (idx (idx env_stack 1) i)))     (idx (idx env_stack 1) i))
                                                                                                (true                                            (rec (+ i 1) len_env_stack))))
-                                                                     0 (len env_stack)))
+                                                                     0 (len (idx env_stack 1))))
                                                          (_ (println (str_strip "replacing " x) (str_strip " with (if nonnil) " new_env)))
                                                         )
                                                         (array pectx nil (if (!= nil new_env) new_env x)))
@@ -720,7 +720,7 @@
                                         (mif (or (and (not (marked_env_real? env)) (not (marked_env_real? se)))   ; both aren't real, re-evaluation of creation site
                                                  (and      (marked_env_real? env)  (not (marked_env_real? se))))  ; new env real, but se isn't - creation!
                                              (dlet ((inner_env (make_tmp_inner_env params de? env env_id))
-                                                    ((pectx err evaled_body) (partial_eval_helper body false inner_env (cons inner_env env_stack) pectx (+ indent 1) false)))
+                                                    ((pectx err evaled_body) (partial_eval_helper body false inner_env (array (idx env_stack 0) (cons inner_env (idx env_stack 1))) pectx (+ indent 1) false)))
                                                    (array pectx err (mif err nil (marked_comb wrap_level env_id de? env variadic params evaled_body))))
                                              (array pectx nil x))))
                 ((prim_comb? x)      (array pectx nil x))
@@ -776,7 +776,7 @@
                                                                                                                         wrap_level literal_params pectx)))
                                                                             (_ (println (indent_str indent) "Done evaluating parameters"))
 
-                                                                            (later_call_array (marked_array false true nil (cons (with_wrap_level comb remaining_wrap) evaled_params)))
+                                                                            (l_later_call_array (lambda () (marked_array false true nil (cons (with_wrap_level comb remaining_wrap) evaled_params))))
                                                                             (ok_and_non_later (or (= -1 remaining_wrap)
                                                                                                   (and (= 0 remaining_wrap) (if (and (prim_comb? comb) (.prim_comb_val_head_ok comb))
                                                                                                                                 (is_all_head_values evaled_params)
@@ -784,11 +784,11 @@
                                                                             (_ (println (indent_str indent) "ok_and_non_later " ok_and_non_later))
                                                                         ) (cond ((!= nil comb_err)      (array pectx comb_err nil))
                                                                                 ((!= nil param_err)     (array pectx param_err nil))
-                                                                                ((not ok_and_non_later) (array pectx nil later_call_array))
+                                                                                ((not ok_and_non_later) (array pectx nil (l_later_call_array)))
                                                                                 ((prim_comb? comb) (dlet (
                                                                                                     (_ (println (indent_str indent) "Calling prim comb " (.prim_comb_sym comb)))
                                                                                                     ((pectx err result) ((.prim_comb_handler comb) only_head env env_stack pectx evaled_params (+ 1 indent)))
-                                                                                                    ) (if (= 'LATER err) (array pectx nil later_call_array)
+                                                                                                    ) (if (= 'LATER err) (array pectx nil (l_later_call_array))
                                                                                                                          (array pectx err result))))
                                                                                 ((comb? comb)      (dlet (
                                                                                      ((wrap_level env_id de? se variadic params body) (.comb comb))
@@ -811,7 +811,8 @@
                                                                                                                         (new_memo (put memo hash nil))
                                                                                                                         (pectx (array env_counter new_memo))
                                                                                                                         ((pectx func_err func_result) (partial_eval_helper body only_head inner_env
-                                                                                                                                                                           (cons inner_env env_stack)
+                                                                                                                                                            (array (intset_item_union (idx env_stack 0) env_id)
+                                                                                                                                                                   (cons inner_env (idx env_stack 1)))
                                                                                                                                                                            pectx (+ 1 indent) false))
                                                                                                                         ((env_counter new_memo) pectx)
                                                                                                                         (pectx (array env_counter memo))
@@ -909,7 +910,8 @@
                                        (dlet (
                                             (inner_env (make_tmp_inner_env vau_params de? de new_id))
                                             (_ (print_strip (indent_str indent) "in vau, evaluating body with 'later params - " body))
-                                            ((pectx err pe_body) (partial_eval_helper body false inner_env (cons inner_env env_stack) pectx (+ 1 indent) false))
+                                            ((pectx err pe_body) (partial_eval_helper body false inner_env (array (idx env_stack 0)
+                                                                                                                  (cons inner_env (idx env_stack 1))) pectx (+ 1 indent) false))
                                             (_ (print_strip (indent_str indent) "in vau, result of evaluating body was " pe_body))
                                         ) (array pectx err pe_body))))
         ) (mif err (array pectx err nil) (array pectx nil (marked_comb 0 new_id de? de variadic vau_params pe_body)))
@@ -959,10 +961,10 @@
                                                                                                         ) (array (array env_counter (put memo hash nil)) err (array) nil) sliced_params)))
                                                                                             ((env_counter omemo) pectx)
                                                                                             (pectx (array env_counter memo))
-                                                                                                ) (array pectx err (marked_array false true later_hash (concat (array (marked_prim_comb (recurse true) 'vcond -1 true)
+                                                                                                ) (array pectx err (mif err nil (marked_array false true later_hash (concat (array (marked_prim_comb (recurse true) 'vcond -1 true)
                                                                                                                                                          pred)
                                                                                                                                                   evaled_params
-                                                                                                                                              )))))
+                                                                                                                                              ))))))
                                                 ((and (< (+ 2 i) (len params)) (false? pred))   (recurse_inner (+ 2 i) so_far pectx))
                                                 (                              (false? pred)    (array pectx "comb reached end with no true" nil))
                                                 (true                                           (eval_helper (idx params (+ i 1)) pectx))
@@ -1062,7 +1064,7 @@
         (array 'empty_env (marked_env true nil nil nil nil nil))
     )))
 
-    (partial_eval (lambda (x) (partial_eval_helper (mark true x) false root_marked_env (array) (array 0 empty_dict) 0 false)))
+    (partial_eval (lambda (x) (partial_eval_helper (mark true x) false root_marked_env (array nil nil) (array 0 empty_dict) 0 false)))
 
 
     ;; WASM
@@ -3577,7 +3579,7 @@
                                                                                                     ; In the mean time, if it does, just fall back to the non-more-evaled ones.
                                                                                                             ((pectx e pex) (if (or (!= nil err) hit_recursion)
                                                                                                                                (array pectx err nil)
-                                                                                                                               (partial_eval_helper x false env (array) pectx 1 false)))
+                                                                                                                               (partial_eval_helper x false env (array nil nil) pectx 1 false)))
 
                                                                                                             (ctx (array datasi funcs memo env pectx))
 
@@ -3917,8 +3919,8 @@
               )))
 
               ;(_ (println "compiling partial evaled " (str_strip marked_code)))
-              (_ (true_print "compiling partial evaled " (true_str_strip marked_code)))
-              ;(_ (true_print "compiling partial evaled "))
+              ;(_ (true_print "compiling partial evaled " (true_str_strip marked_code)))
+              (_ (true_print "compiling partial evaled "))
               (memo empty_dict)
               (ctx (array datasi funcs memo root_marked_env pectx))
 
@@ -4537,7 +4539,7 @@
 
     (run-compiler (lambda (f)
       (dlet (
-            ;(_ (true_print "reading in!"))
+            (_ (true_print "reading in!"))
             (read_in    (read-string (slurp f)))
             ;(_ (true_print "read in, now evaluating"))
             (evaled     (partial_eval read_in))
@@ -4555,8 +4557,8 @@
        ;(single-test)
        ;(run-compiler "small_test.kp")
        ;(run-compiler "to_compile.kp")
-
-       (dlet ( (com (if (> (len args) 1) (idx args 1) "")) )
+       (true_print "args are " args)
+       (dlet ( (com (if (> (len args) 0) (idx args 0) "")) )
              (if (= "test" com) (test-most)
                                 (run-compiler com)))
 
