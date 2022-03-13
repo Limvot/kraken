@@ -826,12 +826,7 @@
         (implicit_env                                          (drop_redundent_veval partial_eval_helper ebody de env_stack pectx indent))
         ((combiner_return_ok ebody (.marked_env_idx eval_env)) (drop_redundent_veval partial_eval_helper ebody de env_stack pectx indent))
         (true                                                  (drop_redundent_veval partial_eval_helper (marked_array false true nil (array
-                                                                                                                                        ; HMMMMM
-                                                                                                                                        ; This fails because we haven't implemented for
-                                                                                                                                        ; array like stuff for string, including len
                                                                                                                                         (marked_prim_comb recurse 'veval -1 true)
-                                                                                                                                        ;
-                                                                                                                                        ;(marked_array false true nil (array ))
                                                                                                                                         ebody
                                                                                                                                         eval_env
                                                                                                                                         ))
@@ -845,7 +840,7 @@
 
 
     (and_fold (foldl and true '(true true false true)))
-    (monad (array 'write  1 (str "Hello from compiled code! " and_fold "\n") (vau (written code) (array 'exit 0))))
+    (monad (array 'write  1 (str "Hello from compiled code! " and_fold " here's a hashed string " (hash_string "hia") "\n") (vau (written code) (array 'exit 0))))
 
  ) monad)
  )

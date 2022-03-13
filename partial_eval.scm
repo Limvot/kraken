@@ -75,7 +75,8 @@
       (len    (lambda (x)  (cond ((list? x)   (length x))
                                  ((string? x) (string-length x))
                                  (#t          (error "bad value to len")))))
-      (idx (lambda (x i) (list-ref x (if (< i 0) (+ i (len x)) i))))
+      (idx (lambda (x i) (cond ((list? x)                  (list-ref x                (if (< i 0) (+ i (len x)) i)))
+                               ((string? x) (char->integer (list-ref (string->list x) (if (< i 0) (+ i (len x)) i)))))))
       (false #f)
       (true #t)
       (nil '())
@@ -118,7 +119,8 @@
                                      (s (if (< s 0) (+ s l 1) s))
                                      (e (if (< e 0) (+ e l 1) e))
                                      (t (- e s)) )
-                              (take (drop x s) t))))
+                              (if (list? x) (take (drop x s) t)
+                                            (list->string (take (drop (string->list x) s) t))))))
       (range   (rec-lambda recurse (a b)
                    (cond ((= a b) nil)
                          ((< a b) (cons a (recurse (+ a 1) b)))
@@ -405,7 +407,7 @@
                                 ) (array 'env              (hash_env has_vals progress_idxs dbi full_arrs)                  has_vals (array progress_idxs nil extra) dbi full_arrs))))
 
 
-    (marked_val       (lambda (x)                                      (array 'val              (hash_val x)                                       x)))
+    (marked_val       (lambda (x)                                             (array 'val       (hash_val x)                                              x)))
     (marked_comb      (lambda (wrap_level env_id de? se variadic params body) (array 'comb      (hash_comb wrap_level env_id de? se variadic params body) wrap_level env_id de? se variadic params body)))
     (marked_prim_comb (lambda (handler_fun real_or_name wrap_level val_head_ok)    (array 'prim_comb        (hash_prim_comb handler_fun real_or_name wrap_level val_head_ok) handler_fun real_or_name wrap_level val_head_ok)))
 
@@ -1007,29 +1009,35 @@
         ) 'array 1 false))
         (array 'len (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled_param) indent)
             (cond
-                  ((marked_array? evaled_param)  (array pectx nil (marked_val (len (.marked_array_values evaled_param)))))
-                  (true                          (array pectx (str "bad type to len " evaled_param) nil))
+                  ((marked_array? evaled_param)         (array pectx nil (marked_val (len (.marked_array_values evaled_param)))))
+                  ((and (val? evaled_param)
+                        (string? (.val evaled_param)))  (array pectx nil (marked_val (len (.val evaled_param)))))
+                  (true                                 (array pectx (str "bad type to len " evaled_param) nil))
             )
         ) 'len 1 true))
         (array 'idx (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled_array evaled_idx) indent)
             (cond
-                  ((and (val? evaled_idx) (marked_array? evaled_array)) (array pectx nil (idx (.marked_array_values evaled_array) (.val evaled_idx))))
-                  (true                                                 (array pectx "bad type to idx" nil))
+                  ((and (val? evaled_idx) (marked_array? evaled_array))                       (array pectx nil (idx (.marked_array_values evaled_array) (.val evaled_idx))))
+                  ((and (val? evaled_idx) (val? evaled_array) (string? (.val evaled_array)))  (array pectx nil (marked_val (idx (.val evaled_array) (.val evaled_idx)))))
+                  (true                                                                       (array pectx (str "bad type to idx " evaled_idx " " evaled_array) nil))
             )
         ) 'idx 1 true))
         (array 'slice (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled_array evaled_begin evaled_end) indent)
             (cond
                   ((and (val? evaled_begin) (val? evaled_end) (marked_array? evaled_array))
                             (array pectx nil (marked_array true false nil (slice (.marked_array_values evaled_array) (.val evaled_begin) (.val evaled_end)))))
-                  (true     (array pectx "bad params to slice" nil))
+                  ((and (val? evaled_begin) (val? evaled_end) (val? evaled_array) (string? (.val evaled_array)))
+                            (array pectx nil (marked_val (slice (.val evaled_array) (.val evaled_begin) (.val evaled_end)))))
+                  (true     (array pectx (str "bad params to slice " evaled_begin " " evaled_end " " evaled_array) nil))
             )
         ) 'slice 1 true))
         (array 'concat (marked_prim_comb (lambda (only_head de env_stack pectx evaled_params indent)
             (cond
-                  ((foldl (lambda (a x) (and a (marked_array? x))) true evaled_params) (array pectx nil (marked_array true false nil (lapply concat (map (lambda (x)
-                                                                                                                                                             (.marked_array_values x))
-                                                                                                                                                            evaled_params)))))
-                  (true                                                                (array pectx "bad params to concat" nil))
+                  ((foldl (lambda (a x) (and a (marked_array? x))) true evaled_params)
+                        (array pectx nil (marked_array true false nil (lapply concat (map (lambda (x) (.marked_array_values x)) evaled_params)))))
+                  ((foldl (lambda (a x) (and a (val? x) (string? (.val x)))) true evaled_params)
+                        (array pectx nil (marked_val (lapply concat (map (lambda (x) (.val x)) evaled_params)))))
+                  (true                                                                (array pectx (str "bad params to concat " evaled_params) nil))
             )
         ) 'concat 1 true))
 
@@ -4144,8 +4152,8 @@
     (run_partial_eval_test (lambda (s) (dlet (
                             (_ (print "\n\ngoing to partial eval " s))
                             ((pectx err result) (partial_eval (read-string s)))
-                            (_ (print "result of test \"" s "\" => " (str_strip result) " and err " err))
-                            (_ (print "with a hash of " (.hash result)))
+                            (_ (true_print "result of test \"" s "\" => " (true_str_strip result) " and err " err))
+                            ;(_ (mif result (true_print "with a hash of " (.hash result))))
                             ) nil)))
 
 
@@ -4522,19 +4530,26 @@
         ;                       ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))))
 
 
-        (output3 (compile (partial_eval (read-string
-                                   "((wrap (vau root_env (quote)
-                                    ((wrap (vau (let1)
+        ;(output3 (compile (partial_eval (read-string
+        ;                           "((wrap (vau root_env (quote)
+        ;                            ((wrap (vau (let1)
 
-                                    (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
-                                    (let1 current-env (vau de () de)
-                                    (let1 lapply (lambda (f p)     (eval (concat (array (unwrap f)) p) (current-env)))
-                                    (array (quote write) 1 \"test_self_out2\" (vau (written code) 1))
-                                    )))
+        ;                            (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
+        ;                            (let1 current-env (vau de () de)
+        ;                            (let1 lapply (lambda (f p)     (eval (concat (array (unwrap f)) p) (current-env)))
+        ;                            (array (quote write) 1 \"test_self_out2\" (vau (written code) 1))
+        ;                            )))
 
-                                    )) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))
-                                    )) (vau (x5) x5))"))))
-        (_ (write_file "./csc_out.wasm" output3))
+        ;                            )) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))
+        ;                            )) (vau (x5) x5))"))))
+        ;(_ (write_file "./csc_out.wasm" output3))
+
+        (print (run_partial_eval_test "(len \"asdf\")"))
+        (print (run_partial_eval_test "(idx \"asdf\" 1)"))
+        (print (run_partial_eval_test "(slice \"asdf\" 1 3)"))
+        (print (run_partial_eval_test "(concat \"asdf\" \";lkj\")"))
+
+
     ) void)))
 
     (run-compiler (lambda (f)
@@ -4559,8 +4574,9 @@
        ;(run-compiler "to_compile.kp")
        (true_print "args are " args)
        (dlet ( (com (if (> (len args) 0) (idx args 0) "")) )
-             (if (= "test" com) (test-most)
-                                (run-compiler com)))
+             (cond ((= "test"   com) (test-most))
+                   ((= "single" com) (single-test))
+                   (true             (run-compiler com))))
 
        ;(true_print "GLOBAL_MAX was " GLOBAL_MAX)
        ;(profile-dump-html)
