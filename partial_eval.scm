@@ -7,7 +7,7 @@
 
 ; Chez
 (define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift) (define foldl fold-left) (define foldr fold-right) (define write_file (lambda (file bytes) (let* ( (port (open-file-output-port file)) (_ (foldl (lambda (_ o) (put-u8 port o)) (void) bytes)) (_ (close-port port))) '()))) (define args (cdr (command-line)))
-;(compile-profile 'source)
+(compile-profile 'source)
 
 ; Gambit - Gambit also has a problem with the dlet definition (somehow recursing and making (cdr nil) for (cdr ls)?), even if using the unstable one that didn't break syntax-rules
 ;(define print pretty-print)
@@ -1680,6 +1680,7 @@
           (global '$phl          '(mut i32) (i32.const 0))
           (dlet (
               (nil_val        #b0101)
+              (emptystr_val   #b0011)
               (true_val  #b000111001)
               (false_val #b000011001)
               (alloc_data (dlambda (d (watermark datas)) (cond ((str? d)      (dlet ((size (+ 8 (band (len d) -8))))
@@ -1756,6 +1757,43 @@
               ;(num_pre_functions 2)
               (num_pre_functions 3)
               ((func_idx funcs) (array num_pre_functions (array)))
+
+              (type_int      (array #b1      #b0))
+              (type_string   (array #b111    #b011))
+              (type_symbol   (array #b111    #b111))
+              (type_array    (array #b111    #b101))
+              (type_combiner (array #b1111   #b0001))
+              (type_env      (array #b11111  #b01001))
+              (type_bool     (array #b11111  #b11001))
+
+              (typecheck (dlambda (idx result_type op (mask value) then_branch else_branch)
+                (apply _if (concat (array '$matches) result_type
+                    (array (op (i64.const value) (i64.and (i64.const mask) (i64.load (* 8 idx) (local.get '$ptr)))))
+                    then_branch
+                    else_branch
+                ))
+              ))
+
+              (type_assert (rec-lambda type_assert (i type_check name_msg_val)
+                (typecheck i (array)
+                    i64.ne (if (array? (idx type_check 0)) (idx type_check 0) type_check)
+                    (array (then
+                        (if (and (array? (idx type_check 0)) (> (len type_check) 1))
+                              (type_assert i (slice type_check 1 -1) name_msg_val)
+                              (concat
+                                    (call '$print (i64.const bad_params_type_msg_val))
+                                    (call '$print (i64.const (<< i 1)))
+                                    (call '$print (i64.const space_msg_val))
+                                    (call '$print (i64.const name_msg_val))
+                                    (call '$print (i64.const space_msg_val))
+                                    (call '$print (i64.load (* 8 i) (local.get '$ptr)))
+                                    (unreachable)
+                              )
+                        )
+                    ))
+                    nil
+                )
+              ))
 
               ; malloc allocates with size and refcount in header
               ((k_malloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$malloc '(param $bytes i32) '(result i32) '(local $result i32) '(local $ptr i32) '(local $last i32) '(local $pages i32)
@@ -2243,25 +2281,46 @@
                     (_if '$new_size_0 '(result i64)
                         (i32.eqz (local.get '$new_size))
                         (then
-                            (i64.const nil_val)
+                            (typecheck 0 (array '(result i64))
+                                i64.eq type_array
+                                (array (then (i64.const nil_val)))
+                                (array (else (i64.const emptystr_val)))
+                            )
                         )
                         (else
-                            (local.set '$new_ptr  (call '$malloc (i32.shl (local.get '$new_size) (i32.const 3)))) ; malloc(size*8)
+                            (typecheck 0 (array '(result i64))
+                                i64.eq type_array
+                                (array (then
+                                        (local.set '$new_ptr  (call '$malloc (i32.shl (local.get '$new_size) (i32.const 3)))) ; malloc(size*8)
 
-                            (local.set '$i (i32.const 0))
-                            (block '$exit_loop
-                                (_loop '$l
-                                    (br_if '$exit_loop (i32.eq (local.get '$i) (local.get '$new_size)))
-                                    (i64.store (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$new_ptr))
-                                               (call '$dup (i64.load (i32.add (i32.shl (i32.add (local.get '$s) (local.get '$i)) (i32.const 3)) (local.get '$ptr))))) ; n[i] = dup(o[i+s])
-                                    (local.set '$i (i32.add (i32.const 1) (local.get '$i)))
-                                    (br '$l)
-                                )
+                                        (local.set '$i (i32.const 0))
+                                        (block '$exit_loop
+                                            (_loop '$l
+                                                (br_if '$exit_loop (i32.eq (local.get '$i) (local.get '$new_size)))
+                                                (i64.store (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$new_ptr))
+                                                           (call '$dup (i64.load (i32.add (i32.shl (i32.add (local.get '$s) (local.get '$i)) (i32.const 3))
+                                                                                          (local.get '$ptr))))) ; n[i] = dup(o[i+s])
+                                                (local.set '$i (i32.add (i32.const 1) (local.get '$i)))
+                                                (br '$l)
+                                            )
+                                        )
+                                        (call '$drop (local.get '$array))
+
+                                        (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #b101))
+                                                (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
+                                ))
+                                (array (else
+                                        (local.set '$new_ptr  (call '$malloc (local.get '$new_size))) ; malloc(size)
+                                        (memory.copy (local.get '$new_ptr)
+                                                     (i32.add (local.get '$ptr) (local.get '$s))
+                                                     (local.get '$new_size))
+
+                                        (call '$drop (local.get '$array))
+
+                                        (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #b011))
+                                                (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
+                                ))
                             )
-                            (call '$drop (local.get '$array))
-
-                            (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #x5))
-                                    (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
                         )
                     )
               ))))
@@ -2327,14 +2386,6 @@
                         (i64.const #b011))
               ))))
 
-              (typecheck (dlambda (idx result_type op (mask value) then_branch else_branch)
-                (apply _if (concat (array '$matches) result_type
-                    (array (op (i64.const value) (i64.and (i64.const mask) (i64.load (* 8 idx) (local.get '$ptr)))))
-                    then_branch
-                    else_branch
-                ))
-              ))
-
               (pred_func    (lambda (name type_check) (func name '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (typecheck 0 (array '(result i64))
@@ -2344,30 +2395,6 @@
                 )
                 drop_p_d
               )))
-
-              (type_assert (lambda (i type_check name_msg_val)
-                (typecheck i (array)
-                    i64.ne type_check
-                    (array (then
-                        (call '$print (i64.const bad_params_type_msg_val))
-                        (call '$print (i64.const (<< i 1)))
-                        (call '$print (i64.const space_msg_val))
-                        (call '$print (i64.const name_msg_val))
-                        (call '$print (i64.const space_msg_val))
-                        (call '$print (i64.load (* 8 i) (local.get '$ptr)))
-                        (unreachable)
-                    ))
-                    nil
-                )
-              ))
-
-              (type_int      (array #b1      #b0))
-              (type_string   (array #b111    #b011))
-              (type_symbol   (array #b111    #b111))
-              (type_array    (array #b111    #b101))
-              (type_combiner (array #b1111   #b0001))
-              (type_env      (array #b11111  #b01001))
-              (type_bool     (array #b11111  #b11001))
 
               ((k_nil_loc k_nil_length datasi) (alloc_data "k_nil" datasi))
               (k_nil_msg_val (bor (<< k_nil_length 32) k_nil_loc #b011))
@@ -2812,16 +2839,36 @@
 
               ((k_concat_loc k_concat_length datasi) (alloc_data "k_concat" datasi))
               (k_concat_msg_val (bor (<< k_concat_length 32) k_concat_loc #b011))
-              ((k_concat        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$concat  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $size i32) '(local $i i32) '(local $it i64) '(local $new_ptr i32) '(local $inner_ptr i32) '(local $inner_size i32) '(local $new_ptr_traverse i32)
+              ((k_concat        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$concat  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $size i32) '(local $i i32) '(local $it i64) '(local $new_ptr i32) '(local $inner_ptr i32) '(local $inner_size i32) '(local $new_ptr_traverse i32) '(local $is_str i32)
                 set_len_ptr
                 (local.set '$size (i32.const 0))
                 (local.set '$i (i32.const 0))
+                (local.set '$is_str (i32.const 0))
                 (block '$b
                     (_loop '$l
                         (br_if '$b (i32.eq (local.get '$len) (local.get '$i)))
                         (local.set '$it (i64.load (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$ptr))))
                         (_if '$not_array (i64.ne (i64.const #b101) (i64.and (i64.const #b111) (local.get '$it)))
-                            (then (unreachable))
+                            (then
+                                (_if '$is_string (i64.eq (i64.const #b011) (i64.and (i64.const #b111) (local.get '$it)))
+                                    (then
+                                         (_if '$is_first (i32.eq (i32.const 0) (local.get '$i))
+                                              (then
+                                                (local.set '$is_str (i32.const 1))
+                                              )
+                                              (else
+                                                    (_if '$mixed (i32.eqz (local.get '$is_str))
+                                                         (then (unreachable)))
+                                              )
+                                         )
+                                    )
+                                    (else (unreachable))
+                                )
+                            )
+                            (else
+                              (_if '$mixed (local.get '$is_str)
+                                   (then (unreachable)))
+                            )
                         )
                         (local.set '$size (i32.add (local.get '$size) (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 32)))))
                         (local.set '$i    (i32.add (local.get '$i)    (i32.const 1)))
@@ -2830,43 +2877,75 @@
                 )
                 (_if '$size_0 '(result i64)
                     (i32.eqz (local.get '$size))
-                    (then (i64.const nil_val))
+                    (then (_if 'ret_emptystr '(result i64) (local.get '$is_str)
+                               (then (i64.const emptystr_val))
+                               (else (i64.const nil_val))))
                     (else
-                        (local.set '$new_ptr  (call '$malloc (i32.shl (local.get '$size) (i32.const 3)))) ; malloc(size*8)
-                        (local.set '$new_ptr_traverse (local.get '$new_ptr))
+                        (_if 'doing_str '(result i64) (local.get '$is_str)
+                          (then
+                              (local.set '$new_ptr  (call '$malloc (local.get '$size))) ; malloc(size)
+                              (local.set '$new_ptr_traverse (local.get '$new_ptr))
 
-                        (local.set '$i (i32.const 0))
-                        (block '$exit_outer_loop
-                            (_loop '$outer_loop
-                                (br_if '$exit_outer_loop (i32.eq (local.get '$len) (local.get '$i)))
-                                (local.set '$it (i64.load (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$ptr))))
-                                ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                                ; There's some serious optimization we could do here
-                                ; Moving the items from the sub arrays to this one without
-                                ; going through all the dup/drop
-                                ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                              (local.set '$i (i32.const 0))
+                              (block '$exit_outer_loop
+                                  (_loop '$outer_loop
+                                      (br_if '$exit_outer_loop (i32.eq (local.get '$len) (local.get '$i)))
+                                      (local.set '$it (i64.load (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$ptr))))
 
-                                (local.set '$inner_ptr  (i32.wrap_i64 (i64.and   (local.get '$it) (i64.const -8))))
-                                (local.set '$inner_size (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 32))))
+                                      (local.set '$inner_ptr  (i32.wrap_i64 (i64.and   (local.get '$it) (i64.const -8))))
+                                      (local.set '$inner_size (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 32))))
 
-                                (block '$exit_inner_loop
-                                    (_loop '$inner_loop
-                                        (br_if '$exit_inner_loop (i32.eqz (local.get '$inner_size)))
-                                        (i64.store (local.get '$new_ptr_traverse)
-                                                   (call '$dup (i64.load (local.get '$inner_ptr))))
-                                        (local.set '$inner_ptr           (i32.add (local.get '$inner_ptr)          (i32.const 8)))
-                                        (local.set '$new_ptr_traverse    (i32.add (local.get '$new_ptr_traverse)   (i32.const 8)))
-                                        (local.set '$inner_size          (i32.sub (local.get '$inner_size)         (i32.const 1)))
-                                        (br '$inner_loop)
-                                    )
-                                )
-                                (local.set '$i (i32.add (local.get '$i) (i32.const 1)))
-                                (br '$outer_loop)
-                            )
-                        )
+                                      (memory.copy (local.get '$new_ptr_traverse)
+                                                   (local.get '$inner_ptr)
+                                                   (local.get '$inner_size))
 
-                        (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr)) (i64.const #x5))
-                                (i64.shl (i64.extend_i32_u (local.get '$size))    (i64.const 32)))
+                                      (local.set '$new_ptr_traverse    (i32.add (local.get '$new_ptr_traverse) (local.get '$inner_size)))
+                                      (local.set '$i (i32.add (local.get '$i) (i32.const 1)))
+                                      (br '$outer_loop)
+                                  )
+                              )
+
+                              (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr)) (i64.const #b011))
+                                      (i64.shl (i64.extend_i32_u (local.get '$size))    (i64.const 32)))
+                          )
+                          (else
+                              (local.set '$new_ptr  (call '$malloc (i32.shl (local.get '$size) (i32.const 3)))) ; malloc(size*8)
+                              (local.set '$new_ptr_traverse (local.get '$new_ptr))
+
+                              (local.set '$i (i32.const 0))
+                              (block '$exit_outer_loop
+                                  (_loop '$outer_loop
+                                      (br_if '$exit_outer_loop (i32.eq (local.get '$len) (local.get '$i)))
+                                      (local.set '$it (i64.load (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$ptr))))
+                                      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                      ; There's some serious optimization we could do here
+                                      ; Moving the items from the sub arrays to this one without
+                                      ; going through all the dup/drop
+                                      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+                                      (local.set '$inner_ptr  (i32.wrap_i64 (i64.and   (local.get '$it) (i64.const -8))))
+                                      (local.set '$inner_size (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 32))))
+
+                                      (block '$exit_inner_loop
+                                          (_loop '$inner_loop
+                                              (br_if '$exit_inner_loop (i32.eqz (local.get '$inner_size)))
+                                              (i64.store (local.get '$new_ptr_traverse)
+                                                         (call '$dup (i64.load (local.get '$inner_ptr))))
+                                              (local.set '$inner_ptr           (i32.add (local.get '$inner_ptr)          (i32.const 8)))
+                                              (local.set '$new_ptr_traverse    (i32.add (local.get '$new_ptr_traverse)   (i32.const 8)))
+                                              (local.set '$inner_size          (i32.sub (local.get '$inner_size)         (i32.const 1)))
+                                              (br '$inner_loop)
+                                          )
+                                      )
+                                      (local.set '$i (i32.add (local.get '$i) (i32.const 1)))
+                                      (br '$outer_loop)
+                                  )
+                              )
+
+                              (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr)) (i64.const #b101))
+                                      (i64.shl (i64.extend_i32_u (local.get '$size))    (i64.const 32)))
+                          )
+                         )
                     )
                 )
                 drop_p_d
@@ -2875,7 +2954,7 @@
               (k_slice_msg_val (bor (<< k_slice_length 32) k_slice_loc #b011))
               ((k_slice         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 3)
-                (type_assert 0 type_array k_slice_msg_val)
+                (type_assert 0 (array type_array type_string) k_slice_msg_val)
                 (type_assert 1 type_int k_slice_msg_val)
                 (type_assert 2 type_int k_slice_msg_val)
                 (call '$slice_impl (call '$dup (i64.load  0 (local.get '$ptr)))
@@ -2887,7 +2966,7 @@
               (k_idx_msg_val (bor (<< k_idx_length 32) k_idx_loc #b011))
               ((k_idx           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$idx     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $array i64) '(local $idx i32) '(local $size i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 2)
-                (type_assert 0 type_array k_idx_msg_val)
+                (type_assert 0 (array type_array type_string) k_idx_msg_val)
                 (type_assert 1 type_int k_idx_msg_val)
                 (local.set '$array (i64.load 0 (local.get '$ptr)))
                 (local.set '$idx  (i32.wrap_i64 (i64.shr_s (i64.load 8 (local.get '$ptr)) (i64.const 1))))
@@ -2896,15 +2975,23 @@
                 (_if '$i_lt_0     (i32.lt_s (local.get '$idx) (i32.const 0))      (then (unreachable)))
                 (_if '$i_ge_s     (i32.ge_s (local.get '$idx) (local.get '$size)) (then (unreachable)))
 
-                (call '$dup (i64.load (i32.add (i32.wrap_i64 (i64.and (local.get '$array) (i64.const -8)))
-                                               (i32.shl (local.get '$idx) (i32.const 3)))))
+                (typecheck 0 (array '(result i64))
+                    i64.eq type_array
+                    (array (then
+                      (call '$dup (i64.load (i32.add (i32.wrap_i64 (i64.and (local.get '$array) (i64.const -8)))
+                                                     (i32.shl (local.get '$idx) (i32.const 3)))))
+                    ))
+                    (array (else (i64.shl (i64.load8_u (i32.add (i32.wrap_i64 (i64.and (local.get '$array) (i64.const -8)))
+                                                       (local.get '$idx)))
+                                          (i64.const 1))))
+                )
                 drop_p_d
               ))))
               ((k_len_loc k_len_length datasi) (alloc_data "k_len" datasi))
               (k_len_msg_val (bor (<< k_len_length 32) k_len_loc #b011))
               ((k_len           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$len     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
-                (type_assert 0 type_array k_len_msg_val)
+                (type_assert 0 (array type_array type_string) k_len_msg_val)
                 (i64.and (i64.shr_u (i64.load 0 (local.get '$ptr)) (i64.const 31)) (i64.const -2))
                 drop_p_d
               ))))
@@ -2916,7 +3003,7 @@
                 ; s is 0
               ))))
 
-              ((k_get_loc k_get_length datasi) (alloc_data "k_get" datasi))
+              ((k_get_loc k_get_length datasi) (alloc_data "k_get-text" datasi))
               (k_get_msg_val (bor (<< k_get_length 32) k_get_loc #b011))
               ((k_get-text      func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$get-text      '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
@@ -4549,6 +4636,18 @@
         (print (run_partial_eval_test "(slice \"asdf\" 1 3)"))
         (print (run_partial_eval_test "(concat \"asdf\" \";lkj\")"))
 
+        ;(_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
+        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (len (cond (= 0 written) \"asdf\" true \"sdf\"))))")))))
+
+        ;(_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
+        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (idx (cond (= 0 written) \"asdf\" true \"sdf\") 1)))")))))
+
+        ;(_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
+        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (slice (cond (= 0 written) \"asdf\" true \"abcdefghi\") 1 3)))")))))
+
+        (_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
+            "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (concat \"hehe\" (cond (= 0 written) \"asdf\" true \"abcdefghi\"))))")))))
+
 
     ) void)))
 
@@ -4579,8 +4678,7 @@
                    (true             (run-compiler com))))
 
        ;(true_print "GLOBAL_MAX was " GLOBAL_MAX)
-       ;(profile-dump-html)
-       ;(profile-dump-list)
+       (profile-dump-html)
    )
 )
 
@@ -4588,7 +4686,6 @@
 ; Known TODOs
 ;;;;;;;;;;;;;;
 ;
-; * ARRAY FUNCTIONS FOR STRINGS, in both PARTIAL_EVAL *AND* COMPILED
 ; * eval vau other missing builtins
 ; * NON NAIVE REFCOUNTING
 ; EVENTUALLY: Support some hard core partial_eval that an fully make (foldl or stuff) short circut effeciencly with double-inlining, finally
