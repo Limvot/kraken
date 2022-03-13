@@ -7,7 +7,7 @@
 
 ; Chez
 (define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift) (define foldl fold-left) (define foldr fold-right) (define write_file (lambda (file bytes) (let* ( (port (open-file-output-port file)) (_ (foldl (lambda (_ o) (put-u8 port o)) (void) bytes)) (_ (close-port port))) '()))) (define args (cdr (command-line)))
-(compile-profile 'source)
+;(compile-profile 'source)
 
 ; Gambit - Gambit also has a problem with the dlet definition (somehow recursing and making (cdr nil) for (cdr ls)?), even if using the unstable one that didn't break syntax-rules
 ;(define print pretty-print)
@@ -788,7 +788,8 @@
                                                                                 ((!= nil param_err)     (array pectx param_err nil))
                                                                                 ((not ok_and_non_later) (array pectx nil (l_later_call_array)))
                                                                                 ((prim_comb? comb) (dlet (
-                                                                                                    (_ (println (indent_str indent) "Calling prim comb " (.prim_comb_sym comb)))
+                                                                                                    ;(_ (println (indent_str indent) "Calling prim comb " (.prim_comb_sym comb)))
+                                                                                                    ;(_ (if (= '!= (.prim_comb_sym comb)) (true_print (indent_str indent) "Calling prim comb " (.prim_comb_sym comb) " with params " evaled_params)))
                                                                                                     ((pectx err result) ((.prim_comb_handler comb) only_head env env_stack pectx evaled_params (+ 1 indent)))
                                                                                                     ) (if (= 'LATER err) (array pectx nil (l_later_call_array))
                                                                                                                          (array pectx err result))))
@@ -952,21 +953,23 @@
                                                                                             (already_in (!= false (get-value-or-false memo hash)))
                                                                                             (_ (if already_in (print_strip "ALREADY IN " this)
                                                                                                               (print_strip "NOT ALREADY IN, CONTINUING with " this)))
-                                                                                            ((pectx err evaled_params later_hash) (if already_in
+                                                                                            ; WE SHOULDN'T DIE ON ERROR, since these errors may be guarded by conditions we
+                                                                                            ; can't evaluate. We'll keep branches that error as un-valed only
+                                                                                            ((pectx _err evaled_params later_hash) (if already_in
                                                                                                         (array pectx nil (map (lambda (x) (dlet (((ok ux) (try_unval x (lambda (_) nil)))
                                                                                                                                                  (_ (if (not ok) (error "BAD cond un"))))
                                                                                                                                                  ux))
                                                                                                                               sliced_params) hash)
-                                                                                                        (foldl (dlambda ((pectx err as later_hash) x)
+                                                                                                        (foldl (dlambda ((pectx _err as later_hash) x)
                                                                                                             (dlet (((pectx er a) (eval_helper x pectx)))
-                                                                                                                (array pectx (mif err err er) (concat as (array a)) later_hash))
-                                                                                                        ) (array (array env_counter (put memo hash nil)) err (array) nil) sliced_params)))
+                                                                                                                (mif er (dlet (((ok ux) (if already_stripped (array true x) (try_unval x (lambda (_) nil))))
+                                                                                                                                                 (_ (if (not ok) (error (str "BAD cond un" x)))))
+                                                                                                                                                 (array pectx nil (concat as (array ux)) later_hash))
+                                                                                                                        (array pectx nil (concat as (array a)) later_hash)))
+                                                                                                        ) (array (array env_counter (put memo hash nil)) nil (array) nil) sliced_params)))
                                                                                             ((env_counter omemo) pectx)
                                                                                             (pectx (array env_counter memo))
-                                                                                                ) (array pectx err (mif err nil (marked_array false true later_hash (concat (array (marked_prim_comb (recurse true) 'vcond -1 true)
-                                                                                                                                                         pred)
-                                                                                                                                                  evaled_params
-                                                                                                                                              ))))))
+                                                                                                ) (array pectx nil (marked_array false true later_hash (concat (array (marked_prim_comb (recurse true) 'vcond -1 true) pred) evaled_params)))))
                                                 ((and (< (+ 2 i) (len params)) (false? pred))   (recurse_inner (+ 2 i) so_far pectx))
                                                 (                              (false? pred)    (array pectx "comb reached end with no true" nil))
                                                 (true                                           (eval_helper (idx params (+ i 1)) pectx))
@@ -1017,7 +1020,9 @@
         ) 'len 1 true))
         (array 'idx (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled_array evaled_idx) indent)
             (cond
-                  ((and (val? evaled_idx) (marked_array? evaled_array))                       (array pectx nil (idx (.marked_array_values evaled_array) (.val evaled_idx))))
+                  ((and (val? evaled_idx) (marked_array? evaled_array))                       (if (< (.val evaled_idx) (len (.marked_array_values evaled_array)))
+                                                                                                  (array pectx nil (idx (.marked_array_values evaled_array) (.val evaled_idx)))
+                                                                                                  (array pectx (true_str "idx out of bounds " evaled_array " " evaled_idx) nil)))
                   ((and (val? evaled_idx) (val? evaled_array) (string? (.val evaled_array)))  (array pectx nil (marked_val (idx (.val evaled_array) (.val evaled_idx)))))
                   (true                                                                       (array pectx (str "bad type to idx " evaled_idx " " evaled_array) nil))
             )
@@ -4678,7 +4683,7 @@
                    (true             (run-compiler com))))
 
        ;(true_print "GLOBAL_MAX was " GLOBAL_MAX)
-       (profile-dump-html)
+       ;(profile-dump-html)
    )
 )
 

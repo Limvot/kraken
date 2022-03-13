@@ -14,9 +14,12 @@
  (let (
          lcompose (lambda (g f) (lambda (& args) (lapply g (array (lapply f args)))))
          rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
-         if (vau de (con than & else) (cond (eval con de) (eval than de)
-                                            (> (len else) 0) (eval (idx else 0) de)
-                                            true false))
+         ;if (vau de (con than & else) (cond (eval con de)    (eval than de)
+         ;                                   (> (len else) 0) (eval (idx else 0) de)
+         ;                                   true false))
+         if (vau de (con than & else) (eval (array cond con  than
+                                                        true (cond (> (len else) 0) (idx else 0)
+                                                                   true             false)) de))
 
          map (lambda (f5 l5)
              ; now maybe errors on can't find helper?
@@ -153,7 +156,7 @@
         print   log
         println log
         dlambda lambda
-        mif (vau de (c & bs) (vapply if (cons (array let (array 'tmp c) (array and (array != 'tmp) 'tmp)) bs) de))
+        mif (vau de (c & bs) (vapply if (cons (array let (array 'tmp c) (array and (array != 'tmp (array quote (array))) 'tmp)) bs) de))
         ;mif (vau de (c & bs) (eval (concat (array if (array let (array 'tmp c) (array and (array != 'tmp) 'tmp))) bs) de))
 
 
@@ -834,13 +837,45 @@
     ))))
 
 
+    (root_marked_env (marked_env true nil nil nil nil (array
+
+       (array 'eval (marked_prim_comb (rec-lambda recurse (only_head de env_stack pectx evaled_params indent)
+           (if (not (total_value? (idx evaled_params 0)))                                (array pectx nil (marked_array false true nil (cons (marked_prim_comb recurse 'eval 0 true) evaled_params)))
+           (if (and (= 2 (len evaled_params)) (not (marked_env? (idx evaled_params 1)))) (array pectx nil (marked_array false true nil (cons (marked_prim_comb recurse 'eval 0 true) evaled_params)))
+           (dlet (
+               (body (idx evaled_params 0))
+               (implicit_env (!= 2 (len evaled_params)))
+               (eval_env (if implicit_env de (idx evaled_params 1)))
+               ((ok unval_body) (try_unval body (lambda (_) nil)))
+               (_ (if (not ok) (error "actually impossible eval unval")))
+           ) (veval_inner only_head de env_stack pectx (if implicit_env (array unval_body) (array unval_body eval_env)) indent))))
+       ) 'eval 1 true))
+
+        (array 'vapply (marked_prim_comb (dlambda (only_head de env_stack pectx (f ps ide) indent)
+            (veval_inner only_head de env_stack pectx (array (marked_array false false nil (cons f (.marked_array_values ps))) ide) (+ 1 indent))
+        ) 'vapply 1 true))
+        (array 'lapply (marked_prim_comb (dlambda (only_head de env_stack pectx (f ps) indent)
+            (veval_inner only_head de env_stack pectx (array (marked_array false false nil (cons (with_wrap_level f (- (.any_comb_wrap_level f) 1)) (.marked_array_values ps)))) (+ 1 indent))
+        ) 'lapply 1 true))
 
 
 
 
 
-    (and_fold (foldl and true '(true true false true)))
-    (monad (array 'write  1 (str "Hello from compiled code! " and_fold " here's a hashed string " (hash_string "hia") "\n") (vau (written code) (array 'exit 0))))
+
+       (array 'empty_env (marked_env true nil nil nil nil nil))
+    )))
+
+
+
+
+
+
+
+    ;(and_fold (foldl and true '(true true false true)))
+    ;(monad (array 'write  1 (str "Hello from compiled code! " and_fold " here's a hashed string " (hash_string "hia") "\n") (vau (written code) (array 'exit 0))))
+    ;(monad (array 'write  1 (str "Hello from compiled code! " (mif nil 1 2) " " (mif 1 3 4) "\n") (vau (written code) (array 'exit 0))))
+    (monad (array 'write  1 (str "Hello from compiled code! "  "\n") (vau (written code) (array 'exit (if (not written) 1)))))
 
  ) monad)
  )
