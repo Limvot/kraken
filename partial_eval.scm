@@ -1727,6 +1727,9 @@
               ((remaining_eval_loc remaining_eval_length datasi) (alloc_data "\nError: trying to call remainin eval\n" datasi))
               (remaining_eval_msg_val (bor (<< remaining_eval_length 32) remaining_eval_loc #b011))
 
+              ((hit_upper_in_eval_loc hit_upper_in_eval_length datasi) (alloc_data "\nError: hit nil upper env when looking up symbol in remaining eval: " datasi))
+              (hit_upper_in_eval_msg_val (bor (<< hit_upper_in_eval_length 32) hit_upper_in_eval_loc #b011))
+
               ((remaining_vau_loc remaining_vau_length datasi) (alloc_data "\nError: trying to call remainin vau (primitive)\n" datasi))
               (remaining_vau_msg_val (bor (<< remaining_vau_length 32) remaining_vau_loc #b011))
 
@@ -2286,45 +2289,45 @@
                     (_if '$new_size_0 '(result i64)
                         (i32.eqz (local.get '$new_size))
                         (then
-                            (typecheck 0 (array '(result i64))
-                                i64.eq type_array
-                                (array (then (i64.const nil_val)))
-                                (array (else (i64.const emptystr_val)))
-                            )
+                            (call '$drop (local.get '$array))
+                            (_if '$is_array '(result i64)
+                             (i64.eq (i64.const #b101) (i64.and (i64.const #b111) (local.get '$array)))
+                             (then (i64.const nil_val))
+                             (else (i64.const emptystr_val)))
                         )
                         (else
-                            (typecheck 0 (array '(result i64))
-                                i64.eq type_array
-                                (array (then
-                                        (local.set '$new_ptr  (call '$malloc (i32.shl (local.get '$new_size) (i32.const 3)))) ; malloc(size*8)
+                            (_if '$is_array '(result i64)
+                             (i64.eq (i64.const #b101) (i64.and (i64.const #b111) (local.get '$array)))
+                             (then
+                                  (local.set '$new_ptr  (call '$malloc (i32.shl (local.get '$new_size) (i32.const 3)))) ; malloc(size*8)
 
-                                        (local.set '$i (i32.const 0))
-                                        (block '$exit_loop
-                                            (_loop '$l
-                                                (br_if '$exit_loop (i32.eq (local.get '$i) (local.get '$new_size)))
-                                                (i64.store (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$new_ptr))
-                                                           (call '$dup (i64.load (i32.add (i32.shl (i32.add (local.get '$s) (local.get '$i)) (i32.const 3))
-                                                                                          (local.get '$ptr))))) ; n[i] = dup(o[i+s])
-                                                (local.set '$i (i32.add (i32.const 1) (local.get '$i)))
-                                                (br '$l)
-                                            )
-                                        )
-                                        (call '$drop (local.get '$array))
+                                  (local.set '$i (i32.const 0))
+                                  (block '$exit_loop
+                                      (_loop '$l
+                                          (br_if '$exit_loop (i32.eq (local.get '$i) (local.get '$new_size)))
+                                          (i64.store (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$new_ptr))
+                                                     (call '$dup (i64.load (i32.add (i32.shl (i32.add (local.get '$s) (local.get '$i)) (i32.const 3))
+                                                                                    (local.get '$ptr))))) ; n[i] = dup(o[i+s])
+                                          (local.set '$i (i32.add (i32.const 1) (local.get '$i)))
+                                          (br '$l)
+                                      )
+                                  )
+                                  (call '$drop (local.get '$array))
 
-                                        (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #b101))
-                                                (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
-                                ))
-                                (array (else
-                                        (local.set '$new_ptr  (call '$malloc (local.get '$new_size))) ; malloc(size)
-                                        (memory.copy (local.get '$new_ptr)
-                                                     (i32.add (local.get '$ptr) (local.get '$s))
-                                                     (local.get '$new_size))
+                                  (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #b101))
+                                          (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
+                             )
+                             (else
+                                  (local.set '$new_ptr  (call '$malloc (local.get '$new_size))) ; malloc(size)
+                                  (memory.copy (local.get '$new_ptr)
+                                               (i32.add (local.get '$ptr) (local.get '$s))
+                                               (local.get '$new_size))
 
-                                        (call '$drop (local.get '$array))
+                                  (call '$drop (local.get '$array))
 
-                                        (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #b011))
-                                                (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
-                                ))
+                                  (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #b011))
+                                          (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
+                             )
                             )
                         )
                     )
@@ -3134,7 +3137,7 @@
                         (_loop '$l
                             (br_if '$b2 (i32.eqz (global.get '$phl)))
                             (local.set '$tmp (i32.load8_u (global.get '$phs)))
-                            (call '$print (i64.shl (i64.extend_i32_u (local.get '$tmp)) (i64.const 1)))
+                            ;(call '$print (i64.shl (i64.extend_i32_u (local.get '$tmp)) (i64.const 1)))
                             (_if '$whitespace (i32.or (i32.or (i32.eq (i32.const #x9)  (local.get '$tmp))    ; tab
                                                               (i32.eq (i32.const #xA)  (local.get '$tmp)))   ; newline
                                                       (i32.or (i32.eq (i32.const #xD)  (local.get '$tmp))    ; carrige return
@@ -3528,7 +3531,7 @@
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 type_string k_read_msg_val)
                 (local.set '$str (i64.load (local.get '$ptr)))
-                (call '$print (local.get '$str))
+                ;(call '$print (local.get '$str))
                 (global.set '$phl (i32.wrap_i64 (i64.shr_u (local.get '$str) (i64.const 32))))
                 (global.set '$phs (i32.wrap_i64 (i64.and   (local.get '$str) (i64.const #xFFFFFFF8))))
                 (local.set '$result (call '$parse_helper))
@@ -3564,12 +3567,150 @@
                 (local.get '$result)
                 drop_p_d
               ))))
+
+              ; Helper method, doesn't refcount consume parameters
+              ; but does properly refcount internally / dup returns
+              ((k_eval_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval_helper '(param $it i64) '(param $env i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $current_env i64) '(local $res i64) '(local $env_ptr i32) '(local $i i32) '(local $comb i64) '(local $params i64) '(local $wrap i32)
+
+
+            ; The cool thing about Vau calculus / Kernel / Kraken
+            ; is that everything is a value that evaluates to itself except symbols
+            ; and arrays.
+            (_if '$is_value '(result i64)
+                 (i64.ne (i64.const #b101) (i64.and (i64.const #b101) (local.get '$it)))
+                 (then
+                   ; it's a value, we can just return it!
+                   (call '$dup (local.get '$it))
+                 )
+                 (else
+                   (_if '$is_symbol '(result i64)
+                        (i64.eq (i64.const #b111) (i64.and (i64.const #b111) (local.get '$it)))
+                        (then
+                          ; look it up in the environment
+                          ; 0..0<env_ptr32 but still aligned>01001
+                          ;   Env object is <key_array_value><value_array_value><upper_env_value>
+                          ;       each being the full 64 bit objects.
+                          (local.set '$current_env (local.get '$env))
+
+                          (block '$outer_loop_break
+                                (_loop '$outer_loop
+                                      (local.set '$env_ptr (i32.wrap_i64 (i64.shr_u (local.get '$current_env) (i64.const 5))))
+
+                                      (local.set '$len (i32.wrap_i64 (i64.shr_u (i64.load 0 (local.get '$env_ptr)) (i64.const 32))))
+                                      (local.set '$ptr (i32.wrap_i64 (i64.and   (i64.load 0 (local.get '$env_ptr)) (i64.const -8))))
+                                      (local.set '$i   (i32.const 0))
+
+                                      (block '$inner_loop_break
+                                            (_loop '$inner_loop
+                                                   (br_if '$inner_loop_break (i32.eqz (local.get '$len)))
+                                                   (_if '$found_it
+                                                        ; We should intern symbols so we can do this
+                                                        ;(i64.eq (local.get '$it) (i64.load (local.get '$ptr)))
+                                                        (i64.eq (i64.const 1)
+                                                                (call '$str_sym_comp (local.get '$it) (i64.load (local.get '$ptr)) (i64.const 0) (i64.const 1) (i64.const 0)))
+                                                        (then
+                                                          (local.set '$res (i64.load (i32.add (i32.wrap_i64 (i64.and (i64.load 8 (local.get '$env_ptr)) (i64.const -8)))
+                                                                                              (i32.shl (local.get '$i) (i32.const 3)))))
+                                                          (br '$outer_loop_break)
+                                                        )
+                                                   )
+                                                   (local.set '$len (i32.sub (local.get '$len) (i32.const 1)))
+                                                   (local.set '$ptr (i32.add (local.get '$ptr) (i32.const 8)))
+                                                   (local.set '$i   (i32.add (local.get '$i)   (i32.const 1)))
+                                                   (br '$inner_loop)
+                                            )
+                                      )
+                                      ; try in upper
+                                      (local.set '$current_env (i64.load 16 (local.get '$env_ptr)))
+                                      (br_if '$outer_loop (i64.ne (i64.const nil_val) (local.get '$current_env)))
+                                )
+                                ; Ended at upper case
+                                (call '$print (i64.const hit_upper_in_eval_msg_val))
+                                (call '$print (local.get '$it))
+                                (call '$print (i64.const newline_msg_val))
+                                (unreachable)
+                          )
+                          (call '$dup (local.get '$res))
+                        )
+                        (else
+                          ;  <array_size32><array_ptr29>101 / 0..0 101
+                          (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 32))))
+                          (local.set '$ptr (i32.wrap_i64 (i64.and   (local.get '$it) (i64.const -8))))
+                          (_if '$zero_length
+                               (i32.eqz (local.get '$len))
+                               (then (unreachable)))
+                          ; its a call, evaluate combiner first then
+                          (local.set '$comb (call '$eval_helper (i64.load 0 (local.get '$ptr)) (local.get '$env)))
+                          ; check to make sure it's a combiner <func_idx29>|<env_ptr29><wrap2>0001
+                          (_if '$isnt_function
+                                (i64.ne (i64.const #b0001) (i64.and (i64.const #b1111) (local.get '$comb)))
+                                (then (unreachable))
+                          )
+                          (local.set '$wrap (i32.wrap_i64 (i64.and (i64.const #b11) (i64.shr_u (local.get '$comb) (i64.const 4)))))
+                          (local.set '$params (call '$slice_impl (call '$dup (local.get '$it)) (i32.const 1) (local.get '$len)))
+                          ; we'll reuse len and ptr now for params
+                          (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$params) (i64.const 32))))
+                          (local.set '$ptr (i32.wrap_i64 (i64.and   (local.get '$params) (i64.const -8))))
+                          ; then evaluate parameters wrap times
+                          (block '$wrap_loop_break
+                                 (_loop '$wrap_loop
+                                        (br_if '$wrap_loop_break (i32.eqz (local.get '$wrap)))
+
+                                        (local.set '$i   (i32.const 0))
+                                        (block '$inner_eval_loop_break
+                                               (_loop '$inner_eval_loop
+                                                      (br_if '$inner_eval_loop_break (i32.eq (local.get '$len) (local.get '$i)))
+
+                                                      (i64.store                               (i32.add (local.get '$ptr) (i32.shl (local.get '$i) (i32.const 3)))
+                                                                 (call '$eval_helper (i64.load (i32.add (local.get '$ptr) (i32.shl (local.get '$i) (i32.const 3))))
+                                                                                     (local.get '$env)))
+
+                                                      (local.set '$i   (i32.add (local.get '$i)   (i32.const 1)))
+                                                      (br '$inner_eval_loop)
+                                               )
+                                        )
+                                        (local.set '$wrap (i32.sub (local.get '$wrap) (i32.const 1)))
+                                        (br '$wrap_loop)
+                                 )
+                          )
+                          (call_indirect
+                                ;type
+                                k_wrap
+                                ;table
+                                0
+                                ;params
+                                (local.get '$params)
+                                ; dynamic env
+                                (call '$dup (local.get '$env))
+                                ; static env
+                                (i64.or (i64.shl (i64.and (call '$dup (local.get '$comb)) (i64.const #x3FFFFFFC0))
+                                                 (i64.const 2)) (i64.const #b01001))
+                                ;func_idx
+                                (i32.wrap_i64 (i64.shr_u (local.get '$comb) (i64.const 35)))
+                          )
+                          ; Also, this really should tail-call when we support it
+                        )
+                   )
+                 )
+            )
+
+              ))))
               ((k_eval_loc k_eval_length datasi) (alloc_data "k_eval" datasi))
               (k_eval_msg_val (bor (<< k_eval_length 32) k_eval_loc #b011))
-              ((k_eval          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+              ((k_eval          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32)
 
-                (call '$print (i64.const remaining_eval_msg_val))
-                (unreachable)
+                  (ensure_not_op_n_params_set_ptr_len i32.lt_u 1)
+                  (_if '$using_d_env '(result i64)
+                        (i32.eq (i32.const 1) (local.get '$len))
+                        (then
+                            (call '$eval_helper (i64.load 0 (local.get '$ptr)) (local.get '$d))
+                        )
+                        (else
+                            (type_assert 1 type_env k_eval_msg_val)
+                            (call '$eval_helper (i64.load 0 (local.get '$ptr)) (i64.load 8 (local.get '$ptr)))
+                        )
+                  )
+                  drop_p_d
               ))))
               ((k_vau_loc k_vau_length datasi) (alloc_data "k_vau" datasi))
               (k_vau_msg_val (bor (<< k_vau_length 32) k_vau_loc #b011))
@@ -4413,6 +4554,11 @@
                                    ))))) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))"))
 
 
+        (print (run_partial_eval_test "(len \"asdf\")"))
+        (print (run_partial_eval_test "(idx \"asdf\" 1)"))
+        (print (run_partial_eval_test "(slice \"asdf\" 1 3)"))
+        (print (run_partial_eval_test "(concat \"asdf\" \";lkj\")"))
+
 
         (print "ok, hex of 0 is " (hex_digit #\0))
         (print "ok, hex of 1 is " (hex_digit #\1))
@@ -4636,11 +4782,6 @@
         ;                            )) (vau (x5) x5))"))))
         ;(_ (write_file "./csc_out.wasm" output3))
 
-        (print (run_partial_eval_test "(len \"asdf\")"))
-        (print (run_partial_eval_test "(idx \"asdf\" 1)"))
-        (print (run_partial_eval_test "(slice \"asdf\" 1 3)"))
-        (print (run_partial_eval_test "(concat \"asdf\" \";lkj\")"))
-
         ;(_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
         ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (len (cond (= 0 written) \"asdf\" true \"sdf\"))))")))))
 
@@ -4650,9 +4791,18 @@
         ;(_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
         ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (slice (cond (= 0 written) \"asdf\" true \"abcdefghi\") 1 3)))")))))
 
-        (_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
-            "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (concat \"hehe\" (cond (= 0 written) \"asdf\" true \"abcdefghi\"))))")))))
+        ;(_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
+        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (concat \"hehe\" (cond (= 0 written) \"asdf\" true \"abcdefghi\"))))")))))
 
+        (_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
+            "(array ((vau (x) x) write)  1 \"enter form: \" (vau (written code)
+                  (array ((vau (x) x) read) 0 20 (vau (data code)
+                        (array ((vau (x) x) exit) (eval (read-string data)))
+                  ))
+
+             ))")))))
+
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) data))"))))
 
     ) void)))
 
