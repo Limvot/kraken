@@ -1733,8 +1733,8 @@
               ((remaining_vau_loc remaining_vau_length datasi) (alloc_data "\nError: trying to call remainin vau (primitive)\n" datasi))
               (remaining_vau_msg_val (bor (<< remaining_vau_length 32) remaining_vau_loc #b011))
 
-              ((remaining_cond_loc remaining_cond_length datasi) (alloc_data "\nError: trying to call remainin cond\n" datasi))
-              (remaining_cond_msg_val (bor (<< remaining_cond_length 32) remaining_cond_loc #b011))
+              ((no_true_cond_loc no_true_cond_length datasi) (alloc_data "\nError: runtime cond had no true branch\n" datasi))
+              (no_true_cond_msg_val (bor (<< no_true_cond_length 32) no_true_cond_loc #b011))
 
               ((weird_wrap_loc weird_wrap_length datasi) (alloc_data "\nError: trying to call a combiner with a weird wrap (not 0 or 1)\n" datasi))
               (weird_wrap_msg_val (bor (<< weird_wrap_length 32) weird_wrap_loc #b011))
@@ -3720,9 +3720,34 @@
               ))))
               ((k_cond_loc k_cond_length datasi) (alloc_data "k_cond" datasi))
               (k_cond_msg_val (bor (<< k_cond_length 32) k_cond_loc #b011))
-              ((k_cond          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$cond          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
-                (call '$print (i64.const remaining_cond_msg_val))
-                (unreachable)
+              ((k_cond          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$cond          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $tmp i64)
+                  set_len_ptr
+                  ;yall
+                  (block '$cond_loop_break_ok
+                      (block '$cond_loop_break_err
+                          (_loop '$cond_loop
+                              (br_if '$cond_loop_break_err (i32.le_s (local.get '$len) (i32.const 1)))
+
+                              (local.set '$tmp (call '$eval_helper (i64.load 0 (local.get '$ptr)) (local.get '$d)))
+                              (_if 'cond_truthy
+                                   (truthy_test (local.get '$tmp))
+                                   (then
+                                       (call '$drop (local.get '$tmp))
+                                       (local.set '$tmp (call '$eval_helper (i64.load 8 (local.get '$ptr)) (local.get '$d)))
+                                       (br '$cond_loop_break_ok)
+                                   )
+                                   (else (call '$drop (local.get '$tmp)))
+                              )
+                              (local.set '$len (i32.sub (local.get '$len) (i32.const 2)))
+                              (local.set '$ptr (i32.add (local.get '$ptr) (i32.const 16)))
+                              (br '$cond_loop)
+                          )
+                      )
+                      (call '$print (i64.const no_true_cond_msg_val))
+                      (unreachable)
+                  )
+                  (local.get '$tmp)
+                  drop_p_d
               ))))
 
               (get_passthrough (dlambda (hash (datasi funcs memo env pectx)) (dlet ((r (get-value-or-false memo hash)))
@@ -4796,7 +4821,7 @@
 
         (_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
             "(array ((vau (x) x) write)  1 \"enter form: \" (vau (written code)
-                  (array ((vau (x) x) read) 0 20 (vau (data code)
+                  (array ((vau (x) x) read) 0 40 (vau (data code)
                         (array ((vau (x) x) exit) (eval (read-string data)))
                   ))
 
