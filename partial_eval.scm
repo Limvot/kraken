@@ -71,7 +71,7 @@
       (concat (lambda args (cond ((equal?  (length args) 0)   (list))
                                  ((list?   (list-ref args 0)) (apply append args))
                                  ((string? (list-ref args 0)) (apply string-append args))
-                                 (#t          (error "bad value to concat")))))
+                                 (#t          (error "bad value to concat " (list-ref args 0))))))
       (len    (lambda (x)  (cond ((list? x)   (length x))
                                  ((string? x) (string-length x))
                                  (#t          (error "bad value to len")))))
@@ -3568,6 +3568,13 @@
                 drop_p_d
               ))))
 
+
+              ((k_call_zero_len_loc     k_call_zero_len_length datasi) (alloc_data "tried to eval a 0-length call" datasi))
+               (k_call_zero_len_msg_val (bor (<< k_call_zero_len_length 32) k_call_zero_len_loc #b011))
+
+              ((k_call_not_a_function_loc     k_call_not_a_function_length datasi) (alloc_data "tried to eval a call to not a function " datasi))
+               (k_call_not_a_function_msg_val (bor (<< k_call_not_a_function_length 32) k_call_not_a_function_loc #b011))
+
               ; Helper method, doesn't refcount consume parameters
               ; but does properly refcount internally / dup returns
               ((k_eval_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval_helper '(param $it i64) '(param $env i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $current_env i64) '(local $res i64) '(local $env_ptr i32) '(local $i i32) '(local $comb i64) '(local $params i64) '(local $wrap i32)
@@ -3638,14 +3645,17 @@
                           (local.set '$ptr (i32.wrap_i64 (i64.and   (local.get '$it) (i64.const -8))))
                           (_if '$zero_length
                                (i32.eqz (local.get '$len))
-                               (then (unreachable)))
+                               (then (call '$print (i64.const k_call_zero_len_msg_val))
+                                     (unreachable)))
                           ; its a call, evaluate combiner first then
                           (local.set '$comb (call '$eval_helper (i64.load 0 (local.get '$ptr)) (local.get '$env)))
                           ; check to make sure it's a combiner <func_idx29>|<env_ptr29><wrap2>0001
                           (_if '$isnt_function
                                 (i64.ne (i64.const #b0001) (i64.and (i64.const #b1111) (local.get '$comb)))
-                                (then (unreachable))
-                          )
+                                (then (call '$print (i64.const k_call_not_a_function_msg_val))
+                                      (call '$print (i64.shl (local.get '$comb) (i64.const 1)))
+                                      (call '$print (local.get '$comb))
+                                      (unreachable)))
                           (local.set '$wrap (i32.wrap_i64 (i64.and (i64.const #b11) (i64.shr_u (local.get '$comb) (i64.const 4)))))
                           (local.set '$params (call '$slice_impl (call '$dup (local.get '$it)) (i32.const 1) (local.get '$len)))
                           ; we'll reuse len and ptr now for params
@@ -3712,11 +3722,67 @@
                   )
                   drop_p_d
               ))))
+
+              ((k_vau_helper_loc k_vau_helper_length datasi) (alloc_data "k_vau_helper" datasi))
+              (k_vau_helper_msg_val (bor (<< k_vau_helper_length 32) k_vau_helper_loc #b011))
+              ((k_vau_helper          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau_helper '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i_se i64) '(local $i_p i64) '(local $body i64) '(local $new_env i64)
+
+                  ; get env ptr
+                  (local.set '$ptr (i32.wrap_i64 (i64.shr_u (local.get '$s) (i64.const 5))))
+                  ; get value array ptr
+                  (local.set '$ptr (i32.wrap_i64 (i64.and (i64.load 8 (local.get '$ptr)) (i64.const -8))))
+                  (local.set '$i_se (call '$dup (i64.load 0 (local.get '$ptr))))
+                  (local.set '$i_p  (i64.load 8 (local.get '$ptr)))
+                  (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$i_p) (i64.const 32))))
+                  (local.set '$ptr (i32.wrap_i64 (i64.and   (local.get '$i_p) (i64.const -8))))
+
+                  (_if '$using_d_env
+                        (i32.eq (i32.const 3) (local.get '$len))
+                        (then
+                             ; TODO: Combiners that take in dynamic env
+                             (unreachable)
+                        )
+                        (else
+                            (call '$drop (local.get '$d))
+                            (local.set '$new_env (call '$env_alloc (call '$dup (i64.load 0 (local.get '$ptr)))
+                                                                   (local.get '$p)
+                                                                   (local.get '$i_se)))
+                            (local.set '$body (call '$dup (i64.load 8 (local.get '$ptr))))
+                        )
+                  )
+
+                  (call '$eval_helper (local.get '$body) (local.get '$new_env))
+
+                  (call '$drop (local.get '$body))
+                  (call '$drop (local.get '$new_env))
+                  (call '$drop (local.get '$s))
+                  (call '$drop (local.get '$p))
+              ))))
+
+              ((k_env_symbol_loc k_env_symbol_length datasi) (alloc_data "env_symbol" datasi))
+              (k_env_symbol_val (bor (<< k_env_symbol_length 32) k_env_symbol_loc #b111))
+
+              ((k_dparambody_symbol_loc k_dparambody_symbol_length datasi) (alloc_data "dparambody_symbol" datasi))
+              (k_dparambody_symbol_val (bor (<< k_dparambody_symbol_length 32) k_dparambody_symbol_loc #b111))
+
+              ((k_env_dparam_body_array_loc k_env_dparam_body_array_len datasi) (alloc_data (concat (i64_le_hexify k_env_symbol_val) (i64_le_hexify k_dparambody_symbol_val)) datasi))
+              (k_env_dparam_body_array_val (bor (<< 2 32) k_env_dparam_body_array_loc #b101))
+
+
               ((k_vau_loc k_vau_length datasi) (alloc_data "k_vau" datasi))
               (k_vau_msg_val (bor (<< k_vau_length 32) k_vau_loc #b011))
               ((k_vau           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
-                (call '$print (i64.const remaining_vau_msg_val))
-                (unreachable)
+
+                ;  <func_idx29>|<env_ptr29><wrap2>0001
+                (call '$print (i64.const k_vau_msg_val))
+                (i64.or (i64.or (i64.const (<< (- k_vau_helper dyn_start) 35))
+                                (i64.and (i64.shr_u (call '$env_alloc (i64.const k_env_dparam_body_array_val)
+                                                                      (call '$array2_alloc (local.get '$d) (local.get '$p))
+                                                                      (i64.const nil_val))
+                                                    (i64.const 2)) ;env looks like 0..0<env_ptr32 but still aligned>01001
+                                         (i64.const -64))
+                                (i64.const #b0001)))
+                (call '$print (i64.const k_vau_msg_val))
               ))))
               ((k_cond_loc k_cond_length datasi) (alloc_data "k_cond" datasi))
               (k_cond_msg_val (bor (<< k_cond_length 32) k_cond_loc #b011))
@@ -4139,7 +4205,7 @@
                                         ;(_ (print_strip "inner_value for maybe const is " inner_value " inner_code is " inner_code " err is " err " this was for " body))
                                         (inner_code (mif inner_value (i64.const inner_value) inner_code))
                                         (end_code (call '$drop (local.get '$s_env)))
-                                        (our_func (func '$len '(param $params i64) '(param $d_env i64) '(param $s_env i64) '(result i64) '(local $param_ptr i32) '(local $tmp_ptr i32) '(local $tmp i64)
+                                        (our_func (func '$userfunc '(param $params i64) '(param $d_env i64) '(param $s_env i64) '(result i64) '(local $param_ptr i32) '(local $tmp_ptr i32) '(local $tmp i64)
                                                     (concat setup_code inner_code end_code)
                                                   ))
                                         (funcs (concat funcs our_func))
