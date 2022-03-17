@@ -1704,11 +1704,11 @@
               ((true_loc true_length datasi) (alloc_data "true" datasi))
               ((false_loc false_length datasi) (alloc_data "false" datasi))
 
-              ((bad_params_number_loc bad_params_length datasi) (alloc_data "\nError: passed a bad number of parameters\n" datasi))
-              (bad_params_number_msg_val (bor (<< bad_params_length 32) bad_params_number_loc #b011))
+              ((bad_params_number_loc bad_params_number_length datasi) (alloc_data "\nError: passed a bad number of parameters\n" datasi))
+              (bad_params_number_msg_val (bor (<< bad_params_number_length 32) bad_params_number_loc #b011))
 
-              ((bad_params_type_loc bad_params_length datasi) (alloc_data "\nError: passed a bad type of parameters\n" datasi))
-              (bad_params_type_msg_val (bor (<< bad_params_length 32) bad_params_type_loc #b011))
+              ((bad_params_type_loc bad_params_type_length datasi) (alloc_data "\nError: passed a bad type of parameters\n" datasi))
+              (bad_params_type_msg_val (bor (<< bad_params_type_length 32) bad_params_type_loc #b011))
 
               ((error_loc error_length datasi) (alloc_data "\nError: " datasi))
               (error_msg_val (bor (<< error_length 32) error_loc #b011))
@@ -3725,7 +3725,7 @@
 
               ((k_vau_helper_loc k_vau_helper_length datasi) (alloc_data "k_vau_helper" datasi))
               (k_vau_helper_msg_val (bor (<< k_vau_helper_length 32) k_vau_helper_loc #b011))
-              ((k_vau_helper          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau_helper '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i_se i64) '(local $i_p i64) '(local $body i64) '(local $new_env i64)
+              ((k_vau_helper          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau_helper '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i_se i64) '(local $i_p i64) '(local $ii_ps i64) '(local $ii_des i64) '(local $body i64) '(local $new_env i64)
 
                   ; get env ptr
                   (local.set '$ptr (i32.wrap_i64 (i64.shr_u (local.get '$s) (i64.const 5))))
@@ -3739,15 +3739,45 @@
                   (_if '$using_d_env
                         (i32.eq (i32.const 3) (local.get '$len))
                         (then
-                             ; TODO: Combiners that take in dynamic env
-                             (unreachable)
+                            (local.set '$ii_des (call '$dup (i64.load 0  (local.get '$ptr))))
+                            (local.set '$ii_ps  (call '$dup (i64.load 8  (local.get '$ptr))))
+                            (local.set '$body   (call '$dup (i64.load 16 (local.get '$ptr))))
+                            )
+                        (else
+                            (local.set '$ii_des (i64.const nil_val))
+                            (local.set '$ii_ps  (call '$dup (i64.load 0  (local.get '$ptr))))
+                            (local.set '$body   (call '$dup (i64.load 8  (local.get '$ptr))))
+                        )
+                  )
+
+                  ; reusing len for ii_ps
+                  (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$ii_ps) (i64.const 32))))
+                  (local.set '$ptr (i32.wrap_i64 (i64.and   (local.get '$ii_ps) (i64.const -8))))
+                  (_if '$wrong_no_params
+                       (i32.ne (local.get '$len) (i32.wrap_i64 (i64.shr_u (local.get '$p) (i64.const 32))))
+                       (then
+                            (call '$print (i64.const bad_params_number_msg_val))
+                            (unreachable)
+                       )
+                  )
+
+                  (_if '$using_d_env
+                        (i64.ne (local.get '$ii_des) (i64.const nil_val))
+                        (then
+                            (local.set '$new_env (call '$env_alloc
+                                  (call '$concat (call '$array2_alloc (local.get '$ii_ps) (call '$array1_alloc (local.get '$ii_des)))
+                                                 (i64.const nil_val)
+                                                 (i64.const nil_val))
+                                  (call '$concat (call '$array2_alloc (local.get '$p) (call '$array1_alloc (call '$dup (local.get '$d))))
+                                                 (i64.const nil_val)
+                                                 (i64.const nil_val))
+                                  (local.get '$i_se)))
                         )
                         (else
                             (call '$drop (local.get '$d))
-                            (local.set '$new_env (call '$env_alloc (call '$dup (i64.load 0 (local.get '$ptr)))
+                            (local.set '$new_env (call '$env_alloc (local.get '$ii_ps)
                                                                    (local.get '$p)
                                                                    (local.get '$i_se)))
-                            (local.set '$body (call '$dup (i64.load 8 (local.get '$ptr))))
                         )
                   )
 
@@ -3756,7 +3786,6 @@
                   (call '$drop (local.get '$body))
                   (call '$drop (local.get '$new_env))
                   (call '$drop (local.get '$s))
-                  (call '$drop (local.get '$p))
               ))))
 
               ((k_env_symbol_loc k_env_symbol_length datasi) (alloc_data "env_symbol" datasi))
