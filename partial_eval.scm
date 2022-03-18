@@ -1961,6 +1961,22 @@
                     (i64.store 8  (local.get '$tmp) (local.get '$b))
                     (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000200000005))
               ))))
+              ((k_array3_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array3_alloc '(param $a i64) '(param $b i64) '(param $c i64) '(result i64) '(local $tmp i32)
+                    (local.set '$tmp (call '$malloc (i32.const 24)))
+                    (i64.store  0  (local.get '$tmp) (local.get '$a))
+                    (i64.store  8  (local.get '$tmp) (local.get '$b))
+                    (i64.store 16  (local.get '$tmp) (local.get '$c))
+                    (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000300000005))
+              ))))
+              ((k_array5_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array5_alloc '(param $a i64) '(param $b i64) '(param $c i64) '(param $d i64) '(param $e i64) '(result i64) '(local $tmp i32)
+                    (local.set '$tmp (call '$malloc (i32.const 40)))
+                    (i64.store 0   (local.get '$tmp) (local.get '$a))
+                    (i64.store 8   (local.get '$tmp) (local.get '$b))
+                    (i64.store 16  (local.get '$tmp) (local.get '$c))
+                    (i64.store 24  (local.get '$tmp) (local.get '$d))
+                    (i64.store 32  (local.get '$tmp) (local.get '$e))
+                    (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000500000005))
+              ))))
 
               ; Not called with actual objects, not subject to refcounting
               ((k_int_digits func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$int_digits '(param $int i64) '(result i32) '(local $tmp i32)
@@ -3725,65 +3741,113 @@
 
               ((k_vau_helper_loc k_vau_helper_length datasi) (alloc_data "k_vau_helper" datasi))
               (k_vau_helper_msg_val (bor (<< k_vau_helper_length 32) k_vau_helper_loc #b011))
-              ((k_vau_helper          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau_helper '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i_se i64) '(local $i_p i64) '(local $ii_ps i64) '(local $ii_des i64) '(local $body i64) '(local $new_env i64)
+              ((k_vau_helper          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau_helper '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i_se i64) '(local $i_des i64) '(local $i_params i64) '(local $i_is_varadic i64) '(local $min_num_params i32) '(local $i_body i64) '(local $new_env i64)
 
                   ; get env ptr
                   (local.set '$ptr (i32.wrap_i64 (i64.shr_u (local.get '$s) (i64.const 5))))
                   ; get value array ptr
                   (local.set '$ptr (i32.wrap_i64 (i64.and (i64.load 8 (local.get '$ptr)) (i64.const -8))))
-                  (local.set '$i_se (call '$dup (i64.load 0 (local.get '$ptr))))
-                  (local.set '$i_p  (i64.load 8 (local.get '$ptr)))
-                  (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$i_p) (i64.const 32))))
-                  (local.set '$ptr (i32.wrap_i64 (i64.and   (local.get '$i_p) (i64.const -8))))
 
-                  (_if '$using_d_env
-                        (i32.eq (i32.const 3) (local.get '$len))
+
+                  (local.set '$i_se             (call '$dup (i64.load  0 (local.get '$ptr))))
+                  (local.set '$i_des                        (i64.load  8 (local.get '$ptr)))
+                  (local.set '$i_params         (call '$dup (i64.load 16 (local.get '$ptr))))
+                  (local.set '$i_is_varadic                 (i64.load 24 (local.get '$ptr)))
+                  (local.set '$i_body           (call '$dup (i64.load 32 (local.get '$ptr))))
+
+
+                  ; reusing len for i_params
+                  (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$i_params) (i64.const 32))))
+                  (local.set '$ptr (i32.wrap_i64 (i64.and   (local.get '$i_params) (i64.const -8))))
+
+
+                  ; each branch consumes i_params, p, d, and i_se
+                  (_if '$varadic
+                        (i64.eq (local.get '$i_is_varadic) (i64.const true_val))
                         (then
-                            (local.set '$ii_des (call '$dup (i64.load 0  (local.get '$ptr))))
-                            (local.set '$ii_ps  (call '$dup (i64.load 8  (local.get '$ptr))))
-                            (local.set '$body   (call '$dup (i64.load 16 (local.get '$ptr))))
+                            (_if '$using_d_env
+                                  (i64.ne (local.get '$i_des) (i64.const nil_val))
+                                  (then
+                                      (local.set '$min_num_params (i32.sub (local.get '$len) (i32.const 2)))
+                                      (_if '$wrong_no_params
+                                           ; with both de and varadic, needed params is at least two less than the length of our params
+                                           (i32.lt_u (i32.wrap_i64 (i64.shr_u (local.get '$p) (i64.const 32))) (local.get '$min_num_params))
+                                           (then (call '$print (i64.const bad_params_number_msg_val))
+                                                 (unreachable)))
+
+                                           (local.set '$new_env (call '$env_alloc
+                                                                       (local.get '$i_params)
+                                                                       (call '$concat (call '$array3_alloc (call '$slice_impl (call '$dup (local.get '$p))
+                                                                                                                              (i32.const 0)
+                                                                                                                              (local.get '$min_num_params))
+                                                                                                           (call '$array1_alloc (call '$slice_impl (local.get '$p)
+                                                                                                                                                   (local.get '$min_num_params)
+                                                                                                                                                   (i32.const -1)))
+                                                                                                           (call '$array1_alloc (local.get '$d)))
+                                                                                      (i64.const nil_val)
+                                                                                      (i64.const nil_val))
+                                                                       (local.get '$i_se)))
+                                  )
+                                  (else
+                                      (local.set '$min_num_params (i32.sub (local.get '$len) (i32.const 1)))
+                                      (_if '$wrong_no_params
+                                           (i32.lt_u (i32.wrap_i64 (i64.shr_u (local.get '$p) (i64.const 32))) (local.get '$min_num_params))
+                                           (then (call '$print (i64.const bad_params_number_msg_val))
+                                                 (unreachable)))
+
+                                           (local.set '$new_env (call '$env_alloc
+                                                                       (local.get '$i_params)
+                                                                       (call '$concat (call '$array2_alloc (call '$slice_impl (call '$dup (local.get '$p))
+                                                                                                                              (i32.const 0)
+                                                                                                                              (local.get '$min_num_params))
+                                                                                                           (call '$array1_alloc (call '$slice_impl (local.get '$p)
+                                                                                                                                                   (local.get '$min_num_params)
+                                                                                                                                                   (i32.const -1))))
+                                                                                      (i64.const nil_val)
+                                                                                      (i64.const nil_val))
+                                                                       (local.get '$i_se)))
+                                           (call '$drop (local.get '$d))
+                                  )
                             )
-                        (else
-                            (local.set '$ii_des (i64.const nil_val))
-                            (local.set '$ii_ps  (call '$dup (i64.load 0  (local.get '$ptr))))
-                            (local.set '$body   (call '$dup (i64.load 8  (local.get '$ptr))))
-                        )
-                  )
-
-                  ; reusing len for ii_ps
-                  (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$ii_ps) (i64.const 32))))
-                  (local.set '$ptr (i32.wrap_i64 (i64.and   (local.get '$ii_ps) (i64.const -8))))
-                  (_if '$wrong_no_params
-                       (i32.ne (local.get '$len) (i32.wrap_i64 (i64.shr_u (local.get '$p) (i64.const 32))))
-                       (then
-                            (call '$print (i64.const bad_params_number_msg_val))
-                            (unreachable)
-                       )
-                  )
-
-                  (_if '$using_d_env
-                        (i64.ne (local.get '$ii_des) (i64.const nil_val))
-                        (then
-                            (local.set '$new_env (call '$env_alloc
-                                  (call '$concat (call '$array2_alloc (local.get '$ii_ps) (call '$array1_alloc (local.get '$ii_des)))
-                                                 (i64.const nil_val)
-                                                 (i64.const nil_val))
-                                  (call '$concat (call '$array2_alloc (local.get '$p) (call '$array1_alloc (call '$dup (local.get '$d))))
-                                                 (i64.const nil_val)
-                                                 (i64.const nil_val))
-                                  (local.get '$i_se)))
                         )
                         (else
-                            (call '$drop (local.get '$d))
-                            (local.set '$new_env (call '$env_alloc (local.get '$ii_ps)
-                                                                   (local.get '$p)
-                                                                   (local.get '$i_se)))
+                            (_if '$using_d_env
+                                  (i64.ne (local.get '$i_des) (i64.const nil_val))
+                                  (then
+                                      (local.set '$min_num_params (i32.sub (local.get '$len) (i32.const 1)))
+                                      (_if '$wrong_no_params
+                                           (i32.ne (i32.wrap_i64 (i64.shr_u (local.get '$p) (i64.const 32))) (local.get '$min_num_params))
+                                           (then (call '$print (i64.const bad_params_number_msg_val))
+                                                 (unreachable)))
+
+                                           (local.set '$new_env (call '$env_alloc
+                                                                       (local.get '$i_params)
+                                                                       (call '$concat (call '$array2_alloc (local.get '$p)
+                                                                                                           (call '$array1_alloc (local.get '$d)))
+                                                                                      (i64.const nil_val)
+                                                                                      (i64.const nil_val))
+                                                                       (local.get '$i_se)))
+                                  )
+                                  (else
+                                      (local.set '$min_num_params (local.get '$len))
+                                      (_if '$wrong_no_params
+                                           (i32.ne (i32.wrap_i64 (i64.shr_u (local.get '$p) (i64.const 32))) (local.get '$min_num_params))
+                                           (then (call '$print (i64.const bad_params_number_msg_val))
+                                                 (unreachable)))
+
+                                           (local.set '$new_env (call '$env_alloc
+                                                                       (local.get '$i_params)
+                                                                       (local.get '$p)
+                                                                       (local.get '$i_se)))
+                                           (call '$drop (local.get '$d))
+                                  )
+                            )
                         )
                   )
 
-                  (call '$eval_helper (local.get '$body) (local.get '$new_env))
+                  (call '$eval_helper (local.get '$i_body) (local.get '$new_env))
 
-                  (call '$drop (local.get '$body))
+                  (call '$drop (local.get '$i_body))
                   (call '$drop (local.get '$new_env))
                   (call '$drop (local.get '$s))
               ))))
@@ -3791,27 +3855,100 @@
               ((k_env_symbol_loc k_env_symbol_length datasi) (alloc_data "env_symbol" datasi))
               (k_env_symbol_val (bor (<< k_env_symbol_length 32) k_env_symbol_loc #b111))
 
-              ((k_dparambody_symbol_loc k_dparambody_symbol_length datasi) (alloc_data "dparambody_symbol" datasi))
-              (k_dparambody_symbol_val (bor (<< k_dparambody_symbol_length 32) k_dparambody_symbol_loc #b111))
+              ((k_des_symbol_loc k_des_symbol_length datasi) (alloc_data "des_symbol" datasi))
+              (k_des_symbol_val (bor (<< k_des_symbol_length 32) k_des_symbol_loc #b111))
 
-              ((k_env_dparam_body_array_loc k_env_dparam_body_array_len datasi) (alloc_data (concat (i64_le_hexify k_env_symbol_val) (i64_le_hexify k_dparambody_symbol_val)) datasi))
-              (k_env_dparam_body_array_val (bor (<< 2 32) k_env_dparam_body_array_loc #b101))
+              ((k_param_symbol_loc k_param_symbol_length datasi) (alloc_data "param_symbol" datasi))
+              (k_param_symbol_val (bor (<< k_param_symbol_length 32) k_param_symbol_loc #b111))
+
+              ((k_varadic_symbol_loc k_varadic_symbol_length datasi) (alloc_data "varadic_symbol" datasi))
+              (k_varadic_symbol_val (bor (<< k_varadic_symbol_length 32) k_varadic_symbol_loc #b111))
+
+              ((k_body_symbol_loc k_body_symbol_length datasi) (alloc_data "body_symbol" datasi))
+               (k_body_symbol_val (bor (<< k_body_symbol_length 32) k_body_symbol_loc #b111))
+
+              ((k_and_symbol_loc k_and_symbol_length datasi) (alloc_data "&" datasi))
+               (k_and_symbol_val (bor (<< k_and_symbol_length 32) k_and_symbol_loc #b111))
+
+              ((k_env_dparam_body_array_loc k_env_dparam_body_array_len datasi) (alloc_data (concat (i64_le_hexify k_env_symbol_val)
+                                                                                                    (i64_le_hexify k_des_symbol_val)
+                                                                                                    (i64_le_hexify k_param_symbol_val)
+                                                                                                    (i64_le_hexify k_varadic_symbol_val)
+                                                                                                    (i64_le_hexify k_body_symbol_val)
+                                                                                            ) datasi))
+              (k_env_dparam_body_array_val (bor (<< 5 32) k_env_dparam_body_array_loc #b101))
 
 
               ((k_vau_loc k_vau_length datasi) (alloc_data "k_vau" datasi))
               (k_vau_msg_val (bor (<< k_vau_length 32) k_vau_loc #b011))
-              ((k_vau           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+              ((k_vau           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i i32) '(local $des i64) '(local $params i64) '(local $is_varadic i64) '(local $body i64) '(local $tmp i64)
+
+                (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$p) (i64.const 32))))
+                (local.set '$ptr (i32.wrap_i64 (i64.and   (local.get '$p) (i64.const -8))))
+
+                (_if '$using_d_env
+                      (i32.eq (i32.const 3) (local.get '$len))
+                      (then
+                          (local.set '$des      (call '$dup (i64.load 0  (local.get '$ptr))))
+                          (local.set '$params   (call '$dup (i64.load 8  (local.get '$ptr))))
+                          (local.set '$body     (call '$dup (i64.load 16 (local.get '$ptr))))
+                          )
+                      (else
+                          (local.set '$des      (i64.const nil_val))
+                          (local.set '$params   (call '$dup (i64.load 0  (local.get '$ptr))))
+                          (local.set '$body     (call '$dup (i64.load 8  (local.get '$ptr))))
+                      )
+                )
+
+                (local.set '$is_varadic   (i64.const false_val))
+                (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$params) (i64.const 32))))
+                (local.set '$ptr (i32.wrap_i64 (i64.and   (local.get '$params) (i64.const -8))))
+                (local.set '$i (i32.const 0))
+                (block '$varadic_break
+                    (_loop '$varadic_loop
+                        (br_if '$varadic_break (i32.eq (local.get '$i) (local.get '$len)))
+                        (_if 'this_varadic
+                             (i64.eq (i64.const 1)
+                                     (call '$str_sym_comp (i64.const k_and_symbol_val) (i64.load (local.get '$ptr)) (i64.const 0) (i64.const 1) (i64.const 0)))
+                             (then
+                                 (local.set '$is_varadic (i64.const true_val))
+
+                                 (local.set '$tmp (call '$array1_alloc (call '$dup (i64.load 8 (local.get '$ptr)))))
+                                 (local.set '$params (call '$concat (call '$array2_alloc (call '$slice_impl (local.get '$params) (i32.const 0) (local.get '$i))
+                                                                                         (local.get '$tmp))
+                                                                    (i64.const nil_val)
+                                                                    (i64.const nil_val)))
+
+                                 (br '$varadic_break)
+                             )
+                        )
+                        (local.set '$ptr (i32.add (local.get '$ptr) (i32.const 8)))
+                        (local.set '$i   (i32.add (local.get '$i)   (i32.const 1)))
+                        (br '$varadic_loop)
+                    )
+                )
+                (_if '$using_d_env
+                      (i64.ne (local.get '$des) (i64.const nil_val))
+                      (then
+                           (local.set '$params(call '$concat (call '$array2_alloc (local.get '$params) (call '$array1_alloc (call '$dup (local.get '$des))))
+                                                    (i64.const nil_val)
+                                                    (i64.const nil_val)))
+                      )
+                )
 
                 ;  <func_idx29>|<env_ptr29><wrap2>0001
-                (call '$print (i64.const k_vau_msg_val))
                 (i64.or (i64.or (i64.const (<< (- k_vau_helper dyn_start) 35))
                                 (i64.and (i64.shr_u (call '$env_alloc (i64.const k_env_dparam_body_array_val)
-                                                                      (call '$array2_alloc (local.get '$d) (local.get '$p))
+                                                                      (call '$array5_alloc (local.get '$d)
+                                                                                           (local.get '$des)
+                                                                                           (local.get '$params)
+                                                                                           (local.get '$is_varadic)
+                                                                                           (local.get '$body))
                                                                       (i64.const nil_val))
                                                     (i64.const 2)) ;env looks like 0..0<env_ptr32 but still aligned>01001
                                          (i64.const -64))
                                 (i64.const #b0001)))
-                (call '$print (i64.const k_vau_msg_val))
+                (call '$drop (local.get '$p))
               ))))
               ((k_cond_loc k_cond_length datasi) (alloc_data "k_cond" datasi))
               (k_cond_msg_val (bor (<< k_cond_length 32) k_cond_loc #b011))
@@ -4916,7 +5053,7 @@
 
         (_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
             "(array ((vau (x) x) write)  1 \"enter form: \" (vau (written code)
-                  (array ((vau (x) x) read) 0 40 (vau (data code)
+                  (array ((vau (x) x) read) 0 60 (vau (data code)
                         (array ((vau (x) x) exit) (eval (read-string data)))
                   ))
 
