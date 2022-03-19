@@ -1670,7 +1670,7 @@
     (i32_le_hexify (lambda (x) (le_hexify_helper (bitwise-and x #xFFFFFFFF) 4)))
 
 
-    (compile (dlambda ((pectx partial_eval_err marked_code)) (mif partial_eval_err (error partial_eval_err) (wasm_to_binary (module
+    (compile (dlambda ((pectx partial_eval_err marked_code) needs_runtime_eval) (mif partial_eval_err (error partial_eval_err) (wasm_to_binary (module
           (import "wasi_unstable" "path_open"
                   '(func $path_open  (param i32 i32 i32 i32 i32 i64 i64 i32 i32)
                                      (result i32)))
@@ -4450,7 +4450,8 @@
                 ;                             ineriting rights, fdflags
 
               (start (func '$start '(local $it i64) '(local $tmp i64) '(local $ptr i32) '(local $monad_name i64) '(local $len i32) '(local $buf i32) '(local $code i32) '(local $str i64) '(local $result i64)
-                    (local.set '$it (i64.const compiled_value_ptr))
+                    (local.set '$it (if needs_runtime_eval (call '$eval_helper (i64.const compiled_value_ptr) (i64.const root_marked_env_val))
+                                                           (i64.const compiled_value_ptr)))
                     (block '$exit_block
                         (block '$error_block
                             (_loop '$l
@@ -4915,114 +4916,114 @@
             ;      (export "memory" '(memory $mem))
             ;      (export "_start" '(func   $start))
             ;)))
-            (output3 (compile (partial_eval (read-string "(array 1 (array ((vau (x) x) a) (array \"asdf\"))  2)"))))
-            (output3 (compile (partial_eval (read-string "(array 1 (array 1 2 3 4) 2 (array 1 2 3 4))"))))
-            (output3 (compile (partial_eval (read-string "empty_env"))))
-            (output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) 1 2) empty_env)"))))
-            (output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) empty_env 2) empty_env)"))))
-            (output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x))))"))))
-            (output3 (compile (partial_eval (read-string "(vau (x) x)"))))
-            (output3 (compile (partial_eval (read-string "(vau (x) 1)"))))
+            (output3 (compile (partial_eval (read-string "(array 1 (array ((vau (x) x) a) (array \"asdf\"))  2)")) false))
+            (output3 (compile (partial_eval (read-string "(array 1 (array 1 2 3 4) 2 (array 1 2 3 4))")) false))
+            (output3 (compile (partial_eval (read-string "empty_env")) false))
+            (output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) 1 2) empty_env)")) false))
+            (output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) (a b)) (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x)))) empty_env 2) empty_env)")) false))
+            (output3 (compile (partial_eval (read-string "(eval (array (array vau ((vau (x) x) x) (array) ((vau (x) x) x))))")) false))
+            (output3 (compile (partial_eval (read-string "(vau (x) x)")) false))
+            (output3 (compile (partial_eval (read-string "(vau (x) 1)")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) exit) 1)"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) exit) 1)")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array ((vau (x) x) exit) 1)))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array ((vau (x) x) exit) 1)))")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array ((vau (x) x) exit) written)))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array ((vau (x) x) exit) written)))")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) written))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) code))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array 1337 written 1338 code 1339)))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) written))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) code))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array 1337 written 1338 code 1339)))")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (cond (= 0 code) written true code)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (str (= 0 code) written true (array) code)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (log (= 0 code) written true (array) code)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (error (= 0 code) written true code)))"))))
-            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (or (= 0 code) written true code)))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (cond (= 0 code) written true code)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (str (= 0 code) written true (array) code)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (log (= 0 code) written true (array) code)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (error (= 0 code) written true code)))")) false))
+            ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (or (= 0 code) written true code)))")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (+ written code 1337)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (- written code 1337)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (* written 1337)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (/ 1337 written)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (% 1337 written)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (band 1337 written)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (bor 1337 written)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (bnot written)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (bxor 1337 written)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (<< 1337 written)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (>> 1337 written)))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (+ written code 1337)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (- written code 1337)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (* written 1337)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (/ 1337 written)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (% 1337 written)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (band 1337 written)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (bor 1337 written)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (bnot written)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (bxor 1337 written)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (<< 1337 written)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (>> 1337 written)))")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (<= (array written) (array 1337))))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (<= (array written) (array 1337))))")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"true\" true 3))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     true\" true 3))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     true   \" true 3))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     false\" true 3))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"(false (true () true) true)\" true 3))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"(false (true () true) true) true\" true 3))))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"true\" true 3))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     true\" true 3))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     true   \" true 3))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"     false\" true 3))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"(false (true () true) true)\" true 3))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (read-string (cond written \"(false (true () true) true) true\" true 3))))")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_out\" (vau (fd code) (array ((vau (x) x) write) fd \"waa\" (vau (written code) (array written code)))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_out\" (vau (fd code) (array ((vau (x) x) read) fd 10 (vau (data code) (array data code)))))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_out\" (vau (fd code) (array ((vau (x) x) write) fd \"waa\" (vau (written code) (array written code)))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_out\" (vau (fd code) (array ((vau (x) x) read) fd 10 (vau (data code) (array data code)))))")) false))
 
             ;(_ (print (slurp "test_parse_in")))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_parse_in\" (vau (fd code) (array ((vau (x) x) read) fd 1000 (vau (data code) (read-string data)))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"test_parse_in\" (vau (written code) (array (array written))))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) open) 3 \"test_parse_in\" (vau (fd code) (array ((vau (x) x) read) fd 1000 (vau (data code) (read-string data)))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"test_parse_in\" (vau (written code) (array (array written))))")) false))
 
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice args 1 -1)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (len args)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (idx args 0)))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice (concat args (array 1 2 3 4) args) 1 -2)))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice args 1 -1)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (len args)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (idx args 0)))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (slice (concat args (array 1 2 3 4) args) 1 -2)))")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (str-to-symbol (str args))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (get-text (str-to-symbol (str args)))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (wrap (cond args idx true 0))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (wrap (wrap (cond args idx true 0)))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (wrap (wrap (wrap (cond args idx true 0))))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (unwrap (cond args idx true 0))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (unwrap (cond args vau true 0))))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (str-to-symbol (str args))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (get-text (str-to-symbol (str args)))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (wrap (cond args idx true 0))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (wrap (wrap (cond args idx true 0)))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (wrap (wrap (wrap (cond args idx true 0))))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (unwrap (cond args idx true 0))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) (unwrap (cond args vau true 0))))")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array (nil? written) (array? written) (bool? written) (env? written) (combiner? written) (string? written) (int? written) (symbol? written))))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau de (written code) (array (nil? (cond written (array) true 4)) (array? (cond written (array 1 2) true 4)) (bool? (= 3 written)) (env? de) (combiner? (cond written (vau () 1) true 43)) (string? (cond written \"a\" 3 3)) (int? (cond written \"a\" 3 3)) (symbol? (cond written ((vau (x) x) x) 3 3)) written)))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (written code) (array (nil? written) (array? written) (bool? written) (env? written) (combiner? written) (string? written) (int? written) (symbol? written))))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau de (written code) (array (nil? (cond written (array) true 4)) (array? (cond written (array 1 2) true 4)) (bool? (= 3 written)) (env? de) (combiner? (cond written (vau () 1) true 43)) (string? (cond written \"a\" 3 3)) (int? (cond written \"a\" 3 3)) (symbol? (cond written ((vau (x) x) x) 3 3)) written)))")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) args))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) a))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) args))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (& args) args))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) a))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"waa\" (vau (a & args) args))")) false))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) data))"))))
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) (array ((vau (x) x) write) 1 data (vau (written code) (array written code)))))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) data))")) false))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) (array ((vau (x) x) write) 1 data (vau (written code) (array written code)))))")) false))
 
-            (output3 (compile (partial_eval (read-string "(wrap (vau (x) x))"))))
-            (output3 (compile (partial_eval (read-string "len"))))
-            (output3 (compile (partial_eval (read-string "vau"))))
-            (output3 (compile (partial_eval (read-string "(array len 3 len)"))))
-            (output3 (compile (partial_eval (read-string "(+ 1 1337 (+ 1 2))"))))
-            (output3 (compile (partial_eval (read-string "\"hello world\""))))
-            (output3 (compile (partial_eval (read-string "((vau (x) x) asdf)"))))
+            (output3 (compile (partial_eval (read-string "(wrap (vau (x) x))")) false))
+            (output3 (compile (partial_eval (read-string "len")) false))
+            (output3 (compile (partial_eval (read-string "vau")) false))
+            (output3 (compile (partial_eval (read-string "(array len 3 len)")) false))
+            (output3 (compile (partial_eval (read-string "(+ 1 1337 (+ 1 2))")) false))
+            (output3 (compile (partial_eval (read-string "\"hello world\"")) false))
+            (output3 (compile (partial_eval (read-string "((vau (x) x) asdf)")) false))
             (output3 (compile (partial_eval (read-string "((wrap (vau (let1)
                                    (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
                                    (array ((vau (x) x) write) 1 \"hahah\" (vau (written code) ((lambda (x n) (x x n)) (lambda (recurse n) (cond (!= 0 n) (* n (recurse recurse (- n 1)))
                                                                                                                                                 true     1)) written)))
-                                   ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))))
+                                   ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")) false))
             (_ (write_file "./csc_out.wasm" output3))
-            (output3 (compile (partial_eval (read-string "(nil? 1)"))))
-            ;(output3 (compile (partial_eval (read-string "(nil? nil)"))))
+            (output3 (compile (partial_eval (read-string "(nil? 1)")) false))
+            ;(output3 (compile (partial_eval (read-string "(nil? nil)")) false))
         ) (void))
     )))
 
     (single-test (lambda () (dlet (
-        ;(output3 (compile (partial_eval (read-string "1337"))))
-        ;(output3 (compile (partial_eval (read-string "\"This is a longish sring to make sure alloc data is working properly\""))))
-        ;(output3 (compile (partial_eval (read-string "((vau (x) x) write)"))))
-        ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) x))"))))
-        ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) (log 1337)))"))))
-        ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) (+ x 1337)))"))))
-        ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"w\" (vau (written code) (+ written code 1337)))"))))
+        ;(output3 (compile (partial_eval (read-string "1337")) false))
+        ;(output3 (compile (partial_eval (read-string "\"This is a longish sring to make sure alloc data is working properly\"")) false))
+        ;(output3 (compile (partial_eval (read-string "((vau (x) x) write)")) false))
+        ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) x))")) false))
+        ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) (log 1337)))")) false))
+        ;(output3 (compile (partial_eval (read-string "(wrap (vau (x) (+ x 1337)))")) false))
+        ;(output3 (compile (partial_eval (read-string "(array ((vau (x) x) write) 1 \"w\" (vau (written code) (+ written code 1337)))")) false))
         ;(output3 (compile (partial_eval (read-string "((wrap (vau (let1)
         ;                       (let1 lambda (vau se (p b) (wrap (eval (array vau p b) se)))
         ;                       (array ((vau (x) x) write) 1 \"hahah\" (vau (written code) ((lambda (x n) (x x n)) (lambda (recurse n) (cond (!= 0 n) (* n (recurse recurse (- n 1)))
         ;                                                                                                                                    true     1)) written)))
-        ;                       ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))"))))
+        ;                       ))) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))")) false))
 
 
         ;(output3 (compile (partial_eval (read-string
@@ -5036,20 +5037,20 @@
         ;                            )))
 
         ;                            )) (vau de (s v b) (eval (array (array vau (array s) b) (eval v de)) de)))
-        ;                            )) (vau (x5) x5))"))))
+        ;                            )) (vau (x5) x5))")) false))
         ;(_ (write_file "./csc_out.wasm" output3))
 
         ;(_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
-        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (len (cond (= 0 written) \"asdf\" true \"sdf\"))))")))))
+        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (len (cond (= 0 written) \"asdf\" true \"sdf\"))))")) false)))
 
         ;(_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
-        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (idx (cond (= 0 written) \"asdf\" true \"sdf\") 1)))")))))
+        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (idx (cond (= 0 written) \"asdf\" true \"sdf\") 1)))")) false)))
 
         ;(_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
-        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (slice (cond (= 0 written) \"asdf\" true \"abcdefghi\") 1 3)))")))))
+        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (slice (cond (= 0 written) \"asdf\" true \"abcdefghi\") 1 3)))")) false)))
 
         ;(_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
-        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (concat \"hehe\" (cond (= 0 written) \"asdf\" true \"abcdefghi\"))))")))))
+        ;    "(array ((vau (x5) x5) write)  1 \"written\" (vau (written code) (concat \"hehe\" (cond (= 0 written) \"asdf\" true \"abcdefghi\"))))")) false)))
 
         (_ (write_file "./csc_out.wasm" (compile (partial_eval (read-string
             "(array ((vau (x) x) write)  1 \"enter form: \" (vau (written code)
@@ -5057,20 +5058,21 @@
                         (array ((vau (x) x) exit) (eval (read-string data)))
                   ))
 
-             ))")))))
+             ))")) false)))
 
-            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) data))"))))
+            (output3 (compile (partial_eval (read-string "(array ((vau (x) x) read) 0 10 (vau (data code) data))")) false))
 
     ) void)))
 
-    (run-compiler (lambda (f)
+    (run-compiler (lambda (dont_compile f)
       (dlet (
             (_ (true_print "reading in!"))
             (read_in    (read-string (slurp f)))
             ;(_ (true_print "read in, now evaluating"))
-            (evaled     (partial_eval read_in))
+            (evaled     (if dont_compile (array (array 0 empty_dict) nil (mark false read_in))
+                                         (partial_eval read_in)))
             ;(_ (true_print "done partialy evaling, now compiling"))
-            (bytes      (compile evaled))
+            (bytes      (compile evaled dont_compile))
             ;(_ (true_print "compiled, writng out"))
             (_          (write_file "./csc_out.wasm" bytes))
             ;(_ (true_print "written out"))
@@ -5087,7 +5089,7 @@
        (dlet ( (com (if (> (len args) 0) (idx args 0) "")) )
              (cond ((= "test"   com) (test-most))
                    ((= "single" com) (single-test))
-                   (true             (run-compiler com))))
+                   (true             (run-compiler (and (>= (len args) 2) (= "no_compile" (idx args 1))) com))))
 
        ;(true_print "GLOBAL_MAX was " GLOBAL_MAX)
        ;(profile-dump-html)
