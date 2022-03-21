@@ -858,7 +858,35 @@
             (veval_inner only_head de env_stack pectx (array (marked_array false false nil (cons (with_wrap_level f (- (.any_comb_wrap_level f) 1)) (.marked_array_values ps)))) (+ 1 indent))
         ) 'lapply 1 true))
 
+        (array 'vau (marked_prim_comb (lambda (only_head de env_stack pectx params indent) (dlet (
+            (mde?         (mif (= 3 (len params)) (idx params 0) nil))
+            (vau_mde?     (mif (= nil mde?) (array) (array mde?)))
+            (_ (print (indent_str indent) "mde? is " mde?))
+            (_ (print (indent_str indent) "\tmde? if " (mif mde? #t #f)))
+            (de?          (mif mde? (.marked_symbol_value mde?) nil))
+            (_ (print (indent_str indent) "de? is " de?))
+            (vau_de?      (mif (= nil de?) (array) (array de?)))
+            (raw_marked_params (mif (= nil de?) (idx params 0) (idx params 1)))
+            (raw_params (map (lambda (x) (mif (not (marked_symbol? x)) (error (str "not a marked symbol " x))
+                                            (.marked_symbol_value x))) (.marked_array_values raw_marked_params)))
 
+            ((variadic vau_params)  (foldl (dlambda ((v a) x) (mif (= x '&) (array true a) (array v (concat a (array x))))) (array false (array)) raw_params))
+            ((ok body) (try_unval (mif (= nil de?) (idx params 1) (idx params 2)) (lambda (_) nil)))
+            (_ (if (not ok) (error "actually impossible vau unval")))
+            ((env_counter memo) pectx)
+            (new_id env_counter)
+            (env_counter (+ 1 env_counter))
+            (pectx (array env_counter memo))
+            ((pectx err pe_body) (if only_head (array pectx nil body)
+                                       (dlet (
+                                            (inner_env (make_tmp_inner_env vau_params de? de new_id))
+                                            (_ (print_strip (indent_str indent) "in vau, evaluating body with 'later params - " body))
+                                            ((pectx err pe_body) (partial_eval_helper body false inner_env (array (idx env_stack 0)
+                                                                                                                  (cons inner_env (idx env_stack 1))) pectx (+ 1 indent) false))
+                                            (_ (print_strip (indent_str indent) "in vau, result of evaluating body was " pe_body))
+                                        ) (array pectx err pe_body))))
+        ) (mif err (array pectx err nil) (array pectx nil (marked_comb 0 new_id de? de variadic vau_params pe_body)))
+        )) 'vau 0 true))
 
 
 
@@ -869,7 +897,8 @@
 
 
 
-
+    ; This causes ?infinate? recursion, doesn't happen if "if" is replaced with cond
+    (test_func (vau (x) (if x (COMICAL 0) 0)))
 
 
     ;(and_fold (foldl and true '(true true false true)))
