@@ -1,106 +1,106 @@
 
 Key Contributions to look out for that make this work in practical time:
-	1. First class environments that:
-		a. Have IDs
-		b. Can either be "real", in which case it maps symbols to values,
-		              or "fake", in which case it maps symbols to themselves, but with the env ID as it's for-progress
-		c. Chain up to an upper environment that may be fake or real
-	2. AST nodes that maintain on-node:
-		a. The IDs of environments that, if "real", can be used to make progress in this subtree
-		b. The hashes of infinite recursive calls that were detected and stopped - if this hash isn't in the current call chain, this subtree can make progress
-		c. Extra IDs of environments that are "real" but have "fake" environments in their chain - this is used to make return value checking fast O(1 or log n, depending)
-	3. Combiners, both user-defined and built in (including  that maintain a "wrap level" that:
-		a. Is a property of this function value, *not* the function itself
-			* meaning that if wrap_level > 1, you can evaluate each parameter and decrement wrap_level, even if you can't execute the call
-	4. The return value of a combiner is checked for:
-		a. If it is a value, in which case it is good to be returned if it doesn't contain a reference to the envID of the function it is being returned from
-		b. If it is (veval something env) where env doesn't contain a reference to the envID of the function it is being returned from
-		c. If it is a call to a function (func params...) and func doesn't take in a dynamic environment and params... are all good to be returned
-		This makes it so that combiner calls can return partially-evaluated code - any macro-like combiner would calculate the new code and return
-			(eval <constructed-code> dynamic_env), which would do what partial evaluation it could and either become a value or a call like case "b" above.
-			Case "b" allows this code essentially "tagged" with the environment it should be evaluated in to be returned out of "macro-like" combiners,
-			and this dovetails with the next point
-	5. The (veval something env) form essentially "tags" a piece of code with the environment it should be evaluated in. At each stage where
-		it is possible, the system checks for redundent constructions like these, where the env in (veval something env) is the currently active env.
-		In this case, it unwraps it to just "something" and continues on - this completes the second half of the macro-like combiner evaluation where
-		after being returned to the calling function the code is essentially spliced in.
-	6. The compiler can emit if/else branches on the wrap_level of combiners and in each branch further compile/partial eval if appropriate, allowing
-		dynamic calls to either functions or combiners with the overhead of a single branch
+    1. First class environments that:
+        a. Have IDs
+        b. Can either be "real", in which case it maps symbols to values,
+                      or "fake", in which case it maps symbols to themselves, but with the env ID as it's for-progress
+        c. Chain up to an upper environment that may be fake or real
+    2. AST nodes that maintain on-node:
+        a. The IDs of environments that, if "real", can be used to make progress in this subtree
+        b. The hashes of infinite recursive calls that were detected and stopped - if this hash isn't in the current call chain, this subtree can make progress
+        c. Extra IDs of environments that are "real" but have "fake" environments in their chain - this is used to make return value checking fast O(1 or log n, depending)
+    3. Combiners, both user-defined and built in (including  that maintain a "wrap level" that:
+        a. Is a property of this function value, *not* the function itself
+            * meaning that if wrap_level > 1, you can evaluate each parameter and decrement wrap_level, even if you can't execute the call
+    4. The return value of a combiner is checked for:
+        a. If it is a value, in which case it is good to be returned if it doesn't contain a reference to the envID of the function it is being returned from
+        b. If it is (veval something env) where env doesn't contain a reference to the envID of the function it is being returned from
+        c. If it is a call to a function (func params...) and func doesn't take in a dynamic environment and params... are all good to be returned
+        This makes it so that combiner calls can return partially-evaluated code - any macro-like combiner would calculate the new code and return
+            (eval <constructed-code> dynamic_env), which would do what partial evaluation it could and either become a value or a call like case "b" above.
+            Case "b" allows this code essentially "tagged" with the environment it should be evaluated in to be returned out of "macro-like" combiners,
+            and this dovetails with the next point
+    5. The (veval something env) form essentially "tags" a piece of code with the environment it should be evaluated in. At each stage where
+        it is possible, the system checks for redundent constructions like these, where the env in (veval something env) is the currently active env.
+        In this case, it unwraps it to just "something" and continues on - this completes the second half of the macro-like combiner evaluation where
+        after being returned to the calling function the code is essentially spliced in.
+    6. The compiler can emit if/else branches on the wrap_level of combiners and in each branch further compile/partial eval if appropriate, allowing
+        dynamic calls to either functions or combiners with the overhead of a single branch
 
 Note that points 4&5 make it so that any macro written as a combiner in "macro-style" will be expanded just like a macro would and cause no runtime overhead!
 Additionally, point 6 makes it so that functions (wrap level 1 combiners) and non-parameter-evaluating (wrap level 0) combiners can be dynamically passed around and called with very minimal overhead.
 Combine them together and you get a simpler but more flexiable semantics than macro based (pure functional) languages with little-to-no overhead.
 
 Additional tricky spots to look out for:
-	1. If you don't do the needed-for-progress tracking, you have exponential runtime
-	2. If you aren't careful about storing analysis information on the AST node itself or memoize, a naive tree traversal of the DAG has exponential runtime
-	3. Infinite recursion can hide in sneaky places, including the interply between the partial evaluator and the compiler, and careful use of multiple recursion blockers / memoization is needed to prevent all cases
-	4. The invarients needed to prevent mis-evaluation are non-trivial to get right. Our invarients:
-		a. All calls to user-combiners have the parameters as total values, thus not moving something that needs a particular environment underneath a different environment
-		b. All return values from functions must not depend on the function's environment (there are a couple of interesting cases here, see combiner_return_ok(func_result, env_id))
-		c. All array values are made up of total values
-		d. Some primitive combiners don't obey "a", but they must be written with extreme care, and often partially evaluate only some of their parameters and have to keep track of which.
+    1. If you don't do the needed-for-progress tracking, you have exponential runtime
+    2. If you aren't careful about storing analysis information on the AST node itself or memoize, a naive tree traversal of the DAG has exponential runtime
+    3. Infinite recursion can hide in sneaky places, including the interply between the partial evaluator and the compiler, and careful use of multiple recursion blockers / memoization is needed to prevent all cases
+    4. The invarients needed to prevent mis-evaluation are non-trivial to get right. Our invarients:
+        a. All calls to user-combiners have the parameters as total values, thus not moving something that needs a particular environment underneath a different environment
+        b. All return values from functions must not depend on the function's environment (there are a couple of interesting cases here, see combiner_return_ok(func_result, env_id))
+        c. All array values are made up of total values
+        d. Some primitive combiners don't obey "a", but they must be written with extreme care, and often partially evaluate only some of their parameters and have to keep track of which.
 
 
 
 Everything operates on AST nodes, an ADT:
-	* val - integers, strings, booleans
-	* marked_array
-	* marked_symbol
-	* comb
-	* prim_comb
-	* marked_env
+    * val - integers, strings, booleans
+    * marked_array
+    * marked_symbol
+    * comb
+    * prim_comb
+    * marked_env
 
 Each AST node contains a hash representing it&it's subtree.
 
 fun needed_for_progress(ast_node) -> (progress_IDs, rec_stopping_hashes, extra_IDs):
-	returns
-	- environment IDs (stored in each AST node for it and it's children)
-		that must have real values if the partial evaluation of the subtree rooted at
-		this node is going to make progress partial evaluating.
+    returns
+    - environment IDs (stored in each AST node for it and it's children)
+        that must have real values if the partial evaluation of the subtree rooted at
+        this node is going to make progress partial evaluating.
 
-		progress_IDs is either true (meaning it will make progress no matter what), an
-			intset of env IDs (the ones that will cause it to make progress), or an empty
-			set, meaning it can't make forward progress no matter what
-	- hashes that if you're not inside the evaluation of, it could make progress
-	- extra IDs for envs it contains that don't count as forward progress IDs because the
-		env does have values, but envs in it's parent chain doesn't have values.
+        progress_IDs is either true (meaning it will make progress no matter what), an
+            intset of env IDs (the ones that will cause it to make progress), or an empty
+            set, meaning it can't make forward progress no matter what
+    - hashes that if you're not inside the evaluation of, it could make progress
+    - extra IDs for envs it contains that don't count as forward progress IDs because the
+        env does have values, but envs in it's parent chain doesn't have values.
 
 The calculation for needed_for_progress is straightforward-ish, with some tricky bits at comb and array.
 
 Under these definitions, we call an AST subtree a "total val" if it is either a val or it's needed-for-progress IDs is nil.
 
 fun mark(x, eval_pos):
-	x is env -> error
-	x is combiner -> error
-	x is symbol -> if x == true  than MarkedVal(true)
-	        else if x == false than MarkedVal(false)
-			else               MarkedSymbol(x, needed_IDs=if eval_pos true else nil)
-	x is array ->
-		MarkedArray(is_val=!eval_pos, attempted=false, resume_hashes=nil,
-		            values = [mark(x[0], eval_pos)] + [mark(xi, false) for xi in x[1:]])
-	true -> MarkedVal(x)
+    x is env -> error
+    x is combiner -> error
+    x is symbol -> if x == true  than MarkedVal(true)
+            else if x == false than MarkedVal(false)
+            else               MarkedSymbol(x, needed_IDs=if eval_pos true else nil)
+    x is array ->
+        MarkedArray(is_val=!eval_pos, attempted=false, resume_hashes=nil,
+                    values = [mark(x[0], eval_pos)] + [mark(xi, false) for xi in x[1:]])
+    true -> MarkedVal(x)
 
 fun strip(x) -> value:
-	if X is an AST node representing a value, it returns the value.
-	May strip recursively in the case of an array value, etc.
-	Errors on env, comb (but not prim_comb!) non value symbols or arrays
+    if X is an AST node representing a value, it returns the value.
+    May strip recursively in the case of an array value, etc.
+    Errors on env, comb (but not prim_comb!) non value symbols or arrays
 
 fun try_unval(x) -> Result<ASTNode>:
-	//Removes one level of "value-ness".
-	x is Array -> if !x.array_is_val Error()
-	              else Ok(MarkedArray(is_value=false,
-				                   values = [try_unval(x.values[0])] + x.values[1:]))
-	x is Symbol -> if !x.symbol_is_val Error()
-	               else Ok(MarkedSymbol(symbol=x.symbol, is_value=false))
+    //Removes one level of "value-ness".
+    x is Array -> if !x.array_is_val Error()
+                  else Ok(MarkedArray(is_value=false,
+                                   values = [try_unval(x.values[0])] + x.values[1:]))
+    x is Symbol -> if !x.symbol_is_val Error()
+                   else Ok(MarkedSymbol(symbol=x.symbol, is_value=false))
     true -> Ok(x)
 
 fun check_for_env_id_in_result(env_id, x):
-	return env_id in <either progress_IDs or extra_IDs in needed_for_progress(x)>
-		if either progress_IDs or extra_IDs is true, then we have a fallback, but
-		that doesn't get called even on large testcases so it's either rare or impossible.
-		Fallback is slow though, whereas this is just a check for set membership
-	
+    return env_id in <either progress_IDs or extra_IDs in needed_for_progress(x)>
+        if either progress_IDs or extra_IDs is true, then we have a fallback, but
+        that doesn't get called even on large testcases so it's either rare or impossible.
+        Fallback is slow though, whereas this is just a check for set membership
+
 // We only allow returning a value out of a combiner if the return value
 // doesn't reference the environment of the combiner
 fun combiner_return_ok(func_result, env_id):
@@ -118,66 +118,151 @@ fun combiner_return_ok(func_result, env_id):
 // This call may prevent other optimizations though, so we should unwrap the redundent call if possible,
 // and if it causes a change we should re-partially-evaluate to make further progress if we can
 fun drop_redundent_veval(x, dynamic_env, env_stack, memostuff):
-	(veval node env) if env.id == dynamic_env.id -> drop_redundent_veval(node, dynamic_env, env_stack, memostuff)
-	(comb params...) if comb.wrap_level != -1 -> map drop_redundent_veval over params and  if any change: partial_eval( (comb new_params...), dynamic_env, env_stack, memostuff)
-	                                                                                                else: x
-	else -> x
+    (veval node env) if env.id == dynamic_env.id -> drop_redundent_veval(node, dynamic_env, env_stack, memostuff)
+    (comb params...) if comb.wrap_level != -1 -> map drop_redundent_veval over params and  if any change: partial_eval( (comb new_params...), dynamic_env, env_stack, memostuff)
+                                                                                                    else: x
+    else -> x
 
 fun make_tmp_inner_env(params, de?, ue, env_id):
-	...
+    ...
 
 
 fun partial_eval_helper(x, only_head, env, env_stack, memostuff, force):
-	needed, hashes, _extra = needed_for_partial_eval(x)
-	if force || one of hashes is not in memostuff || needed == true || set_intersection(needed, env_stack.set_of_ids_that_are_vals) != empty_set:
-		x is MarkedVal -> x
-		x is MarkedEnv -> find(x.env_id == it.env_id, env_stack) ?: x
-		x is MarkedComb -> if !env.is_real && !x.se.is_real // both aren't real, re-evaluation of closure creation site
-		                   ||  env.is_real && !x.se.is_real // new env real, but se isn't - the creation of the closure!
-						   then let inner_env = make_tmp_inner_env(x.params, x.de?, env, x.env_id)
-						   in MarkedComb(se=env, body=partial_eval_helper(body, false, inner_env, add inner_env to env_stack, memostuff, false))
-		x is MarkedPrimComb -> x
-		x is MarkedSymbol -> if x.is_val then x
-		                                 else env_lookup_helper(x, env)
-	    x is MarkedArray -> if x.is_val then x
-		                                else ...TODO...
+    needed, hashes, _extra = needed_for_partial_eval(x)
+    if force || one of hashes is not in memostuff || needed == true || set_intersection(needed, env_stack.set_of_ids_that_are_vals) != empty_set:
+        x is MarkedVal -> x
+        x is MarkedEnv -> find(x.env_id == it.env_id, env_stack) ?: x
+        x is MarkedComb -> if !env.is_real && !x.se.is_real // both aren't real, re-evaluation of closure creation site
+                           ||  env.is_real && !x.se.is_real // new env real, but se isn't - the creation of the closure!
+                           then let inner_env = make_tmp_inner_env(x.params, x.de?, env, x.env_id)
+                           in MarkedComb(se=env, body=partial_eval_helper(body, false, inner_env, <add inner_env to env_stack>, memostuff, false))
+        x is MarkedPrimComb -> x
+        x is MarkedSymbol -> if x.is_val then x
+                                         else env_lookup_helper(x, env)
+        x is MarkedArray -> if x.is_val then x
+                                        else let
+                                            comb = partial_eval_helper(x.values[0], only_head=true, env, env_stack, memostuff, false)
+                                            params = x.values[1:]
+                                            if later_head?(comb) return MarkedArray(values=[comb]+params)
+                                            if comb.needed_for_progress == true:
+                                                comb = partial_eval_helper(comb, only_head=false, ...)
 
+                                            // If not -1, we always partial eval, if >0 we also unval/partial eval to do one full round of eval
+                                            wrap_level = comb.wrap_level
+                                            while wrap_level >= 0:
+                                                if wrap_level >= 1:
+                                                    params = map(unval, map(\x. partial_eval_helper(x, ...), params))
+                                                params = map(\x. partial_eval_helper(x, ...), params)
+                                                wrap_level -= 1
+                                            if <any of the above error, or couldn't be unvaled yet>:
+                                                return MarkedArray(values=[comb.with_wrap_level(wrap_level)] + <params at whatever level they were sucessfully evaluated to>)
+
+                                            if comb is MarkedPrimComb:
+                                                result = comb.impl(params)
+                                                if result == 'LATER:
+                                                    return MarkedArray(values=[comb.with_wrap_level(wrap_level)] + params)
+                                                else:
+                                                    return result
+
+                                            if comb.is_varadic:
+                                                params = params[:comb.params.len-1] + [ params[comb.params.len-1:] ]
+
+                                            inner_env = MarkedEnv(id=comb.env_id, possible_de_symbol=comb.de?, possible_de=env, symbols=comb.params, values=params, upper=comb.se)
+
+                                            rec_stop_hash = combine_hash(inner_env.hash, comb.body.hash)
+                                            if rec_stop_hash in memostuff:
+                                                return MarkedArray(values=[comb] + params, transient_needed_env_id=true, rec_stopping_hash=rec_stop_hash)
+
+                                            memostuff.add(rec_stop_hash)
+                                            result = partial_eval_helper(body, false, inner_env, <add inner_env to env_stack>, memostuff, false)
+                                            memostuff.remove(rec_stop_hash)
+
+                                            if !combiner_return_ok(result, comb.env_id):
+                                                transiently_needed = if comb.de? != nil then env.id else nil
+                                                return MarkedArray(values=[comb] + params, transient_needed_env_id=transiently_needed, rec_stopping_hash=rec_stop_hash)
+
+                                            return drop_redundent_veval(result, env, env_stack, memostuff)
 
 And then we define a root_env with PrimComb versions of all of the standard functions.
 The ones that are most interesting and interact the most with partial evaluation are
-	vau eval cond
+    vau eval cond
 The other key is that array only takes in values, that is an array value never hides something that isn't a total value and needs more partial-evaluation
-	 (this makes a lot of things simpler in other places since we can treat array values as values no matter what and know things aren't hiding in sneaky places)
+     (this makes a lot of things simpler in other places since we can treat array values as values no matter what and know things aren't hiding in sneaky places)
 
 fun needs_params_prim(...):
-	...
+    ...
 fun give_up_params_prim(...):
-	...
-fun veval_inner(...):
-	...
+    ...
+
+fun veval_inner(only_head, de, env_stack, memostuff, params):
+    body = params[0]
+    implicent_env = len(params) != 2
+    eval_env = if implicit_env { de } else { partial_eval_helper(params[1], only_head, de, env_stack, memostuff, false) }
+    evaled_body = partial_eval_helper(body, only_head, eval_env, env_stack, memostuff, false)
+    if implicit_env or combiner_return_ok(evaled_body, eval_env.idx):
+        return drop_redundent_veval(evaled_body, de, env_stack, memostuff)
+    else:
+        return drop_redundent_veval(MarkedArray(values=[MarkedPrimComb('veval, wrap_level=-1, val_head_ok=true, handler=veval_inner), evaled_body, eval_env], de, env_stack, memostuff)
+
 root_env = {
-	eval: ...
-	vapply: ...
-	lapply: ...
-	vau: ....
-	wrap: ...
-	unwrap: ...
-	cond: ...
+    eval: MarkedPrimComb('eval, wrap_level=1, val_head_ok=true, handler=lambda(only_head, de, env_stack, memostuff, params):
+                let
+                    body = params[0]
+                    implicit_env = len(params) != 2
+                    return veval_inner(only_head, de, env_stack, memostuff, if implicit_env { [try_unval(body)] } else { [try_unval(body), params[1]] })
+          )
+    vapply: MarkedPrimComb('vapply, wrap_level=1, val_head_ok=true, handler=lambda(only_head, de, env_stack, memostuff, [func params env]):
+                    return veval_inner(only_head, de, env_stack, memostuff, [MarkedArray(values=[func]+params), env)
+          )
+    lapply: MarkedPrimComb('lapply, wrap_level=1, val_head_ok=true, handler=lambda(only_head, de, env_stack, memostuff, [func params env]):
+                    return veval_inner(only_head, de, env_stack, memostuff, [MarkedArray(values=[func.offset_wrap_level(-1)]+params), env)
+          )
+    vau: MarkedPrimComb('vau, wrap_level=0, val_head_ok=true, handler=lambda(only_head, de, env_stack, memostuff, params):
+                let
+                    de? = if len(params) == 3 { params[0].symbol_value } else { nil }
+                    params = map(lambda(x): s.symbol_value, if de? { params[1] } else { params[0] })
+                    varadic = '& in params
+                    params.remove('&)
+                    implicit_env = len(params) != 2
+                    body = try_unval(if de? { params[2] } else { params[1] })
+                    env_id = <new_id>
+                    if !only_head:
+                        inner_env = make_tmp_inner_env(params, de?, upper=de, id=env_id)
+                        body = partial_eval_helper(body, false, inner_env, <add inner_env to env_stack>, memostuff, false)
+                    return MarkedComb(wrap_level=0, id=new_id, de?=de?, static_env=de, variadic=varadic, params=params, body=body)
+          )
+    wrap: ...<returns new MarkedPrimComb/MarkedComb with incremented wrap_level>...
+    unwrap: ...<returns new MarkedPrimComb/MarkedComb with decremented wrap_level>...
+    cond: ...
+          ...Oddly tricky - is wrap_level 0, but...
+          ...                 1. unvals & partially evaluates starting from the first condition
+          ...                   2. if this condition is true, return the unvald & partially evaluated corresponding arm
+          ...                   3. if this condition is false, drop the arm and return to 1
+          ...                 4. In this case, we have an unknown between true & false
+          ...                   5. check to see if combine_hash(x.hash, env.hash) is in memostuff (prevent infinite recursion blocked on a cond guard!)
+          ...                       6. if the hash was in memostuff, return MarkedArray(later_hash=the_hash,
+          ...                                                                           values=[MarkedPrimComb('vcond,wraplevel=-1,...)] + map(unval, <remaining preds/arms>))
+          ...                       7. else new_preds_arms = map(partial_eval..., map(unval, <remaining preds/arms>))
+          ...                       <TODO: 8. remove arms/preds now guarenteed to be false, remove all arms/preds after first true>
+          ...                       9. return MarkedArray(values=[MarkedPrimComb('vcond,wraplevel=-1,...)] + new_preds)
+          ...
+          ...The vcond is like cond but doesn't do any unvaling (as it's already been done) (and wrap_level is set to -1 so the function call machinery doesn't touch the params either)
+          ...
     symbol?: needs_params_prim(symbol?)
     int?: needs_params_prim(int?)
     string?: needs_params_prim(string?)
     combiner?: ...
-	env?: ...
+    env?: ...
     nil?: needs_params_prim(nil?)
     bool?: needs_params_prim(bool?)
     str-to-symbol: needs_params_prim(str-to-symbol)
     get-text: needs_params_prim(get-text)
     array?: ...
-	array: ...
-	len: ...
-	idx: ...
-	slice: ...
-	concat: ...
+    array: ...
+    len: ...
+    idx: ...
+    slice: ...
+    concat: ...
     +: needs_params_prim(+)
     -: needs_params_prim(-)
     *: needs_params_prim(*)
@@ -199,14 +284,23 @@ root_env = {
     log: give_up_params_prim(log)
     error: give_up_params_prim(error)
     read-string: needs_params_prim(read-string)
-	empty_env: MarkedEnv()
+    empty_env: MarkedEnv()
 }
 
 fun compile(...):
-	...
-	Note that when it's compiling a call, it compiles an if/else chain on the wrap level of the combiner being called.
-	in the 0 branch, it emits the parameters as constant data
-	in the 1 branch, it unval's and partial evals all of the parameters before compiling them.
-		- note that this must be robust to partial-eval errors, as this branch might not ever happen at runtime and be nonsense code!
-		- if the partial evaluation errors, it emits a value that will cause an error at runtime into the compiled code
-	in the > 1 branch, it errors
+    ...
+    ... tagged words, etc
+    ... eval
+    ... vau / vau helper closure
+    ...
+    Note that when it's compiling a call, it compiles an if/else chain on the wrap level of the combiner being called.
+    in the 0 branch, it emits the parameters as constant data
+    in the 1 branch, it unval's and partial evals all of the parameters before compiling them.
+        - note that this must be robust to partial-eval errors, as this branch might not ever happen at runtime and be nonsense code!
+        - if the partial evaluation errors, it emits a value that will cause an error at runtime into the compiled code
+    in the > 1 branch, it errors
+    ...
+    ...
+    Must be careful about infiniate recursion, including tricky cases that infinitly ping back and forth between
+    partial eval and compile even though both have individual internal recursion checks
+    ...

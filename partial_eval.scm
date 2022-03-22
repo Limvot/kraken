@@ -824,8 +824,8 @@
                                                                                      (_ (print_strip (indent_str indent) "evaled result of function call (in env " (.marked_env_idx env) ", with inner " env_id ") and err " func_err "  is " func_result))
                                                                                      (must_stop_maybe_id (and (= nil func_err)
                                                                                                               (or rec_stop (if (not (combiner_return_ok func_result env_id))
-                                                                                                                           (if (!= nil de?) (.marked_env_idx env) true)
-                                                                                                                           false))))
+                                                                                                                               (if (!= nil de?) (.marked_env_idx env) true)
+                                                                                                                               false))))
                                                                                      ) (if (!= nil func_err) (array pectx func_err nil)
                                                                                              (if must_stop_maybe_id
                                                                                                  (array pectx nil (marked_array false must_stop_maybe_id (if rec_stop (array hash) nil) (cons (with_wrap_level comb remaining_wrap) evaled_params)))
