@@ -1683,6 +1683,10 @@
           (global '$malloc_head  '(mut i32) (i32.const 0))
           (global '$phs          '(mut i32) (i32.const 0))
           (global '$phl          '(mut i32) (i32.const 0))
+
+          (global '$num_mallocs  '(mut i32) (i32.const 0))
+          (global '$num_frees    '(mut i32) (i32.const 0))
+
           (dlet (
               (nil_val        #b0101)
               (emptystr_val   #b0011)
@@ -1709,6 +1713,12 @@
 
               ((bad_params_type_loc bad_params_type_length datasi) (alloc_data "\nError: passed a bad type of parameters\n" datasi))
               (bad_params_type_msg_val (bor (<< bad_params_type_length 32) bad_params_type_loc #b011))
+
+              ((dropping_loc dropping_length datasi) (alloc_data "dropping " datasi))
+              (dropping_msg_val (bor (<< dropping_length 32) dropping_loc #b011))
+
+              ((duping_loc duping_length datasi) (alloc_data "duping " datasi))
+              (duping_msg_val (bor (<< duping_length 32) duping_loc #b011))
 
               ((error_loc error_length datasi) (alloc_data "\nError: " datasi))
               (error_msg_val (bor (<< error_length 32) error_loc #b011))
@@ -1805,6 +1815,7 @@
 
               ; malloc allocates with size and refcount in header
               ((k_malloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$malloc '(param $bytes i32) '(result i32) '(local $result i32) '(local $ptr i32) '(local $last i32) '(local $pages i32)
+                (global.set '$num_mallocs (i32.add (i32.const 1) (global.get '$num_mallocs)))
                 (local.set '$bytes (i32.add (i32.const 8) (local.get '$bytes)))
                 (local.set '$result (i32.const 0))
                 (_if '$has_head
@@ -1849,6 +1860,7 @@
               ))))
 
               ((k_free func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$free '(param $bytes i32)
+                   (global.set '$num_frees (i32.add (i32.const 1) (global.get '$num_frees)))
                    ;(local.set '$bytes (i32.sub (local.get '$bytes) (i32.const 8)))
                    ;(i32.store 4 (local.get '$bytes) (global.get '$malloc_head))
                    ;(global.set '$malloc_head (local.get '$bytes))
@@ -1878,66 +1890,6 @@
                              )
                          )
                      )
-              ))))
-              ((k_dup func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$dup '(param $bytes i64) '(result i64) '(local $ptr i32) '(local $old_val i32)
-                    (local.set '$ptr (call '$get_ptr (local.get '$bytes)))
-                    (_if '$not_null
-                        (i32.ne (i32.const 0) (local.get '$ptr))
-                        (then
-                            (local.set '$ptr (i32.sub (local.get '$ptr) (i32.const 8)))
-                            (_if '$not_max_neg
-                                ;(i32.ne (i32.const (- #x80000000)) (local.tee '$old_val (i32.load 4 (local.get '$ptr))))
-                                (i32.gt_s  (local.tee '$old_val (i32.load 4 (local.get '$ptr))) (i32.const 0))
-                                (then
-                                    (i32.store 4 (local.get '$ptr) (i32.add (local.get '$old_val) (i32.const 1)))
-                                )
-                            )
-                        )
-                    )
-                    (local.get '$bytes)
-              ))))
-              ((k_drop func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop '(param $it i64) '(local $ptr i32) '(local $old_val i32) '(local $new_val i32) '(local $i i32)
-                    (local.set '$ptr (call '$get_ptr (local.get '$it)))
-                    (_if '$not_null
-                        (i32.ne (i32.const 0) (local.get '$ptr))
-                        (then
-                            (_if '$not_max_neg
-                                ;(i32.ne (i32.const (- #x80000000)) (local.tee '$old_val (i32.load (i32.add (i32.const -4) (local.get '$ptr)))))
-                                (i32.gt_s  (local.tee '$old_val (i32.load (i32.add (i32.const -4) (local.get '$ptr)))) (i32.const 0))
-                                (then
-                                    (_if '$zero
-                                        (i32.eqz (local.tee '$new_val (i32.sub (local.get '$old_val) (i32.const 1))))
-                                        (then
-                                            (_if '$needs_inner_drop
-                                                (i64.eq (i64.const #b01) (i64.and (i64.const #b11) (local.get '$it)))
-                                                (then
-                                                    (_if '$is_array
-                                                        (i64.eq (i64.const #b101) (i64.and (i64.const #b111) (local.get '$it)))
-                                                        (then
-                                                            (local.set '$i (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 32))))
-                                                            (_loop '$l
-                                                                (call '$drop (i64.load (local.get '$ptr)))
-                                                                (local.set '$ptr (i32.add (local.get '$ptr) (i32.const 8)))
-                                                                (local.set '$i (i32.sub (local.get '$i) (i32.const 1)))
-                                                                (br_if '$l (i32.ne (i32.const 0) (local.get '$i)))
-                                                            )
-                                                        )
-                                                        (else
-                                                            (call '$drop (i64.load  0 (local.get '$ptr)))
-                                                            (call '$drop (i64.load  8 (local.get '$ptr)))
-                                                            (call '$drop (i64.load 16 (local.get '$ptr)))
-                                                        )
-                                                    )
-                                                )
-                                            )
-                                            (call '$free (local.get '$ptr))
-                                        )
-                                        (else (i32.store (i32.add (i32.const -4) (local.get '$ptr)) (local.get '$new_val)))
-                                    )
-                                )
-                            )
-                        )
-                    )
               ))))
 
               ; 0..0<env_ptr32 but still aligned>01001
@@ -2278,6 +2230,78 @@
                               (local.get '$iov) ;; nwritten
                     ))
                     (call '$free (local.get '$iov))
+              ))))
+              ((k_dup func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$dup '(param $bytes i64) '(result i64) '(local $ptr i32) '(local $old_val i32)
+                    (local.set '$ptr (call '$get_ptr (local.get '$bytes)))
+                    (_if '$not_null
+                        (i32.ne (i32.const 0) (local.get '$ptr))
+                        (then
+                            (local.set '$ptr (i32.sub (local.get '$ptr) (i32.const 8)))
+
+                            ;(call '$print (i64.const duping_msg_val))
+                            ;(call '$print (i64.shl (i64.extend_i32_s (i32.load 4 (local.get '$ptr))) (i64.const 1)))
+                            ;(call '$print (local.get '$bytes))
+                            ;(call '$print (i64.const newline_msg_val))
+
+                            (_if '$not_max_neg
+                                ;(i32.ne (i32.const (- #x80000000)) (local.tee '$old_val (i32.load 4 (local.get '$ptr))))
+                                (i32.gt_s  (local.tee '$old_val (i32.load 4 (local.get '$ptr))) (i32.const 0))
+                                (then
+                                    (i32.store 4 (local.get '$ptr) (i32.add (local.get '$old_val) (i32.const 1)))
+                                )
+                            )
+                        )
+                    )
+                    (local.get '$bytes)
+              ))))
+              ((k_drop func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop '(param $it i64) '(local $ptr i32) '(local $old_val i32) '(local $new_val i32) '(local $i i32)
+                    (local.set '$ptr (call '$get_ptr (local.get '$it)))
+                    (_if '$not_null
+                        (i32.ne (i32.const 0) (local.get '$ptr))
+                        (then
+
+                            ;(call '$print (i64.const dropping_msg_val))
+                            ;(call '$print (i64.shl (i64.extend_i32_s (i32.load (i32.add (i32.const -4) (local.get '$ptr)))) (i64.const 1)))
+                            ;(call '$print (local.get '$it))
+                            ;(call '$print (i64.const newline_msg_val))
+
+                            (_if '$not_max_neg
+                                ;(i32.ne (i32.const (- #x80000000)) (local.tee '$old_val (i32.load (i32.add (i32.const -4) (local.get '$ptr)))))
+                                (i32.gt_s  (local.tee '$old_val (i32.load (i32.add (i32.const -4) (local.get '$ptr)))) (i32.const 0))
+                                (then
+                                    (_if '$zero
+                                        (i32.eqz (local.tee '$new_val (i32.sub (local.get '$old_val) (i32.const 1))))
+                                        (then
+                                            (_if '$needs_inner_drop
+                                                (i64.eq (i64.const #b01) (i64.and (i64.const #b11) (local.get '$it)))
+                                                (then
+                                                    (_if '$is_array
+                                                        (i64.eq (i64.const #b101) (i64.and (i64.const #b111) (local.get '$it)))
+                                                        (then
+                                                            (local.set '$i (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 32))))
+                                                            (_loop '$l
+                                                                (call '$drop (i64.load (local.get '$ptr)))
+                                                                (local.set '$ptr (i32.add (local.get '$ptr) (i32.const 8)))
+                                                                (local.set '$i (i32.sub (local.get '$i) (i32.const 1)))
+                                                                (br_if '$l (i32.ne (i32.const 0) (local.get '$i)))
+                                                            )
+                                                        )
+                                                        (else
+                                                            (call '$drop (i64.load  0 (local.get '$ptr)))
+                                                            (call '$drop (i64.load  8 (local.get '$ptr)))
+                                                            (call '$drop (i64.load 16 (local.get '$ptr)))
+                                                        )
+                                                    )
+                                                )
+                                            )
+                                            (call '$free (local.get '$ptr))
+                                        )
+                                        (else (i32.store (i32.add (i32.const -4) (local.get '$ptr)) (local.get '$new_val)))
+                                    )
+                                )
+                            )
+                        )
+                    )
               ))))
 
               ; Utility method, but does refcount
@@ -2804,6 +2828,7 @@
                             (br '$l)
                         )
                     )
+                    drop_p_d
                     (local.get '$cur)
                 )
               ))
@@ -3593,7 +3618,7 @@
 
               ; Helper method, doesn't refcount consume parameters
               ; but does properly refcount internally / dup returns
-              ((k_eval_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval_helper '(param $it i64) '(param $env i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $current_env i64) '(local $res i64) '(local $env_ptr i32) '(local $i i32) '(local $comb i64) '(local $params i64) '(local $wrap i32)
+              ((k_eval_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval_helper '(param $it i64) '(param $env i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $current_env i64) '(local $res i64) '(local $env_ptr i32) '(local $tmp_ptr i32) '(local $i i32) '(local $comb i64) '(local $params i64) '(local $wrap i32) '(local $tmp i64)
 
 
             ; The cool thing about Vau calculus / Kernel / Kraken
@@ -3687,9 +3712,10 @@
                                                (_loop '$inner_eval_loop
                                                       (br_if '$inner_eval_loop_break (i32.eq (local.get '$len) (local.get '$i)))
 
-                                                      (i64.store                               (i32.add (local.get '$ptr) (i32.shl (local.get '$i) (i32.const 3)))
-                                                                 (call '$eval_helper (i64.load (i32.add (local.get '$ptr) (i32.shl (local.get '$i) (i32.const 3))))
-                                                                                     (local.get '$env)))
+                                                      (local.set '$tmp_ptr (i32.add (local.get '$ptr) (i32.shl (local.get '$i) (i32.const 3))))
+                                                      (local.set '$tmp (call '$eval_helper (i64.load (local.get '$tmp_ptr)) (local.get '$env)))
+                                                      (call '$drop (i64.load (local.get '$tmp_ptr)))
+                                                      (i64.store (local.get '$tmp_ptr) (local.get '$tmp))
 
                                                       (local.set '$i   (i32.add (local.get '$i)   (i32.const 1)))
                                                       (br '$inner_eval_loop)
@@ -3709,7 +3735,7 @@
                                 ; dynamic env
                                 (call '$dup (local.get '$env))
                                 ; static env
-                                (i64.or (i64.shl (i64.and (call '$dup (local.get '$comb)) (i64.const #x3FFFFFFC0))
+                                (i64.or (i64.shl (i64.and (local.get '$comb) (i64.const #x3FFFFFFC0))
                                                  (i64.const 2)) (i64.const #b01001))
                                 ;func_idx
                                 (i32.wrap_i64 (i64.shr_u (local.get '$comb) (i64.const 35)))
@@ -3930,9 +3956,9 @@
                 (_if '$using_d_env
                       (i64.ne (local.get '$des) (i64.const nil_val))
                       (then
-                           (local.set '$params(call '$concat (call '$array2_alloc (local.get '$params) (call '$array1_alloc (call '$dup (local.get '$des))))
-                                                    (i64.const nil_val)
-                                                    (i64.const nil_val)))
+                           (local.set '$params (call '$concat (call '$array2_alloc (local.get '$params) (call '$array1_alloc (call '$dup (local.get '$des))))
+                                                     (i64.const nil_val)
+                                                     (i64.const nil_val)))
                       )
                 )
 
@@ -4626,6 +4652,14 @@
                         (call '$print (local.get '$it))
                     )
                     (call '$drop (local.get '$it))
+
+                    (i64.shl (i64.extend_i32_s (global.get '$num_frees))   (i64.const 1))
+                    (i64.shl (i64.extend_i32_s (global.get '$num_mallocs)) (i64.const 1))
+
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print )
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print )
               ))
               ((watermark datas) datasi)
           ) (concat
