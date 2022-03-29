@@ -1681,6 +1681,7 @@
                   '(func $fd_write (param i32 i32 i32 i32)
                                    (result i32)))
           (global '$malloc_head  '(mut i32) (i32.const 0))
+          (global '$debug_malloc_head  '(mut i32) (i32.const 0))
           (global '$phs          '(mut i32) (i32.const 0))
           (global '$phl          '(mut i32) (i32.const 0))
 
@@ -1816,37 +1817,40 @@
               ; malloc allocates with size and refcount in header
               ((k_malloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$malloc '(param $bytes i32) '(result i32) '(local $result i32) '(local $ptr i32) '(local $last i32) '(local $pages i32)
                 (global.set '$num_mallocs (i32.add (i32.const 1) (global.get '$num_mallocs)))
-                (local.set '$bytes (i32.add (i32.const 8) (local.get '$bytes)))
+
+                ;(local.set '$bytes (i32.add (i32.const 8) (local.get '$bytes)))
+                (local.set '$bytes (i32.add (i32.const 24) (local.get '$bytes))) ; MDEBUG
+
                 (local.set '$result (i32.const 0))
-                (_if '$has_head
-                    (i32.ne (i32.const 0) (global.get '$malloc_head))
-                    (then
-                        (local.set '$ptr (global.get '$malloc_head))
-                        (local.set '$last (i32.const 0))
-                        (_loop '$l
-                            (_if '$fits
-                                (i32.ge_u (i32.load 0 (local.get '$ptr)) (local.get '$bytes))
-                                (then
-                                    (local.set '$result (local.get '$ptr))
-                                    (_if '$head
-                                        (i32.eq (local.get '$result) (global.get '$malloc_head))
-                                        (then
-                                            (global.set '$malloc_head (i32.load 4 (global.get '$malloc_head)))
-                                        )
-                                        (else
-                                            (i32.store 4 (local.get '$last) (i32.load 4 (local.get '$result)))
-                                        )
-                                    )
-                                )
-                                (else
-                                    (local.set '$last (local.get '$ptr))
-                                    (local.set '$ptr (i32.load 4 (local.get '$ptr)))
-                                    (br_if '$l (i32.ne (i32.const 0) (local.get '$ptr)))
-                                )
-                            )
-                        )
-                    )
-                )
+                ;(_if '$has_head
+                ;    (i32.ne (i32.const 0) (global.get '$malloc_head))
+                ;    (then
+                ;        (local.set '$ptr (global.get '$malloc_head))
+                ;        (local.set '$last (i32.const 0))
+                ;        (_loop '$l
+                ;            (_if '$fits
+                ;                (i32.ge_u (i32.load 0 (local.get '$ptr)) (local.get '$bytes))
+                ;                (then
+                ;                    (local.set '$result (local.get '$ptr))
+                ;                    (_if '$head
+                ;                        (i32.eq (local.get '$result) (global.get '$malloc_head))
+                ;                        (then
+                ;                            (global.set '$malloc_head (i32.load 4 (global.get '$malloc_head)))
+                ;                        )
+                ;                        (else
+                ;                            (i32.store 4 (local.get '$last) (i32.load 4 (local.get '$result)))
+                ;                        )
+                ;                    )
+                ;                )
+                ;                (else
+                ;                    (local.set '$last (local.get '$ptr))
+                ;                    (local.set '$ptr (i32.load 4 (local.get '$ptr)))
+                ;                    (br_if '$l (i32.ne (i32.const 0) (local.get '$ptr)))
+                ;                )
+                ;            )
+                ;        )
+                ;    )
+                ;)
                 (_if '$result_0
                     (i32.eqz (local.get '$result))
                     (then
@@ -1855,12 +1859,24 @@
                         (i32.store 0 (local.get '$result) (i32.shl (local.get '$pages) (i32.const 16)))
                     )
                 )
+
+                (i32.store (local.get '$result) (global.get '$debug_malloc_head)) ; MDEBUG
+                (global.set '$debug_malloc_head (local.get '$result))             ; MDEBUG
+                (local.set '$result (i32.add (i32.const 16) (local.get '$result))) ; MDEBUG
+
                 (i32.store 4 (local.get '$result) (i32.const 1))
                 (i32.add (local.get '$result) (i32.const 8))
               ))))
 
               ((k_free func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$free '(param $bytes i32)
                    (global.set '$num_frees (i32.add (i32.const 1) (global.get '$num_frees)))
+                   (_if '$properly_counted
+                        (i32.ne (i32.const 1) (i32.load (i32.sub (local.get '$bytes) (i32.const 4))))
+                        (then
+                          (unreachable)
+                        )
+                   )
+                   (i32.store (i32.sub (local.get '$bytes) (i32.const 4)) (i32.sub (i32.load (i32.sub (local.get '$bytes) (i32.const 4))) (i32.const 1)))
                    ;(local.set '$bytes (i32.sub (local.get '$bytes) (i32.const 8)))
                    ;(i32.store 4 (local.get '$bytes) (global.get '$malloc_head))
                    ;(global.set '$malloc_head (local.get '$bytes))
@@ -1898,6 +1914,7 @@
                     (i64.store 0  (local.get '$tmp) (local.get '$keys))
                     (i64.store 8  (local.get '$tmp) (local.get '$vals))
                     (i64.store 16 (local.get '$tmp) (local.get '$upper))
+                    (i64.store (i32.add (i32.const -16) (local.get '$tmp)) (i64.or (i64.shl (i64.extend_i32_u (local.get '$tmp)) (i64.const 5)) (i64.const #b01001))) ; MDEBUG
                     (i64.or (i64.shl (i64.extend_i32_u (local.get '$tmp)) (i64.const 5)) (i64.const #b01001))
               ))))
 
@@ -1905,12 +1922,14 @@
               ((k_array1_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array1_alloc '(param $item i64) '(result i64) '(local $tmp i32)
                     (local.set '$tmp (call '$malloc (i32.const 8)))
                     (i64.store 0  (local.get '$tmp) (local.get '$item))
+                    (i64.store (i32.add (i32.const -16) (local.get '$tmp)) (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000100000005))) ; MDEBUG
                     (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000100000005))
               ))))
               ((k_array2_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array2_alloc '(param $a i64) '(param $b i64) '(result i64) '(local $tmp i32)
                     (local.set '$tmp (call '$malloc (i32.const 16)))
                     (i64.store 0  (local.get '$tmp) (local.get '$a))
                     (i64.store 8  (local.get '$tmp) (local.get '$b))
+                    (i64.store (i32.add (i32.const -16) (local.get '$tmp)) (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000200000005))) ; MDEBUG
                     (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000200000005))
               ))))
               ((k_array3_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array3_alloc '(param $a i64) '(param $b i64) '(param $c i64) '(result i64) '(local $tmp i32)
@@ -1918,6 +1937,7 @@
                     (i64.store  0  (local.get '$tmp) (local.get '$a))
                     (i64.store  8  (local.get '$tmp) (local.get '$b))
                     (i64.store 16  (local.get '$tmp) (local.get '$c))
+                    (i64.store (i32.add (i32.const -16) (local.get '$tmp)) (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000300000005))) ; MDEBUG
                     (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000300000005))
               ))))
               ((k_array5_alloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array5_alloc '(param $a i64) '(param $b i64) '(param $c i64) '(param $d i64) '(param $e i64) '(result i64) '(local $tmp i32)
@@ -1927,6 +1947,7 @@
                     (i64.store 16  (local.get '$tmp) (local.get '$c))
                     (i64.store 24  (local.get '$tmp) (local.get '$d))
                     (i64.store 32  (local.get '$tmp) (local.get '$e))
+                    (i64.store (i32.add (i32.const -16) (local.get '$tmp)) (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000500000005))) ; MDEBUG
                     (i64.or (i64.extend_i32_u (local.get '$tmp)) (i64.const #x0000000500000005))
               ))))
 
@@ -2219,7 +2240,7 @@
               ; Utility method, not subject to refcounting
               ((k_print func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$print '(param $to_print i64) '(local $iov i32) '(local $data_size i32)
                     (local.set '$iov (call '$malloc (i32.add (i32.const 8)
-                                                              (local.tee '$data_size (call '$str_len (local.get '$to_print))))))
+                                                             (local.tee '$data_size (call '$str_len (local.get '$to_print))))))
                     (drop (call '$str_helper (local.get '$to_print) (i32.add (i32.const 8) (local.get '$iov))))
                     (i32.store (local.get '$iov)                         (i32.add (i32.const 8) (local.get '$iov))) ;; adder of data
                     (i32.store 4 (local.get '$iov) (local.get '$data_size))                   ;; len of data
@@ -2254,7 +2275,7 @@
                     )
                     (local.get '$bytes)
               ))))
-              ((k_drop func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop '(param $it i64) '(local $ptr i32) '(local $old_val i32) '(local $new_val i32) '(local $i i32)
+              ((k_drop func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop '(param $it i64) '(local $ptr i32) '(local $tmp_ptr i32) '(local $old_val i32) '(local $new_val i32) '(local $i i32)
                     (local.set '$ptr (call '$get_ptr (local.get '$it)))
                     (_if '$not_null
                         (i32.ne (i32.const 0) (local.get '$ptr))
@@ -2279,9 +2300,10 @@
                                                         (i64.eq (i64.const #b101) (i64.and (i64.const #b111) (local.get '$it)))
                                                         (then
                                                             (local.set '$i (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 32))))
+                                                            (local.set '$tmp_ptr (local.get '$ptr))
                                                             (_loop '$l
-                                                                (call '$drop (i64.load (local.get '$ptr)))
-                                                                (local.set '$ptr (i32.add (local.get '$ptr) (i32.const 8)))
+                                                                (call '$drop (i64.load (local.get '$tmp_ptr)))
+                                                                (local.set '$tmp_ptr (i32.add (local.get '$tmp_ptr) (i32.const 8)))
                                                                 (local.set '$i (i32.sub (local.get '$i) (i32.const 1)))
                                                                 (br_if '$l (i32.ne (i32.const 0) (local.get '$i)))
                                                             )
@@ -2354,6 +2376,8 @@
                                   )
                                   (call '$drop (local.get '$array))
 
+                                  (i64.store (i32.add (i32.const -16) (local.get '$new_ptr)) (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #b101))
+                                                                                                     (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))) ; MDEBUG
                                   (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #b101))
                                           (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
                              )
@@ -2365,6 +2389,8 @@
 
                                   (call '$drop (local.get '$array))
 
+                                  (i64.store (i32.add (i32.const -16) (local.get '$new_ptr)) (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #b011))
+                                                                                                     (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32))))
                                   (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr))  (i64.const #b011))
                                           (i64.shl (i64.extend_i32_u (local.get '$new_size)) (i64.const 32)))
                              )
@@ -2429,6 +2455,11 @@
                 (local.set '$buf (call '$malloc (local.tee '$size (call '$str_len (local.get '$p)))))
                 (drop (call '$str_helper (local.get '$p) (local.get '$buf)))
                 drop_p_d
+
+                (i64.store (i32.add (i32.const -16) (local.get '$buf)) (i64.or (i64.or (i64.shl (i64.extend_i32_u (local.get '$size)) (i64.const 32))
+                                                                                (i64.extend_i32_u (local.get '$buf)))
+                                                                        (i64.const #b011)))
+
                 (i64.or (i64.or (i64.shl (i64.extend_i32_u (local.get '$size)) (i64.const 32))
                                 (i64.extend_i32_u (local.get '$buf)))
                         (i64.const #b011))
@@ -2954,6 +2985,9 @@
                                   )
                               )
 
+                              (i64.store (i32.add (i32.const -16) (local.get '$new_ptr)) (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr)) (i64.const #b011))
+                                                                                             (i64.shl (i64.extend_i32_u (local.get '$size))    (i64.const 32)))) ; MDEBUG
+
                               (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr)) (i64.const #b011))
                                       (i64.shl (i64.extend_i32_u (local.get '$size))    (i64.const 32)))
                           )
@@ -2990,6 +3024,9 @@
                                       (br '$outer_loop)
                                   )
                               )
+
+                              (i64.store (i32.add (i32.const -16) (local.get '$new_ptr)) (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr)) (i64.const #b101))
+                                                                                             (i64.shl (i64.extend_i32_u (local.get '$size))    (i64.const 32)))) ; MDEBUG
 
                               (i64.or (i64.or  (i64.extend_i32_u (local.get '$new_ptr)) (i64.const #b101))
                                       (i64.shl (i64.extend_i32_u (local.get '$size))    (i64.const 32)))
@@ -3315,6 +3352,12 @@
                                         )
                                     )
                                     (local.set '$aptr (i32.sub (local.get '$aptr) (local.get '$asiz)))
+
+
+                                    (i64.store (i32.add (i32.const -16) (local.get '$aptr)) (i64.or (i64.or  (i64.extend_i32_u (local.get '$aptr)) (i64.const #x3))
+                                                                                            (i64.shl (i64.extend_i32_u (local.get '$asiz)) (i64.const 32)))) ; MDEBUG
+
+
                                     (local.set '$result (i64.or (i64.or  (i64.extend_i32_u (local.get '$aptr)) (i64.const #x3))
                                                                 (i64.shl (i64.extend_i32_u (local.get '$asiz)) (i64.const 32))))
                                     (br '$b1)
@@ -3486,6 +3529,11 @@
                                     (memory.copy (local.get '$aptr)
                                                  (local.get '$bptr)
                                                  (local.get '$asiz))
+
+
+                                    (i64.store (i32.add (i32.const -16) (local.get '$aptr)) (i64.or (i64.or  (i64.extend_i32_u (local.get '$aptr)) (i64.const #x7))
+                                                                                            (i64.shl (i64.extend_i32_u (local.get '$asiz)) (i64.const 32)))) ; MDEBUG
+
                                     (local.set '$result (i64.or (i64.or  (i64.extend_i32_u (local.get '$aptr)) (i64.const #x7))
                                                                 (i64.shl (i64.extend_i32_u (local.get '$asiz)) (i64.const 32))))
                                     (br '$b1)
@@ -4223,6 +4271,11 @@
                                                                                     ;table
                                                                                     0
                                                                                     ;params
+
+                                                                                    (i64.store (i32.add (i32.const -16) (local.get '$param_ptr))
+                                                                                          (i64.or (i64.extend_i32_u (local.get '$param_ptr))
+                                                                                                  (i64.const (bor (<< num_params 32) #x5)))) ; MDEBUG
+
                                                                                     (i64.or (i64.extend_i32_u (local.get '$param_ptr))
                                                                                             (i64.const (bor (<< num_params 32) #x5)))
                                                                                     ;dynamic env (is caller's static env)
@@ -4355,6 +4408,13 @@
                                                                 (mif de?
                                                                      (i64.store (* 8 (- (len full_params) 1)) (local.get '$tmp_ptr) (local.get '$d_env))
                                                                      (call '$drop (local.get '$d_env)))
+
+
+                                                                (i64.store (i32.add (i32.const -16) (local.get '$tmp_ptr))
+                                                                            (i64.or (i64.extend_i32_u (local.get '$tmp_ptr))
+                                                                                       (i64.const (bor (<< (len full_params) 32) #x5)))) ; MDEBUG
+
+
                                                                 (i64.or (i64.extend_i32_u (local.get '$tmp_ptr))
                                                                            (i64.const (bor (<< (len full_params) 32) #x5)))
 
@@ -4475,7 +4535,7 @@
                 ; Could add some to open like lookup flags, o flags, base rights
                 ;                             ineriting rights, fdflags
 
-              (start (func '$start '(local $it i64) '(local $tmp i64) '(local $ptr i32) '(local $monad_name i64) '(local $len i32) '(local $buf i32) '(local $code i32) '(local $str i64) '(local $result i64)
+              (start (func '$start '(local $it i64) '(local $tmp i64) '(local $ptr i32) '(local $monad_name i64) '(local $len i32) '(local $buf i32) '(local $code i32) '(local $str i64) '(local $result i64) '(local $debug_malloc_print i32)
                     (local.set '$it (if needs_runtime_eval (call '$eval_helper (i64.const compiled_value_ptr) (i64.const root_marked_env_val))
                                                            (i64.const compiled_value_ptr)))
                     (block '$exit_block
@@ -4523,6 +4583,10 @@
                                               (i32.const (+ 8 iov_tmp))                                                ;; nwritten
                                         ))
                                         ;  <string_size32><string_ptr29>011
+                                        (i64.store (i32.add (i32.const -16) (local.get '$buf))
+                                              (i64.or (i64.shl (i64.extend_i32_u (i32.load 8 (i32.const iov_tmp))) (i64.const 32))
+                                                      (i64.extend_i32_u (i32.or (local.get '$buf) (i32.const #b011))))) ; MDEBUG
+
                                         (local.set '$str (i64.or (i64.shl (i64.extend_i32_u (i32.load 8 (i32.const iov_tmp))) (i64.const 32))
                                                                  (i64.extend_i32_u (i32.or (local.get '$buf) (i32.const #b011)))))
                                         (_if '$is_error
@@ -4656,10 +4720,35 @@
                     (i64.shl (i64.extend_i32_s (global.get '$num_frees))   (i64.const 1))
                     (i64.shl (i64.extend_i32_s (global.get '$num_mallocs)) (i64.const 1))
 
+                    (local.set '$debug_malloc_print (global.get '$debug_malloc_head))
+
                     (call '$print (i64.const newline_msg_val))
                     (call '$print )
                     (call '$print (i64.const newline_msg_val))
                     (call '$print )
+
+
+                    ; MDEBUG
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print (i64.const newline_msg_val))
+                    (block '$print_loop_br
+                        (_loop '$print_loop
+                            (br_if '$print_loop_br (i32.eq (local.get '$debug_malloc_print) (i32.const 0)))
+
+                            (call '$print (i64.const space_msg_val))
+                            (call '$print (i64.shl (i64.extend_i32_s (i32.load 20 (local.get '$debug_malloc_print))) (i64.const 1)))
+                            (call '$print (i64.const space_msg_val))
+
+                            (call '$print (i64.load 8 (local.get '$debug_malloc_print)))
+                            (local.set '$debug_malloc_print (i32.load (local.get '$debug_malloc_print)))
+                            (call '$print (i64.const newline_msg_val))
+                            (br '$print_loop)
+                        )
+                    )
+                    ; MDEBUG
+
+
+
               ))
               ((watermark datas) datasi)
           ) (concat
