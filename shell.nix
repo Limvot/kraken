@@ -11,6 +11,7 @@ mkShell {
     wabt
     wasmtime
     wasm3
+    wasmer
     kakoune
   ];
 }
