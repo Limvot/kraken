@@ -1818,9 +1818,16 @@
               ; malloc allocates with size and refcount in header
               ((k_malloc func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$malloc '(param $bytes i32) '(result i32) '(local $result i32) '(local $ptr i32) '(local $last i32) '(local $pages i32)
                 (global.set '$num_mallocs (i32.add (i32.const 1) (global.get '$num_mallocs)))
+                ;(local.set '$bytes (i32.add (i32.const 24) (local.get '$bytes))) ; MDEBUG
 
                 (local.set '$bytes (i32.add (i32.const 8) (local.get '$bytes)))
-                ;(local.set '$bytes (i32.add (i32.const 24) (local.get '$bytes))) ; MDEBUG
+                ; ROUND AND ALIGN to 8 byte boundries (1 word) NOT ALLOWED - we expect 16 byte boundries, seemingly?
+                ; (though it doesn't seem like it from the ptr encoding :/) It crashes if only 8...
+                ;(local.set '$bytes (i32.and (i32.const -16) (i32.add (i32.const 15) (local.get '$bytes))))
+                ; or heck, to 4 word boundries
+                ;(local.set '$bytes (i32.and (i32.const -32) (i32.add (i32.const 31) (local.get '$bytes))))
+                ; or 8 word boundries!
+                (local.set '$bytes (i32.and (i32.const -64) (i32.add (i32.const 63) (local.get '$bytes))))
 
                 (local.set '$result (i32.const 0))
                 (_if '$has_head
@@ -1861,6 +1868,17 @@
                         (i32.store 0 (local.get '$result) (i32.shl (local.get '$pages) (i32.const 16)))
                     )
                 )
+                ; If too big (>= 2x needed), break off a chunk
+                (_if '$too_big
+                    (i32.ge_u (i32.load 0 (local.get '$result)) (i32.shl (local.get '$bytes) (i32.const 1)))
+                    (then
+                        (local.set '$ptr (i32.add (local.get '$result) (local.get '$bytes)))
+                        (i32.store 0 (local.get '$ptr) (i32.sub (i32.load 0 (local.get '$result)) (local.get '$bytes)))
+                        (i32.store 4 (local.get '$ptr) (global.get '$malloc_head))
+                        (global.set '$malloc_head (local.get '$ptr))
+                        (i32.store 0 (local.get '$result) (local.get '$bytes))
+                    )
+                )
 
                 ;(i32.store (local.get '$result) (global.get '$debug_malloc_head)) ; MDEBUG
                 ;(global.set '$debug_malloc_head (local.get '$result))             ; MDEBUG
@@ -1871,15 +1889,15 @@
               ))))
 
               ((k_free func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$free '(param $bytes i32)
+                   (local.set '$bytes (i32.sub (local.get '$bytes) (i32.const 8)))
                    (global.set '$num_frees (i32.add (i32.const 1) (global.get '$num_frees)))
                    (_if '$properly_counted
-                        (i32.ne (i32.const 1) (i32.load (i32.sub (local.get '$bytes) (i32.const 4))))
+                        (i32.ne (i32.const 1) (i32.load 4 (local.get '$bytes)))
                         (then
                           (unreachable)
                         )
                    )
-                   (i32.store (i32.sub (local.get '$bytes) (i32.const 4)) (i32.sub (i32.load (i32.sub (local.get '$bytes) (i32.const 4))) (i32.const 1)))
-                   (local.set '$bytes (i32.sub (local.get '$bytes) (i32.const 8)))
+                   ;(i32.store 4 (local.get '$bytes) (i32.sub (i32.load 4 (local.get '$bytes)) (i32.const 1)))
                    (i32.store 4 (local.get '$bytes) (global.get '$malloc_head))
                    (global.set '$malloc_head (local.get '$bytes))
               ))))
