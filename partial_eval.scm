@@ -2423,6 +2423,7 @@
               ; no function will have a 0 func index and count as falsy
               (dyn_start (+ 0 k_slice_impl))
 
+              (func_id_dynamic_ofset  (+ (- 0 dyn_start) (- num_pre_functions 1)))
 
               ; This and is 1111100011
               ; The end ensuring 01 makes only
@@ -4238,50 +4239,68 @@
                                                                 ((param_codes first_params_err ctx) (compile_params false ctx params))
                                                                 ((func_val func_code func_err ctx) (compile-inner ctx func_value false))
                                                                 ;(_ (print_strip "func val " func_val " func code " func_code " func err " func_err " param_codes " param_codes " err " err " from " func_value))
-                                                                (func_code (mif func_val (i64.const func_val) func_code))
                                                                 ((unval_param_codes err ctx) (compile_params true ctx params))
                                                                 ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (str_strip c))) true))
-                                                                (result_code (concat
+                                                                (wrap_0_param_code (concat
+                                                                      (local.get '$tmp) ; saving ito restore it
+                                                                      (apply concat param_codes)
+                                                                      (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
+                                                                      (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
+                                                                                (range (- num_params 1) -1))
+                                                                      (local.set '$tmp) ; restoring tmp
+                                                                   ))
+                                                                (wrap_1_param_code (concat
+                                                                   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                                                   ; Since we're not sure if it's going to be a vau or not,
+                                                                   ; this code might not be compilable, so we gracefully handle
+                                                                   ; compiler errors and instead emit code that throws the error if this
+                                                                   ; spot is ever reached at runtime.
+                                                                   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                                                   (mif err (concat (call '$print (i64.const bad_not_vau_msg_val))
+                                                                                    (call '$print (i64.const bad_unval_params_msg_val))
+                                                                                    (call '$print (i64.shl (local.get '$tmp) (i64.const 1)))
+                                                                                    (unreachable))
+                                                                            (concat
+                                                                                (local.get '$tmp) ; saving ito restore it
+                                                                                (apply concat unval_param_codes)
+                                                                                (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
+                                                                                (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
+                                                                                          (range (- num_params 1) -1))
+                                                                                (local.set '$tmp) ; restoring tmp
+                                                                            ))))
+                                                                (wrap_x_param_code (concat
+                                                                                    ; TODO: Handle other wrap levels
+                                                                                    (call '$print (i64.const weird_wrap_msg_val))
+                                                                                    (unreachable)))
+
+                                                                ;(func_code (mif func_val (i64.const func_val) func_code))
+                                                                (result_code (mif func_val
+                                                                              (concat
+                                                                                (dlet ((wrap_level (>> (band func_val #x30) 4)))
+                                                                                      (cond ((= 0 wrap_level) wrap_0_param_code)
+                                                                                            ((= 1 wrap_level) wrap_1_param_code)
+                                                                                            (true             wrap_x_param_code)))
+                                                                                (call (- (>> func_val 35) func_id_dynamic_ofset (- 0 num_pre_functions) 1)
+                                                                                    ;params
+                                                                                    (i64.or (i64.extend_i32_u (local.get '$param_ptr))
+                                                                                            (i64.const (bor (<< num_params 32) #x5)))
+                                                                                    ;dynamic env (is caller's static env)
+                                                                                    (call '$dup (local.get '$s_env))
+                                                                                    ; static env
+                                                                                    (i64.const (bor (<< (band func_val #x3FFFFFFC0) 2) #b01001))
+                                                                                )
+                                                                              )
+                                                                              (concat
                                                                                 func_code
                                                                                 (local.set '$tmp)
                                                                                 (_if '$is_wrap_0
                                                                                     (i64.eq (i64.const #x00) (i64.and (local.get '$tmp) (i64.const #x30)))
-                                                                                    (then
-                                                                                        (local.get '$tmp) ; saving ito restore it
-                                                                                        (apply concat param_codes)
-                                                                                        (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
-                                                                                        (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
-                                                                                                  (range (- num_params 1) -1))
-                                                                                        (local.set '$tmp) ; restoring tmp
-                                                                                    )
+                                                                                    (then wrap_0_param_code)
                                                                                     (else
                                                                                         (_if '$is_wrap_1
                                                                                             (i64.eq (i64.const #x10) (i64.and (local.get '$tmp) (i64.const #x30)))
-                                                                                            (then
-                                                                                                 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                                                                                                 ; Since we're not sure if it's going to be a vau or not,
-                                                                                                 ; this code might not be compilable, so we gracefully handle
-                                                                                                 ; compiler errors and instead emit code that throws the error if this
-                                                                                                 ; spot is ever reached at runtime.
-                                                                                                 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                                                                                                 (mif err (concat (call '$print (i64.const bad_not_vau_msg_val))
-                                                                                                                  (call '$print (i64.const bad_unval_params_msg_val))
-                                                                                                                  (call '$print (i64.shl (local.get '$tmp) (i64.const 1)))
-                                                                                                                  (unreachable))
-                                                                                                          (concat
-                                                                                                              (local.get '$tmp) ; saving ito restore it
-                                                                                                              (apply concat unval_param_codes)
-                                                                                                              (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
-                                                                                                              (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
-                                                                                                                        (range (- num_params 1) -1))
-                                                                                                              (local.set '$tmp) ; restoring tmp
-                                                                                                          ))
-                                                                                            )
-                                                                                            (else
-                                                                                                ; TODO: Handle other wrap levels
-                                                                                                (call '$print (i64.const weird_wrap_msg_val))
-                                                                                                (unreachable)
-                                                                                            )
+                                                                                            (then wrap_1_param_code)
+                                                                                            (else wrap_x_param_code)
                                                                                         )
                                                                                     )
                                                                                 )
@@ -4306,7 +4325,7 @@
                                                                                                      (i64.const 2)) (i64.const #b01001))
                                                                                     ;func_idx
                                                                                     (i32.wrap_i64 (i64.shr_u (local.get '$tmp) (i64.const 35)))
-                                                                                )))
+                                                                                ))))
                                                                 ) (array nil result_code (mif func_err func_err first_params_err) ctx)))
                                                         ))))))
 
@@ -4482,7 +4501,8 @@
                                                     (concat setup_code inner_code end_code)
                                                   ))
                                         (funcs (concat funcs our_func))
-                                        (our_func_idx (+ (- (len funcs) dyn_start) (- num_pre_functions 1)))
+                                        ;(our_func_idx (+ (- (len funcs) dyn_start) (- num_pre_functions 1)))
+                                        (our_func_idx (+ (len funcs) func_id_dynamic_ofset))
                                         (func_value (bor (<< our_func_idx 35) (<< wrap_level 4) #b0001))
                                         (memo (put memo (.hash c) func_value))
                                         (_ (print_strip "the hash " (.hash c) " with value " func_value " corresponds to " c))
