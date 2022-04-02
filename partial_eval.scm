@@ -846,7 +846,7 @@
                                      (array pectx nil (mark false (apply actual_function (map strip params))))))
         ) (array f_sym (marked_prim_comb handler f_sym 1 false)))))
 
-    (give_up_eval_params (lambda (f_sym actual_function) (dlet (
+    (give_up_eval_params (lambda (f_sym) (dlet (
         (handler (lambda (only_head de env_stack pectx params indent) (array pectx 'LATER nil)))
         ) (array f_sym (marked_prim_comb handler f_sym 1 false)))))
 
@@ -1066,13 +1066,14 @@
         (needs_params_val_lambda 'str true_str)
         ;(needs_params_val_lambda 'pr-str pr-str)
         ;(needs_params_val_lambda 'prn prn)
-        (give_up_eval_params 'log log)
+        (give_up_eval_params 'log)
+        (give_up_eval_params 'debug)
         ; really do need to figure out mif we want to keep meta, and add it mif so
         ;(give_up_eval_params 'meta meta)
         ;(give_up_eval_params 'with-meta with-meta)
         ; mif we want to get fancy, we could do error/recover too
-        (give_up_eval_params 'error error)
-        ;(give_up_eval_params 'recover recover)
+        (give_up_eval_params 'error)
+        ;(give_up_eval_params 'recover)
         (needs_params_val_lambda 'read-string read-string)
         (array 'empty_env (marked_env true nil nil nil nil nil))
     )))
@@ -3834,6 +3835,53 @@
                   drop_p_d
               ))))
 
+              ((k_debug_prompt_loc k_debug_prompt_length datasi) (alloc_data "debug_prompt > " datasi))
+              (k_debug_prompt_msg_val (bor (<< k_debug_prompt_length 32) k_debug_prompt_loc #b011))
+
+              ((k_debug_exit_loc k_debug_exit_length datasi) (alloc_data "exit\n" datasi))
+               (k_debug_exit_msg_val (bor (<< k_debug_exit_length 32) k_debug_exit_loc #b011))
+
+              ((k_debug_loc k_debug_length datasi) (alloc_data "k_debug" datasi))
+              (k_debug_msg_val (bor (<< k_debug_length 32) k_debug_loc #b011))
+              ((k_debug           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$debug           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $buf i32) '(local $str i64) '(local $tmp_read i64) '(local $tmp_evaled i64)
+                (call '$print (i64.const k_debug_msg_val))
+                (call '$print (local.get '$p))
+                (call '$print (i64.const newline_msg_val))
+
+                (_loop '$varadic_loop
+                      (call '$print (i64.const k_debug_prompt_msg_val))
+
+                      (local.set '$len (i32.const 100))
+                      (i32.store 4 (i32.const iov_tmp) (local.get '$len))
+                      (i32.store 0 (i32.const iov_tmp) (local.tee '$buf (call '$malloc (local.get '$len))))
+                      (drop (call '$fd_read
+                            (i32.const 0)               ;; file descriptor
+                            (i32.const iov_tmp)         ;; *iovs
+                            (i32.const 1)               ;; iovs_len
+                            (i32.const (+ 8 iov_tmp))   ;; nwritten
+                      ))
+
+                      (local.set '$str (i64.or (i64.shl (i64.extend_i32_u (i32.load 8 (i32.const iov_tmp))) (i64.const 32))
+                                               (i64.extend_i32_u (i32.or (local.get '$buf) (i32.const #b011)))))
+
+                      (_if '$keep_looping (i64.ne (i64.const 1) (call '$str_sym_comp (i64.const k_debug_exit_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
+                           (then
+                             (call '$print (local.get '$str))
+                             (local.set '$tmp_read (call '$read-string (call '$array1_alloc (local.get '$str)) (i64.const nil_val) (i64.const nil_val)))
+                             (local.set '$tmp_evaled (call '$eval_helper (local.get '$tmp_read) (local.get '$d)))
+                             (call '$print (local.get '$tmp_evaled))
+                             (call '$drop (local.get '$tmp_read))
+                             (call '$drop (local.get '$tmp_evaled))
+                             (call '$print (i64.const newline_msg_val))
+                             (br '$varadic_loop)
+                           )
+                      )
+                )
+                (call '$drop (local.get '$str))
+                drop_p_d
+                (i64.const nil_val)
+              ))))
+
               ((k_vau_helper_loc k_vau_helper_length datasi) (alloc_data "k_vau_helper" datasi))
               (k_vau_helper_msg_val (bor (<< k_vau_helper_length 32) k_vau_helper_loc #b011))
               ((k_vau_helper          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau_helper '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i_se i64) '(local $i_des i64) '(local $i_params i64) '(local $i_is_varadic i64) '(local $min_num_params i32) '(local $i_body i64) '(local $new_env i64)
@@ -4377,6 +4425,7 @@
                                           ((= 'eval          (.prim_comb_sym c))  (array (bor (<< (- k_eval dyn_start)          35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'read-string   (.prim_comb_sym c))  (array (bor (<< (- k_read-string dyn_start)   35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'log           (.prim_comb_sym c))  (array (bor (<< (- k_log dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'debug         (.prim_comb_sym c))  (array (bor (<< (- k_debug dyn_start)         35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'error         (.prim_comb_sym c))  (array (bor (<< (- k_error dyn_start)         35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'str           (.prim_comb_sym c))  (array (bor (<< (- k_str dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= '>=            (.prim_comb_sym c))  (array (bor (<< (- k_geq dyn_start)           35) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
@@ -4615,8 +4664,8 @@
                                         ; fourth entry isn't a comb -> out
                                         (br_if '$error_block (i64.ne (i64.and (i64.load 24 (local.get '$ptr)) (i64.const #b1111)) (i64.const #b0001)))
                                         ; iov <32bit len><32bit addr> + <32bit num written>
-                                        (i32.store 0 (i32.const iov_tmp) (local.tee '$buf (call '$malloc (local.get '$len))))
                                         (i32.store 4 (i32.const iov_tmp) (local.tee '$len (i32.wrap_i64 (i64.shr_u (i64.load 16 (local.get '$ptr)) (i64.const 1)))))
+                                        (i32.store 0 (i32.const iov_tmp) (local.tee '$buf (call '$malloc (local.get '$len))))
                                         (local.set '$code (call '$fd_read
                                               (i32.wrap_i64 (i64.shr_u (i64.load 8 (local.get '$ptr)) (i64.const 1)))    ;; file descriptor
                                               (i32.const iov_tmp)                                                      ;; *iovs
