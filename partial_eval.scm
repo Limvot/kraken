@@ -1686,6 +1686,8 @@
           (global '$phs          '(mut i32) (i32.const 0))
           (global '$phl          '(mut i32) (i32.const 0))
 
+          (global '$stack_trace  '(mut i64) (i64.const 0))
+
           (global '$num_mallocs  '(mut i32) (i32.const 0))
           (global '$num_sbrks    '(mut i32) (i32.const 0))
           (global '$num_frees    '(mut i32) (i32.const 0))
@@ -3680,6 +3682,15 @@
               ))))
 
 
+
+
+              (front_half_stack_code (lambda (call_val env_val) (global.set '$stack_trace (call '$array3_alloc call_val
+                                                                                                       env_val
+                                                                                                       (call '$dup (global.get '$stack_trace))))))
+              (back_half_stack_code (concat (i64.load 16 (i32.wrap_i64 (i64.and (i64.const -8) (global.get '$stack_trace))))
+                                            (call '$drop (global.get '$stack_trace))
+                                            (global.set '$stack_trace)))
+
               ((k_call_zero_len_loc     k_call_zero_len_length datasi) (alloc_data "tried to eval a 0-length call" datasi))
                (k_call_zero_len_msg_val (bor (<< k_call_zero_len_length 32) k_call_zero_len_loc #b011))
 
@@ -3795,6 +3806,8 @@
                                         (br '$wrap_loop)
                                  )
                           )
+                          (front_half_stack_code (call '$dup (local.get '$it)) (call '$dup (local.get '$env)))
+                          ; Also, this really should tail-call when we support it
                           (call_indirect
                                 ;type
                                 k_wrap
@@ -3810,7 +3823,7 @@
                                 ;func_idx
                                 (i32.wrap_i64 (i64.shr_u (local.get '$comb) (i64.const 35)))
                           )
-                          ; Also, this really should tail-call when we support it
+                          back_half_stack_code
                         )
                    )
                  )
@@ -3841,6 +3854,9 @@
               ((k_debug_exit_loc k_debug_exit_length datasi) (alloc_data "exit\n" datasi))
                (k_debug_exit_msg_val (bor (<< k_debug_exit_length 32) k_debug_exit_loc #b011))
 
+              ((k_debug_print_st_loc k_debug_print_st_length datasi) (alloc_data "print_st\n" datasi))
+               (k_debug_print_st_msg_val (bor (<< k_debug_print_st_length 32) k_debug_print_st_loc #b011))
+
               ((k_debug_loc k_debug_length datasi) (alloc_data "k_debug" datasi))
               (k_debug_msg_val (bor (<< k_debug_length 32) k_debug_loc #b011))
               ((k_debug           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$debug           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $buf i32) '(local $str i64) '(local $tmp_read i64) '(local $tmp_evaled i64)
@@ -3864,6 +3880,14 @@
                       (local.set '$str (i64.or (i64.shl (i64.extend_i32_u (i32.load 8 (i32.const iov_tmp))) (i64.const 32))
                                                (i64.extend_i32_u (i32.or (local.get '$buf) (i32.const #b011)))))
 
+                      (_if '$print_st (i64.eq (i64.const 1) (call '$str_sym_comp (i64.const k_debug_print_st_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
+                           (then
+                             (call '$print (global.get '$stack_trace))
+                             (call '$drop  (local.get '$str))
+                             (call '$print (i64.const newline_msg_val))
+                             (br '$varadic_loop)
+                           )
+                      )
                       (_if '$keep_looping (i64.ne (i64.const 1) (call '$str_sym_comp (i64.const k_debug_exit_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
                            (then
                              (call '$print (local.get '$str))
@@ -4328,6 +4352,7 @@
                                                                                       (cond ((= 0 wrap_level) wrap_0_param_code)
                                                                                             ((= 1 wrap_level) wrap_1_param_code)
                                                                                             (true             wrap_x_param_code)))
+                                                                                (front_half_stack_code (i64.const k_cond_msg_val) (call '$dup (local.get '$s_env)))
                                                                                 (call (- (>> func_val 35) func_id_dynamic_ofset (- 0 num_pre_functions) 1)
                                                                                     ;params
                                                                                     (i64.or (i64.extend_i32_u (local.get '$param_ptr))
@@ -4337,6 +4362,7 @@
                                                                                     ; static env
                                                                                     (i64.const (bor (<< (band func_val #x3FFFFFFC0) 2) #b01001))
                                                                                 )
+                                                                                back_half_stack_code
                                                                               )
                                                                               (concat
                                                                                 func_code
@@ -4352,6 +4378,7 @@
                                                                                         )
                                                                                     )
                                                                                 )
+                                                                                (front_half_stack_code (i64.const k_cond_msg_val) (call '$dup (local.get '$s_env)))
                                                                                 (call_indirect
                                                                                     ;type
                                                                                     k_vau
@@ -4373,7 +4400,9 @@
                                                                                                      (i64.const 2)) (i64.const #b01001))
                                                                                     ;func_idx
                                                                                     (i32.wrap_i64 (i64.shr_u (local.get '$tmp) (i64.const 35)))
-                                                                                ))))
+                                                                                )
+                                                                                back_half_stack_code
+                                                                               )))
                                                                 ) (array nil result_code (mif func_err func_err first_params_err) ctx)))
                                                         ))))))
 
@@ -4811,7 +4840,7 @@
                     (i64.shl (i64.extend_i32_s (global.get '$num_mallocs)) (i64.const 1))
                     (i64.shl (i64.extend_i32_s (global.get '$num_sbrks))   (i64.const 1))
 
-                    (local.set '$debug_malloc_print (global.get '$debug_malloc_head))
+                    ;(local.set '$debug_malloc_print (global.get '$debug_malloc_head))
 
                     (call '$print (i64.const newline_msg_val))
                     (call '$print )
