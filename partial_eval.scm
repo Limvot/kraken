@@ -2261,8 +2261,16 @@
                     (local.set '$iov (call '$malloc (i32.add (i32.const 8)
                                                              (local.tee '$data_size (call '$str_len (local.get '$to_print))))))
                     (drop (call '$str_helper (local.get '$to_print) (i32.add (i32.const 8) (local.get '$iov))))
-                    (i32.store (local.get '$iov)                    (i32.add (i32.const 8) (local.get '$iov))) ;; adder of data
-                    (i32.store 4 (local.get '$iov) (local.get '$data_size))                   ;; len of data
+                    (_if '$is_str (i64.eq (i64.and (local.get '$to_print) (i64.const #b111)) (i64.const #b011))
+                         (then
+                             (i32.store   (local.get '$iov) (i32.add (i32.const 9) (local.get '$iov)))       ;; adder of data
+                             (i32.store 4 (local.get '$iov) (i32.sub (local.get '$data_size) (i32.const 2))) ;; len of data
+                         )
+                         (else
+                             (i32.store   (local.get '$iov) (i32.add (i32.const 8) (local.get '$iov))) ;; adder of data
+                             (i32.store 4 (local.get '$iov) (local.get '$data_size))                   ;; len of data
+                         )
+                    )
                     (drop (call '$fd_write
                               (i32.const 1)     ;; file descriptor
                               (local.get '$iov) ;; *iovs
