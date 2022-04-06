@@ -3852,6 +3852,9 @@
                   drop_p_d
               ))))
 
+              ((k_debug_parameters_loc k_debug_parameters_length datasi) (alloc_data "parameters to debug were " datasi))
+              (k_debug_parameters_msg_val (bor (<< k_debug_parameters_length 32) k_debug_parameters_loc #b011))
+
               ((k_debug_prompt_loc k_debug_prompt_length datasi) (alloc_data "debug_prompt > " datasi))
               (k_debug_prompt_msg_val (bor (<< k_debug_prompt_length 32) k_debug_prompt_loc #b011))
 
@@ -3873,7 +3876,7 @@
               ((k_debug_loc k_debug_length datasi) (alloc_data "k_debug" datasi))
               (k_debug_msg_val (bor (<< k_debug_length 32) k_debug_loc #b011))
               ((k_debug           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$debug           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $buf i32) '(local $str i64) '(local $tmp_read i64) '(local $tmp_evaled i64) '(local $to_ret i64) '(local $tmp_ptr i32)
-                (call '$print (i64.const k_debug_msg_val))
+                (call '$print (i64.const k_debug_parameters_msg_val))
                 (call '$print (local.get '$p))
                 (call '$print (i64.const newline_msg_val))
 
