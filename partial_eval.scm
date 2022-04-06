@@ -1666,6 +1666,10 @@
     (i64_le_hexify (lambda (x) (le_hexify_helper (bitwise-and x #xFFFFFFFFFFFFFFFF) 8)))
     (i32_le_hexify (lambda (x) (le_hexify_helper (bitwise-and x #xFFFFFFFF) 4)))
 
+    (nil_val        #b0101)
+    (emptystr_val   #b0011)
+    (true_val  #b000111001)
+    (false_val #b000011001)
 
     (compile (dlambda ((pectx partial_eval_err marked_code) needs_runtime_eval) (mif partial_eval_err (error partial_eval_err) (wasm_to_binary (module
           (import "wasi_unstable" "path_open"
@@ -1682,17 +1686,13 @@
           (global '$phs          '(mut i32) (i32.const 0))
           (global '$phl          '(mut i32) (i32.const 0))
 
-          (global '$stack_trace  '(mut i64) (i64.const 0))
+          (global '$stack_trace  '(mut i64) (i64.const nil_val))
 
           (global '$num_mallocs  '(mut i32) (i32.const 0))
           (global '$num_sbrks    '(mut i32) (i32.const 0))
           (global '$num_frees    '(mut i32) (i32.const 0))
 
           (dlet (
-              (nil_val        #b0101)
-              (emptystr_val   #b0011)
-              (true_val  #b000111001)
-              (false_val #b000011001)
               (alloc_data (dlambda (d (watermark datas)) (cond ((str? d)      (dlet ((size (+ 8 (band (len d) -8))))
                                                                                    (array (+ watermark 8)
                                                                                           (len d)
@@ -3856,9 +3856,15 @@
               ((k_debug_print_st_loc k_debug_print_st_length datasi) (alloc_data "print_st\n" datasi))
                (k_debug_print_st_msg_val (bor (<< k_debug_print_st_length 32) k_debug_print_st_loc #b011))
 
+              ((k_debug_print_envs_loc k_debug_print_envs_length datasi) (alloc_data "print_envs\n" datasi))
+               (k_debug_print_envs_msg_val (bor (<< k_debug_print_envs_length 32) k_debug_print_envs_loc #b011))
+
+              ((k_debug_print_all_loc k_debug_print_all_length datasi) (alloc_data "print_all\n" datasi))
+               (k_debug_print_all_msg_val (bor (<< k_debug_print_all_length 32) k_debug_print_all_loc #b011))
+
               ((k_debug_loc k_debug_length datasi) (alloc_data "k_debug" datasi))
               (k_debug_msg_val (bor (<< k_debug_length 32) k_debug_loc #b011))
-              ((k_debug           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$debug           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $buf i32) '(local $str i64) '(local $tmp_read i64) '(local $tmp_evaled i64) '(local $to_ret i64)
+              ((k_debug           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$debug           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $buf i32) '(local $str i64) '(local $tmp_read i64) '(local $tmp_evaled i64) '(local $to_ret i64) '(local $tmp_ptr i32)
                 (call '$print (i64.const k_debug_msg_val))
                 (call '$print (local.get '$p))
                 (call '$print (i64.const newline_msg_val))
@@ -3880,11 +3886,63 @@
                           (local.set '$str (i64.or (i64.shl (i64.extend_i32_u (i32.load 8 (i32.const iov_tmp))) (i64.const 32))
                                                    (i64.extend_i32_u (i32.or (local.get '$buf) (i32.const #b011)))))
 
+                          (local.set '$tmp_evaled (i64.const 0))
                           (_if '$print_st (i64.eq (i64.const 1) (call '$str_sym_comp (i64.const k_debug_print_st_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
                                (then
-                                 (call '$print (global.get '$stack_trace))
+                                 (local.set '$tmp_read (global.get '$stack_trace))
+                                 (block '$print_loop_exit
+                                        (_loop '$print_loop
+                                               (br_if '$print_loop_exit (i64.eq (i64.const nil_val) (local.get '$tmp_read)))
+                                               (call '$print (local.get '$tmp_evaled))
+                                               (local.set '$tmp_evaled (i64.add (local.get '$tmp_evaled) (i64.const 2)))
+                                               (call '$print (i64.const space_msg_val))
+                                               (call '$print (i64.load 0 (i32.wrap_i64 (i64.and (local.get '$tmp_read) (i64.const -8)))))
+                                               (call '$print (i64.const newline_msg_val))
+                                               (local.set '$tmp_read (i64.load 16 (i32.wrap_i64 (i64.and (local.get '$tmp_read) (i64.const -8)))))
+                                               (br '$print_loop)
+                                        )
+                                 )
                                  (call '$drop  (local.get '$str))
-                                 (call '$print (i64.const newline_msg_val))
+                                 (br '$varadic_loop)
+                               )
+                          )
+                          (_if '$print_envs (i64.eq (i64.const 1) (call '$str_sym_comp (i64.const k_debug_print_envs_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
+                               (then
+                                 (local.set '$tmp_read (global.get '$stack_trace))
+                                 (block '$print_loop_exit
+                                        (_loop '$print_loop
+                                               (br_if '$print_loop_exit (i64.eq (i64.const nil_val) (local.get '$tmp_read)))
+                                               (call '$print (local.get '$tmp_evaled))
+                                               (call '$print (i64.const space_msg_val))
+                                               (call '$print (i64.load 8 (i32.wrap_i64 (i64.and (local.get '$tmp_read) (i64.const -8)))))
+                                               (local.set '$tmp_evaled (i64.add (local.get '$tmp_evaled) (i64.const 2)))
+                                               (call '$print (i64.const newline_msg_val))
+                                               (local.set '$tmp_read (i64.load 16 (i32.wrap_i64 (i64.and (local.get '$tmp_read) (i64.const -8)))))
+                                               (br '$print_loop)
+                                        )
+                                 )
+                                 (call '$drop  (local.get '$str))
+                                 (br '$varadic_loop)
+                               )
+                          )
+                          (_if '$print_all (i64.eq (i64.const 1) (call '$str_sym_comp (i64.const k_debug_print_all_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
+                               (then
+                                 (local.set '$tmp_read (global.get '$stack_trace))
+                                 (block '$print_loop_exit
+                                        (_loop '$print_loop
+                                               (br_if '$print_loop_exit (i64.eq (i64.const nil_val) (local.get '$tmp_read)))
+                                               (call '$print (local.get '$tmp_evaled))
+                                               (local.set '$tmp_evaled (i64.add (local.get '$tmp_evaled) (i64.const 2)))
+                                               (call '$print (i64.const space_msg_val))
+                                               (call '$print (i64.load 0 (i32.wrap_i64 (i64.and (local.get '$tmp_read) (i64.const -8)))))
+                                               (call '$print (i64.const space_msg_val))
+                                               (call '$print (i64.load 8 (i32.wrap_i64 (i64.and (local.get '$tmp_read) (i64.const -8)))))
+                                               (call '$print (i64.const newline_msg_val))
+                                               (local.set '$tmp_read (i64.load 16 (i32.wrap_i64 (i64.and (local.get '$tmp_read) (i64.const -8)))))
+                                               (br '$print_loop)
+                                        )
+                                 )
+                                 (call '$drop  (local.get '$str))
                                  (br '$varadic_loop)
                                )
                           )
