@@ -473,7 +473,7 @@
               ((comb? x)          (dlet (((wrap_level env_id de? se variadic params body) (.comb x))
                                          ((se_s done_envs)   (recurse se done_envs))
                                          ((body_s done_envs) (recurse body done_envs)))
-                                      (array (true_str "<n (comb " wrap_level " " env_id " " de? " " se_s " " params " " body_s ")>") done_envs)))
+                                      (array (true_str "<n " (needed_for_progress x) " (comb " wrap_level " " env_id " " de? " " se_s " " params " " body_s ")>") done_envs)))
               ((prim_comb? x)     (array (true_str "<wl=" (.prim_comb_wrap_level x) " " (.prim_comb_sym x) ">") done_envs))
               ((marked_env? x)    (dlet ((e (.env_marked x))
                                          (index (.marked_env_idx x))
@@ -1687,6 +1687,10 @@
           (global '$phl          '(mut i32) (i32.const 0))
 
           (global '$stack_trace  '(mut i64) (i64.const nil_val))
+          (global '$debug_depth  '(mut i32) (i32.const -1))
+          (global '$debug_func_to_call   '(mut i64) (i64.const nil_val))
+          (global '$debug_params_to_call '(mut i64) (i64.const nil_val))
+          (global '$debug_env_to_call    '(mut i64) (i64.const nil_val))
 
           (global '$num_mallocs  '(mut i32) (i32.const 0))
           (global '$num_sbrks    '(mut i32) (i32.const 0))
@@ -2302,6 +2306,7 @@
                     )
                     (local.get '$bytes)
               ))))
+              ; currenty func 16 in profile
               ((k_drop func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop '(param $it i64) '(local $ptr i32) '(local $tmp_ptr i32) '(local $old_val i32) '(local $new_val i32) '(local $i i32)
                     (local.set '$ptr (call '$get_ptr (local.get '$it)))
                     (_if '$not_null
@@ -3688,12 +3693,15 @@
 
 
 
-              (front_half_stack_code (lambda (call_val env_val) (global.set '$stack_trace (call '$array3_alloc call_val
+              (front_half_stack_code (lambda (call_val env_val) (_if '$debug_level (i32.ne (i32.const -1) (global.get '$debug_depth)) (then (global.set '$stack_trace (call '$array3_alloc call_val
                                                                                                        env_val
-                                                                                                       (call '$dup (global.get '$stack_trace))))))
-              (back_half_stack_code (concat (i64.load 16 (i32.wrap_i64 (i64.and (i64.const -8) (global.get '$stack_trace))))
+                                                                                                       (call '$dup (global.get '$stack_trace))))))))
+              (back_half_stack_code (concat (_if '$debug_level (i32.ne (i32.const -1) (global.get '$debug_depth)) (then
+                                            (i64.load 16 (i32.wrap_i64 (i64.and (i64.const -8) (global.get '$stack_trace))))
                                             (call '$drop (global.get '$stack_trace))
-                                            (global.set '$stack_trace)))
+                                            (global.set '$stack_trace)))))
+              ;(front_half_stack_code (lambda (call_val env_val) (array)))
+              ;(back_half_stack_code (array))
 
               ((k_call_zero_len_loc     k_call_zero_len_length datasi) (alloc_data "tried to eval a 0-length call" datasi))
                (k_call_zero_len_msg_val (bor (<< k_call_zero_len_length 32) k_call_zero_len_loc #b011))
@@ -3864,6 +3872,9 @@
               ((k_debug_abort_loc k_debug_abort_length datasi) (alloc_data "abort\n" datasi))
                (k_debug_abort_msg_val (bor (<< k_debug_abort_length 32) k_debug_abort_loc #b011))
 
+              ((k_debug_redebug_loc k_debug_redebug_length datasi) (alloc_data "redebug\n" datasi))
+               (k_debug_redebug_msg_val (bor (<< k_debug_redebug_length 32) k_debug_redebug_loc #b011))
+
               ((k_debug_print_st_loc k_debug_print_st_length datasi) (alloc_data "print_st\n" datasi))
                (k_debug_print_st_msg_val (bor (<< k_debug_print_st_length 32) k_debug_print_st_loc #b011))
 
@@ -3876,6 +3887,7 @@
               ((k_debug_loc k_debug_length datasi) (alloc_data "k_debug" datasi))
               (k_debug_msg_val (bor (<< k_debug_length 32) k_debug_loc #b011))
               ((k_debug           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$debug           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $buf i32) '(local $str i64) '(local $tmp_read i64) '(local $tmp_evaled i64) '(local $to_ret i64) '(local $tmp_ptr i32)
+                (global.set '$debug_depth  (i32.add (global.get '$debug_depth) (i32.const 1)))
                 (call '$print (i64.const k_debug_parameters_msg_val))
                 (call '$print (local.get '$p))
                 (call '$print (i64.const newline_msg_val))
@@ -3963,6 +3975,42 @@
                                     (unreachable)
                                )
                           )
+
+                          (_if '$redebug (i64.eq (i64.const 1) (call '$str_sym_comp (i64.const k_debug_redebug_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
+                               (then
+                                 (call '$drop  (local.get '$str))
+                                 (global.get '$debug_func_to_call)
+                                 (global.get '$debug_params_to_call)
+                                 (global.get '$debug_env_to_call)
+
+                                 (local.set '$tmp_evaled (call_indirect
+                                     ;type
+                                     k_log
+                                     ;table
+                                     0
+                                     ;params
+                                     (call '$dup (global.get '$debug_params_to_call))
+                                     ;top_env
+                                     (call '$dup (global.get '$debug_env_to_call))
+                                     ; static env
+                                     (i64.or (i64.shl (i64.and (call '$dup (global.get '$debug_func_to_call)) (i64.const #x3FFFFFFC0)) (i64.const 2)) (i64.const #b01001))
+                                     ;func_idx
+                                     (i32.wrap_i64 (i64.shr_u (global.get '$debug_func_to_call) (i64.const 35)))
+                                 ))
+
+                                 (call '$print (local.get '$tmp_evaled))
+                                 (call '$drop (local.get '$tmp_evaled))
+                                 (call '$print (i64.const newline_msg_val))
+
+                                 (global.set '$debug_env_to_call)
+                                 (global.set '$debug_params_to_call)
+                                 (global.set '$debug_func_to_call)
+                                 (br '$varadic_loop)
+                               )
+                          )
+
+
+
                           (local.set '$tmp_read (call '$read-string (call '$array1_alloc (local.get '$str)) (i64.const nil_val) (i64.const nil_val)))
                           (_if '$arr (i64.eq (i64.const #b101) (i64.and (local.get '$tmp_read) (i64.const #b111)))
                                (then
@@ -3989,6 +4037,7 @@
                           (br '$varadic_loop)
                     )
                 )
+                (global.set '$debug_depth  (i32.sub (global.get '$debug_depth) (i32.const 1)))
                 drop_p_d
                 (local.get '$to_ret)
               ))))
@@ -4713,9 +4762,9 @@
                    (true        (error (str "Can't compile-inner impossible " c)))
               )))
 
-              ;(_ (println "compiling partial evaled " (str_strip marked_code)))
+              (_ (println "compiling partial evaled " (str_strip marked_code)))
               ;(_ (true_print "compiling partial evaled " (true_str_strip marked_code)))
-              (_ (true_print "compiling partial evaled "))
+              ;(_ (true_print "compiling partial evaled "))
               (memo empty_dict)
               (ctx (array datasi funcs memo root_marked_env pectx))
 
@@ -4731,12 +4780,11 @@
 
               ((compiled_value_ptr compiled_value_code compiled_value_error ctx) (compile-inner ctx marked_code true))
               ((datasi funcs memo root_marked_env pectx) ctx)
+              (compiled_value_code (mif compiled_value_ptr (i64.const compiled_value_ptr) compiled_value_code))
 
               ; Swap for when need to profile what would be an error
               ;(compiled_value_ptr (mif compiled_value_error 0 compiled_value_ptr))
               (_ (mif compiled_value_error (error compiled_value_error)))
-
-              (_ (if (= nil compiled_value_ptr) (error (str "compiled top-level to code for some reason!? have code " compiled_value_code))))
 
               ; Ok, so the outer loop handles the IO monads
                 ; ('exit        code)
@@ -4747,8 +4795,8 @@
                 ;                             ineriting rights, fdflags
 
               (start (func '$start '(local $it i64) '(local $tmp i64) '(local $ptr i32) '(local $monad_name i64) '(local $len i32) '(local $buf i32) '(local $code i32) '(local $str i64) '(local $result i64) '(local $debug_malloc_print i32)
-                    (local.set '$it (if needs_runtime_eval (call '$eval_helper (i64.const compiled_value_ptr) (i64.const root_marked_env_val))
-                                                           (i64.const compiled_value_ptr)))
+                    (local.set '$it (if needs_runtime_eval (call '$eval_helper compiled_value_code (i64.const root_marked_env_val))
+                                                           compiled_value_code))
                     (block '$exit_block
                         (block '$error_block
                             (_loop '$l
@@ -4814,6 +4862,12 @@
                                         )
 
                                         (local.set '$tmp (call '$dup (i64.load 24 (local.get '$ptr))))
+                                        (call '$drop (global.get '$debug_func_to_call))
+                                        (call '$drop (global.get '$debug_params_to_call))
+                                        (call '$drop (global.get '$debug_env_to_call))
+                                        (global.set '$debug_func_to_call   (call '$dup (local.get '$tmp)))
+                                        (global.set '$debug_params_to_call (call '$dup (local.get '$result)))
+                                        (global.set '$debug_env_to_call (i64.const root_marked_env_val))
                                         (call '$drop (local.get '$it))
                                         (local.set '$it (call_indirect
                                             ;type
@@ -4857,6 +4911,12 @@
                                                                                  (i64.shl (i64.extend_i32_u (local.get '$code))                   (i64.const 1))))
 
                                         (local.set '$tmp (call '$dup (i64.load 24 (local.get '$ptr))))
+                                        (call '$drop (global.get '$debug_func_to_call))
+                                        (call '$drop (global.get '$debug_params_to_call))
+                                        (call '$drop (global.get '$debug_env_to_call))
+                                        (global.set '$debug_func_to_call   (call '$dup (local.get '$tmp)))
+                                        (global.set '$debug_params_to_call (call '$dup (local.get '$result)))
+                                        (global.set '$debug_env_to_call (i64.const root_marked_env_val))
                                         (call '$drop (local.get '$it))
                                         (local.set '$it (call_indirect
                                             ;type
@@ -4902,6 +4962,12 @@
                                                                                  (i64.shl (i64.extend_i32_u (local.get '$code))             (i64.const 1))))
 
                                         (local.set '$tmp (call '$dup (i64.load 24 (local.get '$ptr))))
+                                        (call '$drop (global.get '$debug_func_to_call))
+                                        (call '$drop (global.get '$debug_params_to_call))
+                                        (call '$drop (global.get '$debug_env_to_call))
+                                        (global.set '$debug_func_to_call   (call '$dup (local.get '$tmp)))
+                                        (global.set '$debug_params_to_call (call '$dup (local.get '$result)))
+                                        (global.set '$debug_env_to_call (i64.const root_marked_env_val))
                                         (call '$drop (local.get '$it))
                                         (local.set '$it (call_indirect
                                             ;type
@@ -4927,6 +4993,9 @@
                         (call '$print (local.get '$it))
                     )
                     (call '$drop (local.get '$it))
+                    (call '$drop (global.get '$debug_func_to_call))
+                    (call '$drop (global.get '$debug_params_to_call))
+                    (call '$drop (global.get '$debug_env_to_call))
 
                     (i64.shl (i64.extend_i32_s (global.get '$num_frees))   (i64.const 1))
                     (i64.shl (i64.extend_i32_s (global.get '$num_mallocs)) (i64.const 1))
@@ -5441,3 +5510,41 @@
 ; * NON NAIVE REFCOUNTING
 ; EVENTUALLY: Support some hard core partial_eval that an fully make (foldl or stuff) short circut effeciencly with double-inlining, finally
 ;   addressing the strict-languages-don't-compose thing
+
+
+; Suspected needed for performance
+
+; Opt not passing dynamic env around
+; gets:
+;     not creating dynamic env
+;     not creating param arrays
+; needs:
+;     analysis of static calls
+;     inlining of single use funcs
+;           otherwise lets are single use closures that do use their dynamic env just by virtue of being closures that take the dynamic env as the static env
+;                 wait, this is still vaguely ok - will stop at function boundries
+;     Debugging restart-rerun
+
+; Trial debugging restart-rerun for stack traces?
+; gets:
+;     speed back, stack traces seem like 50% slowdown
+; needs:
+;     checkpoint saving of form/env pair
+;           probs outer loop calling monads
+;           This is ok even later, b/c the closure will ony require refied environments in it's created func, which if not a closure is great, just params and static env
+;
+;
+; On the other hand, this introduces some weirdness
+; if we do a func & wrapper opt
+;     need to track both dynamic env usage and param vector usage (including through env)
+;     otherwise, we have the weird situation where the wrapper destructs params and then inner func must re-construct for inner dynamic env
+;     also we need a way to get the code back for debugging
+;
+; THUS TODO:
+;     trial debugging restart-rerun
+;     opt versions of functions with backup code
+;           CAN BE A DEBUGGING CHECK IN WRAPPER FUNC!
+;     inlining of single use closures
+;           also primitives?
+;                 dup and drop!
+;                 idx, etc

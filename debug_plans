@@ -2,9 +2,12 @@
 
 
 st prints just code
+	done
 env prints env, number offset?
+	done-ish
 
 argument in variable?
+	?
 
 exit with ret value
 	done
@@ -15,10 +18,14 @@ abort
 call on error
 	done for eval symbol lookup
 
+Speedup by off-by-default & rerun with debug on
+	done!
+
 
 later
 	u/downp moves
 	print cleanup
+		done!
 
 
 

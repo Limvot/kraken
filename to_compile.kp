@@ -898,7 +898,7 @@
 
 
     ; This causes ?infinate? recursion, doesn't happen if "if" is replaced with cond
-    (test_func (vau (x) (if x (COMICAL 0) 0)))
+    ;(test_func (vau (x) (if x (COMICAL 0) 0)))
 
 
     ;(and_fold (foldl and true '(true true false true)))
