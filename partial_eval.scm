@@ -3878,6 +3878,12 @@
               ((k_debug_print_st_loc k_debug_print_st_length datasi) (alloc_data "print_st\n" datasi))
                (k_debug_print_st_msg_val (bor (<< k_debug_print_st_length 32) k_debug_print_st_loc #b011))
 
+              ((k_debug_help_loc k_debug_help_length datasi) (alloc_data "help\n" datasi))
+               (k_debug_help_msg_val (bor (<< k_debug_help_length 32) k_debug_help_loc #b011))
+
+              ((k_debug_help_info_loc k_debug_help_info_length datasi) (alloc_data "commands: help, print_st, print_envs, print_all, redebug, or (exit <exit value>)\n" datasi))
+               (k_debug_help_info_msg_val (bor (<< k_debug_help_info_length 32) k_debug_help_info_loc #b011))
+
               ((k_debug_print_envs_loc k_debug_print_envs_length datasi) (alloc_data "print_envs\n" datasi))
                (k_debug_print_envs_msg_val (bor (<< k_debug_print_envs_length 32) k_debug_print_envs_loc #b011))
 
@@ -3910,6 +3916,13 @@
                                                    (i64.extend_i32_u (i32.or (local.get '$buf) (i32.const #b011)))))
 
                           (local.set '$tmp_evaled (i64.const 0))
+                          (_if '$print_help (i64.eq (i64.const 1) (call '$str_sym_comp (i64.const k_debug_help_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
+                               (then
+                                 (call '$print (i64.const k_debug_help_info_msg_val))
+                                 (call '$drop  (local.get '$str))
+                                 (br '$varadic_loop)
+                               )
+                          )
                           (_if '$print_st (i64.eq (i64.const 1) (call '$str_sym_comp (i64.const k_debug_print_st_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
                                (then
                                  (local.set '$tmp_read (global.get '$stack_trace))
@@ -4308,9 +4321,7 @@
                                                                     (memo (put memo (.hash c) a))
                                                                   ) (array a nil nil (array datasi funcs memo env pectx)))))
                                            (true        (error (str "Can't compile impossible value " v))))))
-                    ((marked_symbol? c) (cond ((.marked_symbol_is_val c) (or ;(begin (print "pre get_passthrough " (.hash c) "ctx is " ctx )
-                                                                                    (get_passthrough (.hash c) ctx)
-                                                                             ;)
+                    ((marked_symbol? c) (cond ((.marked_symbol_is_val c) (or (get_passthrough (.hash c) ctx)
                                                                              (dlet ( ((datasi funcs memo env pectx) ctx)
                                                                                      ((c_loc c_len datasi) (alloc_data (get-text (.marked_symbol_value c))  datasi))
                                                                                      (result (bor (<< c_len 32) c_loc #b111))
