@@ -28,6 +28,21 @@ pushd rust_fib
 cargo build --release --target=wasm32-wasi && time echo $NUMBER | wasmtime target/wasm32-wasi/release/rust_let.wasm
 popd
 
+echo "Rust x86 Debug"
+pushd rust_fib
+cargo build && time echo $NUMBER | ./target/debug/rust_let
+popd
+
+echo "Rust x86 Release"
+pushd rust_fib
+cargo build --release && time echo $NUMBER | ./target/release/rust_let
+popd
+
+echo "Clojure"
+pushd clojure_fib
+lein uberjar && time echo $NUMBER | time java -jar target/uberjar/clojure_fib-0.1.0-SNAPSHOT-standalone.jar
+popd
+
 exit
 
 echo "Interpret Straight"
