@@ -1064,6 +1064,7 @@
         ;(needs_params_val_lambda 'prn prn)
         (give_up_eval_params 'log)
         (give_up_eval_params 'debug)
+        (give_up_eval_params 'builtin_fib)
         ; really do need to figure out mif we want to keep meta, and add it mif so
         ;(give_up_eval_params 'meta meta)
         ;(give_up_eval_params 'with-meta with-meta)
@@ -2951,6 +2952,33 @@
                 drop_p_d
               ))))
 
+
+              ((k_builtin_fib_helper            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$builtin_fib_helper  '(param $n i64) '(result i64)
+                  (_if '$eq0 '(result i64)
+                       (i64.eq (i64.const 0) (local.get '$n))
+                      (then (i64.const 2))
+                      (else
+                        (_if '$eq1 '(result i64)
+                            (i64.eq (i64.const 2) (local.get '$n))
+                            (then (i64.const 2))
+                            (else
+                              (i64.add (call '$builtin_fib_helper (i64.sub (local.get '$n) (i64.const 2))) (call '$builtin_fib_helper (i64.sub (local.get '$n) (i64.const 4))))
+                            )
+                        )
+                      )
+                  )
+              ))))
+
+              ((k_builtin_fib_loc k_builtin_fib_length datasi) (alloc_data "k_builtin_fib" datasi))
+              (k_builtin_fib_msg_val (bor (<< k_builtin_fib_length 32) k_builtin_fib_loc #b011))
+              ((k_builtin_fib            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$builtin_fib  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+                (ensure_not_op_n_params_set_ptr_len i32.ne 1)
+                (type_assert 0 type_int k_builtin_fib_msg_val)
+                (call '$builtin_fib_helper (i64.load 0 (local.get '$ptr)))
+                drop_p_d
+              ))))
+
+
               ((k_concat_loc k_concat_length datasi) (alloc_data "k_concat" datasi))
               (k_concat_msg_val (bor (<< k_concat_length 32) k_concat_loc #b011))
               ((k_concat        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$concat  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $size i32) '(local $i i32) '(local $it i64) '(local $new_ptr i32) '(local $inner_ptr i32) '(local $inner_size i32) '(local $new_ptr_traverse i32) '(local $is_str i32)
@@ -4650,6 +4678,7 @@
                                           ((= 'bnot          (.prim_comb_sym c))  (array (bor (<< (- k_bnot dyn_start)          35) (<< 0 5) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= '<<            (.prim_comb_sym c))  (array (bor (<< (- k_ls dyn_start)            35) (<< 0 5) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= '>>            (.prim_comb_sym c))  (array (bor (<< (- k_rs dyn_start)            35) (<< 0 5) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
+                                          ((= 'builtin_fib   (.prim_comb_sym c))  (array (bor (<< (- k_builtin_fib dyn_start)   35) (<< 0 5) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'array         (.prim_comb_sym c))  (array (bor (<< (- k_array dyn_start)         35) (<< 0 5) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'concat        (.prim_comb_sym c))  (array (bor (<< (- k_concat dyn_start)        35) (<< 0 5) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
                                           ((= 'slice         (.prim_comb_sym c))  (array (bor (<< (- k_slice dyn_start)         35) (<< 0 5) (<< (.prim_comb_wrap_level c) 4) #b0001) nil nil ctx))
@@ -4817,7 +4846,7 @@
                    (true        (error (str "Can't compile-inner impossible " c)))
               )))
 
-              (_ (println "compiling partial evaled " (str_strip marked_code)))
+              ;(_ (println "compiling partial evaled " (str_strip marked_code)))
               ;(_ (true_print "compiling partial evaled " (true_str_strip marked_code)))
               ;(_ (true_print "compiling partial evaled "))
               (memo empty_dict)
