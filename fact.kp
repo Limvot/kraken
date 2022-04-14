@@ -13,7 +13,6 @@
 (let1 let (vY (lambda (recurse) (vau de2 (vs b) (cond (= (len vs) 0) (eval b de2)
                                                      true           (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de2)))))
  (let (
-         lcompose (lambda (g f) (lambda (& args) (lapply g (array (lapply f args)))))
          rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
 
          fact (rec-lambda fact (n) (cond (= 0 n)   1
