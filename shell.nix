@@ -19,5 +19,7 @@ mkShell {
     #(rustChannelOf { date = "2022-04-10"; channel = "nightly"; targets = [ "wasm32-wasi" ]; }).rust
     (latest.rustChannels.nightly.rust.override  {  targets = [ "wasm32-wasi" ]; })
     leiningen
+    clang
+    hyperfine
   ];
 }
