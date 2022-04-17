@@ -6,7 +6,7 @@
 (let1 cons (lambda (h t) (concat (array h) t))
 (let1 Y (lambda (f3)
     ((lambda (x1) (x1 x1))
-     (lambda (x2) (f3 (lambda (& y) (lapply (x2 x2) y))))))
+     (lambda (x2) (f3 (wrap (vau app_env (& y) (lapply (x2 x2) y app_env)))))))
 (let1 vY (lambda (f)
     ((lambda (x3) (x3 x3))
      (lambda (x4) (f (vau de1 (& y) (vapply (x4 x4) y de1))))))

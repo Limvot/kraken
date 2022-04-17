@@ -32,3 +32,8 @@ kraken_bootstrap
 compiler_version.krak
 untracked_misc
 k_prime
+
+
+# Added by cargo
+
+/target
