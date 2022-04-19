@@ -4780,8 +4780,16 @@
                                                 (new_get_s_env_code (_if '$have_s_env '(result i64)
                                                                          (i64.ne (i64.const nil_val) (local.get '$s_env))
                                                                          (then (local.get '$s_env))
-                                                                         (else (local.tee '$s_env (call '$env_alloc (i64.const params_vec) (local.get '$inner_params) (local.get '$outer_s_env)))
-                                                                               (local.set '$inner_params (i64.const nil_val))
+                                                                         (else (local.tee '$s_env (call '$env_alloc (i64.const params_vec)
+
+                                                                                                                    (local.set '$tmp_ptr (call '$malloc (i32.const (* 8 (len full_params)))))
+                                                                                                                    (flat_map (lambda (i) (i64.store (* i 8) (local.get '$tmp_ptr)
+                                                                                                                                                     (call '$dup (local.get (idx full_params i))))) 
+                                                                                                                              (range 0 (len full_params)))
+                                                                                                                    (i64.or (i64.extend_i32_u (local.get '$tmp_ptr))
+                                                                                                                            (i64.const (bor (<< (len full_params) 32) #x5)))
+
+                                                                                                                    (local.get '$outer_s_env)))
                                                                                (local.set '$outer_s_env (i64.const nil_val))
                                                                                )))
                                                 ((datasi funcs memo env pectx) ctx)
@@ -4800,20 +4808,10 @@
 
                                     ) (mif (and (!= nil early_quit) (= nil err)) (array early_quit nil nil ctx)
                                           (dlet (
-                                    ; I belive this env_code should actually re-create the actual env chain (IN THE ENV COMPILING CODE, NOT HERE)
-                                    ; It might not just be s_env, because we might have been partially-evaled and returned
-                                    ; from a deeper call and have some real env frames before we run into what is currently
-                                    ; s_env. Additionally, this changes depending on where this value currently is, though
-                                    ; I think as of right now you can only have an incomplete-chain-closure once, since it
-                                    ; would never count as a value it could never be moved into another function etc.
-                                    ; ON THE OTHER HAND - perhaps two (textually) identical lambdas could?
-                                    ; Also, if we go for value lambda than we should't be compiling with the
-                                    ; current actual stack... (we really need to change the compile-time stacks to be
-                                    ; identical / mostly get rid of them all together)
+
                                     ((env_val env_code env_err ctx) (if (and need_value (not (marked_env_real? se)))
                                                                         (array nil nil "Env wasn't real when compiling comb, but need value" ctx)
                                                                         (compile-inner ctx se need_value inside_veval s_env_access_code)))
-                                    (_ (print_strip "result of compiling env for comb is val " env_val " code " env_code " err " env_err " and it was real? " (marked_env_real? se) " based off of env " se))
                                     (_ (if (not (or (= nil env_val) (int? env_val))) (error "BADBADBADenv_val")))
                                     (calculate_combined_value (lambda (env_val func_val) (bor (band #x7FFFFFFC0 (>> env_val 2)) func_val)))
                                     (maybe_func (get_passthrough (.hash c) ctx))
@@ -4824,6 +4822,7 @@
                                         (old_funcs funcs)
                                         (funcs (concat funcs (array nil)))
                                         (our_func_idx (+ (len funcs) func_id_dynamic_ofset))
+                                        (funcs (concat funcs (array nil)))
                                         (calculate_func_val (lambda (wrap) (bor (<< our_func_idx 35) (<< (mif de? 1 0) 5) (<< wrap 4) #b0001)))
                                         (func_value (calculate_func_val wrap_level))
                                         (memo (mif env_val (foldl (dlambda (memo (hash wrap)) (put memo hash (calculate_combined_value env_val (calculate_func_val wrap)))) memo rec_hashes)
@@ -4835,70 +4834,49 @@
 
                                         ; This can be optimized for common cases, esp with no de? and varidaic to make it much faster
                                         ; But not prematurely, I just had to redo it after doing that the first time, we'll get there when we get there
-                                        (parameter_symbols (map (lambda (k) (array 'local k 'i64)) full_params))
-                                        (env_setup_code (concat
-                                                          (local.set '$s_env (i64.const nil_val))
-                                                          (local.set '$inner_params 
-                                                                (local.set '$param_ptr (i32.wrap_i64 (i64.and (i64.const -8) (local.get '$params))))
-                                                                (mif (and (not variadic) (= nil de?))
-                                                                     (concat
-                                                                         (flat_map (lambda (i) (local.set (idx full_params i) (call '$dup (i64.load (* i 8) (local.get '$param_ptr)))))
-                                                                                   (range 0 normal_params_length))
-                                                                         (local.get '$params)
-                                                                       )
-                                                                     (concat
-                                                                         (local.set '$tmp_ptr (call '$malloc (i32.const (* 8 (len full_params)))))
-                                                                         (flat_map (lambda (i) (i64.store (* i 8) (local.get '$tmp_ptr) (local.tee (idx full_params i) (call '$dup (call '$dup (i64.load (* i 8) (local.get '$param_ptr)))))))
-                                                                                   (range 0 normal_params_length))
-                                                                         (if variadic
-                                                                             (i64.store (* 8 normal_params_length) (local.get '$tmp_ptr)
-                                                                                        (local.tee (idx full_params normal_params_length) (call '$dup (call '$slice_impl (local.get '$params) (i32.const (- (len params) 1)) (i32.const -1)))))
-                                                                             (call '$drop (local.get '$params)))
-                                                                         (mif de?
-                                                                              (i64.store (* 8 (- (len full_params) 1)) (local.get '$tmp_ptr) (local.tee (idx full_params (- (len full_params) 1)) (call '$dup (local.get '$d_env))))
-                                                                              (call '$drop (local.get '$d_env)))
+                                        (parameter_symbols (map (lambda (k) (array 'param k 'i64)) full_params))
 
-
-                                                                         ;(i64.store (i32.add (i32.const -16) (local.get '$tmp_ptr))
-                                                                         ;            (i64.or (i64.extend_i32_u (local.get '$tmp_ptr))
-                                                                         ;                       (i64.const (bor (<< (len full_params) 32) #x5)))) ; MDEBUG
-
-
-                                                                         (i64.or (i64.extend_i32_u (local.get '$tmp_ptr))
-                                                                                    (i64.const (bor (<< (len full_params) 32) #x5))))))))
-                                       ; (env_setup_code (concat env_setup_code
-                                       ;                         (local.set '$s_env (call '$env_alloc (i64.const params_vec) (local.get '$inner_params) (local.get '$outer_s_env)))
-                                       ;                         (local.set '$inner_params (i64.const nil_val))
-                                       ;                         (local.set '$outer_s_env (i64.const nil_val))
-                                       ;                         ))
-                                        ;(new_get_s_env_code (local.get '$s_env))
-
-                                        (setup_code (concat
-                                            (_if '$params_len_good
-                                                (if variadic    (i64.lt_u (i64.shr_u (local.get '$params) (i64.const 32)) (i64.const (- (len params) 1)))
-                                                                (i64.ne   (i64.shr_u (local.get '$params) (i64.const 32)) (i64.const (len params))))
-                                                (then
-                                                    (call '$drop (local.get '$params))
-                                                    (call '$drop (local.get '$outer_s_env))
-                                                    (call '$drop (local.get '$d_env))
-                                                    (call '$print (i64.const bad_params_number_msg_val))
-                                                    (unreachable)
-                                                )
-                                            ) env_setup_code
-                                        ))
 
                                         ((inner_value inner_code err ctx) (compile_body_part ctx body))
                                         (inner_code (mif inner_value (i64.const inner_value) inner_code))
-                                        (end_code (concat (call '$drop (local.get '$s_env))
-                                                          (call '$drop (local.get '$outer_s_env))
-                                                          (call '$drop (local.get '$inner_params))
-                                                          (flat_map (lambda (k) (call '$drop (local.get k))) full_params)))
-                                        (our_func (apply func (concat (array '$userfunc '(param $params i64) '(param $d_env i64) '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32) '(local $inner_params i64) '(local $s_env i64) '(local $tmp_ptr i32) '(local $tmp i64)) parameter_symbols (array
-                                                    (concat setup_code inner_code end_code)
-                                                  ))))
+                                        (wrapper_func (func '$wrapper_func '(param $params i64) '(param $d_env i64) '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32)
+                                                ;(call '$print (i64.const 2674))
+                                                (_if '$params_len_good
+                                                    (if variadic    (i64.lt_u (i64.shr_u (local.get '$params) (i64.const 32)) (i64.const (- (len params) 1)))
+                                                                    (i64.ne   (i64.shr_u (local.get '$params) (i64.const 32)) (i64.const (len params))))
+                                                    (then
+                                                        (call '$drop (local.get '$params))
+                                                        (call '$drop (local.get '$outer_s_env))
+                                                        (call '$drop (local.get '$d_env))
+                                                        (call '$print (i64.const bad_params_number_msg_val))
+                                                        (unreachable)
+                                                    )
+                                                )
+                                                (call (+ (len old_funcs) 1 num_pre_functions)
+                                                      (local.set '$param_ptr (i32.wrap_i64 (i64.and (i64.const -8) (local.get '$params))))
+                                                      (flat_map (lambda (i) (call '$dup (i64.load (* i 8) (local.get '$param_ptr)))) (range 0 normal_params_length))
+                                                      (if variadic
+                                                           (call '$slice_impl (local.get '$params) (i32.const (- (len params) 1)) (i32.const -1))
+                                                           (call '$drop (local.get '$params)))
+                                                      (mif de?
+                                                            (local.get '$d_env)
+                                                            (call '$drop (local.get '$d_env)))
+                                                      (local.get '$outer_s_env))
+                                        ))
+                                        (our_func (apply func (concat (array '$userfunc) parameter_symbols (array '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32) '(local $s_env i64) '(local $tmp_ptr i32) '(local $tmp i64)
+
+                                            (local.set '$s_env (i64.const nil_val))
+
+                                            inner_code
+
+                                            (call '$drop (local.get '$s_env))
+                                            (call '$drop (local.get '$outer_s_env))
+                                            (flat_map (lambda (k) (call '$drop (local.get k))) full_params)
+
+                                        ))))
                                         ; replace our placeholder with the real one
                                         ((datasi funcs memo env pectx) ctx)
-                                        (funcs (concat old_funcs our_func (drop funcs (+ 1 (len old_funcs)))))
+                                        (funcs (concat old_funcs wrapper_func our_func (drop funcs (+ 2 (len old_funcs)))))
                                         (memo (put memo (.hash c) func_value))
 
                                         ) (array func_value nil err (array datasi funcs memo env pectx)))

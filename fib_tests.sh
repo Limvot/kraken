@@ -25,6 +25,13 @@ cargo build
 cargo build --release
 popd
 
+pushd rust_let
+cargo build --target=wasm32-wasi
+cargo build --release --target=wasm32-wasi
+cargo build
+cargo build --release
+popd
+
 pushd clojure_fib
 lein uberjar
 popd
