@@ -2486,6 +2486,7 @@
                 drop_p_d
                 (i64.const nil_val)
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_error_loc k_error_length datasi) (alloc_data "k_error" datasi))
               (k_error_msg_val (bor (<< k_error_length 32) k_error_loc #b011))
               ((k_error         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$error         '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
@@ -2495,6 +2496,7 @@
                 drop_p_d
                 (unreachable)
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_str_loc k_str_length datasi) (alloc_data "k_str" datasi))
               (k_str_msg_val (bor (<< k_str_length 32) k_str_loc #b011))
               ((k_str           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $buf i32) '(local $size i32)
@@ -2510,6 +2512,7 @@
                                 (i64.extend_i32_u (local.get '$buf)))
                         (i64.const #b011))
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               (pred_func    (lambda (name type_check) (func name '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
@@ -2524,27 +2527,35 @@
               ((k_nil_loc k_nil_length datasi) (alloc_data "k_nil" datasi))
               (k_nil_msg_val (bor (<< k_nil_length 32) k_nil_loc #b011))
               ((k_nil?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$nil?      (array -1 #x0000000000000005)))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_array_loc k_array_length datasi) (alloc_data "k_array" datasi))
               (k_array_msg_val (bor (<< k_array_length 32) k_array_loc #b011))
               ((k_array?        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$array?    type_array))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_bool_loc k_bool_length datasi) (alloc_data "k_bool" datasi))
               (k_bool_msg_val (bor (<< k_bool_length 32) k_bool_loc #b011))
               ((k_bool?         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$bool?     type_bool))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_env_loc k_env_length datasi) (alloc_data "k_env" datasi))
               (k_env_msg_val (bor (<< k_env_length 32) k_env_loc #b011))
               ((k_env?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$env?      type_env))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_combiner_loc k_combiner_length datasi) (alloc_data "k_combiner" datasi))
               (k_combiner_msg_val (bor (<< k_combiner_length 32) k_combiner_loc #b011))
               ((k_combiner?     func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$combiner  type_combiner))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_string_loc k_string_length datasi) (alloc_data "k_string" datasi))
               (k_string_msg_val (bor (<< k_string_length 32) k_string_loc #b011))
               ((k_string?       func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$string?   type_string))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_int_loc k_int_length datasi) (alloc_data "k_int" datasi))
               (k_int_msg_val (bor (<< k_int_length 32) k_int_loc #b011))
               ((k_int?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$int?      type_int))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_symbol_loc k_symbol_length datasi) (alloc_data "k_symbol" datasi))
               (k_symbol_msg_val (bor (<< k_symbol_length 32) k_symbol_loc #b011))
               ((k_symbol?       func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$symbol?   type_symbol))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_str_sym_comp func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str_sym_comp '(param $a i64) '(param $b i64) '(param $lt_val i64) '(param $eq_val i64) '(param $gt_val i64) '(result i64) '(local $result i64) '(local $a_len i32) '(local $b_len i32) '(local $a_ptr i32) '(local $b_ptr i32)
                 (local.set '$result (local.get '$eq_val))
@@ -2585,6 +2596,7 @@
                 )
                 (local.get '$result)
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_comp_helper_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$comp_helper_helper '(param $a i64) '(param $b i64) '(param $lt_val i64) '(param $eq_val i64) '(param $gt_val i64) '(result i64) '(local $result i64) '(local $a_tmp i32) '(local $b_tmp i32) '(local $a_ptr i32) '(local $b_ptr i32) '(local $result_tmp i64)
                 (block '$b
@@ -2827,6 +2839,7 @@
                 )
                 (local.get '$result)
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_comp_helper   func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$comp_helper '(param $p i64) '(param $d i64) '(param $s i64) '(param $lt_val i64) '(param $eq_val i64) '(param $gt_val i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $result i64) '(local $a i64) '(local $b i64)
                 set_len_ptr
@@ -2851,37 +2864,44 @@
                 (local.get '$result)
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_eq_loc k_eq_length datasi) (alloc_data "k_eq" datasi))
               (k_eq_msg_val (bor (<< k_eq_length 32) k_eq_loc #b011))
               ((k_eq            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eq  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const false_val)  (i64.const true_val)  (i64.const false_val))
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_neq_loc k_neq_length datasi) (alloc_data "k_neq" datasi))
               (k_neq_msg_val (bor (<< k_neq_length 32) k_neq_loc #b011))
               ((k_neq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$neq '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const true_val)   (i64.const false_val) (i64.const true_val))
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_geq_loc k_geq_length datasi) (alloc_data "k_geq" datasi))
               (k_geq_msg_val (bor (<< k_geq_length 32) k_geq_loc #b011))
               ((k_geq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$geq '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const false_val)  (i64.const true_val)  (i64.const true_val))
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_gt_loc k_gt_length datasi) (alloc_data "k_gt" datasi))
               (k_gt_msg_val (bor (<< k_gt_length 32) k_gt_loc #b011))
               ((k_gt            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$gt  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const false_val)  (i64.const false_val) (i64.const true_val))
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_leq_loc k_leq_length datasi) (alloc_data "k_leq" datasi))
               (k_leq_msg_val (bor (<< k_leq_length 32) k_leq_loc #b011))
               ((k_leq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$leq '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const true_val)   (i64.const true_val)  (i64.const false_val))
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_lt_loc k_lt_length datasi) (alloc_data "k_lt" datasi))
               (k_lt_msg_val (bor (<< k_lt_length 32) k_lt_loc #b011))
               ((k_lt            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$lt  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const true_val)   (i64.const false_val) (i64.const false_val))
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               (math_function (lambda (name sensitive op)
                 (func name           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $i i32) '(local $cur i64) '(local $next i64)
@@ -2913,27 +2933,35 @@
               ((k_mod_loc k_mod_length datasi) (alloc_data "k_mod" datasi))
               (k_mod_msg_val (bor (<< k_mod_length 32) k_mod_loc #b011))
               ((k_mod           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$mod  true  i64.rem_s))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_div_loc k_div_length datasi) (alloc_data "k_div" datasi))
               (k_div_msg_val (bor (<< k_div_length 32) k_div_loc #b011))
               ((k_div           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$div  true  i64.div_s))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_mul_loc k_mul_length datasi) (alloc_data "k_mul" datasi))
               (k_mul_msg_val (bor (<< k_mul_length 32) k_mul_loc #b011))
               ((k_mul           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$mul  true  i64.mul))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_sub_loc k_sub_length datasi) (alloc_data "k_sub" datasi))
               (k_sub_msg_val (bor (<< k_sub_length 32) k_sub_loc #b011))
               ((k_sub           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$sub  true  i64.sub))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_add_loc k_add_length datasi) (alloc_data "k_add" datasi))
               (k_add_msg_val (bor (<< k_add_length 32) k_add_loc #b011))
               ((k_add           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$add  false i64.add))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_band_loc k_band_length datasi) (alloc_data "k_band" datasi))
               (k_band_msg_val (bor (<< k_band_length 32) k_band_loc #b011))
               ((k_band          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$band false i64.and))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_bor_loc k_bor_length datasi) (alloc_data "k_bor" datasi))
               (k_bor_msg_val (bor (<< k_bor_length 32) k_bor_loc #b011))
               ((k_bor           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$bor  false i64.or))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_bxor_loc k_bxor_length datasi) (alloc_data "k_bxor" datasi))
               (k_bxor_msg_val (bor (<< k_bxor_length 32) k_bxor_loc #b011))
               ((k_bxor          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$bxor false i64.xor))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_bnot_loc k_bnot_length datasi) (alloc_data "k_bnot" datasi))
               (k_bnot_msg_val (bor (<< k_bnot_length 32) k_bnot_loc #b011))
@@ -2943,6 +2971,7 @@
                 (i64.xor (i64.const -2) (i64.load (local.get '$ptr)))
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_ls_loc k_ls_length datasi) (alloc_data "k_ls" datasi))
               (k_ls_msg_val (bor (<< k_ls_length 32) k_ls_loc #b011))
@@ -2953,6 +2982,7 @@
                 (i64.shl (i64.load 0 (local.get '$ptr)) (i64.shr_s (i64.load 8 (local.get '$ptr)) (i64.const 1)))
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_rs_loc k_rs_length datasi) (alloc_data "k_rs" datasi))
               (k_rs_msg_val (bor (<< k_rs_length 32) k_rs_loc #b011))
               ((k_rs            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$rs  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
@@ -2962,6 +2992,7 @@
                 (i64.and (i64.const -2) (i64.shr_s (i64.load 0 (local.get '$ptr)) (i64.shr_s (i64.load 8 (local.get '$ptr)) (i64.const 1))))
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
 
               ((k_builtin_fib_helper            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$builtin_fib_helper  '(param $n i64) '(result i64)
@@ -2979,6 +3010,7 @@
                       )
                   )
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_builtin_fib_loc k_builtin_fib_length datasi) (alloc_data "k_builtin_fib" datasi))
               (k_builtin_fib_msg_val (bor (<< k_builtin_fib_length 32) k_builtin_fib_loc #b011))
@@ -2988,6 +3020,7 @@
                 (call '$builtin_fib_helper (i64.load 0 (local.get '$ptr)))
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
 
               ((k_concat_loc k_concat_length datasi) (alloc_data "k_concat" datasi))
@@ -3109,6 +3142,7 @@
                 )
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_slice_loc k_slice_length datasi) (alloc_data "k_slice" datasi))
               (k_slice_msg_val (bor (<< k_slice_length 32) k_slice_loc #b011))
               ((k_slice         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
@@ -3121,6 +3155,7 @@
                                    (i32.wrap_i64 (i64.shr_s (i64.load 16 (local.get '$ptr)) (i64.const 1))))
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_idx_loc k_idx_length datasi) (alloc_data "k_idx" datasi))
               (k_idx_msg_val (bor (<< k_idx_length 32) k_idx_loc #b011))
               ((k_idx           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$idx     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $array i64) '(local $idx i32) '(local $size i32)
@@ -3146,6 +3181,7 @@
                 )
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_len_loc k_len_length datasi) (alloc_data "k_len" datasi))
               (k_len_msg_val (bor (<< k_len_length 32) k_len_loc #b011))
               ((k_len           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$len     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
@@ -3154,6 +3190,7 @@
                 (i64.and (i64.shr_u (i64.load 0 (local.get '$ptr)) (i64.const 31)) (i64.const -2))
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_array_loc k_array_length datasi) (alloc_data "k_array" datasi))
               (k_array_msg_val (bor (<< k_array_length 32) k_array_loc #b011))
               ((k_array         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
@@ -3161,6 +3198,7 @@
                 (call '$drop (local.get '$d))
                 ; s is 0
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_get_loc k_get_length datasi) (alloc_data "k_get-text" datasi))
               (k_get_msg_val (bor (<< k_get_length 32) k_get_loc #b011))
@@ -3170,6 +3208,7 @@
                 (call '$dup (i64.and (i64.const -5) (i64.load (local.get '$ptr))))
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_str_loc k_str_length datasi) (alloc_data "k_str" datasi))
               (k_str_msg_val (bor (<< k_str_length 32) k_str_loc #b011))
               ((k_str-to-symbol func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str-to-symbol '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
@@ -3178,6 +3217,7 @@
                 (call '$dup (i64.or (i64.const #b100) (i64.load (local.get '$ptr))))
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_unwrap_loc k_unwrap_length datasi) (alloc_data "k_unwrap" datasi))
               (k_unwrap_msg_val (bor (<< k_unwrap_length 32) k_unwrap_loc #b011))
@@ -3194,6 +3234,7 @@
                                     (i64.shl (i64.sub (local.get '$wrap_level) (i64.const 1)) (i64.const 4))))
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_wrap_loc k_wrap_length datasi) (alloc_data "k_wrap" datasi))
               (k_wrap_msg_val (bor (<< k_wrap_length 32) k_wrap_loc #b011))
               ((k_wrap          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$wrap          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $wrap_level i64)
@@ -3209,6 +3250,7 @@
                                     (i64.shl (i64.add (local.get '$wrap_level) (i64.const 1)) (i64.const 4))))
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_lapply_loc k_lapply_length datasi) (alloc_data "k_lapply" datasi))
               (k_lapply_msg_val (bor (<< k_lapply_length 32) k_lapply_loc #b011))
@@ -3261,6 +3303,7 @@
                     (i32.wrap_i64 (i64.shr_u (local.get '$comb) (i64.const 35)))
                 )
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_vapply_loc k_vapply_length datasi) (alloc_data "k_vapply" datasi))
               (k_vapply_msg_val (bor (<< k_vapply_length 32) k_vapply_loc #b011))
@@ -3313,6 +3356,7 @@
                     (i32.wrap_i64 (i64.shr_u (local.get '$comb) (i64.const 35)))
                 )
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ;true_val          #b000111001
               ;false_val         #b00001100)
@@ -3725,6 +3769,7 @@
                 )
                 (local.get '$result)
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_read_loc k_read_length datasi) (alloc_data "k_read" datasi))
               (k_read_msg_val (bor (<< k_read_length 32) k_read_loc #b011))
               ((k_read-string   func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$read-string   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $str i64) '(local $result i64) '(local $tmp_result i64) '(local $tmp_offset i32)
@@ -3767,6 +3812,7 @@
                 (local.get '$result)
                 drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
 
 
@@ -3923,6 +3969,7 @@
             )
 
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_eval_loc k_eval_length datasi) (alloc_data "k_eval" datasi))
               (k_eval_msg_val (bor (<< k_eval_length 32) k_eval_loc #b011))
               ((k_eval          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32)
@@ -3940,6 +3987,7 @@
                   )
                   drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_debug_parameters_loc k_debug_parameters_length datasi) (alloc_data "parameters to debug were " datasi))
               (k_debug_parameters_msg_val (bor (<< k_debug_parameters_length 32) k_debug_parameters_loc #b011))
@@ -4135,6 +4183,7 @@
                 drop_p_d
                 (local.get '$to_ret)
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_vau_helper_loc k_vau_helper_length datasi) (alloc_data "k_vau_helper" datasi))
               (k_vau_helper_msg_val (bor (<< k_vau_helper_length 32) k_vau_helper_loc #b011))
@@ -4248,6 +4297,7 @@
                   (call '$drop (local.get '$new_env))
                   (call '$drop (local.get '$s))
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_env_symbol_loc k_env_symbol_length datasi) (alloc_data "env_symbol" datasi))
               (k_env_symbol_val (bor (<< k_env_symbol_length 32) k_env_symbol_loc #b111))
@@ -4352,6 +4402,7 @@
                          (i64.const #b0001))
                 (call '$drop (local.get '$p))
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_cond_loc k_cond_length datasi) (alloc_data "k_cond" datasi))
               (k_cond_msg_val (bor (<< k_cond_length 32) k_cond_loc #b011))
               ((k_cond          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$cond          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $tmp i64)
@@ -4383,9 +4434,18 @@
                   (local.get '$tmp)
                   drop_p_d
               ))))
+              ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               (get_passthrough (dlambda (hash (datasi funcs memo env pectx)) (dlet ((r (get-value-or-false memo hash)))
                                                                      (if r (array r nil nil (array datasi funcs memo env pectx)) #f))))
+
+                                    ;  <func_idx29>|<env_ptr29><usesde1><wrap1>0001
+              (mod_fval_to_wrap (lambda (it) (cond ((= nil it)                                                      it)
+                                                   ;((and (= (band it #b1111) #b0001) (= #b0 (band (>> it 35) #b1))) (- it (<< 1 35)))
+                                                   ((and (= (band it #b1111) #b0001) (= #b0 (band (>> it 35) #b1))) (dlet ( (r (- it (<< 1 35)))
+                                                                                                                            (_ (true_print "changing " it " to " r ", that is " (>> it 35) " to " (>> r 35)))
+                                                                                                                           ) r) )
+                                                   (true                                                            it))))
 
               ; This is the second run at this, and is a little interesting
               ; It can return a value OR code OR an error string. An error string should be propegated,
@@ -4440,7 +4500,7 @@
                                                                        (dlet ((actual_len (len (.marked_array_values c))))
                                                                          (if (= 0 actual_len) (array nil_val nil nil ctx)
                                                                              (dlet ( ((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x need_value inside_veval s_env_access_code)))
-                                                                                                                                         (array (cons v a) (or (mif err err false) (mif e e false) (mif c (str "got code " c) false)) ctx))) (array (array) nil ctx) (.marked_array_values c)))
+                                                                                                                                         (array (cons (mod_fval_to_wrap v) a) (or (mif err err false) (mif e e false) (mif c (str "got code " c) false)) ctx))) (array (array) nil ctx) (.marked_array_values c)))
                                                                                    ) (mif err (array nil nil (str err ", from an array value compile " (str_strip c)) ctx) (dlet (
                                                                                     ((datasi funcs memo env pectx) ctx)
                                                                                     ((c_loc c_len datasi) (alloc_data (apply concat (map i64_le_hexify comp_values)) datasi))
@@ -4491,7 +4551,7 @@
                                                                     ((datasi funcs memo env pectx) ctx)
                                                                     (memo (put memo (.hash c) 'RECURSE_OK))
                                                                     (ctx (array datasi funcs memo env pectx))
-                                                                    ) (array (cons (mif val (i64.const val) code) a) err ctx)))
+                                                                    ) (array (cons (mif val (i64.const (mod_fval_to_wrap val)) code) a) err ctx)))
 
                                                                 (array (array) nil ctx) params)))
 
@@ -4524,7 +4584,7 @@
                                                                                  (local.get '$tmp)))
                                                               ) (array full_code env_err ctx))
                                                            (array code nil ctx)))
-                                                     ) (array val code (mif err err env_err) ctx)))
+                                                     ) (array (mod_fval_to_wrap val) code (mif err err env_err) ctx)))
 
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'vcond))
                                                                                                                (dlet (
@@ -4544,18 +4604,20 @@
                                                             (true (dlet (
                                                                 ((param_codes first_params_err ctx) (compile_params false ctx params))
                                                                 ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval s_env_access_code))
-                                                                ;(_ (print_strip "func val " func_val " func code " func_code " func err " func_err " param_codes " param_codes " err " err " from " func_value))
+
                                                                 ((unval_param_codes err ctx) (compile_params true ctx params))
                                                                 ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (str_strip c))) true inside_veval s_env_access_code))
-                                                                (wrap_0_param_code (concat
-                                                                      (local.get '$tmp) ; saving ito restore it
-                                                                      (apply concat param_codes)
-                                                                      (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
-                                                                      (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
-                                                                                (range (- num_params 1) -1))
-                                                                      (local.set '$tmp) ; restoring tmp
-                                                                   ))
-                                                                (wrap_1_param_code (concat
+                                                                (wrap_param_code (lambda (code) (concat
+                                                                                                    (local.get '$tmp) ; saving ito restore it
+                                                                                                    code
+                                                                                                    (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
+                                                                                                    (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
+                                                                                                              (range (- num_params 1) -1))
+                                                                                                    (local.set '$tmp) ; restoring tmp
+                                                                                                  )))
+                                                                (wrap_0_inner_code (apply concat param_codes))
+                                                                (wrap_0_param_code (wrap_param_code wrap_0_inner_code))
+                                                                (wrap_1_inner_code
                                                                    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                                                                    ; Since we're not sure if it's going to be a vau or not,
                                                                    ; this code might not be compilable, so we gracefully handle
@@ -4566,43 +4628,47 @@
                                                                                     (call '$print (i64.const bad_unval_params_msg_val))
                                                                                     (call '$print (i64.shl (local.get '$tmp) (i64.const 1)))
                                                                                     (unreachable))
-                                                                            (concat
-                                                                                (local.get '$tmp) ; saving ito restore it
-                                                                                (apply concat unval_param_codes)
-                                                                                (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
-                                                                                (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
-                                                                                          (range (- num_params 1) -1))
-                                                                                (local.set '$tmp) ; restoring tmp
-                                                                            ))))
+                                                                            (apply concat unval_param_codes)))
+                                                                (wrap_1_param_code (wrap_param_code wrap_1_inner_code))
                                                                 (wrap_x_param_code (concat
                                                                                     ; TODO: Handle other wrap levels
                                                                                     (call '$print (i64.const weird_wrap_msg_val))
                                                                                     (unreachable)))
 
-
-
                                                                 ((source_code ctx) (mif (.marked_array_source c) (dlet (((code _ _ ctx) (compile-inner ctx (.marked_array_source c) true inside_veval s_env_access_code))
                                                                                                                         ) (array code ctx))
                                                                                                                  (array k_cond_msg_val ctx)))
-                                                                ;(func_code (mif func_val (i64.const func_val) func_code))
                                                                 (result_code (mif func_val
                                                                               (concat
-                                                                                (dlet ((wrap_level (>> (band func_val #x10) 4)))
-                                                                                      (cond ((= 0 wrap_level) wrap_0_param_code)
-                                                                                            ((= 1 wrap_level) wrap_1_param_code)
-                                                                                            (true             wrap_x_param_code)))
                                                                                 (front_half_stack_code (i64.const source_code) (call '$dup s_env_access_code))
                                                                                 (call (- (>> func_val 35) func_id_dynamic_ofset (- 0 num_pre_functions) 1)
                                                                                     ;params
-                                                                                    (i64.or (i64.extend_i32_u (local.get '$param_ptr))
-                                                                                            (i64.const (bor (<< num_params 32) #x5)))
-                                                                                    ;dynamic env (is caller's static env)
-                                                                                    ;(call '$dup (local.get '$s_env))
-
-                                                                                    ; hay, we can do this statically! the static version of the dynamic check
-                                                                                    (mif (!= 0 (band func_val #b100000))
-                                                                                         (call '$dup s_env_access_code)
-                                                                                         (i64.const nil_val))
+                                                                                    (mif (= #b0 (band (>> func_val 35) #b1))
+                                                                                         (concat
+                                                                                               (dlet ((wrap_level (>> (band func_val #x10) 4)))
+                                                                                                     (cond ((= 0 wrap_level) wrap_0_inner_code)
+                                                                                                           ((= 1 wrap_level) wrap_1_inner_code)
+                                                                                                           (true             wrap_x_param_code)))
+                                                                                                ;dynamic env (is caller's static env)
+                                                                                                ; hay, we can do this statically! the static version of the dynamic check
+                                                                                                (mif (!= 0 (band func_val #b100000))
+                                                                                                     (call '$dup s_env_access_code)
+                                                                                                     (array))
+                                                                                         )
+                                                                                         (concat
+                                                                                                (dlet ((wrap_level (>> (band func_val #x10) 4)))
+                                                                                                      (cond ((= 0 wrap_level) wrap_0_param_code)
+                                                                                                            ((= 1 wrap_level) wrap_1_param_code)
+                                                                                                            (true             wrap_x_param_code)))
+                                                                                                (i64.or (i64.extend_i32_u (local.get '$param_ptr))
+                                                                                                        (i64.const (bor (<< num_params 32) #x5)))
+                                                                                                ;dynamic env (is caller's static env)
+                                                                                                ; hay, we can do this statically! the static version of the dynamic check
+                                                                                                (mif (!= 0 (band func_val #b100000))
+                                                                                                     (call '$dup s_env_access_code)
+                                                                                                     (i64.const nil_val))
+                                                                                          )
+                                                                                    )
                                                                                     ; static env
                                                                                     (i64.const (bor (<< (band func_val #x3FFFFFFC0) 2) #b01001))
                                                                                 )
@@ -4629,20 +4695,13 @@
                                                                                     ;table
                                                                                     0
                                                                                     ;params
-
-                                                                                    ;(i64.store (i32.add (i32.const -16) (local.get '$param_ptr))
-                                                                                    ;      (i64.or (i64.extend_i32_u (local.get '$param_ptr))
-                                                                                    ;              (i64.const (bor (<< num_params 32) #x5)))) ; MDEBUG
-
                                                                                     (i64.or (i64.extend_i32_u (local.get '$param_ptr))
                                                                                             (i64.const (bor (<< num_params 32) #x5)))
                                                                                     ;dynamic env (is caller's static env)
-                                                                                    ;(call '$dup (local.get '$s_env))
                                                                                     (_if '$needs_dynamic_env '(result i64)
                                                                                          (i64.ne (i64.const #b0) (i64.and (local.get '$tmp) (i64.const #b100000)))
                                                                                          (then (call '$dup s_env_access_code))
                                                                                          (else (i64.const nil_val)))
-                                                                                    ;(local.get '$s_env)
                                                                                     ; static env
                                                                                     (i64.or (i64.shl (i64.and (local.get '$tmp) (i64.const #x3FFFFFFC0))
                                                                                                      (i64.const 2)) (i64.const #b01001))
@@ -4677,7 +4736,7 @@
                                                                                                       )
                                                                                                       (if (= false ka) (array false va ctx)
                                                                                                       (if (or (= nil vv) (!= nil err)) (array false (str "vv was " vv " err is " err " and we needed_value? " need_value " based on v " (str_strip v)) ctx)
-                                                                                                                                       (array (cons kv ka) (cons vv va) ctx)))))
+                                                                                                                                       (array (cons kv ka) (cons (mod_fval_to_wrap vv) va) ctx)))))
                                                                   (array (array) (array) ctx)
                                                                   (slice e 0 -2)))
                                             ((uv ucode err ctx) (mif (idx e -1) (compile-inner ctx (idx e -1) need_value inside_veval s_env_access_code)
@@ -4806,7 +4865,9 @@
                                                       ) (array inner_value err ctx))
                                                       (array nil nil ctx)))
 
-                                    ) (mif (and (!= nil early_quit) (= nil err)) (array early_quit nil nil ctx)
+                                    ) (mif (and (!= nil early_quit) (= nil err)) (array ;(mod_fval_to_wrap early_quit)
+                                                                                        early_quit
+                                                                                        nil nil ctx)
                                           (dlet (
 
                                     ((env_val env_code env_err ctx) (if (and need_value (not (marked_env_real? se)))
@@ -4821,24 +4882,25 @@
                                         ((datasi funcs memo env pectx) ctx)
                                         (old_funcs funcs)
                                         (funcs (concat funcs (array nil)))
-                                        (our_func_idx (+ (len funcs) func_id_dynamic_ofset))
+                                        (our_wrap_func_idx (+ (len funcs) func_id_dynamic_ofset))
+                                        (_ (true_print "Our wrapper id is " our_wrap_func_idx))
                                         (funcs (concat funcs (array nil)))
+                                        (our_func_idx (+ (len funcs) func_id_dynamic_ofset))
+                                        (_ (true_print "Our inner id is " our_func_idx))
                                         (calculate_func_val (lambda (wrap) (bor (<< our_func_idx 35) (<< (mif de? 1 0) 5) (<< wrap 4) #b0001)))
                                         (func_value (calculate_func_val wrap_level))
+                                        ; if variadic, we just use the wrapper func and don't expect callers to know that we're varidic
+                                        (func_value (mif variadic (mod_fval_to_wrap func_value) func_value))
                                         (memo (mif env_val (foldl (dlambda (memo (hash wrap)) (put memo hash (calculate_combined_value env_val (calculate_func_val wrap)))) memo rec_hashes)
                                                            memo))
 
                                         (ctx (array datasi funcs memo env pectx))
 
-                                        ;((name_msg_value _ _ ctx) (compile-inner ctx (marked_val (str "\n\ncalling function " (true_str_strip c) " with: ")) true inside_veval))
-
-                                        ; This can be optimized for common cases, esp with no de? and varidaic to make it much faster
-                                        ; But not prematurely, I just had to redo it after doing that the first time, we'll get there when we get there
                                         (parameter_symbols (map (lambda (k) (array 'param k 'i64)) full_params))
 
 
                                         ((inner_value inner_code err ctx) (compile_body_part ctx body))
-                                        (inner_code (mif inner_value (i64.const inner_value) inner_code))
+                                        (inner_code (mif inner_value (i64.const (mod_fval_to_wrap inner_value)) inner_code))
                                         (wrapper_func (func '$wrapper_func '(param $params i64) '(param $d_env i64) '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32)
                                                 ;(call '$print (i64.const 2674))
                                                 (_if '$params_len_good
@@ -4893,7 +4955,7 @@
                                     ; x + 6 = y + 8
                                     ; x - 2 = y
                                 ) (mif env_val  (array (calculate_combined_value env_val func_value) nil (mif func_err (str func_err ", from compiling comb body") (mif env_err (str env_err ", from compiling comb env") nil)) ctx)
-                                                (array nil (i64.or (i64.const func_value) (i64.and (i64.const #x7FFFFFFC0) (i64.shr_u env_code (i64.const 2)))) (mif func_err (str func_err ", from compiling comb body (env as code)") (mif env_err (str env_err ", from compiling comb env (as code)") nil)) ctx))
+                                                (array nil (i64.or (i64.const (mod_fval_to_wrap func_value)) (i64.and (i64.const #x7FFFFFFC0) (i64.shr_u env_code (i64.const 2)))) (mif func_err (str func_err ", from compiling comb body (env as code)") (mif env_err (str env_err ", from compiling comb env (as code)") nil)) ctx))
                                 ))))
 
                    (true        (error (str "Can't compile-inner impossible " c)))
@@ -4917,7 +4979,7 @@
 
               ((compiled_value_ptr compiled_value_code compiled_value_error ctx) (compile-inner ctx marked_code true false (array)))
               ((datasi funcs memo root_marked_env pectx) ctx)
-              (compiled_value_code (mif compiled_value_ptr (i64.const compiled_value_ptr) compiled_value_code))
+              (compiled_value_code (mif compiled_value_ptr (i64.const (mod_fval_to_wrap compiled_value_ptr)) compiled_value_code))
 
               ; Swap for when need to profile what would be an error
               ;(compiled_value_ptr (mif compiled_value_error 0 compiled_value_ptr))
@@ -5643,7 +5705,6 @@
 ; Known TODOs
 ;;;;;;;;;;;;;;
 ;
-; * eval vau other missing builtins
 ; * NON NAIVE REFCOUNTING
 ; EVENTUALLY: Support some hard core partial_eval that an fully make (foldl or stuff) short circut effeciencly with double-inlining, finally
 ;   addressing the strict-languages-don't-compose thing
@@ -5661,27 +5722,11 @@
 ;           otherwise lets are single use closures that do use their dynamic env just by virtue of being closures that take the dynamic env as the static env
 ;                 wait, this is still vaguely ok - will stop at function boundries
 ;     Debugging restart-rerun
-
-; Trial debugging restart-rerun for stack traces?
-; gets:
-;     speed back, stack traces seem like 50% slowdown
-; needs:
-;     checkpoint saving of form/env pair
-;           probs outer loop calling monads
-;           This is ok even later, b/c the closure will ony require refied environments in it's created func, which if not a closure is great, just params and static env
-;
-;
-; On the other hand, this introduces some weirdness
-; if we do a func & wrapper opt
-;     need to track both dynamic env usage and param vector usage (including through env)
-;     otherwise, we have the weird situation where the wrapper destructs params and then inner func must re-construct for inner dynamic env
-;     also we need a way to get the code back for debugging
 ;
 ; THUS TODO:
-;     trial debugging restart-rerun
 ;     opt versions of functions with backup code
 ;           CAN BE A DEBUGGING CHECK IN WRAPPER FUNC!
 ;     inlining of single use closures
 ;           also primitives?
 ;                 dup and drop!
-;                 idx, etc
+;                 idx, +, -, *, etc
