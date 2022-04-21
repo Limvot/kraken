@@ -4566,12 +4566,12 @@
 
                                                         ;; Test for the function being a constant to inline
                                                         ;; Namely, vcond (also veval!)
-                                                        (single_num_type_check (lambda (code) (concat (local.set '$type_check_tmp code)
+                                                        (single_num_type_check (lambda (code) (concat (local.set '$prim_tmp_a code)
                                                                                                       (_if '$not_num
-                                                                                                           (i64.ne (i64.const 0) (i64.and (i64.const 1) (local.get '$type_check_tmp)))
+                                                                                                           (i64.ne (i64.const 0) (i64.and (i64.const 1) (local.get '$prim_tmp_a)))
                                                                                                            (then (unreachable))
                                                                                                       )
-                                                                                                      (local.get '$type_check_tmp))))
+                                                                                                      (local.get '$prim_tmp_a))))
                                                         (gen_numeric_impl (lambda (operation)
                                                                               (dlet (((param_codes err ctx) (compile_params false ctx params)))
                                                                                     (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
@@ -4579,6 +4579,31 @@
                                                                                                                                                           (single_num_type_check val_code)))
                                                                                                                (single_num_type_check (idx param_codes 0))
                                                                                                                (slice param_codes 1 -1)) nil ctx)))
+                                                                              ))
+                                                        (gen_cmp_impl (lambda (lt_case eq_case gt_case)
+                                                                              (dlet (((param_codes err ctx) (compile_params false ctx params)))
+                                                                                    (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
+                                                                                             (array nil
+                                                                                                    (concat
+                                                                                                          (apply concat param_codes)
+                                                                                                          (i64.const true_val)
+                                                                                                          (flat_map (lambda (i) (concat
+                                                                                                                            (local.set '$prim_tmp_a)
+                                                                                                                            (local.set '$prim_tmp_b)
+                                                                                                                            (local.set '$prim_tmp_c)
+                                                                                                                            (call '$comp_helper_helper (local.get '$prim_tmp_c)
+                                                                                                                                                       (local.get '$prim_tmp_b)
+                                                                                                                                                       (i64.const lt_case)
+                                                                                                                                                       (i64.const eq_case)
+                                                                                                                                                       (i64.const gt_case))
+                                                                                                                            (local.set '$prim_tmp_a (i64.and (local.get '$prim_tmp_a)))
+                                                                                                                            (local.get '$prim_tmp_c)
+                                                                                                                            (local.get '$prim_tmp_a)
+                                                                                                                      ))
+                                                                                                                    (range 1 num_params))
+                                                                                                          (_drop) (_drop) (local.get '$prim_tmp_a)
+                                                                                                    )
+                                                                                                    nil ctx)))
                                                                               ))
                                                         ) (cond
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'veval)) (dlet (
@@ -4619,6 +4644,7 @@
 
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '+)) (gen_numeric_impl i64.add))
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '-)) (gen_numeric_impl i64.sub))
+                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '=)) (gen_cmp_impl false_val true_val false_val))
 
 
                                                             (true (dlet (
@@ -4665,6 +4691,9 @@
                                                                                     ;params
                                                                                     (mif (= #b0 (band (>> func_val 35) #b1))
                                                                                          (concat
+                                                                                               ;(dlet ( (_ (true_print "WIRED " (>> func_val 35) " " (true_str_strip c))) ) nil)
+                                                                                               ;(call '$print (i64.const (<< (>> func_val 35) 1)))
+                                                                                               ;(call '$print (i64.const newline_msg_val))
                                                                                                (dlet ((wrap_level (>> (band func_val #x10) 4)))
                                                                                                      (cond ((= 0 wrap_level) wrap_0_inner_code)
                                                                                                            ((= 1 wrap_level) wrap_1_inner_code)
@@ -4676,6 +4705,9 @@
                                                                                                      (array))
                                                                                          )
                                                                                          (concat
+                                                                                               ;(call '$print (i64.const (<< (>> func_val 35) 1)))
+                                                                                               ;(call '$print (i64.const newline_msg_val))
+                                                                                               (dlet ( (_ (mif (= 29 (>> func_val 35)) (true_print "TIRED " (>> func_val 35) " " (true_str_strip c)))) ) nil)
                                                                                                 (dlet ((wrap_level (>> (band func_val #x10) 4)))
                                                                                                       (cond ((= 0 wrap_level) wrap_0_param_code)
                                                                                                             ((= 1 wrap_level) wrap_1_param_code)
@@ -4945,7 +4977,7 @@
                                                             (call '$drop (local.get '$d_env)))
                                                       (local.get '$outer_s_env))
                                         ))
-                                        (our_func (apply func (concat (array '$userfunc) parameter_symbols (array '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32) '(local $s_env i64) '(local $tmp_ptr i32) '(local $tmp i64) '(local $type_check_tmp i64)
+                                        (our_func (apply func (concat (array '$userfunc) parameter_symbols (array '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32) '(local $s_env i64) '(local $tmp_ptr i32) '(local $tmp i64) '(local $prim_tmp_a i64) '(local $prim_tmp_b i64) '(local $prim_tmp_c i64)
 
                                             (local.set '$s_env (i64.const nil_val))
 
