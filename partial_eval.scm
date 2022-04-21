@@ -4566,6 +4566,20 @@
 
                                                         ;; Test for the function being a constant to inline
                                                         ;; Namely, vcond (also veval!)
+                                                        (single_num_type_check (lambda (code) (concat (local.set '$type_check_tmp code)
+                                                                                                      (_if '$not_num
+                                                                                                           (i64.ne (i64.const 0) (i64.and (i64.const 1) (local.get '$type_check_tmp)))
+                                                                                                           (then (unreachable))
+                                                                                                      )
+                                                                                                      (local.get '$type_check_tmp))))
+                                                        (gen_numeric_impl (lambda (operation)
+                                                                              (dlet (((param_codes err ctx) (compile_params false ctx params)))
+                                                                                    (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
+                                                                                             (array nil (foldl (lambda (running_code val_code) (operation running_code
+                                                                                                                                                          (single_num_type_check val_code)))
+                                                                                                               (single_num_type_check (idx param_codes 0))
+                                                                                                               (slice param_codes 1 -1)) nil ctx)))
+                                                                              ))
                                                         ) (cond
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'veval)) (dlet (
 
@@ -4601,6 +4615,12 @@
                                                                                                                         ((= i (- (len codes) 1)) (error "compiling bad length comb"))
                                                                                                                         (true                    (unreachable))
                                                                                                                     )) param_codes 0) err ctx))))
+
+
+                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '+)) (gen_numeric_impl i64.add))
+                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '-)) (gen_numeric_impl i64.sub))
+
+
                                                             (true (dlet (
                                                                 ((param_codes first_params_err ctx) (compile_params false ctx params))
                                                                 ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval s_env_access_code))
@@ -4925,7 +4945,7 @@
                                                             (call '$drop (local.get '$d_env)))
                                                       (local.get '$outer_s_env))
                                         ))
-                                        (our_func (apply func (concat (array '$userfunc) parameter_symbols (array '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32) '(local $s_env i64) '(local $tmp_ptr i32) '(local $tmp i64)
+                                        (our_func (apply func (concat (array '$userfunc) parameter_symbols (array '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32) '(local $s_env i64) '(local $tmp_ptr i32) '(local $tmp i64) '(local $type_check_tmp i64)
 
                                             (local.set '$s_env (i64.const nil_val))
 
