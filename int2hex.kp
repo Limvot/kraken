@@ -1,0 +1,66 @@
+
+((wrap (vau root_env (quote)
+((wrap (vau (let1)
+(let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
+(let1 current-env (vau de () de)
+(let1 cons (lambda (h t) (concat (array h) t))
+(let1 Y (lambda (f3)
+    ((lambda (x1) (x1 x1))
+     (lambda (x2) (f3 (lambda (& y) (lapply (x2 x2) y))))))
+(let1 vY (lambda (f)
+    ((lambda (x3) (x3 x3))
+     (lambda (x4) (f (vau de1 (& y) (vapply (x4 x4) y de1))))))
+(let1 let (vY (lambda (recurse) (vau de2 (vs b) (cond (= (len vs) 0) (eval b de2)
+                                                     true           (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de2)))))
+ (let (
+         ; Some helper hex literals
+         xF 15
+         xF0 240
+         xFF 255
+         xFF00 65280
+         xFFFF 65535
+         xFFFF0000 4294901760
+
+         ; nibble to hex digit
+         nibble_to_hexstr(lambda (n)
+            (cond (= n 15) "f"
+                  (= n 14) "e"
+                  (= n 13) "d"
+                  (= n 12) "c"
+                  (= n 11) "b"
+                  (= n 10) "a"
+                  true (str n))
+         )
+         ; char to hex str
+         char_to_hexstr (lambda (c)
+            (concat 
+                (nibble_to_hexstr (>> (band c xF0) 4)) 
+                (nibble_to_hexstr (band c xF)))
+         )
+         ; short to hex str
+         short_to_hexstr (lambda (s)
+            (concat
+                (char_to_hexstr (>> (band s xFF00) 8)) 
+                (char_to_hexstr (band s xFF)))
+         )
+         ; 32 bit int to hex string helper
+         int_to_hexstr (lambda (i)
+            (str 
+            (concat
+                (short_to_hexstr (>> (band i xFFFF0000) 16)) 
+                (short_to_hexstr (band i xFFFF)))
+            )
+         )
+                
+         monad  (array 'write  1 "enter int to get hex string: " (vau (written code)
+                  (array 'read 0 60 (vau (num code)
+                    (array 'write 1 (concat (int_to_hexstr (read-string num)) "\n") (vau (written code)
+                            (array 'exit 0)
+                     ))))))
+ ) monad)
+; end of all lets
+))))))
+; impl of let1
+)) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))
+; impl of quote
+)) (vau (x5) x5))
