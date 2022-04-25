@@ -46,11 +46,11 @@ popd
 
 hyperfine --warmup 2 --export-markdown table.md \
 	      'echo '$NUMBER' | wasmtime ./fib_compiled.wasm' 'echo '$NUMBER' | wasmtime ./fib_compiled_let.wasm' \
+		  'echo '$NUMBER' | wasmtime ./builtin_fib.wasm'  'echo '$NUMBER' | wasmtime ./fib_compiled_manual.wasm' \
           "scheme --script ./fib.scm $NUMBER" "scheme --script ./fib_let.scm $NUMBER" \
           "python3 ./fib.py $NUMBER" "python3 ./fib_let.py $NUMBER" \
           'echo '$NUMBER' | wasmtime ./rust_fib/target/wasm32-wasi/debug/rust_let.wasm' 'echo '$NUMBER' | wasmtime ./rust_fib/target/wasm32-wasi/release/rust_let.wasm' \
 
-		  #'echo '$NUMBER' | wasmtime ./builtin_fib.wasm'  'echo '$NUMBER' | wasmtime ./fib_compiled_manual.wasm' \
           #'echo '$NUMBER' | wasmtime ./rust_fib/target/wasm32-wasi/debug/rust_let.wasm' 'echo '$NUMBER' | wasmtime ./rust_fib/target/wasm32-wasi/release/rust_let.wasm' \
           #'echo '$NUMBER' | ./rust_fib/target/debug/rust_let' 'echo '$NUMBER' | ./rust_fib/target/release/rust_let' \
 	      #'echo '$NUMBER' | wasmtime ./fib_interpreted.wasm' 'echo '$NUMBER' | wasmtime ./fib_interpreted_let.wasm' \

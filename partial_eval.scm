@@ -4572,7 +4572,7 @@
 
                                                                                                             (ctx (array datasi funcs memo env pectx inline_locals))
 
-                                                                                                          ) (array (mif e x pex) e ctx)))))
+                                                                                                          ) (array (mif e x pex) err ctx)))))
                                                                     ((datasi funcs memo env pectx inline_locals) ctx)
                                                                     (memo (put memo (.hash c) 'RECURSE_FAIL))
                                                                     (ctx (array datasi funcs memo env pectx inline_locals))
@@ -4741,7 +4741,7 @@
                                                                 ((param_codes first_params_err ctx) (compile_params false ctx params))
                                                                 ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval s_env_access_code inline_level))
                                                                 ((unval_param_codes err ctx) (compile_params true ctx params))
-                                                                ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (str_strip c))) true inside_veval s_env_access_code inline_level))
+                                                                ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (true_str_strip c) " " err)) true inside_veval s_env_access_code inline_level))
                                                                 (wrap_param_code (lambda (code) (concat
                                                                                                     (local.get '$tmp) ; saving ito restore it
                                                                                                     code
