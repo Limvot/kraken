@@ -74,7 +74,7 @@
                                  (#t          (error "bad value to concat " (list-ref args 0))))))
       (len    (lambda (x)  (cond ((list? x)   (length x))
                                  ((string? x) (string-length x))
-                                 (#t          (error "bad value to len")))))
+                                 (#t          (error "bad value to len" x)))))
       (idx (lambda (x i) (cond ((list? x)                  (list-ref x                (if (< i 0) (+ i (len x)) i)))
                                ((string? x) (char->integer (list-ref (string->list x) (if (< i 0) (+ i (len x)) i)))))))
       (false #f)
@@ -963,20 +963,22 @@
                                                                                             ; WE SHOULDN'T DIE ON ERROR, since these errors may be guarded by conditions we
                                                                                             ; can't evaluate. We'll keep branches that error as un-valed only
                                                                                             ((pectx _err evaled_params later_hash) (if already_in
-                                                                                                        (array pectx nil (map (lambda (x) (dlet (((ok ux) (try_unval x (lambda (_) nil)))
-                                                                                                                                                 (_ (if (not ok) (error "BAD cond un"))))
+                                                                                                        (array pectx nil (if already_stripped sliced_params
+                                                                                                                                              (map (lambda (x) (dlet (((ok ux) (try_unval x (lambda (_) nil)))
+                                                                                                                                                 (_ (if (not ok) (error "BAD cond un first  " already_stripped " " x))))
                                                                                                                                                  ux))
-                                                                                                                              sliced_params) hash)
+                                                                                                                              sliced_params)) (array hash))
                                                                                                         (foldl (dlambda ((pectx _err as later_hash) x)
                                                                                                             (dlet (((pectx er a) (eval_helper x pectx)))
                                                                                                                 (mif er (dlet (((ok ux) (if already_stripped (array true x) (try_unval x (lambda (_) nil))))
-                                                                                                                                                 (_ (if (not ok) (error (str "BAD cond un" x)))))
+                                                                                                                                                 (_ (if (not ok) (error (str "BAD cond un second " already_stripped " " x)))))
                                                                                                                                                  (array pectx nil (concat as (array ux)) later_hash))
                                                                                                                         (array pectx nil (concat as (array a)) later_hash)))
                                                                                                         ) (array (array env_counter (put memo hash nil)) nil (array) nil) sliced_params)))
                                                                                             ((env_counter omemo) pectx)
+                                                                                            (new_call (concat (array (marked_prim_comb (recurse true) 'vcond -1 true) pred) evaled_params))
                                                                                             (pectx (array env_counter memo))
-                                                                                                ) (array pectx nil (marked_array false true later_hash (concat (array (marked_prim_comb (recurse true) 'vcond -1 true) pred) evaled_params) nil))))
+                                                                                                ) (array pectx nil (marked_array false true later_hash new_call nil))))
                                                 ((and (< (+ 2 i) (len params)) (false? pred))   (recurse_inner (+ 2 i) so_far pectx))
                                                 (                              (false? pred)    (array pectx "comb reached end with no true" nil))
                                                 (true                                           (eval_helper (idx params (+ i 1)) pectx))
@@ -1036,9 +1038,30 @@
         ) 'idx 1 true))
         (array 'slice (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled_array evaled_begin evaled_end) indent)
             (cond
-                  ((and (val? evaled_begin) (val? evaled_end) (marked_array? evaled_array))
+                  ((and (val? evaled_begin) (val? evaled_end) (marked_array? evaled_array)
+
+                              (int? (.val evaled_begin))
+                              (or (and (>= (.val evaled_begin) 0) (<= (.val evaled_begin) (len (.marked_array_values evaled_array))))
+                                  (and (<  (.val evaled_begin) 0) (>= (+ (.val evaled_begin) 1 (len (.marked_array_values evaled_array))) 0)
+                                                                  (<= (+ (.val evaled_begin) 1 (len (.marked_array_values evaled_array))) (len (.marked_array_values evaled_array)))))
+                              (int? (.val evaled_end))
+                              (or (and (>= (.val evaled_end) 0)   (<= (.val evaled_end) (len (.marked_array_values evaled_array))))
+                                  (and (<  (.val evaled_end) 0)   (>= (+ (.val evaled_end) 1 (len (.marked_array_values evaled_array))) 0)
+                                                                  (<= (+ (.val evaled_end) 1 (len (.marked_array_values evaled_array))) (len (.marked_array_values evaled_array)))))
+                  )
                             (array pectx nil (marked_array true false nil (slice (.marked_array_values evaled_array) (.val evaled_begin) (.val evaled_end)) nil)))
-                  ((and (val? evaled_begin) (val? evaled_end) (val? evaled_array) (string? (.val evaled_array)))
+                  ((and (val? evaled_begin) (val? evaled_end) (val? evaled_array) (string? (.val evaled_array))
+
+                              (int? (.val evaled_begin))
+                              (or (and (>= (.val evaled_begin) 0) (<= (.val evaled_begin) (len (.val evaled_array))))
+                                  (and (<  (.val evaled_begin) 0) (>= (+ (.val evaled_begin) 1 (len (.val evaled_array))) 0)
+                                                                  (<= (+ (.val evaled_begin) 1 (len (.val evaled_array))) (len (.val evaled_array)))))
+                              (int? (.val evaled_end))
+                              (or (and (>= (.val evaled_end) 0)   (<= (.val evaled_end) (len (.val evaled_array))))
+                                  (and (<  (.val evaled_end) 0)   (>= (+ (.val evaled_end) 1 (len (.val evaled_array))) 0)
+                                                                  (<= (+ (.val evaled_end) 1 (len (.val evaled_array))) (len (.val evaled_array)))))
+                  )
+
                             (array pectx nil (marked_val (slice (.val evaled_array) (.val evaled_begin) (.val evaled_end)))))
                   (true     (array pectx (str "bad params to slice " evaled_begin " " evaled_end " " evaled_array) nil))
             )
@@ -4533,15 +4556,13 @@
                                                                                                             ((ok x) (try_unval x (lambda (_) nil)))
                                                                                                             (err (if (not ok) "couldn't unval in compile" err))
 
-                                                                                                    ; TODO: This might fail because we don't have the real env stack, which we *should*!
-                                                                                                    ; In the mean time, if it does, just fall back to the non-more-evaled ones.
-                                                                                                            ((pectx e pex) (if (or (!= nil err) hit_recursion)
-                                                                                                                               (array pectx err nil)
-                                                                                                                               (partial_eval_helper x false env (array nil nil) pectx 1 false)))
+                                                                                                            ((pectx e pex) (cond ((!= nil err)  (array pectx err nil))
+                                                                                                                                 (hit_recursion (array pectx "blockrecursion" nil))
+                                                                                                                                 (true (partial_eval_helper x false env (array nil nil) pectx 1 false))))
 
                                                                                                             (ctx (array datasi funcs memo env pectx inline_locals))
 
-                                                                                                          ) (array (mif e x pex) err ctx)))))
+                                                                                                          ) (array (mif e x pex) e ctx)))))
                                                                     ((datasi funcs memo env pectx inline_locals) ctx)
                                                                     (memo (put memo (.hash c) 'RECURSE_FAIL))
                                                                     (ctx (array datasi funcs memo env pectx inline_locals))
@@ -4879,6 +4900,7 @@
                                     (attempt_reduction (and
                                                          variadic
                                                          (= 1 (len params))
+                                                         (marked_array? body)
                                                          (= 4 (len (.marked_array_values body)))
                                                          (prim_comb? (idx (.marked_array_values body) 0))
                                                          (= 'lapply (.prim_comb_sym (idx (.marked_array_values body) 0)))

@@ -83,17 +83,16 @@
          _find (rec-lambda _find (str sub i) (let (
                                                   len1 (len str)
                                                   len2 (len sub)
-                                                 ) (cond (> len2 len1) -1
-                                                         (= len2 0) i
-                                                         (and (> len1 0) (> len2 0)) 
-                                                            (cond (compare_substr str sub) i
-                                                                  true (_find (cdr str) sub (+ i 1)))
-                                                         true -1
+                                                 ) (cond (> len2 len1)               -1
+                                                         (= len2 0)                  i
+                                                         (and (> len1 0) (> len2 0)) (cond (compare_substr str sub) i
+                                                                                           true                     (_find (cdr str) sub (+ i 1)))
+                                                         true                        -1
                                                   )))
          ; find the index of a substr in a str
          ; check if a substr is in a str
          find (lambda (str sub) (_find str sub 0))
-         contains(lambda (str sub) (!= (find str sub) -1))
+         contains (lambda (str sub) (!= (find str sub) -1))
 
          monad  (array 'write  1 "testing find funcs: \n" (vau (written code)
                     (array 'write 1 "find in \"foobar\" the string \"oba\"\n" (vau (written code) 
