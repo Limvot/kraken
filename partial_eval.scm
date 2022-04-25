@@ -304,6 +304,8 @@
     (.comb_id                           (lambda (x) (idx x 3)))
     (.comb_des                          (lambda (x) (idx x 4)))
     (.comb_env                          (lambda (x) (idx x 5)))
+    (.comb_varadic                      (lambda (x) (idx x 6)))
+    (.comb_params                       (lambda (x) (idx x 7)))
     (.comb_body                         (lambda (x) (idx x 8)))
     (.comb_wrap_level                   (lambda (x) (idx x 2)))
     (.comb_rec_hashes                   (lambda (x) (idx x 9)))
@@ -4466,7 +4468,7 @@
               (mod_fval_to_wrap (lambda (it) (cond ((= nil it)                                                      it)
                                                    ;((and (= (band it #b1111) #b0001) (= #b0 (band (>> it 35) #b1))) (- it (<< 1 35)))
                                                    ((and (= (band it #b1111) #b0001) (= #b0 (band (>> it 35) #b1))) (dlet ( (r (- it (<< 1 35)))
-                                                                                                                            (_ (true_print "changing " it " to " r ", that is " (>> it 35) " to " (>> r 35)))
+                                                                                                                            ;(_ (true_print "changing " it " to " r ", that is " (>> it 35) " to " (>> r 35)))
                                                                                                                            ) r) )
                                                    (true                                                            it))))
 
@@ -4501,17 +4503,25 @@
                                               (true (dlet ( ((datasi funcs memo env pectx inline_locals) ctx)
                                                             ; not a recoverable error, so just do here
                                                             (_ (if (= nil env) (error "nil env when trying to compile a non-value symbol")))
-                                                            (lookup_helper (rec-lambda lookup-recurse (dict key i code level) (cond
-                                                                ((and (= i (- (len dict) 1)) (= nil (idx dict i))) (array nil (str "for code-symbol lookup, couldn't find " key)))
-                                                                ((= i (- (len dict) 1))                            (lookup-recurse (.env_marked (idx dict i)) key 0 (i64.load 16 (i32.wrap_i64 (i64.shr_u code ;(call '$print (i64.const going_up_msg_val))
-                                                                                                                                                                                                               (i64.const 5)))) (+ level 1)))
-                                                                ((= key (idx (idx dict i) 0))                      (if (and (not inside_veval) (= 0 level)) (array (local.get key) nil)
-                                                                                                                       (array (i64.load (* 8 i)                                               ; offset in array to value
-                                                                                                                        (i32.wrap_i64 (i64.and (i64.const -8)                       ; get ptr from array value
-                                                                                                                                               (i64.load 8 (i32.wrap_i64 (i64.shr_u code
-                                                                                                                                                             (i64.const 5)) ;(call '$print (i64.const got_it_msg_val))
-                                                                                                                                                                         ))))) nil)))
-                                                                (true                                              (lookup-recurse dict key (+ i 1) code level)))))
+
+
+
+
+      (lookup_helper (rec-lambda lookup-recurse (dict key i code level) (cond
+          ((and (= i (- (len dict) 1)) (= nil (idx dict i))) (array nil (str "for code-symbol lookup, couldn't find " key)))
+          ((= i (- (len dict) 1))                            (lookup-recurse (.env_marked (idx dict i)) key 0 (i64.load 16 (i32.wrap_i64 (i64.shr_u code (i64.const 5)))) (+ level 1)))
+          ((= key (idx (idx dict i) 0))                      (if (and (not inside_veval) (<= level inline_level)) (array (local.get (mif (!= inline_level level)
+                                                                                                                                         (str-to-symbol (concat (str (- inline_level
+                                                                                                                                                                        level))
+                                                                                                                                                                (get-text key)))
+                                                                                                                                         key)) nil)
+                                                                 (array (i64.load (* 8 i)                                                     ; offset in array to value
+                                                                                  (i32.wrap_i64 (i64.and (i64.const -8)                       ; get ptr from array value
+                                                                                                         (i64.load 8 (i32.wrap_i64 (i64.shr_u code
+                                                                                                                                              (i64.const 5))))))) nil)))
+          (true                                              (lookup-recurse dict key (+ i 1) code level)))))
+
+
 
 
                                                             ((val err) (lookup_helper (.env_marked env) (.marked_symbol_value c) 0 s_env_access_code 0))
@@ -4666,8 +4676,59 @@
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '=)) (gen_cmp_impl false_val true_val false_val))
 
 
+                                                            ; User inline
+                                                            ((and (comb? func_value)
+                                                                  (not (.comb_varadic func_value))
+                                                                  (= (.marked_env_idx env) (.marked_env_idx (.comb_env func_value)))
+                                                                  (= nil (.comb_des func_value)))                                          (dlet (
+                        ; To inline, we add all of the parameters + inline_level + 1 to the current functions additional symbols
+                        ;       as well as a new se + inline_level + 1 symbol
+                        ; fill them with the result of evaling the parameters now
+                        ; inline the body's compiled code, called with an updated s_env_access_code
+                        ; drop all of the parameters
+                        (_ (true_print "INLINEING"))
+                        (new_inline_level (+ inline_level 1))
+                        (comb_params (.comb_params func_value))
+                        (additional_param_symbols (map (lambda (x) (str-to-symbol (concat (str new_inline_level) (get-text x)))) comb_params))
+                        (new_s_env_symbol (str-to-symbol (concat "$" (str new_inline_level) "_inline_se")))
+                        (additional_symbols (cons new_s_env_symbol additional_param_symbols))
+                        (_ (true_print "additional symbols " additional_symbols))
+
+                        ((param_codes first_params_err ctx) (compile_params false ctx params))
+
+                        (inner_env (make_tmp_inner_env comb_params (.comb_des func_value) (.comb_env func_value) (.comb_id func_value)))
+                        ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) comb_params) nil) true false s_env_access_code 0))
+                        (new_get_s_env_code (_if '$have_s_env '(result i64)
+                                                 (i64.ne (i64.const nil_val) (local.get new_s_env_symbol))
+                                                 (then (local.get new_s_env_symbol))
+                                                 (else (local.tee new_s_env_symbol (call '$env_alloc (i64.const params_vec)
+
+                                                                                            (local.set '$tmp_ptr (call '$malloc (i32.const (* 8 (len additional_param_symbols)))))
+                                                                                            (flat_map (lambda (i) (i64.store (* i 8) (local.get '$tmp_ptr)
+                                                                                                                             (call '$dup (local.get (idx additional_param_symbols i))))) 
+                                                                                                      (range 0 (len additional_param_symbols)))
+                                                                                            (i64.or (i64.extend_i32_u (local.get '$tmp_ptr))
+                                                                                                    (i64.const (bor (<< (len additional_param_symbols) 32) #x5)))
+
+                                                                                            (call '$dup s_env_access_code)))
+                                                       )))
+                        ((datasi funcs memo env pectx inline_locals) ctx)
+                        ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals) (.comb_body func_value) false false new_get_s_env_code new_inline_level))
+                        (inner_code (mif inner_value (i64.const inner_value) inner_code))
+                        (result_code (concat
+                                       (apply concat param_codes)
+                                       (flat_map (lambda (i) (local.set (idx additional_param_symbols i))) (range (- (len additional_param_symbols) 1) -1))
+                                       inner_code
+                                       (flat_map (lambda (i) (call '$drop (local.get (idx additional_param_symbols i)))) (range (- (len additional_param_symbols) 1) -1))
+                                       (call '$drop (local.get new_s_env_symbol))
+                                       (local.set new_s_env_symbol (i64.const nil_val))
+                                       ))
+                        ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
+                        ((datasi funcs memo _was_inner_env pectx inline_locals) ctx)
+                        (final_result (array nil result_code (mif first_params_err first_params_err err) (array datasi funcs memo env pectx (concat inline_locals additional_symbols))))
+
+                                                                  ) final_result))
                                                             ; Normal call
-                                                            ;     - TODO: Inline, based on func_value being a comb (not using de, at least for now)
                                                             ;     - static call (based on getting func_val)
                                                             ;           +statically knowable params
                                                             ;                 * s_de/s_no_de & s_wrap=1/s_wrap=2
@@ -4676,9 +4737,9 @@
                                                             ;     - dynamic call (got func_code)
                                                             ;           + d_de/d_no_de & d_wrap=1/d_wrap=2
                                                             (true (dlet (
+
                                                                 ((param_codes first_params_err ctx) (compile_params false ctx params))
                                                                 ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval s_env_access_code inline_level))
-
                                                                 ((unval_param_codes err ctx) (compile_params true ctx params))
                                                                 ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (str_strip c))) true inside_veval s_env_access_code inline_level))
                                                                 (wrap_param_code (lambda (code) (concat
@@ -4718,10 +4779,8 @@
                                                                                 (call (- (>> func_val 35) func_id_dynamic_ofset (- 0 num_pre_functions) 1)
                                                                                     ;params
                                                                                     (mif (= #b0 (band (>> func_val 35) #b1))
+                                                                                         ; unwrapped, can call directly with parameters on wasm stack
                                                                                          (concat
-                                                                                               ;(dlet ( (_ (true_print "WIRED " (>> func_val 35) " " (true_str_strip c))) ) nil)
-                                                                                               ;(call '$print (i64.const (<< (>> func_val 35) 1)))
-                                                                                               ;(call '$print (i64.const newline_msg_val))
                                                                                                (dlet ((wrap_level (>> (band func_val #x10) 4)))
                                                                                                      (cond ((= 0 wrap_level) wrap_0_inner_code)
                                                                                                            ((= 1 wrap_level) wrap_1_inner_code)
@@ -4732,10 +4791,8 @@
                                                                                                      (call '$dup s_env_access_code)
                                                                                                      (array))
                                                                                          )
+                                                                                         ; Needs wrapper, must create param array
                                                                                          (concat
-                                                                                               ;(call '$print (i64.const (<< (>> func_val 35) 1)))
-                                                                                               ;(call '$print (i64.const newline_msg_val))
-                                                                                               (dlet ( (_ (mif (= 29 (>> func_val 35)) (true_print "TIRED " (>> func_val 35) " " (true_str_strip c)))) ) nil)
                                                                                                 (dlet ((wrap_level (>> (band func_val #x10) 4)))
                                                                                                       (cond ((= 0 wrap_level) wrap_0_param_code)
                                                                                                             ((= 1 wrap_level) wrap_1_param_code)
@@ -4964,10 +5021,10 @@
                                         (old_funcs funcs)
                                         (funcs (concat funcs (array nil)))
                                         (our_wrap_func_idx (+ (len funcs) func_id_dynamic_ofset))
-                                        (_ (true_print "Our wrapper id is " our_wrap_func_idx))
+                                        ;(_ (true_print "Our wrapper id is " our_wrap_func_idx))
                                         (funcs (concat funcs (array nil)))
                                         (our_func_idx (+ (len funcs) func_id_dynamic_ofset))
-                                        (_ (true_print "Our inner id is " our_func_idx))
+                                        ;(_ (true_print "Our inner id is " our_func_idx))
                                         (calculate_func_val (lambda (wrap) (bor (<< our_func_idx 35) (<< (mif de? 1 0) 5) (<< wrap 4) #b0001)))
                                         (func_value (calculate_func_val wrap_level))
                                         ; if variadic, we just use the wrapper func and don't expect callers to know that we're varidic
@@ -4975,8 +5032,6 @@
                                         (memo (mif env_val (foldl (dlambda (memo (hash wrap)) (put memo hash (calculate_combined_value env_val (calculate_func_val wrap)))) memo rec_hashes)
                                                            memo))
 
-
-                                        (parameter_symbols (map (lambda (k) (array 'param k 'i64)) full_params))
 
 
                                         (new_inline_locals (array))
@@ -5007,7 +5062,10 @@
                                                             (call '$drop (local.get '$d_env)))
                                                       (local.get '$outer_s_env))
                                         ))
-                                        ((datasi funcs memo env pectx our_inline_locals) ctx)
+                                        ((datasi funcs memo env pectx inline_locals) ctx)
+                                        (parameter_symbols (map (lambda (k) (array 'param k 'i64)) full_params))
+                                        (our_inline_locals (map (lambda (k) (array 'local k 'i64)) inline_locals))
+
                                         (our_func (apply func (concat (array '$userfunc) parameter_symbols (array '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32) '(local $s_env i64) '(local $tmp_ptr i32) '(local $tmp i64) '(local $prim_tmp_a i64) '(local $prim_tmp_b i64) '(local $prim_tmp_c i64)) our_inline_locals (array
 
                                             (local.set '$s_env (i64.const nil_val))
