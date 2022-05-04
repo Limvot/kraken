@@ -4718,6 +4718,7 @@
                         (result_code (concat
                                        (apply concat param_codes)
                                        (flat_map (lambda (i) (local.set (idx additional_param_symbols i))) (range (- (len additional_param_symbols) 1) -1))
+                                       (local.set new_s_env_symbol (i64.const nil_val))
                                        inner_code
                                        (flat_map (lambda (i) (call '$drop (local.get (idx additional_param_symbols i)))) (range (- (len additional_param_symbols) 1) -1))
                                        (call '$drop (local.get new_s_env_symbol))
