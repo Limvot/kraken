@@ -2704,6 +2704,7 @@
                             (_if '$b_array
                                 (i64.eq (i64.const #b101) (i64.and (i64.const #b111) (local.get '$b)))
                                 (then
+                                    (local.set '$result (local.get '$eq_val))
                                     (local.set '$a_tmp (i32.wrap_i64 (i64.shr_u (local.get '$a) (i64.const 32))))
                                     (local.set '$b_tmp (i32.wrap_i64 (i64.shr_u (local.get '$b) (i64.const 32))))
 
@@ -2739,8 +2740,7 @@
                                         (local.set '$a_ptr (i32.add (local.get '$a_ptr) (i32.const 8)))
                                         (local.set '$b_ptr (i32.add (local.get '$b_ptr) (i32.const 8)))
                                         (br '$l)
-                                    )
-                                    (br '$b))
+                                    ))
                             )
                             ; else b is not an int or string or symbol or array, so bigger
                             (local.set '$result (local.get '$lt_val))
