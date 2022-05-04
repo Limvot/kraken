@@ -1,0 +1,61 @@
+((wrap (vau root_env (quote)
+((wrap (vau (let1)
+(let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
+(let1 current-env (vau de () de)
+(let1 cons (lambda (h t) (concat (array h) t))
+(let1 Y (lambda (f3)
+    ((lambda (x1) (x1 x1))
+     (lambda (x2) (f3 (lambda (& y) (lapply (x2 x2) y))))))
+(let1 vY (lambda (f)
+    ((lambda (x3) (x3 x3))
+     (lambda (x4) (f (vau de1 (& y) (vapply (x4 x4) y de1))))))
+(let1 let (vY (lambda (recurse) (vau de2 (vs b) (cond (= (len vs) 0) (eval b de2)
+                                                     true           (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de2)))))
+ (let (
+         lcompose (lambda (g f) (lambda (& args) (lapply g (array (lapply f args)))))
+         rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
+         if (vau de (con than & else) (eval (array cond con  than
+                                                        true (cond (> (len else) 0) (idx else 0)
+                                                                   true             false)) de))
+         add-dict-to-env (let (helper (rec-lambda recurse (env dict i)
+                                     (if (= i (len dict)) env
+                                                         (recurse (eval (array (array vau '_ (array (idx (idx dict i) 0)) (array (array vau 'inner (array) 'inner) ) ) (idx (idx dict i) 1) ) env) dict (+ i 1)))))
+                           (lambda (env dict) (helper env dict 0)))
+         empty_dict (array)
+         nil (array)
+         put (lambda (m k v) (cons (array k v) m))
+
+         match (let (
+                evaluate_case (rec-lambda recurse (x_symbol c b) (cond
+                    (symbol? c)     (array true                     (array let (array c x_symbol) b))
+                    (array?  c)     (array true                     (array error "unimpl match"))
+                    true            (array (array = x_symbol c)     b)
+                ))
+                helper (rec-lambda helper (x_sym cases i) (cond (< i (- (len cases) 1))  (concat (evaluate_case x_sym (idx cases i) (idx cases (+ i 1))) (helper x_sym cases (+ i 2)))
+                                                                true                     (array true (array error "none matched"))))
+               ) (vau de (x & cases) (eval (array let (array '___MATCH_SYM x) (concat (array cond) (helper '___MATCH_SYM cases 0))) de)))
+
+
+         match_result1 (match 1 
+                    2 true
+                    a (+ a 1)
+         )
+
+
+         monad  (array 'write  1 (str "enter number to fact: " match_result1) (vau (written code)
+                      (array 'read 0 60 (vau (data code)
+                            (array 'exit (match (read-string data)
+                                                1 false 
+                                                a (+ a 13)
+                                         ))
+                      ))
+
+                ))
+
+ ) monad)
+; end of all lets
+))))))
+; impl of let1
+)) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))
+; impl of quote
+)) (vau (x5) x5))

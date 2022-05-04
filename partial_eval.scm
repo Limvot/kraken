@@ -3918,7 +3918,7 @@
                                 (call '$print (i64.const hit_upper_in_eval_msg_val))
                                 (call '$print (local.get '$it))
                                 (call '$print (i64.const newline_msg_val))
-                                (local.set '$res (call (+ 2 func_idx) (call '$array1_alloc (call '$dup (local.get '$it))) (call '$dup (local.get '$env)) (i64.const nil_val)))
+                                (local.set '$res (call (+ 4 func_idx) (call '$array1_alloc (call '$dup (local.get '$it))) (call '$dup (local.get '$env)) (i64.const nil_val)))
                           )
                           (local.get '$res)
                         )
@@ -3938,7 +3938,10 @@
                                 (then (call '$print (i64.const k_call_not_a_function_msg_val))
                                       (call '$print (i64.shl (local.get '$comb) (i64.const 1)))
                                       (call '$print (local.get '$comb))
-                                      (unreachable)))
+                                      ; this has problems with redebug for some reason
+                                      (local.set '$res (call (+ 4 func_idx) (call '$array1_alloc (call '$dup (local.get '$it))) (call '$dup (local.get '$env)) (i64.const nil_val)))
+                                )
+                          )
                           (local.set '$wrap (i32.wrap_i64 (i64.and (i64.const #b1) (i64.shr_u (local.get '$comb) (i64.const 4)))))
                           (local.set '$params (call '$slice_impl (call '$dup (local.get '$it)) (i32.const 1) (local.get '$len)))
                           ; we'll reuse len and ptr now for params
