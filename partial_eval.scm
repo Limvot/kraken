@@ -1812,6 +1812,8 @@
 
               ((quote_sym_loc quote_sym_length datasi) (alloc_data "quote" datasi))
               (quote_sym_val (bor (<< quote_sym_length 32) quote_sym_loc #b111))
+              ((unquote_sym_loc unquote_sym_length datasi) (alloc_data "unquote" datasi))
+              (unquote_sym_val (bor (<< unquote_sym_length 32) unquote_sym_loc #b111))
 
               ; 0 is path_open, 1 is fd_read, 2 is fd_write
               ;(num_pre_functions 2)
@@ -2504,12 +2506,21 @@
 
               ((k_log_loc k_log_length datasi) (alloc_data "k_log" datasi))
               (k_log_msg_val (bor (<< k_log_length 32) k_log_loc #b011))
-              ((k_log           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$log           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+              ((k_log           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$log           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+                set_len_ptr
                 (call '$print (i64.const log_msg_val))
                 (call '$print (local.get '$p))
                 (call '$print (i64.const newline_msg_val))
+                (_if '$no_params '(result i64)
+                        (i32.eqz (local.get '$len))
+                        (then
+                            (i64.const nil_val)
+                        )
+                        (else
+                            (call '$dup (i64.load (i32.add (local.get '$ptr) (i32.sub (local.get '$len) (i32.const 1)))))
+                        )
+                )
                 drop_p_d
-                (i64.const nil_val)
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((k_error_loc k_error_length datasi) (alloc_data "k_error" datasi))
@@ -3637,6 +3648,31 @@
                                         )
                                     )
                                     (local.set '$result (call '$array2_alloc (i64.const quote_sym_val) (local.get '$sub_result)))
+                                    (br '$b1)
+                                )
+                            )
+                            (_if '$is_unquote
+                                (i32.eq (local.get '$tmp) (i32.const #x2C))
+                                (then
+                                    (global.set '$phs (i32.add (global.get '$phs) (i32.const 1)))
+                                    (global.set '$phl (i32.sub (global.get '$phl) (i32.const 1)))
+                                    (local.set '$sub_result (call '$parse_helper))
+                                    (_if '$ended
+                                        (i64.eq (i64.const close_peren_value) (local.get '$sub_result))
+                                        (then
+                                            (local.set '$result (i64.const error_parse_value))
+                                            (br '$b1)
+                                        )
+                                    )
+                                    (_if '$error
+                                        (i32.or (i64.eq (i64.const error_parse_value) (local.get '$sub_result))
+                                                (i64.eq (i64.const empty_parse_value) (local.get '$sub_result)))
+                                        (then
+                                            (local.set '$result (local.get '$sub_result))
+                                            (br '$b1)
+                                        )
+                                    )
+                                    (local.set '$result (call '$array2_alloc (i64.const unquote_sym_val) (local.get '$sub_result)))
                                     (br '$b1)
                                 )
                             )
