@@ -7,7 +7,7 @@
 
 ; Chez
 (define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift) (define foldl fold-left) (define foldr fold-right) (define write_file (lambda (file bytes) (let* ( (port (open-file-output-port file)) (_ (foldl (lambda (_ o) (put-u8 port o)) (void) bytes)) (_ (close-port port))) '()))) (define args (cdr (command-line)))
-;(compile-profile 'source)
+(compile-profile 'source)
 
 ; Gambit - Gambit also has a problem with the dlet definition (somehow recursing and making (cdr nil) for (cdr ls)?), even if using the unstable one that didn't break syntax-rules
 ;(define print pretty-print)
@@ -4781,7 +4781,9 @@
                                                                 ((param_codes first_params_err ctx) (compile_params false ctx params))
                                                                 ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval s_env_access_code inline_level))
                                                                 ((unval_param_codes err ctx) (compile_params true ctx params))
-                                                                ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (true_str_strip c) " " err)) true inside_veval s_env_access_code inline_level))
+                                                                ; Generates *tons* of text, needs to be different. Made a 200KB binary 80MB
+                                                                ;((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (true_str_strip c) " " err)) true inside_veval s_env_access_code inline_level))
+                                                                ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val "error was with unval-evaling parameters of ") true inside_veval s_env_access_code inline_level))
                                                                 (wrap_param_code (lambda (code) (concat
                                                                                                     (local.get '$tmp) ; saving ito restore it
                                                                                                     code
@@ -5877,7 +5879,7 @@
                    (true             (run-compiler (and (>= (len args) 2) (= "no_compile" (idx args 1))) com))))
 
        ;(true_print "GLOBAL_MAX was " GLOBAL_MAX)
-       ;(profile-dump-html)
+       (profile-dump-html)
    )
 )
 
