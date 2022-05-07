@@ -100,7 +100,6 @@
             destructure_helper (rec-lambda recurse (vs i r)
                 (cond (= (len vs) i)      r
                       (array? (idx vs i)) (let (bad_sym (str-to-symbol (str (idx vs i)))
-                                                ;new_vs (flat_map_i (lambda (i x) (array x (array idx bad_sym i))) (slice (idx vs i) 1 -1))
                                                 new_vs (flat_map_i (lambda (i x) (array x (array idx bad_sym i))) (idx vs i))
                                                 )
                                                 (recurse (concat new_vs (slice vs (+ i 2) -1)) 0 (concat r (array bad_sym (idx vs (+ i 1))))))

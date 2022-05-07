@@ -7,7 +7,7 @@
 
 ; Chez
 (define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift) (define foldl fold-left) (define foldr fold-right) (define write_file (lambda (file bytes) (let* ( (port (open-file-output-port file)) (_ (foldl (lambda (_ o) (put-u8 port o)) (void) bytes)) (_ (close-port port))) '()))) (define args (cdr (command-line)))
-(compile-profile 'source)
+;(compile-profile 'source)
 
 ; Gambit - Gambit also has a problem with the dlet definition (somehow recursing and making (cdr nil) for (cdr ls)?), even if using the unstable one that didn't break syntax-rules
 ;(define print pretty-print)
@@ -5879,7 +5879,7 @@
                    (true             (run-compiler (and (>= (len args) 2) (= "no_compile" (idx args 1))) com))))
 
        ;(true_print "GLOBAL_MAX was " GLOBAL_MAX)
-       (profile-dump-html)
+       ;(profile-dump-html)
    )
 )
 

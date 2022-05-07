@@ -1,0 +1,15 @@
+((wrap (vau root_env (quote)
+((wrap (vau (let1)
+
+
+(array 'write  1 "enter form: " (vau (written code)
+      (array 'read 0 200 (vau (data code)
+            ((wrap (vau (asdf) (array 'exit (log (eval (log (read-string data))))))) code)
+            ;((wrap (vau (asdf) (array 'exit (eval (read-string data))))) code)
+            ;((wrap (vau (asdf) (array 'exit (cond (log "hi") written true code)))) code)
+      ))
+
+))
+
+)) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))
+)) (vau (x5) x5))
