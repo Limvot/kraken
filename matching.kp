@@ -147,6 +147,7 @@
                 evaluate_case (rec-lambda evaluate_case (access c) (cond
                     (symbol? c)                                            (array true                       (lambda (b) (array let (array c access) b)))
                     (and (array? c) (= 2 (len c)) (= 'unquote (idx c 0)))  (array (array = access (idx c 1)) (lambda (b) b))
+                    (and (array? c) (= 2 (len c)) (= 'quote   (idx c 0)))  (array (array = access c)         (lambda (b) b))
                     (array?  c)                                            (let (
                                            tests (array and (array array? access) (array = (len c) (array len access)))
                                            (tests body_func) ((rec-lambda recurse (tests body_func i) (if (= i (len c))
@@ -175,6 +176,7 @@
                       (array 'read 0 60 (vau (data code)
                             (array 'exit (match (read-string data)
                                                 1 "one"
+                                                'jkl "it's jkl"
                                                 ,match_result1 383838
                                                 (1 b) (+ 1337 b)
                                                 (,match_result1 b) (+ 2337 b)
