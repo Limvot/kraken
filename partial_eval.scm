@@ -2373,11 +2373,14 @@
                                                         (then
                                                             (local.set '$i (i32.wrap_i64 (i64.shr_u (local.get '$it) (i64.const 32))))
                                                             (local.set '$tmp_ptr (local.get '$ptr))
-                                                            (_loop '$l
-                                                                (call '$drop (i64.load (local.get '$tmp_ptr)))
-                                                                (local.set '$tmp_ptr (i32.add (local.get '$tmp_ptr) (i32.const 8)))
-                                                                (local.set '$i (i32.sub (local.get '$i) (i32.const 1)))
-                                                                (br_if '$l (i32.ne (i32.const 0) (local.get '$i)))
+                                                            (block '$done
+                                                                (_loop '$l
+                                                                    (br_if '$done (i32.eqz (local.get '$i)))
+                                                                    (call '$drop (i64.load (local.get '$tmp_ptr)))
+                                                                    (local.set '$tmp_ptr (i32.add (local.get '$tmp_ptr) (i32.const 8)))
+                                                                    (local.set '$i (i32.sub (local.get '$i) (i32.const 1)))
+                                                                    (br '$l)
+                                                                )
                                                             )
                                                         )
                                                         (else
