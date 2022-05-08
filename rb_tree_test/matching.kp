@@ -143,27 +143,140 @@
         reverse (lambda (x) (foldl (lambda (acc i) (cons i acc)) (array) x))
         zip (lambda (& xs) (lapply foldr (concat (array (lambda (a & ys) (cons ys a)) (array)) xs)))
 
-         match (let (
-                evaluate_case (rec-lambda evaluate_case (access c) (cond
-                    (symbol? c)                                            (array true                       (lambda (b) (array let (array c access) b)))
-                    (and (array? c) (= 2 (len c)) (= 'unquote (idx c 0)))  (array (array = access (idx c 1)) (lambda (b) b))
-                    (and (array? c) (= 2 (len c)) (= 'quote   (idx c 0)))  (array (array = access c)         (lambda (b) b))
-                    (array?  c)                                            (let (
-                                           tests (array and (array array? access) (array = (len c) (array len access)))
-                                           (tests body_func) ((rec-lambda recurse (tests body_func i) (if (= i (len c))
-                                                                                                      (array tests body_func)
-                                                                                                      (let ( (inner_test inner_body_func) (evaluate_case (array idx access i) (idx c i)) )
-                                                                                                           (recurse (concat tests (array inner_test))
-                                                                                                                 (lambda (b) (body_func (inner_body_func b)))
-                                                                                                                 (+ i 1)))))
-                                                             tests (lambda (b) b) 0)
-                                    ) (array tests body_func))
-                    true                                                   (array (array = access c)         (lambda (b) b))
-                ))
-                helper (rec-lambda helper (x_sym cases i) (cond (< i (- (len cases) 1))  (let ( (test body_func) (evaluate_case x_sym (idx cases i)) )
-                                                                                              (concat (array test (body_func (idx cases (+ i 1)))) (helper x_sym cases (+ i 2))))
-                                                                true                     (array true (array error "none matched"))))
-               ) (vau de (x & cases) (eval (array let (array '___MATCH_SYM x) (concat (array cond) (helper '___MATCH_SYM cases 0))) de)))
+        match (let (
+               evaluate_case (rec-lambda evaluate_case (access c) (cond
+                   (symbol? c)                                            (array true                       (lambda (b) (array let (array c access) b)))
+                   (and (array? c) (= 2 (len c)) (= 'unquote (idx c 0)))  (array (array = access (idx c 1)) (lambda (b) b))
+                   (and (array? c) (= 2 (len c)) (= 'quote   (idx c 0)))  (array (array = access c)         (lambda (b) b))
+                   (array?  c)                                            (let (
+                                          tests (array and (array array? access) (array = (len c) (array len access)))
+                                          (tests body_func) ((rec-lambda recurse (tests body_func i) (if (= i (len c))
+                                                                                                     (array tests body_func)
+                                                                                                     (let ( (inner_test inner_body_func) (evaluate_case (array idx access i) (idx c i)) )
+                                                                                                          (recurse (concat tests (array inner_test))
+                                                                                                                (lambda (b) (body_func (inner_body_func b)))
+                                                                                                                (+ i 1)))))
+                                                            tests (lambda (b) b) 0)
+                                   ) (array tests body_func))
+                   true                                                   (array (array = access c)         (lambda (b) b))
+               ))
+               helper (rec-lambda helper (x_sym cases i) (cond (< i (- (len cases) 1))  (let ( (test body_func) (evaluate_case x_sym (idx cases i)) )
+                                                                                             (concat (array test (body_func (idx cases (+ i 1)))) (helper x_sym cases (+ i 2))))
+                                                               true                     (array true (array error "none matched"))))
+              ) (vau de (x & cases) (eval (array let (array '___MATCH_SYM x) (concat (array cond) (helper '___MATCH_SYM cases 0))) de)))
+
+         empty (array 'B  nil nil nil)
+         E     empty
+         EE    (array 'BB nil nil nil)
+
+         size (rec-lambda recurse (t) (match t
+                                             ,E        0
+                                             (c a x b) (+ 1 (recurse a) (recurse b))))
+
+         generic-foldl (rec-lambda recurse (f z t) (match t
+                                                          ,E         z
+                                                          (c a x b)  (recurse f (f (recurse f z a) x) b)))
+
+         generic-contains? (rec-lambda recurse (t cmp v found not-found) (match t
+                                                 ,E                            (not-found)
+                                                 (c a x b) (match (cmp v x) '< (recurse a cmp v found not-found)
+                                                                            '= (found x)
+                                                                            '> (recurse b cmp v found not-found))))
+         blacken (lambda (t) (match t
+                                 ('R a x b) (array 'B a x b)
+                                 t          t))
+         balance (lambda (t) (match t
+                                 ; figures 1 and 2
+                                 ('B ('R ('R a x b) y c) z d)    (array 'R (array 'B a x b) y (array 'B c z d))
+                                 ('B ('R a x ('R b y c)) z d)    (array 'R (array 'B a x b) y (array 'B c z d))
+                                 ('B a x ('R ('R b y c) z d))    (array 'R (array 'B a x b) y (array 'B c z d))
+                                 ('B a x ('R b y ('R c z d)))    (array 'R (array 'B a x b) y (array 'B c z d))
+                                 ; figure 8, double black cases
+                                 ('BB ('R a x ('R b y c)) z d)   (array 'B (array 'B a x b) y (array 'B c z d))
+                                 ('BB a x ('R ('R b y c) z d))   (array 'B (array 'B a x b) y (array 'B c z d))
+                                 ; already balenced
+                                 t                               t))
+         generic-insert (lambda (t cmp v replace) (let (
+             ins (rec-lambda ins (t) (match t
+                                         ,E                            (array 'R t v t)
+                                         (c a x b) (match (cmp v x) '< (balance (array c (ins a) x b))
+                                                                    '= (if replace (array c a v b)
+                                                                                   t)
+                                                                    '> (balance (array c a x (ins b))))))
+         ) (blacken (ins t))))
+
+         rotate (lambda (t) (match t
+           ; case 1, fig 6
+           ('R ('BB a x b) y ('B c z d))          (balance (array 'B (array 'R (array 'B a x b) y c) z d))
+           ('R ('B a x b) y ('BB c z d))          (balance (array 'B a x (array 'R b y (array 'B c z d))))
+           ; case 2, figure 7
+           ('B ('BB a x b) y ('B c z d))          (balance (array 'BB (array 'R (array 'B a x b) y c) z d))
+           ('B ('B a x b) y ('BB c z d))          (balance (array 'BB a x (array 'R b y (array 'B c z d))))
+           ; case 3, figure 9
+           ('B ('BB a w b) x ('R ('B c y d) z e)) (array 'B (balance (array 'B (array 'R (array 'B a w b) x c) y d)) z e)
+           ('B ('R a w ('B b x c)) y ('BB d z e)) (array 'B a w (balance (array 'B b x (array 'R c y (array 'B d z e)))))
+           ; fall through
+           t                                      t))
+
+         redden (lambda (t) (match t
+                             ('B a x b) (if (and (= 'B (idx a 0)) (= 'B (idx b 0))) (array 'R a x b)
+                                                                                    t)
+                             t                                                      t))
+
+         min_delete (rec-lambda recurse (t) (match t
+                         ,E                                      (error "min_delete empty tree")
+                         ('R ,E x ,E)                            (array x E)
+                         ('B ,E x ,E)                            (array x EE)
+                         ('B ,E x ('R a y b))                    (array x (array 'B a y b))
+                         (c a x b)   (let ((v ap) (recurse a))   (array v (rotate (array c ap x b))))))
+
+         generic-delete (lambda (t cmp v) (let (
+             del (rec-lambda del (t v) (match t
+                                         ; figure 3
+                                         ,E                                          t
+                                         ; figure 4
+                                         ('R ,E x ,E)            (match (cmp v x) '= E
+                                                                                  _  t)
+                                         ('B ('R a x b) y ,E)    (match (cmp v y) '< (rotate (array 'B (del (array 'R a x b) v) y E))
+                                                                                  '= (array 'B a x b)
+                                                                                  '> t)
+                                         ; figure 5
+                                         ('B ,E x ,E)            (match (cmp v x) '= EE
+                                                                                  _  t)
+                                         (c a x b)               (match (cmp v x) '< (rotate (array c (del a v) x b))
+                                                                                  '= (let ((array vp bp) (min_delete b))
+                                                                                     (rotate (array c a vp bp)))
+                                                                                  '> (rotate (array c a x (del b v))))))
+         ) (del (redden t) v)))
+
+         set-cmp (lambda (a b) (cond (< a b) '<
+                                     (= a b) '=
+                                     true    '>))
+         set-empty            empty
+         set-foldl            generic-foldl
+         set-insert           (lambda (t x)   (generic-insert     t set-cmp x false))
+         set-contains?        (lambda (t x)   (generic-contains?  t set-cmp x       (lambda (f) true)      (lambda () false)))
+         set-remove           (lambda (t x)   (generic-delete     t set-cmp x))
+
+         map-cmp (lambda (a b) (let (ak (idx a 0)
+                                     bk (idx b 0))
+                                     (cond (< ak bk) '<
+                                           (= ak bk) '=
+                                           true      '>)))
+         map-empty            empty
+         map-insert           (lambda (t k v) (generic-insert     t map-cmp (array k v) true))
+         map-contains-key?    (lambda (t k)   (generic-contains?  t map-cmp (array k nil) (lambda (f) true)      (lambda () false)))
+         map-get              (lambda (t k)   (generic-contains?  t map-cmp (array k nil) (lambda (f) (idx f 1)) (lambda () (error (str "didn't find key " k " in map " t)))))
+         map-get-or-default   (lambda (t k d) (generic-contains?  t map-cmp (array k nil) (lambda (f) (idx f 1)) (lambda () d)))
+         map-get-with-default (lambda (t k d) (generic-contains?  t map-cmp (array k nil) (lambda (f) (idx f 1)) (lambda () (d))))
+         map-remove           (lambda (t k)   (generic-delete     t map-cmp (array k nil)))
+
+         ; This could be 2x as efficent by being implmented on generic instead of map,
+         ; as we wouldn't have to traverse once to find and once to insert
+         multimap-empty            map-empty
+         multimap-insert           (lambda (t k v) (map-insert t k (set-insert (map-get-or-default t k set-empty) v)))
+         multimap-get              (lambda (t k)   (map-get-or-default t k set-empty))
+
 
 
          match_result1 (match 1 
@@ -174,15 +287,67 @@
 
          monad  (array 'write  1 (str "enter number to fact: " match_result1 " ") (vau (written code)
                       (array 'read 0 60 (vau (data code)
-                            (array 'exit (match (read-string data)
-                                                1 "one"
-                                                'jkl "it's jkl"
-                                                ,match_result1 383838
-                                                (1 b) (+ 1337 b)
-                                                (,match_result1 b) (+ 2337 b)
-                                                (a b) (+ a b)
-                                                a (+ a 13)
-                                         ))
+
+        (let (
+            first set-empty
+           ;_ (log first " set-contains? " 1 " ? " (set-contains? first 1) " size " (size first))
+           ;second (set-insert first 1)
+           ;_ (log second " set-contains? " 1 " ? " (set-contains? second 1) " size " (size second))
+           ;third (set-insert second 2)
+           ;_ (log third " set-contains? " 1 " ? " (set-contains? third 1) " size " (size third))
+           ;_ (log third " set-contains? " 2 " ? " (set-contains? third 2) " size " (size third))
+           ;fourth (set-insert third 3)
+           ;_ (log fourth " set-contains? " 1 " ? " (set-contains? fourth 1) " size " (size fourth))
+           ;_ (log fourth " set-contains? " 2 " ? " (set-contains? fourth 2) " size " (size fourth))
+           ;_ (log fourth " set-contains? " 3 " ? " (set-contains? fourth 3) " size " (size fourth))
+           ;_ (log fourth " set-contains? " 4 " ? " (set-contains? fourth 4) " size " (size fourth))
+           ;_ (log fourth " foldl with + " (set-foldl + 0 fourth))
+           ;fifth (set-remove fourth 1)
+           ;_ (log fifth " set-contains? " 1 " ? " (set-contains? fifth 1) " size " (size fifth))
+           ;_ (log fifth " set-contains? " 2 " ? " (set-contains? fifth 2) " size " (size fifth))
+           ;_ (log fifth " set-contains? " 3 " ? " (set-contains? fifth 3) " size " (size fifth))
+           ;_ (log fifth " set-contains? " 4 " ? " (set-contains? fifth 4) " size " (size fifth))
+           ;sixth (set-remove fifth 3)
+           ;_ (log sixth " set-contains? " 1 " ? " (set-contains? sixth 1) " size " (size sixth))
+           ;_ (log sixth " set-contains? " 2 " ? " (set-contains? sixth 2) " size " (size sixth))
+           ;_ (log sixth " set-contains? " 3 " ? " (set-contains? sixth 3) " size " (size sixth))
+           ;_ (log sixth " set-contains? " 4 " ? " (set-contains? sixth 4) " size " (size sixth))
+           ;seventh (set-remove sixth 2)
+           ;_ (log seventh " set-contains? " 1 " ? " (set-contains? seventh 1) " size " (size seventh))
+           ;_ (log seventh " set-contains? " 2 " ? " (set-contains? seventh 2) " size " (size seventh))
+           ;_ (log seventh " set-contains? " 3 " ? " (set-contains? seventh 3) " size " (size seventh))
+           ;_ (log seventh " set-contains? " 4 " ? " (set-contains? seventh 4) " size " (size seventh))
+
+           ;first map-empty
+           ;_ (log first " map-contains-key? " 1 " ? " (map-contains-key? first 1) " size " (size first))
+           ;second (map-insert first 1 "hello")
+           ;_ (log second " map-contains-key? " 1 " ? " (map-contains-key? second 1) " size " (size second))
+           ;_ (log second " map-get " 1 " ? " (map-get second 1) " size " (size second))
+           ;third (map-insert second 1 "goodbye")
+           ;_ (log third " map-contains-key? " 1 " ? " (map-contains-key? third 1) " size " (size third))
+           ;_ (log third " map-get " 1 " ? " (map-get third 1) " size " (size third))
+           ;fourth (map-insert third 2 "hmmm")
+           ;_ (log fourth " map-contains-key? " 2 " ? " (map-contains-key? fourth 2) " size " (size fourth))
+           ;_ (log fourth " map-get " 2 " ? " (map-get fourth 2) " size " (size fourth))
+           ;_ (log fourth " map-contains-key? " 1 " ? " (map-contains-key? fourth 1) " size " (size fourth))
+           ;_ (log fourth " map-get " 1 " ? " (map-get fourth 1) " size " (size fourth))
+           ;_ (log fourth " map-contains-key? " 3 " ? " (map-contains-key? fourth 3) " size " (size fourth))
+           ;_ (log fourth " map-get-or-default " 3 " 'hi ? " (map-get-or-default fourth 3 'hi) " size " (size fourth))
+           ;_ (log fourth " map-get-with-default " 3 " (lambda () 'bye) ? " (map-get-with-default fourth 3 (lambda () 'bye)) " size " (size fourth))
+           ;fifth (map-remove fourth 2)
+           ;_ (log fifth " map-contains-key? " 2 " ? " (map-contains-key? fifth 2) " size " (size fifth))
+        ) (array 'exit (map-contains-key? first (read-string data))))
+
+
+                           ;(array 'exit (match (read-string data)
+                           ;                    1 "one"
+                           ;                    'jkl "it's jkl"
+                           ;                    ,match_result1 383838
+                           ;                    (1 b) (+ 1337 b)
+                           ;                    (,match_result1 b) (+ 2337 b)
+                           ;                    (a b) (+ a b)
+                           ;                    a (+ a 13)
+                           ;             ))
                       ))
 
                 ))
