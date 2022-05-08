@@ -3,7 +3,7 @@ Kraken
 
 The Kraken Programming Language
 
-(more information online at http://www.kraken-lang.org/ which is also under construction / needs to be updated / has a try-it-online feature for an older version without partial evaluation)
+(more information online at http://kraken-lang.org/ which is also under construction / needs to be updated / has a try-it-online feature for an older version without partial evaluation)
 
 Currently developing the third iteration, a Scheme-like based on a functional Vau calculus partially-evaluated for efficency and compiling to WebAssembly.
 
