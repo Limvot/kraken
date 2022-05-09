@@ -165,6 +165,17 @@
                                                                true                     (array true (array error "none matched"))))
               ) (vau de (x & cases) (eval (array let (array '___MATCH_SYM x) (concat (array cond) (helper '___MATCH_SYM cases 0))) de)))
 
+         ; This is based on https://www.cs.cornell.edu/courses/cs3110/2020sp/a4/deletion.pdf
+         ; and the figure references refer to it
+         ; Insert is taken from the same paper, but is origional to Okasaki, I belive
+
+         ; The tree has been modified slightly to take in a comparison function
+         ; and override if insert replaces or not to allow use as a set or as a map
+
+         ; I think this is actually pretty cool - instead of having a bunch of seperate ['B]
+         ; be our leaf node, we use ['B] with all nils. This allows us to not use -B, as
+         ; both leaf and non-leaf 'BB has the same structure with children! Also, we make
+         ; sure to use empty itself so we don't make a ton of empties...
          empty (array 'B  nil nil nil)
          E     empty
          EE    (array 'BB nil nil nil)
