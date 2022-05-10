@@ -734,7 +734,7 @@
                 ((prim_comb? x)      (array pectx nil x))
                 ((marked_symbol? x)  (mif (.marked_symbol_is_val x) x
                                                                     (env-lookup-helper (.env_marked env) (.marked_symbol_value x) 0
-                                                                                       (lambda ()  (array pectx (str "could't find " (str_strip x) " in " (str_strip env))  nil))
+                                                                                       (lambda ()  (array pectx (str "could't find " (true_str_strip x) " in " (str_strip env))  nil))
                                                                                        (lambda (x) (array pectx nil x)))))
                                                                      ; Does this ever happen? non-fully-value arrays?
                 ((marked_array? x)   (cond ((.marked_array_is_val x) (dlet ( ((pectx err inner_arr) (foldl (dlambda ((c er ds) p) (dlet (((c e d) (partial_eval_helper p false env env_stack c (+ 1 indent) false))) (array c (mif er er e) (concat ds (array d)))))

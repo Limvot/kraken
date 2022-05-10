@@ -279,76 +279,15 @@
 
 
 
-         match_result1 (match 1 
-                    2 true
-                    a (+ a 1)
-         )
+         make-test-tree (rec-lambda make-test-tree (n t) (if (<= n 0) t
+                                                                      (make-test-tree (- n 1) (map-insert t n (= 0 (% n 10))))))
+         reduce-test-tree (lambda (tree) (generic-foldl (lambda (a x) (if (idx x 1) (+ a 1) a)) 0 tree))
 
-
-         monad  (array 'write  1 (str "enter number to fact: " match_result1 " ") (vau (written code)
-                      (array 'read 0 60 (vau (data code)
-
-        (let (
-            first set-empty
-           _ (log first " set-contains? " 1 " ? " (set-contains? first 1) " size " (size first))
-           second (set-insert first 1)
-           _ (log second " set-contains? " 1 " ? " (set-contains? second 1) " size " (size second))
-           third (set-insert second 2)
-           _ (log third " set-contains? " 1 " ? " (set-contains? third 1) " size " (size third))
-           _ (log third " set-contains? " 2 " ? " (set-contains? third 2) " size " (size third))
-           fourth (set-insert third 3)
-           _ (log fourth " set-contains? " 1 " ? " (set-contains? fourth 1) " size " (size fourth))
-           _ (log fourth " set-contains? " 2 " ? " (set-contains? fourth 2) " size " (size fourth))
-           _ (log fourth " set-contains? " 3 " ? " (set-contains? fourth 3) " size " (size fourth))
-           _ (log fourth " set-contains? " 4 " ? " (set-contains? fourth 4) " size " (size fourth))
-           _ (log fourth " foldl with + " (set-foldl + 0 fourth))
-           fifth (set-remove fourth 1)
-           _ (log fifth " set-contains? " 1 " ? " (set-contains? fifth 1) " size " (size fifth))
-           _ (log fifth " set-contains? " 2 " ? " (set-contains? fifth 2) " size " (size fifth))
-           _ (log fifth " set-contains? " 3 " ? " (set-contains? fifth 3) " size " (size fifth))
-           _ (log fifth " set-contains? " 4 " ? " (set-contains? fifth 4) " size " (size fifth))
-           sixth (set-remove fifth 3)
-           _ (log sixth " set-contains? " 1 " ? " (set-contains? sixth 1) " size " (size sixth))
-           _ (log sixth " set-contains? " 2 " ? " (set-contains? sixth 2) " size " (size sixth))
-           _ (log sixth " set-contains? " 3 " ? " (set-contains? sixth 3) " size " (size sixth))
-           _ (log sixth " set-contains? " 4 " ? " (set-contains? sixth 4) " size " (size sixth))
-           seventh (set-remove sixth 2)
-           _ (log seventh " set-contains? " 1 " ? " (set-contains? seventh 1) " size " (size seventh))
-           _ (log seventh " set-contains? " 2 " ? " (set-contains? seventh 2) " size " (size seventh))
-           _ (log seventh " set-contains? " 3 " ? " (set-contains? seventh 3) " size " (size seventh))
-           _ (log seventh " set-contains? " 4 " ? " (set-contains? seventh 4) " size " (size seventh))
-
-           first map-empty
-           _ (log first " map-contains-key? " 1 " ? " (map-contains-key? first 1) " size " (size first))
-           second (map-insert first 1 "hello")
-           _ (log second " map-contains-key? " 1 " ? " (map-contains-key? second 1) " size " (size second))
-           _ (log second " map-get " 1 " ? " (map-get second 1) " size " (size second))
-           third (map-insert second 1 "goodbye")
-           _ (log third " map-contains-key? " 1 " ? " (map-contains-key? third 1) " size " (size third))
-           _ (log third " map-get " 1 " ? " (map-get third 1) " size " (size third))
-           fourth (map-insert third 2 "hmmm")
-           _ (log fourth " map-contains-key? " 2 " ? " (map-contains-key? fourth 2) " size " (size fourth))
-           _ (log fourth " map-get " 2 " ? " (map-get fourth 2) " size " (size fourth))
-           _ (log fourth " map-contains-key? " 1 " ? " (map-contains-key? fourth 1) " size " (size fourth))
-           _ (log fourth " map-get " 1 " ? " (map-get fourth 1) " size " (size fourth))
-           _ (log fourth " map-contains-key? " 3 " ? " (map-contains-key? fourth 3) " size " (size fourth))
-           _ (log fourth " map-get-or-default " 3 " 'hi ? " (map-get-or-default fourth 3 'hi) " size " (size fourth))
-           _ (log fourth " map-get-with-default " 3 " (lambda () 'bye) ? " (map-get-with-default fourth 3 (lambda () 'bye)) " size " (size fourth))
-           fifth (map-remove fourth 2)
-           _ (log fifth " map-contains-key? " 2 " ? " (map-contains-key? fifth 2) " size " (size fifth))
-        ) (array 'exit (map-get fifth (read-string data))))
-
-
-                           ;(array 'exit (match (read-string data)
-                           ;                    1 "one"
-                           ;                    'jkl "it's jkl"
-                           ;                    ,match_result1 383838
-                           ;                    (1 b) (+ 1337 b)
-                           ;                    (,match_result1 b) (+ 2337 b)
-                           ;                    (a b) (+ a b)
-                           ;                    a (+ a 13)
-                           ;             ))
-                      ))
+         monad  (array 'write  1 (str "running tree test") (vau (written code)
+                         ;(array 'exit (log (reduce-test-tree (make-test-tree (log 100) map-empty))))
+                         (array 'read 0 60 (vau (data code)
+                               (array 'exit (log (reduce-test-tree (make-test-tree (read-string data) map-empty))))
+                         ))
 
                 ))
 
