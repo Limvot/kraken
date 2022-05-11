@@ -15,12 +15,15 @@
  (let (
          rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
 
-         fact (rec-lambda fact (n) (cond (= 0 n)   1
-                                         (= 1 n)   1
-                                         true      (band #xFFFFFF (* n (fact (- n 1))))))
+         ;fact (rec-lambda fact (n) (cond (= 0 n)   1
+         ;                                (= 1 n)   1
+         ;                                true      (band #xFFFFFF (* n (fact (- n 1))))))
+         fact (rec-lambda fact (n r) (cond (= 0 n)   r
+                                           (= 1 n)   r
+                                           true      (fact (- n 1) (band #xFFFFFF (* n r)))))
 
          monad  (array 'write  1 "hao" (vau (written code)
-                        (array 'exit (log (fact (log 10000))))
+                        (array 'exit (log (fact (log 10000) 1)))
 
                 ))
 

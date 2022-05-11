@@ -4522,7 +4522,7 @@
 
               ; ctx is (datasi funcs memo env pectx inline_locals)
               ; return is (value? code? error? (datasi funcs memo env pectx inline_locals))
-              (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval s_env_access_code inline_level) (cond
+              (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval s_env_access_code inline_level tce_idx) (cond
                     ((val? c)   (dlet ((v (.val c)))
                                      (cond ((int? v)    (array  (<< v 1) nil nil ctx))
                                            ((= true v)  (array  true_val nil nil ctx))
@@ -4573,7 +4573,7 @@
                    ((marked_array? c) (if (.marked_array_is_val c) (or (get_passthrough (.hash c) ctx)
                                                                        (dlet ((actual_len (len (.marked_array_values c))))
                                                                          (if (= 0 actual_len) (array nil_val nil nil ctx)
-                                                                             (dlet ( ((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x need_value inside_veval s_env_access_code inline_level)))
+                                                                             (dlet ( ((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x need_value inside_veval s_env_access_code inline_level nil)))
                                                                                                                                          (array (cons (mod_fval_to_wrap v) a) (or (mif err err false) (mif e e false) (mif c (str "got code " c) false)) ctx))) (array (array) nil ctx) (.marked_array_values c)))
                                                                                    ) (mif err (array nil nil (str err ", from an array value compile " (str_strip c)) ctx) (dlet (
                                                                                     ((datasi funcs memo env pectx inline_locals) ctx)
@@ -4598,8 +4598,8 @@
                                                         (hit_recursion (= 'RECURSE_FAIL (get-value-or-false memo (.hash c))))
                                                         ;(_ (true_print "hit recursion? " hit_recursion))
 
-                                                        (compile_params (lambda (unval_and_eval ctx params)
-                                                                (foldr (dlambda (x (a err ctx)) (dlet (
+                                                        (compile_params (lambda (unval_and_eval ctx params cond_tce)
+                                                                (foldr (dlambda (x (a err ctx i)) (dlet (
 
                                                                     ((datasi funcs memo env pectx inline_locals) ctx)
                                                                     ((x err ctx) (mif err                 (array nil err ctx)
@@ -4619,13 +4619,19 @@
                                                                     (memo (put memo (.hash c) 'RECURSE_FAIL))
                                                                     (ctx (array datasi funcs memo env pectx inline_locals))
                                                                     ((val code err ctx) (mif err (array nil nil err ctx)
-                                                                                                 (compile-inner ctx x false inside_veval s_env_access_code inline_level)))
+                                                                                                 (compile-inner ctx x false inside_veval s_env_access_code inline_level
+                                                                                                                                                                     ; 0 b/c foldr
+                                                                                                                                                                     ; count from end
+                                                                                                                                                           (mif (and (= 0 (% i 2))
+                                                                                                                                                                     cond_tce)
+                                                                                                                                                                tce_idx
+                                                                                                                                                                nil))))
                                                                     ((datasi funcs memo env pectx inline_locals) ctx)
                                                                     (memo (put memo (.hash c) 'RECURSE_OK))
                                                                     ;(ctx (array datasi funcs memo env pectx inline_locals))
-                                                                    ) (array (cons (mif val (i64.const (mod_fval_to_wrap val)) code) a) err ctx)))
+                                                                    ) (array (cons (mif val (i64.const (mod_fval_to_wrap val)) code) a) err ctx (+ i 1))))
 
-                                                                (array (array) nil ctx) params)))
+                                                                (array (array) nil ctx 0) params)))
 
                                                         (func_param_values (.marked_array_values c))
                                                         (num_params (- (len func_param_values) 1))
@@ -4645,7 +4651,7 @@
                                                                                                       )
                                                                                                       (local.get '$prim_tmp_a))))
                                                         (gen_numeric_impl (lambda (operation)
-                                                                              (dlet (((param_codes err ctx) (compile_params false ctx params)))
+                                                                              (dlet (((param_codes err ctx _) (compile_params false ctx params false)))
                                                                                     (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
                                                                                              (array nil (foldl (lambda (running_code val_code) (operation running_code
                                                                                                                                                           (single_num_type_check val_code)))
@@ -4653,7 +4659,7 @@
                                                                                                                (slice param_codes 1 -1)) nil ctx)))
                                                                               ))
                                                         (gen_cmp_impl (lambda (lt_case eq_case gt_case)
-                                                                              (dlet (((param_codes err ctx) (compile_params false ctx params)))
+                                                                              (dlet (((param_codes err ctx _) (compile_params false ctx params false)))
                                                                                     (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
                                                                                              (array nil
                                                                                                     (concat
@@ -4682,11 +4688,11 @@
 
                             (_ (if (!= 2 (len params)) (error "call to veval has != 2 params!")))
                             ((datasi funcs memo env pectx inline_locals) ctx)
-                            ((val code err (datasi funcs memo ienv pectx inline_locals)) (compile-inner (array datasi funcs memo (idx params 1) pectx inline_locals) (idx params 0) false true (local.get '$s_env) 0))
+                            ((val code err (datasi funcs memo ienv pectx inline_locals)) (compile-inner (array datasi funcs memo (idx params 1) pectx inline_locals) (idx params 0) false true (local.get '$s_env) 0 nil))
                             (ctx (array datasi funcs memo env pectx inline_locals))
                             ; If it's actual code, we have to set and reset s_env
                             ((code env_err ctx) (mif code (dlet (
-                                                              ((env_val env_code env_err ctx) (compile-inner ctx (idx params 1) false inside_veval s_env_access_code inline_level))
+                                                              ((env_val env_code env_err ctx) (compile-inner ctx (idx params 1) false inside_veval s_env_access_code inline_level nil))
                                                               (full_code (concat (local.get '$s_env)
                                                                                  (local.set '$s_env (mif env_val (i64.const env_val) env_code))
                                                                                  code
@@ -4699,7 +4705,7 @@
 
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'vcond))
                                                                                                                (dlet (
-                                                                                                                ((param_codes err ctx) (compile_params false ctx params))
+                                                                                                                ((param_codes err ctx _) (compile_params false ctx params true))
                                                                                                                )
                                                                                         (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
                                                                                                                      (array nil ((rec-lambda recurse (codes i) (cond
@@ -4736,10 +4742,10 @@
                         (additional_symbols (cons new_s_env_symbol additional_param_symbols))
                         (_ (true_print "additional symbols " additional_symbols))
 
-                        ((param_codes first_params_err ctx) (compile_params false ctx params))
+                        ((param_codes first_params_err ctx _) (compile_params false ctx params false))
 
                         (inner_env (make_tmp_inner_env comb_params (.comb_des func_value) (.comb_env func_value) (.comb_id func_value)))
-                        ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) comb_params) nil) true false s_env_access_code 0))
+                        ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) comb_params) nil) true false s_env_access_code 0 nil))
                         (new_get_s_env_code (_if '$have_s_env '(result i64)
                                                  (i64.ne (i64.const nil_val) (local.get new_s_env_symbol))
                                                  (then (local.get new_s_env_symbol))
@@ -4755,7 +4761,7 @@
                                                                                             (call '$dup s_env_access_code)))
                                                        )))
                         ((datasi funcs memo env pectx inline_locals) ctx)
-                        ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals) (.comb_body func_value) false false new_get_s_env_code new_inline_level))
+                        ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals) (.comb_body func_value) false false new_get_s_env_code new_inline_level tce_idx))
                         (inner_code (mif inner_value (i64.const inner_value) inner_code))
                         (result_code (concat
                                        (apply concat param_codes)
@@ -4780,13 +4786,12 @@
                                                             ;     - dynamic call (got func_code)
                                                             ;           + d_de/d_no_de & d_wrap=1/d_wrap=2
                                                             (true (dlet (
-
-                                                                ((param_codes first_params_err ctx) (compile_params false ctx params))
-                                                                ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval s_env_access_code inline_level))
-                                                                ((unval_param_codes err ctx) (compile_params true ctx params))
+                                                                ((param_codes first_params_err ctx _) (compile_params false ctx params false))
+                                                                ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval s_env_access_code inline_level nil))
+                                                                ((unval_param_codes err ctx _) (compile_params true ctx params false))
                                                                 ; Generates *tons* of text, needs to be different. Made a 200KB binary 80MB
                                                                 ;((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (true_str_strip c) " " err)) true inside_veval s_env_access_code inline_level))
-                                                                ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val "error was with unval-evaling parameters of ") true inside_veval s_env_access_code inline_level))
+                                                                ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val "error was with unval-evaling parameters of ") true inside_veval s_env_access_code inline_level nil))
                                                                 (wrap_param_code (lambda (code) (concat
                                                                                                     (local.get '$tmp) ; saving ito restore it
                                                                                                     code
@@ -4815,7 +4820,7 @@
                                                                                     (call '$print (i64.const weird_wrap_msg_val))
                                                                                     (unreachable)))
 
-                                                                ((source_code ctx) (mif (.marked_array_source c) (dlet (((code _ _ ctx) (compile-inner ctx (.marked_array_source c) true inside_veval s_env_access_code inline_level))
+                                                                ((source_code ctx) (mif (.marked_array_source c) (dlet (((code _ _ ctx) (compile-inner ctx (.marked_array_source c) true inside_veval s_env_access_code inline_level nil))
                                                                                                                         ) (array code ctx))
                                                                                                                  (array k_cond_msg_val ctx)))
                                                                 (result_code (mif func_val
@@ -4826,6 +4831,9 @@
                                                                                     (mif (= #b0 (band (>> func_val 35) #b1))
                                                                                          ; unwrapped, can call directly with parameters on wasm stack
                                                                                          (concat
+                                                                                               (dlet ((_ (mif (= tce_idx (>> func_val 35))
+                                                                                                              (true_print "Do that TCEeeeeee!")
+                                                                                                              (true_print "Nope, " tce_idx " vs " (>> func_val 35))))) (array))
                                                                                                (dlet ((wrap_level (>> (band func_val #x10) 4)))
                                                                                                      (cond ((= 0 wrap_level) wrap_0_inner_code)
                                                                                                            ((= 1 wrap_level) wrap_1_inner_code)
@@ -4910,8 +4918,8 @@
                                             (dlet (
 
 
-                                            ((kvs vvs ctx) (foldr (dlambda ((k v) (ka va ctx)) (dlet (((kv _    _   ctx) (compile-inner ctx (marked_symbol nil k) true inside_veval s_env_access_code inline_level))
-                                                                                                      ((vv code err ctx) (compile-inner ctx v need_value inside_veval s_env_access_code inline_level))
+                                            ((kvs vvs ctx) (foldr (dlambda ((k v) (ka va ctx)) (dlet (((kv _    _   ctx) (compile-inner ctx (marked_symbol nil k) true inside_veval s_env_access_code inline_level nil))
+                                                                                                      ((vv code err ctx) (compile-inner ctx v need_value inside_veval s_env_access_code inline_level nil))
                                                                                                       ;(_ (print_strip "result of (kv is " kv ") v compile-inner vv " vv " code " code " err " err ", based on " v))
                                                                                                       ;(_ (if (= nil vv) (print_strip "VAL NIL CODE IN ENV B/C " k " = " v) nil))
                                                                                                       ;(_ (if (!= nil err) (print_strip "ERRR IN ENV B/C " err " " k " = " v) nil))
@@ -4921,7 +4929,7 @@
                                                                                                                                        (array (cons kv ka) (cons (mod_fval_to_wrap vv) va) ctx)))))
                                                                   (array (array) (array) ctx)
                                                                   (slice e 0 -2)))
-                                            ((uv ucode err ctx) (mif (idx e -1) (compile-inner ctx (idx e -1) need_value inside_veval s_env_access_code inline_level)
+                                            ((uv ucode err ctx) (mif (idx e -1) (compile-inner ctx (idx e -1) need_value inside_veval s_env_access_code inline_level nil)
                                                                                 (array nil_val nil nil ctx)))
                                             ) (mif (or (= false kvs) (= nil uv) (!= nil err)) (begin (print_strip "kvs " kvs " vvs " vvs " uv " uv " or err " err " based off of " c) (if need_value (array nil nil (str "had to generate env access (course " need_value ") for " (str_strip c) "vvs is " vvs " err was " err) ctx) (generate_env_access ctx (.marked_env_idx c) (str " vvs " vvs " uv " uv " or err " err " based off of " (str_strip c)))))
                                             (dlet (
@@ -5016,9 +5024,9 @@
 
                                     (full_params (concat params (mif de? (array de?) (array))))
                                     (normal_params_length (if variadic (- (len params) 1) (len params)))
-                                    (compile_body_part (lambda (ctx body_part) (dlet (
+                                    (compile_body_part (lambda (ctx body_part new_tce_idx) (dlet (
                                                 (inner_env (make_tmp_inner_env params de? se env_id))
-                                                ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) full_params) nil) true false s_env_access_code 0))
+                                                ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) full_params) nil) true false s_env_access_code 0 nil))
                                                 (new_get_s_env_code (_if '$have_s_env '(result i64)
                                                                          (i64.ne (i64.const nil_val) (local.get '$s_env))
                                                                          (then (local.get '$s_env))
@@ -5035,14 +5043,14 @@
                                                                                (local.set '$outer_s_env (i64.const nil_val))
                                                                                )))
                                                 ((datasi funcs memo env pectx inline_locals) ctx)
-                                                ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals) body_part false false new_get_s_env_code 0))
+                                                ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals) body_part false false new_get_s_env_code 0 new_tce_idx))
                                                 ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
                                                 ((datasi funcs memo _was_inner_env pectx inline_locals) ctx)
                                           ) (array inner_value inner_code err (array datasi funcs memo env pectx inline_locals)))))
 
                                     ((early_quit err ctx) (mif attempt_reduction
                                                       (dlet (
-                                                          ((inner_value inner_code err ctx) (compile_body_part ctx (idx (.marked_array_values body) 1)))
+                                                          ((inner_value inner_code err ctx) (compile_body_part ctx (idx (.marked_array_values body) 1) nil))
                                                           ; set it's wrap level to our wrap level
                                                           (inner_value (mif inner_value (bor (band inner_value (bnot (<< 1 4))) (<< wrap_level 4))))
                                                       ) (array inner_value err ctx))
@@ -5055,7 +5063,7 @@
 
                                     ((env_val env_code env_err ctx) (if (and need_value (not (marked_env_real? se)))
                                                                         (array nil nil "Env wasn't real when compiling comb, but need value" ctx)
-                                                                        (compile-inner ctx se need_value inside_veval s_env_access_code inline_level)))
+                                                                        (compile-inner ctx se need_value inside_veval s_env_access_code inline_level nil)))
                                     (_ (if (not (or (= nil env_val) (int? env_val))) (error "BADBADBADenv_val")))
                                     (calculate_combined_value (lambda (env_val func_val) (bor (band #x7FFFFFFC0 (>> env_val 2)) func_val)))
                                     (maybe_func (get_passthrough (.hash c) ctx))
@@ -5081,7 +5089,7 @@
 
                                         (new_inline_locals (array))
                                         (ctx (array datasi funcs memo env pectx new_inline_locals))
-                                        ((inner_value inner_code err ctx) (compile_body_part ctx body))
+                                        ((inner_value inner_code err ctx) (compile_body_part ctx body our_func_idx))
                                         (inner_code (mif inner_value (i64.const (mod_fval_to_wrap inner_value)) inner_code))
                                         (wrapper_func (func '$wrapper_func '(param $params i64) '(param $d_env i64) '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32)
                                                 ;(call '$print (i64.const 2674))
@@ -5152,17 +5160,17 @@
               (memo empty_dict)
               (ctx (array datasi funcs memo root_marked_env pectx (array)))
 
-              ((exit_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'exit) true false (array) 0))
-              ((read_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'read) true false (array) 0))
-              ((write_val _ _ ctx)              (compile-inner ctx (marked_symbol nil 'write) true false (array) 0))
-              ((open_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'open) true false (array) 0))
-              ((monad_error_msg_val _ _ ctx)    (compile-inner ctx (marked_val "Not a legal monad ( ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])") true false (array) 0))
-              ((bad_read_val _ _ ctx)           (compile-inner ctx (marked_val "<error with read>") true false (array) 0))
-              ((exit_msg_val _ _ ctx)           (compile-inner ctx (marked_val "Exiting with code: ") true false (array) 0))
-              ((root_marked_env_val _ _ ctx)    (compile-inner ctx root_marked_env true false (array) 0))
+              ((exit_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'exit) true false (array) 0 nil))
+              ((read_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'read) true false (array) 0 nil))
+              ((write_val _ _ ctx)              (compile-inner ctx (marked_symbol nil 'write) true false (array) 0 nil))
+              ((open_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'open) true false (array) 0 nil))
+              ((monad_error_msg_val _ _ ctx)    (compile-inner ctx (marked_val "Not a legal monad ( ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])") true false (array) 0 nil))
+              ((bad_read_val _ _ ctx)           (compile-inner ctx (marked_val "<error with read>") true false (array) 0 nil))
+              ((exit_msg_val _ _ ctx)           (compile-inner ctx (marked_val "Exiting with code: ") true false (array) 0 nil))
+              ((root_marked_env_val _ _ ctx)    (compile-inner ctx root_marked_env true false (array) 0 nil))
 
 
-              ((compiled_value_ptr compiled_value_code compiled_value_error ctx) (compile-inner ctx marked_code true false (array) 0))
+              ((compiled_value_ptr compiled_value_code compiled_value_error ctx) (compile-inner ctx marked_code true false (array) 0 nil))
               ((datasi funcs memo root_marked_env pectx inline_locals) ctx)
               (compiled_value_code (mif compiled_value_ptr (i64.const (mod_fval_to_wrap compiled_value_ptr)) compiled_value_code))
 
