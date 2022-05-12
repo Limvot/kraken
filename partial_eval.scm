@@ -135,6 +135,7 @@
                                                                (#t      (append (f (car l)) (recurse f (cdr l)))))
                                               )) f l)))
 
+      (reverse_e (lambda (x) (foldl (lambda (acc i) (cons i acc)) (array) x)))
       ;;;;;;;;;;;;;;;;;;
       ; End kludges
       ;;;;;;;;;;;;;;;;;;
@@ -4522,7 +4523,7 @@
 
               ; ctx is (datasi funcs memo env pectx inline_locals)
               ; return is (value? code? error? (datasi funcs memo env pectx inline_locals))
-              (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval s_env_access_code inline_level tce_idx) (cond
+              (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval s_env_access_code inline_level tce_data) (cond
                     ((val? c)   (dlet ((v (.val c)))
                                      (cond ((int? v)    (array  (<< v 1) nil nil ctx))
                                            ((= true v)  (array  true_val nil nil ctx))
@@ -4624,7 +4625,7 @@
                                                                                                                                                                      ; count from end
                                                                                                                                                            (mif (and (= 0 (% i 2))
                                                                                                                                                                      cond_tce)
-                                                                                                                                                                tce_idx
+                                                                                                                                                                tce_data
                                                                                                                                                                 nil))))
                                                                     ((datasi funcs memo env pectx inline_locals) ctx)
                                                                     (memo (put memo (.hash c) 'RECURSE_OK))
@@ -4648,6 +4649,8 @@
                                                                                                       (_if '$not_num
                                                                                                            (i64.ne (i64.const 0) (i64.and (i64.const 1) (local.get '$prim_tmp_a)))
                                                                                                            (then (unreachable))
+
+                                                                                                           ;(then (local.set '$prim_tmp_a (call '$debug (call '$array1_alloc (local.get '$prim_tmp_a)) (i64.const nil_val) (i64.const nil_val))))
                                                                                                       )
                                                                                                       (local.get '$prim_tmp_a))))
                                                         (gen_numeric_impl (lambda (operation)
@@ -4761,7 +4764,7 @@
                                                                                             (call '$dup s_env_access_code)))
                                                        )))
                         ((datasi funcs memo env pectx inline_locals) ctx)
-                        ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals) (.comb_body func_value) false false new_get_s_env_code new_inline_level tce_idx))
+                        ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals) (.comb_body func_value) false false new_get_s_env_code new_inline_level tce_data))
                         (inner_code (mif inner_value (i64.const inner_value) inner_code))
                         (result_code (concat
                                        (apply concat param_codes)
@@ -4823,48 +4826,69 @@
                                                                 ((source_code ctx) (mif (.marked_array_source c) (dlet (((code _ _ ctx) (compile-inner ctx (.marked_array_source c) true inside_veval s_env_access_code inline_level nil))
                                                                                                                         ) (array code ctx))
                                                                                                                  (array k_cond_msg_val ctx)))
-                                                                (result_code (mif func_val
-                                                                              (concat
+                                                                ((result_code ctx) (mif func_val
+                                                                              (dlet (
+                                                                                    (unwrapped (= #b0 (band (>> func_val 35) #b1)))
+                                                                                    (func_idx (- (>> func_val 35) func_id_dynamic_ofset (- 0 num_pre_functions) 1))
+                                                                                    (wrap_level (>> (band func_val #x10) 4))
+                                                                                    (needs_denv (!= 0 (band func_val #b100000)))
+                                                                                    ((tce_idx tce_full_params) (mif tce_data tce_data (array nil nil)))
+                                                                                    (tce_able (and unwrapped (= tce_idx (>> func_val 35))))
+                                                                                    (ctx (mif tce_able
+                                                                                              (dlet (
+                                                                                                  ((datasi funcs memo env pectx inline_locals) ctx)
+                                                                                                  (inline_locals (mif (in_array '___TCE___ inline_locals)
+                                                                                                                      inline_locals
+                                                                                                                      (cons '___TCE___ inline_locals)))
+                                                                                                  (ctx (array datasi funcs memo env pectx inline_locals))
+                                                                                              ) ctx)
+                                                                                              ctx))
+                                                                              )
+                                                                              (array (concat
                                                                                 (front_half_stack_code (i64.const source_code) (call '$dup s_env_access_code))
-                                                                                (call (- (>> func_val 35) func_id_dynamic_ofset (- 0 num_pre_functions) 1)
-                                                                                    ;params
-                                                                                    (mif (= #b0 (band (>> func_val 35) #b1))
-                                                                                         ; unwrapped, can call directly with parameters on wasm stack
-                                                                                         (concat
-                                                                                               (dlet ((_ (mif (= tce_idx (>> func_val 35))
-                                                                                                              (true_print "Do that TCEeeeeee!")
-                                                                                                              (true_print "Nope, " tce_idx " vs " (>> func_val 35))))) (array))
-                                                                                               (dlet ((wrap_level (>> (band func_val #x10) 4)))
-                                                                                                     (cond ((= 0 wrap_level) wrap_0_inner_code)
-                                                                                                           ((= 1 wrap_level) wrap_1_inner_code)
-                                                                                                           (true             wrap_x_param_code)))
-                                                                                                ;dynamic env (is caller's static env)
-                                                                                                ; hay, we can do this statically! the static version of the dynamic check
-                                                                                                (mif (!= 0 (band func_val #b100000))
-                                                                                                     (call '$dup s_env_access_code)
-                                                                                                     (array))
-                                                                                         )
-                                                                                         ; Needs wrapper, must create param array
-                                                                                         (concat
-                                                                                                (dlet ((wrap_level (>> (band func_val #x10) 4)))
-                                                                                                      (cond ((= 0 wrap_level) wrap_0_param_code)
-                                                                                                            ((= 1 wrap_level) wrap_1_param_code)
-                                                                                                            (true             wrap_x_param_code)))
-                                                                                                (i64.or (i64.extend_i32_u (local.get '$param_ptr))
-                                                                                                        (i64.const (bor (<< num_params 32) #x5)))
-                                                                                                ;dynamic env (is caller's static env)
-                                                                                                ; hay, we can do this statically! the static version of the dynamic check
-                                                                                                (mif (!= 0 (band func_val #b100000))
-                                                                                                     (call '$dup s_env_access_code)
-                                                                                                     (i64.const nil_val))
-                                                                                          )
-                                                                                    )
-                                                                                    ; static env
-                                                                                    (i64.const (bor (<< (band func_val #x3FFFFFFC0) 2) #b01001))
+                                                                                ;params
+                                                                                (mif unwrapped
+                                                                                     ; unwrapped, can call directly with parameters on wasm stack
+                                                                                     (concat
+                                                                                            (cond ((= 0 wrap_level) wrap_0_inner_code)
+                                                                                                  ((= 1 wrap_level) wrap_1_inner_code)
+                                                                                                  (true             wrap_x_param_code))
+                                                                                            ;dynamic env (is caller's static env)
+                                                                                            ; hay, we can do this statically! the static version of the dynamic check
+                                                                                            (mif needs_denv
+                                                                                                 (call '$dup s_env_access_code)
+                                                                                                 (array))
+                                                                                            (mif tce_able
+                                                                                                 (concat
+                                                                                                      (flat_map (lambda (i) (concat (local.set i))) (reverse_e tce_full_params))
+                                                                                                      (br '___TCE___)
+                                                                                                      (dlet ((_ (true_print "HAYO TCEEE"))) nil)
+                                                                                                 )
+                                                                                                 (concat
+                                                                                                     ; static env
+                                                                                                     (i64.const (bor (<< (band func_val #x3FFFFFFC0) 2) #b01001))
+                                                                                                     (call func_idx)))
+                                                                                     )
+                                                                                     ; Needs wrapper, must create param array
+                                                                                     (concat
+                                                                                            (cond ((= 0 wrap_level) wrap_0_param_code)
+                                                                                                  ((= 1 wrap_level) wrap_1_param_code)
+                                                                                                  (true             wrap_x_param_code))
+                                                                                            (i64.or (i64.extend_i32_u (local.get '$param_ptr))
+                                                                                                    (i64.const (bor (<< num_params 32) #x5)))
+                                                                                            ;dynamic env (is caller's static env)
+                                                                                            ; hay, we can do this statically! the static version of the dynamic check
+                                                                                            (mif needs_denv
+                                                                                                 (call '$dup s_env_access_code)
+                                                                                                 (i64.const nil_val))
+                                                                                            ; static env
+                                                                                            (i64.const (bor (<< (band func_val #x3FFFFFFC0) 2) #b01001))
+                                                                                            (call func_idx)
+                                                                                      )
                                                                                 )
                                                                                 back_half_stack_code
-                                                                              )
-                                                                              (concat
+                                                                              ) ctx))
+                                                                              (array (concat
                                                                                 func_code
                                                                                 (local.set '$tmp)
                                                                                 (_if '$is_wrap_0
@@ -4899,7 +4923,7 @@
                                                                                     (i32.wrap_i64 (i64.shr_u (local.get '$tmp) (i64.const 35)))
                                                                                 )
                                                                                 back_half_stack_code
-                                                                               )))
+                                                                               ) ctx)))
                                                                 ) (array nil result_code (mif func_err func_err first_params_err) ctx)))
                                                         )))))))
 
@@ -5024,7 +5048,7 @@
 
                                     (full_params (concat params (mif de? (array de?) (array))))
                                     (normal_params_length (if variadic (- (len params) 1) (len params)))
-                                    (compile_body_part (lambda (ctx body_part new_tce_idx) (dlet (
+                                    (compile_body_part (lambda (ctx body_part new_tce_data) (dlet (
                                                 (inner_env (make_tmp_inner_env params de? se env_id))
                                                 ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) full_params) nil) true false s_env_access_code 0 nil))
                                                 (new_get_s_env_code (_if '$have_s_env '(result i64)
@@ -5043,7 +5067,7 @@
                                                                                (local.set '$outer_s_env (i64.const nil_val))
                                                                                )))
                                                 ((datasi funcs memo env pectx inline_locals) ctx)
-                                                ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals) body_part false false new_get_s_env_code 0 new_tce_idx))
+                                                ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals) body_part false false new_get_s_env_code 0 new_tce_data))
                                                 ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
                                                 ((datasi funcs memo _was_inner_env pectx inline_locals) ctx)
                                           ) (array inner_value inner_code err (array datasi funcs memo env pectx inline_locals)))))
@@ -5089,7 +5113,7 @@
 
                                         (new_inline_locals (array))
                                         (ctx (array datasi funcs memo env pectx new_inline_locals))
-                                        ((inner_value inner_code err ctx) (compile_body_part ctx body our_func_idx))
+                                        ((inner_value inner_code err ctx) (compile_body_part ctx body (array our_func_idx full_params)))
                                         (inner_code (mif inner_value (i64.const (mod_fval_to_wrap inner_value)) inner_code))
                                         (wrapper_func (func '$wrapper_func '(param $params i64) '(param $d_env i64) '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32)
                                                 ;(call '$print (i64.const 2674))
@@ -5117,18 +5141,25 @@
                                         ))
                                         ((datasi funcs memo env pectx inline_locals) ctx)
                                         (parameter_symbols (map (lambda (k) (array 'param k 'i64)) full_params))
-                                        (our_inline_locals (map (lambda (k) (array 'local k 'i64)) inline_locals))
+                                        (our_inline_locals (map (lambda (k) (array 'local k 'i64)) (filter (lambda (x) (!= '___TCE___ x)) inline_locals)))
 
                                         (our_func (apply func (concat (array '$userfunc) parameter_symbols (array '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32) '(local $s_env i64) '(local $tmp_ptr i32) '(local $tmp i64) '(local $prim_tmp_a i64) '(local $prim_tmp_b i64) '(local $prim_tmp_c i64)) our_inline_locals (array
 
                                             (local.set '$s_env (i64.const nil_val))
-
-                                            inner_code
+                                            (mif (in_array '___TCE___ inline_locals)
+                                                  (concat
+                                                        (_loop '___TCE___
+                                                              inner_code
+                                                              (local.set '$tmp)
+                                                        )
+                                                        (local.get '$tmp)
+                                                  )
+                                                  inner_code
+                                            )
 
                                             (call '$drop (local.get '$s_env))
                                             (call '$drop (local.get '$outer_s_env))
                                             (flat_map (lambda (k) (call '$drop (local.get k))) full_params)
-
                                         ))))
                                         ; replace our placeholder with the real one
                                         (funcs (concat old_funcs wrapper_func our_func (drop funcs (+ 2 (len old_funcs)))))
