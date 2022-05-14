@@ -4834,9 +4834,10 @@
                                                                                     (needs_denv (!= 0 (band func_val #b100000)))
                                                                                     ((tce_idx tce_full_params) (mif tce_data tce_data (array nil nil)))
                                                                                     (tce_able (and unwrapped (= tce_idx (>> func_val 35))))
+                                                                                    (s_env_val (bor (<< (band func_val #x3FFFFFFC0) 2) #b01001))
+                                                                                    ((datasi funcs memo env pectx inline_locals) ctx)
                                                                                     (ctx (mif tce_able
                                                                                               (dlet (
-                                                                                                  ((datasi funcs memo env pectx inline_locals) ctx)
                                                                                                   (inline_locals (mif (in_array '___TCE___ inline_locals)
                                                                                                                       inline_locals
                                                                                                                       (cons '___TCE___ inline_locals)))
@@ -4860,13 +4861,21 @@
                                                                                                  (array))
                                                                                             (mif tce_able
                                                                                                  (concat
-                                                                                                      (flat_map (lambda (i) (concat (local.set i))) (reverse_e tce_full_params))
+                                                                                                      (call '$drop (local.get '$s_env))
+                                                                                                      (local.set '$s_env (i64.const nil_val))
+                                                                                                      (call '$drop (local.get '$outer_s_env))
+                                                                                                      (local.set '$outer_s_env (i64.const s_env_val))
+                                                                                                      (flat_map (lambda (i) (mif (= i '___TCE___) (array)
+                                                                                                                                                  (concat (call '$drop (local.get i))
+                                                                                                                                                          (local.set i (i64.const nil_val)))))
+                                                                                                                inline_locals)
+                                                                                                      (flat_map (lambda (i) (concat (call '$drop (local.get i)) (local.set i))) (reverse_e tce_full_params))
                                                                                                       (br '___TCE___)
                                                                                                       (dlet ((_ (true_print "HAYO TCEEE"))) nil)
                                                                                                  )
                                                                                                  (concat
                                                                                                      ; static env
-                                                                                                     (i64.const (bor (<< (band func_val #x3FFFFFFC0) 2) #b01001))
+                                                                                                     (i64.const s_env_val)
                                                                                                      (call func_idx)))
                                                                                      )
                                                                                      ; Needs wrapper, must create param array
@@ -4882,7 +4891,7 @@
                                                                                                  (call '$dup s_env_access_code)
                                                                                                  (i64.const nil_val))
                                                                                             ; static env
-                                                                                            (i64.const (bor (<< (band func_val #x3FFFFFFC0) 2) #b01001))
+                                                                                            (i64.const s_env_val)
                                                                                             (call func_idx)
                                                                                       )
                                                                                 )
