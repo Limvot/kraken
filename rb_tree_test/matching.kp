@@ -5,7 +5,7 @@
 (let1 cons (lambda (h t) (concat (array h) t))
 (let1 Y (lambda (f3)
     ((lambda (x1) (x1 x1))
-     (lambda (x2) (f3 (lambda (& y) (lapply (x2 x2) y))))))
+     (lambda (x2) (f3 (wrap (vau app_env (& y) (lapply (x2 x2) y app_env)))))))
 (let1 vY (lambda (f)
     ((lambda (x3) (x3 x3))
      (lambda (x4) (f (vau de1 (& y) (vapply (x4 x4) y de1))))))
@@ -290,16 +290,15 @@
 
 
 
-         make-test-tree (rec-lambda make-test-tree (n t) (if (<= n 0) t
-                                                                      (make-test-tree (- n 1) (map-insert t n (= 0 (% n 10))))))
+         make-test-tree (rec-lambda make-test-tree (n t) (cond (<= n 0) t
+                                                               true     (make-test-tree (- n 1) (map-insert t n (= 0 (% n 10))))))
          reduce-test-tree (lambda (tree) (generic-foldl (lambda (a x) (if (idx x 1) (+ a 1) a)) 0 tree))
 
          monad  (array 'write  1 (str "running tree test") (vau (written code)
-                         ;(array 'exit (log (reduce-test-tree (make-test-tree (log 100) map-empty))))
-                         (array 'read 0 60 (vau (data code)
-                               (array 'exit (log (reduce-test-tree (make-test-tree (read-string data) map-empty))))
-                         ))
-
+                         (array 'exit (log (reduce-test-tree (make-test-tree (log 420000) map-empty))))
+                         ;(array 'read 0 60 (vau (data code)
+                         ;      (array 'exit (log (reduce-test-tree (make-test-tree (read-string data) map-empty))))
+                         ;))
                 ))
 
  ) monad)
