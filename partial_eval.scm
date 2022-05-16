@@ -1710,6 +1710,12 @@
     (false_val #b000011001)
 
     (compile (dlambda ((pectx partial_eval_err marked_code) needs_runtime_eval) (mif partial_eval_err (error partial_eval_err) (wasm_to_binary (module
+          (import "wasi_unstable" "args_sizes_get"
+                  '(func $args_sizes_get (param i32 i32)
+                                  (result i32)))
+          (import "wasi_unstable" "args_get"
+                  '(func $args_get (param i32 i32)
+                                  (result i32)))
           (import "wasi_unstable" "path_open"
                   '(func $path_open  (param i32 i32 i32 i32 i32 i64 i64 i32 i32)
                                      (result i32)))
@@ -1816,9 +1822,9 @@
               ((unquote_sym_loc unquote_sym_length datasi) (alloc_data "unquote" datasi))
               (unquote_sym_val (bor (<< unquote_sym_length 32) unquote_sym_loc #b111))
 
-              ; 0 is path_open, 1 is fd_read, 2 is fd_write
+              ; 0 is get_argc, 1 is get_args, 2 is path_open, 3 is fd_read, 4 is fd_write
               ;(num_pre_functions 2)
-              (num_pre_functions 3)
+              (num_pre_functions 5)
               ((func_idx funcs) (array num_pre_functions (array)))
 
               (type_int      (array #b1      #b0))
@@ -2521,7 +2527,7 @@
                             (i64.const nil_val)
                         )
                         (else
-                            (call '$dup (i64.load (i32.add (local.get '$ptr) (i32.sub (local.get '$len) (i32.const 1)))))
+                            (call '$dup (i64.load (i32.add (local.get '$ptr) (i32.shl (i32.sub (local.get '$len) (i32.const 1)) (i32.const 3)))))
                         )
                 )
                 drop_p_d
@@ -5201,10 +5207,12 @@
               (ctx (array datasi funcs memo root_marked_env pectx (array)))
 
               ((exit_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'exit) true false (array) 0 nil))
+              ((args_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'args) true false (array) 0 nil))
               ((read_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'read) true false (array) 0 nil))
               ((write_val _ _ ctx)              (compile-inner ctx (marked_symbol nil 'write) true false (array) 0 nil))
               ((open_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'open) true false (array) 0 nil))
-              ((monad_error_msg_val _ _ ctx)    (compile-inner ctx (marked_val "Not a legal monad ( ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])") true false (array) 0 nil))
+              ((monad_error_msg_val _ _ ctx)    (compile-inner ctx (marked_val "Not a legal monad ( ['args        <cont (arg_array error?)>] / ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])") true false (array) 0 nil))
+              ((bad_args_val _ _ ctx)           (compile-inner ctx (marked_val "<error with args>") true false (array) 0 nil))
               ((bad_read_val _ _ ctx)           (compile-inner ctx (marked_val "<error with read>") true false (array) 0 nil))
               ((exit_msg_val _ _ ctx)           (compile-inner ctx (marked_val "Exiting with code: ") true false (array) 0 nil))
               ((root_marked_env_val _ _ ctx)    (compile-inner ctx root_marked_env true false (array) 0 nil))
@@ -5219,6 +5227,7 @@
               (_ (mif compiled_value_error (error compiled_value_error)))
 
               ; Ok, so the outer loop handles the IO monads
+                ; ('args        <cont (arg_array error?)>)
                 ; ('exit        code)
                 ; ('read        fd   len       <cont (data error?)>)
                 ; ('write       fd   "data"    <cont (num_written error?)>)
@@ -5226,7 +5235,7 @@
                 ; Could add some to open like lookup flags, o flags, base rights
                 ;                             ineriting rights, fdflags
 
-              (start (func '$start '(local $it i64) '(local $tmp i64) '(local $ptr i32) '(local $monad_name i64) '(local $len i32) '(local $buf i32) '(local $code i32) '(local $str i64) '(local $result i64) '(local $debug_malloc_print i32)
+              (start (func '$start '(local $it i64) '(local $tmp i64) '(local $ptr i32) '(local $monad_name i64) '(local $len i32) '(local $buf i32) '(local $traverse i32) '(local $x i32) '(local $y i32) '(local $code i32) '(local $str i64) '(local $result i64) '(local $debug_malloc_print i32)
                     (local.set '$it (if needs_runtime_eval (call '$eval_helper compiled_value_code (i64.const root_marked_env_val))
                                                            compiled_value_code))
                     (block '$exit_block
@@ -5237,9 +5246,103 @@
                                 ; less than len 2 -> out
                                 (br_if '$error_block (i64.lt_u (i64.shr_u (local.get '$it) (i64.const 32)) (i64.const 2)))
                                 (local.set '$ptr (i32.wrap_i64 (i64.and (local.get '$it) (i64.const -8))))
+                                (local.set '$monad_name (i64.load (local.get '$ptr)))
+
+                                (_if '$is_args
+                                    (i64.eq (i64.const args_val) (local.get '$monad_name))
+                                    (then
+                                        ; len != 2
+                                        (br_if '$error_block (i64.ne (i64.shr_u (local.get '$it) (i64.const 32)) (i64.const 2)))
+                                        ; second entry isn't a comb -> out
+                                        (br_if '$error_block (i64.ne (i64.and (i64.load 8 (local.get '$ptr)) (i64.const #b1111)) (i64.const #b0001)))
+                                        (local.set '$tmp (call '$dup (i64.load 8 (local.get '$ptr))))
+                                        (call '$drop (local.get '$it))
+                                        (local.set '$code (call '$args_sizes_get
+                                                                (i32.const iov_tmp)
+                                                                (i32.const (+ iov_tmp 4))
+                                        ))
+                                        (local.set '$len (i32.load (i32.const iov_tmp)))
+                                        (_if '$is_error
+                                            (i32.eqz (local.get '$code))
+                                            (then
+                                                (local.set '$ptr (call '$malloc (i32.shl (local.get '$len) (i32.const 3))))
+                                                (local.set '$buf (call '$malloc (i32.load (i32.const (+ iov_tmp 4)))))
+                                                (local.set '$result (i64.or (i64.or (i64.extend_i32_u (local.get '$ptr))
+                                                                                    (i64.shl (i64.extend_i32_u (local.get '$len)) (i64.const 32)))
+                                                                            (i64.const #x5)))
+                                                (local.set '$code (call '$args_get
+                                                                        (local.get '$ptr)
+                                                                        (local.get '$buf)))
+                                                (_if '$is_error2
+                                                    (i32.eqz (local.get '$code))
+                                                    (then
+                                                      (block '$set_ptr_break
+                                                            (_loop '$set_ptr
+                                                                (br_if '$set_ptr_break (i32.eqz (local.get '$len)))
+                                                                (local.set '$len (i32.sub (local.get '$len) (i32.const 1)))
+                                                                (local.set '$traverse (local.tee '$x (i32.load (i32.add (local.get '$ptr) (i32.shl (local.get '$len) (i32.const 2))))))
+                                                                (block '$str_len_break
+                                                                    (_loop '$str_len
+                                                                        (br_if '$str_len_break (i32.eqz (i32.load8_u (local.get '$traverse))))
+                                                                        (local.set '$traverse (i32.add (local.get '$traverse) (i32.const 1)))
+                                                                        (br '$str_len)
+                                                                    )
+                                                                )
+                                                                (local.set '$traverse (i32.sub (local.get '$traverse) (local.get '$x)))
+                                                                (local.set '$y (call '$malloc (local.get '$traverse)))
+                                                                (memory.copy (local.get '$y)
+                                                                             (local.get '$x)
+                                                                             (local.get '$traverse))
+                                                                (i64.store (i32.add (local.get '$ptr) (i32.shl (local.get '$len) (i32.const 3)))
+                                                                           (i64.or (i64.shl (i64.extend_i32_u (local.get '$traverse)) (i64.const 32))
+                                                                                   (i64.extend_i32_u (i32.or (local.get '$y) (i32.const #b011)))))
+                                                                (br '$set_ptr)
+                                                            )
+                                                      )
+                                                      (call '$free (local.get '$buf))
+                                                      (local.set '$result (call '$array2_alloc (local.get '$result)
+                                                                                               (i64.const 0)))
+                                                    )
+                                                    (else
+                                                      (call '$free (local.get '$ptr))
+                                                      (call '$free (local.get '$buf))
+                                                      (local.set '$result (call '$array2_alloc (i64.const bad_args_val)
+                                                                                               (i64.shl (i64.extend_i32_u (local.get '$code)) (i64.const 1))))
+                                                    )
+                                                )
+                                            )
+                                            (else
+                                                (local.set '$result (call '$array2_alloc (i64.const bad_args_val)
+                                                                                         (i64.shl (i64.extend_i32_u (local.get '$code)) (i64.const 1))))
+                                            )
+                                        )
+
+                                        (call '$drop (global.get '$debug_func_to_call))
+                                        (call '$drop (global.get '$debug_params_to_call))
+                                        (call '$drop (global.get '$debug_env_to_call))
+                                        (global.set '$debug_func_to_call   (call '$dup (local.get '$tmp)))
+                                        (global.set '$debug_params_to_call (call '$dup (local.get '$result)))
+                                        (global.set '$debug_env_to_call (i64.const root_marked_env_val))
+                                        (local.set '$it (call_indirect
+                                            ;type
+                                            k_vau
+                                            ;table
+                                            0
+                                            ;params
+                                            (local.get '$result)
+                                            ;top_env
+                                            (i64.const root_marked_env_val)
+                                            ; static env
+                                            (i64.or (i64.shl (i64.and (local.get '$tmp) (i64.const #x3FFFFFFC0)) (i64.const 2)) (i64.const #b01001))
+                                            ;func_idx
+                                            (i32.wrap_i64 (i64.shr_u (local.get '$tmp) (i64.const 35)))
+                                        ))
+                                        (br '$l)
+                                    )
+                                )
+
                                 ; second entry isn't an int -> out
                                 (br_if '$error_block (i64.ne (i64.and (i64.load 8 (local.get '$ptr)) (i64.const #b1)) (i64.const #b0)))
-                                (local.set '$monad_name (i64.load (local.get '$ptr)))
 
                                 ; ('exit        code)
                                 (_if '$is_exit
