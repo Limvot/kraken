@@ -1,4 +1,4 @@
-set(sources rbtree.kk nqueens.kk nqueens-int.kk cfold.kk)
+set(sources rbtree.kk nqueens.kk nqueens-int.kk cfold.kk deriv.kk)
 
 set(koka koka)
 

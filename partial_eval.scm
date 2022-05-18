@@ -4654,9 +4654,7 @@
                                                         (single_num_type_check (lambda (code) (concat (local.set '$prim_tmp_a code)
                                                                                                       (_if '$not_num
                                                                                                            (i64.ne (i64.const 0) (i64.and (i64.const 1) (local.get '$prim_tmp_a)))
-                                                                                                           (then (unreachable))
-
-                                                                                                           ;(then (local.set '$prim_tmp_a (call '$debug (call '$array1_alloc (local.get '$prim_tmp_a)) (i64.const nil_val) (i64.const nil_val))))
+                                                                                                           (then (local.set '$prim_tmp_a (call '$debug (call '$array1_alloc (local.get '$prim_tmp_a)) (i64.const nil_val) (i64.const nil_val))))
                                                                                                       )
                                                                                                       (local.get '$prim_tmp_a))))
                                                         (gen_numeric_impl (lambda (operation)
