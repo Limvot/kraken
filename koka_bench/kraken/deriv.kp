@@ -1,0 +1,263 @@
+((wrap (vau root_env (quote)
+((wrap (vau (let1)
+(let1 lambda (vau se (p b1) (wrap (eval (array vau p b1) se)))
+(let1 current-env (vau de () de)
+(let1 cons (lambda (h t) (concat (array h) t))
+(let1 Y (lambda (f3)
+    ((lambda (x1) (x1 x1))
+     (lambda (x2) (f3 (wrap (vau app_env (& y) (lapply (x2 x2) y app_env)))))))
+(let1 vY (lambda (f)
+    ((lambda (x3) (x3 x3))
+     (lambda (x4) (f (vau de1 (& y) (vapply (x4 x4) y de1))))))
+(let1 let (vY (lambda (recurse) (vau de2 (vs b) (cond (= (len vs) 0) (eval b de2)
+                                                     true           (vapply let1 (array (idx vs 0) (idx vs 1) (array recurse (slice vs 2 -1) b)) de2)))))
+ (let (
+         lcompose (lambda (g f) (lambda (& args) (lapply g (array (lapply f args)))))
+         rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
+         if (vau de (con than & else) (eval (array cond con  than
+                                                        true (cond (> (len else) 0) (idx else 0)
+                                                                   true             false)) de))
+
+         map (lambda (f5 l5)
+             (let (helper (rec-lambda recurse (f4 l4 n4 i4)
+                                             (cond (= i4 (len l4))         n4
+                                                   (<= i4 (- (len l4) 4))  (recurse f4 l4 (concat n4 (array
+                                                                                                 (f4 (idx l4 (+ i4 0)))
+                                                                                                 (f4 (idx l4 (+ i4 1)))
+                                                                                                 (f4 (idx l4 (+ i4 2)))
+                                                                                                 (f4 (idx l4 (+ i4 3)))
+                                                                                                 )) (+ i4 4))
+                                                   true                  (recurse f4 l4 (concat n4 (array (f4 (idx l4 i4)))) (+ i4 1)))))
+                  (helper f5 l5 (array) 0)))
+
+
+        map_i (lambda (f l)
+            (let (helper (rec-lambda recurse (f l n i)
+                                            (cond (= i (len l))         n
+                                                  (<= i (- (len l) 4))  (recurse f l (concat n (array
+                                                                                                (f (+ i 0) (idx l (+ i 0)))
+                                                                                                (f (+ i 1) (idx l (+ i 1)))
+                                                                                                (f (+ i 2) (idx l (+ i 2)))
+                                                                                                (f (+ i 3) (idx l (+ i 3)))
+                                                                                                )) (+ i 4))
+                                                  true                  (recurse f l (concat n (array (f i (idx l i)))) (+ i 1)))))
+                 (helper f l (array) 0)))
+
+        filter_i (lambda (f l)
+               (let (helper (rec-lambda recurse (f l n i)
+                                            (if (= i (len l))
+                                                n
+                                                (if (f i (idx l i)) (recurse f l (concat n (array (idx l i))) (+ i 1))
+                                                                    (recurse f l n (+ i 1))))))
+                    (helper f l (array) 0)))
+        filter (lambda (f l) (filter_i (lambda (i x) (f x)) l))
+
+        ; Huge thanks to Oleg Kiselyov for his fantastic website
+        ; http://okmij.org/ftp/Computation/fixed-point-combinators.html
+        Y* (lambda (& l)
+            ((lambda (u) (u u))
+             (lambda (p)
+                (map (lambda (li) (lambda (& x) (lapply (lapply li (p p)) x))) l))))
+        vY* (lambda (& l)
+            ((lambda (u) (u u))
+             (lambda (p)
+                (map (lambda (li) (vau ide (& x) (vapply (lapply li (p p)) x ide))) l))))
+
+        let-rec (vau de (name_func body)
+                    (let (names (filter_i (lambda (i x) (= 0 (% i 2))) name_func)
+                          funcs (filter_i (lambda (i x) (= 1 (% i 2))) name_func)
+                          overwrite_name (idx name_func (- (len name_func) 2)))
+                          (eval (array let (concat (array overwrite_name (concat (array Y*) (map (lambda (f) (array lambda names f)) funcs)))
+                                                                                (lapply concat (map_i (lambda (i n) (array n (array idx overwrite_name i))) names)))
+                                       body) de)))
+        let-vrec (vau de (name_func body)
+                    (let (names (filter_i (lambda (i x) (= 0 (% i 2))) name_func)
+                          funcs (filter_i (lambda (i x) (= 1 (% i 2))) name_func)
+                          overwrite_name (idx name_func (- (len name_func) 2)))
+                          (eval (array let (concat (array overwrite_name (concat (array vY*) (map (lambda (f) (array lambda names f)) funcs)))
+                                                                                (lapply concat (map_i (lambda (i n) (array n (array idx overwrite_name i))) names)))
+                                       body) de)))
+
+        flat_map (lambda (f l)
+            (let (helper (rec-lambda recurse (f l n i)
+                                            (if (= i (len l))
+                                                n
+                                                (recurse f l (concat n (f (idx l i))) (+ i 1)))))
+                 (helper f l (array) 0)))
+        flat_map_i (lambda (f l)
+            (let (helper (rec-lambda recurse (f l n i)
+                                            (if (= i (len l))
+                                                n
+                                                (recurse f l (concat n (f i (idx l i))) (+ i 1)))))
+                 (helper f l (array) 0)))
+
+        ; with all this, we make a destrucutring-capable let
+        let (let (
+            destructure_helper (rec-lambda recurse (vs i r)
+                (cond (= (len vs) i)      r
+                      (array? (idx vs i)) (let (bad_sym (str-to-symbol (str (idx vs i)))
+                                                new_vs (flat_map_i (lambda (i x) (array x (array idx bad_sym i))) (idx vs i))
+                                                )
+                                                (recurse (concat new_vs (slice vs (+ i 2) -1)) 0 (concat r (array bad_sym (idx vs (+ i 1))))))
+                      true                (recurse vs (+ i 2) (concat r (slice vs i (+ i 2))))
+            ))) (vau de (vs b) (vapply let (array (destructure_helper vs 0 (array)) b) de)))
+
+        ; and a destructuring-capable lambda!
+        only_symbols (rec-lambda recurse (a i) (cond (= i (len a))       true
+                                                     (symbol? (idx a i)) (recurse a (+ i 1))
+                                                     true                false))
+
+        ; Note that if macro_helper is inlined, the mapping lambdas will close over
+        ; se, and then not be able to be taken in as values to the maps, and the vau
+        ; will fail to partially evaluate away.
+        lambda (let (macro_helper (lambda (p b) (let (
+                        sym_params (map (lambda (param) (if (symbol? param) param
+                                                                            (str-to-symbol (str param)))) p)
+                        body (array let (flat_map_i (lambda (i x) (array (idx p i) x)) sym_params) b)
+                      ) (array vau sym_params body))))
+                    (vau se (p b) (if (only_symbols p 0) (vapply lambda (array p b) se)
+                                                         (wrap (eval (macro_helper p b) se)))))
+
+        ; and rec-lambda - yes it's the same definition again
+        rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
+
+        nil (array)
+        not (lambda (x) (if x false true))
+        or  (let (macro_helper (rec-lambda recurse (bs i) (cond (= i       (len bs)) false
+                                                                (= (+ 1 i) (len bs)) (idx bs i)
+                                                                true       (array let (array 'tmp (idx bs i)) (array if 'tmp 'tmp (recurse bs (+ i 1)))))))
+                 (vau se (& bs) (eval (macro_helper bs 0) se)))
+        and (let (macro_helper (rec-lambda recurse (bs i) (cond (= i       (len bs)) true
+                                                                (= (+ 1 i) (len bs)) (idx bs i)
+                                                                true       (array let (array 'tmp (idx bs i)) (array if 'tmp (recurse bs (+ i 1)) 'tmp)))))
+                 (vau se (& bs) (eval (macro_helper bs 0) se)))
+
+
+
+        foldl (let (helper (rec-lambda recurse (f z vs i) (if (= i (len (idx vs 0))) z
+                                                                           (recurse f (lapply f (cons z (map (lambda (x) (idx x i)) vs))) vs (+ i 1)))))
+                   (lambda (f z & vs) (helper f z vs 0)))
+        foldr (let (helper (rec-lambda recurse (f z vs i) (if (= i (len (idx vs 0))) z
+                                                                           (lapply f (cons (recurse f z vs (+ i 1)) (map (lambda (x) (idx x i)) vs))))))
+                   (lambda (f z & vs) (helper f z vs 0)))
+        reverse (lambda (x) (foldl (lambda (acc i) (cons i acc)) (array) x))
+        zip (lambda (& xs) (lapply foldr (concat (array (lambda (a & ys) (cons ys a)) (array)) xs)))
+
+        match (let (
+               evaluate_case (rec-lambda evaluate_case (access c) (cond
+                   (symbol? c)                                            (array true                       (lambda (b) (array let (array c access) b)))
+                   (and (array? c) (= 2 (len c)) (= 'unquote (idx c 0)))  (array (array = access (idx c 1)) (lambda (b) b))
+                   (and (array? c) (= 2 (len c)) (= 'quote   (idx c 0)))  (array (array = access c)         (lambda (b) b))
+                   (array?  c)                                            (let (
+                                          tests (array and (array array? access) (array = (len c) (array len access)))
+                                          (tests body_func) ((rec-lambda recurse (tests body_func i) (if (= i (len c))
+                                                                                                     (array tests body_func)
+                                                                                                     (let ( (inner_test inner_body_func) (evaluate_case (array idx access i) (idx c i)) )
+                                                                                                          (recurse (concat tests (array inner_test))
+                                                                                                                (lambda (b) (body_func (inner_body_func b)))
+                                                                                                                (+ i 1)))))
+                                                            tests (lambda (b) b) 0)
+                                   ) (array tests body_func))
+                   true                                                   (array (array = access c)         (lambda (b) b))
+               ))
+               helper (rec-lambda helper (x_sym cases i) (cond (< i (- (len cases) 1))  (let ( (test body_func) (evaluate_case x_sym (idx cases i)) )
+                                                                                             (concat (array test (body_func (idx cases (+ i 1)))) (helper x_sym cases (+ i 2))))
+                                                               true                     (array true (array error "none matched"))))
+              ) (vau de (x & cases) (eval (array let (array '___MATCH_SYM x) (concat (array cond) (helper '___MATCH_SYM cases 0))) de)))
+
+
+        Var (lambda (x)   (array 'Var x))
+        Val (lambda (x)   (array 'Val x))
+        Add (lambda (l r) (array 'Add l r))
+        Mul (lambda (l r) (array 'Mul l r))
+        Pow (lambda (l r) (array 'Pow l r))
+        Ln  (lambda (e)   (array 'Ln  e))
+
+        pown_helper (rec-lambda pown_helper (a b acc) (if (= b 0) acc
+                                                      (pown_helper a (- b 1) (* a acc))))
+        pown (lambda (a b) (pown_helper a b 1))
+
+        add (rec-lambda add (n0 m0) (match (array n0 m0)
+                 (('Val n)   ('Val m))            (Val (+ n m))
+                 (('Val 0)   f)                   f
+                 (f          ('Val 0))            f
+                 (f          ('Val n))            (add (Val n)       f)
+                 (('Val n)   ('Add ('Val m) f))   (add (Val (+ n m)) f)
+                 (f          ('Add ('Val n) g))   (add (Val n)       (add f g))
+                 (('Add f g) h)                   (add f             (add g h))
+                 (f g)                            (Add f             g)
+        ))
+
+        mul (rec-lambda mul (n0 m0) (match (array n0 m0)
+                 (('Val n)   ('Val m))            (Val (* n m))
+                 (('Val 0)   _)                   (Val 0)
+                 (_          ('Val 0))            (Val 0)
+                 (f          ('Val 1))            f
+                 (('Val 1)   f)                   f
+
+                 (f          ('Val n))            (mul (Val n) f)
+                 (('Val n)   ('Mul ('Val m) f))   (mul (Val (* n m)) f)
+                 (f          ('Mul ('Val n) g))   (mul (Val n)       (mul f g))
+                 (('Mul f g) h)                   (mul f             (mul g h))
+                 (f g)                            (Mul f             g)
+        ))
+
+        powr (lambda (m0 n0) (match (array m0 n0)
+                 (('Val m)   ('Val n))            (Val (pown m n))
+                 (_          ('Val 0))            (Val 1)
+                 (f          ('Val 1))            f
+                 (('Val 0)   _)                   (Val 0)
+                 (f g)                            (Pow f g)
+        ))
+
+        ln (lambda (n) (match n
+                 ('Val 1)   (Val 0)
+                 f          (Ln f)
+        ))
+
+        d (rec-lambda d (x e) (match e
+                 ('Val _)   (Val 0)
+                 ('Var y)   (if (= x y) (Val 1) (Val 0))
+                 ('Add f g) (add (d x f) (d x g))
+                 ('Mul f g) (add (mul f (d x g)) (mul g (d x f)))
+                 ('Pow f g) (mul (powr f g) (add (mul (mul g (d x f)) (powr f (Val -1))) (mul (ln f) (d x g))))
+                 ('Ln f)    (mul (d x f) (powr f (Val -1)))
+        ))
+
+        count (rec-lambda count (e) (match e
+                 ('Val _)   1
+                 ('Var y)   1
+                 ('Add f g) (+ (count f) (count g))
+                 ('Mul f g) (+ (count f) (count g))
+                 ('Pow f g) (+ (count f) (count g))
+                 ('Ln f)    (count f)
+        ))
+
+        nest_aux (rec-lambda nest_aux (s f n x) (if (= n 0) x
+                                                            (nest_aux s f (- n 1) (f (- s n) x))))
+        nest (lambda (f n e) (nest_aux n f n e))
+
+        deriv (lambda (i f) (let (d (d "x" f)
+                                  _ (log (+ i 1) " count: " (count d))
+                                  ) d))
+
+
+         monad  (array 'write  1 (str "running deriv") (vau (written code)
+                         (array 'args (vau (args code)
+                               (array 'exit (let (
+                                              n (read-string (idx args 1))
+                                              x (Var "x")
+                                              f (powr x x)
+                                              _ (log (nest deriv n f))
+                                              _ (log "done")
+                                            ) 0))
+                         ))
+                ))
+
+ ) monad)
+; end of all lets
+))))))
+; impl of let1
+)) (vau de (s v b) (eval (array (array wrap (array vau (array s) b)) v) de)))
+; impl of quote
+)) (vau (x5) x5))

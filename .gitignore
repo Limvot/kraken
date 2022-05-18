@@ -1,8 +1,6 @@
 _site
 build
 build-ninja
-*.comp
-stats
 *.swp
 *.swm
 *.swn
@@ -12,28 +10,6 @@ stats
 *.swj
 *.swk
 *.png
-*krakout*
-kraklist.txt
 .*.un~
-papers
 callgrind*
-*.comp_new
-*.comp_new.expr
-*.comp_bac
-bintest.bin
-*.dot
 .stfolder
-kraken
-*.c
-kraken_bac
-kraken_deprecated
-bootstrap_kalypso
-kraken_bootstrap
-compiler_version.krak
-untracked_misc
-k_prime
-
-
-# Added by cargo
-
-/target
