@@ -5,6 +5,8 @@ at b1670308f88dd1fc6c22cad28385fcb185d5b27d from the test/bench directory
 and modified by me to run inside a reproducable environment defined by a Nix Flake,
 and to use Bash to coordinate and Hyperfine to time instead of the Koka based runner.
 
+**It is under the Apache 2 License to match the source Koka, not BSD-2-Clause-Patent of the rest of Kraken**
+
 ./test.sh will build and run the benchmarks.
 
 I'm slowly porting them over to the Kraken project, and adding Kraken versions of each one.
