@@ -1,16 +1,16 @@
-#Benchmarks
+# Benchmarks
 
 ## cfold_table.md
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `build/kraken/out/bench/kraken-cfold 5` | 24.4 ± 0.8 | 22.9 | 26.8 | 56.36 ± 42.56 |
-| `build/java/out/bench/cfold 5` | 73.5 ± 8.4 | 57.5 | 85.0 | 170.13 ± 129.81 |
-| `build/ocaml/ml-cfold 5` | 0.4 ± 0.2 | 0.2 | 2.2 | 1.03 ± 0.96 |
-| `build/swift/sw-cfold 5` | 2.1 ± 0.5 | 1.6 | 4.5 | 4.86 ± 3.82 |
-| `build/cpp/cpp-cfold 5` | 0.8 ± 0.4 | 0.5 | 2.8 | 1.95 ± 1.72 |
-| `build/haskell/hs-cfold 5` | 0.7 ± 0.4 | 0.5 | 2.7 | 1.67 ± 1.54 |
-| `build/koka/out/bench/kk-cfold 5` | 0.4 ± 0.3 | 0.2 | 2.2 | 1.00 |
+| `build/kraken/out/bench/kraken-cfold 5` | 24.5 ± 0.7 | 22.9 | 26.7 | 49.60 ± 32.45 |
+| `build/java/out/bench/cfold 5` | 73.3 ± 7.0 | 59.0 | 84.9 | 148.58 ± 98.14 |
+| `build/ocaml/ml-cfold 5` | 0.5 ± 0.3 | 0.2 | 2.2 | 1.00 |
+| `build/swift/sw-cfold 5` | 2.2 ± 0.5 | 1.7 | 3.7 | 4.40 ± 3.04 |
+| `build/cpp/cpp-cfold 5` | 0.9 ± 0.4 | 0.5 | 2.9 | 1.79 ± 1.46 |
+| `build/haskell/hs-cfold 5` | 0.8 ± 0.4 | 0.5 | 2.6 | 1.53 ± 1.23 |
+| `build/koka/out/bench/kk-cfold 5` | 0.5 ± 0.4 | 0.2 | 2.2 | 1.07 ± 1.06 |
 
 
 
@@ -18,13 +18,13 @@
 
 | Command | Mean [s] | Min [s] | Max [s] | Relative |
 |:---|---:|---:|---:|---:|
-| `build/kraken/out/bench/kraken-deriv 8` | 3.559 ± 0.014 | 3.536 | 3.582 | 236.58 ± 13.05 |
-| `build/java/out/bench/deriv 8` | 0.112 ± 0.020 | 0.085 | 0.131 | 7.45 ± 1.41 |
-| `build/ocaml/ml-deriv 8` | 0.015 ± 0.001 | 0.014 | 0.018 | 1.00 |
-| `build/swift/sw-deriv 8` | 0.037 ± 0.000 | 0.036 | 0.038 | 2.44 ± 0.14 |
-| `build/cpp/cpp-deriv 8` | 0.020 ± 0.000 | 0.020 | 0.022 | 1.35 ± 0.08 |
-| `build/haskell/hs-deriv 8` | 0.035 ± 0.001 | 0.035 | 0.038 | 2.36 ± 0.14 |
-| `build/koka/out/bench/kk-deriv 8` | 0.017 ± 0.000 | 0.016 | 0.018 | 1.10 ± 0.07 |
+| `build/kraken/out/bench/kraken-deriv 8` | 3.544 ± 0.007 | 3.537 | 3.559 | 243.49 ± 8.16 |
+| `build/java/out/bench/deriv 8` | 0.117 ± 0.021 | 0.084 | 0.132 | 8.07 ± 1.44 |
+| `build/ocaml/ml-deriv 8` | 0.015 ± 0.000 | 0.014 | 0.017 | 1.00 |
+| `build/swift/sw-deriv 8` | 0.037 ± 0.001 | 0.036 | 0.039 | 2.54 ± 0.09 |
+| `build/cpp/cpp-deriv 8` | 0.020 ± 0.001 | 0.020 | 0.024 | 1.41 ± 0.06 |
+| `build/haskell/hs-deriv 8` | 0.036 ± 0.001 | 0.035 | 0.037 | 2.45 ± 0.09 |
+| `build/koka/out/bench/kk-deriv 8` | 0.017 ± 0.001 | 0.016 | 0.019 | 1.16 ± 0.06 |
 
 
 
@@ -32,14 +32,14 @@
 
 | Command | Mean [s] | Min [s] | Max [s] | Relative |
 |:---|---:|---:|---:|---:|
-| `build/kraken/out/bench/kraken-nqueens 10` | 2.225 ± 0.016 | 2.187 | 2.246 | 480.72 ± 59.09 |
-| `build/java/out/bench/nqueens 10` | 0.057 ± 0.005 | 0.053 | 0.070 | 12.37 ± 1.92 |
-| `build/ocaml/ml-nqueens 10` | 0.005 ± 0.001 | 0.004 | 0.007 | 1.03 ± 0.17 |
-| `build/swift/sw-nqueens 10` | 0.016 ± 0.001 | 0.015 | 0.018 | 3.48 ± 0.45 |
-| `build/cpp/cpp-nqueens 10` | 0.006 ± 0.001 | 0.006 | 0.009 | 1.34 ± 0.20 |
-| `build/haskell/hs-nqueens 10` | 0.036 ± 0.001 | 0.035 | 0.038 | 7.77 ± 0.97 |
-| `build/koka/out/bench/kk-nqueens 10` | 0.005 ± 0.001 | 0.004 | 0.007 | 1.00 |
-| `build/koka/out/bench/kk-nqueens-int 10` | 0.006 ± 0.000 | 0.006 | 0.008 | 1.39 ± 0.19 |
+| `build/kraken/out/bench/kraken-nqueens 10` | 2.231 ± 0.020 | 2.196 | 2.262 | 519.42 ± 46.07 |
+| `build/java/out/bench/nqueens 10` | 0.058 ± 0.006 | 0.053 | 0.068 | 13.51 ± 1.78 |
+| `build/ocaml/ml-nqueens 10` | 0.005 ± 0.000 | 0.004 | 0.007 | 1.07 ± 0.15 |
+| `build/swift/sw-nqueens 10` | 0.016 ± 0.001 | 0.015 | 0.018 | 3.76 ± 0.36 |
+| `build/cpp/cpp-nqueens 10` | 0.006 ± 0.001 | 0.006 | 0.008 | 1.43 ± 0.18 |
+| `build/haskell/hs-nqueens 10` | 0.035 ± 0.001 | 0.035 | 0.037 | 8.26 ± 0.74 |
+| `build/koka/out/bench/kk-nqueens 10` | 0.004 ± 0.000 | 0.004 | 0.006 | 1.00 |
+| `build/koka/out/bench/kk-nqueens-int 10` | 0.007 ± 0.001 | 0.006 | 0.008 | 1.55 ± 0.19 |
 
 
 
@@ -47,14 +47,14 @@
 
 | Command | Mean [s] | Min [s] | Max [s] | Relative |
 |:---|---:|---:|---:|---:|
-| `build/kraken/out/bench/kraken-rbtree-opt 42000` | 3.924 ± 0.196 | 3.786 | 4.307 | 863.93 ± 83.96 |
-| `build/kraken/out/bench/kraken-rbtree 42000` | 4.116 ± 0.105 | 4.070 | 4.415 | 906.34 ± 79.00 |
-| `build/java/out/bench/rbtree 42000` | 0.086 ± 0.010 | 0.075 | 0.130 | 18.96 ± 2.79 |
-| `build/ocaml/ml-rbtree 42000` | 0.008 ± 0.000 | 0.008 | 0.010 | 1.80 ± 0.18 |
-| `build/swift/sw-rbtree 42000` | 0.039 ± 0.000 | 0.039 | 0.041 | 8.70 ± 0.73 |
-| `build/cpp/cpp-rbtree 42000` | 0.005 ± 0.000 | 0.005 | 0.008 | 1.21 ± 0.14 |
-| `build/haskell/hs-rbtree 42000` | 0.016 ± 0.000 | 0.016 | 0.018 | 3.53 ± 0.31 |
-| `build/koka/out/bench/kk-rbtree 42000` | 0.005 ± 0.000 | 0.004 | 0.006 | 1.00 |
+| `build/kraken/out/bench/kraken-rbtree-opt 42000` | 3.806 ± 0.016 | 3.784 | 3.826 | 847.67 ± 62.79 |
+| `build/kraken/out/bench/kraken-rbtree 42000` | 4.092 ± 0.010 | 4.071 | 4.107 | 911.31 ± 67.43 |
+| `build/java/out/bench/rbtree 42000` | 0.089 ± 0.017 | 0.076 | 0.131 | 19.78 ± 4.04 |
+| `build/ocaml/ml-rbtree 42000` | 0.008 ± 0.000 | 0.008 | 0.010 | 1.81 ± 0.15 |
+| `build/swift/sw-rbtree 42000` | 0.040 ± 0.000 | 0.039 | 0.041 | 8.80 ± 0.66 |
+| `build/cpp/cpp-rbtree 42000` | 0.005 ± 0.000 | 0.005 | 0.007 | 1.20 ± 0.12 |
+| `build/haskell/hs-rbtree 42000` | 0.016 ± 0.000 | 0.016 | 0.018 | 3.55 ± 0.27 |
+| `build/koka/out/bench/kk-rbtree 42000` | 0.004 ± 0.000 | 0.004 | 0.007 | 1.00 |
 
 
 
