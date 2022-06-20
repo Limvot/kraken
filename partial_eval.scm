@@ -140,13 +140,12 @@
       ; End kludges
       ;;;;;;;;;;;;;;;;;;
 
-
-      (empty_dict-list (array))
-      (put-list (lambda (m k v) (cons (array k v) m)))
-      (get-list (lambda (d k) ((rec-lambda recurse (k d len_d i) (cond ((= len_d i)             false)
-                                                                       ((= k (idx (idx d i) 0)) (idx d i))
-                                                                       (true                    (recurse k d len_d (+ 1 i)))))
-                                k d (len d) 0)))
+      ;(empty_dict-list (array))
+      ;(put-list (lambda (m k v) (cons (array k v) m)))
+      ;(get-list (lambda (d k) ((rec-lambda recurse (k d len_d i) (cond ((= len_d i)             false)
+      ;                                                                 ((= k (idx (idx d i) 0)) (idx d i))
+      ;                                                                 (true                    (recurse k d len_d (+ 1 i)))))
+      ;                          k d (len d) 0)))
 
       ;(combine_hash     (lambda (a b) (+ (* 37 a) b)))
       (combine_hash     (lambda (a b) (band #xFFFFFFFFFFFFFF (+ (* 37 a) b))))
@@ -156,58 +155,6 @@
       ;(hash_string      (lambda (s) (foldl combine_hash 7  s)))
       ;(hash_string      (lambda (s) (foldl combine_hash 102233  (map char->integer (string->list s)))))
 
-      (empty_dict-tree nil)
-      ;(trans-key (lambda (k) (cond ((string? k) (cons (hash_string k) k))
-      ;                             ((symbol? k) (cons (hash_string (symbol->string k)) k))
-      ;                             (true        (cons k k)))))
-      ;(put-helper (rec-lambda put-helper (m k v) (cond ((nil? m)        (cons (list k v) (cons nil                       nil)))
-      ;                                                 ((and (= (car k) (caaar m))
-      ;                                                       (= (cdr k) (cdaar m)))      (cons (list k v) (cons (cadr m)                  (cddr m))))
-      ;                                                 ((< (car k) (caaar m))            (cons (car m)    (cons (put-helper (cadr m) k v) (cddr m))))
-      ;                                                 (true                             (cons (car m)    (cons (cadr m)                  (put-helper (cddr m) k v)))))))
-      ;(put-tree (lambda (m k v) (put-helper m (trans-key k) v)))
-      ;(get-helper (rec-lambda get-helper (m k) (cond ((nil? m)                     false)
-      ;                                               ((and (= (car k) (caaar m))
-      ;                                                     (= (cdr k) (cdaar m)))  (car m))
-      ;                                               ((< (car k) (caaar m))        (get-helper (cadr m) k))
-      ;                                               (true                         (get-helper (cddr m) k)))))
-      (trans-key (lambda (k) (cond ((string? k) (hash_string k))
-                                   ((symbol? k) (hash_string (get-text k)))
-                                   (true        k))))
-      (put-helper (rec-lambda put-helper (m hk k v) (cond ((nil? m)                (array hk        k         v          nil                           nil))
-                                                           ((and (= hk (idx m 0))
-                                                                 (= k  (idx m 1))) (array hk        k         v         (idx m 3)                     (idx m 4)))
-                                                           ((< hk (idx m 0))       (array (idx m 0) (idx m 1) (idx m 2) (put-helper (idx m 3) hk k v) (idx m 4)))
-                                                           (true                   (array (idx m 0) (idx m 1) (idx m 2) (idx m 3)                     (put-helper (idx m 4) hk k v))))))
-      (put-tree (lambda (m k v) (put-helper m (trans-key k) k v)))
-      (get-helper (rec-lambda get-helper (m hk k) (cond ((nil? m)                     false)
-                                                        ((and (= hk (idx m 0))
-                                                              (= k  (idx m 1)))       (array k (idx m 2)))
-                                                        ((< hk (idx m 0))             (get-helper (idx m 3) hk k))
-                                                        (true                         (get-helper (idx m 4) hk k)))))
-      (get-tree (lambda (m k) (get-helper m (trans-key k) k)))
-
-      ;(empty_dict empty_dict-list)
-      ;(put put-list)
-      ;(get get-list)
-      (empty_dict empty_dict-tree)
-      (put put-tree)
-      (get get-tree)
-
-      ;(empty_dict (list empty_dict-list empty_dict-tree))
-      ;(put (lambda (m k v) (list (put-list (idx m 0) k v) (put-tree (idx m 1) k v))))
-      ;(get (lambda (m k) (dlet (  ;(_ (true_print "doing a get " m " " k))
-      ;                            (list-result (get-list (idx m 0) k))
-      ;                            (tree-result (get-tree (idx m 1) k))
-      ;                            (_ (if (and (!= list-result tree-result) (!= (idx list-result 1) (idx tree-result 1))) (error "BAD GET " list-result " vs " tree-result)))
-      ;                            ) tree-result)))
-
-      (get-value (lambda (d k) (dlet ((result (get d k)))
-                                    (if (array? result) (idx result 1)
-                                                       (error (str "could not find " k " in " d))))))
-      (get-value-or-false (lambda (d k) (dlet ((result (get d k)))
-                                    (if (array? result) (idx result 1)
-                                                       false))))
 
     (in_array (dlet ((helper (rec-lambda recurse (x a len_a i) (cond ((= i len_a)     false)
                                                                      ((= x (idx a i)) true)
@@ -327,6 +274,65 @@
     (.any_comb_wrap_level               (lambda (x) (cond  ((prim_comb? x)   (.prim_comb_wrap_level x))
                                                            ((comb? x)        (.comb_wrap_level x))
                                                            (true             (error "bad .any_comb_level")))))
+      (empty_dict-tree nil)
+      ;(trans-key (lambda (k) (cond ((string? k) (cons (hash_string k) k))
+      ;                             ((symbol? k) (cons (hash_string (symbol->string k)) k))
+      ;                             (true        (cons k k)))))
+      ;(put-helper (rec-lambda put-helper (m k v) (cond ((nil? m)        (cons (list k v) (cons nil                       nil)))
+      ;                                                 ((and (= (car k) (caaar m))
+      ;                                                       (= (cdr k) (cdaar m)))      (cons (list k v) (cons (cadr m)                  (cddr m))))
+      ;                                                 ((< (car k) (caaar m))            (cons (car m)    (cons (put-helper (cadr m) k v) (cddr m))))
+      ;                                                 (true                             (cons (car m)    (cons (cadr m)                  (put-helper (cddr m) k v)))))))
+      ;(put-tree (lambda (m k v) (put-helper m (trans-key k) v)))
+      ;(get-helper (rec-lambda get-helper (m k) (cond ((nil? m)                     false)
+      ;                                               ((and (= (car k) (caaar m))
+      ;                                                     (= (cdr k) (cdaar m)))  (car m))
+      ;                                               ((< (car k) (caaar m))        (get-helper (cadr m) k))
+      ;                                               (true                         (get-helper (cddr m) k)))))
+      (trans-key (lambda (k) (cond ((string? k) (hash_string k))
+                                   ((symbol? k) (hash_string (get-text k)))
+                                   ((array?  k) (.hash k))
+                                   (true        k))))
+      (put-helper (rec-lambda put-helper (m hk k v) (cond ((nil? m)                (array hk        k         v          nil                           nil))
+                                                           ((and (= hk (idx m 0))
+                                                                 (= k  (idx m 1))) (array hk        k         v         (idx m 3)                     (idx m 4)))
+                                                           ((< hk (idx m 0))       (array (idx m 0) (idx m 1) (idx m 2) (put-helper (idx m 3) hk k v) (idx m 4)))
+                                                           (true                   (array (idx m 0) (idx m 1) (idx m 2) (idx m 3)                     (put-helper (idx m 4) hk k v))))))
+      (put-tree (lambda (m k v) (put-helper m (trans-key k) k v)))
+      (get-helper (rec-lambda get-helper (m hk k) (cond ((nil? m)                     false)
+                                                        ((and (= hk (idx m 0))
+                                                              (= k  (idx m 1)))       (array k (idx m 2)))
+                                                        ((< hk (idx m 0))             (get-helper (idx m 3) hk k))
+                                                        (true                         (get-helper (idx m 4) hk k)))))
+      (get-tree (lambda (m k) (get-helper m (trans-key k) k)))
+      (foldl-tree (rec-lambda foldl-tree (f a m) (cond ((nil? m)                     a)
+                                                       (true                         (dlet (
+                                                                                            (a (foldl-tree f a (idx m 3)))
+                                                                                            (a (f a (idx m 1) (idx m 2)))
+                                                                                            (a (foldl-tree f a (idx m 4)))
+                                                                                           ) a)))))
+
+      ;(empty_dict empty_dict-list)
+      ;(put put-list)
+      ;(get get-list)
+      (empty_dict empty_dict-tree)
+      (put put-tree)
+      (get get-tree)
+
+      ;(empty_dict (list empty_dict-list empty_dict-tree))
+      ;(put (lambda (m k v) (list (put-list (idx m 0) k v) (put-tree (idx m 1) k v))))
+      ;(get (lambda (m k) (dlet (  ;(_ (true_print "doing a get " m " " k))
+      ;                            (list-result (get-list (idx m 0) k))
+      ;                            (tree-result (get-tree (idx m 1) k))
+      ;                            (_ (if (and (!= list-result tree-result) (!= (idx list-result 1) (idx tree-result 1))) (error "BAD GET " list-result " vs " tree-result)))
+      ;                            ) tree-result)))
+
+      (get-value (lambda (d k) (dlet ((result (get d k)))
+                                    (if (array? result) (idx result 1)
+                                                       (error (str "could not find " k " in " d))))))
+      (get-value-or-false (lambda (d k) (dlet ((result (get d k)))
+                                    (if (array? result) (idx result 1)
+                                                       false))))
 
 
     ; The actual needed_for_progress values are either
@@ -390,7 +396,7 @@
     (marked_array     (lambda (is_val attempted resume_hashes x source)       (dlet (
                                                                             ((sub_progress_idxs hashes extra) (foldl (dlambda ((a ahs aeei) (x xhs x_extra_env_ids))
                                                                                                     (array (cond ((or (= true a) (= true x)) true)
-                                                                                                                 (true           (intset_union a x)))
+                                                                                                                 (true                       (intset_union a x)))
                                                                                                            (array_union ahs xhs)
                                                                                                            (intset_union aeei x_extra_env_ids))
                                                                                                  ) (array (array) resume_hashes (array)) (map needed_for_progress x)))
@@ -716,9 +722,9 @@
         (cond   ((val? x)            (array pectx nil x))
                 ((marked_env? x)     (dlet ((dbi (.marked_env_idx x)))
                                           ; compiler calls with empty env stack
-                                          (mif dbi (dlet ( (new_env ((rec-lambda rec (i len_env_stack) (cond ((= i len_env_stack)                           nil)
-                                                                                               ((= dbi (.marked_env_idx (idx (idx env_stack 1) i)))     (idx (idx env_stack 1) i))
-                                                                                               (true                                            (rec (+ i 1) len_env_stack))))
+                                          (mif dbi (dlet ( (new_env ((rec-lambda rec (i len_env_stack) (cond ((= i len_env_stack)                                 nil)
+                                                                                                             ((= dbi (.marked_env_idx (idx (idx env_stack 1) i))) (idx (idx env_stack 1) i))
+                                                                                                             (true                                                (rec (+ i 1) len_env_stack))))
                                                                      0 (len (idx env_stack 1))))
                                                          (_ (println (str_strip "replacing " x) (str_strip " with (if nonnil) " new_env)))
                                                         )
@@ -747,16 +753,17 @@
                                                         (_ (print_strip (indent_str indent) "partial_evaling comb " (idx values 0)))
 
                                                         (literal_params (slice values 1 -1))
-                                                        ((pectx err comb) (partial_eval_helper (idx values 0) true env env_stack pectx (+ 1 indent) false))
+                                                        ((pectx err comb) (partial_eval_helper (idx values 0) false env env_stack pectx (+ 1 indent) false))
                                                        ) (cond ((!= nil err) (array pectx err nil))
                                                                ((later_head? comb)                               (array pectx nil (marked_array false true nil (cons comb literal_params) (.marked_array_source x))))
                                                                ((not (or (comb? comb) (prim_comb? comb))) (array pectx (str "impossible comb value " x) nil))
                                                                (true    (dlet (
                                                                             ; If we haven't evaluated the function before at all, we would like to partially evaluate it so we know
                                                                             ; what it needs. We'll see if this re-introduces exponentail (I think this should limit it to twice?)
-                                                                            ((pectx comb_err comb) (if (and (= nil err) (= true (needed_for_progress_slim comb)))
-                                                                                                        (partial_eval_helper comb false env env_stack pectx (+ 1 indent) false)
-                                                                                                        (array pectx err comb)))
+                                                                            (comb_err nil)
+                                                                            ;((pectx comb_err comb) (if (and (= nil err) (= true (needed_for_progress_slim comb)))
+                                                                            ;                            (partial_eval_helper comb false env env_stack pectx (+ 1 indent) false)
+                                                                            ;                            (array pectx err comb)))
                                                                             (_ (println (indent_str indent) "Going to do an array call!"))
                                                                             (indent (+ 1 indent))
                                                                             (_ (print_strip (indent_str indent) "total (in env " (.marked_env_idx env) ") is (proceeding err " err ") " x))
@@ -829,7 +836,6 @@
                                                                                                                     ) (array pectx func_err func_result false))))
 
                                                                                      (_ (print_strip (indent_str indent) "evaled result of function call (in env " (.marked_env_idx env) ", with inner " env_id ") and err " func_err "  is " func_result))
-                                                                                     ;(_ (mif (= 6008223282910300 hash) (true_print "yep it's this call, and we got " (true_str_strip func_result))))
                                                                                      (must_stop_maybe_id (and (= nil func_err)
                                                                                                               (or rec_stop (if (not (combiner_return_ok func_result env_id))
                                                                                                                                (if (!= nil de?) (.marked_env_idx env) true)
@@ -918,7 +924,7 @@
             (new_id env_counter)
             (env_counter (+ 1 env_counter))
             (pectx (array env_counter memo))
-            ((pectx err pe_body) (if only_head (begin (print "skipping inner eval cuz only_head") (array pectx nil body))
+            ((pectx err pe_body) (if (and false only_head) (begin (print "skipping inner eval cuz only_head") (array pectx nil body))
                                        (dlet (
                                             (inner_env (make_tmp_inner_env vau_params de? de new_id))
                                             (_ (print_strip (indent_str indent) "in vau, evaluating body with 'later params - " body))
@@ -956,8 +962,8 @@
                                                 ((later_head? pred)                             (dlet (
                                                                                             (sliced_params (slice params (+ i 1) -1))
                                                                                             (this (marked_array false true nil (concat (array (marked_prim_comb (recurse false) 'cond 0 true)
-                                                                                                                                                         pred)
-                                                                                                                                                  sliced_params) nil))
+                                                                                                                                              pred)
+                                                                                                                                       sliced_params) nil))
                                                                                             (hash (combine_hash (combine_hash 101 (.hash this)) (+ 103 (.marked_env_idx de))))
                                                                                             ((env_counter memo) pectx)
                                                                                             (already_in (!= false (get-value-or-false memo hash)))
@@ -974,8 +980,8 @@
                                                                                                         (foldl (dlambda ((pectx _err as later_hash) x)
                                                                                                             (dlet (((pectx er a) (eval_helper x pectx)))
                                                                                                                 (mif er (dlet (((ok ux) (if already_stripped (array true x) (try_unval x (lambda (_) nil))))
-                                                                                                                                                 (_ (if (not ok) (error (str "BAD cond un second " already_stripped " " x)))))
-                                                                                                                                                 (array pectx nil (concat as (array ux)) later_hash))
+                                                                                                                               (_ (if (not ok) (error (str "BAD cond un second " already_stripped " " x)))))
+                                                                                                                              (array pectx nil (concat as (array ux)) later_hash))
                                                                                                                         (array pectx nil (concat as (array a)) later_hash)))
                                                                                                         ) (array (array env_counter (put memo hash nil)) nil (array) nil) sliced_params)))
                                                                                             ((env_counter omemo) pectx)
@@ -1695,6 +1701,49 @@
     ; True          / False
     ;  0..0 1 11001  /  0..0 0 11001
 
+
+
+
+    ;  <string_size32><string_ptr29>011
+    ;  <symbol_size32><symbol_ptr29>111
+    ;  <array__size32><array__ptr29>101 / 0..0 101
+    ;  <func_idx29>|<env_ptr29><usesde1><wrap1>0001
+    ; 0..0<env_ptr32 but still aligned>01001
+
+
+    ; The two interesting splits are ref-counted/vs not and changes on eval / vs not
+    ; ref counted is much more important
+
+    ; add a constant bit?
+    ;                                                  - all pointers in identical spots
+    ;                                                  - all pointers full 32 bits for easy inlining of refcounting ops (with static -8 offset)
+    ;                                                  - all sizes in identical spots
+    ;                                                  - vals vs not vals split on first bit
+    ; Int - should maximize int                 xx0000 (nicely leaves 1000 for BigInt later)
+    ;  True 0..0 1 11001  / False 0..0 0          0100
+    ;  <symbol_ptr32><symbol_size28>              0010 - symbols 1 bit diff from string, for easy printing
+    ;  <string_ptr32><string_size28>              y011 - strings 1 bit diff from array, for easy len
+    ;  <array__ptr32><array__size28>              y111
+    ;  <env____ptr32>|<func_idx25><usesde1><wrap1>y001 - both env-carrying values 1 bit different, not that it matters right now
+    ;  <env____ptr32><28 0s>                      y101
+
+    ; with this, dup becomes
+    ; (if (i64.eqz (i64.and (i64.const #b1000) (local.tee 'tmp1 x)))
+    ;   (then (i32.store -4 (local.get '$tmp2) (i32.add (i32.const 1) (i32.load -4 (local.tee '$tmp2 (i32.wrap_64 (i64.shl (local.get '$tmp1) (i64.const 32)))))))))
+    ; (local.get '$tmp1)
+    ; 28 bytes or so?
+
+    ; with this, drop becomes
+    ; (if (i64.nz (i64.and (i64.const #b1000) (local.tee 'tmp1 x)))
+    ;   (then (i32.store -4 (local.get '$tmp2) (local.tee 'tmp3 (i32.add (i32.const -1) (i32.load -4 (local.tee '$tmp2 (i32.wrap_64 (i64.shl (local.get '$tmp1) (i64.const 32))))))))
+    ;       (if (i64.eqz (local.get '$tmp3))
+    ;          (then
+    ;            (call free_drop (local.get '$tmp2)))
+    ;   )
+    ; )
+    ; (local.get '$tmp1)
+    ; 41 bytes or so?
+
     (to_hex_digit (lambda (x) (string (integer->char (if (< x 10) (+ x #x30)
                                                                   (+ x #x37))))))
     (le_hexify_helper (rec-lambda recurse (x i) (if (= i 0) ""
@@ -1751,76 +1800,72 @@
                                                                (true          (error (str "can't alloc_data for anything else besides strings yet" d)))
                                                          )
               ))
+              (memo empty_dict)
               ; We won't use 0 because some impls seem to consider that NULL and crash on reading/writing?
               (iov_tmp 8) ; <32bit len><32bit ptr> + <32bit numwitten>
               (datasi (array (+ iov_tmp 16) (array)))
+
+              (compile-symbol-val (lambda (datasi memo sym) (dlet ((marked_sym (marked_symbol nil sym))
+                                                                   (maybe_done (get-value-or-false memo marked_sym))
+                                                                  ) (if maybe_done (array datasi memo maybe_done)
+                                                                          (dlet (((c_loc c_len datasi) (alloc_data (get-text sym) datasi))
+                                                                                 (sym_val (bor (<< c_len 32) c_loc #b111))
+                                                                                 (memo (put memo marked_sym sym_val)))
+                                                                                (array datasi memo sym_val))))))
+
+              (compile-string-val (lambda (datasi memo s) (dlet ((marked_string (marked_val s))
+                                                                 (maybe_done (get-value-or-false memo marked_string))
+                                                                ) (if maybe_done (array datasi memo maybe_done)
+                                                                        (dlet (((c_loc c_len datasi) (alloc_data s datasi))
+                                                                               (str_val (bor (<< c_len 32) c_loc #b011))
+                                                                               (memo (put memo marked_string str_val)))
+                                                                              (array datasi memo str_val))))))
+
               ((true_loc true_length datasi) (alloc_data "true" datasi))
               ((false_loc false_length datasi) (alloc_data "false" datasi))
 
-              ((bad_params_number_loc bad_params_number_length datasi) (alloc_data "\nError: passed a bad number of parameters\n" datasi))
-              (bad_params_number_msg_val (bor (<< bad_params_number_length 32) bad_params_number_loc #b011))
+              ((datasi memo bad_params_number_msg_val) (compile-string-val datasi memo "\nError: passed a bad number of parameters\n"))
 
-              ((bad_params_type_loc bad_params_type_length datasi) (alloc_data "\nError: passed a bad type of parameters\n" datasi))
-              (bad_params_type_msg_val (bor (<< bad_params_type_length 32) bad_params_type_loc #b011))
+              ((datasi memo bad_params_type_msg_val) (compile-string-val datasi memo "\nError: passed a bad type of parameters\n"))
 
-              ((dropping_loc dropping_length datasi) (alloc_data "dropping " datasi))
-              (dropping_msg_val (bor (<< dropping_length 32) dropping_loc #b011))
+              ((datasi memo dropping_msg_val) (compile-string-val datasi memo "dropping "))
 
-              ((duping_loc duping_length datasi) (alloc_data "duping " datasi))
-              (duping_msg_val (bor (<< duping_length 32) duping_loc #b011))
+              ((datasi memo duping_msg_val) (compile-string-val datasi memo "duping "))
 
-              ((error_loc error_length datasi) (alloc_data "\nError: " datasi))
-              (error_msg_val (bor (<< error_length 32) error_loc #b011))
-              ((log_loc log_length datasi) (alloc_data "\nLog: " datasi))
-              (log_msg_val (bor (<< log_length 32) log_loc #b011))
+              ((datasi memo error_msg_val) (compile-string-val datasi memo "\nError: "))
+              ((datasi memo log_msg_val) (compile-string-val datasi memo "\nLog: "))
 
-              ((call_ok_loc call_ok_length datasi) (alloc_data "call ok!" datasi))
-              (call_ok_msg_val (bor (<< call_ok_length 32) call_ok_loc #b011))
+              ((datasi memo call_ok_msg_val) (compile-string-val datasi memo "call ok!"))
 
-              ((newline_loc newline_length datasi) (alloc_data "\n" datasi))
-              (newline_msg_val (bor (<< newline_length 32) newline_loc #b011))
+              ((datasi memo newline_msg_val) (compile-string-val datasi memo "\n"))
 
-              ((space_loc space_length datasi) (alloc_data " " datasi))
-              (space_msg_val (bor (<< space_length 32) space_loc #b011))
+              ((datasi memo space_msg_val) (compile-string-val datasi memo " "))
 
-              ((remaining_eval_loc remaining_eval_length datasi) (alloc_data "\nError: trying to call remainin eval\n" datasi))
-              (remaining_eval_msg_val (bor (<< remaining_eval_length 32) remaining_eval_loc #b011))
+              ((datasi memo remaining_eval_msg_val) (compile-string-val datasi memo "\nError: trying to call remainin eval\n"))
 
-              ((hit_upper_in_eval_loc hit_upper_in_eval_length datasi) (alloc_data "\nError: hit nil upper env when looking up symbol in remaining eval: " datasi))
-              (hit_upper_in_eval_msg_val (bor (<< hit_upper_in_eval_length 32) hit_upper_in_eval_loc #b011))
+              ((datasi memo hit_upper_in_eval_msg_val) (compile-string-val datasi memo "\nError: hit nil upper env when looking up symbol in remaining eval: "))
 
-              ((remaining_vau_loc remaining_vau_length datasi) (alloc_data "\nError: trying to call remainin vau (primitive)\n" datasi))
-              (remaining_vau_msg_val (bor (<< remaining_vau_length 32) remaining_vau_loc #b011))
+              ((datasi memo remaining_vau_msg_val) (compile-string-val datasi memo "\nError: trying to call remainin vau (primitive)\n"))
 
-              ((no_true_cond_loc no_true_cond_length datasi) (alloc_data "\nError: runtime cond had no true branch\n" datasi))
-              (no_true_cond_msg_val (bor (<< no_true_cond_length 32) no_true_cond_loc #b011))
+              ((datasi memo no_true_cond_msg_val) (compile-string-val datasi memo "\nError: runtime cond had no true branch\n"))
 
-              ((weird_wrap_loc weird_wrap_length datasi) (alloc_data "\nError: trying to call a combiner with a weird wrap (not 0 or 1)\n" datasi))
-              (weird_wrap_msg_val (bor (<< weird_wrap_length 32) weird_wrap_loc #b011))
+              ((datasi memo weird_wrap_msg_val) (compile-string-val datasi memo "\nError: trying to call a combiner with a weird wrap (not 0 or 1)\n"))
 
-              ((bad_not_vau_loc bad_not_vau_length datasi) (alloc_data "\nError: Trying to call a function (not vau) but the parameters caused a compile error\n" datasi))
-              (bad_not_vau_msg_val (bor (<< bad_not_vau_length 32) bad_not_vau_loc #b011))
+              ((datasi memo bad_not_vau_msg_val) (compile-string-val datasi memo "\nError: Trying to call a function (not vau) but the parameters caused a compile error\n"))
 
-              ((going_up_loc going_up_length datasi) (alloc_data "going up" datasi))
-              (going_up_msg_val (bor (<< going_up_length 32) going_up_loc #b011))
+              ((datasi memo going_up_msg_val) (compile-string-val datasi memo "going up"))
 
-              ((starting_from_loc starting_from_length datasi) (alloc_data "starting from " datasi))
-              (starting_from_msg_val (bor (<< starting_from_length 32) starting_from_loc #b011))
+              ((datasi memo starting_from_msg_val) (compile-string-val datasi memo "starting from "))
 
-              ((got_it_loc got_it_length datasi) (alloc_data "got it" datasi))
-              (got_it_msg_val (bor (<< got_it_length 32) got_it_loc #b011))
+              ((datasi memo got_it_msg_val) (compile-string-val datasi memo "got it"))
 
-              ((couldnt_parse_1_loc              couldnt_parse_1_length datasi) (alloc_data "\nError: Couldn't parse:\n" datasi))
-              ( couldnt_parse_1_msg_val (bor (<< couldnt_parse_1_length 32) couldnt_parse_1_loc #b011))
-              ((couldnt_parse_2_loc              couldnt_parse_2_length datasi) (alloc_data "\nAt character:\n" datasi))
-              ( couldnt_parse_2_msg_val (bor (<< couldnt_parse_2_length 32) couldnt_parse_2_loc #b011))
-              ((parse_remaining_loc              parse_remaining_length datasi) (alloc_data "\nLeft over after parsing, starting at byte offset:\n" datasi))
-              ( parse_remaining_msg_val (bor (<< parse_remaining_length 32) parse_remaining_loc #b011))
+              (( datasi memo couldnt_parse_1_msg_val) (compile-string-val datasi memo "\nError: Couldn't parse:\n"))
+              (( datasi memo couldnt_parse_2_msg_val) (compile-string-val datasi memo "\nAt character:\n"))
+              (( datasi memo parse_remaining_msg_val) (compile-string-val datasi memo "\nLeft over after parsing, starting at byte offset:\n"))
 
-              ((quote_sym_loc quote_sym_length datasi) (alloc_data "quote" datasi))
-              (quote_sym_val (bor (<< quote_sym_length 32) quote_sym_loc #b111))
-              ((unquote_sym_loc unquote_sym_length datasi) (alloc_data "unquote" datasi))
-              (unquote_sym_val (bor (<< unquote_sym_length 32) unquote_sym_loc #b111))
+              ((datasi memo quote_sym_val) (compile-symbol-val datasi memo 'quote))
+
+              ((datasi memo unquote_sym_val) (compile-symbol-val datasi memo 'unquote))
 
               ; 0 is get_argc, 1 is get_args, 2 is path_open, 3 is fd_read, 4 is fd_write
               ;(num_pre_functions 2)
@@ -2514,8 +2559,7 @@
                     (call '$drop (local.get '$p))
                     (call '$drop (local.get '$d))))
 
-              ((k_log_loc k_log_length datasi) (alloc_data "k_log" datasi))
-              (k_log_msg_val (bor (<< k_log_length 32) k_log_loc #b011))
+              ((datasi memo k_log_msg_val) (compile-string-val datasi memo "k_log"))
               ((k_log           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$log           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 set_len_ptr
                 (call '$print (i64.const log_msg_val))
@@ -2533,8 +2577,7 @@
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_error_loc k_error_length datasi) (alloc_data "k_error" datasi))
-              (k_error_msg_val (bor (<< k_error_length 32) k_error_loc #b011))
+              ((datasi memo k_error_msg_val) (compile-string-val datasi memo "k_error"))
               ((k_error         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$error         '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$print (i64.const error_msg_val))
                 (call '$print (local.get '$p))
@@ -2543,8 +2586,7 @@
                 (unreachable)
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_str_loc k_str_length datasi) (alloc_data "k_str" datasi))
-              (k_str_msg_val (bor (<< k_str_length 32) k_str_loc #b011))
+              ((datasi memo k_str_msg_val) (compile-string-val datasi memo "k_str"))
               ((k_str           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $buf i32) '(local $size i32)
                 (local.set '$buf (call '$malloc (local.tee '$size (call '$str_len (local.get '$p)))))
                 (_drop (call '$str_helper (local.get '$p) (local.get '$buf)))
@@ -2570,36 +2612,28 @@
                 drop_p_d
               )))
 
-              ((k_nil_loc k_nil_length datasi) (alloc_data "k_nil" datasi))
-              (k_nil_msg_val (bor (<< k_nil_length 32) k_nil_loc #b011))
+              ((datasi memo k_nil_msg_val) (compile-string-val datasi memo "k_nil"))
               ((k_nil?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$nil?      (array -1 #x0000000000000005)))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_array_loc k_array_length datasi) (alloc_data "k_array" datasi))
-              (k_array_msg_val (bor (<< k_array_length 32) k_array_loc #b011))
+              ((datasi memo k_array_msg_val) (compile-string-val datasi memo "k_array"))
               ((k_array?        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$array?    type_array))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_bool_loc k_bool_length datasi) (alloc_data "k_bool" datasi))
-              (k_bool_msg_val (bor (<< k_bool_length 32) k_bool_loc #b011))
+              ((datasi memo k_bool_msg_val) (compile-string-val datasi memo "k_bool"))
               ((k_bool?         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$bool?     type_bool))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_env_loc k_env_length datasi) (alloc_data "k_env" datasi))
-              (k_env_msg_val (bor (<< k_env_length 32) k_env_loc #b011))
+              ((datasi memo k_env_msg_val) (compile-string-val datasi memo "k_env"))
               ((k_env?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$env?      type_env))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_combiner_loc k_combiner_length datasi) (alloc_data "k_combiner" datasi))
-              (k_combiner_msg_val (bor (<< k_combiner_length 32) k_combiner_loc #b011))
+              ((datasi memo k_combiner_msg_val) (compile-string-val datasi memo "k_combiner"))
               ((k_combiner?     func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$combiner  type_combiner))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_string_loc k_string_length datasi) (alloc_data "k_string" datasi))
-              (k_string_msg_val (bor (<< k_string_length 32) k_string_loc #b011))
+              ((datasi memo k_string_msg_val) (compile-string-val datasi memo "k_string"))
               ((k_string?       func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$string?   type_string))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_int_loc k_int_length datasi) (alloc_data "k_int" datasi))
-              (k_int_msg_val (bor (<< k_int_length 32) k_int_loc #b011))
+              ((datasi memo k_int_msg_val) (compile-string-val datasi memo "k_int"))
               ((k_int?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$int?      type_int))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_symbol_loc k_symbol_length datasi) (alloc_data "k_symbol" datasi))
-              (k_symbol_msg_val (bor (<< k_symbol_length 32) k_symbol_loc #b011))
+              ((datasi memo k_symbol_msg_val) (compile-string-val datasi memo "k_symbol"))
               ((k_symbol?       func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$symbol?   type_symbol))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
@@ -2704,7 +2738,27 @@
                             (_if '$b_symbol
                                 (i64.eq (i64.const #b111) (i64.and (i64.const #b111) (local.get '$b)))
                                 (then
-                                    (local.set '$result (call '$str_sym_comp (local.get '$a) (local.get '$b) (local.get '$lt_val) (local.get '$eq_val) (local.get '$gt_val)))
+                                    ; if we're only doing eq or neq, we can compare interned values
+                                    (_if '$eq_based_test
+                                        (i64.eq (local.get '$lt_val) (local.get '$gt_val))
+                                        (then
+                                          (_if '$eq
+                                              (i64.eq (local.get '$a) (local.get '$b))
+                                              (then
+                                                (local.set '$result (local.get '$eq_val))
+                                              )
+                                              (else
+                                                (local.set '$result (local.get '$lt_val))
+                                              )
+                                          )
+                                        )
+                                        (else
+                                          (local.set '$result (call '$str_sym_comp (local.get '$a) (local.get '$b) (local.get '$lt_val) (local.get '$eq_val) (local.get '$gt_val)))
+                                        )
+                                    )
+
+                                    ;(local.set '$result (call '$str_sym_comp (local.get '$a) (local.get '$b) (local.get '$lt_val) (local.get '$eq_val) (local.get '$gt_val)))
+
                                     (br '$b))
                             )
                             ; else b is not an int or string or symbol, so bigger
@@ -2912,38 +2966,32 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_eq_loc k_eq_length datasi) (alloc_data "k_eq" datasi))
-              (k_eq_msg_val (bor (<< k_eq_length 32) k_eq_loc #b011))
+              ((datasi memo k_eq_msg_val) (compile-string-val datasi memo "k_eq"))
               ((k_eq            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eq  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const false_val)  (i64.const true_val)  (i64.const false_val))
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_neq_loc k_neq_length datasi) (alloc_data "k_neq" datasi))
-              (k_neq_msg_val (bor (<< k_neq_length 32) k_neq_loc #b011))
+              ((datasi memo k_neq_msg_val) (compile-string-val datasi memo "k_neq"))
               ((k_neq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$neq '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const true_val)   (i64.const false_val) (i64.const true_val))
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_geq_loc k_geq_length datasi) (alloc_data "k_geq" datasi))
-              (k_geq_msg_val (bor (<< k_geq_length 32) k_geq_loc #b011))
+              ((datasi memo k_geq_msg_val) (compile-string-val datasi memo "k_geq"))
               ((k_geq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$geq '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const false_val)  (i64.const true_val)  (i64.const true_val))
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_gt_loc k_gt_length datasi) (alloc_data "k_gt" datasi))
-              (k_gt_msg_val (bor (<< k_gt_length 32) k_gt_loc #b011))
+              ((datasi memo k_gt_msg_val) (compile-string-val datasi memo "k_gt"))
               ((k_gt            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$gt  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const false_val)  (i64.const false_val) (i64.const true_val))
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_leq_loc k_leq_length datasi) (alloc_data "k_leq" datasi))
-              (k_leq_msg_val (bor (<< k_leq_length 32) k_leq_loc #b011))
+              ((datasi memo k_leq_msg_val) (compile-string-val datasi memo "k_leq"))
               ((k_leq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$leq '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const true_val)   (i64.const true_val)  (i64.const false_val))
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_lt_loc k_lt_length datasi) (alloc_data "k_lt" datasi))
-              (k_lt_msg_val (bor (<< k_lt_length 32) k_lt_loc #b011))
+              ((datasi memo k_lt_msg_val) (compile-string-val datasi memo "k_lt"))
               ((k_lt            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$lt  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const true_val)   (i64.const false_val) (i64.const false_val))
               ))))
@@ -2976,41 +3024,32 @@
                 )
               ))
 
-              ((k_mod_loc k_mod_length datasi) (alloc_data "k_mod" datasi))
-              (k_mod_msg_val (bor (<< k_mod_length 32) k_mod_loc #b011))
+              ((datasi memo k_mod_msg_val) (compile-string-val datasi memo "k_mod"))
               ((k_mod           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$mod  true  i64.rem_s))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_div_loc k_div_length datasi) (alloc_data "k_div" datasi))
-              (k_div_msg_val (bor (<< k_div_length 32) k_div_loc #b011))
+              ((datasi memo k_div_msg_val) (compile-string-val datasi memo "k_div"))
               ((k_div           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$div  true  i64.div_s))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_mul_loc k_mul_length datasi) (alloc_data "k_mul" datasi))
-              (k_mul_msg_val (bor (<< k_mul_length 32) k_mul_loc #b011))
+              ((datasi memo k_mul_msg_val) (compile-string-val datasi memo "k_mul"))
               ((k_mul           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$mul  true  i64.mul))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_sub_loc k_sub_length datasi) (alloc_data "k_sub" datasi))
-              (k_sub_msg_val (bor (<< k_sub_length 32) k_sub_loc #b011))
+              ((datasi memo k_sub_msg_val) (compile-string-val datasi memo "k_sub"))
               ((k_sub           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$sub  true  i64.sub))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_add_loc k_add_length datasi) (alloc_data "k_add" datasi))
-              (k_add_msg_val (bor (<< k_add_length 32) k_add_loc #b011))
+              ((datasi memo k_add_msg_val) (compile-string-val datasi memo "k_add"))
               ((k_add           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$add  false i64.add))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_band_loc k_band_length datasi) (alloc_data "k_band" datasi))
-              (k_band_msg_val (bor (<< k_band_length 32) k_band_loc #b011))
+              ((datasi memo k_band_msg_val) (compile-string-val datasi memo "k_band"))
               ((k_band          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$band false i64.and))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_bor_loc k_bor_length datasi) (alloc_data "k_bor" datasi))
-              (k_bor_msg_val (bor (<< k_bor_length 32) k_bor_loc #b011))
+              ((datasi memo k_bor_msg_val) (compile-string-val datasi memo "k_bor"))
               ((k_bor           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$bor  false i64.or))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_bxor_loc k_bxor_length datasi) (alloc_data "k_bxor" datasi))
-              (k_bxor_msg_val (bor (<< k_bxor_length 32) k_bxor_loc #b011))
+              ((datasi memo k_bxor_msg_val) (compile-string-val datasi memo "k_bxor"))
               ((k_bxor          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (math_function '$bxor false i64.xor))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_bnot_loc k_bnot_length datasi) (alloc_data "k_bnot" datasi))
-              (k_bnot_msg_val (bor (<< k_bnot_length 32) k_bnot_loc #b011))
+              ((datasi memo k_bnot_msg_val) (compile-string-val datasi memo "k_bnot"))
               ((k_bnot          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$bnot   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 type_int k_bnot_msg_val)
@@ -3019,8 +3058,7 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_ls_loc k_ls_length datasi) (alloc_data "k_ls" datasi))
-              (k_ls_msg_val (bor (<< k_ls_length 32) k_ls_loc #b011))
+              ((datasi memo k_ls_msg_val) (compile-string-val datasi memo "k_ls"))
               ((k_ls            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$ls  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 2)
                 (type_assert 0 type_int k_ls_msg_val)
@@ -3029,8 +3067,7 @@
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_rs_loc k_rs_length datasi) (alloc_data "k_rs" datasi))
-              (k_rs_msg_val (bor (<< k_rs_length 32) k_rs_loc #b011))
+              ((datasi memo k_rs_msg_val) (compile-string-val datasi memo "k_rs"))
               ((k_rs            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$rs  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 2)
                 (type_assert 0 type_int k_rs_msg_val)
@@ -3058,8 +3095,7 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_builtin_fib_loc k_builtin_fib_length datasi) (alloc_data "k_builtin_fib" datasi))
-              (k_builtin_fib_msg_val (bor (<< k_builtin_fib_length 32) k_builtin_fib_loc #b011))
+              ((datasi memo k_builtin_fib_msg_val) (compile-string-val datasi memo "k_builtin_fib"))
               ((k_builtin_fib            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$builtin_fib  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 type_int k_builtin_fib_msg_val)
@@ -3069,8 +3105,7 @@
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
 
-              ((k_concat_loc k_concat_length datasi) (alloc_data "k_concat" datasi))
-              (k_concat_msg_val (bor (<< k_concat_length 32) k_concat_loc #b011))
+              ((datasi memo k_concat_msg_val) (compile-string-val datasi memo "k_concat"))
               ((k_concat        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$concat  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $size i32) '(local $i i32) '(local $it i64) '(local $new_ptr i32) '(local $inner_ptr i32) '(local $inner_size i32) '(local $new_ptr_traverse i32) '(local $is_str i32)
                 set_len_ptr
                 (local.set '$size (i32.const 0))
@@ -3189,8 +3224,7 @@
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_slice_loc k_slice_length datasi) (alloc_data "k_slice" datasi))
-              (k_slice_msg_val (bor (<< k_slice_length 32) k_slice_loc #b011))
+              ((datasi memo k_slice_msg_val) (compile-string-val datasi memo "k_slice"))
               ((k_slice         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 3)
                 (type_assert 0 (array type_array type_string) k_slice_msg_val)
@@ -3202,8 +3236,7 @@
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_idx_loc k_idx_length datasi) (alloc_data "k_idx" datasi))
-              (k_idx_msg_val (bor (<< k_idx_length 32) k_idx_loc #b011))
+              ((datasi memo k_idx_msg_val) (compile-string-val datasi memo "k_idx"))
               ((k_idx           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$idx     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $array i64) '(local $idx i32) '(local $size i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 2)
                 (type_assert 0 (array type_array type_string) k_idx_msg_val)
@@ -3228,8 +3261,7 @@
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_len_loc k_len_length datasi) (alloc_data "k_len" datasi))
-              (k_len_msg_val (bor (<< k_len_length 32) k_len_loc #b011))
+              ((datasi memo k_len_msg_val) (compile-string-val datasi memo "k_len"))
               ((k_len           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$len     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 (array type_array type_string) k_len_msg_val)
@@ -3237,8 +3269,7 @@
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_array_loc k_array_length datasi) (alloc_data "k_array" datasi))
-              (k_array_msg_val (bor (<< k_array_length 32) k_array_loc #b011))
+              ((datasi memo k_array_msg_val) (compile-string-val datasi memo "k_array"))
               ((k_array         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (local.get '$p)
                 (call '$drop (local.get '$d))
@@ -3246,8 +3277,7 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_get_loc k_get_length datasi) (alloc_data "k_get-text" datasi))
-              (k_get_msg_val (bor (<< k_get_length 32) k_get_loc #b011))
+              ((datasi memo k_get_msg_val) (compile-string-val datasi memo "k_get-text"))
               ((k_get-text      func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$get-text      '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 type_symbol k_get_msg_val)
@@ -3255,18 +3285,51 @@
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_str_loc k_str_length datasi) (alloc_data "k_str" datasi))
-              (k_str_msg_val (bor (<< k_str_length 32) k_str_loc #b011))
-              ((k_str-to-symbol func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str-to-symbol '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+              ((datasi memo k_str_msg_val) (compile-string-val datasi memo "k_str"))
+              ((k_str-to-symbol func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str-to-symbol '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $looking_for i64) '(local $potential i64) '(local $traverse i64)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 type_string k_str_msg_val)
-                (call '$dup (i64.or (i64.const #b100) (i64.load (local.get '$ptr))))
+
+                (local.set '$looking_for (i64.load (local.get '$ptr)))
+                ;(call '$print (local.get '$looking_for))
+                ;(call '$print (global.get '$symbol_intern))
+                (local.set '$traverse (global.get '$symbol_intern))
+                (local.set '$potential (i64.const nil_val))
+
+                (block '$loop_break
+                      (_loop '$loop
+                             (br_if '$loop_break (i64.eq (local.get '$traverse) (i64.const nil_val)))
+                             (local.set '$potential (i64.load 0 (i32.wrap_i64 (i64.and (local.get '$traverse) (i64.const -8)))))
+                             (local.set '$traverse  (i64.load 8 (i32.wrap_i64 (i64.and (local.get '$traverse) (i64.const -8)))))
+                             (_if '$found_it
+                                  (i64.eq (i64.const 1)
+                                          (call '$str_sym_comp (local.get '$looking_for) (local.get '$potential) (i64.const 0) (i64.const 1) (i64.const 0)))
+                                  (then
+                                    (br '$loop_break)
+                                  )
+                             )
+                             (local.set '$potential (i64.const nil_val))
+                             (br '$loop)
+                      )
+                )
+                (_if '$didnt_find_it
+                     (i64.eq (local.get '$traverse) (i64.const nil_val))
+                     (then
+                         (local.set '$potential (i64.or (i64.const #b111) (call '$dup (local.get '$looking_for))))
+                         (global.set '$symbol_intern (call '$array2_alloc (local.get '$potential) (global.get '$symbol_intern)))
+                     )
+                )
+
+                ;(call '$dup (i64.or (i64.const #b111) (i64.load (local.get '$ptr))))
+
+                ; will remove dup when drop doesn't affect symbols
+                ;(local.get '$potential)
+                (call '$dup (local.get '$potential))
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_unwrap_loc k_unwrap_length datasi) (alloc_data "k_unwrap" datasi))
-              (k_unwrap_msg_val (bor (<< k_unwrap_length 32) k_unwrap_loc #b011))
+              ((datasi memo k_unwrap_msg_val) (compile-string-val datasi memo "k_unwrap"))
               ((k_unwrap        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$unwrap        '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $wrap_level i64)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 type_combiner k_unwrap_msg_val)
@@ -3281,8 +3344,7 @@
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_wrap_loc k_wrap_length datasi) (alloc_data "k_wrap" datasi))
-              (k_wrap_msg_val (bor (<< k_wrap_length 32) k_wrap_loc #b011))
+              ((datasi memo k_wrap_msg_val) (compile-string-val datasi memo "k_wrap"))
               ((k_wrap          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$wrap          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $wrap_level i64)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 type_combiner k_wrap_msg_val)
@@ -3298,8 +3360,7 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_lapply_loc k_lapply_length datasi) (alloc_data "k_lapply" datasi))
-              (k_lapply_msg_val (bor (<< k_lapply_length 32) k_lapply_loc #b011))
+              ((datasi memo k_lapply_msg_val) (compile-string-val datasi memo "k_lapply"))
               ((k_lapply          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$lapply          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $params i64) '(local $wrap_level i64) '(local $inner_env i64)
                 (ensure_not_op_n_params_set_ptr_len i32.lt_u 2)
                 (type_assert 0 type_combiner k_lapply_msg_val)
@@ -3351,8 +3412,7 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_vapply_loc k_vapply_length datasi) (alloc_data "k_vapply" datasi))
-              (k_vapply_msg_val (bor (<< k_vapply_length 32) k_vapply_loc #b011))
+              ((datasi memo k_vapply_msg_val) (compile-string-val datasi memo "k_vapply"))
               ((k_vapply          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vapply          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $params i64) '(local $wrap_level i64) '(local $inner_env i64)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 3)
                 (type_assert 0 type_combiner k_vapply_msg_val)
@@ -3841,8 +3901,7 @@
                 (local.get '$result)
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_read_loc k_read_length datasi) (alloc_data "k_read" datasi))
-              (k_read_msg_val (bor (<< k_read_length 32) k_read_loc #b011))
+              ((datasi memo k_read_msg_val) (compile-string-val datasi memo "k_read"))
               ((k_read-string   func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$read-string   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $str i64) '(local $result i64) '(local $tmp_result i64) '(local $tmp_offset i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 type_string k_read_msg_val)
@@ -3898,11 +3957,9 @@
               ;(front_half_stack_code (lambda (call_val env_val) (array)))
               ;(back_half_stack_code (array))
 
-              ((k_call_zero_len_loc     k_call_zero_len_length datasi) (alloc_data "tried to eval a 0-length call" datasi))
-               (k_call_zero_len_msg_val (bor (<< k_call_zero_len_length 32) k_call_zero_len_loc #b011))
+               ((datasi memo k_call_zero_len_msg_val) (compile-string-val datasi memo "tried to eval a 0-length call"))
 
-              ((k_call_not_a_function_loc     k_call_not_a_function_length datasi) (alloc_data "tried to eval a call to not a function " datasi))
-               (k_call_not_a_function_msg_val (bor (<< k_call_not_a_function_length 32) k_call_not_a_function_loc #b011))
+               ((datasi memo k_call_not_a_function_msg_val) (compile-string-val datasi memo "tried to eval a call to not a function "))
 
               ; Helper method, doesn't refcount consume parameters
               ; but does properly refcount internally / dup returns
@@ -3941,9 +3998,8 @@
                                                    (br_if '$inner_loop_break (i32.eqz (local.get '$len)))
                                                    (_if '$found_it
                                                         ; We should intern symbols so we can do this
-                                                        ;(i64.eq (local.get '$it) (i64.load (local.get '$ptr)))
-                                                        (i64.eq (i64.const 1)
-                                                                (call '$str_sym_comp (local.get '$it) (i64.load (local.get '$ptr)) (i64.const 0) (i64.const 1) (i64.const 0)))
+                                                        (i64.eq (local.get '$it) (i64.load (local.get '$ptr)))
+                                                        ;(i64.eq (i64.const 1) (call '$str_sym_comp (local.get '$it) (i64.load (local.get '$ptr)) (i64.const 0) (i64.const 1) (i64.const 0)))
                                                         (then
                                                           (local.set '$res (call '$dup (i64.load (i32.add (i32.wrap_i64 (i64.and (i64.load 8 (local.get '$env_ptr)) (i64.const -8)))
                                                                                                           (i32.shl (local.get '$i) (i32.const 3))))))
@@ -4044,8 +4100,7 @@
 
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_eval_loc k_eval_length datasi) (alloc_data "k_eval" datasi))
-              (k_eval_msg_val (bor (<< k_eval_length 32) k_eval_loc #b011))
+              ((datasi memo k_eval_msg_val) (compile-string-val datasi memo "k_eval"))
               ((k_eval          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32)
 
                   (ensure_not_op_n_params_set_ptr_len i32.lt_u 1)
@@ -4063,38 +4118,27 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_debug_parameters_loc k_debug_parameters_length datasi) (alloc_data "parameters to debug were " datasi))
-              (k_debug_parameters_msg_val (bor (<< k_debug_parameters_length 32) k_debug_parameters_loc #b011))
+              ((datasi memo k_debug_parameters_msg_val) (compile-string-val datasi memo "parameters to debug were "))
 
-              ((k_debug_prompt_loc k_debug_prompt_length datasi) (alloc_data "debug_prompt > " datasi))
-              (k_debug_prompt_msg_val (bor (<< k_debug_prompt_length 32) k_debug_prompt_loc #b011))
+              ((datasi memo k_debug_prompt_msg_val) (compile-string-val datasi memo "debug_prompt > "))
 
-              ((k_debug_exit_loc k_debug_exit_length datasi) (alloc_data "exit" datasi))
-               (k_debug_exit_msg_val (bor (<< k_debug_exit_length 32) k_debug_exit_loc #b011))
+               ((datasi memo k_debug_exit_msg_val) (compile-string-val datasi memo "exit"))
 
-              ((k_debug_abort_loc k_debug_abort_length datasi) (alloc_data "abort\n" datasi))
-               (k_debug_abort_msg_val (bor (<< k_debug_abort_length 32) k_debug_abort_loc #b011))
+               ((datasi memo k_debug_abort_msg_val) (compile-string-val datasi memo "abort\n"))
 
-              ((k_debug_redebug_loc k_debug_redebug_length datasi) (alloc_data "redebug\n" datasi))
-               (k_debug_redebug_msg_val (bor (<< k_debug_redebug_length 32) k_debug_redebug_loc #b011))
+               ((datasi memo k_debug_redebug_msg_val) (compile-string-val datasi memo "redebug\n"))
 
-              ((k_debug_print_st_loc k_debug_print_st_length datasi) (alloc_data "print_st\n" datasi))
-               (k_debug_print_st_msg_val (bor (<< k_debug_print_st_length 32) k_debug_print_st_loc #b011))
+               ((datasi memo k_debug_print_st_msg_val) (compile-string-val datasi memo "print_st\n"))
 
-              ((k_debug_help_loc k_debug_help_length datasi) (alloc_data "help\n" datasi))
-               (k_debug_help_msg_val (bor (<< k_debug_help_length 32) k_debug_help_loc #b011))
+               ((datasi memo k_debug_help_msg_val) (compile-string-val datasi memo "help\n"))
 
-              ((k_debug_help_info_loc k_debug_help_info_length datasi) (alloc_data "commands: help, print_st, print_envs, print_all, redebug, or (exit <exit value>)\n" datasi))
-               (k_debug_help_info_msg_val (bor (<< k_debug_help_info_length 32) k_debug_help_info_loc #b011))
+               ((datasi memo k_debug_help_info_msg_val) (compile-string-val datasi memo "commands: help, print_st, print_envs, print_all, redebug, or (exit <exit value>)\n"))
 
-              ((k_debug_print_envs_loc k_debug_print_envs_length datasi) (alloc_data "print_envs\n" datasi))
-               (k_debug_print_envs_msg_val (bor (<< k_debug_print_envs_length 32) k_debug_print_envs_loc #b011))
+               ((datasi memo k_debug_print_envs_msg_val) (compile-string-val datasi memo "print_envs\n"))
 
-              ((k_debug_print_all_loc k_debug_print_all_length datasi) (alloc_data "print_all\n" datasi))
-               (k_debug_print_all_msg_val (bor (<< k_debug_print_all_length 32) k_debug_print_all_loc #b011))
+               ((datasi memo k_debug_print_all_msg_val) (compile-string-val datasi memo "print_all\n"))
 
-              ((k_debug_loc k_debug_length datasi) (alloc_data "k_debug" datasi))
-              (k_debug_msg_val (bor (<< k_debug_length 32) k_debug_loc #b011))
+              ((datasi memo k_debug_msg_val) (compile-string-val datasi memo "k_debug"))
               ((k_debug           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$debug           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $buf i32) '(local $str i64) '(local $tmp_read i64) '(local $tmp_evaled i64) '(local $to_ret i64) '(local $tmp_ptr i32)
                 (global.set '$debug_depth  (i32.add (global.get '$debug_depth) (i32.const 1)))
                 (call '$print (i64.const k_debug_parameters_msg_val))
@@ -4259,8 +4303,7 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_vau_helper_loc k_vau_helper_length datasi) (alloc_data "k_vau_helper" datasi))
-              (k_vau_helper_msg_val (bor (<< k_vau_helper_length 32) k_vau_helper_loc #b011))
+              ((datasi memo k_vau_helper_msg_val) (compile-string-val datasi memo "k_vau_helper"))
               ((k_vau_helper          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau_helper '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i_se i64) '(local $i_des i64) '(local $i_params i64) '(local $i_is_varadic i64) '(local $min_num_params i32) '(local $i_body i64) '(local $new_env i64)
 
                   ; get env ptr
@@ -4373,23 +4416,17 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_env_symbol_loc k_env_symbol_length datasi) (alloc_data "env_symbol" datasi))
-              (k_env_symbol_val (bor (<< k_env_symbol_length 32) k_env_symbol_loc #b111))
+              ((datasi memo k_env_symbol_val) (compile-symbol-val datasi memo 'env_symbol))
 
-              ((k_des_symbol_loc k_des_symbol_length datasi) (alloc_data "des_symbol" datasi))
-              (k_des_symbol_val (bor (<< k_des_symbol_length 32) k_des_symbol_loc #b111))
+              ((datasi memo k_des_symbol_val) (compile-symbol-val datasi memo 'des_symbol))
 
-              ((k_param_symbol_loc k_param_symbol_length datasi) (alloc_data "param_symbol" datasi))
-              (k_param_symbol_val (bor (<< k_param_symbol_length 32) k_param_symbol_loc #b111))
+              ((datasi memo k_param_symbol_val) (compile-symbol-val datasi memo 'param_symbol))
 
-              ((k_varadic_symbol_loc k_varadic_symbol_length datasi) (alloc_data "varadic_symbol" datasi))
-              (k_varadic_symbol_val (bor (<< k_varadic_symbol_length 32) k_varadic_symbol_loc #b111))
+              ((datasi memo k_varadic_symbol_val) (compile-symbol-val datasi memo 'varadic_symbol))
 
-              ((k_body_symbol_loc k_body_symbol_length datasi) (alloc_data "body_symbol" datasi))
-               (k_body_symbol_val (bor (<< k_body_symbol_length 32) k_body_symbol_loc #b111))
+              ((datasi memo k_body_symbol_val) (compile-symbol-val datasi memo 'body_symbol))
 
-              ((k_and_symbol_loc k_and_symbol_length datasi) (alloc_data "&" datasi))
-               (k_and_symbol_val (bor (<< k_and_symbol_length 32) k_and_symbol_loc #b111))
+              ((datasi memo k_and_symbol_val) (compile-symbol-val datasi memo '&))
 
               ((k_env_dparam_body_array_loc k_env_dparam_body_array_len datasi) (alloc_data (concat (i64_le_hexify k_env_symbol_val)
                                                                                                     (i64_le_hexify k_des_symbol_val)
@@ -4400,8 +4437,7 @@
               (k_env_dparam_body_array_val (bor (<< 5 32) k_env_dparam_body_array_loc #b101))
 
 
-              ((k_vau_loc k_vau_length datasi) (alloc_data "k_vau" datasi))
-              (k_vau_msg_val (bor (<< k_vau_length 32) k_vau_loc #b011))
+              ((datasi memo k_vau_msg_val) (compile-string-val datasi memo "k_vau"))
               ((k_vau           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i i32) '(local $des i64) '(local $params i64) '(local $is_varadic i64) '(local $body i64) '(local $tmp i64)
 
                 (local.set '$len (i32.wrap_i64 (i64.shr_u (local.get '$p) (i64.const 32))))
@@ -4477,8 +4513,7 @@
                 (call '$drop (local.get '$p))
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((k_cond_loc k_cond_length datasi) (alloc_data "k_cond" datasi))
-              (k_cond_msg_val (bor (<< k_cond_length 32) k_cond_loc #b011))
+              ((datasi memo k_cond_msg_val) (compile-string-val datasi memo "k_cond"))
               ((k_cond          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$cond          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $tmp i64)
                   set_len_ptr
                   ;yall
@@ -4534,19 +4569,13 @@
                                      (cond ((int? v)    (array  (<< v 1) nil nil ctx))
                                            ((= true v)  (array  true_val nil nil ctx))
                                            ((= false v) (array false_val nil nil ctx))
-                                           ((str? v)    (or (get_passthrough (.hash c) ctx)
-                                                            (dlet ( ((datasi funcs memo env pectx inline_locals) ctx)
-                                                                    ((c_loc c_len datasi) (alloc_data v datasi))
-                                                                    (a (bor (<< c_len 32) c_loc #b011))
-                                                                    (memo (put memo (.hash c) a))
-                                                                  ) (array a nil nil (array datasi funcs memo env pectx inline_locals)))))
+                                           ((str? v)    (dlet ( ((datasi funcs memo env pectx inline_locals) ctx)
+                                                                ((datasi memo str_val) (compile-string-val datasi memo v))
+                                                              ) (array str_val nil nil (array datasi funcs memo env pectx inline_locals))))
                                            (true        (error (str "Can't compile impossible value " v))))))
-                    ((marked_symbol? c) (cond ((.marked_symbol_is_val c) (or (get_passthrough (.hash c) ctx)
-                                                                             (dlet ( ((datasi funcs memo env pectx inline_locals) ctx)
-                                                                                     ((c_loc c_len datasi) (alloc_data (get-text (.marked_symbol_value c))  datasi))
-                                                                                     (result (bor (<< c_len 32) c_loc #b111))
-                                                                                     (memo (put memo (.hash c) result))
-                                                                                   ) (array result nil nil (array datasi funcs memo env pectx inline_locals)))))
+                    ((marked_symbol? c) (cond ((.marked_symbol_is_val c) (dlet ( ((datasi funcs memo env pectx inline_locals) ctx)
+                                                                                 ((datasi memo symbol_val) (compile-symbol-val datasi memo (.marked_symbol_value c)))
+                                                                               ) (array symbol_val nil nil (array datasi funcs memo env pectx inline_locals))))
 
 
                                               (true (dlet ( ((datasi funcs memo env pectx inline_locals) ctx)
@@ -5201,7 +5230,6 @@
               ;(_ (println "compiling partial evaled " (str_strip marked_code)))
               ;(_ (true_print "compiling partial evaled " (true_str_strip marked_code)))
               ;(_ (true_print "compiling partial evaled "))
-              (memo empty_dict)
               (ctx (array datasi funcs memo root_marked_env pectx (array)))
 
               ((exit_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'exit) true false (array) 0 nil))
@@ -5566,9 +5594,20 @@
 
 
               ))
+              (_ (true_print "Beginning all symbol print"))
+              ((datasi symbol_intern_val) (foldl-tree (dlambda ((datasi a) k v) (mif (and (array? k) (marked_symbol? k))
+                                                                                     (dlet (
+                                                                                            (_ (true_print "symbol? " k " " v))
+                                                                                            ((a_loc a_len datasi) (alloc_data (concat (i64_le_hexify v)
+                                                                                                                                      (i64_le_hexify a))
+                                                                                                                              datasi))
+                                                                                           ) (array datasi (bor (<< 2 32) a_loc #b101)))
+                                                                                     (array datasi a))) (array datasi nil_val) memo))
+              (_ (true_print "Ending all symbol print"))
               ((watermark datas) datasi)
           ) (concat
               (global '$data_end '(mut i32) (i32.const watermark))
+              (global '$symbol_intern '(mut i64) (i64.const symbol_intern_val))
               datas funcs start
               (table  '$tab (len funcs) 'funcref)
               (apply elem (cons (i32.const 0) (range dyn_start (+ num_pre_functions (len funcs)))))
@@ -6042,25 +6081,3 @@
 ; * NON NAIVE REFCOUNTING
 ; EVENTUALLY: Support some hard core partial_eval that an fully make (foldl or stuff) short circut effeciencly with double-inlining, finally
 ;   addressing the strict-languages-don't-compose thing
-
-
-; Suspected needed for performance
-
-; Opt not passing dynamic env around
-; gets:
-;     not creating dynamic env
-;     not creating param arrays
-; needs:
-;     analysis of static calls
-;     inlining of single use funcs
-;           otherwise lets are single use closures that do use their dynamic env just by virtue of being closures that take the dynamic env as the static env
-;                 wait, this is still vaguely ok - will stop at function boundries
-;     Debugging restart-rerun
-;
-; THUS TODO:
-;     opt versions of functions with backup code
-;           CAN BE A DEBUGGING CHECK IN WRAPPER FUNC!
-;     inlining of single use closures
-;           also primitives?
-;                 dup and drop!
-;                 idx, +, -, *, etc
