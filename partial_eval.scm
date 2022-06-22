@@ -1256,6 +1256,7 @@
 
     (encode_ins (rec-lambda recurse (ins)
         (dlet (
+            (_ (true_print "encoding ins " ins))
             (op (idx ins 0))
         ) (cond ((= op 'unreachable)            (array #x00))
                 ((= op 'nop)                    (array #x01))
@@ -1818,8 +1819,8 @@
                                                   uses_de
                                                   (then (i64.const (bor #b100000 comb_tag)))
                                                   (else (i64.const (bor #b000000 comb_tag))))))))
-    (combine_env_comb_val       (lambda (env_val  func_val) (bor (band -8 env_val)) func_val))
-    (combine_env_code_comb_val  (lambda (env_code func_val) (i64.or (i64.and (i64.const -8) env_code) (i64.const func_val))))
+    (combine_env_comb_val            (lambda (env_val  func_val) (bor (band -8 env_val)) func_val))
+    (combine_env_code_comb_val_code  (lambda (env_code func_val) (i64.or (i64.and (i64.const -8) env_code) (i64.const func_val))))
 
     (mod_fval_to_wrap (lambda (it) (cond ((= nil it)                                                      it)
                                          ((and (= (band it type_mask) comb_tag) (= #b0 (band (>> it 6) #b1))) (- it (<< 1 6)))
@@ -3806,9 +3807,9 @@
                                         ;params
                                         (call '$array1_alloc (mk_string_code_rc (local.get '$aptr) (local.get '$asiz)))
                                         ; dynamic env
-                                        (i64.const nil)
+                                        (i64.const nil_val)
                                         ; static env
-                                        (i64.const nil)
+                                        (i64.const nil_val)
                                     ))
                                     (br '$b1)
                                 )
@@ -5157,8 +5158,8 @@
                                     (_ (print_strip "returning " func_value " for " c))
                                     (_ (if (not (int? func_value)) (error "BADBADBADfunc")))
 
-                                ) (mif env_val  (array (calculate_combined_value env_val func_value) nil (mif func_err (str func_err ", from compiling comb body") (mif env_err (str env_err ", from compiling comb env") nil)) ctx)
-                                                (array nil (combine_env_comb_val env_code (mod_fval_to_wrap func_value)) (mif func_err (str func_err ", from compiling comb body (env as code)") (mif env_err (str env_err ", from compiling comb env (as code)") nil)) ctx))
+                                ) (mif env_val  (array (combine_env_comb_val env_val func_value) nil (mif func_err (str func_err ", from compiling comb body") (mif env_err (str env_err ", from compiling comb env") nil)) ctx)
+                                                (array nil (combine_env_code_comb_val_code env_code (mod_fval_to_wrap func_value)) (mif func_err (str func_err ", from compiling comb body (env as code)") (mif env_err (str env_err ", from compiling comb env (as code)") nil)) ctx))
                                 ))))
 
                    (true        (error (str "Can't compile-inner impossible " c)))
