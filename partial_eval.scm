@@ -3,10 +3,10 @@
 ; In Chez, arithmetic-shift is bitwise-arithmetic-shift
 
 ; Chicken
-;(import (chicken process-context)) (import (chicken port)) (import (chicken io)) (import (chicken bitwise)) (import (chicken string)) (import (r5rs)) (define write_file (lambda (file bytes) (call-with-output-file file (lambda (out) (foldl (lambda (_ o) (write-byte o out)) (void) bytes))))) (define args (command-line-arguments))
+(import (chicken process-context)) (import (chicken port)) (import (chicken io)) (import (chicken bitwise)) (import (chicken string)) (import (r5rs)) (define write_file (lambda (file bytes) (call-with-output-file file (lambda (out) (foldl (lambda (_ o) (write-byte o out)) (void) bytes))))) (define args (command-line-arguments))
 
 ; Chez
-(define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift) (define foldl fold-left) (define foldr fold-right) (define write_file (lambda (file bytes) (let* ( (port (open-file-output-port file)) (_ (foldl (lambda (_ o) (put-u8 port o)) (void) bytes)) (_ (close-port port))) '()))) (define args (cdr (command-line)))
+;(define print pretty-print) (define arithmetic-shift bitwise-arithmetic-shift) (define foldl fold-left) (define foldr fold-right) (define write_file (lambda (file bytes) (let* ( (port (open-file-output-port file)) (_ (foldl (lambda (_ o) (put-u8 port o)) (void) bytes)) (_ (close-port port))) '()))) (define args (cdr (command-line)))
 ;(compile-profile 'source)
 
 ; Gambit - Gambit also has a problem with the dlet definition (somehow recursing and making (cdr nil) for (cdr ls)?), even if using the unstable one that didn't break syntax-rules
@@ -1624,9 +1624,10 @@
                                                                                                                 (array 0             (array))))
                                             (flattened (apply concat (slice inner start_idx end_idx)))
                                             ;(_ (println "result_t " result_t " flattened " flattened " then_section " then_section " else_section " else_section))
-                                           ) (concat flattened      (array (lambda (name_dict) (concat (array 'if result_t (block_like_body name_dict name then_section))
-                                                                                                      (if (!= nil else_section) (array (block_like_body name_dict name else_section))
-                                                                                  (array)))))))))
+                                           ) (concat flattened      (array (lambda (name_dict) (concat (dlet ( (_ (true_print "inner if " name " " inner)) ) (array))
+                                                                                                       (array 'if result_t (block_like_body name_dict name then_section))
+                                                                                                       (if (!= nil else_section) (array (block_like_body name_dict name else_section))
+                                                                                                                                 (array)))))))))
 
     (then (lambda rest (cons 'then rest)))
     (else (lambda rest (cons 'else rest)))
@@ -1810,9 +1811,9 @@
     (toggle_sym_str_code_norc (lambda (x)     (i64.and (i64.const -9) (i64.xor (i64.const #b001) x))))
 
     (mk_comb_val_nil_env   (lambda (fidx uses_de wrap) (bor (<< fidx 6) (<< uses_de 5) (<< wrap 4) comb_tag)))
-    (mk_comb_code_rc_wrap0 (lambda (fidx env uses_de)
+    (mk_comb_val_code_rc_wrap0 (lambda (fidx env uses_de)
                              (i64.or (i64.and env (i64.const -8))
-                                     (i64.or (i64.shl fidx (i64.const 6))
+                                     (i64.or (i64.const (<< fidx 6))
                                              (_if '$using_d_env '(result i64)
                                                   uses_de
                                                   (then (i64.const (bor #b100000 comb_tag)))
@@ -2450,7 +2451,7 @@
                                         (is_not_type_code string_tag (local.get '$it))
                                         (then
                                             (_if '$is_array
-                                                (is_type_code array_tag (local.get '$it)))
+                                                (is_type_code array_tag (local.get '$it))
                                                 (then
                                                     (local.set '$i (extract_size_code (local.get '$it)))
                                                     (local.set '$tmp_ptr (local.get '$ptr))
@@ -2479,7 +2480,7 @@
                             )
                         )
                     )
-              )))
+              ))))
 
               ; Utility method, but does refcount
               ((k_slice_impl func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice_impl '(param $array i64) '(param $s i32) '(param $e i32) '(result i64) '(local $size i32) '(local $new_size i32) '(local $i i32) '(local $ptr i32) '(local $new_ptr i32)
@@ -2514,7 +2515,7 @@
                         )
                         (else
                             (_if '$is_array '(result i64)
-                             (is_type_code array_tag (local.get '$array)))
+                             (is_type_code array_tag (local.get '$array))
                              (then
                                   (local.set '$new_ptr  (call '$malloc (i32.shl (local.get '$new_size) (i32.const 3)))) ; malloc(size*8)
 
@@ -2543,7 +2544,7 @@
                             )
                         )
                     )
-              ))))
+              )))))
               (_ (true_print "made k_slice_impl"))
 
               ; chose k_slice_impl because it will never be called, so that
@@ -3098,7 +3099,7 @@
                       (else
                         (_if '$eq1 '(result i64)
                             (i64.eq (i64.const (mk_int_value 1)) (local.get '$n))
-                            (then (mk_int_value 1))
+                            (then (i64.const (mk_int_value 1)))
                             (else
                               (i64.add (call '$builtin_fib_helper (i64.sub (local.get '$n) (i64.const (mk_int_value 1)))) (call '$builtin_fib_helper (i64.sub (local.get '$n) (i64.const (mk_int_value 2)))))
                             )
@@ -4460,7 +4461,7 @@
                 )
 
                 ;  <func_idx29>|<env_ptr29><usesde1><wrap1>0001
-                (mk_comb_code_rc_wrap0 (- k_vau_helper dyn_start)
+                (mk_comb_val_code_rc_wrap0 (- k_vau_helper dyn_start)
                                        (call '$env_alloc (i64.const k_env_dparam_body_array_val)
                                                          (call '$array5_alloc (local.get '$d)
                                                                               (local.get '$des)
@@ -4915,6 +4916,8 @@
 
                     ((marked_env? c) (or (get_passthrough (.hash c) ctx) (dlet ((e (.env_marked c))
 
+                                            (_ (true_print "gonna compile a marked_env"))
+
                                             (generate_env_access (dlambda ((datasi funcs memo env pectx inline_locals) env_id reason) ((rec-lambda recurse (code this_env)
                                                 (cond
                                                     ((= env_id (.marked_env_idx this_env)) (array nil (call '$dup code) nil (array datasi funcs memo env pectx inline_locals)))
@@ -4925,6 +4928,7 @@
 
                                             ) (if (not (marked_env_real? c)) (begin (print_strip "env wasn't real: " (marked_env_real? c) ", so generating access (env was) " c) (if need_value (array nil nil (str "marked env not real, though we need_value: " (str_strip c)) ctx) (generate_env_access ctx (.marked_env_idx c) "it wasn't real: " (str_strip c))))
                                             (dlet (
+                                            (_ (true_print "gonna compile kvs vvs"))
 
 
                                             ((kvs vvs ctx) (foldr (dlambda ((k v) (ka va ctx)) (dlet (((kv _    _   ctx) (compile-inner ctx (marked_symbol nil k) true inside_veval s_env_access_code inline_level nil))
@@ -4935,20 +4939,27 @@
                                                                                                                                        (array (cons kv ka) (cons (mod_fval_to_wrap vv) va) ctx)))))
                                                                   (array (array) (array) ctx)
                                                                   (slice e 0 -2)))
+                                            (_ (true_print "gonna compile upper_value"))
                                             ((uv ucode err ctx) (mif (idx e -1) (compile-inner ctx (idx e -1) need_value inside_veval s_env_access_code inline_level nil)
                                                                                 (array nil_val nil nil ctx)))
                                             ) (mif (or (= false kvs) (= nil uv) (!= nil err)) (begin (print_strip "kvs " kvs " vvs " vvs " uv " uv " or err " err " based off of " c) (if need_value (array nil nil (str "had to generate env access (course " need_value ") for " (str_strip c) "vvs is " vvs " err was " err) ctx) (generate_env_access ctx (.marked_env_idx c) (str " vvs " vvs " uv " uv " or err " err " based off of " (str_strip c)))))
                                             (dlet (
                                                 ((datasi funcs memo env pectx inline_locals) ctx)
+                                                (_ (true_print "about to kvs_array"))
                                                 ((kvs_array datasi) (if (= 0 (len kvs)) (array nil_val datasi)
                                                                                         (dlet (((kvs_loc kvs_len datasi) (alloc_data (apply concat (map i64_le_hexify kvs)) datasi)))
-                                                                                              (array (mk_array_code_rc_const_len (len kvs) kvs_loc) datasi))))
+                                                                                              (array (mk_array_value (len kvs) kvs_loc) datasi))))
+                                                (_ (true_print "about to vvs_array"))
                                                 ((vvs_array datasi) (if (= 0 (len vvs)) (array nil_val datasi)
                                                                                         (dlet (((vvs_loc vvs_len datasi) (alloc_data (apply concat (map i64_le_hexify vvs)) datasi)))
-                                                                                              (array (mk_array_code_rc_const_len (len vvs) vvs_loc) datasi))))
+                                                                                              (array (mk_array_value (len vvs) vvs_loc) datasi))))
+                                                (_ (true_print "about to all_hex"))
                                                 (all_hex (map i64_le_hexify (array kvs_array vvs_array uv)))
+                                                (_ (true_print "all_hexed"))
                                                 ((c_loc c_len datasi) (alloc_data (apply concat all_hex) datasi))
+                                                (_ (true_print "alloced"))
                                                 (result (mk_env_value c_loc))
+                                                (_ (true_print "made result"))
                                                 (memo (put memo (.hash c) result))
                                             ) (array result nil nil (array datasi funcs memo env pectx inline_locals)))))))))
 
@@ -5152,11 +5163,14 @@
 
                    (true        (error (str "Can't compile-inner impossible " c)))
               )))
+              (_ (true_print "Made compile-inner closure"))
 
               ;(_ (println "compiling partial evaled " (str_strip marked_code)))
               ;(_ (true_print "compiling partial evaled " (true_str_strip marked_code)))
               ;(_ (true_print "compiling partial evaled "))
               (ctx (array datasi funcs memo root_marked_env pectx (array)))
+
+              (_ (true_print "About to compile a bunch of symbols & strings"))
 
               ((exit_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'exit) true false (array) 0 nil))
               ((args_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'args) true false (array) 0 nil))
@@ -5167,8 +5181,12 @@
               ((bad_args_val _ _ ctx)           (compile-inner ctx (marked_val "<error with args>") true false (array) 0 nil))
               ((bad_read_val _ _ ctx)           (compile-inner ctx (marked_val "<error with read>") true false (array) 0 nil))
               ((exit_msg_val _ _ ctx)           (compile-inner ctx (marked_val "Exiting with code: ") true false (array) 0 nil))
+
+              (_ (true_print "about ot compile the root_marked_env"))
+
               ((root_marked_env_val _ _ ctx)    (compile-inner ctx root_marked_env true false (array) 0 nil))
 
+              (_ (true_print "made the vals"))
 
               (_ (true_print "gonna compile"))
               ((compiled_value_ptr compiled_value_code compiled_value_error ctx) (compile-inner ctx marked_code true false (array) 0 nil))
@@ -5423,10 +5441,9 @@
                                         (br_if '$error_block (is_not_type_code string_tag (i64.load 16 (local.get '$ptr))))
                                         ; fourth entry isn't a comb -> out
                                         (br_if '$error_block (is_not_type_code comb_tag   (i64.load 24 (local.get '$ptr))))
-                                        ;  <string_size32><string_ptr29>011
                                         (local.set '$str (i64.load 16 (local.get '$ptr)))
 
-                                        (local.set'$code (call '$path_open
+                                        (local.set '$code (call '$path_open
                                             (i32.wrap_i64 (extract_int_code (i64.load 8 (local.get '$ptr))))        ;; file descriptor
                                             (i32.const 0)                                                           ;; lookup flags
                                             (extract_ptr_code  (local.get '$str))                                   ;; path string  *
@@ -5482,11 +5499,8 @@
                     (mk_int_code_i32s (global.get '$num_sbrks))
 
                     (call '$print (i64.const newline_msg_val))
-                    (call '$print )
                     (call '$print (i64.const newline_msg_val))
-                    (call '$print )
                     (call '$print (i64.const newline_msg_val))
-                    (call '$print )
               ))
               (_ (true_print "Beginning all symbol print"))
               ((datasi symbol_intern_val) (foldl-tree (dlambda ((datasi a) k v) (mif (and (array? k) (marked_symbol? k))
@@ -5495,7 +5509,7 @@
                                                                                             ((a_loc a_len datasi) (alloc_data (concat (i64_le_hexify v)
                                                                                                                                       (i64_le_hexify a))
                                                                                                                               datasi))
-                                                                                           ) (array datasi (mk_array_code_rc_const_len 2 a_loc)))
+                                                                                           ) (array datasi (mk_array_value 2 a_loc)))
                                                                                      (array datasi a))) (array datasi nil_val) memo))
               (_ (true_print "Ending all symbol print"))
               ((watermark datas) datasi)
