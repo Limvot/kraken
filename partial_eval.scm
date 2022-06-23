@@ -1625,7 +1625,7 @@
                                                                                                                 (array 0             (array))))
                                             (flattened (apply concat (slice inner start_idx end_idx)))
                                             ;(_ (println "result_t " result_t " flattened " flattened " then_section " then_section " else_section " else_section))
-                                           ) (concat flattened      (array (lambda (name_dict) (concat (dlet ( (_ (true_print "inner if " name " " inner)) ) (array))
+                                           ) (concat flattened      (array (lambda (name_dict) (concat ;(dlet ( (_ (true_print "inner if " name " " inner)) ) (array))
                                                                                                        (array 'if result_t (block_like_body name_dict name then_section))
                                                                                                        (if (!= nil else_section) (array (block_like_body name_dict name else_section))
                                                                                                                                  (array)))))))))
@@ -1819,7 +1819,7 @@
                                                   uses_de
                                                   (then (i64.const (bor #b100000 comb_tag)))
                                                   (else (i64.const (bor #b000000 comb_tag))))))))
-    (combine_env_comb_val            (lambda (env_val  func_val) (bor (band -8 env_val)) func_val))
+    (combine_env_comb_val            (lambda (env_val  func_val) (bor (band -8 env_val) func_val)))
     (combine_env_code_comb_val_code  (lambda (env_code func_val) (i64.or (i64.and env_code (i64.const -8)) (i64.const func_val))))
 
     (mod_fval_to_wrap (lambda (it) (cond ((= nil it)                                                      it)
@@ -1891,6 +1891,7 @@
           (global '$num_mallocs  '(mut i32) (i32.const 0))
           (global '$num_sbrks    '(mut i32) (i32.const 0))
           (global '$num_frees    '(mut i32) (i32.const 0))
+          (global '$num_interned_symbols    '(mut i32) (i32.const 0))
 
           (dlet (
               (_ (true_print "beginning of dlet"))
@@ -1953,6 +1954,17 @@
               ((datasi memo parse_remaining_msg_val) (compile-string-val datasi memo "\nLeft over after parsing, starting at byte offset:\n"))
               ((datasi memo quote_sym_val) (compile-symbol-val datasi memo 'quote))
               ((datasi memo unquote_sym_val) (compile-symbol-val datasi memo 'unquote))
+
+              ((datasi memo pre_read_val) (compile-string-val datasi memo "\nPreRead\n"))
+              ((datasi memo post_read_val) (compile-string-val datasi memo "\nPostRead\n"))
+              ((datasi memo pre_parse_val) (compile-string-val datasi memo "\nPreParse\n"))
+              ((datasi memo post_parse_val) (compile-string-val datasi memo "\nPostParse\n"))
+              ((datasi memo pre_symbol_intern_val) (compile-string-val datasi memo "\npre symbol intern\n"))
+              ((datasi memo pre_eval_val) (compile-string-val datasi memo "\npre eval\n"))
+              ((datasi memo post_eval_val) (compile-string-val datasi memo "\npost eval\n"))
+              ((datasi memo  pre_inner_eval_val) (compile-string-val datasi memo "\n inner pre eval\n"))
+              ((datasi memo post_inner_eval_val) (compile-string-val datasi memo "\n inner post eval\n"))
+              ((datasi memo pre_write_callback) (compile-string-val datasi memo "\n pre write callback\n"))
 
               (_ (true_print "made string/symbol-vals"))
 
@@ -2429,25 +2441,29 @@
                     (call '$free (local.get '$iov))
               ))))
               (_ (true_print "made print"))
-              ((k_dup func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$dup '(param $bytes i64) '(result i64) '(local $ptr i32) '(local $old_val i32)
+              ((k_dup func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$dup '(param $bytes i64) '(result i64) '(local $ptr i32)
+                    ;(call '$print (mk_int_code_i64 (local.get '$bytes)))
                     (local.set '$ptr (call '$get_ptr (local.get '$bytes)))
+                    ;(call '$print (i64.const newline_msg_val))
+                    ;(call '$print (mk_int_code_i32u (local.get '$ptr)))
+                    ;(call '$print (i64.const newline_msg_val))
                     (_if '$not_null
                         (i32.ne (i32.const 0) (local.get '$ptr))
                         (then
                             (local.set '$ptr (i32.sub (local.get '$ptr) (i32.const 8)))
-                            (i32.store 4 (local.get '$ptr) (i32.add (local.get '$old_val) (i32.const 1)))
+                            (i32.store 4 (local.get '$ptr) (i32.add (i32.load 4 (local.get '$ptr)) (i32.const 1)))
                         )
                     )
                     (local.get '$bytes)
               ))))
-              ; currenty func 16 in profile
-              ((k_drop func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop '(param $it i64) '(local $ptr i32) '(local $tmp_ptr i32) '(local $old_val i32) '(local $new_val i32) '(local $i i32)
+              ; currenty func 16( 18?! ) in profile
+              ((k_drop func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop '(param $it i64) '(local $ptr i32) '(local $tmp_ptr i32) '(local $new_val i32) '(local $i i32)
                     (local.set '$ptr (call '$get_ptr (local.get '$it)))
                     (_if '$not_null
                         (i32.ne (i32.const 0) (local.get '$ptr))
                         (then
                             (_if '$zero
-                                (i32.eqz (local.tee '$new_val (i32.sub (local.get '$old_val) (i32.const 1))))
+                                (i32.eqz (local.tee '$new_val (i32.sub (i32.load (i32.add (i32.const -4) (local.get '$ptr))) (i32.const 1))))
                                 (then
                                     (_if '$needs_inner_drop
                                         (is_not_type_code string_tag (local.get '$it))
@@ -3325,10 +3341,13 @@
                      (i64.eq (local.get '$traverse) (i64.const nil_val))
                      (then
                          (local.set '$potential (toggle_sym_str_code_norc (call '$dup (local.get '$looking_for))))
+                         ;(local.set '$potential (toggle_sym_str_code (call '$dup (local.get '$looking_for))))
                          (global.set '$symbol_intern (call '$array2_alloc (local.get '$potential) (global.get '$symbol_intern)))
+                         (global.set '$num_interned_symbols   (i32.add (i32.const 1) (global.get '$num_interned_symbols)))
                      )
                 )
                 (local.get '$potential)
+                ;(call '$dup (local.get '$potential))
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
@@ -3803,10 +3822,11 @@
                                     (memory.copy (local.get '$aptr)
                                                  (local.get '$bptr)
                                                  (local.get '$asiz))
+
                                     ; Inefficient hack
                                     (local.set '$result (call '$str-to-symbol
                                         ;params
-                                        (call '$array1_alloc (mk_string_code_rc (local.get '$aptr) (local.get '$asiz)))
+                                        (call '$array1_alloc (mk_string_code_rc (local.get '$asiz) (local.get '$aptr)))
                                         ; dynamic env
                                         (i64.const nil_val)
                                         ; static env
@@ -3895,9 +3915,11 @@
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 string_tag k_read_msg_val)
                 (local.set '$str (i64.load (local.get '$ptr)))
+                ;(call '$print (i64.const pre_parse_val))
                 (global.set '$phl (extract_size_code (local.get '$str)))
                 (global.set '$phs (extract_ptr_code  (local.get '$str)))
                 (local.set '$result (call '$parse_helper))
+                ;(call '$print (i64.const post_parse_val))
                 (_if '$was_empty_parse
                     (i32.or         (i64.eq (i64.const error_parse_value) (local.get '$result))
                             (i32.or (i64.eq (i64.const empty_parse_value) (local.get '$result))
@@ -3967,10 +3989,13 @@
                    (_if '$is_symbol '(result i64)
                         (is_type_code symbol_tag (local.get '$it))
                         (then
+                          ;(call '$print (local.get '$it))
                           ; look it up in the environment
                           ;   Env object is <key_array_value><value_array_value><upper_env_value>
                           ;       each being the full 64 bit objects.
                           (local.set '$current_env (local.get '$env))
+                          ;(call '$print (local.get '$current_env))
+                          ;(call '$print (i64.const newline_msg_val))
 
                           (block '$outer_loop_break
                                 (_loop '$outer_loop
@@ -3999,6 +4024,8 @@
                                       )
                                       ; try in upper
                                       (local.set '$current_env (i64.load 16 (local.get '$env_ptr)))
+                                      ;(call '$print (mk_int_code_i64 (local.get '$current_env)))
+                                      ;(call '$print (i64.const newline_msg_val))
                                       (br_if '$outer_loop (i64.ne (i64.const nil_val) (local.get '$current_env)))
                                 )
                                 ; Ended at upper case
@@ -4017,10 +4044,12 @@
                                (then (call '$print (i64.const k_call_zero_len_msg_val))
                                      (unreachable)))
                           ; its a call, evaluate combiner first then
+                          ;(call '$print (i64.const pre_inner_eval_val))
                           (local.set '$comb (call '$eval_helper (i64.load 0 (local.get '$ptr)) (local.get '$env)))
+                          ;(call '$print (i64.const post_inner_eval_val))
                           ; check to make sure it's a combiner
                           (_if '$isnt_function
-                                (is_type_code comb_tag (local.get '$comb))
+                                (is_not_type_code comb_tag (local.get '$comb))
                                 (then (call '$print (i64.const k_call_not_a_function_msg_val))
                                       (call '$print (mk_int_code_i64 (local.get '$comb)))
                                       (call '$print (local.get '$comb))
@@ -4243,7 +4272,11 @@
                           )
 
 
+                          ;(call '$print (i64.const  pre_read_val))
                           (local.set '$tmp_read (call '$read-string (call '$array1_alloc (local.get '$str)) (i64.const nil_val) (i64.const nil_val)))
+                          ;(call '$print (i64.const post_read_val))
+                          ;(call '$print (local.get '$tmp_read))
+                          ;(call '$print (i64.const post_read_val))
                           (_if '$arr (is_type_code array_tag (local.get '$tmp_read))
                                (then
                                 (_if '$arr (i32.ge_u (i32.const 2) (extract_size_code (local.get '$tmp_read)))
@@ -4261,7 +4294,9 @@
                                 )
                                )
                           )
+                          ;(call '$print (i64.const pre_eval_val))
                           (local.set '$tmp_evaled (call '$eval_helper (local.get '$tmp_read) (local.get '$d)))
+                          ;(call '$print (i64.const post_eval_val))
                           (call '$print (local.get '$tmp_evaled))
                           (call '$drop (local.get '$tmp_read))
                           (call '$drop (local.get '$tmp_evaled))
@@ -4961,7 +4996,7 @@
                                                 ((c_loc c_len datasi) (alloc_data (apply concat all_hex) datasi))
                                                 (_ (true_print "alloced"))
                                                 (result (mk_env_value c_loc))
-                                                (_ (true_print "made result"))
+                                                (_ (true_print "made result " result))
                                                 (memo (put memo (.hash c) result))
                                             ) (array result nil nil (array datasi funcs memo env pectx inline_locals)))))))))
 
@@ -5158,9 +5193,11 @@
                                     ))
                                     (_ (print_strip "returning " func_value " for " c))
                                     (_ (if (not (int? func_value)) (error "BADBADBADfunc")))
-
-                                ) (mif env_val  (array (combine_env_comb_val env_val func_value) nil (mif func_err (str func_err ", from compiling comb body") (mif env_err (str env_err ", from compiling comb env") nil)) ctx)
-                                                (array nil (combine_env_code_comb_val_code env_code (mod_fval_to_wrap func_value)) (mif func_err (str func_err ", from compiling comb body (env as code)") (mif env_err (str env_err ", from compiling comb env (as code)") nil)) ctx))
+                                    (full_result (mif env_val
+                                                      (array (combine_env_comb_val env_val func_value) nil (mif func_err (str func_err ", from compiling comb body") (mif env_err (str env_err ", from compiling comb env") nil)) ctx)
+                                                      (array nil (combine_env_code_comb_val_code env_code (mod_fval_to_wrap func_value)) (mif func_err (str func_err ", from compiling comb body (env as code)") (mif env_err (str env_err ", from compiling comb env (as code)") nil)) ctx)))
+                                    (_ (mif env_val (true_print "total function " (idx full_result 0) " based on " env_val " and " func_value)))
+                                ) full_result
                                 ))))
 
                    (true        (error (str "Can't compile-inner impossible " c)))
@@ -5417,6 +5454,14 @@
                                         (global.set '$debug_func_to_call   (call '$dup (local.get '$tmp)))
                                         (global.set '$debug_params_to_call (call '$dup (local.get '$result)))
                                         (global.set '$debug_env_to_call (i64.const root_marked_env_val))
+                                        ;(call '$print (i64.const pre_write_callback))
+                                        ;(call '$print (local.get '$tmp))
+                                        ;(call '$print (extract_func_env_code (local.get '$tmp)))
+                                        ;(call '$print (i64.const newline_msg_val))
+                                        ;(call '$print (mk_int_code_i64 (local.get '$tmp)))
+                                        ;(call '$print (i64.const newline_msg_val))
+                                        ;(call '$print (mk_int_code_i64 (extract_func_env_code (local.get '$tmp))))
+                                        ;(call '$print (i64.const newline_msg_val))
                                         (call '$drop (local.get '$it))
                                         (local.set '$it (call_indirect
                                             ;type
@@ -5495,7 +5540,9 @@
                     (call '$drop (global.get '$debug_func_to_call))
                     (call '$drop (global.get '$debug_params_to_call))
                     (call '$drop (global.get '$debug_env_to_call))
+                    ;(call '$drop (global.get '$symbol_intern))
 
+                    (mk_int_code_i32s (global.get '$num_interned_symbols))
                     (mk_int_code_i32s (global.get '$num_frees))
                     (mk_int_code_i32s (global.get '$num_mallocs))
                     (mk_int_code_i32s (global.get '$num_sbrks))
@@ -5506,6 +5553,9 @@
                     (call '$print )
                     (call '$print (i64.const newline_msg_val))
                     (call '$print )
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print )
+                    (call '$print (i64.const newline_msg_val))
               ))
               (_ (true_print "Beginning all symbol print"))
               ((datasi symbol_intern_val) (foldl-tree (dlambda ((datasi a) k v) (mif (and (array? k) (marked_symbol? k))

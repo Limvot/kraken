@@ -138,7 +138,7 @@
 
          test17 (or false 1 "a" true)
          test18 (and 1 "a" nil true)
-         monad (array 'write  1 "test_self_out2" (vau (written code) (array (or written code) test17 (or false nil 0) (and written code) test18 (and nil 0 false))))
+         monad (array 'write  1 "test_self_out2" (vau (written code) (array 'exit (or written code) test17 (or false nil 0) (and written code) test18 (and nil 0 false))))
 
  )
   monad

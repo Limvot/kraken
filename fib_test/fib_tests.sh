@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 NUMBER=30
+#NUMBER=27
 
 touch csc_out.wasm && rm csc_out.wasm && scheme --script ../partial_eval.scm fib.kp
 mv csc_out.wasm fib_compiled.wasm

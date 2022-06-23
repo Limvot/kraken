@@ -35,7 +35,7 @@
             clang
             kakoune
 
-            hyperfine
+            hyperfine graph-cli
             (rust-bin.stable.latest.default.override {
               targets = [ "wasm32-wasi" ];
             })
