@@ -2442,28 +2442,22 @@
               ))))
               (_ (true_print "made print"))
               ((k_dup func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$dup '(param $bytes i64) '(result i64) '(local $ptr i32)
-                    ;(call '$print (mk_int_code_i64 (local.get '$bytes)))
-                    (local.set '$ptr (call '$get_ptr (local.get '$bytes)))
-                    ;(call '$print (i64.const newline_msg_val))
-                    ;(call '$print (mk_int_code_i32u (local.get '$ptr)))
-                    ;(call '$print (i64.const newline_msg_val))
-                    (_if '$not_null
-                        (i32.ne (i32.const 0) (local.get '$ptr))
+                    (_if '$is_rc
+                        (i64.ne (i64.const 0) (i64.and (i64.const rc_mask) (local.get '$bytes)))
                         (then
-                            (local.set '$ptr (i32.sub (local.get '$ptr) (i32.const 8)))
-                            (i32.store 4 (local.get '$ptr) (i32.add (i32.load 4 (local.get '$ptr)) (i32.const 1)))
+                            (local.set '$ptr (i32.sub (extract_ptr_code (local.get '$bytes)) (i32.const 4)))
+                            (i32.store (local.get '$ptr) (i32.add (i32.load (local.get '$ptr)) (i32.const 1)))
                         )
                     )
                     (local.get '$bytes)
               ))))
               ; currenty func 16( 18?! ) in profile
               ((k_drop func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop '(param $it i64) '(local $ptr i32) '(local $tmp_ptr i32) '(local $new_val i32) '(local $i i32)
-                    (local.set '$ptr (call '$get_ptr (local.get '$it)))
-                    (_if '$not_null
-                        (i32.ne (i32.const 0) (local.get '$ptr))
+                    (_if '$is_rc
+                        (i64.ne (i64.const 0) (i64.and (i64.const rc_mask) (local.get '$it)))
                         (then
                             (_if '$zero
-                                (i32.eqz (local.tee '$new_val (i32.sub (i32.load (i32.add (i32.const -4) (local.get '$ptr))) (i32.const 1))))
+                                (i32.eqz (local.tee '$new_val (i32.sub (i32.load (i32.add (i32.const -4) (local.tee '$ptr (extract_ptr_code (local.get '$it))))) (i32.const 1))))
                                 (then
                                     (_if '$needs_inner_drop
                                         (is_not_type_code string_tag (local.get '$it))
