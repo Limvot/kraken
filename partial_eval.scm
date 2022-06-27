@@ -140,12 +140,13 @@
       ; End kludges
       ;;;;;;;;;;;;;;;;;;
 
-      ;(empty_dict-list (array))
-      ;(put-list (lambda (m k v) (cons (array k v) m)))
-      ;(get-list (lambda (d k) ((rec-lambda recurse (k d len_d i) (cond ((= len_d i)             false)
-      ;                                                                 ((= k (idx (idx d i) 0)) (idx d i))
-      ;                                                                 (true                    (recurse k d len_d (+ 1 i)))))
-      ;                          k d (len d) 0)))
+      (empty_dict-list (array))
+      (put-list (lambda (m k v) (cons (array k v) m)))
+      (get-list (lambda (d k) ((rec-lambda recurse (k d len_d i) (cond ((= len_d i)             false)
+                                                                       ((= k (idx (idx d i) 0)) (idx d i))
+                                                                       (true                    (recurse k d len_d (+ 1 i)))))
+                                k d (len d) 0)))
+      (put-all-list (lambda (m nv) (map (dlambda ((k v)) (array k nv)) m)))
 
       ;(combine_hash     (lambda (a b) (+ (* 37 a) b)))
       (combine_hash     (lambda (a b) (band #xFFFFFFFFFFFFFF (+ (* 37 a) b))))
@@ -160,6 +161,10 @@
                                                                      ((= x (idx a i)) true)
                                                                      (true            (recurse x a len_a (+ i 1)))))))
                    (lambda (x a) (helper x a (len a) 0))))
+    (any_in_array (dlet ((helper (rec-lambda recurse (f a len_a i) (cond ((= i len_a) false)
+                                                                     ((f (idx a i))   i)
+                                                                     (true            (recurse f a len_a (+ i 1)))))))
+                   (lambda (f a) (helper f a (len a) 0))))
     (array_item_union (lambda (a bi) (if (in_array bi a) a (cons bi a))))
     (array_union (lambda (a b) (foldl array_item_union a b)))
 
@@ -1679,40 +1684,6 @@
 
     ; Everything is an i64, and we're on a 32 bit wasm system, so we have a good many bits to play with
 
-    ; Int - should maximize int
-    ;  xxxxx0
-
-    ; String - should be close to array, bitpacked, just different ptr rep?
-    ;  <string_size32><string_ptr29>011
-
-    ; Symbol - ideally interned (but not yet) also probs small-symbol-opt (def not yet)
-    ;  <symbol_size32><symbol_ptr29>111
-
-    ; Array / Nil
-    ;  <array_size32><array_ptr29>101 / 0..0 101
-
-    ; Combiner - a double of func index and closure (which could just be the env, actually, even if we trim...)
-    ;  <func_idx29>|<env_ptr29><usesde1><wrap1>0001
-
-    ; Env
-    ; 0..0<env_ptr32 but still aligned>01001
-    ;   Env object is <key_array_value><value_array_value><upper_env_value>
-    ;       each being the full 64 bit objects.
-    ;       This lets key_array exist in constant mem, and value array to come directly from passed params.
-
-    ; True          / False
-    ;  0..0 1 11001  /  0..0 0 11001
-
-
-
-
-    ;  <string_size32><string_ptr29>011
-    ;  <symbol_size32><symbol_ptr29>111
-    ;  <array__size32><array__ptr29>101 / 0..0 101
-    ;  <func_idx29>|<env_ptr29><usesde1><wrap1>0001
-    ; 0..0<env_ptr32 but still aligned>01001
-
-
     ; The two interesting splits are ref-counted/vs not and changes on eval / vs not
     ; ref counted is much more important
 
@@ -1730,30 +1701,6 @@
     ;  <array__ptr32><array__size28>              y111 - symbols 1 bit diff from array for value checking
     ;  <env____ptr32>|<func_idx26><usesde1><wrap1>y101 - both env-carrying values 1 bit different
     ;  <env____ptr32><28 0s>                      y001
-
-    ; with this, dup becomes
-    ; (if (i64.eqz (i64.and (i64.const #b1000) (local.tee 'tmp1 x)))
-    ;   (then (i32.store -4 (local.get '$tmp2)
-    ;                       (i32.add (i32.const 1)
-    ;                                (i32.load -4 (local.tee '$tmp2 (i32.wrap_i64 (i64.shl (local.get '$tmp1)
-    ;                                                                                     (i64.const 32)))))))))
-    ; (local.get '$tmp1)
-    ; 28 bytes or so?
-
-    ; with this, drop becomes
-    ; (if (i64.nz (i64.and (i64.const #b1000) (local.tee 'tmp1 x)))
-    ;   (then (i32.store -4 (local.get '$tmp2)
-    ;                       (local.tee 'tmp3 (i32.add (i32.const -1)
-    ;                                        (i32.load -4 (local.tee '$tmp2
-    ;                                                                (i32.wrap_i64 (i64.shl (local.get '$tmp1)
-    ;                                                                                      (i64.const 32))))))))
-    ;       (if (i64.eqz (local.get '$tmp3))
-    ;          (then
-    ;            (call free_drop (local.get '$tmp2)))
-    ;   )
-    ; )
-    ; (local.get '$tmp1)
-    ; 41 bytes or so?
 
     (to_hex_digit (lambda (x) (string (integer->char (if (< x 10) (+ x #x30)
                                                                   (+ x #x37))))))
@@ -1891,6 +1838,12 @@
           (global '$num_mallocs  '(mut i32) (i32.const 0))
           (global '$num_sbrks    '(mut i32) (i32.const 0))
           (global '$num_frees    '(mut i32) (i32.const 0))
+
+          (global '$num_array_innerdrops    '(mut i32) (i32.const 0))
+          (global '$num_env_innerdrops    '(mut i32) (i32.const 0))
+          (global '$num_array_subdrops    '(mut i32) (i32.const 0))
+          (global '$num_array_maxsubdrops    '(mut i32) (i32.const 0))
+
           (global '$num_interned_symbols    '(mut i32) (i32.const 0))
 
           (dlet (
@@ -2000,6 +1953,33 @@
                     nil
                 )
               ))
+
+              ;(generate_dup (lambda (it) (call '$dup it)))
+              (generate_dup (lambda (it) (concat
+                    (_if '$is_rc
+                        (i64.ne (i64.const 0) (i64.and (i64.const rc_mask) (local.tee '$rc_bytes it)))
+                        (then
+                            (local.set '$rc_ptr (i32.sub (extract_ptr_code (local.get '$rc_bytes)) (i32.const 4)))
+                            (i32.store (local.get '$rc_ptr) (i32.add (i32.load (local.get '$rc_ptr)) (i32.const 1)))
+                        )
+                    )
+                    (local.get '$rc_bytes)
+              )))
+              ;(generate_drop (lambda (it) (call '$drop it)))
+              (generate_drop (lambda (it) (concat
+                    (_if '$is_rc
+                        (i64.ne (i64.const 0) (i64.and (i64.const rc_mask) (local.tee '$rc_bytes it)))
+                        (then
+                            (_if '$zero
+                                (i32.eqz (local.tee '$rc_tmp (i32.sub (i32.load (local.tee '$rc_ptr (i32.sub (extract_ptr_code (local.get '$rc_bytes)) (i32.const 4)))) (i32.const 1))))
+                                (then
+                                    (call '$drop_free (local.get '$rc_bytes))
+                                )
+                                (else (i32.store (local.get '$rc_ptr) (local.get '$rc_tmp)))
+                            )
+                        )
+                    )
+              )))
 
               (_ (true_print "made typecheck/assert"))
 
@@ -2441,61 +2421,61 @@
                     (call '$free (local.get '$iov))
               ))))
               (_ (true_print "made print"))
-              ((k_dup func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$dup '(param $bytes i64) '(result i64) '(local $ptr i32)
+              ((k_dup func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$dup '(param $rc_bytes i64) '(result i64) '(local $rc_ptr i32)
+                    ;(generate_dup (local.get '$rc_bytes))
+                    ;(unreachable)
                     (_if '$is_rc
-                        (i64.ne (i64.const 0) (i64.and (i64.const rc_mask) (local.get '$bytes)))
+                        (i64.ne (i64.const 0) (i64.and (i64.const rc_mask) (local.get '$rc_bytes)))
                         (then
-                            (local.set '$ptr (i32.sub (extract_ptr_code (local.get '$bytes)) (i32.const 4)))
-                            (i32.store (local.get '$ptr) (i32.add (i32.load (local.get '$ptr)) (i32.const 1)))
+                            (local.set '$rc_ptr (i32.sub (extract_ptr_code (local.get '$rc_bytes)) (i32.const 4)))
+                            (i32.store (local.get '$rc_ptr) (i32.add (i32.load (local.get '$rc_ptr)) (i32.const 1)))
                         )
                     )
-                    (local.get '$bytes)
+                    (local.get '$rc_bytes)
               ))))
               ; currenty func 16( 18?! ) in profile
-              ((k_drop func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop '(param $it i64) '(local $ptr i32) '(local $tmp_ptr i32) '(local $new_val i32) '(local $i i32)
-                    (_if '$is_rc
-                        (i64.ne (i64.const 0) (i64.and (i64.const rc_mask) (local.get '$it)))
-                        (then
-                            (_if '$zero
-                                (i32.eqz (local.tee '$new_val (i32.sub (i32.load (i32.add (i32.const -4) (local.tee '$ptr (extract_ptr_code (local.get '$it))))) (i32.const 1))))
-                                (then
-                                    (_if '$needs_inner_drop
-                                        (is_not_type_code string_tag (local.get '$it))
-                                        (then
-                                            (_if '$is_array
-                                                (is_type_code array_tag (local.get '$it))
-                                                (then
-                                                    (local.set '$i (extract_size_code (local.get '$it)))
-                                                    (local.set '$tmp_ptr (local.get '$ptr))
-                                                    (block '$done
-                                                        (_loop '$l
-                                                            (br_if '$done (i32.eqz (local.get '$i)))
-                                                            (call '$drop (i64.load (local.get '$tmp_ptr)))
-                                                            (local.set '$tmp_ptr (i32.add (local.get '$tmp_ptr) (i32.const 8)))
-                                                            (local.set '$i (i32.sub (local.get '$i) (i32.const 1)))
-                                                            (br '$l)
-                                                        )
-                                                    )
-                                                )
-                                                (else
-                                                    ; is env ptr
-                                                    (call '$drop (i64.load  0 (local.get '$ptr)))
-                                                    (call '$drop (i64.load  8 (local.get '$ptr)))
-                                                    (call '$drop (i64.load 16 (local.get '$ptr)))
-                                                )
-                                            )
-                                        )
-                                    )
-                                    (call '$free (local.get '$ptr))
-                                )
-                                (else (i32.store (i32.add (i32.const -4) (local.get '$ptr)) (local.get '$new_val)))
-                            )
-                        )
-                    )
+              ((k_drop_free func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$drop_free '(param $it i64) '(local $ptr i32) '(local $tmp_ptr i32) '(local $new_val i32) '(local $i i32) '(local $rc_bytes i64) '(local $rc_tmp i32) '(local $rc_ptr i32)
+                  (local.set '$ptr (extract_ptr_code (local.get '$it)))
+                  (_if '$needs_inner_drop
+                      (is_not_type_code string_tag (local.get '$it))
+                      (then
+                          (_if '$is_array
+                              (is_type_code array_tag (local.get '$it))
+                              (then
+                                  (local.set '$i (extract_size_code (local.get '$it)))
+
+                                  (_if '$new_max
+                                      (i32.gt_u (local.get '$i) (global.get '$num_array_maxsubdrops))
+                                      (then (global.set '$num_array_maxsubdrops (local.get '$i))))
+                                  (global.set '$num_array_subdrops (i32.add (local.get '$i) (global.get '$num_array_subdrops)))
+
+                                  (local.set '$tmp_ptr (local.get '$ptr))
+                                  (block '$done
+                                      (_loop '$l
+                                          (br_if '$done (i32.eqz (local.get '$i)))
+                                          (generate_drop (i64.load (local.get '$tmp_ptr)))
+                                          (local.set '$tmp_ptr (i32.add (local.get '$tmp_ptr) (i32.const 8)))
+                                          (local.set '$i (i32.sub (local.get '$i) (i32.const 1)))
+                                          (br '$l)
+                                      )
+                                  )
+                                  (global.set '$num_array_innerdrops (i32.add (i32.const 1) (global.get '$num_array_innerdrops)))
+                              )
+                              (else
+                                  ; is env ptr
+                                  (generate_drop (i64.load  0 (local.get '$ptr)))
+                                  (generate_drop (i64.load  8 (local.get '$ptr)))
+                                  (generate_drop (i64.load 16 (local.get '$ptr)))
+                                  (global.set '$num_env_innerdrops (i32.add (i32.const 1) (global.get '$num_env_innerdrops)))
+                              )
+                          )
+                      )
+                  )
+                  (call '$free (local.get '$ptr))
               ))))
 
               ; Utility method, but does refcount
-              ((k_slice_impl func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice_impl '(param $array i64) '(param $s i32) '(param $e i32) '(result i64) '(local $size i32) '(local $new_size i32) '(local $i i32) '(local $ptr i32) '(local $new_ptr i32)
+              ((k_slice_impl func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice_impl '(param $array i64) '(param $s i32) '(param $e i32) '(result i64) '(local $size i32) '(local $new_size i32) '(local $i i32) '(local $ptr i32) '(local $new_ptr i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                     (local.set '$size (extract_size_code (local.get '$array)))
                     (local.set '$ptr  (extract_ptr_code  (local.get '$array)))
                     (_if '$s_lt_0
@@ -2519,7 +2499,7 @@
                     (_if '$new_size_0 '(result i64)
                         (i32.eqz (local.get '$new_size))
                         (then
-                            (call '$drop (local.get '$array))
+                            (generate_drop (local.get '$array))
                             (_if '$is_array '(result i64)
                              (is_type_code array_tag (local.get '$array))
                              (then (i64.const nil_val))
@@ -2536,13 +2516,13 @@
                                       (_loop '$l
                                           (br_if '$exit_loop (i32.eq (local.get '$i) (local.get '$new_size)))
                                           (i64.store (i32.add (i32.shl (local.get '$i) (i32.const 3)) (local.get '$new_ptr))
-                                                     (call '$dup (i64.load (i32.add (i32.shl (i32.add (local.get '$s) (local.get '$i)) (i32.const 3))
+                                                     (generate_dup (i64.load (i32.add (i32.shl (i32.add (local.get '$s) (local.get '$i)) (i32.const 3))
                                                                                     (local.get '$ptr))))) ; n[i] = dup(o[i+s])
                                           (local.set '$i (i32.add (i32.const 1) (local.get '$i)))
                                           (br '$l)
                                       )
                                   )
-                                  (call '$drop (local.get '$array))
+                                  (generate_drop (local.get '$array))
                                   (mk_array_code_rc (local.get '$new_size) (local.get '$new_ptr))
                              )
                              (else
@@ -2551,7 +2531,7 @@
                                                (i32.add (local.get '$ptr) (local.get '$s))
                                                (local.get '$new_size))
 
-                                  (call '$drop (local.get '$array))
+                                  (generate_drop (local.get '$array))
                                   (mk_string_code_rc (local.get '$new_size) (local.get '$new_ptr))
                             )
                         )
@@ -2578,11 +2558,11 @@
                                                                 )
                                                         )))
               (drop_p_d (concat 
-                    (call '$drop (local.get '$p))
-                    (call '$drop (local.get '$d))))
+                    (generate_drop (local.get '$p))
+                    (generate_drop (local.get '$d))))
 
               ((datasi memo k_log_msg_val) (compile-string-val datasi memo "k_log"))
-              ((k_log           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$log           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+              ((k_log           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$log           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 set_len_ptr
                 (call '$print (i64.const log_msg_val))
                 (call '$print (local.get '$p))
@@ -2593,14 +2573,14 @@
                             (i64.const nil_val)
                         )
                         (else
-                            (call '$dup (i64.load (i32.add (local.get '$ptr) (i32.shl (i32.sub (local.get '$len) (i32.const 1)) (i32.const 3)))))
+                            (generate_dup (i64.load (i32.add (local.get '$ptr) (i32.shl (i32.sub (local.get '$len) (i32.const 1)) (i32.const 3)))))
                         )
                 )
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_error_msg_val) (compile-string-val datasi memo "k_error"))
-              ((k_error         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$error         '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+              ((k_error         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$error         '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (call '$print (i64.const error_msg_val))
                 (call '$print (local.get '$p))
                 (call '$print (i64.const newline_msg_val))
@@ -2609,15 +2589,16 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_str_msg_val) (compile-string-val datasi memo "k_str"))
-              ((k_str           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $buf i32) '(local $size i32)
+              ((k_str           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $buf i32) '(local $size i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (local.set '$buf (call '$malloc (local.tee '$size (call '$str_len (local.get '$p)))))
                 (_drop (call '$str_helper (local.get '$p) (local.get '$buf)))
                 drop_p_d
                 (mk_string_code_rc (local.get '$size) (local.get '$buf))
               ))))
+              (_ (true_print "str is " k_str " which might be " (- k_str dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              (pred_func    (lambda (name type_tag) (func name '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+              (pred_func    (lambda (name type_tag) (func name '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (typecheck 0 (array '(result i64))
                     i64.eq type_tag
@@ -2627,7 +2608,7 @@
                 drop_p_d
               )))
               ((datasi memo k_nil_msg_val) (compile-string-val datasi memo "k_nil"))
-              ((k_nil?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func 'nil? '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+              ((k_nil?          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func 'nil? '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (_if '$a_len_lt_b_len '(result i64)
                      (i64.eq (i64.const nil_val) (i64.load (local.get '$ptr)))
@@ -2636,9 +2617,11 @@
                 )
                 drop_p_d
               ))))
+              (_ (true_print "nil? is " k_nil? " which might be " (- k_nil? dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_array_msg_val) (compile-string-val datasi memo "k_array"))
               ((k_array?        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$array?    array_tag))))
+              (_ (true_print "array? is " k_array? " which might be " (- k_array? dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_bool_msg_val) (compile-string-val datasi memo "k_bool"))
               ((k_bool?         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$bool?     bool_tag))))
@@ -2700,6 +2683,7 @@
                 )
                 (local.get '$result)
               ))))
+              (_ (true_print "str_sym_comp is " k_str_sym_comp " which might be " (- k_str_sym_comp dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((k_comp_helper_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$comp_helper_helper '(param $a i64) '(param $b i64) '(param $lt_val i64) '(param $eq_val i64) '(param $gt_val i64) '(result i64) '(local $result i64) '(local $a_tmp i32) '(local $b_tmp i32) '(local $a_ptr i32) '(local $b_ptr i32) '(local $result_tmp i64)
@@ -2961,9 +2945,10 @@
                 )
                 (local.get '$result)
               ))))
+              (_ (true_print "comp_helper_helper is " k_comp_helper_helper " which might be " (- k_comp_helper_helper dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              ((k_comp_helper   func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$comp_helper '(param $p i64) '(param $d i64) '(param $s i64) '(param $lt_val i64) '(param $eq_val i64) '(param $gt_val i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $result i64) '(local $a i64) '(local $b i64)
+              ((k_comp_helper   func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$comp_helper '(param $p i64) '(param $d i64) '(param $s i64) '(param $lt_val i64) '(param $eq_val i64) '(param $gt_val i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $result i64) '(local $a i64) '(local $b i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 set_len_ptr
                 (local.set '$result (i64.const true_val))
                 (block '$done_block
@@ -2986,6 +2971,7 @@
                 (local.get '$result)
                 drop_p_d
               ))))
+              (_ (true_print "comp_helper is " k_comp_helper " which might be " (- k_comp_helper dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               (_ (true_print "made k_comp_hlper"))
@@ -2994,6 +2980,7 @@
               ((k_eq            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eq  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const false_val)  (i64.const true_val)  (i64.const false_val))
               ))))
+              (_ (true_print "= is " k_eq " which might be " (- k_eq dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_neq_msg_val) (compile-string-val datasi memo "k_neq"))
               ((k_neq           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$neq '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
@@ -3019,10 +3006,11 @@
               ((k_lt            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$lt  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
                 (call '$comp_helper (local.get '$p) (local.get '$d) (local.get '$s) (i64.const true_val)   (i64.const false_val) (i64.const false_val))
               ))))
+              (_ (true_print "< is " k_lt " which might be " (- k_lt dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               (math_function (lambda (name sensitive op)
-                (func name           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $i i32) '(local $cur i64) '(local $next i64)
+                (func name           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $i i32) '(local $cur i64) '(local $next i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                     (ensure_not_op_n_params_set_ptr_len i32.eq 0)
                     (local.set '$i   (i32.const 1))
                     (local.set '$cur (i64.load (local.get '$ptr)))
@@ -3076,7 +3064,7 @@
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((datasi memo k_bnot_msg_val) (compile-string-val datasi memo "k_bnot"))
-              ((k_bnot          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$bnot   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+              ((k_bnot          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$bnot   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 int_tag k_bnot_msg_val)
                 (i64.xor (i64.const int_mask) (i64.load (local.get '$ptr)))
@@ -3085,7 +3073,7 @@
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((datasi memo k_ls_msg_val) (compile-string-val datasi memo "k_ls"))
-              ((k_ls            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$ls  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+              ((k_ls            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$ls  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 2)
                 (type_assert 0 int_tag k_ls_msg_val)
                 (type_assert 1 int_tag k_ls_msg_val)
@@ -3094,7 +3082,7 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_rs_msg_val) (compile-string-val datasi memo "k_rs"))
-              ((k_rs            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$rs  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+              ((k_rs            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$rs  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 2)
                 (type_assert 0 int_tag k_rs_msg_val)
                 (type_assert 1 int_tag k_rs_msg_val)
@@ -3122,7 +3110,7 @@
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((datasi memo k_builtin_fib_msg_val) (compile-string-val datasi memo "k_builtin_fib"))
-              ((k_builtin_fib            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$builtin_fib  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+              ((k_builtin_fib            func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$builtin_fib  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 int_tag k_builtin_fib_msg_val)
                 (call '$builtin_fib_helper (i64.load 0 (local.get '$ptr)))
@@ -3133,7 +3121,7 @@
               (_ (true_print "made k_builtin_fib"))
 
               ((datasi memo k_concat_msg_val) (compile-string-val datasi memo "k_concat"))
-              ((k_concat        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$concat  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $size i32) '(local $i i32) '(local $it i64) '(local $new_ptr i32) '(local $inner_ptr i32) '(local $inner_size i32) '(local $new_ptr_traverse i32) '(local $is_str i32)
+              ((k_concat        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$concat  '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $size i32) '(local $i i32) '(local $it i64) '(local $new_ptr i32) '(local $inner_ptr i32) '(local $inner_size i32) '(local $new_ptr_traverse i32) '(local $is_str i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 set_len_ptr
                 (local.set '$size (i32.const 0))
                 (local.set '$i (i32.const 0))
@@ -3223,7 +3211,7 @@
                                           (_loop '$inner_loop
                                               (br_if '$exit_inner_loop (i32.eqz (local.get '$inner_size)))
                                               (i64.store (local.get '$new_ptr_traverse)
-                                                         (call '$dup (i64.load (local.get '$inner_ptr))))
+                                                         (generate_dup (i64.load (local.get '$inner_ptr))))
                                               (local.set '$inner_ptr           (i32.add (local.get '$inner_ptr)          (i32.const 8)))
                                               (local.set '$new_ptr_traverse    (i32.add (local.get '$new_ptr_traverse)   (i32.const 8)))
                                               (local.set '$inner_size          (i32.sub (local.get '$inner_size)         (i32.const 1)))
@@ -3241,22 +3229,24 @@
                 )
                 drop_p_d
               ))))
+              (_ (true_print "concat is " k_concat " which might be " (- k_concat dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_slice_msg_val) (compile-string-val datasi memo "k_slice"))
-              ((k_slice         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+              ((k_slice         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$slice   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 3)
                 (type_assert 0 (array array_tag string_tag) k_slice_msg_val)
                 (type_assert 1 int_tag k_slice_msg_val)
                 (type_assert 2 int_tag k_slice_msg_val)
-                (call '$slice_impl (call '$dup (i64.load  0 (local.get '$ptr)))
+                (call '$slice_impl (generate_dup (i64.load  0 (local.get '$ptr)))
                                    (extract_int_code_i32 (i64.load  8 (local.get '$ptr)))
                                    (extract_int_code_i32 (i64.load 16 (local.get '$ptr))))
                 drop_p_d
               ))))
+              (_ (true_print "slice is " k_slice " which might be " (- k_slice dyn_start)))
               (_ (true_print "made k_slice"))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_idx_msg_val) (compile-string-val datasi memo "k_idx"))
-              ((k_idx           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$idx     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $array i64) '(local $idx i32) '(local $size i32)
+              ((k_idx           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$idx     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $array i64) '(local $idx i32) '(local $size i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 2)
                 (type_assert 0 (array array_tag string_tag) k_idx_msg_val)
                 (type_assert 1 int_tag k_idx_msg_val)
@@ -3270,7 +3260,7 @@
                 (typecheck 0 (array '(result i64))
                     i64.eq array_tag
                     (array (then
-                      (call '$dup (i64.load (i32.add (extract_ptr_code (local.get '$array))
+                      (generate_dup (i64.load (i32.add (extract_ptr_code (local.get '$array))
                                                      (i32.shl (local.get '$idx) (i32.const 3)))))
                     ))
                     (array (else (mk_int_code_i64 (i64.load8_u (i32.add (extract_ptr_code (local.get '$array))
@@ -3278,25 +3268,27 @@
                 )
                 drop_p_d
               ))))
+              (_ (true_print "idx is " k_idx " which might be " (- k_idx dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_len_msg_val) (compile-string-val datasi memo "k_len"))
-              ((k_len           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$len     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+              ((k_len           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$len     '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 (array array_tag string_tag) k_len_msg_val)
                 (mk_int_code_i32u (extract_size_code (i64.load 0 (local.get '$ptr))))
                 drop_p_d
               ))))
+              (_ (true_print "len is " k_len " which might be " (- k_len dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_array_msg_val) (compile-string-val datasi memo "k_array"))
-              ((k_array         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64)
+              ((k_array         func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$array   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (local.get '$p)
-                (call '$drop (local.get '$d))
+                (generate_drop (local.get '$d))
                 ; s is 0
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((datasi memo k_get_msg_val) (compile-string-val datasi memo "k_get-text"))
-              ((k_get-text      func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$get-text      '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32)
+              ((k_get-text      func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$get-text      '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 symbol_tag k_get_msg_val)
                 ; Does not need to dup, as since it's a symbol it's already interned
@@ -3307,7 +3299,7 @@
 
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_str_msg_val) (compile-string-val datasi memo "k_str"))
-              ((k_str-to-symbol func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str-to-symbol '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $looking_for i64) '(local $potential i64) '(local $traverse i64)
+              ((k_str-to-symbol func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$str-to-symbol '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $looking_for i64) '(local $potential i64) '(local $traverse i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 string_tag k_str_msg_val)
 
@@ -3334,20 +3326,20 @@
                 (_if '$didnt_find_it
                      (i64.eq (local.get '$traverse) (i64.const nil_val))
                      (then
-                         (local.set '$potential (toggle_sym_str_code_norc (call '$dup (local.get '$looking_for))))
-                         ;(local.set '$potential (toggle_sym_str_code (call '$dup (local.get '$looking_for))))
+                         (local.set '$potential (toggle_sym_str_code_norc (generate_dup (local.get '$looking_for))))
+                         ;(local.set '$potential (toggle_sym_str_code (generate_dup (local.get '$looking_for))))
                          (global.set '$symbol_intern (call '$array2_alloc (local.get '$potential) (global.get '$symbol_intern)))
                          (global.set '$num_interned_symbols   (i32.add (i32.const 1) (global.get '$num_interned_symbols)))
                      )
                 )
                 (local.get '$potential)
-                ;(call '$dup (local.get '$potential))
+                ;(generate_dup (local.get '$potential))
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((datasi memo k_unwrap_msg_val) (compile-string-val datasi memo "k_unwrap"))
-              ((k_unwrap        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$unwrap        '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $wrap_level i64)
+              ((k_unwrap        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$unwrap        '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $wrap_level i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 comb_tag k_unwrap_msg_val)
                 (local.set '$comb (i64.load (local.get '$ptr)))
@@ -3356,12 +3348,12 @@
                     (i64.eqz (local.get '$wrap_level))
                     (then (unreachable))
                 )
-                (call '$dup (set_wrap_code (i64.sub (local.get '$wrap_level) (i64.const 1)) (local.get '$comb)))
+                (generate_dup (set_wrap_code (i64.sub (local.get '$wrap_level) (i64.const 1)) (local.get '$comb)))
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_wrap_msg_val) (compile-string-val datasi memo "k_wrap"))
-              ((k_wrap          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$wrap          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $wrap_level i64)
+              ((k_wrap          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$wrap          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $wrap_level i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 comb_tag k_wrap_msg_val)
                 (local.set '$comb (i64.load (local.get '$ptr)))
@@ -3370,18 +3362,18 @@
                     (i64.eq (i64.const 1) (local.get '$wrap_level))
                     (then (unreachable))
                 )
-                (call '$dup (set_wrap_code (i64.add (local.get '$wrap_level) (i64.const 1)) (local.get '$comb)))
+                (generate_dup (set_wrap_code (i64.add (local.get '$wrap_level) (i64.const 1)) (local.get '$comb)))
                 drop_p_d
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((datasi memo k_lapply_msg_val) (compile-string-val datasi memo "k_lapply"))
-              ((k_lapply          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$lapply          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $params i64) '(local $wrap_level i64) '(local $inner_env i64)
+              ((k_lapply          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$lapply          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $params i64) '(local $wrap_level i64) '(local $inner_env i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.lt_u 2)
                 (type_assert 0 comb_tag k_lapply_msg_val)
                 (type_assert 1 array_tag k_lapply_msg_val)
-                (local.set '$comb   (call '$dup (i64.load 0 (local.get '$ptr))))
-                (local.set '$params (call '$dup (i64.load 8 (local.get '$ptr))))
+                (local.set '$comb   (generate_dup (i64.load 0 (local.get '$ptr))))
+                (local.set '$params (generate_dup (i64.load 8 (local.get '$ptr))))
                 (_if '$needs_dynamic_env
                      (extract_usede_code (local.get '$comb))
                      (then
@@ -3389,8 +3381,8 @@
                             (i32.eq (i32.const 3) (local.get '$len))
                             (then
                               (type_assert 2 env_tag k_lapply_msg_val)
-                              (call '$drop (local.get '$d))
-                              (local.set '$inner_env (call '$dup (i64.load 16 (local.get '$ptr))))
+                              (generate_drop (local.get '$d))
+                              (local.set '$inner_env (generate_dup (i64.load 16 (local.get '$ptr))))
                             )
                             (else
                               (local.set '$inner_env (local.get '$d))
@@ -3398,11 +3390,11 @@
                        )
                      )
                      (else
-                       (call '$drop (local.get '$d))
+                       (generate_drop (local.get '$d))
                        (local.set '$inner_env (i64.const nil_val))
                      )
                 )
-                (call '$drop (local.get '$p))
+                (generate_drop (local.get '$p))
                 (local.set '$wrap_level (extract_wrap_code (local.get '$comb)))
                 (_if '$wrap_level_ne_1
                     (i64.ne (i64.const 1) (local.get '$wrap_level))
@@ -3427,12 +3419,12 @@
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
               ((datasi memo k_vapply_msg_val) (compile-string-val datasi memo "k_vapply"))
-              ((k_vapply          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vapply          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $params i64) '(local $wrap_level i64) '(local $inner_env i64)
+              ((k_vapply          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vapply          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $comb i64) '(local $params i64) '(local $wrap_level i64) '(local $inner_env i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 3)
                 (type_assert 0 comb_tag k_vapply_msg_val)
                 (type_assert 1 array_tag k_vapply_msg_val)
-                (local.set '$comb   (call '$dup (i64.load 0 (local.get '$ptr))))
-                (local.set '$params (call '$dup (i64.load 8 (local.get '$ptr))))
+                (local.set '$comb   (generate_dup (i64.load 0 (local.get '$ptr))))
+                (local.set '$params (generate_dup (i64.load 8 (local.get '$ptr))))
                 (_if '$needs_dynamic_env
                      (extract_usede_code (local.get '$comb))
                      (then
@@ -3440,8 +3432,8 @@
                             (i32.eq (i32.const 3) (local.get '$len))
                             (then
                               (type_assert 2 env_tag k_vapply_msg_val)
-                              (call '$drop (local.get '$d))
-                              (local.set '$inner_env (call '$dup (i64.load 16 (local.get '$ptr))))
+                              (generate_drop (local.get '$d))
+                              (local.set '$inner_env (generate_dup (i64.load 16 (local.get '$ptr))))
                             )
                             (else
                               (local.set '$inner_env (local.get '$d))
@@ -3449,11 +3441,11 @@
                        )
                      )
                      (else
-                       (call '$drop (local.get '$d))
+                       (generate_drop (local.get '$d))
                        (local.set '$inner_env (i64.const nil_val))
                      )
                 )
-                (call '$drop (local.get '$p))
+                (generate_drop (local.get '$p))
                 (local.set '$wrap_level (extract_wrap_code (local.get '$comb)))
                 (_if '$wrap_level_ne_0
                     (i64.ne (i64.const 0) (local.get '$wrap_level))
@@ -3905,7 +3897,7 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_read_msg_val) (compile-string-val datasi memo "k_read"))
-              ((k_read-string   func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$read-string   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $str i64) '(local $result i64) '(local $tmp_result i64) '(local $tmp_offset i32)
+              ((k_read-string   func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$read-string   '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $ptr i32) '(local $len i32) '(local $str i64) '(local $result i64) '(local $tmp_result i64) '(local $tmp_offset i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (ensure_not_op_n_params_set_ptr_len i32.ne 1)
                 (type_assert 0 string_tag k_read_msg_val)
                 (local.set '$str (i64.load (local.get '$ptr)))
@@ -3951,13 +3943,12 @@
               (_ (true_print "made parse/read"))
 
 
-
               (front_half_stack_code (lambda (call_val env_val) (_if '$debug_level (i32.ne (i32.const -1) (global.get '$debug_depth)) (then (global.set '$stack_trace (call '$array3_alloc call_val
                                                                                                        env_val
-                                                                                                       (call '$dup (global.get '$stack_trace))))))))
+                                                                                                       (generate_dup (global.get '$stack_trace))))))))
               (back_half_stack_code (concat (_if '$debug_level (i32.ne (i32.const -1) (global.get '$debug_depth)) (then
                                             (i64.load 16 (extract_ptr_code (global.get '$stack_trace)))
-                                            (call '$drop (global.get '$stack_trace))
+                                            (generate_drop (global.get '$stack_trace))
                                             (global.set '$stack_trace)))))
               ;(front_half_stack_code (lambda (call_val env_val) (array)))
               ;(back_half_stack_code (array))
@@ -3967,7 +3958,7 @@
 
               ; Helper method, doesn't refcount consume parameters
               ; but does properly refcount internally / dup returns
-              ((k_eval_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval_helper '(param $it i64) '(param $env i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $current_env i64) '(local $res i64) '(local $env_ptr i32) '(local $tmp_ptr i32) '(local $i i32) '(local $comb i64) '(local $params i64) '(local $wrap i32) '(local $tmp i64)
+              ((k_eval_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval_helper '(param $it i64) '(param $env i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $current_env i64) '(local $res i64) '(local $env_ptr i32) '(local $tmp_ptr i32) '(local $i i32) '(local $comb i64) '(local $params i64) '(local $wrap i32) '(local $tmp i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
 
 
             ; The cool thing about Vau calculus / Kernel / Kraken
@@ -3977,7 +3968,7 @@
                  (value_test (local.get '$it))
                  (then
                    ; it's a value, we can just return it!
-                   (call '$dup (local.get '$it))
+                   (generate_dup (local.get '$it))
                  )
                  (else
                    (_if '$is_symbol '(result i64)
@@ -4005,7 +3996,7 @@
                                                    (_if '$found_it
                                                         (i64.eq (local.get '$it) (i64.load (local.get '$ptr)))
                                                         (then
-                                                          (local.set '$res (call '$dup (i64.load (i32.add (extract_ptr_code (i64.load 8 (local.get '$env_ptr)))
+                                                          (local.set '$res (generate_dup (i64.load (i32.add (extract_ptr_code (i64.load 8 (local.get '$env_ptr)))
                                                                                                           (i32.shl (local.get '$i) (i32.const 3))))))
                                                           (br '$outer_loop_break)
                                                         )
@@ -4026,7 +4017,7 @@
                                 (call '$print (i64.const hit_upper_in_eval_msg_val))
                                 (call '$print (local.get '$it))
                                 (call '$print (i64.const newline_msg_val))
-                                (local.set '$res (call (+ 4 func_idx) (call '$array1_alloc (call '$dup (local.get '$it))) (call '$dup (local.get '$env)) (i64.const nil_val)))
+                                (local.set '$res (call (+ 4 func_idx) (call '$array1_alloc (generate_dup (local.get '$it))) (generate_dup (local.get '$env)) (i64.const nil_val)))
                           )
                           (local.get '$res)
                         )
@@ -4048,11 +4039,11 @@
                                       (call '$print (mk_int_code_i64 (local.get '$comb)))
                                       (call '$print (local.get '$comb))
                                       ; this has problems with redebug for some reason
-                                      (local.set '$res (call (+ 4 func_idx) (call '$array1_alloc (call '$dup (local.get '$it))) (call '$dup (local.get '$env)) (i64.const nil_val)))
+                                      (local.set '$res (call (+ 4 func_idx) (call '$array1_alloc (generate_dup (local.get '$it))) (generate_dup (local.get '$env)) (i64.const nil_val)))
                                 )
                           )
                           (local.set '$wrap (i32.wrap_i64 (extract_wrap_code (local.get '$comb))))
-                          (local.set '$params (call '$slice_impl (call '$dup (local.get '$it)) (i32.const 1) (local.get '$len)))
+                          (local.set '$params (call '$slice_impl (generate_dup (local.get '$it)) (i32.const 1) (local.get '$len)))
                           ; we'll reuse len and ptr now for params
                           (local.set '$len (extract_size_code (local.get '$params)))
                           (local.set '$ptr (extract_ptr_code  (local.get '$params)))
@@ -4068,7 +4059,7 @@
 
                                                       (local.set '$tmp_ptr (i32.add (local.get '$ptr) (i32.shl (local.get '$i) (i32.const 3))))
                                                       (local.set '$tmp (call '$eval_helper (i64.load (local.get '$tmp_ptr)) (local.get '$env)))
-                                                      (call '$drop (i64.load (local.get '$tmp_ptr)))
+                                                      (generate_drop (i64.load (local.get '$tmp_ptr)))
                                                       (i64.store (local.get '$tmp_ptr) (local.get '$tmp))
 
                                                       (local.set '$i   (i32.add (local.get '$i)   (i32.const 1)))
@@ -4079,7 +4070,7 @@
                                         (br '$wrap_loop)
                                  )
                           )
-                          (front_half_stack_code (call '$dup (local.get '$it)) (call '$dup (local.get '$env)))
+                          (front_half_stack_code (generate_dup (local.get '$it)) (generate_dup (local.get '$env)))
                           ; Also, this really should tail-call when we support it
                           (call_indirect
                                 ;type
@@ -4091,7 +4082,7 @@
                                 ; dynamic env
                                 (_if '$needs_dynamic_env '(result i64)
                                      (extract_usede_code (local.get '$comb))
-                                     (then (call '$dup (local.get '$env)))
+                                     (then (generate_dup (local.get '$env)))
                                      (else (i64.const nil_val)))
                                 ; static env
                                 (extract_func_env_code (local.get '$comb))
@@ -4107,7 +4098,7 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               ((datasi memo k_eval_msg_val) (compile-string-val datasi memo "k_eval"))
-              ((k_eval          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32)
+              ((k_eval          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
 
                   (ensure_not_op_n_params_set_ptr_len i32.lt_u 1)
                   (_if '$using_d_env '(result i64)
@@ -4136,7 +4127,7 @@
               ((datasi memo k_debug_print_envs_msg_val) (compile-string-val datasi memo "print_envs\n"))
               ((datasi memo k_debug_print_all_msg_val) (compile-string-val datasi memo "print_all\n"))
               ((datasi memo k_debug_msg_val) (compile-string-val datasi memo "k_debug"))
-              ((k_debug           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$debug           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $buf i32) '(local $str i64) '(local $tmp_read i64) '(local $tmp_evaled i64) '(local $to_ret i64) '(local $tmp_ptr i32)
+              ((k_debug           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$debug           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $buf i32) '(local $str i64) '(local $tmp_read i64) '(local $tmp_evaled i64) '(local $to_ret i64) '(local $tmp_ptr i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                 (global.set '$debug_depth  (i32.add (global.get '$debug_depth) (i32.const 1)))
                 (call '$print (i64.const k_debug_parameters_msg_val))
                 (call '$print (local.get '$p))
@@ -4162,7 +4153,7 @@
                           (_if '$print_help (i64.eq (i64.const 1) (call '$str_sym_comp (i64.const k_debug_help_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
                                (then
                                  (call '$print (i64.const k_debug_help_info_msg_val))
-                                 (call '$drop  (local.get '$str))
+                                 (generate_drop  (local.get '$str))
                                  (br '$varadic_loop)
                                )
                           )
@@ -4181,7 +4172,7 @@
                                                (br '$print_loop)
                                         )
                                  )
-                                 (call '$drop  (local.get '$str))
+                                 (generate_drop  (local.get '$str))
                                  (br '$varadic_loop)
                                )
                           )
@@ -4200,7 +4191,7 @@
                                                (br '$print_loop)
                                         )
                                  )
-                                 (call '$drop  (local.get '$str))
+                                 (generate_drop  (local.get '$str))
                                  (br '$varadic_loop)
                                )
                           )
@@ -4221,20 +4212,20 @@
                                                (br '$print_loop)
                                         )
                                  )
-                                 (call '$drop  (local.get '$str))
+                                 (generate_drop  (local.get '$str))
                                  (br '$varadic_loop)
                                )
                           )
                           (_if '$abort (i64.eq (i64.const 1) (call '$str_sym_comp (i64.const k_debug_abort_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
                                (then
-                                    (call '$drop  (local.get '$str))
+                                    (generate_drop  (local.get '$str))
                                     (unreachable)
                                )
                           )
 
                           (_if '$redebug (i64.eq (i64.const 1) (call '$str_sym_comp (i64.const k_debug_redebug_msg_val) (local.get '$str) (i64.const 0) (i64.const 1) (i64.const 0)))
                                (then
-                                 (call '$drop  (local.get '$str))
+                                 (generate_drop  (local.get '$str))
                                  (global.get '$debug_func_to_call)
                                  (global.get '$debug_params_to_call)
                                  (global.get '$debug_env_to_call)
@@ -4245,17 +4236,17 @@
                                      ;table
                                      0
                                      ;params
-                                     (call '$dup (global.get '$debug_params_to_call))
+                                     (generate_dup (global.get '$debug_params_to_call))
                                      ;top_env
-                                     (call '$dup (global.get '$debug_env_to_call))
+                                     (generate_dup (global.get '$debug_env_to_call))
                                      ; static env
-                                     (extract_func_env_code (call '$dup (global.get '$debug_func_to_call)))
+                                     (extract_func_env_code (generate_dup (global.get '$debug_func_to_call)))
                                      ;func_idx
                                      (extract_func_idx_code (global.get '$debug_func_to_call))
                                  ))
 
                                  (call '$print (local.get '$tmp_evaled))
-                                 (call '$drop (local.get '$tmp_evaled))
+                                 (generate_drop (local.get '$tmp_evaled))
                                  (call '$print (i64.const newline_msg_val))
 
                                  (global.set '$debug_env_to_call)
@@ -4280,7 +4271,7 @@
                                                                                                 (i64.const 0) (i64.const 1) (i64.const 0)))
                                               (then
                                                 (local.set '$to_ret (call '$eval_helper (i64.load 8 (extract_ptr_code (local.get '$tmp_read))) (local.get '$d)))
-                                                (call '$drop (local.get '$tmp_read))
+                                                (generate_drop (local.get '$tmp_read))
                                                 (br '$varadic_loop_exit)
                                               )
                                          )
@@ -4292,8 +4283,8 @@
                           (local.set '$tmp_evaled (call '$eval_helper (local.get '$tmp_read) (local.get '$d)))
                           ;(call '$print (i64.const post_eval_val))
                           (call '$print (local.get '$tmp_evaled))
-                          (call '$drop (local.get '$tmp_read))
-                          (call '$drop (local.get '$tmp_evaled))
+                          (generate_drop (local.get '$tmp_read))
+                          (generate_drop (local.get '$tmp_evaled))
                           (call '$print (i64.const newline_msg_val))
                           (br '$varadic_loop)
                     )
@@ -4307,7 +4298,7 @@
               (_ (true_print "made debug"))
 
               ((datasi memo k_vau_helper_msg_val) (compile-string-val datasi memo "k_vau_helper"))
-              ((k_vau_helper          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau_helper '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i_se i64) '(local $i_des i64) '(local $i_params i64) '(local $i_is_varadic i64) '(local $min_num_params i32) '(local $i_body i64) '(local $new_env i64)
+              ((k_vau_helper          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau_helper '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i_se i64) '(local $i_des i64) '(local $i_params i64) '(local $i_is_varadic i64) '(local $min_num_params i32) '(local $i_body i64) '(local $new_env i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
 
                   ; get env ptr
                   (local.set '$ptr (extract_ptr_code (local.get '$s)))
@@ -4315,11 +4306,11 @@
                   (local.set '$ptr (extract_ptr_code (i64.load 8 (local.get '$ptr))))
 
 
-                  (local.set '$i_se             (call '$dup (i64.load  0 (local.get '$ptr))))
+                  (local.set '$i_se             (generate_dup (i64.load  0 (local.get '$ptr))))
                   (local.set '$i_des                        (i64.load  8 (local.get '$ptr)))
-                  (local.set '$i_params         (call '$dup (i64.load 16 (local.get '$ptr))))
+                  (local.set '$i_params         (generate_dup (i64.load 16 (local.get '$ptr))))
                   (local.set '$i_is_varadic                 (i64.load 24 (local.get '$ptr)))
-                  (local.set '$i_body           (call '$dup (i64.load 32 (local.get '$ptr))))
+                  (local.set '$i_body           (generate_dup (i64.load 32 (local.get '$ptr))))
 
 
                   ; reusing len for i_params
@@ -4342,7 +4333,7 @@
 
                                            (local.set '$new_env (call '$env_alloc
                                                                        (local.get '$i_params)
-                                                                       (call '$concat (call '$array3_alloc (call '$slice_impl (call '$dup (local.get '$p))
+                                                                       (call '$concat (call '$array3_alloc (call '$slice_impl (generate_dup (local.get '$p))
                                                                                                                               (i32.const 0)
                                                                                                                               (local.get '$min_num_params))
                                                                                                            (call '$array1_alloc (call '$slice_impl (local.get '$p)
@@ -4362,7 +4353,7 @@
 
                                            (local.set '$new_env (call '$env_alloc
                                                                        (local.get '$i_params)
-                                                                       (call '$concat (call '$array2_alloc (call '$slice_impl (call '$dup (local.get '$p))
+                                                                       (call '$concat (call '$array2_alloc (call '$slice_impl (generate_dup (local.get '$p))
                                                                                                                               (i32.const 0)
                                                                                                                               (local.get '$min_num_params))
                                                                                                            (call '$array1_alloc (call '$slice_impl (local.get '$p)
@@ -4371,7 +4362,7 @@
                                                                                       (i64.const nil_val)
                                                                                       (i64.const nil_val))
                                                                        (local.get '$i_se)))
-                                           (call '$drop (local.get '$d))
+                                           (generate_drop (local.get '$d))
                                   )
                             )
                         )
@@ -4404,7 +4395,7 @@
                                                                        (local.get '$i_params)
                                                                        (local.get '$p)
                                                                        (local.get '$i_se)))
-                                           (call '$drop (local.get '$d))
+                                           (generate_drop (local.get '$d))
                                   )
                             )
                         )
@@ -4412,9 +4403,9 @@
 
                   (call '$eval_helper (local.get '$i_body) (local.get '$new_env))
 
-                  (call '$drop (local.get '$i_body))
-                  (call '$drop (local.get '$new_env))
-                  (call '$drop (local.get '$s))
+                  (generate_drop (local.get '$i_body))
+                  (generate_drop (local.get '$new_env))
+                  (generate_drop (local.get '$s))
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
@@ -4436,7 +4427,7 @@
               (_ (true_print "about to make vau"))
 
               ((datasi memo k_vau_msg_val) (compile-string-val datasi memo "k_vau"))
-              ((k_vau           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i i32) '(local $des i64) '(local $params i64) '(local $is_varadic i64) '(local $body i64) '(local $tmp i64)
+              ((k_vau           func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$vau           '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $i i32) '(local $des i64) '(local $params i64) '(local $is_varadic i64) '(local $body i64) '(local $tmp i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
 
                 (local.set '$len (extract_size_code (local.get '$p)))
                 (local.set '$ptr (extract_ptr_code  (local.get '$p)))
@@ -4444,14 +4435,14 @@
                 (_if '$using_d_env
                       (i32.eq (i32.const 3) (local.get '$len))
                       (then
-                          (local.set '$des      (call '$dup (i64.load 0  (local.get '$ptr))))
-                          (local.set '$params   (call '$dup (i64.load 8  (local.get '$ptr))))
-                          (local.set '$body     (call '$dup (i64.load 16 (local.get '$ptr))))
+                          (local.set '$des      (generate_dup (i64.load 0  (local.get '$ptr))))
+                          (local.set '$params   (generate_dup (i64.load 8  (local.get '$ptr))))
+                          (local.set '$body     (generate_dup (i64.load 16 (local.get '$ptr))))
                           )
                       (else
                           (local.set '$des      (i64.const nil_val))
-                          (local.set '$params   (call '$dup (i64.load 0  (local.get '$ptr))))
-                          (local.set '$body     (call '$dup (i64.load 8  (local.get '$ptr))))
+                          (local.set '$params   (generate_dup (i64.load 0  (local.get '$ptr))))
+                          (local.set '$body     (generate_dup (i64.load 8  (local.get '$ptr))))
                       )
                 )
 
@@ -4468,7 +4459,7 @@
                              (then
                                  (local.set '$is_varadic (i64.const true_val))
 
-                                 (local.set '$tmp (call '$array1_alloc (call '$dup (i64.load 8 (local.get '$ptr)))))
+                                 (local.set '$tmp (call '$array1_alloc (generate_dup (i64.load 8 (local.get '$ptr)))))
                                  (local.set '$params (call '$concat (call '$array2_alloc (call '$slice_impl (local.get '$params) (i32.const 0) (local.get '$i))
                                                                                          (local.get '$tmp))
                                                                     (i64.const nil_val)
@@ -4485,7 +4476,7 @@
                 (_if '$using_d_env
                       (i64.ne (local.get '$des) (i64.const nil_val))
                       (then
-                           (local.set '$params (call '$concat (call '$array2_alloc (local.get '$params) (call '$array1_alloc (call '$dup (local.get '$des))))
+                           (local.set '$params (call '$concat (call '$array2_alloc (local.get '$params) (call '$array1_alloc (generate_dup (local.get '$des))))
                                                      (i64.const nil_val)
                                                      (i64.const nil_val)))
                       )
@@ -4502,12 +4493,12 @@
                                                          (i64.const nil_val))
                                        (i64.ne (local.get '$des) (i64.const nil_val)))
 
-                (call '$drop (local.get '$p))
+                (generate_drop (local.get '$p))
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
               (_ (true_print "made vau"))
               ((datasi memo k_cond_msg_val) (compile-string-val datasi memo "k_cond"))
-              ((k_cond          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$cond          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $tmp i64)
+              ((k_cond          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$cond          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $tmp i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                   set_len_ptr
                   ;yall
                   (block '$cond_loop_break_ok
@@ -4519,11 +4510,11 @@
                               (_if 'cond_truthy
                                    (truthy_test (local.get '$tmp))
                                    (then
-                                       (call '$drop (local.get '$tmp))
+                                       (generate_drop (local.get '$tmp))
                                        (local.set '$tmp (call '$eval_helper (i64.load 8 (local.get '$ptr)) (local.get '$d)))
                                        (br '$cond_loop_break_ok)
                                    )
-                                   (else (call '$drop (local.get '$tmp)))
+                                   (else (generate_drop (local.get '$tmp)))
                               )
                               (local.set '$len (i32.sub (local.get '$len) (i32.const 2)))
                               (local.set '$ptr (i32.add (local.get '$ptr) (i32.const 16)))
@@ -4538,8 +4529,8 @@
               ))))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
 
-              (get_passthrough (dlambda (hash (datasi funcs memo env pectx inline_locals)) (dlet ((r (get-value-or-false memo hash)))
-                                                                     (if r (array r nil nil (array datasi funcs memo env pectx inline_locals)) #f))))
+              (get_passthrough (dlambda (hash (datasi funcs memo env pectx inline_locals used_map)) (dlet ((r (get-value-or-false memo hash)))
+                                                                     (if r (array r nil nil (array datasi funcs memo env pectx inline_locals used_map)) #f))))
 
 
               ; This is the second run at this, and is a little interesting
@@ -4548,58 +4539,122 @@
               ; may not be a Vau. When it recurses, if the thing you're currently compiling could be a value
               ; but your recursive calls return code, you will likely have to swap back to code.
 
-              ; ctx is (datasi funcs memo env pectx inline_locals)
-              ; return is (value? code? error? (datasi funcs memo env pectx inline_locals))
+              ; ctx is (datasi funcs memo env pectx inline_locals used_map)
+              ; return is (value? code? error? (datasi funcs memo env pectx inline_locals used_map))
+
+              ;
+              ; Used map
+              ; --------
+              ;
+
+              ;(empty_dict-list (array))
+              ;(put-list (lambda (m k v) (cons (array k v) m)))
+              ;(get-list (lambda (d k) ((rec-lambda recurse (k d len_d i) (cond ((= len_d i)             false)
+              ;                                                                 ((= k (idx (idx d i) 0)) (idx d i))
+              ;                                                                 (true                    (recurse k d len_d (+ 1 i)))))
+              ;                          k d (len d) 0)))
+              ;(put-all-list (lambda (m nv) (map (dlambda ((k v)) (array k nv)) m)))
+              (empty_use_map empty_dict-list)
+              (map_used_map_in_ctx (lambda (f ctx) (dlet ( ((datasi funcs memo env pectx inline_locals used_map) ctx)
+                                                           (used_map (f used_map))
+                                                           (ctx (array datasi funcs memo env pectx inline_locals used_map))
+                                                         ) ctx)))
+              (set_used_map (lambda (used_map s)                                    (put-list used_map s #t)))
+              (set_used_ctx (lambda (ctx s) (map_used_map_in_ctx (lambda (used_map) (put-list used_map s #t)) ctx)))
+
               (_ (true_print "about to make compile-inner closure"))
-              (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval s_env_access_code inline_level tce_data) (cond
+              (type_data_nil nil)
+              ; type is a bit generic, both the runtime types + length of arrays
+              ;
+              ; (array <symbol_identifier> maybe_rc [length or false for arrays/strings])
+              ;
+              ; there are three interesting things to say about types
+              ; the x=type guarentee map (x has this type. i.e, constants, being after an assertion, being inside a cond branch with a true->x=type assertion
+              ; the x=type assertion map (x needs to have this type, else trap. Comes from calling a function with a typed parameter)
+              ; the true->x=type structure (if a particular value is true, than it implies that x=type. Happens based on cond branches with type/len/equality checks in contitional)
+
+              ; call
+              ;   -true->x=type structure
+              ;   -type guarentee map
+              ; return
+              ;   -value type (or false)
+              ;   -return value true -> x=type
+              ;   -type assertion map
+              ;   -extra data that should be passed back in
+              ;
+              ;
+              ; the cache data structure is just what it returned. Sub-calls should pass in the extra data indexed appropriately
+              (get-list-or (lambda (d k o) (dlet ((x (get-list d k)))
+                                                 (mif x (idx x 1)
+                                                        o))))
+              (infer_types (rec-lambda infer_types (c implies guarentees) (cond
+                        ((and (val? c) (int?    (.val c)))                  (array (array 'int  false)                                      empty_dict-list empty_dict-list type_data_nil))
+                        ((and (val? c) (= true  (.val c)))                  (array (array 'bool false)                                      empty_dict-list empty_dict-list type_data_nil))
+                        ((and (val? c) (= false (.val c)))                  (array (array 'bool false)                                      empty_dict-list empty_dict-list type_data_nil))
+                        ((and (val? c) (str?    (.val c)))                  (array (array 'str  false)                                      empty_dict-list empty_dict-list type_data_nil))
+                        ((and (marked_symbol? c) (.marked_symbol_is_val c)) (array (array 'sym  false)                                      empty_dict-list empty_dict-list type_data_nil))
+                        ((marked_symbol? c)                                 (array (get-list-or guarentees (.marked_symbol_value c) false)  empty_dict-list empty_dict-list type_data_nil))
+                        ((marked_env? c)                                    (array (array 'env  true)                                       empty_dict-list empty_dict-list type_data_nil))
+                        ((comb? c)                                          (array (array 'comb true)                                       empty_dict-list empty_dict-list type_data_nil))
+                        ((prim_comb? c)                                     (array (array 'prim_comb false)                                 empty_dict-list empty_dict-list type_data_nil))
+                        ((and (marked_array? c) (.marked_array_is_val c))   (array (array 'arr  false (len (.marked_array_values c)))       empty_dict-list empty_dict-list type_data_nil))
+                        ; insert call checks here
+                        (true                                               (array false                                                    empty_dict-list empty_dict-list type_data_nil))
+              )))
+              (cached_infer_types     (lambda (c cache)   (mif cache cache                 (infer_types c                                empty_dict-list empty_dict-list))))
+              (cached_infer_types_idx (lambda (c cache i) (mif cache (idx (idx cache 3) i) (infer_types (idx (.marked_array_values c) i) empty_dict-list empty_dict-list))))
+              (just_type              (lambda (type_data) (idx type_data 0)))
+              (word_value_type?       (lambda (x) (or (= 'int (idx x 0)) (= 'bool (idx x 0)) (= 'sym (idx x 0)))))
+              (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval s_env_access_code inline_level tce_data type_data) (cond
                     ((val? c)   (dlet ((v (.val c)))
                                      (cond ((int? v)    (array  (mk_int_value v) nil nil ctx))
                                            ((= true v)  (array  true_val nil nil ctx))
                                            ((= false v) (array false_val nil nil ctx))
-                                           ((str? v)    (dlet ( ((datasi funcs memo env pectx inline_locals) ctx)
+                                           ((str? v)    (dlet ( ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                                 ((datasi memo str_val) (compile-string-val datasi memo v))
-                                                              ) (array str_val nil nil (array datasi funcs memo env pectx inline_locals))))
+                                                              ) (array str_val nil nil (array datasi funcs memo env pectx inline_locals used_map))))
                                            (true        (error (str "Can't compile impossible value " v))))))
-                    ((marked_symbol? c) (cond ((.marked_symbol_is_val c) (dlet ( ((datasi funcs memo env pectx inline_locals) ctx)
+                    ((marked_symbol? c) (cond ((.marked_symbol_is_val c) (dlet ( ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                                                  ((datasi memo symbol_val) (compile-symbol-val datasi memo (.marked_symbol_value c)))
-                                                                               ) (array symbol_val nil nil (array datasi funcs memo env pectx inline_locals))))
+                                                                               ) (array symbol_val nil nil (array datasi funcs memo env pectx inline_locals used_map))))
 
 
-                                              (true (dlet ( ((datasi funcs memo env pectx inline_locals) ctx)
+                                              (true (dlet ( ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                             ; not a recoverable error, so just do here
                                                             (_ (if (= nil env) (error "nil env when trying to compile a non-value symbol")))
 
 
       (lookup_helper (rec-lambda lookup-recurse (dict key i code level) (cond
-          ((and (= i (- (len dict) 1)) (= nil (idx dict i))) (array nil (str "for code-symbol lookup, couldn't find " key)))
+          ((and (= i (- (len dict) 1)) (= nil (idx dict i))) (array nil (str "for code-symbol lookup, couldn't find " key) used_map))
           ((= i (- (len dict) 1))                            (lookup-recurse (.env_marked (idx dict i)) key 0 (i64.load 16 (extract_ptr_code code)) (+ level 1)))
-          ((= key (idx (idx dict i) 0))                      (if (and (not inside_veval) (<= level inline_level)) (array (local.get (mif (!= inline_level level)
-                                                                                                                                         (str-to-symbol (concat (str (- inline_level
-                                                                                                                                                                        level))
-                                                                                                                                                                (get-text key)))
-                                                                                                                                         key)) nil)
-                                                                                                                  (array (i64.load (* 8 i) (extract_ptr_code (i64.load 8 (extract_ptr_code code)))) nil))) ; get val array, get item
+          ((= key (idx (idx dict i) 0))                      (if (and (not inside_veval) (<= level inline_level)) (dlet ((s (mif (!= inline_level level)
+                                                                                                                                 (str-to-symbol (concat (str (- inline_level
+                                                                                                                                                                level))
+                                                                                                                                                             (get-text key)))
+                                                                                                                                 key))
+                                                                                                                        ) (array (local.get s) nil (set_used_map used_map s)))
+                                                                                                                  (array (i64.load (* 8 i) (extract_ptr_code (i64.load 8 (extract_ptr_code code)))) nil used_map))) ;(set_used_map used_map (.marked_env_idx !E!)) SOMETHING HERE get val array, get item
           (true                                              (lookup-recurse dict key (+ i 1) code level)))))
 
 
                                                             ((val err) (lookup_helper (.env_marked env) (.marked_symbol_value c) 0 s_env_access_code 0))
                                                             (err (mif err (str "got " err ", started searching in " (str_strip env)) (if need_value (str "needed value, but non val symbol " (.marked_symbol_value c)) nil)))
-                                                            (result (mif val (call '$dup val)))
-                                                          ) (array nil result err (array datasi funcs memo env pectx inline_locals))))))
+                                                            (result   (mif val (generate_dup val)))
+                                                          ) (array nil result err (array datasi funcs memo env pectx inline_locals used_map))))))
 
 
 
                    ((marked_array? c) (if (.marked_array_is_val c) (or (get_passthrough (.hash c) ctx)
                                                                        (dlet ((actual_len (len (.marked_array_values c))))
                                                                          (if (= 0 actual_len) (array nil_val nil nil ctx)
-                                                                             (dlet ( ((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x need_value inside_veval s_env_access_code inline_level nil)))
+                                                                             (dlet ( ((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x need_value inside_veval s_env_access_code inline_level nil type_data_nil)))
                                                                                                                                          (array (cons (mod_fval_to_wrap v) a) (or (mif err err false) (mif e e false) (mif c (str "got code " c) false)) ctx))) (array (array) nil ctx) (.marked_array_values c)))
                                                                                    ) (mif err (array nil nil (str err ", from an array value compile " (str_strip c)) ctx) (dlet (
-                                                                                    ((datasi funcs memo env pectx inline_locals) ctx)
+                                                                                    ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                                                     ((c_loc c_len datasi) (alloc_data (apply concat (map i64_le_hexify comp_values)) datasi))
                                                                                     (result (mk_array_value actual_len c_loc))
                                                                                     (memo (put memo (.hash c) result))
-                                                                                   ) (array result nil nil (array datasi funcs memo env pectx inline_locals))))))))
+                                                                                   ) (array result nil nil (array datasi funcs memo env pectx inline_locals used_map))))))))
 
                                                         ; This is the other half of where we notice & tie up recursion based on partial eval's noted rec-stops
                                                         ; Other half is below in comb compilation
@@ -4613,13 +4668,13 @@
                                                         ; Partial eval won't recurse infinately, since it has memo, but it can return something of that
                                                         ; shape in that case which will cause compile to keep stepping.
 
-                                                        ((datasi funcs memo env pectx inline_locals) ctx)
+                                                        ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                         (hit_recursion (= 'RECURSE_FAIL (get-value-or-false memo (.hash c))))
 
                                                         (compile_params (lambda (unval_and_eval ctx params cond_tce)
                                                                 (foldr (dlambda (x (a err ctx i)) (dlet (
 
-                                                                    ((datasi funcs memo env pectx inline_locals) ctx)
+                                                                    ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                                     ((x err ctx) (mif err                 (array nil err ctx)
                                                                                  (if (not unval_and_eval) (array x err ctx)
                                                                                                           (dlet (
@@ -4630,21 +4685,21 @@
                                                                                                                                  (hit_recursion (array pectx "blockrecursion" nil))
                                                                                                                                  (true (partial_eval_helper x false env (array nil nil) pectx 1 false))))
 
-                                                                                                            (ctx (array datasi funcs memo env pectx inline_locals))
+                                                                                                            (ctx (array datasi funcs memo env pectx inline_locals used_map))
 
                                                                                                           ) (array (mif e x pex) err ctx)))))
-                                                                    ((datasi funcs memo env pectx inline_locals) ctx)
+                                                                    ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                                     (memo (put memo (.hash c) 'RECURSE_FAIL))
-                                                                    (ctx (array datasi funcs memo env pectx inline_locals))
+                                                                    (ctx (array datasi funcs memo env pectx inline_locals used_map))
                                                                     ((val code err ctx) (mif err (array nil nil err ctx)
                                                                                                  (compile-inner ctx x false inside_veval s_env_access_code inline_level
                                                                                                                                                                      ; 0 b/c foldr
                                                                                                                                                                      ; count from end
-                                                                                                                                                           (mif (and (= 0 (% i 2))
-                                                                                                                                                                     cond_tce)
+                                                                                                                                                           (mif (and (= 0 (% i 2)) cond_tce)
                                                                                                                                                                 tce_data
-                                                                                                                                                                nil))))
-                                                                    ((datasi funcs memo env pectx inline_locals) ctx)
+                                                                                                                                                                nil)
+                                                                                                                                                           type_data_nil)))
+                                                                    ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                                     (memo (put memo (.hash c) 'RECURSE_OK))
                                                                     ) (array (cons (mif val (i64.const (mod_fval_to_wrap val)) code) a) err ctx (+ i 1))))
 
@@ -4654,6 +4709,10 @@
                                                         (num_params (- (len func_param_values) 1))
                                                         (params (slice func_param_values 1 -1))
                                                         (func_value (idx func_param_values 0))
+                                                        ;(notnotparameter_types (map (lambda (i) (infer_types (idx (.marked_array_values c) i) empty_dict-list empty_dict-list)) (range 1 (len func_param_values))))
+                                                        ;(notparameter_types (map (lambda (i) (cached_infer_types_idx c type_data i)) (range 1 (len func_param_values))))
+                                                        (parameter_types (map (lambda (i) (just_type (cached_infer_types_idx c type_data i))) (range 1 (len func_param_values))))
+                                                        ;(_ (true_print "gah " (mif type_data true false) " parameter_types " parameter_types " notparameter_types " notparameter_types " notnotparameter_types " notnotparameter_types))
 
                                                         (wrap_level (if (or (comb? func_value) (prim_comb? func_value)) (.any_comb_wrap_level func_value) nil))
                                                         ; I don't think it makes any sense for a function literal to have wrap > 0
@@ -4704,12 +4763,12 @@
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'veval)) (dlet (
 
                             (_ (if (!= 2 (len params)) (error "call to veval has != 2 params!")))
-                            ((datasi funcs memo env pectx inline_locals) ctx)
-                            ((val code err (datasi funcs memo ienv pectx inline_locals)) (compile-inner (array datasi funcs memo (idx params 1) pectx inline_locals) (idx params 0) false true (local.get '$s_env) 0 nil))
-                            (ctx (array datasi funcs memo env pectx inline_locals))
+                            ((datasi funcs memo env pectx inline_locals used_map) ctx)
+                            ((val code err (datasi funcs memo ienv pectx inline_locals used_map)) (compile-inner (array datasi funcs memo (idx params 1) pectx inline_locals used_map) (idx params 0) false true (local.get '$s_env) 0 nil type_data_nil))
+                            (ctx (array datasi funcs memo env pectx inline_locals used_map))
                             ; If it's actual code, we have to set and reset s_env
                             ((code env_err ctx) (mif code (dlet (
-                                                              ((env_val env_code env_err ctx) (compile-inner ctx (idx params 1) false inside_veval s_env_access_code inline_level nil))
+                                                              ((env_val env_code env_err ctx) (compile-inner ctx (idx params 1) false inside_veval s_env_access_code inline_level nil type_data_nil))
                                                               (full_code (concat (local.get '$s_env)
                                                                                  (local.set '$s_env (mif env_val (i64.const env_val) env_code))
                                                                                  code
@@ -4738,7 +4797,41 @@
 
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '+)) (gen_numeric_impl i64.add))
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '-)) (gen_numeric_impl i64.sub))
-                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '=)) (gen_cmp_impl false_val true_val false_val))
+                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '=)) (mif (any_in_array word_value_type? parameter_types)
+                                                                                                                                  (dlet (((param_codes err ctx _) (compile_params false ctx params false)))
+                                                                                                                                          (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
+                                                                                                                                                   (dlet (
+                                                                                                    (_ (true_print "Doing the better = " parameter_types))
+                                                                                                    (word_value_idx  (any_in_array word_value_type? parameter_types))
+                                                                                                    (pparameter_types (reverse_e (concat (slice parameter_types 0 word_value_idx)
+                                                                                                                                         (slice parameter_types (+ 1 word_value_idx) -1)
+                                                                                                                                         (array (idx parameter_types word_value_idx)))))
+                                                                                                    (_ (true_print "made reverse"))
+                                                                                                    (eq_code 
+                                                                                                             (_if '$eq_result '(result i64)
+                                                                                                                   (concat
+                                                                                                                       (apply concat (concat (slice param_codes 0 word_value_idx)
+                                                                                                                                             (slice param_codes (+ 1 word_value_idx) -1)
+                                                                                                                                             (array (idx param_codes word_value_idx))))
+                                                                                                                       (local.set '$prim_tmp_a)
+                                                                                                                       (local.set '$prim_tmp_b)
+                                                                                                                       (local.set '$prim_tmp_d (i64.eq (local.get '$prim_tmp_a) (local.get '$prim_tmp_b)))
+                                                                                                                       (mif (word_value_type? (idx pparameter_types 1)) (array) (generate_drop (local.get '$prim_tmp_b)))
+                                                                                                                       (flat_map (lambda (i) (concat
+                                                                                                                         (local.set '$prim_tmp_b)
+                                                                                                                         (local.set '$prim_tmp_d (i64.and (local.get '$prim_tmp_d) (i64.eq (local.get '$prim_tmp_a) (local.get '$prim_tmp_b))))
+                                                                                                                         (mif (word_value_type? (idx pparameter_types i)) (array) (generate_drop (local.get '$prim_tmp_b)))
+                                                                                                                                   ))
+                                                                                                                                 (range 2 num_params))
+                                                                                                                       (local.get '$prim_tmp_d)
+                                                                                                                   )
+                                                                                                                   (then (i64.const true_val))
+                                                                                                                   (else (i64.const false_val)))
+                                                                                                    )
+                                                                                                    (_ (true_print "made eq_code"))
+                                                                                                                                        ) (array nil eq_code nil ctx))))
+                                                                                                                                  (dlet ((_ (true_print "missed better = " parameter_types))) (gen_cmp_impl false_val true_val false_val))))
+                                                        
 
 
                                                             ; User inline
@@ -4762,7 +4855,7 @@
                         ((param_codes first_params_err ctx _) (compile_params false ctx params false))
 
                         (inner_env (make_tmp_inner_env comb_params (.comb_des func_value) (.comb_env func_value) (.comb_id func_value)))
-                        ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) comb_params) nil) true false s_env_access_code 0 nil))
+                        ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) comb_params) nil) true false s_env_access_code 0 nil type_data_nil))
                         (new_get_s_env_code (_if '$have_s_env '(result i64)
                                                  (i64.ne (i64.const nil_val) (local.get new_s_env_symbol))
                                                  (then (local.get new_s_env_symbol))
@@ -4770,26 +4863,26 @@
 
                                                                                             (local.set '$tmp_ptr (call '$malloc (i32.const (* 8 (len additional_param_symbols)))))
                                                                                             (flat_map (lambda (i) (i64.store (* i 8) (local.get '$tmp_ptr)
-                                                                                                                             (call '$dup (local.get (idx additional_param_symbols i))))) 
+                                                                                                                             (generate_dup (local.get (idx additional_param_symbols i))))) 
                                                                                                       (range 0 (len additional_param_symbols)))
                                                                                             (mk_array_code_rc_const_len (len additional_param_symbols) (local.get '$tmp_ptr))
-                                                                                            (call '$dup s_env_access_code)))
+                                                                                            (generate_dup s_env_access_code)))
                                                        )))
-                        ((datasi funcs memo env pectx inline_locals) ctx)
-                        ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals) (.comb_body func_value) false false new_get_s_env_code new_inline_level tce_data))
+                        ((datasi funcs memo env pectx inline_locals used_map) ctx)
+                        ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals used_map) (.comb_body func_value) false false new_get_s_env_code new_inline_level tce_data type_data_nil))
                         (inner_code (mif inner_value (i64.const inner_value) inner_code))
                         (result_code (concat
                                        (apply concat param_codes)
                                        (flat_map (lambda (i) (local.set (idx additional_param_symbols i))) (range (- (len additional_param_symbols) 1) -1))
                                        (local.set new_s_env_symbol (i64.const nil_val))
                                        inner_code
-                                       (flat_map (lambda (i) (call '$drop (local.get (idx additional_param_symbols i)))) (range (- (len additional_param_symbols) 1) -1))
-                                       (call '$drop (local.get new_s_env_symbol))
+                                       (flat_map (lambda (i) (generate_drop (local.get (idx additional_param_symbols i)))) (range (- (len additional_param_symbols) 1) -1))
+                                       (generate_drop (local.get new_s_env_symbol))
                                        (local.set new_s_env_symbol (i64.const nil_val))
                                        ))
                         ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
-                        ((datasi funcs memo _was_inner_env pectx inline_locals) ctx)
-                        (final_result (array nil result_code (mif first_params_err first_params_err err) (array datasi funcs memo env pectx (concat inline_locals additional_symbols))))
+                        ((datasi funcs memo _was_inner_env pectx inline_locals used_map) ctx)
+                        (final_result (array nil result_code (mif first_params_err first_params_err err) (array datasi funcs memo env pectx (concat inline_locals additional_symbols) used_map)))
 
                                                                   ) final_result))
                                                             ; Normal call
@@ -4802,11 +4895,11 @@
                                                             ;           + d_de/d_no_de & d_wrap=1/d_wrap=2
                                                             (true (dlet (
                                                                 ((param_codes first_params_err ctx _) (compile_params false ctx params false))
-                                                                ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval s_env_access_code inline_level nil))
+                                                                ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval s_env_access_code inline_level nil type_data_nil))
                                                                 ((unval_param_codes err ctx _) (compile_params true ctx params false))
                                                                 ; Generates *tons* of text, needs to be different. Made a 200KB binary 80MB
-                                                                ;((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (true_str_strip c) " " err)) true inside_veval s_env_access_code inline_level))
-                                                                ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val "error was with unval-evaling parameters of ") true inside_veval s_env_access_code inline_level nil))
+                                                                ;((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (true_str_strip c) " " err)) true inside_veval s_env_access_code inline_level type_data_nil))
+                                                                ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val "error was with unval-evaling parameters of ") true inside_veval s_env_access_code inline_level nil type_data_nil))
                                                                 (wrap_param_code (lambda (code) (concat
                                                                                                     (local.get '$tmp) ; saving ito restore it
                                                                                                     code
@@ -4835,7 +4928,7 @@
                                                                                     (call '$print (i64.const weird_wrap_msg_val))
                                                                                     (unreachable)))
 
-                                                                ((source_code ctx) (mif (.marked_array_source c) (dlet (((code _ _ ctx) (compile-inner ctx (.marked_array_source c) true inside_veval s_env_access_code inline_level nil))
+                                                                ((source_code ctx) (mif (.marked_array_source c) (dlet (((code _ _ ctx) (compile-inner ctx (.marked_array_source c) true inside_veval s_env_access_code inline_level nil type_data_nil))
                                                                                                                         ) (array code ctx))
                                                                                                                  (array k_cond_msg_val ctx)))
                                                                 ((result_code ctx) (mif func_val
@@ -4847,18 +4940,18 @@
                                                                                     ((tce_idx tce_full_params) (mif tce_data tce_data (array nil nil)))
                                                                                     (tce_able                  (and unwrapped (= tce_idx (extract_func_idx func_val))))
                                                                                     (s_env_val                 (extract_func_env func_val))
-                                                                                    ((datasi funcs memo env pectx inline_locals) ctx)
+                                                                                    ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                                                     (ctx (mif tce_able
                                                                                               (dlet (
                                                                                                   (inline_locals (mif (in_array '___TCE___ inline_locals)
                                                                                                                       inline_locals
                                                                                                                       (cons '___TCE___ inline_locals)))
-                                                                                                  (ctx (array datasi funcs memo env pectx inline_locals))
+                                                                                                  (ctx (array datasi funcs memo env pectx inline_locals used_map))
                                                                                               ) ctx)
                                                                                               ctx))
                                                                               )
                                                                               (array (concat
-                                                                                (front_half_stack_code (i64.const source_code) (call '$dup s_env_access_code))
+                                                                                (front_half_stack_code (i64.const source_code) (generate_dup s_env_access_code))
                                                                                 ;params
                                                                                 (mif unwrapped
                                                                                      ; unwrapped, can call directly with parameters on wasm stack
@@ -4869,19 +4962,19 @@
                                                                                             ;dynamic env (is caller's static env)
                                                                                             ; hay, we can do this statically! the static version of the dynamic check
                                                                                             (mif needs_denv
-                                                                                                 (call '$dup s_env_access_code)
+                                                                                                 (generate_dup s_env_access_code)
                                                                                                  (array))
                                                                                             (mif tce_able
                                                                                                  (concat
-                                                                                                      (call '$drop (local.get '$s_env))
+                                                                                                      (generate_drop (local.get '$s_env))
                                                                                                       (local.set '$s_env (i64.const nil_val))
-                                                                                                      (call '$drop (local.get '$outer_s_env))
+                                                                                                      (generate_drop (local.get '$outer_s_env))
                                                                                                       (local.set '$outer_s_env (i64.const s_env_val))
                                                                                                       (flat_map (lambda (i) (mif (= i '___TCE___) (array)
-                                                                                                                                                  (concat (call '$drop (local.get i))
+                                                                                                                                                  (concat (generate_drop (local.get i))
                                                                                                                                                           (local.set i (i64.const nil_val)))))
                                                                                                                 inline_locals)
-                                                                                                      (flat_map (lambda (i) (concat (call '$drop (local.get i)) (local.set i))) (reverse_e tce_full_params))
+                                                                                                      (flat_map (lambda (i) (concat (generate_drop (local.get i)) (local.set i))) (reverse_e tce_full_params))
                                                                                                       (br '___TCE___)
                                                                                                       (dlet ((_ (true_print "HAYO TCEEE"))) nil)
                                                                                                  )
@@ -4899,7 +4992,7 @@
                                                                                             ;dynamic env (is caller's static env)
                                                                                             ; hay, we can do this statically! the static version of the dynamic check
                                                                                             (mif needs_denv
-                                                                                                 (call '$dup s_env_access_code)
+                                                                                                 (generate_dup s_env_access_code)
                                                                                                  (i64.const nil_val))
                                                                                             ; static env
                                                                                             (i64.const s_env_val)
@@ -4922,7 +5015,7 @@
                                                                                         )
                                                                                     )
                                                                                 )
-                                                                                (front_half_stack_code (i64.const source_code) (call '$dup s_env_access_code))
+                                                                                (front_half_stack_code (i64.const source_code) (generate_dup s_env_access_code))
                                                                                 (call_indirect
                                                                                     ;type
                                                                                     k_vau
@@ -4933,7 +5026,7 @@
                                                                                     ;dynamic env (is caller's static env)
                                                                                     (_if '$needs_dynamic_env '(result i64)
                                                                                          (needes_de_code (local.get '$tmp))
-                                                                                         (then (call '$dup s_env_access_code))
+                                                                                         (then (generate_dup s_env_access_code))
                                                                                          (else (i64.const nil_val)))
                                                                                     ; static env
                                                                                     (extract_func_env_code (local.get '$tmp))
@@ -4947,11 +5040,11 @@
 
                     ((marked_env? c) (or (get_passthrough (.hash c) ctx) (dlet ((e (.env_marked c))
 
-                                            (_ (true_print "gonna compile a marked_env"))
+                                            ;(_ (true_print "gonna compile a marked_env"))
 
-                                            (generate_env_access (dlambda ((datasi funcs memo env pectx inline_locals) env_id reason) ((rec-lambda recurse (code this_env)
+                                            (generate_env_access (dlambda ((datasi funcs memo env pectx inline_locals used_map) env_id reason) ((rec-lambda recurse (code this_env)
                                                 (cond
-                                                    ((= env_id (.marked_env_idx this_env)) (array nil (call '$dup code) nil (array datasi funcs memo env pectx inline_locals)))
+                                                    ((= env_id (.marked_env_idx this_env)) (array nil (generate_dup code) nil (array datasi funcs memo env pectx inline_locals used_map)))
                                                     ((= nil (.marked_env_upper this_env))  (array nil nil (str "bad env, upper is nil and we haven't found " env_id ", (this is *possiblely* because we're not recreating val/notval chains?) maxing out at " (str_strip this_env) ",  having started at " (str_strip env) ", we're generating because " reason) (array datasi funcs memo env pectx)))
                                                     (true                                  (recurse (i64.load 16 (extract_ptr_code code)) (.marked_env_upper this_env)))
                                                 )
@@ -4959,40 +5052,40 @@
 
                                             ) (if (not (marked_env_real? c)) (begin (print_strip "env wasn't real: " (marked_env_real? c) ", so generating access (env was) " c) (if need_value (array nil nil (str "marked env not real, though we need_value: " (str_strip c)) ctx) (generate_env_access ctx (.marked_env_idx c) "it wasn't real: " (str_strip c))))
                                             (dlet (
-                                            (_ (true_print "gonna compile kvs vvs"))
+                                            ;(_ (true_print "gonna compile kvs vvs"))
 
 
-                                            ((kvs vvs ctx) (foldr (dlambda ((k v) (ka va ctx)) (dlet (((kv _    _   ctx) (compile-inner ctx (marked_symbol nil k) true inside_veval s_env_access_code inline_level nil))
-                                                                                                      ((vv code err ctx) (compile-inner ctx v need_value inside_veval s_env_access_code inline_level nil))
+                                            ((kvs vvs ctx) (foldr (dlambda ((k v) (ka va ctx)) (dlet (((kv _    _   ctx) (compile-inner ctx (marked_symbol nil k) true inside_veval s_env_access_code inline_level nil type_data_nil))
+                                                                                                      ((vv code err ctx) (compile-inner ctx v need_value inside_veval s_env_access_code inline_level nil type_data_nil))
                                                                                                       )
                                                                                                       (if (= false ka) (array false va ctx)
                                                                                                       (if (or (= nil vv) (!= nil err)) (array false (str "vv was " vv " err is " err " and we needed_value? " need_value " based on v " (str_strip v)) ctx)
                                                                                                                                        (array (cons kv ka) (cons (mod_fval_to_wrap vv) va) ctx)))))
                                                                   (array (array) (array) ctx)
                                                                   (slice e 0 -2)))
-                                            (_ (true_print "gonna compile upper_value"))
-                                            ((uv ucode err ctx) (mif (idx e -1) (compile-inner ctx (idx e -1) need_value inside_veval s_env_access_code inline_level nil)
+                                            ;(_ (true_print "gonna compile upper_value"))
+                                            ((uv ucode err ctx) (mif (idx e -1) (compile-inner ctx (idx e -1) need_value inside_veval s_env_access_code inline_level nil type_data_nil)
                                                                                 (array nil_val nil nil ctx)))
                                             ) (mif (or (= false kvs) (= nil uv) (!= nil err)) (begin (print_strip "kvs " kvs " vvs " vvs " uv " uv " or err " err " based off of " c) (if need_value (array nil nil (str "had to generate env access (course " need_value ") for " (str_strip c) "vvs is " vvs " err was " err) ctx) (generate_env_access ctx (.marked_env_idx c) (str " vvs " vvs " uv " uv " or err " err " based off of " (str_strip c)))))
                                             (dlet (
-                                                ((datasi funcs memo env pectx inline_locals) ctx)
-                                                (_ (true_print "about to kvs_array"))
+                                                ((datasi funcs memo env pectx inline_locals used_map) ctx)
+                                                ;(_ (true_print "about to kvs_array"))
                                                 ((kvs_array datasi) (if (= 0 (len kvs)) (array nil_val datasi)
                                                                                         (dlet (((kvs_loc kvs_len datasi) (alloc_data (apply concat (map i64_le_hexify kvs)) datasi)))
                                                                                               (array (mk_array_value (len kvs) kvs_loc) datasi))))
-                                                (_ (true_print "about to vvs_array"))
+                                                ;(_ (true_print "about to vvs_array"))
                                                 ((vvs_array datasi) (if (= 0 (len vvs)) (array nil_val datasi)
                                                                                         (dlet (((vvs_loc vvs_len datasi) (alloc_data (apply concat (map i64_le_hexify vvs)) datasi)))
                                                                                               (array (mk_array_value (len vvs) vvs_loc) datasi))))
-                                                (_ (true_print "about to all_hex"))
+                                                ;(_ (true_print "about to all_hex"))
                                                 (all_hex (map i64_le_hexify (array kvs_array vvs_array uv)))
-                                                (_ (true_print "all_hexed"))
+                                                ;(_ (true_print "all_hexed"))
                                                 ((c_loc c_len datasi) (alloc_data (apply concat all_hex) datasi))
-                                                (_ (true_print "alloced"))
+                                                ;(_ (true_print "alloced"))
                                                 (result (mk_env_value c_loc))
-                                                (_ (true_print "made result " result))
+                                                ;(_ (true_print "made result " result))
                                                 (memo (put memo (.hash c) result))
-                                            ) (array result nil nil (array datasi funcs memo env pectx inline_locals)))))))))
+                                            ) (array result nil nil (array datasi funcs memo env pectx inline_locals used_map)))))))))
 
                     ((prim_comb? c) (cond ((= 'vau           (.prim_comb_sym c))  (array (mk_comb_val_nil_env (- k_vau dyn_start)           1 (.prim_comb_wrap_level c)) nil nil ctx))
                                           ((= 'cond          (.prim_comb_sym c))  (array (mk_comb_val_nil_env (- k_cond dyn_start)          1 (.prim_comb_wrap_level c)) nil nil ctx))
@@ -5073,7 +5166,7 @@
                                     (normal_params_length (if variadic (- (len params) 1) (len params)))
                                     (compile_body_part (lambda (ctx body_part new_tce_data) (dlet (
                                                 (inner_env (make_tmp_inner_env params de? se env_id))
-                                                ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) full_params) nil) true false s_env_access_code 0 nil))
+                                                ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) full_params) nil) true false s_env_access_code 0 nil type_data_nil))
                                                 (new_get_s_env_code (_if '$have_s_env '(result i64)
                                                                          (i64.ne (i64.const nil_val) (local.get '$s_env))
                                                                          (then (local.get '$s_env))
@@ -5081,18 +5174,20 @@
 
                                                                                                                     (local.set '$tmp_ptr (call '$malloc (i32.const (* 8 (len full_params)))))
                                                                                                                     (flat_map (lambda (i) (i64.store (* i 8) (local.get '$tmp_ptr)
-                                                                                                                                                     (call '$dup (local.get (idx full_params i))))) 
+                                                                                                                                                     (generate_dup (local.get (idx full_params i))))) 
                                                                                                                               (range 0 (len full_params)))
                                                                                                                     (mk_array_code_rc_const_len (len full_params) (local.get '$tmp_ptr))
 
                                                                                                                     (local.get '$outer_s_env)))
+                                                                               ;(call '$print (i64.const params_vec))
+                                                                               ;(call '$print (i64.const newline_msg_val))
                                                                                (local.set '$outer_s_env (i64.const nil_val))
                                                                                )))
-                                                ((datasi funcs memo env pectx inline_locals) ctx)
-                                                ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals) body_part false false new_get_s_env_code 0 new_tce_data))
+                                                ((datasi funcs memo env pectx inline_locals used_map) ctx)
+                                                ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals used_map) body_part false false new_get_s_env_code 0 new_tce_data type_data_nil))
                                                 ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
-                                                ((datasi funcs memo _was_inner_env pectx inline_locals) ctx)
-                                          ) (array inner_value inner_code err (array datasi funcs memo env pectx inline_locals)))))
+                                                ((datasi funcs memo _was_inner_env pectx inline_locals used_map) ctx)
+                                          ) (array inner_value inner_code err (array datasi funcs memo env pectx inline_locals used_map)))))
 
                                     ((early_quit err ctx) (mif attempt_reduction
                                                       (dlet (
@@ -5109,13 +5204,13 @@
 
                                     ((env_val env_code env_err ctx) (if (and need_value (not (marked_env_real? se)))
                                                                         (array nil nil "Env wasn't real when compiling comb, but need value" ctx)
-                                                                        (compile-inner ctx se need_value inside_veval s_env_access_code inline_level nil)))
+                                                                        (compile-inner ctx se need_value inside_veval s_env_access_code inline_level nil type_data_nil)))
                                     (_ (if (not (or (= nil env_val) (int? env_val))) (error "BADBADBADenv_val")))
                                     (maybe_func (get_passthrough (.hash c) ctx))
                                     ((func_value _ func_err ctx) (mif maybe_func maybe_func
                                         (dlet (
 
-                                        ((datasi funcs memo env pectx outer_inline_locals) ctx)
+                                        ((datasi funcs memo env pectx outer_inline_locals used_map) ctx)
                                         (old_funcs funcs)
                                         (funcs (concat funcs (array nil)))
                                         (our_wrap_func_idx (+ (len funcs) func_id_dynamic_ofset))
@@ -5131,37 +5226,37 @@
 
 
                                         (new_inline_locals (array))
-                                        (ctx (array datasi funcs memo env pectx new_inline_locals))
+                                        (ctx (array datasi funcs memo env pectx new_inline_locals used_map))
                                         ((inner_value inner_code err ctx) (compile_body_part ctx body (array our_func_idx full_params)))
                                         (inner_code (mif inner_value (i64.const (mod_fval_to_wrap inner_value)) inner_code))
-                                        (wrapper_func (func '$wrapper_func '(param $params i64) '(param $d_env i64) '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32)
+                                        (wrapper_func (func '$wrapper_func '(param $params i64) '(param $d_env i64) '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                                                 (_if '$params_len_good
                                                     (if variadic    (i32.lt_u (extract_size_code (local.get '$params)) (i32.const (- (len params) 1)))
                                                                     (i32.ne   (extract_size_code (local.get '$params)) (i32.const (len params))))
                                                     (then
-                                                        (call '$drop (local.get '$params))
-                                                        (call '$drop (local.get '$outer_s_env))
-                                                        (call '$drop (local.get '$d_env))
+                                                        (generate_drop (local.get '$params))
+                                                        (generate_drop (local.get '$outer_s_env))
+                                                        (generate_drop (local.get '$d_env))
                                                         (call '$print (i64.const bad_params_number_msg_val))
                                                         (unreachable)
                                                     )
                                                 )
                                                 (call (+ (len old_funcs) 1 num_pre_functions)
                                                       (local.set '$param_ptr (extract_ptr_code (local.get '$params)))
-                                                      (flat_map (lambda (i) (call '$dup (i64.load (* i 8) (local.get '$param_ptr)))) (range 0 normal_params_length))
+                                                      (flat_map (lambda (i) (generate_dup (i64.load (* i 8) (local.get '$param_ptr)))) (range 0 normal_params_length))
                                                       (if variadic
                                                            (call '$slice_impl (local.get '$params) (i32.const (- (len params) 1)) (i32.const -1))
-                                                           (call '$drop (local.get '$params)))
+                                                           (generate_drop (local.get '$params)))
                                                       (mif de?
                                                             (local.get '$d_env)
-                                                            (call '$drop (local.get '$d_env)))
+                                                            (generate_drop (local.get '$d_env)))
                                                       (local.get '$outer_s_env))
                                         ))
-                                        ((datasi funcs memo env pectx inline_locals) ctx)
+                                        ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                         (parameter_symbols (map (lambda (k) (array 'param k 'i64)) full_params))
                                         (our_inline_locals (map (lambda (k) (array 'local k 'i64)) (filter (lambda (x) (!= '___TCE___ x)) inline_locals)))
 
-                                        (our_func (apply func (concat (array '$userfunc) parameter_symbols (array '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32) '(local $s_env i64) '(local $tmp_ptr i32) '(local $tmp i64) '(local $prim_tmp_a i64) '(local $prim_tmp_b i64) '(local $prim_tmp_c i64)) our_inline_locals (array
+                                        (our_func (apply func (concat (array '$userfunc) parameter_symbols (array '(param $outer_s_env i64) '(result i64) '(local $param_ptr i32) '(local $s_env i64) '(local $tmp_ptr i32) '(local $tmp i64) '(local $prim_tmp_a i64) '(local $prim_tmp_b i64) '(local $prim_tmp_c i64) '(local $prim_tmp_d i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)) our_inline_locals (array
 
                                             (local.set '$s_env (i64.const nil_val))
                                             (mif (in_array '___TCE___ inline_locals)
@@ -5175,22 +5270,22 @@
                                                   inner_code
                                             )
 
-                                            (call '$drop (local.get '$s_env))
-                                            (call '$drop (local.get '$outer_s_env))
-                                            (flat_map (lambda (k) (call '$drop (local.get k))) full_params)
+                                            (generate_drop (local.get '$s_env))
+                                            (generate_drop (local.get '$outer_s_env))
+                                            (flat_map (lambda (k) (generate_drop (local.get k))) full_params)
                                         ))))
                                         ; replace our placeholder with the real one
                                         (funcs (concat old_funcs wrapper_func our_func (drop funcs (+ 2 (len old_funcs)))))
                                         (memo (put memo (.hash c) func_value))
 
-                                        ) (array func_value nil err (array datasi funcs memo env pectx outer_inline_locals)))
+                                        ) (array func_value nil err (array datasi funcs memo env pectx outer_inline_locals used_map)))
                                     ))
                                     (_ (print_strip "returning " func_value " for " c))
                                     (_ (if (not (int? func_value)) (error "BADBADBADfunc")))
                                     (full_result (mif env_val
                                                       (array (combine_env_comb_val env_val func_value) nil (mif func_err (str func_err ", from compiling comb body") (mif env_err (str env_err ", from compiling comb env") nil)) ctx)
                                                       (array nil (combine_env_code_comb_val_code env_code (mod_fval_to_wrap func_value)) (mif func_err (str func_err ", from compiling comb body (env as code)") (mif env_err (str env_err ", from compiling comb env (as code)") nil)) ctx)))
-                                    (_ (mif env_val (true_print "total function " (idx full_result 0) " based on " env_val " and " func_value)))
+                                    ;(_ (mif env_val (true_print "total function " (idx full_result 0) " based on " env_val " and " func_value)))
                                 ) full_result
                                 ))))
 
@@ -5201,29 +5296,29 @@
               ;(_ (println "compiling partial evaled " (str_strip marked_code)))
               ;(_ (true_print "compiling partial evaled " (true_str_strip marked_code)))
               ;(_ (true_print "compiling partial evaled "))
-              (ctx (array datasi funcs memo root_marked_env pectx (array)))
+              (ctx (array datasi funcs memo root_marked_env pectx (array) empty_use_map))
 
               (_ (true_print "About to compile a bunch of symbols & strings"))
 
-              ((exit_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'exit) true false (array) 0 nil))
-              ((args_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'args) true false (array) 0 nil))
-              ((read_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'read) true false (array) 0 nil))
-              ((write_val _ _ ctx)              (compile-inner ctx (marked_symbol nil 'write) true false (array) 0 nil))
-              ((open_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'open) true false (array) 0 nil))
-              ((monad_error_msg_val _ _ ctx)    (compile-inner ctx (marked_val "Not a legal monad ( ['args        <cont (arg_array error?)>] / ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])") true false (array) 0 nil))
-              ((bad_args_val _ _ ctx)           (compile-inner ctx (marked_val "<error with args>") true false (array) 0 nil))
-              ((bad_read_val _ _ ctx)           (compile-inner ctx (marked_val "<error with read>") true false (array) 0 nil))
-              ((exit_msg_val _ _ ctx)           (compile-inner ctx (marked_val "Exiting with code: ") true false (array) 0 nil))
+              ((exit_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'exit) true false (array) 0 nil type_data_nil))
+              ((args_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'args) true false (array) 0 nil type_data_nil))
+              ((read_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'read) true false (array) 0 nil type_data_nil))
+              ((write_val _ _ ctx)              (compile-inner ctx (marked_symbol nil 'write) true false (array) 0 nil type_data_nil))
+              ((open_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'open) true false (array) 0 nil type_data_nil))
+              ((monad_error_msg_val _ _ ctx)    (compile-inner ctx (marked_val "Not a legal monad ( ['args        <cont (arg_array error?)>] / ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])") true false (array) 0 nil type_data_nil))
+              ((bad_args_val _ _ ctx)           (compile-inner ctx (marked_val "<error with args>") true false (array) 0 nil type_data_nil))
+              ((bad_read_val _ _ ctx)           (compile-inner ctx (marked_val "<error with read>") true false (array) 0 nil type_data_nil))
+              ((exit_msg_val _ _ ctx)           (compile-inner ctx (marked_val "Exiting with code: ") true false (array) 0 nil type_data_nil))
 
               (_ (true_print "about ot compile the root_marked_env"))
 
-              ((root_marked_env_val _ _ ctx)    (compile-inner ctx root_marked_env true false (array) 0 nil))
+              ((root_marked_env_val _ _ ctx)    (compile-inner ctx root_marked_env true false (array) 0 nil type_data_nil))
 
               (_ (true_print "made the vals"))
 
               (_ (true_print "gonna compile"))
-              ((compiled_value_ptr compiled_value_code compiled_value_error ctx) (compile-inner ctx marked_code true false (array) 0 nil))
-              ((datasi funcs memo root_marked_env pectx inline_locals) ctx)
+              ((compiled_value_ptr compiled_value_code compiled_value_error ctx) (compile-inner ctx marked_code true false (array) 0 nil type_data_nil))
+              ((datasi funcs memo root_marked_env pectx inline_locals used_map) ctx)
               (compiled_value_code (mif compiled_value_ptr (i64.const (mod_fval_to_wrap compiled_value_ptr)) compiled_value_code))
 
               ; Swap for when need to profile what would be an error
@@ -5239,7 +5334,7 @@
                 ; Could add some to open like lookup flags, o flags, base rights
                 ;                             ineriting rights, fdflags
 
-              (start (func '$start '(local $it i64) '(local $tmp i64) '(local $ptr i32) '(local $monad_name i64) '(local $len i32) '(local $buf i32) '(local $traverse i32) '(local $x i32) '(local $y i32) '(local $code i32) '(local $str i64) '(local $result i64) '(local $debug_malloc_print i32)
+              (start (func '$start '(local $it i64) '(local $tmp i64) '(local $ptr i32) '(local $monad_name i64) '(local $len i32) '(local $buf i32) '(local $traverse i32) '(local $x i32) '(local $y i32) '(local $code i32) '(local $str i64) '(local $result i64) '(local $debug_malloc_print i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
                     (local.set '$it (if needs_runtime_eval (call '$eval_helper compiled_value_code (i64.const root_marked_env_val))
                                                            compiled_value_code))
                     (block '$exit_block
@@ -5259,8 +5354,8 @@
                                         (br_if '$error_block (i32.ne (extract_size_code (local.get '$it)) (i32.const 2)))
                                         ; second entry isn't a comb -> out
                                         (br_if '$error_block (is_not_type_code comb_tag (i64.load 8 (local.get '$ptr))))
-                                        (local.set '$tmp (call '$dup (i64.load 8 (local.get '$ptr))))
-                                        (call '$drop (local.get '$it))
+                                        (local.set '$tmp (generate_dup (i64.load 8 (local.get '$ptr))))
+                                        (generate_drop (local.get '$it))
                                         (local.set '$code (call '$args_sizes_get
                                                                 (i32.const iov_tmp)
                                                                 (i32.const (+ iov_tmp 4))
@@ -5318,11 +5413,11 @@
                                             )
                                         )
 
-                                        (call '$drop (global.get '$debug_func_to_call))
-                                        (call '$drop (global.get '$debug_params_to_call))
-                                        (call '$drop (global.get '$debug_env_to_call))
-                                        (global.set '$debug_func_to_call   (call '$dup (local.get '$tmp)))
-                                        (global.set '$debug_params_to_call (call '$dup (local.get '$result)))
+                                        (generate_drop (global.get '$debug_func_to_call))
+                                        (generate_drop (global.get '$debug_params_to_call))
+                                        (generate_drop (global.get '$debug_env_to_call))
+                                        (global.set '$debug_func_to_call   (generate_dup (local.get '$tmp)))
+                                        (global.set '$debug_params_to_call (generate_dup (local.get '$result)))
                                         (global.set '$debug_env_to_call (i64.const root_marked_env_val))
                                         (local.set '$it (call_indirect
                                             ;type
@@ -5386,20 +5481,20 @@
                                                                                          (i64.const 0)))
                                             )
                                             (else
-                                                (call '$drop (local.get '$str))
+                                                (generate_drop (local.get '$str))
                                                 (local.set '$result (call '$array2_alloc (i64.const bad_read_val)
                                                                                          (mk_int_code_i32u (local.get '$code))))
                                             )
                                         )
 
-                                        (local.set '$tmp (call '$dup (i64.load 24 (local.get '$ptr))))
-                                        (call '$drop (global.get '$debug_func_to_call))
-                                        (call '$drop (global.get '$debug_params_to_call))
-                                        (call '$drop (global.get '$debug_env_to_call))
-                                        (global.set '$debug_func_to_call   (call '$dup (local.get '$tmp)))
-                                        (global.set '$debug_params_to_call (call '$dup (local.get '$result)))
+                                        (local.set '$tmp (generate_dup (i64.load 24 (local.get '$ptr))))
+                                        (generate_drop (global.get '$debug_func_to_call))
+                                        (generate_drop (global.get '$debug_params_to_call))
+                                        (generate_drop (global.get '$debug_env_to_call))
+                                        (global.set '$debug_func_to_call   (generate_dup (local.get '$tmp)))
+                                        (global.set '$debug_params_to_call (generate_dup (local.get '$result)))
                                         (global.set '$debug_env_to_call (i64.const root_marked_env_val))
-                                        (call '$drop (local.get '$it))
+                                        (generate_drop (local.get '$it))
                                         (local.set '$it (call_indirect
                                             ;type
                                             k_vau
@@ -5441,12 +5536,12 @@
                                         (local.set '$result (call '$array2_alloc (mk_int_code_i32u (i32.load (i32.const (+ 8 iov_tmp))))
                                                                                  (mk_int_code_i32u (local.get '$code))))
 
-                                        (local.set '$tmp (call '$dup (i64.load 24 (local.get '$ptr))))
-                                        (call '$drop (global.get '$debug_func_to_call))
-                                        (call '$drop (global.get '$debug_params_to_call))
-                                        (call '$drop (global.get '$debug_env_to_call))
-                                        (global.set '$debug_func_to_call   (call '$dup (local.get '$tmp)))
-                                        (global.set '$debug_params_to_call (call '$dup (local.get '$result)))
+                                        (local.set '$tmp (generate_dup (i64.load 24 (local.get '$ptr))))
+                                        (generate_drop (global.get '$debug_func_to_call))
+                                        (generate_drop (global.get '$debug_params_to_call))
+                                        (generate_drop (global.get '$debug_env_to_call))
+                                        (global.set '$debug_func_to_call   (generate_dup (local.get '$tmp)))
+                                        (global.set '$debug_params_to_call (generate_dup (local.get '$result)))
                                         (global.set '$debug_env_to_call (i64.const root_marked_env_val))
                                         ;(call '$print (i64.const pre_write_callback))
                                         ;(call '$print (local.get '$tmp))
@@ -5456,7 +5551,7 @@
                                         ;(call '$print (i64.const newline_msg_val))
                                         ;(call '$print (mk_int_code_i64 (extract_func_env_code (local.get '$tmp))))
                                         ;(call '$print (i64.const newline_msg_val))
-                                        (call '$drop (local.get '$it))
+                                        (generate_drop (local.get '$it))
                                         (local.set '$it (call_indirect
                                             ;type
                                             k_vau
@@ -5499,14 +5594,14 @@
                                         (local.set '$result (call '$array2_alloc (mk_int_code_i32u (i32.load (i32.const iov_tmp)))
                                                                                  (mk_int_code_i32u (local.get '$code))))
 
-                                        (local.set '$tmp (call '$dup (i64.load 24 (local.get '$ptr))))
-                                        (call '$drop (global.get '$debug_func_to_call))
-                                        (call '$drop (global.get '$debug_params_to_call))
-                                        (call '$drop (global.get '$debug_env_to_call))
-                                        (global.set '$debug_func_to_call   (call '$dup (local.get '$tmp)))
-                                        (global.set '$debug_params_to_call (call '$dup (local.get '$result)))
+                                        (local.set '$tmp (generate_dup (i64.load 24 (local.get '$ptr))))
+                                        (generate_drop (global.get '$debug_func_to_call))
+                                        (generate_drop (global.get '$debug_params_to_call))
+                                        (generate_drop (global.get '$debug_env_to_call))
+                                        (global.set '$debug_func_to_call   (generate_dup (local.get '$tmp)))
+                                        (global.set '$debug_params_to_call (generate_dup (local.get '$result)))
                                         (global.set '$debug_env_to_call (i64.const root_marked_env_val))
-                                        (call '$drop (local.get '$it))
+                                        (generate_drop (local.get '$it))
                                         (local.set '$it (call_indirect
                                             ;type
                                             k_vau
@@ -5530,11 +5625,19 @@
                         (call '$print (i64.const monad_error_msg_val))
                         (call '$print (local.get '$it))
                     )
-                    (call '$drop (local.get '$it))
-                    (call '$drop (global.get '$debug_func_to_call))
-                    (call '$drop (global.get '$debug_params_to_call))
-                    (call '$drop (global.get '$debug_env_to_call))
-                    ;(call '$drop (global.get '$symbol_intern))
+                    (generate_drop (local.get '$it))
+                    (generate_drop (global.get '$debug_func_to_call))
+                    (generate_drop (global.get '$debug_params_to_call))
+                    (generate_drop (global.get '$debug_env_to_call))
+                    ;(generate_drop (global.get '$symbol_intern))
+
+
+          (mk_int_code_i32s (global.get '$num_array_maxsubdrops))
+          (mk_int_code_i32s (global.get '$num_array_subdrops))
+          (mk_int_code_i32s (global.get '$num_array_innerdrops))
+          (mk_int_code_i32s (global.get '$num_env_innerdrops))
+
+
 
                     (mk_int_code_i32s (global.get '$num_interned_symbols))
                     (mk_int_code_i32s (global.get '$num_frees))
@@ -5550,11 +5653,20 @@
                     (call '$print (i64.const newline_msg_val))
                     (call '$print )
                     (call '$print (i64.const newline_msg_val))
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print )
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print )
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print )
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print )
+                    (call '$print (i64.const newline_msg_val))
               ))
               (_ (true_print "Beginning all symbol print"))
               ((datasi symbol_intern_val) (foldl-tree (dlambda ((datasi a) k v) (mif (and (array? k) (marked_symbol? k))
                                                                                      (dlet (
-                                                                                            (_ (true_print "symbol? " k " " v))
+                                                                                            ;(_ (true_print "symbol? " k " " v))
                                                                                             ((a_loc a_len datasi) (alloc_data (concat (i64_le_hexify v)
                                                                                                                                       (i64_le_hexify a))
                                                                                                                               datasi))

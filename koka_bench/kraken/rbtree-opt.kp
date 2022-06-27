@@ -102,25 +102,6 @@
                       true                (recurse vs (+ i 2) (concat r (slice vs i (+ i 2))))
             ))) (vau de (vs b) (vapply let (array (destructure_helper vs 0 (array)) b) de)))
 
-        ; and a destructuring-capable lambda!
-        only_symbols (rec-lambda recurse (a i) (cond (= i (len a))       true
-                                                     (symbol? (idx a i)) (recurse a (+ i 1))
-                                                     true                false))
-
-        ; Note that if macro_helper is inlined, the mapping lambdas will close over
-        ; se, and then not be able to be taken in as values to the maps, and the vau
-        ; will fail to partially evaluate away.
-        lambda (let (macro_helper (lambda (p b) (let (
-                        sym_params (map (lambda (param) (if (symbol? param) param
-                                                                            (str-to-symbol (str param)))) p)
-                        body (array let (flat_map_i (lambda (i x) (array (idx p i) x)) sym_params) b)
-                      ) (array vau sym_params body))))
-                    (vau se (p b) (if (only_symbols p 0) (vapply lambda (array p b) se)
-                                                         (wrap (eval (macro_helper p b) se)))))
-
-        ; and rec-lambda - yes it's the same definition again
-        rec-lambda (vau se (n p b) (eval (array Y (array lambda (array n) (array lambda p b))) se))
-
         nil (array)
         not (lambda (x) (if x false true))
         or  (let (macro_helper (rec-lambda recurse (bs i) (cond (= i       (len bs)) false
@@ -180,9 +161,20 @@
          E     empty
          EE    (array 'BB nil nil nil)
 
-         generic-foldl (rec-lambda recurse (f z t) (match t
+         generic-foldl (rec-lambda generic-foldl (f z t) (match t
                                                           ,E         z
-                                                          (c a x b)  (recurse f (f (recurse f z a) x) b)))
+
+                                                          ; We use intermediate vars so that partial eval knows
+                                                          ; that generic-foldl will be evaluated and the Y-combinator recursion
+                                                          ; is properly noticed and eliminated
+                                                          (c a x b)  (let (new_left_result (generic-foldl f z a)
+                                                                           folded (f new_left_result x)
+                                                                          ) (generic-foldl f folded b))))
+                                                          ;(c a x b)  (generic-foldl f (f (generic-foldl f z a) x) b)))
+
+                                                          ; this also works, but lapply isn't currently inlined, so you generate one env for the call to it
+                                                          ; should be equlivant and nicer in general, we should support inlining it in the future
+                                                          ;(c a x b)  (generic-foldl f (lapply f (array (generic-foldl f z a) x) root_env) b)))
 
          blacken (lambda (t) (match t
                                  ('R a x b) (array 'B a x b)
@@ -198,11 +190,13 @@
                                  ('BB a x ('R ('R b y c) z d))   (array 'B (array 'B a x b) y (array 'B c z d))
                                  ; already balenced
                                  t                               t))
-         map-insert (lambda (t k v)  (blacken ((rec-lambda ins (t) (match t
-                                         ,E                              (array 'R t (array k v) t)
-                                         (c a x b) (cond (< k (idx x 0)) (balance (array c (ins a) x b))
-                                                         (= k (idx x 0)) (array c a (array k v) b)
-                                                         true            (balance (array c a x (ins b)))))) t)))
+
+         map-insert (let (ins (rec-lambda ins (t k v) (match t
+                                          ,E                              (array 'R t (array k v) t)
+                                          (c a x b) (cond (< k (idx x 0)) (balance (array c (ins a k v) x b))
+                                                          (= k (idx x 0)) (array c a (array k v) b)
+                                                          true            (balance (array c a x (ins b k v))))))
+                         ) (lambda (t k v) (blacken (ins t k v))))
 
          map-empty            empty
 
@@ -213,6 +207,9 @@
          monad  (array 'write  1 (str "running tree test") (vau (written code)
                          (array 'args (vau (args code)
                                (array 'exit (log (reduce-test-tree (make-test-tree (read-string (idx args 1)) map-empty))))
+                               ;(array 'exit (log (let (t (make-test-tree (read-string (idx args 1)) map-empty)
+                               ;                        _ (log "swapping to reduce")
+                               ;                       ) (reduce-test-tree t))))
                          ))
                 ))
 
