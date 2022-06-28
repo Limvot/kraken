@@ -1,18 +1,17 @@
-set(sources rbtree.kk nqueens.kk nqueens-int.kk cfold.kk deriv.kk fib.kk)
 
-set(koka koka)
+set(copy_wrapper "../../copy_wrapper.sh")
 
-
+set(sources scheme-fib.scm scheme-fib-let.scm)
 foreach (source IN LISTS sources)
-  get_filename_component(basename "${source}" NAME_WE)
-  set(name    "kk-${basename}")
+
+  get_filename_component(name "${source}" NAME_WE)
 
   set(out_dir     "${CMAKE_CURRENT_BINARY_DIR}/out/bench")
   set(out_path    "${out_dir}/${name}")
 
   add_custom_command(
     OUTPUT  ${out_path}
-    COMMAND ${koka} --target=c --stack=128M --outputdir=${out_dir} --buildname=${name} -v -O2 -i$<SHELL_PATH:${CMAKE_CURRENT_SOURCE_DIR}> "${source}"
+    COMMAND ${copy_wrapper} "${CMAKE_CURRENT_SOURCE_DIR}/${source}" ${out_dir} ${name}
     DEPENDS ${source}
     VERBATIM)
 
@@ -20,3 +19,4 @@ foreach (source IN LISTS sources)
   add_executable(${name}-exe IMPORTED)
   set_target_properties(${name}-exe PROPERTIES IMPORTED_LOCATION "${out_path}")
 endforeach ()
+

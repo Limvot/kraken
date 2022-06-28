@@ -1,4 +1,4 @@
-set(sources rbtree.kp rbtree-opt.kp nqueens.kp cfold.kp deriv.kp)
+set(sources rbtree.kp rbtree-opt.kp nqueens.kp cfold.kp deriv.kp fib.kp fib-let.kp)
 
 set(kraken "../../kraken_wrapper.sh")
 

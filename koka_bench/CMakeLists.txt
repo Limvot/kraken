@@ -15,3 +15,6 @@ add_subdirectory(haskell)
 add_subdirectory(java)
 add_subdirectory(ocaml)
 add_subdirectory(swift)
+
+add_subdirectory(python)
+add_subdirectory(scheme)
