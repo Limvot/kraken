@@ -4533,6 +4533,11 @@
                                                                      (if r (array r nil nil (array datasi funcs memo env pectx inline_locals used_map)) #f))))
 
 
+              (let_like_inline_closure (lambda (func_value containing_env)   (and (comb? func_value)
+                                                                                  (not (.comb_varadic func_value))
+                                                                                  (= (.marked_env_idx containing_env) (.marked_env_idx (.comb_env func_value)))
+                                                                                  (= nil (.comb_des func_value)))))
+
               ; This is the second run at this, and is a little interesting
               ; It can return a value OR code OR an error string. An error string should be propegated,
               ; unless it was expected as a possiblity, which can happen when compling a call that may or
@@ -4574,35 +4579,87 @@
               ; the true->x=type structure (if a particular value is true, than it implies that x=type. Happens based on cond branches with type/len/equality checks in contitional)
 
               ; call
-              ;   -true->x=type structure
+              ;   -y=true->(x=type...) structure
               ;   -type guarentee map
               ; return
               ;   -value type (or false)
-              ;   -return value true -> x=type
+              ;   -return value=true ->(x=type...)
               ;   -type assertion map
-              ;   -extra data that should be passed back in
+              ;   -extra data that should be passed back in (call + return + sub_results?)
               ;
               ;
               ; the cache data structure is just what it returned. Sub-calls should pass in the extra data indexed appropriately
               (get-list-or (lambda (d k o) (dlet ((x (get-list d k)))
                                                  (mif x (idx x 1)
                                                         o))))
-              (infer_types (rec-lambda infer_types (c implies guarentees) (cond
-                        ((and (val? c) (int?    (.val c)))                  (array (array 'int  false)                                      empty_dict-list empty_dict-list type_data_nil))
-                        ((and (val? c) (= true  (.val c)))                  (array (array 'bool false)                                      empty_dict-list empty_dict-list type_data_nil))
-                        ((and (val? c) (= false (.val c)))                  (array (array 'bool false)                                      empty_dict-list empty_dict-list type_data_nil))
-                        ((and (val? c) (str?    (.val c)))                  (array (array 'str  false)                                      empty_dict-list empty_dict-list type_data_nil))
-                        ((and (marked_symbol? c) (.marked_symbol_is_val c)) (array (array 'sym  false)                                      empty_dict-list empty_dict-list type_data_nil))
-                        ((marked_symbol? c)                                 (array (get-list-or guarentees (.marked_symbol_value c) false)  empty_dict-list empty_dict-list type_data_nil))
-                        ((marked_env? c)                                    (array (array 'env  true)                                       empty_dict-list empty_dict-list type_data_nil))
-                        ((comb? c)                                          (array (array 'comb true)                                       empty_dict-list empty_dict-list type_data_nil))
-                        ((prim_comb? c)                                     (array (array 'prim_comb false)                                 empty_dict-list empty_dict-list type_data_nil))
-                        ((and (marked_array? c) (.marked_array_is_val c))   (array (array 'arr  false (len (.marked_array_values c)))       empty_dict-list empty_dict-list type_data_nil))
-                        ; insert call checks here
-                        (true                                               (array false                                                    empty_dict-list empty_dict-list type_data_nil))
+              (is_prim_function_call (lambda (c s) (and (marked_array? c) (not (.marked_array_is_val c)) (<= 2 (len (.marked_array_values c)))
+                                                        (prim_comb? (idx (.marked_array_values c) 0)) (= s (.prim_comb_sym (idx (.marked_array_values c) 0))))))
+              (is_markable           (lambda (x)   (and (marked_symbol? x) (not (.marked_symbol_is_val x)))))
+              (is_markable_idx       (lambda (c i) (and (marked_array? c) (< i (len (.marked_array_values c))) (is_markable (idx (.marked_array_values c) i)))))
+              (mark                  (lambda (x)   (and (marked_symbol? x) (not (.marked_symbol_is_val x)) (.marked_symbol_value x))))
+              (mark_idx              (lambda (c i) (and (marked_array? c) (< i (len (.marked_array_values c))) (mark (idx (.marked_array_values c) i)))))
+              ; TODO
+              (combine_type_map      concat)
+              (infer_types (rec-lambda infer_types (c env implies guarentees) (cond
+                        ((and (val? c) (int?    (.val c)))                                (array (array 'int  false)                                     false                    empty_dict-list type_data_nil))
+                        ((and (val? c) (= true  (.val c)))                                (array (array 'bool false)                                     false                    empty_dict-list type_data_nil))
+                        ((and (val? c) (= false (.val c)))                                (array (array 'bool false)                                     false                    empty_dict-list type_data_nil))
+                        ((and (val? c) (str?    (.val c)))                                (array (array 'str  false (len (.val c)))                      false                    empty_dict-list type_data_nil))
+                        ((and (marked_symbol? c) (.marked_symbol_is_val c))               (array (array 'sym  false)                                     false                    empty_dict-list type_data_nil))
+                        ((marked_symbol? c)                                            (array (get-list-or guarentees (.marked_symbol_value c) false) (get-list-or implies (.marked_symbol_value c) false) empty_dict-list type_data_nil))
+                        ((marked_env? c)                                                  (array (array 'env  true)                                      false                    empty_dict-list type_data_nil))
+                        ((comb? c)                                                        (array (array 'comb true)                                      false                    empty_dict-list type_data_nil))
+                        ((prim_comb? c)                                                   (array (array 'prim_comb false)                                false                    empty_dict-list type_data_nil))
+                        ((and (marked_array? c) (.marked_array_is_val c))                 (array (array 'arr  false (len (.marked_array_values c)))      false                    empty_dict-list type_data_nil))
+                        ; The type predicates
+                        ((and (is_prim_function_call c 'array?)    (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'arr  true false)) empty_dict-list type_data_nil))
+                        ((and (is_prim_function_call c 'nil?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'arr  true 0))     empty_dict-list type_data_nil))
+                        ((and (is_prim_function_call c 'bool?)     (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'bool false))      empty_dict-list type_data_nil))
+                        ((and (is_prim_function_call c 'env?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'env  true))       empty_dict-list type_data_nil))
+                        ((and (is_prim_function_call c 'combiner?) (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'comb true))       empty_dict-list type_data_nil))
+                        ((and (is_prim_function_call c 'string?)   (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'str  true false)) empty_dict-list type_data_nil))
+                        ((and (is_prim_function_call c 'int?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'int  false))      empty_dict-list type_data_nil))
+                        ((and (is_prim_function_call c 'symbol?)   (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'sym  false))      empty_dict-list type_data_nil))
+                        ; len case
+                        ; either (= (len markable) number) or (= number (len markable))
+                        ((and (is_prim_function_call c '=) (= 3 (len (.marked_array_values c)))) (dlet (
+                              ((mi ni) (cond ((and (marked_array? (idx (.marked_array_values c) 1)) (is_prim_function_call (idx (.marked_array_values c) 1) 'len) (is_markable_idx (idx (.marked_array_values c) 1) 1)
+                                                  (val? (idx (.marked_array_values c) 2)) (int? (.val (idx (.marked_array_values c) 2))))                                                                               (array 1 2))
+                                             ((and (marked_array? (idx (.marked_array_values c) 2)) (is_prim_function_call (idx (.marked_array_values c) 2) 'len) (is_markable_idx (idx (.marked_array_values c) 2) 1)
+                                                  (val? (idx (.marked_array_values c) 1)) (int? (.val (idx (.marked_array_values c) 1))))                                                                               (array 2 1))
+                                             (true                                                                                                                                                                (array false false))))
+                              ) (array (array 'bool false) (mif mi (put-list empty_dict-list (mark_idx (idx (.marked_array_values c) mi) 1) (array false (.val (idx (.marked_array_values c) ni))))
+                                                                   false) empty_dict-list type_data_nil)))
+
+                        ; let case
+                        ((and (marked_array? c) (>= 2 (len (.marked_array_values c))) (let_like_inline_closure (idx (.marked_array_values c) 0) env)) (dlet (
+                            ; map recurse over arguments
+                            (func (idx (.marked_array_values c) 0))
+                            (params (.comb_params func))
+                            ( (sub_implies sub_guarentees) (foldl (dlambda ((sub_implies sub_guarentees) i) (dlet ((psym (idx params (- i 1)))
+                                                                                                                   ((ttyp timpl _assertion _subdata) (infer_types (idx (.marked_array_values c) i) env implies guarentees))
+                                                                                                                  ) (array (put-list sub_implies psym timpl) (put-list sub_guarentees psym ttyp))))
+                                                                  (array implies guarentees) (range 1 (len (.marked_array_values c)))))
+                            ((ttyp timpl _assertion _subdata) (infer_types (.comb_params func) (.comb_env func) sub_implies sub_guarentees))
+                        ) (array ttyp timpl empty_dict-list type_data_nil)))
+                        ; cond case
+                        ; start simply by making this only an 'and'-style recognizer
+                        ; if (vcond p b true p) (or (vcond p b true false)) combine b's implies with p's implies
+                        ((and (is_prim_function_call c 'vcond) (= 5 (len (.marked_array_values c)))
+                              (val? (idx (.marked_array_values c) 3)) (= true (.val (idx (.marked_array_values c) 3)))
+                              (or (and (val? (idx (.marked_array_values c) 4)) (= false (.val (idx (.marked_array_values c) 4))))
+                                  (= (.hash (idx (.marked_array_values c) 1)) (.hash (idx (.marked_array_values c) 4)))))           (dlet (
+
+                               ((ptyp pimpl _assertion _subdata) (infer_types (idx (.marked_array_values c) 1) env implies guarentees))
+                               ((btyp bimpl _assertion _subdata) (infer_types (idx (.marked_array_values c) 2) env implies (combine_type_map pimpl guarentees)))
+
+                        ) (array false (combine_type_map pimpl bimpl) empty_dict-list type_data_nil)))
+
+                        ; fallthrough
+                        (true                                                             (array false                                                   false                    empty_dict-list type_data_nil))
               )))
-              (cached_infer_types     (lambda (c cache)   (mif cache cache                 (infer_types c                                empty_dict-list empty_dict-list))))
-              (cached_infer_types_idx (lambda (c cache i) (mif cache (idx (idx cache 3) i) (infer_types (idx (.marked_array_values c) i) empty_dict-list empty_dict-list))))
+              (cached_infer_types     (lambda (c env cache)   (mif cache cache                 (infer_types c                                env empty_dict-list empty_dict-list))))
+              (cached_infer_types_idx (lambda (c env cache i) (mif cache (idx (idx cache 4) i) (infer_types (idx (.marked_array_values c) i) env empty_dict-list empty_dict-list))))
               (just_type              (lambda (type_data) (idx type_data 0)))
               (word_value_type?       (lambda (x) (or (= 'int (idx x 0)) (= 'bool (idx x 0)) (= 'sym (idx x 0)))))
               (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval s_env_access_code inline_level tce_data type_data) (cond
@@ -4709,9 +4766,7 @@
                                                         (num_params (- (len func_param_values) 1))
                                                         (params (slice func_param_values 1 -1))
                                                         (func_value (idx func_param_values 0))
-                                                        ;(notnotparameter_types (map (lambda (i) (infer_types (idx (.marked_array_values c) i) empty_dict-list empty_dict-list)) (range 1 (len func_param_values))))
-                                                        ;(notparameter_types (map (lambda (i) (cached_infer_types_idx c type_data i)) (range 1 (len func_param_values))))
-                                                        (parameter_types (map (lambda (i) (just_type (cached_infer_types_idx c type_data i))) (range 1 (len func_param_values))))
+                                                        (parameter_types (map (lambda (i) (just_type (cached_infer_types_idx c env type_data i))) (range 1 (len func_param_values))))
                                                         ;(_ (true_print "gah " (mif type_data true false) " parameter_types " parameter_types " notparameter_types " notparameter_types " notnotparameter_types " notnotparameter_types))
 
                                                         (wrap_level (if (or (comb? func_value) (prim_comb? func_value)) (.any_comb_wrap_level func_value) nil))
@@ -4835,10 +4890,7 @@
 
 
                                                             ; User inline
-                                                            ((and (comb? func_value)
-                                                                  (not (.comb_varadic func_value))
-                                                                  (= (.marked_env_idx env) (.marked_env_idx (.comb_env func_value)))
-                                                                  (= nil (.comb_des func_value)))                                          (dlet (
+                                                            ((let_like_inline_closure func_value env) (dlet (
                         ; To inline, we add all of the parameters + inline_level + 1 to the current functions additional symbols
                         ;       as well as a new se + inline_level + 1 symbol
                         ; fill them with the result of evaling the parameters now
