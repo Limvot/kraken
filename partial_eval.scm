@@ -4585,7 +4585,7 @@
               ;   -value type (or false)
               ;   -return value=true ->(x=type...)
               ;   -type assertion map
-              ;   -extra data that should be passed back in (call + return + sub_results?)
+              ;   -extra data that should be passed back in (sub_results)
               ;
               ;
               ; the cache data structure is just what it returned. Sub-calls should pass in the extra data indexed appropriately
@@ -4599,7 +4599,9 @@
               (mark                  (lambda (x)   (and (marked_symbol? x) (not (.marked_symbol_is_val x)) (.marked_symbol_value x))))
               (mark_idx              (lambda (c i) (and (marked_array? c) (< i (len (.marked_array_values c))) (mark (idx (.marked_array_values c) i)))))
               ; TODO
-              (combine_type_map      concat)
+              (combine_type_map      (lambda (a b) (cond ((= false a) b)
+                                                         ((= false b) a)
+                                                         (true        (concat a b)))))
               (infer_types (rec-lambda infer_types (c env implies guarentees) (cond
                         ((and (val? c) (int?    (.val c)))                                (array (array 'int  false)                                     false                    empty_dict-list type_data_nil))
                         ((and (val? c) (= true  (.val c)))                                (array (array 'bool false)                                     false                    empty_dict-list type_data_nil))
@@ -4611,15 +4613,15 @@
                         ((comb? c)                                                        (array (array 'comb true)                                      false                    empty_dict-list type_data_nil))
                         ((prim_comb? c)                                                   (array (array 'prim_comb false)                                false                    empty_dict-list type_data_nil))
                         ((and (marked_array? c) (.marked_array_is_val c))                 (array (array 'arr  false (len (.marked_array_values c)))      false                    empty_dict-list type_data_nil))
-                        ; The type predicates
-                        ((and (is_prim_function_call c 'array?)    (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'arr  true false)) empty_dict-list type_data_nil))
-                        ((and (is_prim_function_call c 'nil?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'arr  true 0))     empty_dict-list type_data_nil))
-                        ((and (is_prim_function_call c 'bool?)     (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'bool false))      empty_dict-list type_data_nil))
-                        ((and (is_prim_function_call c 'env?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'env  true))       empty_dict-list type_data_nil))
-                        ((and (is_prim_function_call c 'combiner?) (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'comb true))       empty_dict-list type_data_nil))
-                        ((and (is_prim_function_call c 'string?)   (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'str  true false)) empty_dict-list type_data_nil))
-                        ((and (is_prim_function_call c 'int?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'int  false))      empty_dict-list type_data_nil))
-                        ((and (is_prim_function_call c 'symbol?)   (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'sym  false))      empty_dict-list type_data_nil))
+                        ; The type predicates (ADD ASSERTS TO THESE)
+                        ((and (is_prim_function_call c 'array?)    (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'arr  true false)) empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'nil?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'arr  true 0))     empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'bool?)     (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'bool false))      empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'env?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'env  true))       empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'combiner?) (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'comb true))       empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'string?)   (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'str  true false)) empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'int?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'int  false))      empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'symbol?)   (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'sym  false))      empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
                         ; len case
                         ; either (= (len markable) number) or (= number (len markable))
                         ((and (is_prim_function_call c '=) (= 3 (len (.marked_array_values c)))) (dlet (
@@ -4628,20 +4630,28 @@
                                              ((and (marked_array? (idx (.marked_array_values c) 2)) (is_prim_function_call (idx (.marked_array_values c) 2) 'len) (is_markable_idx (idx (.marked_array_values c) 2) 1)
                                                   (val? (idx (.marked_array_values c) 1)) (int? (.val (idx (.marked_array_values c) 1))))                                                                               (array 2 1))
                                              (true                                                                                                                                                                (array false false))))
-                              ) (array (array 'bool false) (mif mi (put-list empty_dict-list (mark_idx (idx (.marked_array_values c) mi) 1) (array false (.val (idx (.marked_array_values c) ni))))
-                                                                   false) empty_dict-list type_data_nil)))
+                              ) (array (array 'bool false)
+                                       (mif mi (put-list empty_dict-list (mark_idx (idx (.marked_array_values c) mi) 1) (array false (.val (idx (.marked_array_values c) ni))))
+                                               false)
+                                       empty_dict-list
+                                       (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c)))))
 
                         ; let case
                         ((and (marked_array? c) (>= 2 (len (.marked_array_values c))) (let_like_inline_closure (idx (.marked_array_values c) 0) env)) (dlet (
                             ; map recurse over arguments
+                            ;(_ (true_print "entering let"))
                             (func (idx (.marked_array_values c) 0))
                             (params (.comb_params func))
-                            ( (sub_implies sub_guarentees) (foldl (dlambda ((sub_implies sub_guarentees) i) (dlet ((psym (idx params (- i 1)))
-                                                                                                                   ((ttyp timpl _assertion _subdata) (infer_types (idx (.marked_array_values c) i) env implies guarentees))
-                                                                                                                  ) (array (put-list sub_implies psym timpl) (put-list sub_guarentees psym ttyp))))
-                                                                  (array implies guarentees) (range 1 (len (.marked_array_values c)))))
-                            ((ttyp timpl _assertion _subdata) (infer_types (.comb_params func) (.comb_env func) sub_implies sub_guarentees))
-                        ) (array ttyp timpl empty_dict-list type_data_nil)))
+                            (func_sub (infer_types func env implies guarentees))
+                            ( (sub_implies sub_guarentees sub_data) (foldl (dlambda ((sub_implies sub_guarentees running_sub_data) i) (dlet ((psym (idx params (- i 1)))
+                                                                                                                   ((ttyp timpl assertions sub_sub_data) (infer_types (idx (.marked_array_values c) i) env implies guarentees))
+                                                                                                                  ) (array (put-list sub_implies psym timpl)
+                                                                                                                           (put-list sub_guarentees psym ttyp)
+                                                                                                                           (concat running_sub_data (array (array ttyp timpl assertions sub_sub_data))))))
+                                                                  (array implies guarentees (array func_sub)) (range 1 (len (.marked_array_values c)))))
+                            ((ttyp timpl _assertion _subdata) (infer_types (.comb_body func) (.comb_env func) sub_implies sub_guarentees))
+                            ;(_ (true_print "exiting let"))
+                        ) (array ttyp timpl empty_dict-list sub_data)))
                         ; cond case
                         ; start simply by making this only an 'and'-style recognizer
                         ; if (vcond p b true p) (or (vcond p b true false)) combine b's implies with p's implies
@@ -4649,17 +4659,47 @@
                               (val? (idx (.marked_array_values c) 3)) (= true (.val (idx (.marked_array_values c) 3)))
                               (or (and (val? (idx (.marked_array_values c) 4)) (= false (.val (idx (.marked_array_values c) 4))))
                                   (= (.hash (idx (.marked_array_values c) 1)) (.hash (idx (.marked_array_values c) 4)))))           (dlet (
+                            ;(_ (true_print "entering vcond"))
 
-                               ((ptyp pimpl _assertion _subdata) (infer_types (idx (.marked_array_values c) 1) env implies guarentees))
-                               ((btyp bimpl _assertion _subdata) (infer_types (idx (.marked_array_values c) 2) env implies (combine_type_map pimpl guarentees)))
+                               ((ptyp pimpl p_assertion p_subdata) (infer_types (idx (.marked_array_values c) 1) env implies guarentees))
+                               ((btyp bimpl b_assertion b_subdata) (infer_types (idx (.marked_array_values c) 2) env implies (combine_type_map pimpl guarentees)))
 
-                        ) (array false (combine_type_map pimpl bimpl) empty_dict-list type_data_nil)))
+                               (combined_impl (combine_type_map pimpl bimpl))
+                               (sub_data  (array (infer_types (idx (.marked_array_values c) 0) env implies guarentees)
+                                                 (array ptyp pimpl p_assertion p_subdata)
+                                                 (array btyp bimpl b_assertion b_subdata)
+                                                 (infer_types (idx (.marked_array_values c) 3) env implies guarentees)
+                                                 (infer_types (idx (.marked_array_values c) 4) env implies guarentees)
+                                                 ))
+
+                            ;(_ (true_print "exiting vcond"))
+                        ) (array false combined_impl empty_dict-list sub_data)))
+
+                        ; generic combiner calls - recurse into all
+                        ((and (marked_array? c) (not (.marked_array_is_val c))) (dlet (
+                              ; this will have to gather assertions in the future
+                              ;(_ (true_print "  doing infer-types for random call "))
+                              (sub_results (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c)))
+                              ;(_ (true_print "  done infer-types for random call "))
+                        ) (array false false empty_dict-list sub_results)))
 
                         ; fallthrough
                         (true                                                             (array false                                                   false                    empty_dict-list type_data_nil))
               )))
-              (cached_infer_types     (lambda (c env cache)   (mif cache cache                 (infer_types c                                env empty_dict-list empty_dict-list))))
-              (cached_infer_types_idx (lambda (c env cache i) (mif cache (idx (idx cache 4) i) (infer_types (idx (.marked_array_values c) i) env empty_dict-list empty_dict-list))))
+              (cached_infer_types     (lambda (c env cache)   (dlet (
+                                                                     ;(_ (true_print "doing infer-types"))
+                                                                     ;(_ (true_print "doing infer-types for " (true_str_strip c)))
+                                                                     (r (mif cache cache                 (infer_types c                                env empty_dict-list empty_dict-list)))
+                                                                     ;(_ (true_print "done infer-types"))
+                                                                    ) r)))
+              (cached_infer_types_idx (lambda (c env cache i) (dlet (
+                                                                ;(_ (true_print "doing infer-types-idx for " (true_str_strip c)))
+                                                                ;(_ (true_print "doing infer-types-idx i " i))
+                                                                ;(_ (true_print "doing infer-types-idx with " cache))
+                                                                (_ (true_print "doing infer-types-idx, cache is real? " (mif cache true false)))
+                                                                ( r (mif cache (idx (idx cache 3) i) (infer_types (idx (.marked_array_values c) i) env empty_dict-list empty_dict-list)))
+                                                                ;(_ (true_print "done infer-types-idx"))
+                                                                ) r)))
               (just_type              (lambda (type_data) (idx type_data 0)))
               (word_value_type?       (lambda (x) (or (= 'int (idx x 0)) (= 'bool (idx x 0)) (= 'sym (idx x 0)))))
               (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval s_env_access_code inline_level tce_data type_data) (cond
@@ -4728,7 +4768,19 @@
                                                         ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                         (hit_recursion (= 'RECURSE_FAIL (get-value-or-false memo (.hash c))))
 
-                                                        (compile_params (lambda (unval_and_eval ctx params cond_tce)
+                                                        (func_param_values (.marked_array_values c))
+                                                        (num_params (- (len func_param_values) 1))
+                                                        (params (slice func_param_values 1 -1))
+                                                        (func_value (idx func_param_values 0))
+                                                        (parameter_subs  (map (lambda (i) (cached_infer_types_idx c env type_data i)) (range 1 (len func_param_values))))
+                                                        (parameter_types (map just_type parameter_subs))
+
+                                                        (_ (mif (and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'idx)) (true_print "ok, param of idx types are (" (true_str_strip (idx params 0)) ") " (idx parameter_types 0) " (" (true_str_strip (idx params 1)) ") " (idx parameter_types 1))))
+
+                                                        ;(_ (true_print "parameter types " parameter_types))
+                                                        ;(_ (true_print "parameter subs "  parameter_subs))
+
+                                                        (compile_params (lambda (unval_and_eval ctx cond_tce)
                                                                 (foldr (dlambda (x (a err ctx i)) (dlet (
 
                                                                     ((datasi funcs memo env pectx inline_locals used_map) ctx)
@@ -4748,6 +4800,7 @@
                                                                     ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                                     (memo (put memo (.hash c) 'RECURSE_FAIL))
                                                                     (ctx (array datasi funcs memo env pectx inline_locals used_map))
+                                                                    ;(_ (true_print "matching up compile-inner " (true_str_strip x) " with " (idx parameter_subs i)))
                                                                     ((val code err ctx) (mif err (array nil nil err ctx)
                                                                                                  (compile-inner ctx x false inside_veval s_env_access_code inline_level
                                                                                                                                                                      ; 0 b/c foldr
@@ -4755,19 +4808,16 @@
                                                                                                                                                            (mif (and (= 0 (% i 2)) cond_tce)
                                                                                                                                                                 tce_data
                                                                                                                                                                 nil)
-                                                                                                                                                           type_data_nil)))
+                                                                                                                                                           ; if we're unvaling, our old cache for type data is bad
+                                                                                                                                                           ; TODO - we should be able to recover for this
+                                                                                                                                                           (mif unval_and_eval type_data_nil
+                                                                                                                                                                               (idx parameter_subs (- num_params i 1))))))
                                                                     ((datasi funcs memo env pectx inline_locals used_map) ctx)
                                                                     (memo (put memo (.hash c) 'RECURSE_OK))
                                                                     ) (array (cons (mif val (i64.const (mod_fval_to_wrap val)) code) a) err ctx (+ i 1))))
 
                                                                 (array (array) nil ctx 0) params)))
 
-                                                        (func_param_values (.marked_array_values c))
-                                                        (num_params (- (len func_param_values) 1))
-                                                        (params (slice func_param_values 1 -1))
-                                                        (func_value (idx func_param_values 0))
-                                                        (parameter_types (map (lambda (i) (just_type (cached_infer_types_idx c env type_data i))) (range 1 (len func_param_values))))
-                                                        ;(_ (true_print "gah " (mif type_data true false) " parameter_types " parameter_types " notparameter_types " notparameter_types " notnotparameter_types " notnotparameter_types))
 
                                                         (wrap_level (if (or (comb? func_value) (prim_comb? func_value)) (.any_comb_wrap_level func_value) nil))
                                                         ; I don't think it makes any sense for a function literal to have wrap > 0
@@ -4782,7 +4832,7 @@
                                                                                                       )
                                                                                                       (local.get '$prim_tmp_a))))
                                                         (gen_numeric_impl (lambda (operation)
-                                                                              (dlet (((param_codes err ctx _) (compile_params false ctx params false)))
+                                                                              (dlet (((param_codes err ctx _) (compile_params false ctx false)))
                                                                                     (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
                                                                                              (array nil (foldl (lambda (running_code val_code) (operation running_code
                                                                                                                                                           (single_num_type_check val_code)))
@@ -4790,7 +4840,7 @@
                                                                                                                (slice param_codes 1 -1)) nil ctx)))
                                                                               ))
                                                         (gen_cmp_impl (lambda (lt_case eq_case gt_case)
-                                                                              (dlet (((param_codes err ctx _) (compile_params false ctx params false)))
+                                                                              (dlet (((param_codes err ctx _) (compile_params false ctx false)))
                                                                                     (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
                                                                                              (array nil
                                                                                                     (concat
@@ -4836,7 +4886,7 @@
 
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'vcond))
                                                                                                                (dlet (
-                                                                                                                ((param_codes err ctx _) (compile_params false ctx params true))
+                                                                                                                ((param_codes err ctx _) (compile_params false ctx true))
                                                                                                                )
                                                                                         (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
                                                                                                                      (array nil ((rec-lambda recurse (codes i) (cond
@@ -4853,7 +4903,7 @@
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '+)) (gen_numeric_impl i64.add))
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '-)) (gen_numeric_impl i64.sub))
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) '=)) (mif (any_in_array word_value_type? parameter_types)
-                                                                                                                                  (dlet (((param_codes err ctx _) (compile_params false ctx params false)))
+                                                                                                                                  (dlet (((param_codes err ctx _) (compile_params false ctx false)))
                                                                                                                                           (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
                                                                                                                                                    (dlet (
                                                                                                     (_ (true_print "Doing the better = " parameter_types))
@@ -4904,7 +4954,7 @@
                         (additional_symbols (cons new_s_env_symbol additional_param_symbols))
                         (_ (true_print "additional symbols " additional_symbols))
 
-                        ((param_codes first_params_err ctx _) (compile_params false ctx params false))
+                        ((param_codes first_params_err ctx _) (compile_params false ctx false))
 
                         (inner_env (make_tmp_inner_env comb_params (.comb_des func_value) (.comb_env func_value) (.comb_id func_value)))
                         ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) comb_params) nil) true false s_env_access_code 0 nil type_data_nil))
@@ -4946,9 +4996,9 @@
                                                             ;     - dynamic call (got func_code)
                                                             ;           + d_de/d_no_de & d_wrap=1/d_wrap=2
                                                             (true (dlet (
-                                                                ((param_codes first_params_err ctx _) (compile_params false ctx params false))
+                                                                ((param_codes first_params_err ctx _) (compile_params false ctx false))
                                                                 ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval s_env_access_code inline_level nil type_data_nil))
-                                                                ((unval_param_codes err ctx _) (compile_params true ctx params false))
+                                                                ((unval_param_codes err ctx _) (compile_params true ctx false))
                                                                 ; Generates *tons* of text, needs to be different. Made a 200KB binary 80MB
                                                                 ;((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (true_str_strip c) " " err)) true inside_veval s_env_access_code inline_level type_data_nil))
                                                                 ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val "error was with unval-evaling parameters of ") true inside_veval s_env_access_code inline_level nil type_data_nil))
@@ -5218,6 +5268,7 @@
                                     (normal_params_length (if variadic (- (len params) 1) (len params)))
                                     (compile_body_part (lambda (ctx body_part new_tce_data) (dlet (
                                                 (inner_env (make_tmp_inner_env params de? se env_id))
+
                                                 ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) full_params) nil) true false s_env_access_code 0 nil type_data_nil))
                                                 (new_get_s_env_code (_if '$have_s_env '(result i64)
                                                                          (i64.ne (i64.const nil_val) (local.get '$s_env))
@@ -5236,7 +5287,9 @@
                                                                                (local.set '$outer_s_env (i64.const nil_val))
                                                                                )))
                                                 ((datasi funcs memo env pectx inline_locals used_map) ctx)
-                                                ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals used_map) body_part false false new_get_s_env_code 0 new_tce_data type_data_nil))
+                                                (inner_type_data (cached_infer_types body_part inner_env type_data_nil))
+                                                (inner_ctx (array datasi funcs memo inner_env pectx inline_locals used_map))
+                                                ((inner_value inner_code err ctx) (compile-inner inner_ctx body_part false false new_get_s_env_code 0 new_tce_data inner_type_data))
                                                 ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
                                                 ((datasi funcs memo _was_inner_env pectx inline_locals used_map) ctx)
                                           ) (array inner_value inner_code err (array datasi funcs memo env pectx inline_locals used_map)))))
