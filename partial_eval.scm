@@ -4533,9 +4533,9 @@
                                                                      (if r (array r nil nil (array datasi funcs memo env pectx inline_locals used_map)) #f))))
 
 
-              (let_like_inline_closure (lambda (func_value containing_env)   (and (comb? func_value)
+              (let_like_inline_closure (lambda (func_value containing_env_idx)   (and (comb? func_value)
                                                                                   (not (.comb_varadic func_value))
-                                                                                  (= (.marked_env_idx containing_env) (.marked_env_idx (.comb_env func_value)))
+                                                                                  (= containing_env_idx (.marked_env_idx (.comb_env func_value)))
                                                                                   (= nil (.comb_des func_value)))))
 
               ; This is the second run at this, and is a little interesting
@@ -4571,7 +4571,7 @@
               (type_data_nil nil)
               ; type is a bit generic, both the runtime types + length of arrays
               ;
-              ; (array <symbol_identifier> maybe_rc [length or false for arrays/strings])
+              ; (array <symbol_identifier> maybe_rc <length or false for arrays/strings>)
               ;
               ; there are three interesting things to say about types
               ; the x=type guarentee map (x has this type. i.e, constants, being after an assertion, being inside a cond branch with a true->x=type assertion
@@ -4598,30 +4598,72 @@
               (is_markable_idx       (lambda (c i) (and (marked_array? c) (< i (len (.marked_array_values c))) (is_markable (idx (.marked_array_values c) i)))))
               (mark                  (lambda (x)   (and (marked_symbol? x) (not (.marked_symbol_is_val x)) (.marked_symbol_value x))))
               (mark_idx              (lambda (c i) (and (marked_array? c) (< i (len (.marked_array_values c))) (mark (idx (.marked_array_values c) i)))))
-              ; TODO
-              (combine_type_map      (lambda (a b) (cond ((= false a) b)
-                                                         ((= false b) a)
-                                                         (true        (concat a b)))))
-              (infer_types (rec-lambda infer_types (c env implies guarentees) (cond
-                        ((and (val? c) (int?    (.val c)))                                (array (array 'int  false)                                     false                    empty_dict-list type_data_nil))
-                        ((and (val? c) (= true  (.val c)))                                (array (array 'bool false)                                     false                    empty_dict-list type_data_nil))
-                        ((and (val? c) (= false (.val c)))                                (array (array 'bool false)                                     false                    empty_dict-list type_data_nil))
-                        ((and (val? c) (str?    (.val c)))                                (array (array 'str  false (len (.val c)))                      false                    empty_dict-list type_data_nil))
-                        ((and (marked_symbol? c) (.marked_symbol_is_val c))               (array (array 'sym  false)                                     false                    empty_dict-list type_data_nil))
+              (combine-list          (lambda (mf a b) (dlet (
+                                                      (_ (true_print "going to combine " a " and " b))
+                                                      (r (cond ((= false a) b)
+                                                               ((= false b) a)
+                                                               (true        (dlet (
+                                                                             (total (concat a b))
+                                                                             (_ (true_print " total is " total))
+                                                                             ) (foldl (lambda (acc i) (dlet (
+                                                                                                             (_ (true_print "looking at " i))
+                                                                                                             (_ (true_print "       which is " (idx total i)))
+                                                                                                             (r (concat acc 
+                                                                                                              (foldl (dlambda (o_combined j) (mif (= nil o_combined)
+                                                                                                                                                  nil
+                                                                                                                                                  (dlet (
+                                                                                                                                                    (combined (idx o_combined 0))
+                                                                                                                                                    (_ (true_print "          inner looking at " j))
+                                                                                                                                                    (_ (true_print "                which is " (idx total j)))
+                                                                                                                                                    (_ (true_print "                combined currently is " combined))
+                                                                                                                                                    (r (mif (= (idx combined 0) (idx (idx total j) 0))
+                                                                                                                                                  (mif (> i j ) (array)
+                                                                                                                                                                (array (array (idx combined 0)
+                                                                                                                                                                              (mf (idx combined 1) (idx (idx total j) 1)))))
+                                                                                                                                                  (array combined)))
+                                                                                                                                                    (_ (true_print "                r was " r))
+                                                                                                                                                    ) r)))
+                                                                                                                     (array (idx total i))
+                                                                                                                     (range 0 (len total)))))
+                                                                                                             (_ (true_print "did  " i " was " r))
+                                                                                                             ) r)
+                                                                                        )
+                                                                                      (array)
+                                                                                      (range 0 (len total)))))))
+                                                      (_ (true_print "combining " a " and " b " type maps gave us " r))
+                                                      ) r)))
+              (combine-type        (lambda (a b) (dlet (
+                                                      (_ (true_print "combinging types " a " and " b))
+                                                      (r (cond ((= false a)                            b)
+                                                               ((= false b)                            a)
+                                                               ((and (idx a 0)     (idx b 0)
+                                                                     (!= (idx a 0) (idx b 0)))         (error "merge inequlivant types " a b))
+                                                               ((and (idx a 2)     (idx b 2)
+                                                                 (!= (idx a 2)     (idx b 2)))         (error "merge inequlivant tlen " a b))
+                                                               (true                                   (array (or (idx a 0) (idx b 0)) (and (idx a 1) (idx b 1)) (or (idx a 2) (idx b 2))))
+                                                      ))
+                                                      (_ (true_print "combined em to " r))
+                                                      ) r)))
+              (infer_types (rec-lambda infer_types (c env_id implies guarentees) (cond
+                        ((and (val? c) (int?    (.val c)))                                (array (array 'int  false false)                               false                    empty_dict-list type_data_nil))
+                        ((and (val? c) (= true  (.val c)))                                (array (array 'bool false false)                               false                    empty_dict-list type_data_nil))
+                        ((and (val? c) (= false (.val c)))                                (array (array 'bool false false)                               false                    empty_dict-list type_data_nil))
+                        ((and (val? c) (str?    (.val c)))                                (array (array 'str  false false (len (.val c)))                false                    empty_dict-list type_data_nil))
+                        ((and (marked_symbol? c) (.marked_symbol_is_val c))               (array (array 'sym  false false)                               false                    empty_dict-list type_data_nil))
                         ((marked_symbol? c)                                            (array (get-list-or guarentees (.marked_symbol_value c) false) (get-list-or implies (.marked_symbol_value c) false) empty_dict-list type_data_nil))
-                        ((marked_env? c)                                                  (array (array 'env  true)                                      false                    empty_dict-list type_data_nil))
-                        ((comb? c)                                                        (array (array 'comb true)                                      false                    empty_dict-list type_data_nil))
+                        ((marked_env? c)                                                  (array (array 'env  true false)                                false                    empty_dict-list type_data_nil))
+                        ((comb? c)                                                        (array (array 'comb true false)                                false                    empty_dict-list type_data_nil))
                         ((prim_comb? c)                                                   (array (array 'prim_comb false)                                false                    empty_dict-list type_data_nil))
                         ((and (marked_array? c) (.marked_array_is_val c))                 (array (array 'arr  false (len (.marked_array_values c)))      false                    empty_dict-list type_data_nil))
                         ; The type predicates (ADD ASSERTS TO THESE)
-                        ((and (is_prim_function_call c 'array?)    (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'arr  true false)) empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
-                        ((and (is_prim_function_call c 'nil?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'arr  true 0))     empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
-                        ((and (is_prim_function_call c 'bool?)     (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'bool false))      empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
-                        ((and (is_prim_function_call c 'env?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'env  true))       empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
-                        ((and (is_prim_function_call c 'combiner?) (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'comb true))       empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
-                        ((and (is_prim_function_call c 'string?)   (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'str  true false)) empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
-                        ((and (is_prim_function_call c 'int?)      (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'int  false))      empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
-                        ((and (is_prim_function_call c 'symbol?)   (is_markable_idx c 1)) (array (array 'bool false)              (put-list empty_dict-list (mark_idx c 1) (array 'sym  false))      empty_dict-list (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'array?)    (is_markable_idx c 1)) (array (array 'bool false false)   (put-list empty_dict-list (mark_idx c 1) (array 'arr  true false))  empty_dict-list (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'nil?)      (is_markable_idx c 1)) (array (array 'bool false false)   (put-list empty_dict-list (mark_idx c 1) (array 'arr  true 0))      empty_dict-list (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'bool?)     (is_markable_idx c 1)) (array (array 'bool false false)   (put-list empty_dict-list (mark_idx c 1) (array 'bool false false)) empty_dict-list (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'env?)      (is_markable_idx c 1)) (array (array 'bool false false)   (put-list empty_dict-list (mark_idx c 1) (array 'env  true false))  empty_dict-list (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'combiner?) (is_markable_idx c 1)) (array (array 'bool false false)   (put-list empty_dict-list (mark_idx c 1) (array 'comb true false))  empty_dict-list (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'string?)   (is_markable_idx c 1)) (array (array 'bool false false)   (put-list empty_dict-list (mark_idx c 1) (array 'str  true false))  empty_dict-list (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'int?)      (is_markable_idx c 1)) (array (array 'bool false false)   (put-list empty_dict-list (mark_idx c 1) (array 'int  false false)) empty_dict-list (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c))))
+                        ((and (is_prim_function_call c 'symbol?)   (is_markable_idx c 1)) (array (array 'bool false false)   (put-list empty_dict-list (mark_idx c 1) (array 'sym  false false)) empty_dict-list (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c))))
                         ; len case
                         ; either (= (len markable) number) or (= number (len markable))
                         ((and (is_prim_function_call c '=) (= 3 (len (.marked_array_values c)))) (dlet (
@@ -4630,75 +4672,89 @@
                                              ((and (marked_array? (idx (.marked_array_values c) 2)) (is_prim_function_call (idx (.marked_array_values c) 2) 'len) (is_markable_idx (idx (.marked_array_values c) 2) 1)
                                                   (val? (idx (.marked_array_values c) 1)) (int? (.val (idx (.marked_array_values c) 1))))                                                                               (array 2 1))
                                              (true                                                                                                                                                                (array false false))))
-                              ) (array (array 'bool false)
-                                       (mif mi (put-list empty_dict-list (mark_idx (idx (.marked_array_values c) mi) 1) (array false (.val (idx (.marked_array_values c) ni))))
+                              ) (array (array 'bool false false)
+                                       (mif mi (put-list empty_dict-list (mark_idx (idx (.marked_array_values c) mi) 1) (array false true (.val (idx (.marked_array_values c) ni))))
                                                false)
                                        empty_dict-list
-                                       (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c)))))
+                                       (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c)))))
 
                         ; let case
-                        ((and (marked_array? c) (>= 2 (len (.marked_array_values c))) (let_like_inline_closure (idx (.marked_array_values c) 0) env)) (dlet (
+                        ((and (marked_array? c) ;(>= 2 (len (.marked_array_values c)))
+                              (let_like_inline_closure (idx (.marked_array_values c) 0) env_id)) (dlet (
                             ; map recurse over arguments
                             ;(_ (true_print "entering let"))
                             (func (idx (.marked_array_values c) 0))
                             (params (.comb_params func))
-                            (func_sub (infer_types func env implies guarentees))
-                            ( (sub_implies sub_guarentees sub_data) (foldl (dlambda ((sub_implies sub_guarentees running_sub_data) i) (dlet ((psym (idx params (- i 1)))
-                                                                                                                   ((ttyp timpl assertions sub_sub_data) (infer_types (idx (.marked_array_values c) i) env implies guarentees))
-                                                                                                                  ) (array (put-list sub_implies psym timpl)
-                                                                                                                           (put-list sub_guarentees psym ttyp)
+                            (func_sub (infer_types func env_id implies guarentees))
+                            ( _ (true_print "Pre let sub collection, implies is " implies " and guarentees is " guarentees))
+                            ( _ (true_print "   and params are " params))
+                            ( (sub_implies sub_guarentees psub_data) (foldl (dlambda ((sub_implies sub_guarentees running_sub_data) i) (dlet ((psym (idx params (- i 1)))
+                                                                                                                   ((ttyp timpl assertions sub_sub_data) (infer_types (idx (.marked_array_values c) i) env_id implies guarentees))
+                                                                                                                  ) (array (combine-list (lambda (a b) (combine-list combine-type a b)) (put-list empty_dict-list psym timpl) sub_implies)
+                                                                                                                           (combine-list combine-type (put-list empty_dict-list psym ttyp) sub_guarentees)
                                                                                                                            (concat running_sub_data (array (array ttyp timpl assertions sub_sub_data))))))
-                                                                  (array implies guarentees (array func_sub)) (range 1 (len (.marked_array_values c)))))
-                            ((ttyp timpl _assertion _subdata) (infer_types (.comb_body func) (.comb_env func) sub_implies sub_guarentees))
+                                                                  (array implies guarentees
+                                                                         ;(array func_sub)
+                                                                         (array)
+                                                                         ) (range 1 (len (.marked_array_values c)))))
+                            ( _ (true_print "based on inline (let) case " params " we have sub_implies " sub_implies " and sub_guarentees " sub_guarentees) )
+                            ((ttyp timpl _assertion inl_subdata) (infer_types (.comb_body func) (.comb_id func) sub_implies sub_guarentees))
+                            ( _ (true_print "final result of inline " params " is type " ttyp " and impl " timpl))
                             ;(_ (true_print "exiting let"))
-                        ) (array ttyp timpl empty_dict-list sub_data)))
+                        ) (array ttyp timpl empty_dict-list (concat (array inl_subdata) psub_data))))
                         ; cond case
                         ; start simply by making this only an 'and'-style recognizer
                         ; if (vcond p b true p) (or (vcond p b true false)) combine b's implies with p's implies
-                        ((and (is_prim_function_call c 'vcond) (= 5 (len (.marked_array_values c)))
-                              (val? (idx (.marked_array_values c) 3)) (= true (.val (idx (.marked_array_values c) 3)))
-                              (or (and (val? (idx (.marked_array_values c) 4)) (= false (.val (idx (.marked_array_values c) 4))))
-                                  (= (.hash (idx (.marked_array_values c) 1)) (.hash (idx (.marked_array_values c) 4)))))           (dlet (
+                        ((is_prim_function_call c 'vcond)  (dlet (
                             ;(_ (true_print "entering vcond"))
 
-                               ((ptyp pimpl p_assertion p_subdata) (infer_types (idx (.marked_array_values c) 1) env implies guarentees))
-                               ((btyp bimpl b_assertion b_subdata) (infer_types (idx (.marked_array_values c) 2) env implies (combine_type_map pimpl guarentees)))
-
-                               (combined_impl (combine_type_map pimpl bimpl))
-                               (sub_data  (array (infer_types (idx (.marked_array_values c) 0) env implies guarentees)
-                                                 (array ptyp pimpl p_assertion p_subdata)
-                                                 (array btyp bimpl b_assertion b_subdata)
-                                                 (infer_types (idx (.marked_array_values c) 3) env implies guarentees)
-                                                 (infer_types (idx (.marked_array_values c) 4) env implies guarentees)
-                                                 ))
+                               (func_param_values (.marked_array_values c))
+                               (num_params (- (len func_param_values) 1))
+                               (params (slice func_param_values 1 -1))
+                               (func (idx func_param_values 0))
+                               ((impls sub_data)  (foldl (dlambda ((impls sub_data) i) (dlet (
+                                                             ((ptyp pimpl p_assertion p_subdata) (infer_types (idx params (+ (* 2 i) 0)) env_id implies guarentees))
+                                                             (_ (true_print "about to combine pimpl and guarentees in cond, they are " pimpl "and " guarentees))
+                                                             ((btyp bimpl b_assertion b_subdata) (infer_types (idx params (+ (* 2 i) 1)) env_id implies (combine-list combine-type pimpl guarentees)))
+                                                             (_ (true_print "about to combine pimpl and bimpl in cond, they are " pimpl " and " bimpl))
+                                                             (combined_impl (combine-list combine-type pimpl bimpl))
+                                                             (_ (true_print "combined is " combined_impl))
+                                                         ) (array (concat impls (array combined_impl)) (concat sub_data (array (array ptyp pimpl p_assertion p_subdata) (array btyp bimpl b_assertion b_subdata))))))
+                                                         (array (array) (array (infer_types func env_id implies guarentees)))
+                                                         (range 0 (/ num_params 2))
+                                                  ))
 
                             ;(_ (true_print "exiting vcond"))
-                        ) (array false combined_impl empty_dict-list sub_data)))
+                        ) (mif (and (= 5 (len (.marked_array_values c))) (val? (idx (.marked_array_values c) 3)) (= true (.val (idx (.marked_array_values c) 3)))
+                                  (or (and (val? (idx (.marked_array_values c) 4)) (= false (.val (idx (.marked_array_values c) 4))))
+                                      (= (.hash (idx (.marked_array_values c) 1)) (.hash (idx (.marked_array_values c) 4)))))          
+                             (array false (idx impls 0) empty_dict-list sub_data)
+                             (array false false         empty_dict-list sub_data))))
 
                         ; generic combiner calls - recurse into all
                         ((and (marked_array? c) (not (.marked_array_is_val c))) (dlet (
                               ; this will have to gather assertions in the future
                               ;(_ (true_print "  doing infer-types for random call "))
-                              (sub_results (map (lambda (x) (infer_types x env implies guarentees)) (.marked_array_values c)))
+                              (sub_results (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c)))
                               ;(_ (true_print "  done infer-types for random call "))
                         ) (array false false empty_dict-list sub_results)))
 
                         ; fallthrough
                         (true                                                             (array false                                                   false                    empty_dict-list type_data_nil))
               )))
-              (cached_infer_types     (lambda (c env cache)   (dlet (
-                                                                     ;(_ (true_print "doing infer-types"))
+              (cached_infer_types     (lambda (c env_id cache)   (dlet (
+                                                                     (_ (true_print "doing infer-types"))
                                                                      ;(_ (true_print "doing infer-types for " (true_str_strip c)))
-                                                                     (r (mif cache cache                 (infer_types c                                env empty_dict-list empty_dict-list)))
-                                                                     ;(_ (true_print "done infer-types"))
+                                                                     (r (mif cache cache                 (infer_types c                                env_id empty_dict-list empty_dict-list)))
+                                                                     (_ (true_print "done infer-types"))
                                                                     ) r)))
-              (cached_infer_types_idx (lambda (c env cache i) (dlet (
+              (cached_infer_types_idx (lambda (c env_id cache i) (dlet (
                                                                 ;(_ (true_print "doing infer-types-idx for " (true_str_strip c)))
-                                                                ;(_ (true_print "doing infer-types-idx i " i))
-                                                                ;(_ (true_print "doing infer-types-idx with " cache))
+                                                                (_ (true_print "doing infer-types-idx i " i))
+                                                                (_ (true_print "doing infer-types-idx with " cache))
                                                                 (_ (true_print "doing infer-types-idx, cache is real? " (mif cache true false)))
-                                                                ( r (mif cache (idx (idx cache 3) i) (infer_types (idx (.marked_array_values c) i) env empty_dict-list empty_dict-list)))
-                                                                ;(_ (true_print "done infer-types-idx"))
+                                                                ( r (mif cache (idx (idx cache 3) i) (infer_types (idx (.marked_array_values c) i) env_id empty_dict-list empty_dict-list)))
+                                                                (_ (true_print "done infer-types-idx"))
                                                                 ) r)))
               (just_type              (lambda (type_data) (idx type_data 0)))
               (word_value_type?       (lambda (x) (or (= 'int (idx x 0)) (= 'bool (idx x 0)) (= 'sym (idx x 0)))))
@@ -4772,7 +4828,9 @@
                                                         (num_params (- (len func_param_values) 1))
                                                         (params (slice func_param_values 1 -1))
                                                         (func_value (idx func_param_values 0))
-                                                        (parameter_subs  (map (lambda (i) (cached_infer_types_idx c env type_data i)) (range 1 (len func_param_values))))
+                                                        (_ (true_print "about to get cached_infer_types_idx for call before checking for 'idx"))
+                                                        (_ (true_print "      cache is " type_data))
+                                                        (parameter_subs  (map (lambda (i) (cached_infer_types_idx c (.marked_env_idx env) type_data i)) (range 1 (len func_param_values))))
                                                         (parameter_types (map just_type parameter_subs))
 
                                                         (_ (mif (and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'idx)) (true_print "ok, param of idx types are (" (true_str_strip (idx params 0)) ") " (idx parameter_types 0) " (" (true_str_strip (idx params 1)) ") " (idx parameter_types 1))))
@@ -4946,7 +5004,8 @@
                         ; fill them with the result of evaling the parameters now
                         ; inline the body's compiled code, called with an updated s_env_access_code
                         ; drop all of the parameters
-                        (_ (true_print "INLINEING"))
+                        ;(_ (true_print "INLINEING"))
+                        (_ (true_print "INLINEING " (.comb_params func_value)))
                         (new_inline_level (+ inline_level 1))
                         (comb_params (.comb_params func_value))
                         (additional_param_symbols (map (lambda (x) (str-to-symbol (concat (str new_inline_level) (get-text x)))) comb_params))
@@ -4971,7 +5030,11 @@
                                                                                             (generate_dup s_env_access_code)))
                                                        )))
                         ((datasi funcs memo env pectx inline_locals used_map) ctx)
-                        ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals used_map) (.comb_body func_value) false false new_get_s_env_code new_inline_level tce_data type_data_nil))
+                        (_ (true_print "Doing inline compile-inner " comb_params))
+                        ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals used_map)
+                                                                         (.comb_body func_value) false false new_get_s_env_code new_inline_level tce_data
+                                                                         (cached_infer_types_idx c (.comb_id func_value) type_data 0)))
+                        (_ (true_print "Done inline compile-inner " comb_params))
                         (inner_code (mif inner_value (i64.const inner_value) inner_code))
                         (result_code (concat
                                        (apply concat param_codes)
@@ -4985,6 +5048,7 @@
                         ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
                         ((datasi funcs memo _was_inner_env pectx inline_locals used_map) ctx)
                         (final_result (array nil result_code (mif first_params_err first_params_err err) (array datasi funcs memo env pectx (concat inline_locals additional_symbols) used_map)))
+                        (_ (true_print "DONE INLINEING " (.comb_params func_value)))
 
                                                                   ) final_result))
                                                             ; Normal call
@@ -5287,9 +5351,12 @@
                                                                                (local.set '$outer_s_env (i64.const nil_val))
                                                                                )))
                                                 ((datasi funcs memo env pectx inline_locals used_map) ctx)
-                                                (inner_type_data (cached_infer_types body_part inner_env type_data_nil))
                                                 (inner_ctx (array datasi funcs memo inner_env pectx inline_locals used_map))
+                                                (_ (true_print "Doing cached_infer_types for body part for " full_params))
+                                                (inner_type_data (cached_infer_types body_part (.marked_env_idx inner_env) type_data_nil))
+                                                (_ (true_print "done cached_infer_types, Doing compile_body_part func def compile-inner " full_params))
                                                 ((inner_value inner_code err ctx) (compile-inner inner_ctx body_part false false new_get_s_env_code 0 new_tce_data inner_type_data))
+                                                (_ (true_print "Done compile_body_part func def compile-inner " full_params))
                                                 ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
                                                 ((datasi funcs memo _was_inner_env pectx inline_locals used_map) ctx)
                                           ) (array inner_value inner_code err (array datasi funcs memo env pectx inline_locals used_map)))))
