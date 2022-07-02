@@ -4698,10 +4698,10 @@
                                                                          (array)
                                                                          ) (range 1 (len (.marked_array_values c)))))
                             ( _ (true_print "based on inline (let) case " params " we have sub_implies " sub_implies " and sub_guarentees " sub_guarentees) )
-                            ((ttyp timpl _assertion inl_subdata) (infer_types (.comb_body func) (.comb_id func) sub_implies sub_guarentees))
+                            ((ttyp timpl assertion inl_subdata) (infer_types (.comb_body func) (.comb_id func) sub_implies sub_guarentees))
                             ( _ (true_print "final result of inline " params " is type " ttyp " and impl " timpl))
                             ;(_ (true_print "exiting let"))
-                        ) (array ttyp timpl empty_dict-list (concat (array inl_subdata) psub_data))))
+                        ) (array ttyp timpl empty_dict-list (concat (array (array ttyp timpl assertion inl_subdata)) psub_data))))
                         ; cond case
                         ; start simply by making this only an 'and'-style recognizer
                         ; if (vcond p b true p) (or (vcond p b true false)) combine b's implies with p's implies
@@ -4998,7 +4998,7 @@
 
 
                                                             ; User inline
-                                                            ((let_like_inline_closure func_value env) (dlet (
+                                                            ((let_like_inline_closure func_value (.marked_env_idx env)) (dlet (
                         ; To inline, we add all of the parameters + inline_level + 1 to the current functions additional symbols
                         ;       as well as a new se + inline_level + 1 symbol
                         ; fill them with the result of evaling the parameters now
