@@ -19,6 +19,36 @@
           inherit system;
           overlays = [ moz_overlay.overlay ];
         };
+        newlisp = pkgs.stdenv.mkDerivation rec {
+		  pname = "newLisp";
+		  version = "10.7.5";
+
+		  src = pkgs.fetchurl {
+			url = "http://www.newlisp.org/downloads/newlisp-10.7.5.tgz";
+			sha256 = "sha256-3C0P9lHCsnW8SvOvi6WYUab7bh6t3CCudftgsekBJuw=";
+		  };
+
+		  nativeBuildInputs = [
+			pkgs.autoPatchelfHook
+		  ];
+
+		  buildInputs = [
+			pkgs.stdenv.cc.cc.lib
+            pkgs.libffi
+            pkgs.readline
+		  ];
+
+		  installPhase = ''
+            mkdir -p $out/bin
+            cp newlisp $out/bin
+		  '';
+
+		  meta = with pkgs.lib; {
+			homepage = "http://www.newlisp.org/index.cgi";
+			description = "A Lisp-like, general-purpose scripting language";
+			platforms = platforms.linux;
+		  };
+        };
         wavm = pkgs.stdenv.mkDerivation rec {
 		  pname = "wavm";
 		  version = "0.0.0";
@@ -81,7 +111,9 @@
             ocaml
             jdk
             swift
+
             picolisp
+            newlisp
           ];
         };
       }
