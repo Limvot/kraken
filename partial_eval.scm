@@ -1793,12 +1793,12 @@
     (set_wrap_code   (lambda (level func) (i64.or (i64.shl level (i64.const 4)) (i64.and func  (i64.const -17)))))
     (is_wrap_code    (lambda (level func) (i64.eq (i64.const (<< level 4)) (i64.and func (i64.const #b10000)))))
     (needes_de_code  (lambda (func)       (i64.ne (i64.const 0) (i64.and func (i64.const #b100000)))))
-    (extract_usede_code    (lambda (x)      (i32.and (i32.const #b1) (i32.wrap_i64 (i64.shr_u x (i64.const 5))))))
-    (extract_int_code      (lambda (x)     (i64.shr_s x (i64.const 4))))
-    (extract_int_code_i32  (lambda (x)     (i32.wrap_i64 (extract_int_code x))))
-    (extract_ptr_code      (lambda (bytes) (i32.wrap_i64 (i64.shr_u bytes (i64.const 32)))))
-    (extract_size_code     (lambda (bytes) (i32.wrap_i64 (i64.and (i64.const #xFFFFFFF)
-                                                                 (i64.shr_u bytes (i64.const 4))))))
+    (extract_usede_code        (lambda (x)      (i32.and (i32.const #b1) (i32.wrap_i64 (i64.shr_u x (i64.const 5))))))
+    (extract_int_code          (lambda (x)     (i64.shr_s x (i64.const 4))))
+    (extract_int_code_i32      (lambda (x)     (i32.wrap_i64 (extract_int_code x))))
+    (extract_ptr_code          (lambda (bytes) (i32.wrap_i64 (i64.shr_u bytes (i64.const 32)))))
+    (extract_size_code         (lambda (bytes) (i32.wrap_i64 (i64.and (i64.const  #xFFFFFFF) (i64.shr_u bytes (i64.const 4))))))
+    (extract_size_code_to_int  (lambda (bytes)               (i64.and (i64.const #xFFFFFFF0) bytes)))
 
 
     (is_type_code (lambda (tag x) (i64.eq (i64.const tag) (i64.and (i64.const type_mask) x))))
@@ -4908,6 +4908,23 @@
                                                                                                                (single_num_type_check (idx param_codes 0))
                                                                                                                (slice param_codes 1 -1)) nil ctx)))
                                                                               ))
+
+                                                        (gen_pred_impl    (lambda (tag needs_drop)
+                                                                              (dlet (((param_codes err ctx _) (compile_params false ctx false))
+                                                                                     (_ (true_print "doing an array? inline!"))
+                                                                                     )
+                                                                                    (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
+                                                                                             (array nil (concat
+                                                                                                          (idx param_codes 0)
+                                                                                                          (local.set '$prim_tmp_a)
+                                                                                                          (_if '$is_pred '(result i64)
+                                                                                                              (i64.eq (i64.const tag) (i64.and (i64.const type_mask) (local.get '$prim_tmp_a)))
+                                                                                                              (then (i64.const true_val))
+                                                                                                              (else (i64.const false_val))
+                                                                                                          )
+                                                                                                          (mif needs_drop (generate_drop (local.get '$prim_tmp_a)) (array))
+                                                                                                        ) nil ctx)))
+                                                                              ))
                                                         (gen_cmp_impl (lambda (lt_case eq_case gt_case)
                                                                               (dlet (((param_codes err ctx _) (compile_params false ctx false)))
                                                                                     (mif err (array nil nil (str err " from function params in call to comb " (str_strip c)) ctx)
@@ -5005,6 +5022,9 @@
                                                                                                     (_ (true_print "made eq_code"))
                                                                                                                                         ) (array nil eq_code nil ctx))))
                                                                                                                                 (dlet ((_ (true_print "missed better = " parameter_types))) (gen_cmp_impl false_val true_val false_val))))
+
+                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'array?) (= 1 num_params)) (gen_pred_impl array_tag true))
+
                                                             ; inline idx if we have the type+len of array and idx is a constant
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'idx) (= 2 num_params)
                                                                   (idx parameter_types 0) (= 'arr (idx (idx parameter_types 0) 0)) (idx (idx parameter_types 0) 2)
@@ -5021,6 +5041,16 @@
                                                                                                   (generate_drop (local.get '$prim_tmp_a)))
                                                                                           nil)
                                                                                    (array nil (true_str "bad constant offset into typed array"))))
+                                                            ) (array nil code err ctx)))
+                                                            ; inline len if we have the type of array
+                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'len) (= 1 num_params)
+                                                                  (idx parameter_types 0) (= 'arr (idx (idx parameter_types 0) 0))) (dlet (
+                                                                  (_ (true_print "inlining len LEN!!!"))
+                                                                  ((param_codes err ctx _) (compile_params false ctx false))
+                                                                  (code (mif err nil
+                                                                                 (concat (local.set '$prim_tmp_a (idx param_codes 0))
+                                                                                         (extract_size_code_to_int (local.get '$prim_tmp_a))
+                                                                                         (generate_drop (local.get '$prim_tmp_a)))))
                                                             ) (array nil code err ctx)))
                                                         
 

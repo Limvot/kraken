@@ -18,3 +18,4 @@ add_subdirectory(swift)
 
 add_subdirectory(python)
 add_subdirectory(scheme)
+add_subdirectory(picolisp)

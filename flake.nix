@@ -81,6 +81,7 @@
             ocaml
             jdk
             swift
+            picolisp
           ];
         };
       }
