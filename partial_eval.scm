@@ -2623,7 +2623,6 @@
               ))))
               (_ (true_print "nil? is " k_nil? " which might be " (- k_nil? dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
-              ((datasi memo k_array_msg_val) (compile-string-val datasi memo "k_array"))
               ((k_array?        func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (pred_func '$array?    array_tag))))
               (_ (true_print "array? is " k_array? " which might be " (- k_array? dyn_start)))
               ((func_idx funcs) (array (+ 1 func_idx) (concat funcs (func '$dummy '(result i64) (i64.const 0)))))
@@ -4886,6 +4885,13 @@
                                                                     ) (array (cons (mif val (i64.const (mod_fval_to_wrap val)) code) a) err ctx (+ i 1))))
 
                                                                 (array (array) nil ctx 0) params)))
+                                                        (wrap_param_codes (lambda (param_codes) (concat (call '$malloc (i32.const (* 8 (len param_codes))))
+                                                                                                        ;(apply concat param_codes)
+                                                                                                        (flat_map (lambda (i) (concat (local.tee '$param_ptr)
+                                                                                                                                      (i64.store (* i 8) (local.get '$param_ptr) (idx param_codes i))))
+                                                                                                                  (range 0 (len param_codes)))
+                                                                                                        (local.set '$param_ptr)
+                                                                                                )))
 
 
                                                         (wrap_level (if (or (comb? func_value) (prim_comb? func_value)) (.any_comb_wrap_level func_value) nil))
@@ -5025,6 +5031,15 @@
 
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'array?) (= 1 num_params)) (gen_pred_impl array_tag true))
 
+                                                            ; inline array pretty much always - array does nothing but return it's parameter array anyway!
+                                                            ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'array)) (dlet (
+                                                                  (_ (true_print "inlining array ARRAY!!!"))
+                                                                  ((param_codes err ctx _) (compile_params false ctx false))
+                                                                  (code (mif err nil
+                                                                                 (concat  (wrap_param_codes param_codes)
+                                                                                          (mk_array_code_rc_const_len (len param_codes) (local.get '$param_ptr)))))
+                                                            ) (array nil code err ctx)))
+
                                                             ; inline idx if we have the type+len of array and idx is a constant
                                                             ((and (prim_comb? func_value) (= (.prim_comb_sym func_value) 'idx) (= 2 num_params)
                                                                   (idx parameter_types 0) (= 'arr (idx (idx parameter_types 0) 0)) (idx (idx parameter_types 0) 2)
@@ -5124,16 +5139,8 @@
                                                                 ; Generates *tons* of text, needs to be different. Made a 200KB binary 80MB
                                                                 ;((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (true_str_strip c) " " err)) true inside_veval s_env_access_code inline_level type_data_nil))
                                                                 ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val "error was with unval-evaling parameters of ") true inside_veval s_env_access_code inline_level nil type_data_nil))
-                                                                (wrap_param_code (lambda (code) (concat
-                                                                                                    (local.get '$tmp) ; saving ito restore it
-                                                                                                    code
-                                                                                                    (local.set '$param_ptr (call '$malloc (i32.const (* 8 num_params))))
-                                                                                                    (flat_map (lambda (i) (i64.store (* i 8) (local.set '$tmp) (local.get '$param_ptr) (local.get '$tmp)))
-                                                                                                              (range (- num_params 1) -1))
-                                                                                                    (local.set '$tmp) ; restoring tmp
-                                                                                                  )))
                                                                 (wrap_0_inner_code (apply concat param_codes))
-                                                                (wrap_0_param_code (wrap_param_code wrap_0_inner_code))
+                                                                (wrap_0_param_code (wrap_param_codes param_codes))
                                                                 (wrap_1_inner_code
                                                                    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                                                                    ; Since we're not sure if it's going to be a vau or not,
@@ -5143,10 +5150,10 @@
                                                                    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                                                                    (mif err (concat (call '$print (i64.const bad_not_vau_msg_val))
                                                                                     (call '$print (i64.const bad_unval_params_msg_val))
-                                                                                    (call '$print (mk_int_code_i64 (local.get '$tmp)))
                                                                                     (unreachable))
                                                                             (apply concat unval_param_codes)))
-                                                                (wrap_1_param_code (wrap_param_code wrap_1_inner_code))
+                                                                (wrap_1_param_code (mif err wrap_1_inner_code
+                                                                                            (wrap_param_codes unval_param_codes)))
                                                                 (wrap_x_param_code (concat
                                                                                     ; TODO: Handle other wrap levels
                                                                                     (call '$print (i64.const weird_wrap_msg_val))
@@ -5227,7 +5234,7 @@
                                                                               ) ctx))
                                                                               (array (concat
                                                                                 func_code
-                                                                                (local.set '$tmp)
+                                                                                (local.tee '$tmp)
                                                                                 (_if '$is_wrap_0
                                                                                     (is_wrap_code 0 (local.get '$tmp))
                                                                                     (then wrap_0_param_code)
@@ -5240,6 +5247,7 @@
                                                                                     )
                                                                                 )
                                                                                 (front_half_stack_code (i64.const source_code) (generate_dup s_env_access_code))
+                                                                                (local.set '$tmp)
                                                                                 (call_indirect
                                                                                     ;type
                                                                                     k_vau
