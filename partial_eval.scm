@@ -4748,7 +4748,6 @@
                         ; start simply by making this only an 'and'-style recognizer
                         ; if (vcond p b true p) (or (vcond p b true false)) combine b's implies with p's implies
                         ((is_prim_function_call c 'vcond)  (dlet (
-                            ;(_ (true_print "entering vcond"))
 
                                (func_param_values (.marked_array_values c))
                                (num_params (- (len func_param_values) 1))
@@ -4766,12 +4765,26 @@
                                                          (range 0 (/ num_params 2))
                                                   ))
 
-                            ;(_ (true_print "exiting vcond"))
                         ) (mif (and (= 5 (len (.marked_array_values c))) (val? (idx (.marked_array_values c) 3)) (= true (.val (idx (.marked_array_values c) 3)))
                                   (or (and (val? (idx (.marked_array_values c) 4)) (= false (.val (idx (.marked_array_values c) 4))))
                                       (= (.hash (idx (.marked_array_values c) 1)) (.hash (idx (.marked_array_values c) 4)))))          
                              (array false (idx impls 0) empty_dict-list sub_data)
                              (array false false         empty_dict-list sub_data))))
+
+                        ((is_prim_function_call c 'veval)  (dlet (
+                               (func_param_values (.marked_array_values c))
+                               (num_params (- (len func_param_values) 1))
+                               (params (slice func_param_values 1 -1))
+                               (_ (if (!= 2 num_params) (error "call to veval has != 2 params!")))
+                               (_ (if (not (marked_env? (idx params 1))) (error "call to veval has not marked_env second param")))
+
+                               (new_env_id      (.marked_env_idx (idx params 1)))
+                               ((btyp bimpl b_assertion b_subdata) (infer_types (idx params 0) new_env_id  empty_dict-list empty_dict-list))
+
+                               (sub_data (array (infer_types func env_id implies guarentees)
+                                                (array btyp bimpl b_assertion b_subdata)
+                                                (infer_types (idx params 1) env_id implies guarentees)))
+                        ) (array btyp false empty_dict-list sub_data)))
 
                         ; generic combiner calls - recurse into all
                         ((and (marked_array? c) (not (.marked_array_is_val c))) (dlet (
@@ -4811,59 +4824,137 @@
               ;
               ; all uses of used_data_nil need to be re-examined
 
-              ; psudo_perceus takes in a used_map (after-node) and an env_id (for inlining checks) and returns a used_map (before-node) and sub_results
+              ; psudo_perceus takes in a used_map (after-node) and an env_id (for inlining checks) and returns a used_map (before-node) and (sub_results + used_map_after_node, if it would change it)
 
               ; used map also needs to track env_ids for env values that are partial?
 
               (used_data_nil nil)
-              (empty_use_map empty_dict-list)
-              (set_used_map (lambda (used_map s)                                    (put-list used_map s #t)))
+              (empty_use_map false) ; used_map is (<list-dict s->true/false>/true(for all) upper) or false
+              (push_used_map        (lambda                       (used_map params)   (array (foldl (lambda (m s) (put-list m s false)) empty_dict-list params) used_map)))
+              (pop_used_map         (lambda                       (used_map)          (idx used_map 1)))
+              (set_used_map         (rec-lambda set_used_map      (used_map s)        (mif (and used_map (!= true (idx used_map 0)))
+                                                                                           (mif (get-list (idx used_map 0) s)
+                                                                                                (array (put-list (idx used_map 0) s true) (idx used_map 1))
+                                                                                                (array (idx used_map 0)                   (set_used_map (idx used_map 1) s)))
+                                                                                           used_map)))
+              (set_all_used_map     (rec-lambda set_all_used_map  (used_map)          (mif used_map
+                                                                                          (array true (set_all_used_map (idx used_map 1)))
+                                                                                          used_map)))
+              (combine_used_maps    (rec-lambda combine_used_maps (a b) (cond ((not a)                      b)
+                                                                              ((not b)                      a)
+                                                                              ((or (= true (idx a 0))
+                                                                                   (= true (idx b 0)))      (array true (combine_used_maps (idx a 1) (idx b 1))))
+                                                                              (true                         (array (foldl (lambda (a x) (mif (idx x 1) (put-list a (idx x 0) true)
+                                                                                                                                                       a))
+                                                                                                                          (idx a 0) (idx b 0))
+                                                                                                                   (combine_used_maps (idx a 1) (idx b 1)))))))
 
-              (pseudo_perceus (rec-lambda pseudo_perceus (c env_id used_map_after) (cond
-                        ((val? c)                                                         (array used_map_after used_data_nil))
-                        ((prim_comb? c)                                                   (array used_map_after used_data_nil))
-                        ((and (marked_symbol? c) (.marked_symbol_is_val c))               (array used_map_after used_data_nil))
-                        ((and (marked_array?  c) (.marked_array_is_val  c))               (array used_map_after used_data_nil))
+              (pseudo_perceus (rec-lambda pseudo_perceus (c env_id knot_memo used_map_after) (cond
+                        ((val? c)                                                         (array used_map_after                                         (array used_map_after)))
+                        ((prim_comb? c)                                                   (array used_map_after                                         (array used_map_after)))
+                        ((and (marked_symbol? c) (.marked_symbol_is_val c))               (array used_map_after                                         (array used_map_after)))
+                        ((and (marked_array?  c) (.marked_array_is_val  c))               (array used_map_after                                         (array used_map_after)))
+                        ; this triggers the env access code, which will
+                        ; traverse and realize every env until it reaches the right one,
+                        ; which will thus consume *everything*
+                        ((and (marked_env? c) (not (marked_env_real? c)))                 (array (set_all_used_map used_map_after)                      (array used_map_after)))
+                        ((and (marked_env? c)      (marked_env_real? c))                  (array used_map_after                                         (array used_map_after)))
+                        ; just fixed symbol lookup to use outer_s_env instead of s_env
+                        ; for lookups that aren't expanded out (level <= inline_level),
+                        ; so it doesn't reify envs. This symbol *might* be outside of the current
+                        ; env chain though, so the set used shouldn't change it if the symbol's not
+                        ; in the current map
+                        ((and (marked_symbol? c) (not (.marked_symbol_is_val c)))         (array (set_used_map used_map_after (.marked_symbol_value c)) (array used_map_after)))
+                        ; comb value just does its env
+                        ((comb? c)                                                        (pseudo_perceus (.comb_env c) env_id knot_memo used_map_after))
 
-                        ((and (marked_symbol? c) (not (.marked_symbol_is_val c)))         (array (set_used_map used_map_after (.marked_symbol_value c)) used_data_nil))
-                        ((marked_env? c)                                                  (array (error "HELP")                                         used_data_nil))
-                        ((comb? c)                                                        (pseudo_perceus (.comb_env c) used_map_after))
+                        ((is_prim_function_call c 'veval)  (dlet (
+                               (func_param_values (.marked_array_values c))
+                               (num_params (- (len func_param_values) 1))
+                               (params (slice func_param_values 1 -1))
+                               (_ (if (!= 2 num_params) (error "call to veval has != 2 params!")))
+                               (_ (if (not (marked_env? (idx params 1))) (error "call to veval has not marked_env second param")))
+
+                               (new_env_id      (.marked_env_idx (idx params 1)))
+                              (body_data                       (pseudo_perceus (idx params 0) new_env_id knot_memo empty_use_map))
+                              ((used_map_pre_env env_sub_data) (pseudo_perceus (idx params 1) env_id     knot_memo used_map_after))
+
+                        ) (array used_map_pre_env (array used_data_nil body_data (array used_map_pre_env env_sub_data) used_map_after))))
+
                         ; cond case
-                        ; start simply by making this only an 'and'-style recognizer
-                        ; if (vcond p b true p) (or (vcond p b true false)) combine b's implies with p's implies
                         ((is_prim_function_call c 'vcond)  (dlet (
                                (func_param_values (.marked_array_values c))
                                (num_params (- (len func_param_values) 1))
                                (params (slice func_param_values 1 -1))
-                               (func (idx func_param_values 0))
-                               ;((impls sub_data)  (foldl (dlambda ((impls sub_data) i) (dlet (
-                               ;                              ((ptyp pimpl p_assertion p_subdata) (infer_types (idx params (+ (* 2 i) 0)) env_id implies guarentees))
-                               ;                              (_ (true_print "about to combine pimpl and guarentees in cond, they are " pimpl "and " guarentees))
-                               ;                              ((btyp bimpl b_assertion b_subdata) (infer_types (idx params (+ (* 2 i) 1)) env_id implies (combine-list combine-type pimpl guarentees)))
-                               ;                              (_ (true_print "about to combine pimpl and bimpl in cond, they are " pimpl " and " bimpl))
-                               ;                              (combined_impl (combine-list combine-type pimpl bimpl))
-                               ;                              (_ (true_print "combined is " combined_impl))
-                               ;                          ) (array (concat impls (array combined_impl)) (concat sub_data (array (array ptyp pimpl p_assertion p_subdata) (array btyp bimpl b_assertion b_subdata))))))
-                               ;                          (array (array) (array (infer_types func env_id implies guarentees)))
-                               ;                          (range 0 (/ num_params 2))
-                               ;                   ))
-                        ) (array (error "HELP") sub_results)))
-
-                        ((is_prim_function_call c 'veval)  (dlet (
-                        ) (array (error "HELP") sub_results)))
+                               ((used_map_pre sub_data)  (foldl (dlambda ((sub_used_map_after sub_data) i) (dlet (
+                                                             ((used_map_pre_body_arm body_arm_sub_data) (pseudo_perceus (idx params (+ (* 2 i) 0)) env_id knot_memo used_map_after))
+                                                             ((used_map_pre_pred         pred_sub_data) (pseudo_perceus (idx params (+ (* 2 i) 1)) env_id knot_memo sub_used_map_after))
+                                                             (new_sub_used_map_pre (combine_used_maps used_map_pre_pred used_map_pre_body_arm))
+                                                         ) (array new_sub_used_map_pre (concat (array (array used_map_pre_pred pred_sub_data) (array used_map_pre_body_arm body_arm_sub_data)) sub_data))))
+                                                         (array used_map_after (array used_map_after))
+                                                         (range 0 (/ num_params 2))
+                                                  ))
+                        ) (array used_map_pre sub_data)))
 
                         ; generic combiner calls - recurse into all
-                        ; remember to check for implicits on prim comb calls
+
+
+                        ; generic call taxonomy
+                        ;     unknown
+                        ;           may take in reified env, set all to used, then do params (note will be generated as a branch, but the union of the branch will still be everything), then do func code
+                        ;     known-val or Y-combiner knot tying
+                        ;           takes in env, inlined - add all parameters to map as unused, recurse, then remove off extra env back to the smaller (but maybe modified env), then backwards through params
+                        ;           takes in env, not inlined - same as unknown
+                        ;           doesn't take in env - call itself won't do anything, move backwards through params and then func
+                        ;
+                        ; call needs an extra sub_data, which is before the call happens - nice to have for regular calls, key for inlined calls (with the full, un-trimmed pre-env)
+                        ;     return pre_param_1, (param_1_data, param_2_data, param_3_data, (pre_call maybe_inline_subdata), post_call)
+
+                        ; Ok, so three real cases, might-take-env, inline, and doesn't-take-env
+
+                        ; YES remember to check for implicits on prim comb calls - (comb_takes_de? (lambda (x l) ...
+                        ; YES remember to check for Y-combiner recursion knot tying - (and (!= nil (.marked_array_this_rec_stop c)) (get_passthrough (idx (.marked_array_this_rec_stop c) 0) ctx))
+                        ; YES remember to check for let-like inlining (and (marked_array? c) (let_like_inline_closure (idx (.marked_array_values c) 0) env_id))
+                        ; YES remember to properly handle crazy stuff like inlining inside of veval (does that mean we have to re-pick up inside veval after all?)
+                        ; remember to think (/modify appropriately) about TCE - I think it's fine to have it act like a normal call?
                         ((and (marked_array? c) (not (.marked_array_is_val c))) (dlet (
                               ; check func first for val or not & if val if it uses de (comb that uses de, prim_comb that takes it)
                               ;     if not, then full white-out first/'last' at call
                               ; then backwards through parameters
                               ; then backwards through func if not val
-                              ;(sub_results (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c)))
-                        ) (array (error "HELP") sub_results)))
+                              (func_param_values (.marked_array_values c))
+                              (num_params (- (len func_param_values) 1))
+                              (params (slice func_param_values 1 -1))
+                              (func (idx func_param_values 0))
+                              ((used_map_pre_call full_used_map_pre_call maybe_inline_subdata do_func) (cond ((let_like_inline_closure func env_id)    (dlet (
+                                                                                                                                       (inl_used_map_after (push_used_map used_map_after (.comb_params func)))
+                                                                                                                                       ((full_pre_inl_used_map inl_subdata) (pseudo_perceus (.comb_body func)
+                                                                                                                                                                                             (.comb_id func)
+                                                                                                                                                                                             knot_memo
+                                                                                                                                                                                             inl_used_map_after))
+                                                                                                                                      ) (array (pop_used_map full_pre_inl_used_map)
+                                                                                                                                               full_pre_inl_used_map
+                                                                                                                                               (array inl_subdata inl_used_map_after)
+                                                                                                                                               false)))
+                                                                                      ((or (and (or (prim_comb? func) (comb? func)) (not (comb_takes_de? func num_params)))
+                                                                                           (and (!= nil (.marked_array_this_rec_stop c))
+                                                                                                                     (get-value-or-false knot_memo (idx (.marked_array_this_rec_stop c) 0))
+                                                                                                (extract_func_usesde (get-value-or-false knot_memo (idx (.marked_array_this_rec_stop c) 0)))))
+                                                                                            (array used_map_after used_map_after used_data_nil false))
+                                                                                      (true (dlet ((whiteout (set_all_used_map used_map_after))) (array whiteout whiteout used_data_nil true)))
+                                                                          ))
+                              ((used_map_pre_params sub_results) (foldl (dlambda ((used_map_after_param sub_data) param) (dlet (
+                                                                                    ((used_map_pre_param param_sub_data) (pseudo_perceus param env_id knot_memo used_map_after_param))
+                                                                                 ) (array used_map_pre_param (cons param_sub_data sub_data))))
+                                                                        (array used_map_pre_call (array (array full_used_map_pre_call maybe_inline_subdata) used_map_after))
+                                                                        (reverse_e params)))
+                              ((used_map_pre_func func_sub_data) (mif do_func
+                                                                      (pseudo_perceus func env_id knot_memo used_map_pre_params)
+                                                                      (array used_map_pre_params used_data_nil)))
+                        ) (array used_map_pre_func (cons func_sub_data sub_results))))
 
                         ; fallthrough
-                        (true   (array (error "Shouldn't happen")))
+                        (true   (array (error "Shouldn't happen, missing case for pseudo_perceus: " (true_str_strip c))))
               )))
               (cached_pseudo_perceus_idx (lambda (c env_id cache i) (dlet (
                                                                 ;(_ (true_print "doing cached-pseudo-perceus-idx for " (true_str_strip c)))
@@ -4875,7 +4966,7 @@
                                                                 ) r)))
 
 
-              (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval s_env_access_code inline_level tce_data type_data used_data) (cond
+              (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval outer_s_env_access_code s_env_access_code inline_level tce_data type_data used_data) (cond
                     ((val? c)   (dlet ((v (.val c)))
                                      (cond ((int? v)    (array  (mk_int_value v) nil nil ctx))
                                            ((= true v)  (array  true_val nil nil ctx))
@@ -4896,7 +4987,7 @@
 
       (lookup_helper (rec-lambda lookup-recurse (dict key i code level) (cond
           ((and (= i (- (len dict) 1)) (= nil (idx dict i))) (array nil (str "for code-symbol lookup, couldn't find " key)))
-          ((= i (- (len dict) 1))                            (lookup-recurse (.env_marked (idx dict i)) key 0 (i64.load 16 (extract_ptr_code code)) (+ level 1)))
+          ((= i (- (len dict) 1))                            (lookup-recurse (.env_marked (idx dict i)) key 0 (mif (or inside_veval (> level inline_level)) (i64.load 16 (extract_ptr_code code)) code) (+ level 1)))
           ((= key (idx (idx dict i) 0))                      (if (and (not inside_veval) (<= level inline_level)) (dlet ((s (mif (!= inline_level level)
                                                                                                                                  (str-to-symbol (concat (str (- inline_level
                                                                                                                                                                 level))
@@ -4907,7 +4998,7 @@
           (true                                              (lookup-recurse dict key (+ i 1) code level)))))
 
 
-                                                            ((val err) (lookup_helper (.env_marked env) (.marked_symbol_value c) 0 s_env_access_code 0))
+                                                            ((val err) (lookup_helper (.env_marked env) (.marked_symbol_value c) 0 (mif inside_veval s_env_access_code outer_s_env_access_code) 0))
                                                             (err (mif err (str "got " err ", started searching in " (str_strip env)) (if need_value (str "needed value, but non val symbol " (.marked_symbol_value c)) nil)))
                                                             (result   (mif val (generate_dup val)))
                                                           ) (array nil result err (array datasi funcs memo env pectx inline_locals))))))
@@ -4917,7 +5008,7 @@
                    ((marked_array? c) (if (.marked_array_is_val c) (or (get_passthrough (.hash c) ctx)
                                                                        (dlet ((actual_len (len (.marked_array_values c))))
                                                                          (if (= 0 actual_len) (array nil_val nil nil ctx)
-                                                                             (dlet ( ((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x need_value inside_veval s_env_access_code inline_level nil type_data_nil used_data_nil)))
+                                                                             (dlet ( ((comp_values err ctx) (foldr (dlambda (x (a err ctx)) (dlet (((v c e ctx) (compile-inner ctx x need_value inside_veval outer_s_env_access_code s_env_access_code inline_level nil type_data_nil used_data_nil)))
                                                                                                                                          (array (cons (mod_fval_to_wrap v) a) (or (mif err err false) (mif e e false) (mif c (str "got code " c) false)) ctx))) (array (array) nil ctx) (.marked_array_values c)))
                                                                                    ) (mif err (array nil nil (str err ", from an array value compile " (str_strip c)) ctx) (dlet (
                                                                                     ((datasi funcs memo env pectx inline_locals) ctx)
@@ -4976,7 +5067,7 @@
                                                                     (ctx (array datasi funcs memo env pectx inline_locals))
                                                                     ;(_ (true_print "matching up compile-inner " (true_str_strip x) " with " (idx parameter_subs i)))
                                                                     ((val code err ctx) (mif err (array nil nil err ctx)
-                                                                                                 (compile-inner ctx x false inside_veval s_env_access_code inline_level
+                                                                                                 (compile-inner ctx x false inside_veval outer_s_env_access_code s_env_access_code inline_level
                                                                                                                                                                      ; 0 b/c foldr
                                                                                                                                                                      ; count from end
                                                                                                                                                            (mif (and (= 0 (% i 2)) cond_tce)
@@ -5069,15 +5160,16 @@
 
                             (_ (if (!= 2 (len params)) (error "call to veval has != 2 params!")))
                             ((datasi funcs memo env pectx inline_locals) ctx)
-                            ((val code err (datasi funcs memo ienv pectx inline_locals)) (compile-inner (array datasi funcs memo (idx params 1) pectx inline_locals) (idx params 0) false true (local.get '$s_env) 0 nil type_data_nil used_data_nil))
+                            ((val code err (datasi funcs memo ienv pectx inline_locals)) (compile-inner (array datasi funcs memo (idx params 1) pectx inline_locals) (idx params 0) false true (local.get '$s_env) (local.get '$s_env) 0 nil type_data_nil used_data_nil))
                             (ctx (array datasi funcs memo env pectx inline_locals))
                             ; If it's actual code, we have to set and reset s_env
                             ((code env_err ctx) (mif code (dlet (
-                                                              ((env_val env_code env_err ctx) (compile-inner ctx (idx params 1) false inside_veval s_env_access_code inline_level nil type_data_nil used_data_nil))
+                                                              ((env_val env_code env_err ctx) (compile-inner ctx (idx params 1) false inside_veval outer_s_env_access_code s_env_access_code inline_level nil type_data_nil used_data_nil))
                                                               (full_code (concat (local.get '$s_env)
                                                                                  (local.set '$s_env (mif env_val (i64.const env_val) env_code))
                                                                                  code
                                                                                  (local.set '$tmp)
+                                                                                 ; DROP s_env???
                                                                                  (local.set '$s_env)
                                                                                  (local.get '$tmp)))
                                                               ) (array full_code env_err ctx))
@@ -5197,7 +5289,7 @@
                         ((param_codes first_params_err ctx _) (compile_params false ctx false))
 
                         (inner_env (make_tmp_inner_env comb_params (.comb_des func_value) (.comb_env func_value) (.comb_id func_value)))
-                        ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) comb_params) nil) true false s_env_access_code 0 nil type_data_nil used_data_nil))
+                        ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) comb_params) nil) true false outer_s_env_access_code s_env_access_code 0 nil type_data_nil used_data_nil))
                         (new_get_s_env_code (_if '$have_s_env '(result i64)
                                                  (i64.ne (i64.const nil_val) (local.get new_s_env_symbol))
                                                  (then (local.get new_s_env_symbol))
@@ -5213,7 +5305,7 @@
                         ((datasi funcs memo env pectx inline_locals) ctx)
                         (_ (true_print "Doing inline compile-inner " comb_params))
                         ((inner_value inner_code err ctx) (compile-inner (array datasi funcs memo inner_env pectx inline_locals)
-                                                                         (.comb_body func_value) false false new_get_s_env_code new_inline_level tce_data
+                                                                         (.comb_body func_value) false false outer_s_env_access_code new_get_s_env_code new_inline_level tce_data
                                                                          (cached_infer_types_idx c (.comb_id func_value) type_data 0)
                                                                          used_data_nil))
                         (_ (true_print "Done inline compile-inner " comb_params))
@@ -5243,11 +5335,11 @@
                                                             ;           + d_de/d_no_de & d_wrap=1/d_wrap=2
                                                             (true (dlet (
                                                                 ((param_codes first_params_err ctx _) (compile_params false ctx false))
-                                                                ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval s_env_access_code inline_level nil type_data_nil used_data_nil))
+                                                                ((func_val func_code func_err ctx) (compile-inner ctx func_value false inside_veval outer_s_env_access_code s_env_access_code inline_level nil type_data_nil used_data_nil))
                                                                 ((unval_param_codes err ctx _) (compile_params true ctx false))
                                                                 ; Generates *tons* of text, needs to be different. Made a 200KB binary 80MB
-                                                                ;((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (true_str_strip c) " " err)) true inside_veval s_env_access_code inline_level type_data_nil used_data_nil))
-                                                                ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val "error was with unval-evaling parameters of ") true inside_veval s_env_access_code inline_level nil type_data_nil used_data_nil))
+                                                                ;((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val (str "error was with unval-evaling parameters of " (true_str_strip c) " " err)) true inside_veval outer_s_env_access_code s_env_access_code inline_level type_data_nil used_data_nil))
+                                                                ((bad_unval_params_msg_val _ _ ctx) (compile-inner ctx (marked_val "error was with unval-evaling parameters of ") true inside_veval outer_s_env_access_code s_env_access_code inline_level nil type_data_nil used_data_nil))
                                                                 (wrap_0_inner_code (apply concat param_codes))
                                                                 (wrap_0_param_code (wrap_param_codes param_codes))
                                                                 (wrap_1_inner_code
@@ -5268,7 +5360,7 @@
                                                                                     (call '$print (i64.const weird_wrap_msg_val))
                                                                                     (unreachable)))
 
-                                                                ((source_code ctx) (mif (.marked_array_source c) (dlet (((code _ _ ctx) (compile-inner ctx (.marked_array_source c) true inside_veval s_env_access_code inline_level nil type_data_nil used_data_nil))
+                                                                ((source_code ctx) (mif (.marked_array_source c) (dlet (((code _ _ ctx) (compile-inner ctx (.marked_array_source c) true inside_veval outer_s_env_access_code s_env_access_code inline_level nil type_data_nil used_data_nil))
                                                                                                                         ) (array code ctx))
                                                                                                                  (array k_cond_msg_val ctx)))
                                                                 ((result_code ctx) (mif func_val
@@ -5391,13 +5483,15 @@
                                                 )
                                             ) s_env_access_code env)))
 
-                                            ) (if (not (marked_env_real? c)) (begin (print_strip "env wasn't real: " (marked_env_real? c) ", so generating access (env was) " c) (if need_value (array nil nil (str "marked env not real, though we need_value: " (str_strip c)) ctx) (generate_env_access ctx (.marked_env_idx c) "it wasn't real: " (str_strip c))))
+                                            ) (if (not (marked_env_real? c)) (begin (print_strip "env wasn't real: " (marked_env_real? c) ", so generating access (env was) " c)
+                                                                                    (if need_value (array nil nil (str "marked env not real, though we need_value: " (str_strip c)) ctx)
+                                                                                                   (generate_env_access ctx (.marked_env_idx c) "it wasn't real: " (str_strip c))))
                                             (dlet (
                                             ;(_ (true_print "gonna compile kvs vvs"))
 
 
-                                            ((kvs vvs ctx) (foldr (dlambda ((k v) (ka va ctx)) (dlet (((kv _    _   ctx) (compile-inner ctx (marked_symbol nil k) true inside_veval s_env_access_code inline_level nil type_data_nil used_data_nil))
-                                                                                                      ((vv code err ctx) (compile-inner ctx v need_value inside_veval s_env_access_code inline_level nil type_data_nil used_data_nil))
+                                            ((kvs vvs ctx) (foldr (dlambda ((k v) (ka va ctx)) (dlet (((kv _    _   ctx) (compile-inner ctx (marked_symbol nil k) true inside_veval outer_s_env_access_code s_env_access_code inline_level nil type_data_nil used_data_nil))
+                                                                                                      ((vv code err ctx) (compile-inner ctx v need_value inside_veval outer_s_env_access_code s_env_access_code inline_level nil type_data_nil used_data_nil))
                                                                                                       )
                                                                                                       (if (= false ka) (array false va ctx)
                                                                                                       (if (or (= nil vv) (!= nil err)) (array false (str "vv was " vv " err is " err " and we needed_value? " need_value " based on v " (str_strip v)) ctx)
@@ -5405,9 +5499,14 @@
                                                                   (array (array) (array) ctx)
                                                                   (slice e 0 -2)))
                                             ;(_ (true_print "gonna compile upper_value"))
-                                            ((uv ucode err ctx) (mif (idx e -1) (compile-inner ctx (idx e -1) need_value inside_veval s_env_access_code inline_level nil type_data_nil used_data_nil)
+                                            ((uv ucode err ctx) (mif (idx e -1) (compile-inner ctx (idx e -1) need_value inside_veval outer_s_env_access_code s_env_access_code inline_level nil type_data_nil used_data_nil)
                                                                                 (array nil_val nil nil ctx)))
-                                            ) (mif (or (= false kvs) (= nil uv) (!= nil err)) (begin (print_strip "kvs " kvs " vvs " vvs " uv " uv " or err " err " based off of " c) (if need_value (array nil nil (str "had to generate env access (course " need_value ") for " (str_strip c) "vvs is " vvs " err was " err) ctx) (generate_env_access ctx (.marked_env_idx c) (str " vvs " vvs " uv " uv " or err " err " based off of " (str_strip c)))))
+                                            ) (mif (or (= false kvs) (= nil uv) (!= nil err))
+                                                   (begin (print_strip "kvs " kvs " vvs " vvs " uv " uv " or err " err " based off of " c)
+                                                          (error "I DON'T LIKE IT - IMPOSSIBLE?")
+                                                          (if need_value
+                                                              (array nil nil (str "had to generate env access (course " need_value ") for " (str_strip c) "vvs is " vvs " err was " err) ctx)
+                                                              (generate_env_access ctx (.marked_env_idx c) (str " vvs " vvs " uv " uv " or err " err " based off of " (str_strip c)))))
                                             (dlet (
                                                 ((datasi funcs memo env pectx inline_locals) ctx)
                                                 ;(_ (true_print "about to kvs_array"))
@@ -5508,7 +5607,7 @@
                                     (compile_body_part (lambda (ctx body_part new_tce_data) (dlet (
                                                 (inner_env (make_tmp_inner_env params de? se env_id))
 
-                                                ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) full_params) nil) true false s_env_access_code 0 nil type_data_nil used_data_nil))
+                                                ((params_vec _ _ ctx) (compile-inner ctx (marked_array true false nil (map (lambda (k) (marked_symbol nil k)) full_params) nil) true false outer_s_env_access_code s_env_access_code 0 nil type_data_nil used_data_nil))
                                                 (new_get_s_env_code (_if '$have_s_env '(result i64)
                                                                          (i64.ne (i64.const nil_val) (local.get '$s_env))
                                                                          (then (local.get '$s_env))
@@ -5520,17 +5619,18 @@
                                                                                                                               (range 0 (len full_params)))
                                                                                                                     (mk_array_code_rc_const_len (len full_params) (local.get '$tmp_ptr))
 
-                                                                                                                    (local.get '$outer_s_env)))
+                                                                                                                    (generate_dup (local.get '$outer_s_env))))
                                                                                ;(call '$print (i64.const params_vec))
                                                                                ;(call '$print (i64.const newline_msg_val))
-                                                                               (local.set '$outer_s_env (i64.const nil_val))
+                                                                               ;(local.set '$outer_s_env (i64.const nil_val))
                                                                                )))
                                                 ((datasi funcs memo env pectx inline_locals) ctx)
                                                 (inner_ctx (array datasi funcs memo inner_env pectx inline_locals))
                                                 (_ (true_print "Doing infer_types for body part for " full_params))
                                                 (inner_type_data     (infer_types body_part (.marked_env_idx inner_env) empty_dict-list empty_dict-list))
                                                 (_ (true_print "done  infer_types, Doing compile_body_part func def compile-inner " full_params))
-                                                ((inner_value inner_code err ctx) (compile-inner inner_ctx body_part false false new_get_s_env_code 0 new_tce_data inner_type_data used_data_nil))
+                                                ((used_map_before sub_data) (pseudo_perceus body_part (.marked_env_idx inner_env) memo (push_used_map empty_use_map full_params)))
+                                                ((inner_value inner_code err ctx) (compile-inner inner_ctx body_part false false (local.get '$outer_s_env) new_get_s_env_code 0 new_tce_data inner_type_data used_data_nil))
                                                 (_ (true_print "Done compile_body_part func def compile-inner " full_params))
                                                 ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
                                                 ((datasi funcs memo _was_inner_env pectx inline_locals) ctx)
@@ -5551,7 +5651,7 @@
 
                                     ((env_val env_code env_err ctx) (if (and need_value (not (marked_env_real? se)))
                                                                         (array nil nil "Env wasn't real when compiling comb, but need value" ctx)
-                                                                        (compile-inner ctx se need_value inside_veval s_env_access_code inline_level nil type_data_nil used_data_nil)))
+                                                                        (compile-inner ctx se need_value inside_veval outer_s_env_access_code s_env_access_code inline_level nil type_data_nil used_data_nil)))
                                     (_ (if (not (or (= nil env_val) (int? env_val))) (error "BADBADBADenv_val")))
                                     (maybe_func (get_passthrough (.hash c) ctx))
                                     ((func_value _ func_err ctx) (mif maybe_func maybe_func
@@ -5647,24 +5747,24 @@
 
               (_ (true_print "About to compile a bunch of symbols & strings"))
 
-              ((exit_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'exit) true false (array) 0 nil type_data_nil used_data_nil))
-              ((args_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'args) true false (array) 0 nil type_data_nil used_data_nil))
-              ((read_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'read) true false (array) 0 nil type_data_nil used_data_nil))
-              ((write_val _ _ ctx)              (compile-inner ctx (marked_symbol nil 'write) true false (array) 0 nil type_data_nil used_data_nil))
-              ((open_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'open) true false (array) 0 nil type_data_nil used_data_nil))
-              ((monad_error_msg_val _ _ ctx)    (compile-inner ctx (marked_val "Not a legal monad ( ['args        <cont (arg_array error?)>] / ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])") true false (array) 0 nil type_data_nil used_data_nil))
-              ((bad_args_val _ _ ctx)           (compile-inner ctx (marked_val "<error with args>") true false (array) 0 nil type_data_nil used_data_nil))
-              ((bad_read_val _ _ ctx)           (compile-inner ctx (marked_val "<error with read>") true false (array) 0 nil type_data_nil used_data_nil))
-              ((exit_msg_val _ _ ctx)           (compile-inner ctx (marked_val "Exiting with code: ") true false (array) 0 nil type_data_nil used_data_nil))
+              ((exit_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'exit)  true false (array) (array) 0 nil type_data_nil used_data_nil))
+              ((args_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'args)  true false (array) (array) 0 nil type_data_nil used_data_nil))
+              ((read_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'read)  true false (array) (array) 0 nil type_data_nil used_data_nil))
+              ((write_val _ _ ctx)              (compile-inner ctx (marked_symbol nil 'write) true false (array) (array) 0 nil type_data_nil used_data_nil))
+              ((open_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'open)  true false (array) (array) 0 nil type_data_nil used_data_nil))
+              ((monad_error_msg_val _ _ ctx)    (compile-inner ctx (marked_val "Not a legal monad ( ['args        <cont (arg_array error?)>] / ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])") true false (array) (array) 0 nil type_data_nil used_data_nil))
+              ((bad_args_val _ _ ctx)           (compile-inner ctx (marked_val "<error with args>") true false   (array) (array) 0 nil type_data_nil used_data_nil))
+              ((bad_read_val _ _ ctx)           (compile-inner ctx (marked_val "<error with read>") true false   (array) (array) 0 nil type_data_nil used_data_nil))
+              ((exit_msg_val _ _ ctx)           (compile-inner ctx (marked_val "Exiting with code: ") true false (array) (array) 0 nil type_data_nil used_data_nil))
 
               (_ (true_print "about ot compile the root_marked_env"))
 
-              ((root_marked_env_val _ _ ctx)    (compile-inner ctx root_marked_env true false (array) 0 nil type_data_nil used_data_nil))
+              ((root_marked_env_val _ _ ctx)    (compile-inner ctx root_marked_env true false (array) (array) 0 nil type_data_nil used_data_nil))
 
               (_ (true_print "made the vals"))
 
               (_ (true_print "gonna compile"))
-              ((compiled_value_ptr compiled_value_code compiled_value_error ctx) (compile-inner ctx marked_code true false (array) 0 nil type_data_nil used_data_nil))
+              ((compiled_value_ptr compiled_value_code compiled_value_error ctx) (compile-inner ctx marked_code true false (array) (array) 0 nil type_data_nil used_data_nil))
               ((datasi funcs memo root_marked_env pectx inline_locals) ctx)
               (compiled_value_code (mif compiled_value_ptr (i64.const (mod_fval_to_wrap compiled_value_ptr)) compiled_value_code))
 
