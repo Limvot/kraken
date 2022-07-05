@@ -4840,6 +4840,13 @@
               (set_all_used_map     (rec-lambda set_all_used_map  (used_map)          (mif used_map
                                                                                           (array true (set_all_used_map (idx used_map 1)))
                                                                                           used_map)))
+              (get_used_map         (rec-lambda get_used_map      (used_map s)        (mif used_map
+                                                                                          (mif (= true (idx used_map 0))
+                                                                                               true
+                                                                                               (dlet ((r (get-list (idx used_map 0) s)))
+                                                                                                     (mif r (idx r 1)
+                                                                                                            (get_used_map (idx used_map 1) s))))
+                                                                                          (error "get bad s in used_map"))))
               (combine_used_maps    (rec-lambda combine_used_maps (a b) (cond ((not a)                      b)
                                                                               ((not b)                      a)
                                                                               ((or (= true (idx a 0))
@@ -4864,7 +4871,8 @@
                         ; so it doesn't reify envs. This symbol *might* be outside of the current
                         ; env chain though, so the set used shouldn't change it if the symbol's not
                         ; in the current map
-                        ((and (marked_symbol? c) (not (.marked_symbol_is_val c)))         (array (set_used_map used_map_after (.marked_symbol_value c)) (array used_map_after)))
+                        ; ALSO - symbol sub_data stores if this is the owning sink of the symbol (based on if it wasn't used after)
+                        ((and (marked_symbol? c) (not (.marked_symbol_is_val c)))         (array (set_used_map used_map_after (.marked_symbol_value c)) (array (not (get_used_map used_map_after (.marked_symbol_value c))) used_map_after)))
                         ; comb value just does its env
                         ((comb? c)                                                        (pseudo_perceus (.comb_env c) env_id knot_memo used_map_after))
 
@@ -4887,12 +4895,12 @@
                                (num_params (- (len func_param_values) 1))
                                (params (slice func_param_values 1 -1))
                                ((used_map_pre sub_data)  (foldl (dlambda ((sub_used_map_after sub_data) i) (dlet (
-                                                             ((used_map_pre_body_arm body_arm_sub_data) (pseudo_perceus (idx params (+ (* 2 i) 0)) env_id knot_memo used_map_after))
-                                                             ((used_map_pre_pred         pred_sub_data) (pseudo_perceus (idx params (+ (* 2 i) 1)) env_id knot_memo sub_used_map_after))
-                                                             (new_sub_used_map_pre (combine_used_maps used_map_pre_pred used_map_pre_body_arm))
-                                                         ) (array new_sub_used_map_pre (concat (array (array used_map_pre_pred pred_sub_data) (array used_map_pre_body_arm body_arm_sub_data)) sub_data))))
+                                                             ((used_map_pre_body_arm body_arm_sub_data) (pseudo_perceus (idx params (+ (* 2 i) 1)) env_id knot_memo used_map_after))
+                                                             (used_map_post_pred (combine_used_maps sub_used_map_after used_map_pre_body_arm))
+                                                             ((used_map_pre_pred         pred_sub_data) (pseudo_perceus (idx params (+ (* 2 i) 0)) env_id knot_memo used_map_post_pred))
+                                                         ) (array used_map_pre_pred (concat (array (array used_map_pre_pred pred_sub_data) (array used_map_pre_body_arm body_arm_sub_data)) sub_data))))
                                                          (array used_map_after (array used_map_after))
-                                                         (range 0 (/ num_params 2))
+                                                         (reverse_e (range 0 (/ num_params 2)))
                                                   ))
                         ) (array used_map_pre sub_data)))
 
@@ -4964,6 +4972,80 @@
                                                                 ( r (mif cache (idx (idx cache 3) i) (error "pseudo perceus wasn't cached")))
                                                                 (_ (true_print "done cached-pseudo-perceus-idx"))
                                                                 ) r)))
+
+              (borrow_nil nil)
+              (borrow? (rec-lambda borrow? (c b env_id) (cond
+                        ((val? c)                                                         (array b borrow_nil))
+                        ((prim_comb? c)                                                   (array b borrow_nil))
+                        ((and (marked_symbol? c) (.marked_symbol_is_val c))               (array b borrow_nil))
+                        ((and (marked_array?  c) (.marked_array_is_val  c))               (array b borrow_nil))
+                        ; no matter if env is real or not, it's borrowed,
+                        ; as it will be cached for the length of the function
+                        ((marked_env? c)                                                  (array b borrow_nil))
+                        ((and (marked_symbol? c) (not (.marked_symbol_is_val c)))         (array (error "<IDX PERCEUS SUB-DATA 0>") borrow_nil)) ; this depends on perceus
+                        ; comb value just does its env
+                        ((comb? c)                                                        (borrow? (.comb_env c) b env_id))
+
+                        ; an array idx can be borrowed if its array can
+                        ((is_prim_function_call c 'idx)  (dlet (
+                                                             ((array_borrowed array_sub_data) (borrow? (idx (.marked_array_values c) 1) b    env_id))
+                                                             (idx_data                        (borrow? (idx (.marked_array_values c) 2) true env_id))
+                                                         ) (array array_borrowed (array borrow_nil (array array_borrowed array_sub_data) idx_data))))
+
+                        ; len returns an int, so it can be anything,
+                        ; and we'd like to borrow it's array (or string)
+                        ((is_prim_function_call c 'len)                                   (array b     (array borrow_nil (borrow? (idx (.marked_array_values c) 1) true env_id))))
+                        ((is_prim_function_call c 'concat)                                (array false (map (lambda (x) (borrow? x true env_id)) (.marked_array_values c))))
+                        ((is_prim_function_call c '=)                                     (array b     (map (lambda (x) (borrow? x true env_id)) (.marked_array_values c))))
+                        ; + and - are kinda hacks until we're sure that both
+                        ;     if it konws that a param is a non-rc it won't dup it
+                        ;     assertions, flowing from these very opreations,
+                        ;     make the pram an int (and non-rc)
+                        ((is_prim_function_call c '+)                                     (array b     (map (lambda (x) (borrow? x true env_id))  (.marked_array_values c))))
+                        ((is_prim_function_call c '-)                                     (array b     (map (lambda (x) (borrow? x true env_id))  (.marked_array_values c))))
+                        ((is_prim_function_call c 'array?)                                (array b     (map (lambda (x) (borrow? x true env_id))  (.marked_array_values c))))
+                        ((is_prim_function_call c 'array)                                 (array false (map (lambda (x) (borrow? x false env_id)) (.marked_array_values c))))
+
+                        ((is_prim_function_call c 'veval)  (dlet (
+                               (func_param_values (.marked_array_values c))
+                               (num_params (- (len func_param_values) 1))
+                               (params (slice func_param_values 1 -1))
+                               (_ (if (!= 2 num_params) (error "call to veval has != 2 params!")))
+                               (_ (if (not (marked_env? (idx params 1))) (error "call to veval has not marked_env second param")))
+
+                              (new_env_id      (.marked_env_idx (idx params 1)))
+                              ((body_borrowed body_sub_data) (borrow? (idx params 0) b    new_env_id))
+                              ((env_borrowed   env_sub_data) (borrow? (idx params 1) true env_id))
+                        ) (array body_borrowed (array borrow_nil (array body_borrowed body_sub_data) (array env_borrowed env_sub_data)))))
+
+                        ; cond case
+                        ((is_prim_function_call c 'vcond)  (dlet (
+                               (func_param_values (.marked_array_values c))
+                               (num_params (- (len func_param_values) 1))
+                               (params (slice func_param_values 1 -1))
+                               ((borrowed sub_data)  (foldl (dlambda ((borrowed sub_data) i) (dlet (
+                                                             (pred_data                   (borrow? (idx params (+ (* 2 i) 0)) true env_id))
+                                                             ((arm_borrowed arm_sub_data) (borrow? (idx params (+ (* 2 i) 1)) b    env_id))
+                                                         ) (array (and borrowed arm_borrowed) (concat (array pred_data (array arm_borrowed arm_sub_data)) sub_data))))
+                                                         (array true (array))
+                                                         (range 0 (/ num_params 2))
+                                                  ))
+                        ) (array borrowed sub_data)))
+
+                        ; call taxonomy a bit simpler this time - if it's not already special cased, it's either an inline or it's owned
+                        ((and (marked_array? c) (not (.marked_array_is_val c))) (dlet (
+                              (func_param_values (.marked_array_values c))
+                              (num_params (- (len func_param_values) 1))
+                              (params (slice func_param_values 1 -1))
+                              (func (idx func_param_values 0))
+
+                        ) (mif (let_like_inline_closure func env_id)
+                               (dlet ( ) (error "ha"))
+                               (array false (map (lambda (x) (borrow? x false env_id)) (.marked_array_values c))))))
+
+                        ; fallthrough
+                        (true   (array (error "Shouldn't happen, missing case for borrow? " (true_str_strip c))))
+              )))
 
 
               (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval outer_s_env_access_code s_env_access_code inline_level tce_data type_data used_data) (cond
