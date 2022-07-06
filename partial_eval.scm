@@ -4846,7 +4846,8 @@
                                                                                                (dlet ((r (get-list (idx used_map 0) s)))
                                                                                                      (mif r (idx r 1)
                                                                                                             (get_used_map (idx used_map 1) s))))
-                                                                                          (error "get bad s in used_map"))))
+                                                                                          ; we treat not-found as true, as it must be inside an env, and persistent env's are cached and "used" till the end of the scope
+                                                                                          true)))
               (combine_used_maps    (rec-lambda combine_used_maps (a b) (cond ((not a)                      b)
                                                                               ((not b)                      a)
                                                                               ((or (= true (idx a 0))
@@ -4856,7 +4857,9 @@
                                                                                                                           (idx a 0) (idx b 0))
                                                                                                                    (combine_used_maps (idx a 1) (idx b 1)))))))
 
-              (pseudo_perceus (rec-lambda pseudo_perceus (c env_id knot_memo used_map_after) (cond
+              (pseudo_perceus (rec-lambda pseudo_perceus (c env_id knot_memo used_map_after) (dlet (
+                                                                                                    ;(_ (true_print "pseudo_perceus " (true_str_strip c) " " used_map_after))
+                                                                                                    ) (cond
                         ((val? c)                                                         (array used_map_after                                         (array used_map_after)))
                         ((prim_comb? c)                                                   (array used_map_after                                         (array used_map_after)))
                         ((and (marked_symbol? c) (.marked_symbol_is_val c))               (array used_map_after                                         (array used_map_after)))
@@ -4963,7 +4966,7 @@
 
                         ; fallthrough
                         (true   (array (error "Shouldn't happen, missing case for pseudo_perceus: " (true_str_strip c))))
-              )))
+              ))))
               (cached_pseudo_perceus_idx (lambda (c env_id cache i) (dlet (
                                                                 ;(_ (true_print "doing cached-pseudo-perceus-idx for " (true_str_strip c)))
                                                                 (_ (true_print "doing cached-pseudo-perceus-idx i " i))

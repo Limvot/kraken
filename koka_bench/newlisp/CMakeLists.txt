@@ -1,7 +1,7 @@
 
 set(copy_wrapper "../../copy_wrapper.sh")
 
-set(sources newlisp-fib.nl newlisp-fib-let.nl)
+set(sources newlisp-fib.nl newlisp-fib-let.nl newlisp-builtin-rbtree.nl newlisp-slow-fexpr-rbtree.nl newlisp-macro-rbtree.nl )
 foreach (source IN LISTS sources)
 
   get_filename_component(name "${source}" NAME_WE)
