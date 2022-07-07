@@ -2,16 +2,15 @@
 
 ## cfold_table.md
 
-| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+| Command | Mean [s] | Min [s] | Max [s] | Relative |
 |:---|---:|---:|---:|---:|
-| `build/kraken/out/bench/kraken-cfold 5` | 26.0 ± 1.0 | 23.9 | 28.2 | 89.45 ± 114.65 |
-| `build/kraken/out/bench/kraken-cfold-wavm 5` | 38.2 ± 0.8 | 36.8 | 40.7 | 131.51 ± 168.51 |
-| `build/java/out/bench/cfold 5` | 69.4 ± 8.5 | 58.8 | 87.5 | 239.07 ± 307.69 |
-| `build/ocaml/ml-cfold 5` | 0.4 ± 0.4 | 0.1 | 2.6 | 1.36 ± 2.23 |
-| `build/swift/sw-cfold 5` | 1.8 ± 0.4 | 1.4 | 3.6 | 6.13 ± 7.99 |
-| `build/cpp/cpp-cfold 5` | 0.7 ± 0.4 | 0.3 | 3.9 | 2.28 ± 3.27 |
-| `build/haskell/hs-cfold 5` | 0.6 ± 0.3 | 0.3 | 3.7 | 1.93 ± 2.72 |
-| `build/koka/out/bench/kk-cfold 5` | 0.3 ± 0.4 | 0.0 | 2.5 | 1.00 |
+| `build/kraken/out/bench/kraken-cfold-wavm 20` | 1.262 ± 0.009 | 1.255 | 1.285 | 9.52 ± 0.21 |
+| `build/java/out/bench/cfold 20` | 0.357 ± 0.006 | 0.346 | 0.364 | 2.69 ± 0.07 |
+| `build/ocaml/ml-cfold 20` | 0.539 ± 0.002 | 0.536 | 0.540 | 4.06 ± 0.09 |
+| `build/swift/sw-cfold 20` | 0.864 ± 0.004 | 0.855 | 0.871 | 6.52 ± 0.14 |
+| `build/cpp/cpp-cfold 20` | 0.306 ± 0.002 | 0.303 | 0.311 | 2.31 ± 0.05 |
+| `build/haskell/hs-cfold 20` | 0.504 ± 0.001 | 0.502 | 0.505 | 3.80 ± 0.08 |
+| `build/koka/out/bench/kk-cfold 20` | 0.133 ± 0.003 | 0.129 | 0.139 | 1.00 |
 
 
 
@@ -105,6 +104,18 @@
 | `./slow/kraken-rbtree-opt-wavm 890` | 35.9 ± 0.7 | 34.7 | 37.8 | 1.24 ± 0.05 |
 | `./slow/newlisp-slow-fexpr-rbtree 890` | 6516.8 ± 15.4 | 6491.3 | 6537.4 | 225.82 ± 8.46 |
 | `./slow/newlisp-macro-rbtree 890` | 1003.7 ± 2.4 | 1000.1 | 1008.9 | 34.78 ± 1.30 |
+
+
+
+## slow_rbtree_table.md
+
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+|:---|---:|---:|---:|---:|
+| `./slow/kraken-rbtree-opt 100` | 24.1 ± 1.0 | 22.2 | 26.7 | 1.88 ± 0.12 |
+| `./slow/kraken-rbtree-opt-wavm 100` | 34.7 ± 7.8 | 32.5 | 104.4 | 2.71 ± 0.63 |
+| `./slow/newlisp-slow-fexpr-rbtree 100` | 334.7 ± 1.7 | 331.3 | 337.2 | 26.13 ± 1.27 |
+| `./slow/newlisp-macro-rbtree 100` | 12.8 ± 0.6 | 12.1 | 15.0 | 1.00 |
+| `./slow/kraken-rbtree-slow-wavm 100` | 2501167.5 ± 26231.6 | 2428798.0 | 2514951.4 | 195272.93 ± 9651.02 |
 
 
 

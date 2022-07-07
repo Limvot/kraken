@@ -19,7 +19,7 @@ with open(sys.argv[1] + "with_relative.csv", "w") as f:
     f.write(out)
 
 print(csv)
-csv = [ x for x in csv if 'rbtree' not in x[0] or 'kraken' not in x[0] or 'opt' in x[0] ]
+csv = [ x for x in csv if 'slow' in x[0] or 'rbtree' not in x[0] or 'kraken' not in x[0] or 'opt' in x[0] ]
 print(csv)
 
 def make_name(n):
@@ -28,7 +28,7 @@ def make_name(n):
                                                               .split(' ')[0]\
                                                               .replace("-", " ").split(" ")\
                     if word not in {"rbtree"})
-    if out == "" and "java" in n:
+    if "java" in n:
         out = "Java"
     print(f"changed {n} to {out}")
     return out
@@ -56,6 +56,8 @@ for do_log in [False, True]:
 
     ax.set_facecolor('gainsboro')
     rects1 = plt.bar(index, a, bar_width, alpha=opacity, color='orange')
+    for k_index  in (i for i in range(len(d)) if 'Kraken' in d[i]):
+        rects1[k_index].set_color('r')
     plt.xlabel(f"{out_name} Benchmark" + (" (Log Scale)" if do_log else ""))
     plt.ylabel('Runtime (s)' + (" (Log Scale)" if do_log else ""))
     ax.ticklabel_format(useOffset=False, style='plain')
