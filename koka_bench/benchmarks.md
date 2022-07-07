@@ -4,27 +4,48 @@
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `build/kraken/out/bench/kraken-cfold 5` | 25.6 ± 1.0 | 24.1 | 28.2 | 55.79 ± 44.22 |
-| `build/java/out/bench/cfold 5` | 73.8 ± 8.0 | 60.1 | 87.3 | 160.57 ± 128.30 |
-| `build/ocaml/ml-cfold 5` | 0.6 ± 0.5 | 0.2 | 3.2 | 1.27 ± 1.43 |
-| `build/swift/sw-cfold 5` | 2.0 ± 0.5 | 1.7 | 4.4 | 4.44 ± 3.67 |
-| `build/cpp/cpp-cfold 5` | 0.9 ± 0.4 | 0.5 | 3.3 | 1.90 ± 1.76 |
-| `build/haskell/hs-cfold 5` | 0.8 ± 0.4 | 0.5 | 3.8 | 1.77 ± 1.65 |
-| `build/koka/out/bench/kk-cfold 5` | 0.5 ± 0.4 | 0.2 | 2.8 | 1.00 |
+| `build/kraken/out/bench/kraken-cfold 5` | 26.0 ± 1.0 | 23.9 | 28.2 | 89.45 ± 114.65 |
+| `build/kraken/out/bench/kraken-cfold-wavm 5` | 38.2 ± 0.8 | 36.8 | 40.7 | 131.51 ± 168.51 |
+| `build/java/out/bench/cfold 5` | 69.4 ± 8.5 | 58.8 | 87.5 | 239.07 ± 307.69 |
+| `build/ocaml/ml-cfold 5` | 0.4 ± 0.4 | 0.1 | 2.6 | 1.36 ± 2.23 |
+| `build/swift/sw-cfold 5` | 1.8 ± 0.4 | 1.4 | 3.6 | 6.13 ± 7.99 |
+| `build/cpp/cpp-cfold 5` | 0.7 ± 0.4 | 0.3 | 3.9 | 2.28 ± 3.27 |
+| `build/haskell/hs-cfold 5` | 0.6 ± 0.3 | 0.3 | 3.7 | 1.93 ± 2.72 |
+| `build/koka/out/bench/kk-cfold 5` | 0.3 ± 0.4 | 0.0 | 2.5 | 1.00 |
 
 
 
 ## deriv_table.md
 
-| Command | Mean [s] | Min [s] | Max [s] | Relative |
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `build/kraken/out/bench/kraken-deriv 8` | 3.228 ± 0.017 | 3.203 | 3.253 | 214.05 ± 14.08 |
-| `build/java/out/bench/deriv 8` | 0.116 ± 0.019 | 0.087 | 0.130 | 7.68 ± 1.37 |
-| `build/ocaml/ml-deriv 8` | 0.015 ± 0.001 | 0.014 | 0.018 | 1.00 |
-| `build/swift/sw-deriv 8` | 0.038 ± 0.001 | 0.036 | 0.040 | 2.51 ± 0.18 |
-| `build/cpp/cpp-deriv 8` | 0.021 ± 0.001 | 0.020 | 0.024 | 1.40 ± 0.11 |
-| `build/haskell/hs-deriv 8` | 0.036 ± 0.001 | 0.035 | 0.039 | 2.41 ± 0.17 |
-| `build/koka/out/bench/kk-deriv 8` | 0.017 ± 0.001 | 0.016 | 0.019 | 1.11 ± 0.08 |
+| `build/kraken/out/bench/kraken-deriv 8` | 592.7 ± 15.7 | 579.7 | 622.1 | 41.04 ± 2.42 |
+| `build/kraken/out/bench/kraken-deriv-wavm 8` | 407.3 ± 1.0 | 405.6 | 408.8 | 28.21 ± 1.49 |
+| `build/java/out/bench/deriv 8` | 120.7 ± 17.4 | 86.7 | 130.2 | 8.36 ± 1.28 |
+| `build/ocaml/ml-deriv 8` | 14.4 ± 0.8 | 13.1 | 16.5 | 1.00 |
+| `build/swift/sw-deriv 8` | 37.3 ± 0.7 | 35.6 | 39.6 | 2.58 ± 0.15 |
+| `build/cpp/cpp-deriv 8` | 20.3 ± 0.7 | 19.4 | 22.2 | 1.41 ± 0.09 |
+| `build/haskell/hs-deriv 8` | 35.4 ± 0.8 | 34.1 | 37.1 | 2.45 ± 0.14 |
+| `build/koka/out/bench/kk-deriv 8` | 16.6 ± 0.8 | 15.7 | 18.7 | 1.15 ± 0.08 |
+
+
+
+## fib_table.md
+
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+|:---|---:|---:|---:|---:|
+| `build/kraken/out/bench/kraken-fib-let-wavm 30` | 31.8 ± 1.1 | 30.4 | 38.0 | 12.68 ± 3.23 |
+| `build/kraken/out/bench/kraken-fib-wavm 30` | 30.9 ± 0.9 | 29.3 | 34.4 | 12.32 ± 3.13 |
+| `build/kraken/out/bench/kraken-fib 30` | 38.9 ± 1.1 | 37.0 | 40.9 | 15.51 ± 3.93 |
+| `build/kraken/out/bench/kraken-fib-let 30` | 42.8 ± 0.8 | 40.6 | 44.9 | 17.07 ± 4.32 |
+| `build/cpp/cpp-fib 30` | 2.5 ± 0.6 | 2.1 | 5.2 | 1.00 |
+| `build/picolisp/out/bench/picolisp-fib-let 30` | 107.8 ± 0.9 | 105.7 | 109.3 | 42.94 ± 10.83 |
+| `build/picolisp/out/bench/picolisp-fib 30` | 88.7 ± 1.2 | 86.7 | 91.3 | 35.33 ± 8.92 |
+| `build/koka/out/bench/kk-fib 30` | 5.9 ± 0.5 | 5.4 | 8.1 | 2.34 ± 0.62 |
+| `build/python/out/bench/python-fib-let 30` | 295.5 ± 11.2 | 278.8 | 306.8 | 117.74 ± 30.03 |
+| `build/python/out/bench/python-fib 30` | 284.4 ± 9.8 | 266.3 | 295.7 | 113.32 ± 28.84 |
+| `build/scheme/out/bench/scheme-fib 30` | 52.1 ± 1.1 | 50.6 | 55.3 | 20.76 ± 5.25 |
+| `build/scheme/out/bench/scheme-fib-let 30` | 53.0 ± 0.9 | 51.4 | 55.2 | 21.11 ± 5.34 |
 
 
 
@@ -32,14 +53,15 @@
 
 | Command | Mean [s] | Min [s] | Max [s] | Relative |
 |:---|---:|---:|---:|---:|
-| `build/kraken/out/bench/kraken-nqueens 10` | 2.062 ± 0.010 | 2.052 | 2.083 | 469.37 ± 56.39 |
-| `build/java/out/bench/nqueens 10` | 0.058 ± 0.005 | 0.054 | 0.071 | 13.29 ± 1.92 |
-| `build/ocaml/ml-nqueens 10` | 0.005 ± 0.001 | 0.004 | 0.007 | 1.06 ± 0.18 |
-| `build/swift/sw-nqueens 10` | 0.016 ± 0.001 | 0.015 | 0.018 | 3.63 ± 0.47 |
-| `build/cpp/cpp-nqueens 10` | 0.006 ± 0.000 | 0.006 | 0.008 | 1.34 ± 0.19 |
-| `build/haskell/hs-nqueens 10` | 0.036 ± 0.001 | 0.035 | 0.037 | 8.09 ± 0.98 |
-| `build/koka/out/bench/kk-nqueens 10` | 0.004 ± 0.001 | 0.004 | 0.006 | 1.00 |
-| `build/koka/out/bench/kk-nqueens-int 10` | 0.006 ± 0.000 | 0.006 | 0.008 | 1.47 ± 0.21 |
+| `build/kraken/out/bench/kraken-nqueens 10` | 1.196 ± 0.013 | 1.185 | 1.230 | 272.10 ± 37.86 |
+| `build/kraken/out/bench/kraken-nqueens-wavm 10` | 0.863 ± 0.010 | 0.850 | 0.880 | 196.39 ± 27.33 |
+| `build/java/out/bench/nqueens 10` | 0.058 ± 0.005 | 0.053 | 0.071 | 13.28 ± 2.20 |
+| `build/ocaml/ml-nqueens 10` | 0.005 ± 0.001 | 0.004 | 0.007 | 1.05 ± 0.20 |
+| `build/swift/sw-nqueens 10` | 0.016 ± 0.001 | 0.015 | 0.018 | 3.61 ± 0.53 |
+| `build/cpp/cpp-nqueens 10` | 0.006 ± 0.000 | 0.005 | 0.008 | 1.34 ± 0.22 |
+| `build/haskell/hs-nqueens 10` | 0.036 ± 0.001 | 0.035 | 0.037 | 8.18 ± 1.15 |
+| `build/koka/out/bench/kk-nqueens 10` | 0.004 ± 0.001 | 0.004 | 0.007 | 1.00 |
+| `build/koka/out/bench/kk-nqueens-int 10` | 0.006 ± 0.001 | 0.006 | 0.008 | 1.47 ± 0.24 |
 
 
 
@@ -47,14 +69,42 @@
 
 | Command | Mean [s] | Min [s] | Max [s] | Relative |
 |:---|---:|---:|---:|---:|
-| `build/kraken/out/bench/kraken-rbtree-opt 42000` | 3.469 ± 0.019 | 3.448 | 3.506 | 734.95 ± 106.54 |
-| `build/kraken/out/bench/kraken-rbtree 42000` | 3.693 ± 0.008 | 3.680 | 3.706 | 782.55 ± 113.38 |
-| `build/java/out/bench/rbtree 42000` | 0.084 ± 0.006 | 0.078 | 0.096 | 17.89 ± 2.90 |
-| `build/ocaml/ml-rbtree 42000` | 0.008 ± 0.001 | 0.008 | 0.010 | 1.72 ± 0.27 |
-| `build/swift/sw-rbtree 42000` | 0.040 ± 0.001 | 0.039 | 0.041 | 8.42 ± 1.23 |
-| `build/cpp/cpp-rbtree 42000` | 0.006 ± 0.000 | 0.005 | 0.007 | 1.22 ± 0.20 |
-| `build/haskell/hs-rbtree 42000` | 0.016 ± 0.001 | 0.016 | 0.018 | 3.42 ± 0.51 |
-| `build/koka/out/bench/kk-rbtree 42000` | 0.005 ± 0.001 | 0.004 | 0.008 | 1.00 |
+| `build/kraken/out/bench/kraken-rbtree-opt 420000` | 5.319 ± 0.335 | 5.120 | 6.119 | 110.82 ± 7.71 |
+| `build/kraken/out/bench/kraken-rbtree-wavm 420000` | 7.603 ± 0.085 | 7.545 | 7.826 | 158.41 ± 5.00 |
+| `build/kraken/out/bench/kraken-rbtree-opt-wavm 420000` | 2.388 ± 0.024 | 2.370 | 2.427 | 49.75 ± 1.55 |
+| `build/kraken/out/bench/kraken-rbtree 420000` | 14.104 ± 0.672 | 13.574 | 15.735 | 293.85 ± 16.47 |
+| `build/java/out/bench/rbtree 420000` | 0.205 ± 0.005 | 0.201 | 0.215 | 4.26 ± 0.17 |
+| `build/ocaml/ml-rbtree 420000` | 0.084 ± 0.000 | 0.083 | 0.086 | 1.75 ± 0.05 |
+| `build/swift/sw-rbtree 420000` | 0.481 ± 0.002 | 0.478 | 0.487 | 10.03 ± 0.30 |
+| `build/cpp/cpp-rbtree 420000` | 0.062 ± 0.003 | 0.058 | 0.070 | 1.28 ± 0.07 |
+| `build/haskell/hs-rbtree 420000` | 0.165 ± 0.001 | 0.164 | 0.166 | 3.44 ± 0.10 |
+| `build/koka/out/bench/kk-rbtree 420000` | 0.048 ± 0.001 | 0.045 | 0.052 | 1.00 |
+
+
+
+## slow_fib_table.md
+
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+|:---|---:|---:|---:|---:|
+| `slow/newlisp-fib-let 30` | 352.8 ± 3.6 | 345.0 | 356.9 | 11.44 ± 0.38 |
+| `slow/kraken-fib-let-slow-wavm 30` | 8754.9 ± 79.1 | 8635.3 | 8940.4 | 283.97 ± 9.38 |
+| `slow/kraken-fib-slow-wavm 30` | 3154.1 ± 31.8 | 3112.0 | 3204.9 | 102.31 ± 3.41 |
+| `slow/kraken-fib-let-wavm 30` | 31.8 ± 0.8 | 30.1 | 34.5 | 1.03 ± 0.04 |
+| `slow/newlisp-fib 30` | 308.3 ± 3.1 | 304.0 | 313.0 | 10.00 ± 0.33 |
+| `slow/kraken-fib-wavm 30` | 30.8 ± 1.0 | 29.6 | 33.8 | 1.00 |
+| `slow/kraken-fib 30` | 38.7 ± 0.9 | 37.2 | 41.1 | 1.25 ± 0.05 |
+| `slow/kraken-fib-let 30` | 42.7 ± 1.0 | 40.8 | 45.5 | 1.38 ± 0.05 |
+
+
+
+## slow_ish_rbtree_table.md
+
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
+|:---|---:|---:|---:|---:|
+| `./slow/kraken-rbtree-opt 890` | 28.9 ± 1.1 | 26.9 | 32.8 | 1.00 |
+| `./slow/kraken-rbtree-opt-wavm 890` | 35.9 ± 0.7 | 34.7 | 37.8 | 1.24 ± 0.05 |
+| `./slow/newlisp-slow-fexpr-rbtree 890` | 6516.8 ± 15.4 | 6491.3 | 6537.4 | 225.82 ± 8.46 |
+| `./slow/newlisp-macro-rbtree 890` | 1003.7 ± 2.4 | 1000.1 | 1008.9 | 34.78 ± 1.30 |
 
 
 

@@ -1,9 +1,10 @@
-| Command | Mean [s] | Min [s] | Max [s] | Relative |
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `build/kraken/out/bench/kraken-deriv 8` | 3.228 ± 0.017 | 3.203 | 3.253 | 214.05 ± 14.08 |
-| `build/java/out/bench/deriv 8` | 0.116 ± 0.019 | 0.087 | 0.130 | 7.68 ± 1.37 |
-| `build/ocaml/ml-deriv 8` | 0.015 ± 0.001 | 0.014 | 0.018 | 1.00 |
-| `build/swift/sw-deriv 8` | 0.038 ± 0.001 | 0.036 | 0.040 | 2.51 ± 0.18 |
-| `build/cpp/cpp-deriv 8` | 0.021 ± 0.001 | 0.020 | 0.024 | 1.40 ± 0.11 |
-| `build/haskell/hs-deriv 8` | 0.036 ± 0.001 | 0.035 | 0.039 | 2.41 ± 0.17 |
-| `build/koka/out/bench/kk-deriv 8` | 0.017 ± 0.001 | 0.016 | 0.019 | 1.11 ± 0.08 |
+| `build/kraken/out/bench/kraken-deriv 8` | 592.7 ± 15.7 | 579.7 | 622.1 | 41.04 ± 2.42 |
+| `build/kraken/out/bench/kraken-deriv-wavm 8` | 407.3 ± 1.0 | 405.6 | 408.8 | 28.21 ± 1.49 |
+| `build/java/out/bench/deriv 8` | 120.7 ± 17.4 | 86.7 | 130.2 | 8.36 ± 1.28 |
+| `build/ocaml/ml-deriv 8` | 14.4 ± 0.8 | 13.1 | 16.5 | 1.00 |
+| `build/swift/sw-deriv 8` | 37.3 ± 0.7 | 35.6 | 39.6 | 2.58 ± 0.15 |
+| `build/cpp/cpp-deriv 8` | 20.3 ± 0.7 | 19.4 | 22.2 | 1.41 ± 0.09 |
+| `build/haskell/hs-deriv 8` | 35.4 ± 0.8 | 34.1 | 37.1 | 2.45 ± 0.14 |
+| `build/koka/out/bench/kk-deriv 8` | 16.6 ± 0.8 | 15.7 | 18.7 | 1.15 ± 0.08 |
