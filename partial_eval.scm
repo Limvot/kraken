@@ -4636,41 +4636,41 @@
                                                    )))
               (mark_idx              (lambda (c i) (and (marked_array? c) (< i (len (.marked_array_values c))) (mark (idx (.marked_array_values c) i)))))
               (combine-list          (lambda (mf a b) (dlet (
-                                                      (_ (true_print "going to combine " a " and " b))
+                                                      ;(_ (true_print "going to combine " a " and " b))
                                                       (r (cond ((= false a) b)
                                                                ((= false b) a)
                                                                (true        (dlet (
                                                                              (total (concat a b))
-                                                                             (_ (true_print " total is " total))
+                                                                             ;(_ (true_print " total is " total))
                                                                              ) (foldl (lambda (acc i) (dlet (
-                                                                                                             (_ (true_print "looking at " i))
-                                                                                                             (_ (true_print "       which is " (idx total i)))
+                                                                                                             ;(_ (true_print "looking at " i))
+                                                                                                             ;(_ (true_print "       which is " (idx total i)))
                                                                                                              (r (concat acc 
                                                                                                               (foldl (dlambda (o_combined j) (mif (= nil o_combined)
                                                                                                                                                   nil
                                                                                                                                                   (dlet (
                                                                                                                                                     (combined (idx o_combined 0))
-                                                                                                                                                    (_ (true_print "          inner looking at " j))
-                                                                                                                                                    (_ (true_print "                which is " (idx total j)))
-                                                                                                                                                    (_ (true_print "                combined currently is " combined))
+                                                                                                                                                   ;(_ (true_print "          inner looking at " j))
+                                                                                                                                                   ;(_ (true_print "                which is " (idx total j)))
+                                                                                                                                                   ;(_ (true_print "                combined currently is " combined))
                                                                                                                                                     (r (mif (= (idx combined 0) (idx (idx total j) 0))
                                                                                                                                                   (mif (> i j ) (array)
                                                                                                                                                                 (array (array (idx combined 0)
                                                                                                                                                                               (mf (idx combined 1) (idx (idx total j) 1)))))
                                                                                                                                                   (array combined)))
-                                                                                                                                                    (_ (true_print "                r was " r))
+                                                                                                                                                   ;(_ (true_print "                r was " r))
                                                                                                                                                     ) r)))
                                                                                                                      (array (idx total i))
                                                                                                                      (range 0 (len total)))))
-                                                                                                             (_ (true_print "did  " i " was " r))
+                                                                                                             ;(_ (true_print "did  " i " was " r))
                                                                                                              ) r)
                                                                                         )
                                                                                       (array)
                                                                                       (range 0 (len total)))))))
-                                                      (_ (true_print "combining " a " and " b " type maps gave us " r))
+                                                      ;(_ (true_print "combining " a " and " b " type maps gave us " r))
                                                       ) r)))
               (combine-type        (lambda (a b) (dlet (
-                                                      (_ (true_print "combinging types " a " and " b))
+                                                      ;(_ (true_print "combinging types " a " and " b))
                                                       (r (cond ((= false a)                            b)
                                                                ((= false b)                            a)
                                                                ((and (idx a 0)     (idx b 0)
@@ -4679,7 +4679,7 @@
                                                                  (!= (idx a 2)     (idx b 2)))         (error "merge inequlivant tlen " a b))
                                                                (true                                   (array (or (idx a 0) (idx b 0)) (and (idx a 1) (idx b 1)) (or (idx a 2) (idx b 2))))
                                                       ))
-                                                      (_ (true_print "combined em to " r))
+                                                      ;(_ (true_print "combined em to " r))
                                                       ) r)))
               (infer_types (rec-lambda infer_types (c env_id implies guarentees) (cond
                         ((and (val? c) (int?    (.val c)))                                (array (array 'int  false false)                               false                    empty_dict-list type_data_nil))
@@ -4723,8 +4723,8 @@
                             (func (idx (.marked_array_values c) 0))
                             (params (.comb_params func))
                             (func_sub (infer_types func env_id implies guarentees))
-                            ( _ (true_print "Pre let sub collection, implies is " implies " and guarentees is " guarentees))
-                            ( _ (true_print "   and params are " params))
+                            ;( _ (true_print "Pre let sub collection, implies is " implies " and guarentees is " guarentees))
+                            ;( _ (true_print "   and params are " params))
                             ( (sub_implies sub_guarentees psub_data) (foldl (dlambda ((sub_implies sub_guarentees running_sub_data) i) (dlet ((psym (idx params (- i 1)))
                                                                                                                    ((ttyp timpl assertions sub_sub_data) (infer_types (idx (.marked_array_values c) i) env_id implies guarentees))
                                                                                                                   ) (array ;(combine-list (lambda (a b) (combine-list combine-type a b)) (put-list empty_dict-list psym timpl) sub_implies)
@@ -4736,12 +4736,12 @@
                                                                          ;(array func_sub)
                                                                          (array)
                                                                          ) (range 1 (len (.marked_array_values c)))))
-                            ( _ (true_print "based on inline (let) case " params " we have sub_implies " sub_implies " and sub_guarentees " sub_guarentees) )
+                            ;( _ (true_print "based on inline (let) case " params " we have sub_implies " sub_implies " and sub_guarentees " sub_guarentees) )
                             ((ttyp timpl assertion inl_subdata) (infer_types (.comb_body func) (.comb_id func) sub_implies sub_guarentees))
                             ; remove the implication if it's about something that only exists inside the inlined function (a parameter)
                             ; TODO: does this have to check for env_symbol?
                             (timpl (mif (and timpl (in_array (idx timpl 0) params)) false timpl))
-                            ( _ (true_print "final result of inline " params " is type " ttyp " and impl " timpl))
+                            ;( _ (true_print "final result of inline " params " is type " ttyp " and impl " timpl))
                             ;(_ (true_print "exiting let"))
                         ) (array ttyp timpl empty_dict-list (concat (array (array ttyp timpl assertion inl_subdata)) psub_data))))
                         ; cond case
@@ -4755,11 +4755,11 @@
                                (func (idx func_param_values 0))
                                ((impls sub_data)  (foldl (dlambda ((impls sub_data) i) (dlet (
                                                              ((ptyp pimpl p_assertion p_subdata) (infer_types (idx params (+ (* 2 i) 0)) env_id implies guarentees))
-                                                             (_ (true_print "about to combine pimpl and guarentees in cond, they are " pimpl "and " guarentees))
+                                                             ;(_ (true_print "about to combine pimpl and guarentees in cond, they are " pimpl "and " guarentees))
                                                              ((btyp bimpl b_assertion b_subdata) (infer_types (idx params (+ (* 2 i) 1)) env_id implies (combine-list combine-type pimpl guarentees)))
-                                                             (_ (true_print "about to combine pimpl and bimpl in cond, they are " pimpl " and " bimpl))
+                                                             ;(_ (true_print "about to combine pimpl and bimpl in cond, they are " pimpl " and " bimpl))
                                                              (combined_impl (combine-list combine-type pimpl bimpl))
-                                                             (_ (true_print "combined is " combined_impl))
+                                                             ;(_ (true_print "combined is " combined_impl))
                                                          ) (array (concat impls (array combined_impl)) (concat sub_data (array (array ptyp pimpl p_assertion p_subdata) (array btyp bimpl b_assertion b_subdata))))))
                                                          (array (array) (array (infer_types func env_id implies guarentees)))
                                                          (range 0 (/ num_params 2))
@@ -4799,11 +4799,11 @@
               )))
               (cached_infer_types_idx (lambda (c env_id cache i) (dlet (
                                                                 ;(_ (true_print "doing infer-types-idx for " (true_str_strip c)))
-                                                                (_ (true_print "doing infer-types-idx i " i))
-                                                                (_ (true_print "doing infer-types-idx with " cache))
-                                                                (_ (true_print "doing infer-types-idx, cache is real? " (mif cache true false)))
+                                                                ;(_ (true_print "doing infer-types-idx i " i))
+                                                                ;(_ (true_print "doing infer-types-idx with " cache))
+                                                                ;(_ (true_print "doing infer-types-idx, cache is real? " (mif cache true false)))
                                                                 ( r (mif cache (idx (idx cache 3) i) (infer_types (idx (.marked_array_values c) i) env_id empty_dict-list empty_dict-list)))
-                                                                (_ (true_print "done infer-types-idx"))
+                                                                ;(_ (true_print "done infer-types-idx"))
                                                                 ) r)))
               (just_type              (lambda (type_data) (idx type_data 0)))
               (word_value_type?       (lambda (x) (or (= 'int (idx x 0)) (= 'bool (idx x 0)) (= 'sym (idx x 0)))))
@@ -4890,7 +4890,7 @@
                               (body_data                       (pseudo_perceus (idx params 0) new_env_id knot_memo empty_use_map))
                               ((used_map_pre_env env_sub_data) (pseudo_perceus (idx params 1) env_id     knot_memo used_map_after))
 
-                        ) (array used_map_pre_env (array used_data_nil body_data (array used_map_pre_env env_sub_data) used_map_after))))
+                        ) (array used_map_pre_env (array (array used_map_pre_env used_data_nil) body_data (array used_map_pre_env env_sub_data) used_map_after))))
 
                         ; cond case
                         ((is_prim_function_call c 'vcond)  (dlet (
@@ -4905,7 +4905,7 @@
                                                          (array used_map_after (array used_map_after))
                                                          (reverse_e (range 0 (/ num_params 2)))
                                                   ))
-                        ) (array used_map_pre sub_data)))
+                        ) (array used_map_pre (cons (array used_data_nil used_map_pre) sub_data))))
 
                         ; generic combiner calls - recurse into all
 
@@ -4919,7 +4919,7 @@
                         ;           doesn't take in env - call itself won't do anything, move backwards through params and then func
                         ;
                         ; call needs an extra sub_data, which is before the call happens - nice to have for regular calls, key for inlined calls (with the full, un-trimmed pre-env)
-                        ;     return pre_param_1, (param_1_data, param_2_data, param_3_data, (pre_call maybe_inline_subdata), post_call)
+                        ;     return pre_func, (func_data, param_1_data, param_2_data, param_3_data, (pre_call maybe_inline_subdata), post_call)
 
                         ; Ok, so three real cases, might-take-env, inline, and doesn't-take-env
 
@@ -4938,11 +4938,11 @@
                               (params (slice func_param_values 1 -1))
                               (func (idx func_param_values 0))
                               ((used_map_pre_call full_used_map_pre_call maybe_inline_subdata do_func) (cond ((let_like_inline_closure func env_id)    (dlet (
-                                                                                                                                       (inl_used_map_after (push_used_map used_map_after (.comb_params func)))
-                                                                                                                                       ((full_pre_inl_used_map inl_subdata) (pseudo_perceus (.comb_body func)
-                                                                                                                                                                                             (.comb_id func)
-                                                                                                                                                                                             knot_memo
-                                                                                                                                                                                             inl_used_map_after))
+                                                                                                                                      (inl_used_map_after (push_used_map used_map_after (.comb_params func)))
+                                                                                                                                      ((full_pre_inl_used_map inl_subdata) (pseudo_perceus (.comb_body func)
+                                                                                                                                                                                           (.comb_id   func)
+                                                                                                                                                                                           knot_memo
+                                                                                                                                                                                           inl_used_map_after))
                                                                                                                                       ) (array (pop_used_map full_pre_inl_used_map)
                                                                                                                                                full_pre_inl_used_map
                                                                                                                                                (array inl_subdata inl_used_map_after)
@@ -4956,28 +4956,31 @@
                                                                           ))
                               ((used_map_pre_params sub_results) (foldl (dlambda ((used_map_after_param sub_data) param) (dlet (
                                                                                     ((used_map_pre_param param_sub_data) (pseudo_perceus param env_id knot_memo used_map_after_param))
-                                                                                 ) (array used_map_pre_param (cons param_sub_data sub_data))))
-                                                                        (array used_map_pre_call (array (array full_used_map_pre_call maybe_inline_subdata) used_map_after))
+                                                                                 ) (array used_map_pre_param (cons (array used_map_pre_param param_sub_data) sub_data))))
+                                                                        (array used_map_pre_call (array (array full_used_map_pre_call maybe_inline_subdata 'thats_subdata) used_map_after))
                                                                         (reverse_e params)))
                               ((used_map_pre_func func_sub_data) (mif do_func
                                                                       (pseudo_perceus func env_id knot_memo used_map_pre_params)
                                                                       (array used_map_pre_params used_data_nil)))
-                        ) (array used_map_pre_func (cons func_sub_data sub_results))))
+                        ) (array used_map_pre_func (cons (array used_map_pre_func func_sub_data) sub_results))))
 
                         ; fallthrough
                         (true   (array (error "Shouldn't happen, missing case for pseudo_perceus: " (true_str_strip c))))
               ))))
-              (cached_pseudo_perceus_idx (lambda (c env_id cache i) (dlet (
+              (cached_pseudo_perceus_sym_borrowed (lambda (used_map_sub_data) (idx used_map_sub_data 0)))
+              (pseudo_perceus_just_sub_idx (lambda (used_map_sub_data i) (dlet (
                                                                 ;(_ (true_print "doing cached-pseudo-perceus-idx for " (true_str_strip c)))
-                                                                (_ (true_print "doing cached-pseudo-perceus-idx i " i))
-                                                                (_ (true_print "doing cached-pseudo-perceus-idx with " cache))
-                                                                (_ (true_print "doing cached-pseudo-perceus-idx, cache is real? " (mif cache true false)))
-                                                                ( r (mif cache (idx (idx cache 3) i) (error "pseudo perceus wasn't cached")))
-                                                                (_ (true_print "done cached-pseudo-perceus-idx"))
+                                                                ;(_ (true_print "doing cached-pseudo-perceus-idx i " i " " used_map_sub_data))
+                                                                ( r (mif used_map_sub_data (idx (idx used_map_sub_data i) 1) (error "pseudo perceus wasn't cached")))
+                                                                ;(_ (true_print "done cached-pseudo-perceus-idx"))
                                                                 ) r)))
+              (pseudo_perceus_just_inline_data (lambda (used_map_sub_data) (idx (pseudo_perceus_just_sub_idx used_map_sub_data -2) 0)))
 
               (borrow_nil nil)
-              (borrow? (rec-lambda borrow? (c b env_id) (cond
+              (borrow? (rec-lambda borrow? (c b env_id used_map_sub_data) (dlet (
+                                                                                 ;(_ (true_print "doing borrow? " b " for " (true_str_strip c)))
+                                                                                 (r 
+                                                                                 (cond
                         ((val? c)                                                         (array b borrow_nil))
                         ((prim_comb? c)                                                   (array b borrow_nil))
                         ((and (marked_symbol? c) (.marked_symbol_is_val c))               (array b borrow_nil))
@@ -4985,29 +4988,29 @@
                         ; no matter if env is real or not, it's borrowed,
                         ; as it will be cached for the length of the function
                         ((marked_env? c)                                                  (array b borrow_nil))
-                        ((and (marked_symbol? c) (not (.marked_symbol_is_val c)))         (array (error "<IDX PERCEUS SUB-DATA 0>") borrow_nil)) ; this depends on perceus
+                        ((and (marked_symbol? c) (not (.marked_symbol_is_val c)))         (array (and b (not (cached_pseudo_perceus_sym_borrowed used_map_sub_data))) borrow_nil))
                         ; comb value just does its env
-                        ((comb? c)                                                        (borrow? (.comb_env c) b env_id))
+                        ((comb? c)                                                        (borrow? (.comb_env c) b env_id used_map_sub_data))
 
                         ; an array idx can be borrowed if its array can
                         ((is_prim_function_call c 'idx)  (dlet (
-                                                             ((array_borrowed array_sub_data) (borrow? (idx (.marked_array_values c) 1) b    env_id))
-                                                             (idx_data                        (borrow? (idx (.marked_array_values c) 2) true env_id))
+                                                             ((array_borrowed array_sub_data) (borrow? (idx (.marked_array_values c) 1) b    env_id (pseudo_perceus_just_sub_idx used_map_sub_data 1)))
+                                                             (idx_data                        (borrow? (idx (.marked_array_values c) 2) true env_id (pseudo_perceus_just_sub_idx used_map_sub_data 2)))
                                                          ) (array array_borrowed (array borrow_nil (array array_borrowed array_sub_data) idx_data))))
 
                         ; len returns an int, so it can be anything,
                         ; and we'd like to borrow it's array (or string)
-                        ((is_prim_function_call c 'len)                                   (array b     (array borrow_nil (borrow? (idx (.marked_array_values c) 1) true env_id))))
-                        ((is_prim_function_call c 'concat)                                (array false (map (lambda (x) (borrow? x true env_id)) (.marked_array_values c))))
-                        ((is_prim_function_call c '=)                                     (array b     (map (lambda (x) (borrow? x true env_id)) (.marked_array_values c))))
+                        ((is_prim_function_call c 'len)                                   (array b    (array borrow_nil (borrow? (idx (.marked_array_values c) 1) true  env_id (pseudo_perceus_just_sub_idx used_map_sub_data 1)))))
+                        ((is_prim_function_call c 'concat)                                (array false (map (lambda (i) (borrow? (idx (.marked_array_values c) i) true  env_id (pseudo_perceus_just_sub_idx used_map_sub_data i))) (range 0 (len (.marked_array_values c))))))
+                        ((is_prim_function_call c '=)                                     (array b     (map (lambda (i) (borrow? (idx (.marked_array_values c) i) true  env_id (pseudo_perceus_just_sub_idx used_map_sub_data i))) (range 0 (len (.marked_array_values c))))))
                         ; + and - are kinda hacks until we're sure that both
                         ;     if it konws that a param is a non-rc it won't dup it
                         ;     assertions, flowing from these very opreations,
                         ;     make the pram an int (and non-rc)
-                        ((is_prim_function_call c '+)                                     (array b     (map (lambda (x) (borrow? x true env_id))  (.marked_array_values c))))
-                        ((is_prim_function_call c '-)                                     (array b     (map (lambda (x) (borrow? x true env_id))  (.marked_array_values c))))
-                        ((is_prim_function_call c 'array?)                                (array b     (map (lambda (x) (borrow? x true env_id))  (.marked_array_values c))))
-                        ((is_prim_function_call c 'array)                                 (array false (map (lambda (x) (borrow? x false env_id)) (.marked_array_values c))))
+                        ((is_prim_function_call c '+)                                     (array b     (map (lambda (i) (borrow? (idx (.marked_array_values c) i) true  env_id (pseudo_perceus_just_sub_idx used_map_sub_data i))) (range 0 (len (.marked_array_values c))))))
+                        ((is_prim_function_call c '-)                                     (array b     (map (lambda (i) (borrow? (idx (.marked_array_values c) i) true  env_id (pseudo_perceus_just_sub_idx used_map_sub_data i))) (range 0 (len (.marked_array_values c))))))
+                        ((is_prim_function_call c 'array?)                                (array b     (map (lambda (i) (borrow? (idx (.marked_array_values c) i) true  env_id (pseudo_perceus_just_sub_idx used_map_sub_data i))) (range 0 (len (.marked_array_values c))))))
+                        ((is_prim_function_call c 'array)                                 (array false (map (lambda (i) (borrow? (idx (.marked_array_values c) i) false env_id (pseudo_perceus_just_sub_idx used_map_sub_data i))) (range 0 (len (.marked_array_values c))))))
 
                         ((is_prim_function_call c 'veval)  (dlet (
                                (func_param_values (.marked_array_values c))
@@ -5017,8 +5020,8 @@
                                (_ (if (not (marked_env? (idx params 1))) (error "call to veval has not marked_env second param")))
 
                               (new_env_id      (.marked_env_idx (idx params 1)))
-                              ((body_borrowed body_sub_data) (borrow? (idx params 0) b    new_env_id))
-                              ((env_borrowed   env_sub_data) (borrow? (idx params 1) true env_id))
+                              ((body_borrowed body_sub_data) (borrow? (idx params 0) b    new_env_id (pseudo_perceus_just_sub_idx used_map_sub_data 1)))
+                              ((env_borrowed   env_sub_data) (borrow? (idx params 1) true env_id     (pseudo_perceus_just_sub_idx used_map_sub_data 2)))
                         ) (array body_borrowed (array borrow_nil (array body_borrowed body_sub_data) (array env_borrowed env_sub_data)))))
 
                         ; cond case
@@ -5027,10 +5030,10 @@
                                (num_params (- (len func_param_values) 1))
                                (params (slice func_param_values 1 -1))
                                ((borrowed sub_data)  (foldl (dlambda ((borrowed sub_data) i) (dlet (
-                                                             (pred_data                   (borrow? (idx params (+ (* 2 i) 0)) true env_id))
-                                                             ((arm_borrowed arm_sub_data) (borrow? (idx params (+ (* 2 i) 1)) b    env_id))
+                                                             (pred_data                   (borrow? (idx params (+ (* 2 i) 0)) true env_id (pseudo_perceus_just_sub_idx used_map_sub_data (+ (* 2 i) 1))))
+                                                             ((arm_borrowed arm_sub_data) (borrow? (idx params (+ (* 2 i) 1)) b    env_id (pseudo_perceus_just_sub_idx used_map_sub_data (+ (* 2 i) 2))))
                                                          ) (array (and borrowed arm_borrowed) (concat (array pred_data (array arm_borrowed arm_sub_data)) sub_data))))
-                                                         (array true (array))
+                                                         (array b (array))
                                                          (range 0 (/ num_params 2))
                                                   ))
                         ) (array borrowed sub_data)))
@@ -5041,14 +5044,23 @@
                               (num_params (- (len func_param_values) 1))
                               (params (slice func_param_values 1 -1))
                               (func (idx func_param_values 0))
+                              ;(_ (true_print "doing a borrow call"))
 
                         ) (mif (let_like_inline_closure func env_id)
-                               (dlet ( ) (error "ha"))
-                               (array false (map (lambda (x) (borrow? x false env_id)) (.marked_array_values c))))))
+                               (dlet (
+                                 ;(_ (true_print "     doing a borrow inline!"))
+                                 (body (borrow? (.comb_body func) b (.comb_id func) (pseudo_perceus_just_inline_data used_map_sub_data)))
+                                 ;(_ (true_print "     did body!"))
+                                 (param_subs (map (lambda (i) (borrow? (idx (.marked_array_values c) i) false env_id (pseudo_perceus_just_sub_idx used_map_sub_data i))) (range 1 (len (.marked_array_values c)))))
+                                 ;(_ (true_print "     did params"))
+                               ) (array (idx body 0) (cons body param_subs)))
+                               (array false (map (lambda (i) (borrow? (idx (.marked_array_values c) i) false env_id (pseudo_perceus_just_sub_idx used_map_sub_data i))) (range 0 (len (.marked_array_values c))))))))
 
                         ; fallthrough
                         (true   (array (error "Shouldn't happen, missing case for borrow? " (true_str_strip c))))
-              )))
+              ))
+                                                                                 ;(_ (true_print "done borrow!"))
+                                                                                 ) r)))
 
 
               (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval outer_s_env_access_code s_env_access_code inline_level tce_data type_data used_data) (cond
@@ -5713,8 +5725,12 @@
                                                 (inner_ctx (array datasi funcs memo inner_env pectx inline_locals))
                                                 (_ (true_print "Doing infer_types for body part for " full_params))
                                                 (inner_type_data     (infer_types body_part (.marked_env_idx inner_env) empty_dict-list empty_dict-list))
-                                                (_ (true_print "done  infer_types, Doing compile_body_part func def compile-inner " full_params))
-                                                ((used_map_before sub_data) (pseudo_perceus body_part (.marked_env_idx inner_env) memo (push_used_map empty_use_map full_params)))
+                                                (_ (true_print "done  infer_types, Doing pseudo perceus " full_params))
+                                                ((used_map_before used_map_sub_data)   (pseudo_perceus body_part (.marked_env_idx inner_env) memo (push_used_map empty_use_map full_params)))
+                                                (_ (true_print "done  pseudo_perceus, Doing borrow? " full_params))
+                                                ((borrowed borrow_sub_data) (borrow? body_part false (.marked_env_idx inner_env) used_map_sub_data))
+                                                (_ (mif borrowed (error "body hast to be borrowed? " borrowed " " (true_str_strip body_part))))
+                                                (_ (true_print "done  pseudo_perceus, Doing compile_body_part func def compile-inner " full_params))
                                                 ((inner_value inner_code err ctx) (compile-inner inner_ctx body_part false false (local.get '$outer_s_env) new_get_s_env_code 0 new_tce_data inner_type_data used_data_nil))
                                                 (_ (true_print "Done compile_body_part func def compile-inner " full_params))
                                                 ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!
