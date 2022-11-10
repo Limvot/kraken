@@ -65,10 +65,13 @@ for do_log in [False, True]:
     plt.legend()
 
     plt.tight_layout()
-    plt.xticks(rotation = 45)
+    #plt.xticks(rotation = 45)
+    plt.xticks(rotation = 90)
     if do_log:
-        plt.subplots_adjust(left=0.10)
+        #plt.subplots_adjust(left=0.10)
+        plt.subplots_adjust(left=0.15)
         plt.semilogy()
-    plt.subplots_adjust(bottom=0.32)
+    #plt.subplots_adjust(bottom=0.32)
+    plt.subplots_adjust(bottom=0.65)
     plt.savefig(f"{sys.argv[1]}_{'log' if do_log else ''}.png", dpi = 96 * 2 * 2)
     #plt.show()
