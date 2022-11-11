@@ -17,7 +17,7 @@ find build -type f -name \*slow\* -exec mv {} slow \;
 cp ./build/kraken/out/bench/kraken-* ./slow
 mv ./build/kraken/out/bench/kraken-cfold ./slow
 mv ./build/newlisp/out/bench/* ./slow
- 
+mv ./build/picolisp/out/bench/* ./slow 
 
 #nix develop -i -c bash -c 'ulimit -s unlimited && find build -type f -executable -name \*rbtree\* -printf "\"%p 420000\"\n" | xargs hyperfine --ignore-failure --warmup 2 --export-markdown rbtree_table.md --export-csv rbtree_table.csv'
 #nix develop -i -c bash -c 'ulimit -s unlimited && find build -type f -executable -name \*fib\* -printf "\"%p 30\"\n"      | xargs hyperfine --ignore-failure --warmup 2 --export-markdown fib_table.md --export-csv fib_table.csv'
