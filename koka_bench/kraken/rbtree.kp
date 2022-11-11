@@ -296,7 +296,8 @@
 
          monad  (array 'write  1 (str "running tree test") (vau (written code)
                          (array 'args (vau (args code)
-                               (array 'exit (log (reduce-test-tree (make-test-tree (read-string (idx args 1)) map-empty))))
+                               ;(array 'exit (log (reduce-test-tree (make-test-tree (read-string (idx args 1)) map-empty))))
+                               (array 'exit (let (a (log (reduce-test-tree (make-test-tree (read-string (idx args 1)) map-empty)))) 0))
                          ))
                 ))
 
