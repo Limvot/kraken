@@ -29,4 +29,16 @@
                                                (true                     '((true ("none matched"))))))
 (define-macro (my-match x) (eval (list let (list '__MATCH_SYM x) (cons cond (my-match-helper '__MATCH_SYM (args) 0)))))
 
+(define (safe q d xs) ())
+
+(define (extendS q acc xss) (my-match xss
+                              ))
+
+(define (findS n q) (cond ((= q 0) (list nil))
+                              true (extendS n nil (findS n (- q 1)))))
+
+(define (nqueens n) (length (findS n n)))
+
+(println (nqueens (integer (main-args 2))))
+
 (exit)

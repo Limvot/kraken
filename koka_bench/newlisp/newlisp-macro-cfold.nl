@@ -31,7 +31,6 @@
 (macro (my-match X) X)
 (constant 'my-match (lambda-macro (X) (expand (list let (list '__MATCH_SYM 'X) (cons cond (my-match-helper '__MATCH_SYM (args) 0))) 'X)))
 
-
 (define (mk-expr n v) (cond ((= n 0) (cond ((= v 0) (list 'VR 1 0))
                                            (true    (list 'VL v 0))))
                             (true    (list 'A (mk-expr (- n 1) (+ v 1)) (mk-expr (- n 1) (max (- v 1) 0))))))
@@ -49,9 +48,9 @@
                            ('M c d) (append-mul (reassoc a) (reassoc b))
                            e        e))
 
-(define (cfold e) (my-match e
-                  ('A a b) (letn (ap (cfold a)
-                                  bp (cfold b))
+(define (cfoldD e) (my-match e
+                  ('A a b) (letn (ap (cfoldD a)
+                                  bp (cfoldD b))
                                  (my-match ap
                                  ('VL s t) (my-match bp
                                            ('VL m n) (list 'VL (+ s m) 0)
@@ -62,8 +61,8 @@
                                  ep (list 'A ap bp)
                                  )
                             )
-                  ('M c d) (letn (cp (cfold c)
-                                  dp (cfold dec))
+                  ('M c d) (letn (cp (cfoldD c)
+                                  dp (cfoldD dec))
                                  (my-match cp
                                  ('VL s t) (my-match dp
                                            ('VL m n) (list 'VL (* s m) 0)
@@ -76,13 +75,13 @@
                             )
                   e        e))
 
-(define (eval e) (my-match e
+(define (evalD e) (my-match e
                   ('VR a b) 0
                   ('VL c d) c
-                  ('A e f)  (+ (eval e) (eval f))
-                  ('M l r)  (* (eval l) (eval r))))
+                  ('A e f)  (+ (evalD e) (evalD f))
+                  ('M l r)  (* (evalD l) (evalD r))))
 
 
-(println (eval (cfold (reassoc (mk-expr (integer (main-args 2)) 1)))))
+(println (evalD (cfoldD (reassoc (mk-expr (integer (main-args 2)) 1)))))
 
 (exit)

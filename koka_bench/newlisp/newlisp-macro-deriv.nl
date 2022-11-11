@@ -82,7 +82,7 @@
                            ('A f g)         (+ (countD f) (countD g))
                            ('M f g)         (+ (countD f) (countD g))
                            ('P f g)         (+ (countD f) (countD g))
-                           ('L f g)         (countD f))))
+                           ('L f g)         (countD f)))
 
 (define (nest-aux s f n x) (cond ((= n 0) x)
                                  (true    (nest-aux s f (- n 1) (f (- s n) x)))))
