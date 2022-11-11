@@ -60,22 +60,22 @@
 
 (define (lnD nI) (my-match nI
                            ('VL 1 x)        (list 'VL 0 x) 
-                           (f)              (list 'L f 0)))
+                           f              (list 'L f 0)))
 
 (define (derv x e) (my-match e
-                    ('VL a b) ('VL 0 b)
-                    ('VR y b) (cond ((= x y) ('VL 1 b))
-                                    (true    ('VL 0 b)))
+                    ('VL a b) (list 'VL 0 b)
+                    ('VR y b) (cond ((= x y) (list 'VL 1 b))
+                                    (true    (list 'VL 0 b)))
                     ('A f g)  (addD (derv x f) (derv x g))
                     ('M f g)  (addD (mulD f (derv x g)) (mulD g (derv x f)))
-                    ('P f g)  (mulD (powD f g) (addD (mul (mul g (derv x f)) (powd f (list 'VL -1 0))) (mulD (lnD f) (derv x g))))
+                    ('P f g)  (mulD (powD f g) (addD (mulD (mulD g (derv x f)) (powD f (list 'VL -1 0))) (mulD (lnD f) (derv x g))))
                     ('L f)    (mulD (derv x f) (powD f (list 'VL -1 0)))
 
 ))
 
-(define (countD nI) (my-match (nI)
-                           ('VL 1 x)        1
-                           ('VR 1 x)        1
+(define (countD nI) (my-match nI
+                           ('VL a x)        1
+                           ('VR b x)        1
                            ('A f g)         (+ (countD f) (countD g))
                            ('M f g)         (+ (countD f) (countD g))
                            ('P f g)         (+ (countD f) (countD g))
@@ -86,8 +86,10 @@
 
 (define (nest f n e) (nest-aux n f n e))
 
-(define (deriv i f) d)
+(define (deriv i f) (letn (d (derv "x" f) 
+                           y (println (+ i 1) " countL: " (countD d))
+                          )d))
 
-(println (nest deriv (integer (main-args 2)) (powr (list 'VR "x" 0) (list 'VR "x" 0)))))))
+(println (nest deriv (integer (main-args 2)) (powD (list 'VR "x" 0) (list 'VR "x" 0))))
 
 (exit)
