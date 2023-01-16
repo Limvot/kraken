@@ -1,15 +1,11 @@
 {
   description = "Env for Kraken and the extacted Koka bencmarks";
   inputs = {
-
-    #flake.lock pins a particular version of 21.11 that has non-broken Swift
+    # For some reason the newer one has broken koka/emscripten (probs same change)
+    #nixpkgs.url = "nixpkgs/nixos-22.11";
     nixpkgs.url = "nixpkgs/nixos-21.11";
     #nixpkgs.url = "github:NixOS/nixpkgs";
-
-    # Pure-er, so we don't have to mess with the --impure flag
     moz_overlay.url = "github:oxalica/rust-overlay";
-    #moz_overlay.url = "github:mozilla/nixpkgs-mozilla";
-
     flake-utils.url = "github:numtide/flake-utils";
   };
   outputs = { self, nixpkgs, moz_overlay, flake-utils }:
@@ -86,31 +82,22 @@
       in {
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
+            which # used for shell stuff when inside pure env
 
-            chicken
+            hyperfine
+            graph-cli # is this just for python?!
+
+            chicken gambit-unstable chez
             #gambit
-            gambit-unstable
-            chez
-            wabt
-            wasmtime
-            wasm3
-            wasmer
-            leiningen
-            clang
-            kakoune
 
-            wavm
+            wabt wasmtime wavm
+            #wasm3
 
-            hyperfine graph-cli
-            (rust-bin.stable.latest.default.override {
-              targets = [ "wasm32-wasi" ];
-            })
-            cmake
-            stack (haskellPackages.ghcWithPackages (p: [p.parallel]))
+            clang cmake
+            (rust-bin.stable.latest.default.override { targets = [ "wasm32-wasi" ]; })
+            #stack (haskellPackages.ghcWithPackages (p: [p.parallel]))
             koka
-            ocaml
-            jdk
-            swift
+            emscripten
 
             picolisp
             newlisp

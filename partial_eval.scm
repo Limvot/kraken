@@ -4591,12 +4591,6 @@
               (get_passthrough (dlambda (hash (datasi funcs memo env pectx inline_locals)) (dlet ((r (get-value-or-false memo hash)))
                                                                      (if r (array r nil nil (array datasi funcs memo env pectx inline_locals)) #f))))
 
-
-              (let_like_inline_closure (lambda (func_value containing_env_idx)   (and (comb? func_value)
-                                                                                  (not (.comb_varadic func_value))
-                                                                                  (= containing_env_idx (.marked_env_idx (.comb_env func_value)))
-                                                                                  (= nil (.comb_des func_value)))))
-
               ; This is the second run at this, and is a little interesting
               ; It can return a value OR code OR an error string. An error string should be propegated,
               ; unless it was expected as a possiblity, which can happen when compling a call that may or
@@ -4605,6 +4599,85 @@
 
               ; ctx is (datasi funcs memo env pectx inline_locals)
               ; return is (value? code? error? (datasi funcs memo env pectx inline_locals))
+
+              (let_like_inline_closure (lambda (func_value containing_env_idx)   (and (comb? func_value)
+                                                                                  (not (.comb_varadic func_value))
+                                                                                  (= containing_env_idx (.marked_env_idx (.comb_env func_value)))
+                                                                                  (= nil (.comb_des func_value)))))
+
+              ; Ok, we're pulling out the call stuff out of compile
+              ;   Wrapped vs unwrapped
+              ;   Y combinator elimination
+              ;         Eta reduction?
+              ;   tail call elimination
+              ;   dynamic call unval-partial-eval branch
+              ;
+              ; ALSO: This means that it needs to be pulled out of even the compile-function bit, since it has to go through multiple function compilations
+              ; in order to notice Y-Comb tying and Eta-reduce the lazyness
+              ;   which also means it needs to be able to memoize
+              ;
+              ; Rembember to account for (dont_compile dont_lazy_env dont_y_comb dont_prim_inline dont_closure_inline)
+              (call-info (rec-lambda call-info (c env_id) (cond
+                        ((val? c)                                                nil)
+                        ((and (marked_symbol? c) (.marked_symbol_is_val c))      nil)
+                        ((marked_symbol? c)                                      nil)
+                        ((marked_env? c)                                         nil) ; So it actually needs to recurse into env
+                        ((comb? c)                                               (dlet (
+                                    ((wrap_level env_id de? se variadic params body rec_hashes) (.comb c))
+                                    (_ (mif (> wrap_level 1) (error "wrap level TOO DARN HIGH")))
+                                    (attempt_reduction (and
+                                                         (not dont_y_comb)
+                                                         variadic
+                                                         (= 1 (len params))
+                                                         (marked_array? body)
+                                                         (= 4 (len (.marked_array_values body)))
+                                                         (prim_comb? (idx (.marked_array_values body) 0))
+                                                         (= 'lapply (.prim_comb_sym (idx (.marked_array_values body) 0)))
+                                                         (marked_symbol? (idx (.marked_array_values body) 2))
+                                                         (not (.marked_symbol_is_val (idx (.marked_array_values body) 2)))
+                                                         (= (idx params 0) (.marked_symbol_value (idx (.marked_array_values body) 2)))
+                                                         (marked_symbol? (idx (.marked_array_values body) 3))
+                                                         (not (.marked_symbol_is_val (idx (.marked_array_values body) 3)))
+                                                         (= de? (.marked_symbol_value (idx (.marked_array_values body) 3)))
+                                                         ))
+                                    ; add to memo
+                                        ; Is this the vau-tieer?
+                                        (memo (mif env_val (foldl (dlambda (memo (hash wrap)) (put memo hash (combine_env_comb_val env_val (calculate_func_val wrap)))) memo rec_hashes)
+                                                           memo))
+                                    ; new tce data
+                                    ; new env_id
+
+                                                                                        ) nil)
+                        ((prim_comb? c)                                          nil)
+                        ((and (marked_array? c) (.marked_array_is_val c))        nil) ; and array values
+
+                        ((and (marked_array? c) ;(>= 2 (len (.marked_array_values c)))
+                              (let_like_inline_closure (idx (.marked_array_values c) 0) env_id))  nil)
+                              ; REMEMBER - new env_id inside
+                              ; but same tce-data
+                              ; and same y-comb memo
+                        (true                                                    nil)
+                        ; obv need to handle possible dynamic calls with an additional unval side, but also be careful of infinite recursion (as we had happen on compile before)
+                        ;     due to the interaction of partial eval and unval (previously in compile) here
+
+                        ; check for Y-comb tie looked like
+                        (and (not dont_y_comb) (!= nil (.marked_array_this_rec_stop c)) (get_passthrough (idx (.marked_array_this_rec_stop c) 0) ctx))
+
+
+                    (hit_recursion (= 'RECURSE_FAIL (get-value-or-false memo (.hash c))))
+                        ((ok x) (try_unval x (lambda (_) nil)))
+                        (err (if (not ok) "couldn't unval in compile" err))
+
+                        ((pectx e pex) (cond ((!= nil err)  (array pectx err nil))
+                                             (hit_recursion (array pectx "blockrecursion" nil))
+                                             (true (partial_eval_helper x false env (array nil nil) pectx 1 false))))
+
+                        ((tce_idx tce_full_params) (mif tce_data tce_data (array nil nil)))
+                        (tce_able                  (and unwrapped (= tce_idx (extract_func_idx func_val))))
+
+                        ; NOTICE TRANSPARENT VEVAL
+                        ; also vcond, of course
+              ))))
 
               ; type is a bit generic, both the runtime types + length of arrays
               ;
@@ -5076,10 +5149,15 @@
                                                                 ;(_ (true_print "doing infer-types-idx for " (true_str_strip c)))
                                                                 ;(_ (true_print "doing infer-types-idx i " i))
                                                                 ;(_ (true_print "doing infer-types-idx with " cache))
-                                                                ;(_ (true_print "doing infer-types-idx, cache is real? " (mif cache true false)))
-                                                                ( r (cached_infer_types_idx c env_id (mif cache (idx cache 0) type_data_nil) i))
+                                                                (_ (true_print "doing infer-types-idx, cache is real? " (mif cache true false)))
+
+                                                                ( t (cached_infer_types_idx c env_id (mif cache (idx cache 0) type_data_nil) i))
+                                                                ;( t (cached_infer_types_idx c env_id (idx cache 0) i))
+                                                                ;( p (mif cache (pseudo_perceus_just_sub_idx (idx cache 1) i) nil))
+                                                                ( p nil )
+
                                                                 ;(_ (true_print "done infer-types-idx"))
-                                                                ) (array r))))
+                                                                ) (array t p))))
 
 
               (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval outer_s_env_access_code s_env_access_code inline_level tce_data analysis_data) (cond
@@ -5163,6 +5241,8 @@
 
                                                         (compile_params (lambda (unval_and_eval ctx cond_tce)
                                                                 (foldr (dlambda (x (a err ctx i)) (dlet (
+
+                                                                    ;(_ (true_print "compile param with unval?" unval_and_eval " " (true_str_strip x)))
 
                                                                     ((datasi funcs memo env pectx inline_locals) ctx)
                                                                     ((x err ctx) (mif err                 (array nil err ctx)
@@ -5745,6 +5825,10 @@
                                                 (new_get_s_env_code (if dont_lazy_env basic_get_s_env_code lazy_get_s_env_code))
                                                 ((datasi funcs memo env pectx inline_locals) ctx)
                                                 (inner_ctx (array datasi funcs memo inner_env pectx inline_locals))
+                                                ;-------------
+                                                (_ (true_print "Doing call-info" full_params))
+                                                ;(call_info (call-info c env_id))
+                                                ;-------------
                                                 (_ (true_print "Doing infer_types for body part for " full_params))
                                                 (inner_type_data     (infer_types body_part (.marked_env_idx inner_env) empty_dict-list empty_dict-list))
                                                 (_ (true_print "done  infer_types, Doing pseudo perceus " full_params))
@@ -5753,7 +5837,7 @@
                                                 ((borrowed borrow_sub_data) (borrow? body_part false (.marked_env_idx inner_env) used_map_sub_data))
                                                 (_ (mif borrowed (error "body hast to be borrowed? " borrowed " " (true_str_strip body_part))))
                                                 (_ (true_print "done  pseudo_perceus, Doing compile_body_part func def compile-inner " full_params))
-                                                (inner_analysis_data (array inner_type_data))
+                                                (inner_analysis_data (array inner_type_data used_map_sub_data))
                                                 ((inner_value inner_code err ctx) (compile-inner inner_ctx body_part false false (local.get '$outer_s_env) new_get_s_env_code 0 new_tce_data inner_analysis_data))
                                                 (_ (true_print "Done compile_body_part func def compile-inner " full_params))
                                                 ; Don't overwrite env with what was our inner env! Env is returned as part of context to our caller!

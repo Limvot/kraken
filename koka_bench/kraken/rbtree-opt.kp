@@ -27,7 +27,7 @@
                                                                                                  (f4 (idx l4 (+ i4 2)))
                                                                                                  (f4 (idx l4 (+ i4 3)))
                                                                                                  )) (+ i4 4))
-                                                   true                  (recurse f4 l4 (concat n4 (array (f4 (idx l4 i4)))) (+ i4 1)))))
+                                                   true                  (recurse f4 l4 (concat n4 (array (f4 (idx l4 i4)))) (+ 1 i4)))))
                   (helper f5 l5 (array) 0)))
 
 
