@@ -1716,6 +1716,18 @@
     ;  <env____ptr32>|<func_idx26><usesde1><wrap1>y101 - both env-carrying values 1 bit different
     ;  <env____ptr32><28 0s>                      y001
 
+    ; NOTE / TODO:
+    ;   reduce sizes to 16 bits w/ saturation & include true size field/calculation in object header
+    ;   to allow for 44 bit pointers for wasm64 (48 that could be used + minimum alignment of 16)
+    ;   Biggest loser is func_idx which would become 14 bits, but can perhaps borrow from env pointer if we further align envs
+    ;     currently aligning to 32 bytes, which is 8 word boundries or 4 kraken values (which I think is exactly what env requires, actually) 
+    ;     which allows pretty long strings or envs or arrays with 3 values
+    ;     so that's 5 unused bits, to actually only require 43 bit pointers right now, I think
+    ;     Honestly, going to 40 bits is 1024GB of RAM, -5 is 35 bits. If we allow a non-standard encoding for env-funcs, then
+    ;     it leaves 23 bits for a function id, which is 8_388_608 possible functions, which isn't really terrible.
+    ;     We could do this only for env-funcs, or actually for anything depending on the extra slow down vs the extra non-saturating size
+    ;     Note that this does add an extra mask instruction for *everything* since the pointers aren't full width anymore
+
     (to_hex_digit (lambda (x) (string (integer->char (if (< x 10) (+ x #x30)
                                                                   (+ x #x37))))))
     (le_hexify_helper (rec-lambda recurse (x i) (if (= i 0) ""
@@ -4590,6 +4602,19 @@
 
               (get_passthrough (dlambda (hash (datasi funcs memo env pectx inline_locals)) (dlet ((r (get-value-or-false memo hash)))
                                                                      (if r (array r nil nil (array datasi funcs memo env pectx inline_locals)) #f))))
+
+
+              ; TODO:
+              ;
+              ;   Split compile-inner into compile-value and compile-code.
+              ;       Compile-value can only call into compile-code to compile a function.
+              ;       Compile-code can call into compile-value, but doesn't have to pass any of the data for the analysis passes.
+              ;         (BUT does pass memo back and forth as to not re-compile over and over, ofc)
+              ;   Compile-value is then what is called on the parsed program for NO PE
+              ;   OR
+              ;    called on ['run <wrap=0 nil.. () parsed_expr>]
+              ;     which when encountering a function will call compile-code to do partial evaluation & all the dataflow
+              ;
 
               ; This is the second run at this, and is a little interesting
               ; It can return a value OR code OR an error string. An error string should be propegated,
