@@ -65,7 +65,22 @@
         "type": "github"
       }
     },
-    "nixpkgs_2": {
+    "nixpkgs_stable_new": {
+      "locked": {
+        "lastModified": 1673800717,
+        "narHash": "sha256-SFHraUqLSu5cC6IxTprex/nTsI81ZQAtDvlBvGDWfnA=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "2f9fd351ec37f5d479556cd48be4ca340da59b8f",
+        "type": "github"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "ref": "nixos-22.11",
+        "type": "indirect"
+      }
+    },
+    "nixpkgs_stable_old": {
       "locked": {
         "lastModified": 1659446231,
         "narHash": "sha256-hekabNdTdgR/iLsgce5TGWmfIDZ86qjPhxDg/8TlzhE=",
@@ -84,7 +99,8 @@
       "inputs": {
         "flake-utils": "flake-utils",
         "moz_overlay": "moz_overlay",
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs_stable_new": "nixpkgs_stable_new",
+        "nixpkgs_stable_old": "nixpkgs_stable_old"
       }
     }
   },
