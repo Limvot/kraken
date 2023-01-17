@@ -4,14 +4,14 @@
     # For some reason the newer one has broken koka/emscripten (probs same change)
     nixpkgs_stable_new.url = "nixpkgs/nixos-22.11";
     nixpkgs_stable_old.url = "nixpkgs/nixos-21.11";
-    #nixpkgs.url = "github:NixOS/nixpkgs";
+    nixpkgs_unstable.url = "github:NixOS/nixpkgs";
     moz_overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
   };
-  outputs = { self, nixpkgs_stable_new, nixpkgs_stable_old, moz_overlay, flake-utils }:
+  outputs = { self, nixpkgs_stable_new, nixpkgs_stable_old, nixpkgs_unstable, moz_overlay, flake-utils }:
     (flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs_new = import nixpkgs_stable_new {
+        pkgs_new = import nixpkgs_unstable {
           inherit system;
           overlays = [ moz_overlay.overlay ];
         };
