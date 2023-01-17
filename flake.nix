@@ -84,8 +84,8 @@
 		  #};
 		#};
       in {
-        devShell = pkgs_old.mkShell {
-          buildInputs = with pkgs_old; [
+        devShell = pkgs_new.mkShell {
+          buildInputs = with pkgs_new; [
             which # used for shell stuff when inside pure env
 
             hyperfine
@@ -94,7 +94,7 @@
             chicken gambit-unstable chez
             #gambit
 
-            wabt wasmtime wavm
+            wabt wasmtime #wavm
             #wasm3
 
             clang cmake
