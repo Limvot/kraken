@@ -1262,9 +1262,9 @@
 
     (encode_function_section (lambda (x)
         (dlet (                                     ; nil functions are placeholders for improted functions
-            ;(_ (println "encoding function section " x))
+            ;(_ (true_print "encoding function section " x))
             (filtered (filter (lambda (i) (!= nil i)) x))
-            ;(_ (println "post filtered " filtered))
+            ;(_ (true_print "post filtered " filtered))
             (encoded (encode_vector encode_LEB128 filtered))
         ) (concat (array #x03) (encode_LEB128 (len encoded)) encoded ))
     ))
@@ -1835,7 +1835,7 @@
     (nil_val           array_tag) ; automatically 0 ptr, 0 size, 0 ref-counted
     (emptystr_val      string_tag); ^ ditto
 
-    (compile (dlambda ((pectx partial_eval_err marked_code) needs_runtime_eval
+    (compile (dlambda ((pectx partial_eval_err marked_code) dont_partial_eval
                                                             dont_lazy_env
                                                             dont_y_comb
                                                             dont_prim_inline
@@ -1915,6 +1915,7 @@
 
               (_ (true_print "made true/false"))
 
+              ((datasi memo bad_source_code_msg_val) (compile-string-val datasi memo "\nError: bad source code compile hit\n"))
               ((datasi memo bad_params_number_msg_val) (compile-string-val datasi memo "\nError: passed a bad number of parameters\n"))
               ((datasi memo bad_params_type_msg_val) (compile-string-val datasi memo "\nError: passed a bad type of parameters\n"))
               ((datasi memo dropping_msg_val) (compile-string-val datasi memo "dropping "))
@@ -4614,7 +4615,10 @@
               ;   OR
               ;    called on ['run <wrap=0 nil.. () parsed_expr>]
               ;     which when encountering a function will call compile-code to do partial evaluation & all the dataflow
+	      ;     no PE can have compile function compile the body as (eval <body-compiled-as-value>)
               ;
+	      ; Feels like compling the function actually belongs in compile-value, in a weird way.
+	      ; Since it has to figure out what is code and what is value, is there actually any benefit in splitting them up?
 
               ; This is the second run at this, and is a little interesting
               ; It can return a value OR code OR an error string. An error string should be propegated,
@@ -5582,7 +5586,9 @@
 
                                                                 ((source_code ctx) (mif (.marked_array_source c) (dlet (((code _ _ ctx) (compile-inner ctx (.marked_array_source c) true inside_veval outer_s_env_access_code s_env_access_code inline_level nil analysis_nil))
                                                                                                                         ) (array code ctx))
-                                                                                                                 (array k_cond_msg_val ctx)))
+                                                                                                                 (array bad_source_code_msg_val ctx)))
+                                                                (_ (mif (nil? source_code) (error "nil source codepost compile! pre was " (.marked_array_source c))))
+                                                                ;((source_code ctx) (mif (nil? source_code) (array bad_source_code_msg_val ctx) (array source_code ctx)))
                                                                 ((result_code ctx) (mif func_val
                                                                               (dlet (
                                                                                     (unwrapped                 (extract_unwrapped func_val))
@@ -5800,6 +5806,17 @@
                                     ((wrap_level env_id de? se variadic params body rec_hashes) (.comb c))
                                     (_ (mif (> wrap_level 1) (error "wrap level TOO DARN HIGH")))
 
+
+                                    ;  note that this is just the func, not the env
+                                    (maybe_func (get_passthrough (.hash c) ctx))
+                                    ((datasi funcs memo env pectx inline_locals) ctx)
+                                    ((pectx err evaled_body) (mif (or maybe_func dont_partial_eval)
+                                                                  (array pectx "don't pe" body)
+                                                                  (dlet ((inner_env (make_tmp_inner_env params de? env env_id)))
+                                                                         (partial_eval_helper body false inner_env (array nil (array inner_env)) pectx 1 false))))
+                                    (body (mif err body evaled_body))
+                                    (ctx (array datasi funcs memo env pectx inline_locals))
+
                                     ; Let's look and see if we can eta-reduce!
                                     ; This is done here during code gen (when you would expect it earlier, like as part of partial eval)
                                     ; because we currently only "tie the knot" for Y combinator based recursion here
@@ -5815,6 +5832,11 @@
                                                          (= 4 (len (.marked_array_values body)))
                                                          (prim_comb? (idx (.marked_array_values body) 0))
                                                          (= 'lapply (.prim_comb_sym (idx (.marked_array_values body) 0)))
+
+                                                         ; since we partial eval before now, instead of checking for the rec hash stopped thing itself, we use normal memo to tie the knot
+                                                         ; Check to see if it even needs it now
+                                                         (get-value-or-false memo (.hash (idx (.marked_array_values body) 1)))
+
                                                          (marked_symbol? (idx (.marked_array_values body) 2))
                                                          (not (.marked_symbol_is_val (idx (.marked_array_values body) 2)))
                                                          (= (idx params 0) (.marked_symbol_value (idx (.marked_array_values body) 2)))
@@ -5871,6 +5893,7 @@
 
                                     ((early_quit err ctx) (mif attempt_reduction
                                                       (dlet (
+                                                          (_ (true_print "Attempting reduction!"))
                                                           ((inner_value inner_code err ctx generate_get_s_env_code) (compile_body_part ctx (idx (.marked_array_values body) 1) nil))
                                                           ; set it's wrap level to our wrap level
                                                           (inner_value (mif inner_value (set_wrap_val wrap_level inner_value)))
@@ -5900,6 +5923,7 @@
                                         (func_value (calculate_func_val wrap_level))
                                         ; if variadic, we just use the wrapper func and don't expect callers to know that we're varidic
                                         (func_value (mif variadic (mod_fval_to_wrap func_value) func_value))
+                                        (memo (put memo (.hash c) func_value))
                                         ; Is this the vau-tieer?
                                         (memo (mif env_val (foldl (dlambda (memo (hash wrap)) (put memo hash (combine_env_comb_val env_val (calculate_func_val wrap)))) memo rec_hashes)
                                                            memo))
@@ -5959,7 +5983,6 @@
                                         ))))
                                         ; replace our placeholder with the real one
                                         (funcs (concat old_funcs wrapper_func our_func (drop funcs (+ 2 (len old_funcs)))))
-                                        (memo (put memo (.hash c) func_value))
 
                                         ) (array func_value nil err (array datasi funcs memo env pectx outer_inline_locals)))
                                     ))
@@ -5969,6 +5992,7 @@
                                                       (array (combine_env_comb_val env_val func_value) nil (mif func_err (str func_err ", from compiling comb body") (mif env_err (str env_err ", from compiling comb env") nil)) ctx)
                                                       (array nil (combine_env_code_comb_val_code env_code (mod_fval_to_wrap func_value)) (mif func_err (str func_err ", from compiling comb body (env as code)") (mif env_err (str env_err ", from compiling comb env (as code)") nil)) ctx)))
                                     ;(_ (mif env_val (true_print "total function " (idx full_result 0) " based on " env_val " and " func_value)))
+                                    (_ (true_print "compile-comb returning " (idx full_result 0) " need value was " need_value))
                                 ) full_result
                                 ))))
 
@@ -5983,12 +6007,13 @@
 
               (_ (true_print "About to compile a bunch of symbols & strings"))
 
+              ((run_val _ _ ctx)                (compile-inner ctx (marked_symbol nil 'run)   true false (array) (array) 0 nil analysis_nil))
               ((exit_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'exit)  true false (array) (array) 0 nil analysis_nil))
               ((args_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'args)  true false (array) (array) 0 nil analysis_nil))
               ((read_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'read)  true false (array) (array) 0 nil analysis_nil))
               ((write_val _ _ ctx)              (compile-inner ctx (marked_symbol nil 'write) true false (array) (array) 0 nil analysis_nil))
               ((open_val _ _ ctx)               (compile-inner ctx (marked_symbol nil 'open)  true false (array) (array) 0 nil analysis_nil))
-              ((monad_error_msg_val _ _ ctx)    (compile-inner ctx (marked_val "Not a legal monad ( ['args        <cont (arg_array error?)>] / ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] /['exit exit_code])") true false (array) (array) 0 nil analysis_nil))
+              ((monad_error_msg_val _ _ ctx)    (compile-inner ctx (marked_val "Not a legal monad ( ['args        <cont (arg_array error?)>] / ['read fd len <cont(data error_no)>] / ['write fd data <cont(num_written error_no)>] / ['open fd path <cont(new_fd error_no)>] / ['exit exit_code] / ['run <cont()>])") true false (array) (array) 0 nil analysis_nil))
               ((bad_args_val _ _ ctx)           (compile-inner ctx (marked_val "<error with args>") true false   (array) (array) 0 nil analysis_nil))
               ((bad_read_val _ _ ctx)           (compile-inner ctx (marked_val "<error with read>") true false   (array) (array) 0 nil analysis_nil))
               ((exit_msg_val _ _ ctx)           (compile-inner ctx (marked_val "Exiting with code: ") true false (array) (array) 0 nil analysis_nil))
@@ -6018,8 +6043,7 @@
                 ;                             ineriting rights, fdflags
 
               (start (func '$start '(local $it i64) '(local $tmp i64) '(local $ptr i32) '(local $monad_name i64) '(local $len i32) '(local $buf i32) '(local $traverse i32) '(local $x i32) '(local $y i32) '(local $code i32) '(local $str i64) '(local $result i64) '(local $debug_malloc_print i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
-                    (local.set '$it (if needs_runtime_eval (call '$eval_helper compiled_value_code (i64.const root_marked_env_val))
-                                                           compiled_value_code))
+                    (local.set '$it compiled_value_code)
                     (block '$exit_block
                         (block '$error_block
                             (_loop '$l
@@ -6119,6 +6143,41 @@
                                         (br '$l)
                                     )
                                 )
+
+				(_if '$is_run
+				     (i64.eq (i64.const run_val) (local.get '$monad_name))
+				     (then
+				      ;; len != 2
+				      (br_if '$error_block (i32.ne (extract_size_code (local.get '$it)) (i32.const 2)))
+				      ;; second entry isn't a comb -> out
+				      (br_if '$error_block (is_not_type_code comb_tag (i64.load 8 (local.get '$ptr))))
+				      
+				      (local.set '$tmp (generate_dup (i64.load 8 (local.get '$ptr))))
+				      (generate_drop (local.get '$it))
+				      
+				      (generate_drop (global.get '$debug_func_to_call))
+				      (generate_drop (global.get '$debug_params_to_call))
+				      (generate_drop (global.get '$debug_env_to_call))
+				      (global.set '$debug_func_to_call   (generate_dup (local.get '$tmp)))
+				      (global.set '$debug_params_to_call (i64.const nil_val))
+				      (global.set '$debug_env_to_call (i64.const root_marked_env_val))
+				      (local.set '$it (call_indirect
+						       ;;type
+						       k_vau
+						       ;;table
+						       0
+						       ;;params
+						       (i64.const nil_val)
+						       ;;top_env
+						       (i64.const root_marked_env_val)
+						       ;; static env
+						       (extract_func_env_code (local.get '$tmp))
+						       ;;func_idx
+						       (extract_func_idx_code (local.get '$tmp))
+						       ))
+				      (br '$l)
+				      )
+				     )
 
                                 ; second entry isn't an int -> out
                                 (br_if '$error_block (is_not_type_code int_tag (i64.load 8 (local.get '$ptr))))
@@ -6795,15 +6854,34 @@
 
     ) void)))
 
-    (run-compiler (lambda (dont_compile dont_lazy_env dont_y_comb dont_prim_inline dont_closure_inline f)
+    (run-compiler (lambda (dont_partial_eval dont_lazy_env dont_y_comb dont_prim_inline dont_closure_inline f)
       (dlet (
             (_ (true_print "reading in!"))
             (read_in    (read-string (slurp f)))
             ;(_ (true_print "read in, now evaluating"))
-            (evaled     (if dont_compile (array (array 0 empty_dict) nil (mark read_in))
-                                         (partial_eval read_in)))
+            ;(evaled     (if dont_compile (array (array 0 empty_dict) nil (mark read_in))
+            ;                             (partial_eval read_in)))
+
+            ;(quote_internal (marked_comb 0 env_id_start nil empty_env false (array 'x) (marked_symbol env_id_start 'x) nil))
+	    ;((array? x)      (marked_array true false nil (map recurse x) true))
+            ;(marked_array false false nil (cons f (slice values 1 -1)) (.marked_array_source x))
+            ;(marked_array     (lambda (is_val attempted resume_hashes x source)       (dlet (
+
+	    ;                           (env_id_counter memo)
+
+            ; This is basicaly (compile <comb0 () ('eval <marked_body> root_env)>)
+            ;    this does mean that without partial eval this is an extra and unnecessary lookup of 'eval in the root env but w/e, it's a single load
+	    ;                   empty partial_eval_ctx empty partial_eval_error      value to compile
+            ;(idx (try_unval (mark x) (lambda (_) nil)) 1)
+            ;(body_value (marked_array true false nil (array (marked_symbol nil 'eval) (marked_array true false nil (array quote_internal (mark read_in)) true) (marked_symbol nil 'outer)) true))
+            (body_value (marked_array true false nil (array (marked_symbol nil 'eval) (marked_array true false nil (array quote_internal (mark read_in)) true) root_marked_env) true))
+            (constructed_body (idx (try_unval body_value (lambda (_) nil)) 1))
+            (constructed_func (marked_comb 0 (+ env_id_start 1) 'outer root_marked_env false (array) constructed_body nil))
+            (constructed_value (marked_array true false nil (array (marked_symbol nil 'run) constructed_func) true))
+	    (to_compile (array (array (+ env_id_start 1) empty_dict)    nil          constructed_value))
             ;(_ (true_print "done partialy evaling, now compiling"))
-            (bytes      (compile evaled dont_compile dont_lazy_env dont_y_comb dont_prim_inline dont_closure_inline))
+            (_ (true_print "going"))
+            (bytes      (compile to_compile dont_partial_eval dont_lazy_env dont_y_comb dont_prim_inline dont_closure_inline))
             ;(_ (true_print "compiled, writng out"))
             (_          (write_file "./csc_out.wasm" bytes))
             ;(_ (true_print "written out"))
@@ -6821,7 +6899,7 @@
              (cond ((= "test"   com) (test-most))
                    ((= "single" com) (single-test))
                    (true             (run-compiler 
-                                                   (and (>= (len args) 2) (= "no_compile" (idx args 1)))
+                                                   (and (>= (len args) 2) (= "no_partial_eval" (idx args 1)))
                                                    (and (>= (len args) 2) (= "no_lazy_env" (idx args 1)))
                                                    (and (>= (len args) 2) (= "no_y_comb" (idx args 1)))
                                                    (and (>= (len args) 2) (= "no_prim_inline" (idx args 1)))
