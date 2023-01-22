@@ -5924,10 +5924,6 @@
                                         ; if variadic, we just use the wrapper func and don't expect callers to know that we're varidic
                                         (func_value (mif variadic (mod_fval_to_wrap func_value) func_value))
                                         (memo (put memo (.hash c) func_value))
-                                        ; Is this the vau-tieer?
-                                        (memo (mif env_val (foldl (dlambda (memo (hash wrap)) (put memo hash (combine_env_comb_val env_val (calculate_func_val wrap)))) memo rec_hashes)
-                                                           memo))
-
 
 
                                         (new_inline_locals (array))
@@ -5992,7 +5988,6 @@
                                                       (array (combine_env_comb_val env_val func_value) nil (mif func_err (str func_err ", from compiling comb body") (mif env_err (str env_err ", from compiling comb env") nil)) ctx)
                                                       (array nil (combine_env_code_comb_val_code env_code (mod_fval_to_wrap func_value)) (mif func_err (str func_err ", from compiling comb body (env as code)") (mif env_err (str env_err ", from compiling comb env (as code)") nil)) ctx)))
                                     ;(_ (mif env_val (true_print "total function " (idx full_result 0) " based on " env_val " and " func_value)))
-                                    (_ (true_print "compile-comb returning " (idx full_result 0) " need value was " need_value))
                                 ) full_result
                                 ))))
 
@@ -6151,10 +6146,8 @@
 				      (br_if '$error_block (i32.ne (extract_size_code (local.get '$it)) (i32.const 2)))
 				      ;; second entry isn't a comb -> out
 				      (br_if '$error_block (is_not_type_code comb_tag (i64.load 8 (local.get '$ptr))))
-				      
 				      (local.set '$tmp (generate_dup (i64.load 8 (local.get '$ptr))))
 				      (generate_drop (local.get '$it))
-				      
 				      (generate_drop (global.get '$debug_func_to_call))
 				      (generate_drop (global.get '$debug_params_to_call))
 				      (generate_drop (global.get '$debug_env_to_call))
@@ -6858,22 +6851,10 @@
       (dlet (
             (_ (true_print "reading in!"))
             (read_in    (read-string (slurp f)))
-            ;(_ (true_print "read in, now evaluating"))
-            ;(evaled     (if dont_compile (array (array 0 empty_dict) nil (mark read_in))
-            ;                             (partial_eval read_in)))
-
-            ;(quote_internal (marked_comb 0 env_id_start nil empty_env false (array 'x) (marked_symbol env_id_start 'x) nil))
-	    ;((array? x)      (marked_array true false nil (map recurse x) true))
-            ;(marked_array false false nil (cons f (slice values 1 -1)) (.marked_array_source x))
-            ;(marked_array     (lambda (is_val attempted resume_hashes x source)       (dlet (
-
-	    ;                           (env_id_counter memo)
 
             ; This is basicaly (compile <comb0 () ('eval <marked_body> root_env)>)
             ;    this does mean that without partial eval this is an extra and unnecessary lookup of 'eval in the root env but w/e, it's a single load
 	    ;                   empty partial_eval_ctx empty partial_eval_error      value to compile
-            ;(idx (try_unval (mark x) (lambda (_) nil)) 1)
-            ;(body_value (marked_array true false nil (array (marked_symbol nil 'eval) (marked_array true false nil (array quote_internal (mark read_in)) true) (marked_symbol nil 'outer)) true))
             (body_value (marked_array true false nil (array (marked_symbol nil 'eval) (marked_array true false nil (array quote_internal (mark read_in)) true) root_marked_env) true))
             (constructed_body (idx (try_unval body_value (lambda (_) nil)) 1))
             (constructed_func (marked_comb 0 (+ env_id_start 1) 'outer root_marked_env false (array) constructed_body nil))
