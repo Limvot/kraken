@@ -265,7 +265,6 @@
     (.comb_params                       (lambda (x) (idx x 7)))
     (.comb_body                         (lambda (x) (idx x 8)))
     (.comb_wrap_level                   (lambda (x) (idx x 2)))
-    (.comb_rec_hashes                   (lambda (x) (idx x 9)))
 
     (.prim_comb_sym                     (lambda (x) (idx x 3)))
     (.prim_comb_handler                 (lambda (x) (idx x 2)))
@@ -431,21 +430,14 @@
 
 
     (marked_val       (lambda (x)                                             (array 'val       (hash_val x)                                              x)))
-    (marked_comb      (lambda (wrap_level env_id de? se variadic params body rec_hash) (array 'comb  (hash_comb wrap_level env_id de? se variadic params body) wrap_level env_id de? se variadic params body rec_hash)))
+    (marked_comb      (lambda (wrap_level env_id de? se variadic params body) (array 'comb  (hash_comb wrap_level env_id de? se variadic params body) wrap_level env_id de? se variadic params body)))
     (marked_prim_comb (lambda (handler_fun real_or_name wrap_level val_head_ok)    (array 'prim_comb        (hash_prim_comb handler_fun real_or_name wrap_level val_head_ok) handler_fun real_or_name wrap_level val_head_ok)))
 
     (with_wrap_level                    (lambda (x new_wrap) (cond  ((prim_comb? x)   (dlet (((handler_fun real_or_name wrap_level val_head_ok) (.prim_comb x)))
                                                                                              (marked_prim_comb handler_fun real_or_name new_wrap val_head_ok)))
-                                                                    ((comb? x)        (dlet (((wrap_level env_id de? se variadic params body rec_hash) (.comb x)))
-                                                                                             (marked_comb new_wrap env_id de? se variadic params body rec_hash)))
+                                                                    ((comb? x)        (dlet (((wrap_level env_id de? se variadic params body) (.comb x)))
+                                                                                             (marked_comb new_wrap env_id de? se variadic params body)))
                                                                     (true             (error "bad with_wrap_level")))))
-
-    (add_hash_if_comb (lambda (new_hash x) (cond ((comb? x)        (dlet (
-                                                                     ((wrap_level env_id de? se variadic params body rec_hash) (.comb x))
-                                                                    ) (marked_comb wrap_level env_id de? se variadic params body (cons (array new_hash wrap_level) rec_hash))))
-                                                 (true             x))))
-
-
 
 
     (later_head? (rec-lambda recurse (x) (or (and (marked_array? x)  (or (= false (.marked_array_is_val x)) (foldl (lambda (a x) (or a (recurse x))) false (.marked_array_values x))))
@@ -496,10 +488,10 @@
                                                                       (array (true_str "<a" (.marked_array_is_attempted x) ",r" (needed_for_progress x) "~" (.marked_array_this_rec_stop x) "~*" (.hash x) "*>" stripped_values) done_envs))))
               ((marked_symbol? x) (mif (.marked_symbol_is_val x) (array (true_str "'" (.marked_symbol_value x)) done_envs)
                                                                  (array (true_str (.marked_symbol_needed_for_progress x) "#" (.marked_symbol_value x)) done_envs)))
-              ((comb? x)          (dlet (((wrap_level env_id de? se variadic params body rec_hash) (.comb x))
+              ((comb? x)          (dlet (((wrap_level env_id de? se variadic params body) (.comb x))
                                          ((se_s done_envs)   (recurse se done_envs))
                                          ((body_s done_envs) (recurse body done_envs)))
-                                      (array (true_str "<n " (needed_for_progress x) " (comb " wrap_level " " env_id " " rec_hash " " se_s " " de? " " params " " body_s ")>") done_envs)))
+                                      (array (true_str "<n " (needed_for_progress x) " (comb " wrap_level " " env_id " " se_s " " de? " " params " " body_s ")>") done_envs)))
               ((prim_comb? x)     (array (true_str "<wl=" (.prim_comb_wrap_level x) " " (.prim_comb_sym x) ">") done_envs))
               ((marked_env? x)    (dlet ((e (.env_marked x))
                                          (index (.marked_env_idx x))
@@ -597,7 +589,7 @@
                       ((prim_comb? x)    (array memo false))
                       ((val? x)           (array memo false))
                       ((comb? x)          (dlet (
-                                            ((wrap_level i_env_id de? se variadic params body rec_hash) (.comb x))
+                                            ((wrap_level i_env_id de? se variadic params body) (.comb x))
                                             ((memo in_se) (check_for_env_id_in_result memo s_env_id se))
                                             ((memo total) (if (and (not in_se) (!= s_env_id i_env_id)) (check_for_env_id_in_result memo s_env_id body)
                                                                                                        (array memo in_se)))
@@ -740,12 +732,12 @@
                                                         (array pectx nil (if (!= nil new_env) new_env x)))
                                                   (array pectx nil x))))
 
-                ((comb? x)           (dlet (((wrap_level env_id de? se variadic params body rec_hash) (.comb x)))
+                ((comb? x)           (dlet (((wrap_level env_id de? se variadic params body) (.comb x)))
                                         (mif (or (and (not (marked_env_real? env)) (not (marked_env_real? se)))   ; both aren't real, re-evaluation of creation site
                                                  (and      (marked_env_real? env)  (not (marked_env_real? se))))  ; new env real, but se isn't - creation!
                                              (dlet ((inner_env (make_tmp_inner_env params de? env env_id))
                                                     ((pectx err evaled_body) (partial_eval_helper body false inner_env (array (idx env_stack 0) (cons inner_env (idx env_stack 1))) pectx (+ indent 1) false)))
-                                                   (array pectx err (mif err nil (marked_comb wrap_level env_id de? env variadic params evaled_body rec_hash))))
+                                                   (array pectx err (mif err nil (marked_comb wrap_level env_id de? env variadic params evaled_body))))
                                              (array pectx nil x))))
                 ((prim_comb? x)      (array pectx nil x))
                 ((marked_symbol? x)  (mif (.marked_symbol_is_val x) x
@@ -817,7 +809,7 @@
                                                                                                     ) (if (= 'LATER err) (array pectx nil (l_later_call_array))
                                                                                                                          (array pectx err result))))
                                                                                 ((comb? comb)      (dlet (
-                                                                                     ((wrap_level env_id de? se variadic params body rec_hash) (.comb comb))
+                                                                                     ((wrap_level env_id de? se variadic params body) (.comb comb))
 
 
                                                                                      (final_params (mif variadic (concat (slice evaled_params 0 (- (len params) 1))
@@ -853,7 +845,7 @@
                                                                                              (if must_stop_maybe_id
                                                                                                  (array pectx nil (marked_array false must_stop_maybe_id (if rec_stop (array hash) nil) (cons (with_wrap_level comb remaining_wrap) evaled_params) (.marked_array_source x)))
                                                                                                  (dlet (((pectx err x) (drop_redundent_veval partial_eval_helper func_result env env_stack pectx indent)))
-                                                                                                        (array pectx err (add_hash_if_comb hash x)))))))
+                                                                                                       (array pectx err x))))))
                                                                         )))
                                                                )))))
 
@@ -893,7 +885,7 @@
 
     (env_id_start 1)
     (empty_env      (marked_env true nil nil nil nil nil))
-    (quote_internal (marked_comb 0 env_id_start nil empty_env false (array 'x) (marked_symbol env_id_start 'x) nil))
+    (quote_internal (marked_comb 0 env_id_start nil empty_env false (array 'x) (marked_symbol env_id_start 'x)))
     (env_id_start (+ 1 env_id_start))
 
     (root_marked_env (marked_env true nil nil nil nil (array
@@ -951,7 +943,7 @@
                                                                                                                   (cons inner_env (idx env_stack 1))) pectx (+ 1 indent) false))
                                             (_ (print_strip (indent_str indent) "in vau, result of evaluating body was " pe_body))
                                         ) (array pectx err pe_body))))
-        ) (mif err (array pectx err nil) (array pectx nil (marked_comb 0 new_id de? de variadic vau_params pe_body nil)))
+        ) (mif err (array pectx err nil) (array pectx nil (marked_comb 0 new_id de? de variadic vau_params pe_body)))
         )) 'vau 0 true))
 
         (array 'wrap (marked_prim_comb (dlambda (only_head de env_stack pectx (evaled) indent)
@@ -4652,7 +4644,7 @@
                         ((marked_symbol? c)                                      nil)
                         ((marked_env? c)                                         nil) ; So it actually needs to recurse into env
                         ((comb? c)                                               (dlet (
-                                    ((wrap_level env_id de? se variadic params body rec_hashes) (.comb c))
+                                    ((wrap_level env_id de? se variadic params body) (.comb c))
                                     (_ (mif (> wrap_level 1) (error "wrap level TOO DARN HIGH")))
                                     (attempt_reduction (and
                                                          (not dont_y_comb)
@@ -4669,10 +4661,6 @@
                                                          (not (.marked_symbol_is_val (idx (.marked_array_values body) 3)))
                                                          (= de? (.marked_symbol_value (idx (.marked_array_values body) 3)))
                                                          ))
-                                    ; add to memo
-                                        ; Is this the vau-tieer?
-                                        (memo (mif env_val (foldl (dlambda (memo (hash wrap)) (put memo hash (combine_env_comb_val env_val (calculate_func_val wrap)))) memo rec_hashes)
-                                                           memo))
                                     ; new tce data
                                     ; new env_id
 
@@ -5803,7 +5791,7 @@
 
 
                     ((comb? c) (dlet (
-                                    ((wrap_level env_id de? se variadic params body rec_hashes) (.comb c))
+                                    ((wrap_level env_id de? se variadic params body) (.comb c))
                                     (_ (mif (> wrap_level 1) (error "wrap level TOO DARN HIGH")))
 
 
@@ -6857,7 +6845,7 @@
 	    ;                   empty partial_eval_ctx empty partial_eval_error      value to compile
             (body_value (marked_array true false nil (array (marked_symbol nil 'eval) (marked_array true false nil (array quote_internal (mark read_in)) true) root_marked_env) true))
             (constructed_body (idx (try_unval body_value (lambda (_) nil)) 1))
-            (constructed_func (marked_comb 0 (+ env_id_start 1) 'outer root_marked_env false (array) constructed_body nil))
+            (constructed_func (marked_comb 0 (+ env_id_start 1) 'outer root_marked_env false (array) constructed_body))
             (constructed_value (marked_array true false nil (array (marked_symbol nil 'run) constructed_func) true))
 	    (to_compile (array (array (+ env_id_start 1) empty_dict)    nil          constructed_value))
             ;(_ (true_print "done partialy evaling, now compiling"))
