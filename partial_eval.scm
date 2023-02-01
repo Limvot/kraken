@@ -4620,19 +4620,25 @@
               ;   dynamic call unval-partial-eval branch
               ;
               ; Rembember to account for (dont_compile dont_lazy_env dont_y_comb dont_prim_inline dont_closure_inline)
+
+              ; (<this_data>... <sub_data>)
+
+              ; call-info will be a fairly simple pre-order traversal (looking at caller before params)
+              ; infer-type has to walk though cond in pairs, special handle the (and ) case, and adjust parameters for veval
+              ; perceus is weird, as it has to look at the head to determine how to order/combine the children, as well as an extra sub-data for the call itself (though I guess this is just part of the node data)
               (call-info (rec-lambda call-info (c env_id) (cond
                         ((val? c)                                                nil)
                         ((and (marked_symbol? c) (.marked_symbol_is_val c))      nil)
                         ((marked_symbol? c)                                      nil)
                         ((marked_env? c)                                         nil) ; So it actually needs to recurse into env (no, I don't think so, maybe only fake)
+                        ((prim_comb? c)                                          nil)
+                        ((and (marked_array? c) (.marked_array_is_val c))        nil) ; and array values
+
                         ((comb? c)                                               (dlet (
                                     ((wrap_level env_id de? se variadic params body) (.comb c))
                                     (_ (mif (> wrap_level 1) (error "wrap level TOO DARN HIGH")))
 
                                     ) nil))
-                        ((prim_comb? c)                                          nil)
-                        ((and (marked_array? c) (.marked_array_is_val c))        nil) ; and array values
-
                         ((and (marked_array? c) ;(>= 2 (len (.marked_array_values c)))
                               (let_like_inline_closure (idx (.marked_array_values c) 0) env_id))  nil)
                               ; REMEMBER - new env_id inside
@@ -4831,10 +4837,9 @@
                                (_ (if (not (marked_env? (idx params 1))) (error "call to veval has not marked_env second param")))
 
                                (new_env_id      (.marked_env_idx (idx params 1)))
-                               ((btyp bimpl b_assertion b_subdata) (infer_types (idx params 0) new_env_id  empty_dict-list empty_dict-list))
 
                                (sub_data (array (infer_types func env_id implies guarentees)
-                                                (array btyp bimpl b_assertion b_subdata)
+                                                (infer_types (idx params 0) new_env_id  empty_dict-list empty_dict-list)
                                                 (infer_types (idx params 1) env_id implies guarentees)))
                         ) (array btyp false empty_dict-list sub_data)))
 
@@ -4844,6 +4849,7 @@
                               ;(_ (true_print "  doing infer-types for random call "))
                               (sub_results (map (lambda (x) (infer_types x env_id implies guarentees)) (.marked_array_values c)))
                               ;(_ (true_print "  done infer-types for random call "))
+                                 ; I belive this .hash doesn't do anything
                         ) (array (get-list-or guarentees (.hash c) false) false empty_dict-list sub_results)))
 
                         ; fallthrough
@@ -4979,6 +4985,7 @@
                         ; YES remember to check for Y-combiner recursion knot tying - (and (!= nil (.marked_array_this_rec_stop c)) (get_passthrough (idx (.marked_array_this_rec_stop c) 0) ctx))
                         ; YES remember to check for let-like inlining (and (marked_array? c) (let_like_inline_closure (idx (.marked_array_values c) 0) env_id))
                         ; YES remember to properly handle crazy stuff like inlining inside of veval (does that mean we have to re-pick up inside veval after all?)
+                        ; TODO: properly handle param usage based on wrap level if unknown (based on call-info)
                         ; remember to think (/modify appropriately) about TCE - I think it's fine to have it act like a normal call?
                         ((and (marked_array? c) (not (.marked_array_is_val c))) (dlet (
                               ; check func first for val or not & if val if it uses de (comb that uses de, prim_comb that takes it)
@@ -5039,7 +5046,7 @@
                         ((and (marked_array?  c) (.marked_array_is_val  c))               (array b borrow_nil))
                         ; no matter if env is real or not, it's borrowed,
                         ; as it will be cached for the length of the function
-                        ((marked_env? c)                                                  (array b borrow_nil))
+                        ((marked_env? c)                                                  (array b borrow_nil)) ; I feel like all of these value ones but esp this one should be true instead of b? must-be-borrowed
                         ((and (marked_symbol? c) (not (.marked_symbol_is_val c)))         (array (and b (not (cached_pseudo_perceus_sym_borrowed used_map_sub_data))) borrow_nil))
                         ; comb value just does its env
                         ((comb? c)                                                        (borrow? (.comb_env c) b env_id used_map_sub_data))
@@ -5091,6 +5098,7 @@
                         ) (array borrowed sub_data)))
 
                         ; call taxonomy a bit simpler this time - if it's not already special cased, it's either an inline or it's owned
+                        ; This also has to be adjusted based on possibly dynamic calls with unknown wrap level
                         ((and (marked_array? c) (not (.marked_array_is_val c))) (dlet (
                               (func_param_values (.marked_array_values c))
                               (num_params (- (len func_param_values) 1))
@@ -5121,14 +5129,14 @@
 
                       ((wrap_level env_id de? se variadic params body) (.comb c))
                       (full_params (concat params (mif de? (array de?) (array))))
-                      ;-------------
+
                       (call_info (call-info c env_id))
-                      ;-------------
                       (inner_type_data     (infer_types body env_id empty_dict-list empty_dict-list))
                       ((used_map_before used_map_sub_data)   (pseudo_perceus body env_id memo (push_used_map empty_use_map full_params)))
                       ((borrowed borrow_sub_data) (borrow? body false env_id used_map_sub_data))
                       (_ (mif borrowed (error "body hast to be borrowed? " borrowed " " (true_str_strip body))))
-                      (inner_analysis_data (array inner_type_data used_map_sub_data))
+
+                      (inner_analysis_data (array inner_type_data used_map_sub_data call_info))
 
               ) inner_analysis_data)))
 
@@ -5142,9 +5150,10 @@
                                                                 ;( t (cached_infer_types_idx c env_id (idx cache 0) i))
                                                                 ;( p (mif cache (pseudo_perceus_just_sub_idx (idx cache 1) i) nil))
                                                                 ( p nil )
+                                                                ( c nil )
 
                                                                 ;(_ (true_print "done infer-types-idx"))
-                                                                ) (array t p))))
+                                                                ) (array t p c))))
 
 
               (compile-inner (rec-lambda compile-inner (ctx c need_value inside_veval outer_s_env_access_code s_env_access_code inline_level tce_data analysis_data) (cond
