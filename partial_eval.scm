@@ -4598,21 +4598,6 @@
                                                                      (if r (array r nil nil (array datasi funcs memo env pectx inline_locals)) #f))))
 
 
-              ; TODO:
-              ;
-              ;   Split compile-inner into compile-value and compile-code.
-              ;       Compile-value can only call into compile-code to compile a function.
-              ;       Compile-code can call into compile-value, but doesn't have to pass any of the data for the analysis passes.
-              ;         (BUT does pass memo back and forth as to not re-compile over and over, ofc)
-              ;   Compile-value is then what is called on the parsed program for NO PE
-              ;   OR
-              ;    called on ['run <wrap=0 nil.. () parsed_expr>]
-              ;     which when encountering a function will call compile-code to do partial evaluation & all the dataflow
-	      ;     no PE can have compile function compile the body as (eval <body-compiled-as-value>)
-              ;
-	      ; Feels like compling the function actually belongs in compile-value, in a weird way.
-	      ; Since it has to figure out what is code and what is value, is there actually any benefit in splitting them up?
-
               ; This is the second run at this, and is a little interesting
               ; It can return a value OR code OR an error string. An error string should be propegated,
               ; unless it was expected as a possiblity, which can happen when compling a call that may or
@@ -4633,10 +4618,6 @@
               ;         Eta reduction?
               ;   tail call elimination
               ;   dynamic call unval-partial-eval branch
-              ;
-              ; ALSO: This means that it needs to be pulled out of even the compile-function bit, since it has to go through multiple function compilations
-              ; in order to notice Y-Comb tying and Eta-reduce the lazyness
-              ;   which also means it needs to be able to memoize
               ;
               ; Rembember to account for (dont_compile dont_lazy_env dont_y_comb dont_prim_inline dont_closure_inline)
               (call-info (rec-lambda call-info (c env_id) (cond
@@ -5781,8 +5762,7 @@
                                     ((wrap_level env_id de? se variadic params body) (.comb c))
                                     (_ (mif (> wrap_level 1) (error "wrap level TOO DARN HIGH")))
 
-
-                                    ;  note that this is just the func, not the env
+                                    ;  note that this is just the hash of the func, not the env
                                     (old_hash (.hash c))
                                     (maybe_func (get_passthrough old_hash ctx))
                                     ((datasi funcs memo env pectx inline_locals) ctx)
@@ -5802,6 +5782,11 @@
                                     ; and so we can only tell here weather or not it will be safe to remove the level of lazyness (because we get a func value back instead of code)
                                     ; and perform the eta reduction.
 
+                                    ((env_val env_code env_err ctx) (if (and need_value (not (marked_env_real? se)))
+                                                                        (array nil nil "Env wasn't real when compiling comb, but need value" ctx)
+                                                                        (compile-inner ctx se need_value inside_veval outer_s_env_access_code s_env_access_code inline_level nil analysis_nil)))
+                                    (_ (if (not (or (= nil env_val) (int? env_val))) (error "BADBADBADenv_val")))
+
                                ) (mif (and
                                            (not dont_y_comb)
                                            variadic
@@ -5817,15 +5802,11 @@
                                            (marked_symbol? (idx (.marked_array_values body) 3))
                                            (not (.marked_symbol_is_val (idx (.marked_array_values body) 3)))
                                            (= de? (.marked_symbol_value (idx (.marked_array_values body) 3)))
+                                           env_val
                                       )
-                                      (array (set_wrap_val wrap_level (get-value-or-false memo (.hash (idx (.marked_array_values body) 1)))) nil err ctx)
+                                      (array (combine_env_comb_val env_val (set_wrap_val wrap_level (get-value-or-false memo (.hash (idx (.marked_array_values body) 1))))) nil err ctx)
                                       (dlet (
 
-
-                                    ((env_val env_code env_err ctx) (if (and need_value (not (marked_env_real? se)))
-                                                                        (array nil nil "Env wasn't real when compiling comb, but need value" ctx)
-                                                                        (compile-inner ctx se need_value inside_veval outer_s_env_access_code s_env_access_code inline_level nil analysis_nil)))
-                                    (_ (if (not (or (= nil env_val) (int? env_val))) (error "BADBADBADenv_val")))
                                     (maybe_func (or (get_passthrough old_hash ctx) (get_passthrough new_hash ctx)))
                                     ((func_value _ func_err ctx) (mif maybe_func maybe_func
                                         (dlet (
@@ -5843,8 +5824,10 @@
                                         (func_value (calculate_func_val wrap_level))
                                         ; if variadic, we just use the wrapper func and don't expect callers to know that we're varidic
                                         (func_value (mif variadic (mod_fval_to_wrap func_value) func_value))
+                                        ; Put our eventual func_value in the memo before we actually compile for recursion etc
                                         (memo (put (put memo new_hash func_value) old_hash func_value))
 
+                                        (inner_analysis_data (function-analysis c memo))
 
                                         (new_inline_locals (array))
                                         (ctx (array datasi funcs memo env pectx new_inline_locals))
@@ -5874,7 +5857,6 @@
                                         (new_get_s_env_code (if dont_lazy_env basic_get_s_env_code lazy_get_s_env_code))
                                         ((datasi funcs memo env pectx inline_locals) ctx)
                                         (inner_ctx (array datasi funcs memo inner_env pectx inline_locals))
-                                        (inner_analysis_data (function-analysis c memo))
 
                                         ((inner_value inner_code err ctx) (compile-inner inner_ctx body false false (local.get '$outer_s_env) new_get_s_env_code 0 new_tce_data inner_analysis_data))
                                         (_ (true_print "Done compile_body func def compile-inner " full_params))
