@@ -275,7 +275,7 @@
     (.marked_env                        (lambda (x) (slice x 2 -1)))
     (.marked_env_has_vals               (lambda (x) (idx x 2)))
     (.marked_env_needed_for_progress    (lambda (x) (idx x 3)))
-    (.marked_env_idx                    (lambda (x) (idx x 4)))
+    (.marked_env_id                    (lambda (x) (idx x 4)))
     (.marked_env_upper                  (lambda (x) (idx (idx x 5) -1)))
     (.env_marked                        (lambda (x) (idx x 5)))
     (marked_env_real?                   (lambda (x) (= nil (idx (.marked_env_needed_for_progress x) 0))))
@@ -495,7 +495,7 @@
                                       (array (true_str "<n " (needed_for_progress x) " (comb " wrap_level " " env_id " " se_s " " de? " " params " " body_s ")>") done_envs)))
               ((prim_comb? x)     (array (true_str "<wl=" (.prim_comb_wrap_level x) " " (.prim_comb_sym x) ">") done_envs))
               ((marked_env? x)    (dlet ((e (.env_marked x))
-                                         (index (.marked_env_idx x))
+                                         (index (.marked_env_id x))
                                          (u (idx e -1))
                                          (already (in_array index done_envs))
                                          (opening (true_str "{" (mif (marked_env_real? x) "real" "fake") (mif (.marked_env_has_vals x) " real vals" " fake vals")  " ENV idx: " (true_str index) ", "))
@@ -597,7 +597,7 @@
                                             ;(memo (put memo hash total))
                                           ) (array memo total)))
 
-                      ((marked_env? x)   (if (and (not (marked_env_real? x)) (= s_env_id (.marked_env_idx x))) (array memo true)
+                      ((marked_env? x)   (if (and (not (marked_env_real? x)) (= s_env_id (.marked_env_id x))) (array memo true)
                                                  (dlet (
                                                     (values (slice (.env_marked x) 0 -2))
                                                     (upper  (idx (.env_marked x) -1))
@@ -675,7 +675,7 @@
     ))
 
     (drop_redundent_veval (rec-lambda drop_redundent_veval (partial_eval_helper x de env_stack pectx indent) (dlet (
-                                                    (env_id (.marked_env_idx de))
+                                                    (env_id (.marked_env_id de))
                                                     (r (if
                                                       (and (marked_array? x)
                                                            (not (.marked_array_is_val x)))
@@ -683,7 +683,7 @@
                                                                     (= 'veval (.prim_comb_sym (idx (.marked_array_values x) 0)))
                                                                     (= 3 (len (.marked_array_values x)))
                                                                     (not (marked_env_real? (idx (.marked_array_values x) 2)))
-                                                                    (= env_id (.marked_env_idx (idx (.marked_array_values x) 2)))) (drop_redundent_veval partial_eval_helper (idx (.marked_array_values x) 1) de env_stack pectx (+ 1 indent))
+                                                                    (= env_id (.marked_env_id (idx (.marked_array_values x) 2)))) (drop_redundent_veval partial_eval_helper (idx (.marked_array_values x) 1) de env_stack pectx (+ 1 indent))
                                                                                                                                    ; wait, can it do this? will this mess with eval?
 
                                                             ; basically making sure that this comb's params are still good to eval
@@ -722,10 +722,10 @@
               )
         (if (or force hashes_now (= for_progress true) (intset_intersection_nonempty for_progress (idx env_stack 0)))
         (cond   ((val? x)            (array pectx nil x))
-                ((marked_env? x)     (dlet ((dbi (.marked_env_idx x)))
+                ((marked_env? x)     (dlet ((dbi (.marked_env_id x)))
                                           ; compiler calls with empty env stack
                                           (mif dbi (dlet ( (new_env ((rec-lambda rec (i len_env_stack) (cond ((= i len_env_stack)                                 nil)
-                                                                                                             ((= dbi (.marked_env_idx (idx (idx env_stack 1) i))) (idx (idx env_stack 1) i))
+                                                                                                             ((= dbi (.marked_env_id (idx (idx env_stack 1) i))) (idx (idx env_stack 1) i))
                                                                                                              (true                                                (rec (+ i 1) len_env_stack))))
                                                                      0 (len (idx env_stack 1))))
                                                          (_ (println (str_strip "replacing " x) (str_strip " with (if nonnil) " new_env)))
@@ -768,7 +768,7 @@
                                                                             ;                            (array pectx err comb)))
                                                                             (_ (println (indent_str indent) "Going to do an array call!"))
                                                                             (indent (+ 1 indent))
-                                                                            (_ (print_strip (indent_str indent) "total (in env " (.marked_env_idx env) ") is (proceeding err " err ") " x))
+                                                                            (_ (print_strip (indent_str indent) "total (in env " (.marked_env_id env) ") is (proceeding err " err ") " x))
                                                                             (map_rp_eval (lambda (pectx ps) (foldl (dlambda ((c er ds) p) (dlet ((_ (print_strip (indent_str indent) "rp_evaling " p)) ((c e d) (partial_eval_helper p false env env_stack c (+ 1 indent) false)) (_ (print_strip (indent_str indent) "result of rp_eval was err " e " and value " d))) (array c (mif er er e) (concat ds (array d)))))
                                                                                                         (array pectx nil (array))
                                                                                                         ps)))
@@ -837,10 +837,10 @@
                                                                                                                         (pectx (array env_counter memo))
                                                                                                                     ) (array pectx func_err func_result false))))
 
-                                                                                     (_ (print_strip (indent_str indent) "evaled result of function call (in env " (.marked_env_idx env) ", with inner " env_id ") and err " func_err "  is " func_result))
+                                                                                     (_ (print_strip (indent_str indent) "evaled result of function call (in env " (.marked_env_id env) ", with inner " env_id ") and err " func_err "  is " func_result))
                                                                                      (must_stop_maybe_id (and (= nil func_err)
                                                                                                               (or rec_stop (if (not (combiner_return_ok func_result env_id))
-                                                                                                                               (if (!= nil de?) (.marked_env_idx env) true)
+                                                                                                                               (if (!= nil de?) (.marked_env_id env) true)
                                                                                                                                false))))
                                                                                      ) (if (!= nil func_err) (array pectx func_err nil)
                                                                                              (if must_stop_maybe_id
@@ -880,7 +880,7 @@
         ((!= nil err)                                          (begin (print (indent_str indent) "got err " err) (array pectx err nil)))
         ; If our env was implicit, then our unval'd code can be inlined directly in our caller
         (implicit_env                                          (drop_redundent_veval partial_eval_helper ebody de env_stack pectx indent))
-        ((combiner_return_ok ebody (.marked_env_idx eval_env)) (drop_redundent_veval partial_eval_helper ebody de env_stack pectx indent))
+        ((combiner_return_ok ebody (.marked_env_id eval_env)) (drop_redundent_veval partial_eval_helper ebody de env_stack pectx indent))
         (true                                                  (drop_redundent_veval partial_eval_helper (marked_array false true nil (array (marked_prim_comb recurse 'veval -1 true) ebody eval_env) nil) de env_stack pectx indent))
     ))))
 
@@ -976,7 +976,7 @@
                                                                                             (this (marked_array false true nil (concat (array (marked_prim_comb (recurse false) 'cond 0 true)
                                                                                                                                               pred)
                                                                                                                                        sliced_params) nil))
-                                                                                            (hash (combine_hash (combine_hash 101 (.hash this)) (+ 103 (.marked_env_idx de))))
+                                                                                            (hash (combine_hash (combine_hash 101 (.hash this)) (+ 103 (.marked_env_id de))))
                                                                                             ((env_counter memo) pectx)
                                                                                             (already_in (!= false (get-value-or-false memo hash)))
                                                                                             (_ (if already_in (print_strip "ALREADY IN " this)
@@ -4609,8 +4609,10 @@
 
               (let_like_inline_closure (lambda (func_value containing_env_idx)   (and (comb? func_value)
                                                                                   (not (.comb_varadic func_value))
-                                                                                  (= containing_env_idx (.marked_env_idx (.comb_env func_value)))
+                                                                                  (= containing_env_idx (.marked_env_id (.comb_env func_value)))
                                                                                   (= nil (.comb_des func_value)))))
+              (is_prim_function_call (lambda (c s) (and (marked_array? c) (not (.marked_array_is_val c)) (<= 2 (len (.marked_array_values c)))
+                                                        (prim_comb? (idx (.marked_array_values c) 0)) (= s (.prim_comb_sym (idx (.marked_array_values c) 0))))))
 
               ; Ok, we're pulling out the call stuff out of compile
               ;   Wrapped vs unwrapped
@@ -4626,35 +4628,73 @@
               ; call-info will be a fairly simple pre-order traversal (looking at caller before params)
               ; infer-type has to walk though cond in pairs, special handle the (and ) case, and adjust parameters for veval
               ; perceus is weird, as it has to look at the head to determine how to order/combine the children, as well as an extra sub-data for the call itself (though I guess this is just part of the node data)
-              (call-info (rec-lambda call-info (c env_id) (cond
-                        ((val? c)                                                nil)
-                        ((and (marked_symbol? c) (.marked_symbol_is_val c))      nil)
-                        ((marked_symbol? c)                                      nil)
-                        ((marked_env? c)                                         nil) ; So it actually needs to recurse into env (no, I don't think so, maybe only fake)
-                        ((prim_comb? c)                                          nil)
-                        ((and (marked_array? c) (.marked_array_is_val c))        nil) ; and array values
 
-                        ((comb? c)                                               (dlet (
-                                    ((wrap_level env_id de? se variadic params body) (.comb c))
-                                    (_ (mif (> wrap_level 1) (error "wrap level TOO DARN HIGH")))
+              ; Starting with only dynamic call unval
+              ; TODO: tce-data
 
-                                    ) nil))
-                        ((and (marked_array? c) ;(>= 2 (len (.marked_array_values c)))
-                              (let_like_inline_closure (idx (.marked_array_values c) 0) env_id))  nil)
-                              ; REMEMBER - new env_id inside
-                              ; but same tce-data
-                              ; and same y-comb memo
+              (call-info (rec-lambda call-info (c env pectx) (cond
+                        ((val? c)                                                (array nil nil pectx))
+                        ((and (marked_symbol? c) (.marked_symbol_is_val c))      (array nil nil pectx))
+                        ((marked_symbol? c)                                      (array nil nil pectx))
+                        ((marked_env? c)                                         (array nil nil pectx))
+                        ((prim_comb? c)                                          (array nil nil pectx))
+                        ((and (marked_array? c) (.marked_array_is_val c))        (array nil nil pectx))
+                        ((comb? c)                                               (array nil nil pectx))
+
+                        ((and (marked_array? c) (let_like_inline_closure (idx (.marked_array_values c) 0) (.marked_env_id env))) (dlet (
+                              (func_param_values (.marked_array_values c))
+                              (func (idx func_param_values 0))
+                              ; TODO: pull errors out of here
+                              ;(param_data (map (lambda (x) (call-info x env)) (slice func_param_values 1 -1)))
+                              ; TODO: pull errors out of here
+                              ; mk tmp env
+                              ;(body_data (call-info (.comb_body func tmp_env)))
+                        ) (array nil nil pectx))) ;(array nil (cons body_data param_data))))
+
+                        ((is_prim_function_call c 'veval)  (dlet (
+                               (func_param_values (.marked_array_values c))
+                               (num_params (- (len func_param_values) 1))
+                               (params (slice func_param_values 1 -1))
+                               ; These can't be fatal either
+                               ;(_ (if (!= 2 num_params) (error "call to veval has != 2 params!")))
+                               ;(_ (if (not (marked_env? (idx params 1))) (error "call to veval has not marked_env second param")))
+
+                               ; TODO: pull errors out of here
+                               ;(sub_data (array nil (call-info (idx params 0) (idx params 1)) nil))
+                        ) (array nil nil pectx))) ;(array nil sub_data)))
+
                         (true (dlet (
                               ; obv need to handle possible dynamic calls with an additional unval side, but also be careful of infinite recursion (as we had happen on compile before)
                               ;     due to the interaction of partial eval and unval (previously in compile) here
+                              ; might need to check for (is_prim_function_call c 'vcond) for recursion?
 
+                              ; the basic check is is this dynamic or not, and if so (and thus we don't know the wrap level)
+                              ;     we need to
+                              ; if not dynamic, just recurse as normal
+                              ;     assert wrap-level == 0 or == -1
 
-                              ((tce_idx tce_full_params) (mif tce_data tce_data (array nil nil)))
-                              (tce_able                  (and unwrapped (= tce_idx (extract_func_idx func_val))))
-                        ) nil))
-
-                        ; NOTICE TRANSPARENT VEVAL
-                        ; also vcond, of course
+                               (func_param_values (.marked_array_values c))
+                               (func (idx func_param_values 0))
+                         ;      ; TODO: pull errors out of here
+                         ;      (sub_data (map (lambda (x) (call-info x env)) func_param_values))
+                         ;      ; TODO: pull errors out of here
+                         ;      (our_data (cond ((and (comb? func) ( = (.comb_wrap_level func) 0)) nil)
+                         ;                      ((and (comb? func) (!= (.comb_wrap_level func) 1)) (error "bad wrap level call-info")) ; this is a tad tricky - I wanted to just have error here, but
+                         ;                                                                                                             ; *concievably this is the result of wrongly evaluted code based on this
+                         ;                                                                                                             ; very method of prediction. Instead, we need to error here,
+                         ;                                                                                                             ; and have that count as erroing out of the compile.
+                         ;                                                                                                             ; How best should we do that, I wonder?
+                         ;                      ((prim_comb? func)                                 nil)
+                         ;                      (true                                              (dlet (
+                         ;                          ((ok x) (try_unval x (lambda (_) nil)))
+                         ;                          (err (if (not ok) "couldn't unval in compile" err))
+                         ;                          ((pectx e pex) (mif err  (array pectx err nil))
+                         ;                                                   ;                    x only_head env env_stack       pectx indent force
+                         ;                                                   (partial_eval_helper x false     env (array nil nil) pectx 1      false))))
+                         ;                      ) nil)
+                         ;                ))
+                        ;) (array our_data sub_data))
+                        ) (array nil nil pectx))) ;(array nil sub_data)))
               )))
 
               ; type is a bit generic, both the runtime types + length of arrays
@@ -4682,8 +4722,6 @@
               (get-list-or (lambda (d k o) (dlet ((x (get-list d k)))
                                                  (mif x (idx x 1)
                                                         o))))
-              (is_prim_function_call (lambda (c s) (and (marked_array? c) (not (.marked_array_is_val c)) (<= 2 (len (.marked_array_values c)))
-                                                        (prim_comb? (idx (.marked_array_values c) 0)) (= s (.prim_comb_sym (idx (.marked_array_values c) 0))))))
               (is_markable           (lambda (x)   (or (and (marked_symbol? x) (not (.marked_symbol_is_val x)))
                                                        (and (marked_array?  x) (not (.marked_array_is_val  x)))
                                                    )))
@@ -4836,7 +4874,7 @@
                                (_ (if (!= 2 num_params) (error "call to veval has != 2 params!")))
                                (_ (if (not (marked_env? (idx params 1))) (error "call to veval has not marked_env second param")))
 
-                               (new_env_id      (.marked_env_idx (idx params 1)))
+                               (new_env_id      (.marked_env_id (idx params 1)))
 
                                (sub_data (array (infer_types func env_id implies guarentees)
                                                 (infer_types (idx params 0) new_env_id  empty_dict-list empty_dict-list)
@@ -4944,7 +4982,7 @@
                                (_ (if (!= 2 num_params) (error "call to veval has != 2 params!")))
                                (_ (if (not (marked_env? (idx params 1))) (error "call to veval has not marked_env second param")))
 
-                               (new_env_id      (.marked_env_idx (idx params 1)))
+                               (new_env_id      (.marked_env_id (idx params 1)))
                               (body_data                       (pseudo_perceus (idx params 0) new_env_id knot_memo empty_use_map))
                               ((used_map_pre_env env_sub_data) (pseudo_perceus (idx params 1) env_id     knot_memo used_map_after))
 
@@ -5078,7 +5116,7 @@
                                (_ (if (!= 2 num_params) (error "call to veval has != 2 params!")))
                                (_ (if (not (marked_env? (idx params 1))) (error "call to veval has not marked_env second param")))
 
-                              (new_env_id      (.marked_env_idx (idx params 1)))
+                              (new_env_id      (.marked_env_id (idx params 1)))
                               ((body_borrowed body_sub_data) (borrow? (idx params 0) b    new_env_id (pseudo_perceus_just_sub_idx used_map_sub_data 1)))
                               ((env_borrowed   env_sub_data) (borrow? (idx params 1) true env_id     (pseudo_perceus_just_sub_idx used_map_sub_data 2)))
                         ) (array body_borrowed (array borrow_nil (array body_borrowed body_sub_data) (array env_borrowed env_sub_data)))))
@@ -5125,12 +5163,16 @@
                                                                                  ;(_ (true_print "done borrow!"))
                                                                                  ) r)))
 
-              (function-analysis (lambda (c memo) (dlet (
+              (function-analysis (lambda (c memo pectx) (dlet (
 
                       ((wrap_level env_id de? se variadic params body) (.comb c))
                       (full_params (concat params (mif de? (array de?) (array))))
 
-                      (call_info (call-info c env_id))
+                      (inner_env (make_tmp_inner_env params de? se env_id))
+
+                      ((call_info call_err pectx) (call-info body inner_env pectx))
+                      (analysis_err call_err)
+
                       (inner_type_data     (infer_types body env_id empty_dict-list empty_dict-list))
                       ((used_map_before used_map_sub_data)   (pseudo_perceus body env_id memo (push_used_map empty_use_map full_params)))
                       ((borrowed borrow_sub_data) (borrow? body false env_id used_map_sub_data))
@@ -5138,7 +5180,7 @@
 
                       (inner_analysis_data (array inner_type_data used_map_sub_data call_info))
 
-              ) inner_analysis_data)))
+              ) (array inner_analysis_data analysis_err pectx))))
 
               (cached_analysis_idx (lambda (c env_id cache i) (dlet (
                                                                 ;(_ (true_print "doing infer-types-idx for " (true_str_strip c)))
@@ -5227,7 +5269,7 @@
                                                         (func_value (idx func_param_values 0))
                                                         (_ (true_print "about to get cached_infer_types_idx for call before checking for 'idx"))
                                                         ;(_ (true_print "      cache is " type_data))
-                                                        (parameter_subs  (map (lambda (i) (cached_analysis_idx c (.marked_env_idx env) analysis_data i)) (range 1 (len func_param_values))))
+                                                        (parameter_subs  (map (lambda (i) (cached_analysis_idx c (.marked_env_id env) analysis_data i)) (range 1 (len func_param_values))))
                                                         (parameter_types (map just_type parameter_subs))
                                                         ; used_data HERE
 
@@ -5460,7 +5502,7 @@
 
 
                                                             ; User inline
-                                                            ((and (not dont_closure_inline) (let_like_inline_closure func_value (.marked_env_idx env))) (dlet (
+                                                            ((and (not dont_closure_inline) (let_like_inline_closure func_value (.marked_env_id env))) (dlet (
                         ; To inline, we add all of the parameters + inline_level + 1 to the current functions additional symbols
                         ;       as well as a new se + inline_level + 1 symbol
                         ; fill them with the result of evaling the parameters now
@@ -5668,7 +5710,7 @@
 
                                             (generate_env_access (dlambda ((datasi funcs memo env pectx inline_locals) env_id reason) ((rec-lambda recurse (code this_env)
                                                 (cond
-                                                    ((= env_id (.marked_env_idx this_env)) (array nil (generate_dup code) nil (array datasi funcs memo env pectx inline_locals)))
+                                                    ((= env_id (.marked_env_id this_env)) (array nil (generate_dup code) nil (array datasi funcs memo env pectx inline_locals)))
                                                     ((= nil (.marked_env_upper this_env))  (array nil nil (str "bad env, upper is nil and we haven't found " env_id ", (this is *possiblely* because we're not recreating val/notval chains?) maxing out at " (str_strip this_env) ",  having started at " (str_strip env) ", we're generating because " reason) (array datasi funcs memo env pectx)))
                                                     (true                                  (recurse (i64.load 16 (extract_ptr_code code)) (.marked_env_upper this_env)))
                                                 )
@@ -5676,7 +5718,7 @@
 
                                             ) (if (not (marked_env_real? c)) (begin (print_strip "env wasn't real: " (marked_env_real? c) ", so generating access (env was) " c)
                                                                                     (if need_value (array nil nil (str "marked env not real, though we need_value: " (str_strip c)) ctx)
-                                                                                                   (generate_env_access ctx (.marked_env_idx c) "it wasn't real: " (str_strip c))))
+                                                                                                   (generate_env_access ctx (.marked_env_id c) "it wasn't real: " (str_strip c))))
                                             (dlet (
                                             ;(_ (true_print "gonna compile kvs vvs"))
 
@@ -5693,11 +5735,11 @@
                                             ((uv ucode err ctx) (mif (idx e -1) (compile-inner ctx (idx e -1) need_value inside_veval outer_s_env_access_code s_env_access_code inline_level nil analysis_nil)
                                                                                 (array nil_val nil nil ctx)))
                                             ) (mif (or (= false kvs) (= nil uv) (!= nil err))
-                                                   (begin (print_strip "kvs " kvs " vvs " vvs " uv " uv " or err " err " based off of " c)
+                                                   (begin (true_print "kvs " kvs " vvs " vvs " uv " uv " or err " err " based off of " (true_str_strip c))
                                                           (error "I DON'T LIKE IT - IMPOSSIBLE?")
                                                           (if need_value
                                                               (array nil nil (str "had to generate env access (course " need_value ") for " (str_strip c) "vvs is " vvs " err was " err) ctx)
-                                                              (generate_env_access ctx (.marked_env_idx c) (str " vvs " vvs " uv " uv " or err " err " based off of " (str_strip c)))))
+                                                              (generate_env_access ctx (.marked_env_id c) (str " vvs " vvs " uv " uv " or err " err " based off of " (str_strip c)))))
                                             (dlet (
                                                 ((datasi funcs memo env pectx inline_locals) ctx)
                                                 ;(_ (true_print "about to kvs_array"))
@@ -5836,10 +5878,13 @@
                                         ; Put our eventual func_value in the memo before we actually compile for recursion etc
                                         (memo (put (put memo new_hash func_value) old_hash func_value))
 
-                                        (inner_analysis_data (function-analysis c memo))
-
+                                        ((inner_analysis_data analysis_err pectx) (function-analysis c memo pectx))
+                                        (ctx (array datasi funcs memo env pectx outer_inline_locals))
+                                        ; EARLY QUIT IF Analysis Error
+                                        ) (mif analysis_err (array nil nil analysis_err ctx) (dlet (
                                         (new_inline_locals (array))
                                         (ctx (array datasi funcs memo env pectx new_inline_locals))
+
 
                                         (new_tce_data (array our_func_idx full_params))
                                         (inner_env (make_tmp_inner_env params de? se env_id))
@@ -5926,13 +5971,15 @@
                                         (funcs (concat old_funcs wrapper_func our_func (drop funcs (+ 2 (len old_funcs)))))
 
                                         ) (array func_value nil err (array datasi funcs memo env pectx outer_inline_locals)))
-                                    ))
+                                    ))))
                                     (_ (print_strip "returning " func_value " for " c))
-                                    (_ (if (not (int? func_value)) (error "BADBADBADfunc")))
-                                    (full_result (mif env_val
-                                                      (array (combine_env_comb_val env_val func_value) nil (mif func_err (str func_err ", from compiling comb body") (mif env_err (str env_err ", from compiling comb env") nil)) ctx)
-                                                      (array nil (combine_env_code_comb_val_code env_code (mod_fval_to_wrap func_value)) (mif func_err (str func_err ", from compiling comb body (env as code)") (mif env_err (str env_err ", from compiling comb env (as code)") nil)) ctx)))
-                                    ;(_ (mif env_val (true_print "total function " (idx full_result 0) " based on " env_val " and " func_value)))
+                                    (_ (if (and (not func_err) (not (int? func_value))) (error "BADBADBADfunc")))
+
+                                    (full_result (cond
+                                                      ((!= nil func_err) (array nil nil (str func_err ", from compiling comb body") ctx))
+                                                      ((!= nil env_err)  (array nil nil (str env_err  ", from compiling env")       ctx))
+                                                      ((!= nil env_val)  (array (combine_env_comb_val env_val func_value) nil nil ctx))
+                                                      (true              (array nil (combine_env_code_comb_val_code env_code (mod_fval_to_wrap func_value)) nil ctx))))
                                 ) full_result
                                 ))))
 
