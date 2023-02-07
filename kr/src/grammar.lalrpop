@@ -1,0 +1,27 @@
+use std::str::FromStr;
+use std::rc::Rc;
+use crate::ast::Form;
+
+grammar;
+
+pub Term: Form = {
+    NUM => Form::Int(i32::from_str(<>).unwrap()),
+    SYM => Form::Symbol(<>.to_owned()),
+	"(" <ListInside?> ")" => <>.unwrap_or(Form::Nil),
+	"'" <Term> => Form::Pair(Rc::new(Form::Symbol("quote".to_owned())), Rc::new(<>)),
+};
+ListInside: Form = {
+	<Term> => Form::Pair(Rc::new(<>), Rc::new(Form::Nil)),
+	<h: Term> <t: ListInside> => Form::Pair(Rc::new(h), Rc::new(t)),
+	<a: Term> "." <d: Term> => Form::Pair(Rc::new(a), Rc::new(d)),
+}
+match {
+    "(",
+    ")",
+    ".",
+    "'",
+    r"[0-9]+"                  => NUM,
+	r"[a-zA-Z+*/_-][\w+*/_-]*" => SYM,
+	r"(;[^\n]*\n)|\s+"         => { }
+}
+
