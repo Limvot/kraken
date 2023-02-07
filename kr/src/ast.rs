@@ -5,6 +5,7 @@ pub enum Form {
     Int(i32),
     Symbol(String),
     Pair(Rc<Form>,Rc<Form>),
+    DeriComb { se: Rc<Form>, de: Option<String>, params: Rc<Form>, body: Rc<Form> },
     PrimComb(String, fn(Rc<Form>, Rc<Form>) -> Rc<Form>),
     Nil,
 }
