@@ -105,8 +105,20 @@ fn main() {
 
             Rc::new(Form::DeriComb { se: e, de, params, body })
         }))),
-        ("quote", Rc::new(Form::PrimComb("quote".to_owned(), |e, p| {
-            p
+        ("=", Rc::new(Form::PrimComb("=".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap());
+            let b = eval(e, p.cdr().unwrap().car().unwrap());
+            Rc::new(Form::Bool(a == b))
+        }))),
+        ("if", Rc::new(Form::PrimComb("if".to_owned(), |e, p| {
+            if eval(Rc::clone(&e), p.car().unwrap()).truthy() {
+                eval(e, p.cdr().unwrap().car().unwrap())
+            } else if let Some(els) = p.cdr().unwrap().cdr().and_then(|x| x.car()) {
+                eval(e, els)
+            } else {
+                // should we really allow this? (2 arg if with no else)
+                Rc::new(Form::Nil)
+            }
         }))),
         ("+", Rc::new(Form::PrimComb("+".to_owned(), |e, p| {
             let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
@@ -124,9 +136,17 @@ fn main() {
         ("cdr", Rc::new(Form::PrimComb("cdr".to_owned(), |e, p| {
             eval(Rc::clone(&e), p.car().unwrap()).cdr().unwrap()
         }))),
+        ("quote", Rc::new(Form::PrimComb("quote".to_owned(), |e, p| {
+            p.car().unwrap()
+        }))),
     ]);
     //let input = "(+ 2 (car (cons 4 '(1 2))))";
-    let input = "((vau d p (+ (eval (car p) d) 13)) (+ 1 3))";
-    let result = eval(env, Rc::new(grammar::TermParser::new().parse(input).unwrap()));
+    let input = "(= 17 ((vau d p (+ (eval (car p) d) 13)) (+ 1 3)))";
+    //let input = "(if (= 2 2) (+ 1 2) (+ 3 4))";
+    //let input = "(quote a)";
+    //let input = "'a";
+    let parsed_input = grammar::TermParser::new().parse(input).unwrap();
+    println!("Parsed input is {:?}", parsed_input);
+    let result = eval(env, Rc::new(parsed_input));
     println!("Result is {:?}", result);
 }
