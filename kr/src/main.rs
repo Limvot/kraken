@@ -61,6 +61,29 @@ fn parse_test() {
     eval_test(&g, &e, "(int? true)", false);
     eval_test(&g, &e, "(bool? true)", true);
     eval_test(&g, &e, "(bool? 1)", false);
+
+    eval_test(&g, &e, "((vau root_env _ (eval 'a (cons (cons 'a 2) root_env))))", 2);
+    let LET = "
+    ((vau root_env _ (eval '(let1 a 8 (+ a 9))
+      (cons (cons 'let1
+
+     (vau de p (eval (car (cdr (cdr p))) (cons (cons (car p) (eval (car (cdr p)) de)) de))) 
+    ) root_env))))
+    ";
+
+    eval_test(&g, &e, LET, 17);
+
+    // TODO, finish lambda
+    let LAMBDA = "
+    ((vau root_env _ (eval '((lambda x 2))
+      (cons (cons 'lambda
+
+        (vau de p  (eval (cons vau (cons '_ (cons (car p) (cons (car (cdr p)) nil)))) de))
+
+      ) root_env))))
+    ";
+
+    eval_test(&g, &e, LAMBDA, 2);
 }
 
 fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
