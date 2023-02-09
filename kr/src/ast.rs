@@ -1,4 +1,17 @@
 use std::rc::Rc;
+use std::convert::From;
+
+impl From<i32>  for Form { fn from(item: i32)  -> Self { Form::Int(item) } }
+impl From<bool> for Form { fn from(item: bool) -> Self { Form::Bool(item) } }
+// todo, strings not symbols?
+impl From<String> for Form { fn from(item: String) -> Self { Form::Symbol(item) } }
+impl From<&str> for Form { fn from(item: &str) -> Self { Form::Symbol(item.to_owned()) } }
+
+impl<A: Into<Form>, B: Into<Form>> From<(A, B)> for Form {
+    fn from(item: (A, B)) -> Self {
+        Form::Pair(Rc::new(item.0.into()), Rc::new(item.1.into()))
+    }
+}
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Form {

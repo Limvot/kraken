@@ -8,28 +8,59 @@ use crate::ast::Form;
 
 #[test]
 fn parse_test() {
-    assert!(grammar::TermParser::new().parse("22").is_ok());
-    assert!(grammar::TermParser::new().parse("(22)").is_ok());
-    assert!(grammar::TermParser::new().parse("(((22)))").is_ok());
+    let g = grammar::TermParser::new();
+    for test in [
+    "22", "(22)", "(((22)))",
+    "(22 )", "()", "( )", "( 44)", "(44 )",
+    "(22 44 (1) 33 (4 5 (6) 6))", "hello",
+    "-", "+", "(+ 1 ;hi
+        3)", "'13", "hello-world", "_",
+    ] {
+        assert!(g.parse(test).is_ok());
+    }
+    assert!(g.parse("((22)").is_err());
 
-    assert!(grammar::TermParser::new().parse("((22)").is_err());
+    let e = root_env();
 
-    assert!(grammar::TermParser::new().parse("22").is_ok());
-    assert!(grammar::TermParser::new().parse("(22)").is_ok());
-    assert!(grammar::TermParser::new().parse("(22 )").is_ok());
-    assert!(grammar::TermParser::new().parse("()").is_ok());
-    assert!(grammar::TermParser::new().parse("( )").is_ok());
-    assert!(grammar::TermParser::new().parse("( 44)").is_ok());
-    assert!(grammar::TermParser::new().parse("(44 )").is_ok());
-    assert!(grammar::TermParser::new().parse("(22 44 (1) 33 (4 5 (6) 6))").is_ok());
-    assert!(grammar::TermParser::new().parse("hello").is_ok());
-    assert!(grammar::TermParser::new().parse("-").is_ok());
-    assert!(grammar::TermParser::new().parse("+").is_ok());
-    assert!(grammar::TermParser::new().parse("(+ 1 ;hi
-        3)").is_ok());
-    assert!(grammar::TermParser::new().parse("'13").is_ok());
-    assert!(grammar::TermParser::new().parse("hello-world").is_ok());
-    assert!(grammar::TermParser::new().parse("_").is_ok());
+    fn eval_test<T: Into<Form>>(gram: &grammar::TermParser, e: &Rc<Form>, code: &str, expected: T) {
+        assert_eq!(*eval(Rc::clone(e), Rc::new(gram.parse(code).unwrap())), expected.into());
+    }
+
+    eval_test(&g, &e, "(+ 2 (car (cons 4 '(1 2))))", 6);
+    eval_test(&g, &e, "(= 17 ((vau d p (+ (eval (car p) d) 13)) (+ 1 3)))", true);
+    eval_test(&g, &e, "(if (= 2 2) (+ 1 2) (+ 3 4))", 3);
+    eval_test(&g, &e, "(quote a)", "a");
+    eval_test(&g, &e, "'a", "a");
+    eval_test(&g, &e, "'(1 . a)", (1, "a"));
+    eval_test(&g, &e, "'(1 a)", (1, ("a", Form::Nil)));
+    eval_test(&g, &e, "true", true);
+    eval_test(&g, &e, "false", false);
+    eval_test(&g, &e, "nil", Form::Nil);
+
+    eval_test(&g, &e, "(+ 1 2)",  3);
+    eval_test(&g, &e, "(- 1 2)", -1);
+    eval_test(&g, &e, "(* 1 2)",  2);
+    eval_test(&g, &e, "(/ 4 2)",  2);
+    eval_test(&g, &e, "(% 3 2)",  1);
+    eval_test(&g, &e, "(& 3 2)",  2);
+    eval_test(&g, &e, "(| 2 1)",  3);
+    eval_test(&g, &e, "(^ 2 1)",  3);
+    eval_test(&g, &e, "(^ 3 1)",  2);
+
+    eval_test(&g, &e, "(comb? +)", true);
+    eval_test(&g, &e, "(comb? (vau d p 1))", true);
+    eval_test(&g, &e, "(comb? 1)", false);
+    eval_test(&g, &e, "(pair? '(a))", true);
+    //eval_test(&g, &e, "(pair? '())",  true);
+    eval_test(&g, &e, "(nil? nil)", true);
+    eval_test(&g, &e, "(nil? 1)", false);
+    eval_test(&g, &e, "(pair? 1)", false);
+    eval_test(&g, &e, "(symbol? 'a)", true);
+    eval_test(&g, &e, "(symbol? 1)", false);
+    eval_test(&g, &e, "(int? 1)", true);
+    eval_test(&g, &e, "(int? true)", false);
+    eval_test(&g, &e, "(bool? true)", true);
+    eval_test(&g, &e, "(bool? 1)", false);
 }
 
 fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
@@ -84,8 +115,8 @@ fn assoc_vec(kvs: Vec<(&str, Rc<Form>)>) -> Rc<Form> {
     to_ret
 }
 
-fn main() {
-    let env = assoc_vec(vec![
+fn root_env() -> Rc<Form> {
+    assoc_vec(vec![
         // TODO: Should be properly tail recursive
         ("eval", Rc::new(Form::PrimComb("eval".to_owned(), |e, p| {
             println!("To get eval body, evaluating {:?} in {:?}", p.car(), e);
@@ -120,11 +151,6 @@ fn main() {
                 Rc::new(Form::Nil)
             }
         }))),
-        ("+", Rc::new(Form::PrimComb("+".to_owned(), |e, p| {
-            let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
-            let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
-            Rc::new(Form::Int(a + b))
-        }))),
         ("cons", Rc::new(Form::PrimComb("cons".to_owned(), |e, p| {
             let h = eval(Rc::clone(&e), p.car().unwrap());
             let t = eval(e, p.cdr().unwrap().car().unwrap());
@@ -139,7 +165,95 @@ fn main() {
         ("quote", Rc::new(Form::PrimComb("quote".to_owned(), |e, p| {
             p.car().unwrap()
         }))),
-    ]);
+
+        ("+", Rc::new(Form::PrimComb("+".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
+            let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
+            Rc::new(Form::Int(a + b))
+        }))),
+        ("-", Rc::new(Form::PrimComb("-".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
+            let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
+            Rc::new(Form::Int(a - b))
+        }))),
+        ("*", Rc::new(Form::PrimComb("*".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
+            let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
+            Rc::new(Form::Int(a * b))
+        }))),
+        ("/", Rc::new(Form::PrimComb("/".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
+            let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
+            Rc::new(Form::Int(a / b))
+        }))),
+        ("%", Rc::new(Form::PrimComb("%".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
+            let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
+            Rc::new(Form::Int(a % b))
+        }))),
+        ("&", Rc::new(Form::PrimComb("&".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
+            let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
+            Rc::new(Form::Int(a & b))
+        }))),
+        ("|", Rc::new(Form::PrimComb("|".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
+            let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
+            Rc::new(Form::Int(a | b))
+        }))),
+        ("^", Rc::new(Form::PrimComb("^".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
+            let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
+            Rc::new(Form::Int(a ^ b))
+        }))),
+
+        ("comb?", Rc::new(Form::PrimComb("comb?".to_owned(), |e, p| {
+            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+                Form::PrimComb(n, f)  => true,
+                Form::DeriComb { .. } => true,
+                _                     => false,
+            }))
+        }))),
+        ("pair?", Rc::new(Form::PrimComb("pair?".to_owned(), |e, p| {
+            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+                Form::Pair(_a,_b) => true,
+                _                 => false,
+            }))
+        }))),
+        ("symbol?", Rc::new(Form::PrimComb("symbol?".to_owned(), |e, p| {
+            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+                Form::Symbol(_) => true,
+                _               => false,
+            }))
+        }))),
+        ("int?", Rc::new(Form::PrimComb("int?".to_owned(), |e, p| {
+            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+                Form::Int(_) => true,
+                _            => false,
+            }))
+        }))),
+        // maybe bool? but also could be derived. Nil def
+        ("bool?", Rc::new(Form::PrimComb("bool?".to_owned(), |e, p| {
+            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+                Form::Bool(_) => true,
+                _             => false,
+            }))
+        }))),
+        ("nil?", Rc::new(Form::PrimComb("nil?".to_owned(), |e, p| {
+            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+                Form::Nil => true,
+                _         => false,
+            }))
+        }))),
+
+        // consts
+        ("true",  Rc::new(Form::Bool(true))),
+        ("false", Rc::new(Form::Bool(false))),
+        ("nil",   Rc::new(Form::Nil)),
+    ])
+}
+
+fn main() {
     //let input = "(+ 2 (car (cons 4 '(1 2))))";
     let input = "(= 17 ((vau d p (+ (eval (car p) d) 13)) (+ 1 3)))";
     //let input = "(if (= 2 2) (+ 1 2) (+ 3 4))";
@@ -147,6 +261,6 @@ fn main() {
     //let input = "'a";
     let parsed_input = grammar::TermParser::new().parse(input).unwrap();
     println!("Parsed input is {:?}", parsed_input);
-    let result = eval(env, Rc::new(parsed_input));
+    let result = eval(root_env(), Rc::new(parsed_input));
     println!("Result is {:?}", result);
 }
