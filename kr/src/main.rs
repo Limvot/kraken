@@ -62,16 +62,17 @@ fn parse_test() {
     eval_test(&g, &e, "(bool? true)", true);
     eval_test(&g, &e, "(bool? 1)", false);
 
+    eval_test(&g, &e, "!(bool?) 1",    false);
+    eval_test(&g, &e, "!(bool?) true", true);
+
     eval_test(&g, &e, "((vau root_env _ (eval 'a (cons (cons 'a 2) root_env))))", 2);
     let LET = "
-    ((vau root_env _ (eval '(let1 a 8 (+ a 9))
+    !((vau root_env p (eval (car p)
       (cons (cons 'let1
+     (vau de p (eval (car (cdr (cdr p))) (cons (cons (car p) (eval (car (cdr p)) de)) de)))
+    ) root_env))))";
 
-     (vau de p (eval (car (cdr (cdr p))) (cons (cons (car p) (eval (car (cdr p)) de)) de))) 
-    ) root_env))))
-    ";
-
-    eval_test(&g, &e, LET, 17);
+    eval_test(&g, &e, &format!("{} (let1 x 10 (+ x 7))", LET), 17);
 
     // TODO, finish lambda
     let LAMBDA = "

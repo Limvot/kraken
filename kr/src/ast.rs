@@ -55,5 +55,12 @@ impl Form {
             _ => None,
         }
     }
+    pub fn append(&self, x: Rc<Form>) -> Option<Form> {
+        match self {
+            Form::Pair(car, cdr) => cdr.append(x).map(|x| Form::Pair(Rc::clone(car), Rc::new(x))),
+            Form::Nil            => Some(Form::Pair(x, Rc::new(Form::Nil))),
+            _                    => None,
+        }
+    }
 }
 
