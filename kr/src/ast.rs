@@ -13,6 +13,10 @@ impl<A: Into<Form>, B: Into<Form>> From<(A, B)> for Form {
     }
 }
 
+pub enum PossibleTailCall {
+    Result(Rc<Form>),
+    TailCall(Rc<Form>, Rc<Form>),
+}
 #[derive(Debug, Eq, PartialEq)]
 pub enum Form {
     Nil,
@@ -20,7 +24,7 @@ pub enum Form {
     Bool(bool),
     Symbol(String),
     Pair(Rc<Form>,Rc<Form>),
-    PrimComb(String, fn(Rc<Form>, Rc<Form>) -> Rc<Form>),
+    PrimComb(String, fn(Rc<Form>, Rc<Form>) -> PossibleTailCall),
     DeriComb { se: Rc<Form>, de: Option<String>, params: Rc<Form>, body: Rc<Form> },
 }
 impl Form {

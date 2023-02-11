@@ -4,7 +4,7 @@ lalrpop_mod!(pub grammar);
 use std::rc::Rc;
 
 mod ast;
-use crate::ast::Form;
+use crate::ast::{Form,PossibleTailCall};
 
 #[test]
 fn parse_test() {
@@ -66,13 +66,43 @@ fn parse_test() {
     eval_test(&g, &e, "!(bool?) true", true);
 
     eval_test(&g, &e, "((vau root_env _ (eval 'a (cons (cons 'a 2) root_env))))", 2);
-    let LET = "
-    !((vau root_env p (eval (car p)
+    let LET = "!((vau root_env p (eval (car p)
       (cons (cons 'let1
      (vau de p (eval (car (cdr (cdr p))) (cons (cons (car p) (eval (car (cdr p)) de)) de)))
     ) root_env))))";
 
     eval_test(&g, &e, &format!("{} (let1 x 10 (+ x 7))", LET), 17);
+    let FIB = "
+    !(let1 fib (vau de p
+       !(let1 self (eval (car p) de))
+       !(let1 n    (eval (car (cdr p)) de))
+       !(if (= 0 n) 0)
+       !(if (= 1 n) 1)
+       (+ (self self (- n 1)) (self self (- n 2)))
+    ))";
+    eval_test(&g, &e, &format!("{} {} (fib fib 6)", LET, FIB), 8);
+
+    let FACT = "
+    !(let1 fact (vau de p
+       !(let1 self (eval (car p) de))
+       !(let1 n    (eval (car (cdr p)) de))
+       !(if (= 0 n) 1)
+       (* n (self self (- n 1)))
+    ))";
+    eval_test(&g, &e, &format!("{} {} (fact fact 6)", LET, FACT), 720);
+
+    let BADID = "
+    !(let1 badid (vau de p
+       !(let1 self   (eval (car p) de))
+       !(let1 n      (eval (car (cdr p)) de))
+       !(let1 acc    (eval (car (cdr (cdr p))) de))
+       !(if (= 0 n) acc)
+       (self self (- n 1) (+ acc 1))
+    ))";
+    // Won't work unless tail calls work
+    // can't go too much higher though, because the env keeps growing
+    // and the Rc::drop will overflow the stack lol
+    eval_test(&g, &e, &format!("{} {} (badid badid 1000 0)", LET, BADID), 1000);
 
     // TODO, finish lambda
     let LAMBDA = "
@@ -92,11 +122,11 @@ fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
     let mut x = Option::Some(f);
     loop {
         let cur = x.take().unwrap();
-        println!("Evaluating {:?} in {:?}", cur, e);
+        //println!("Evaluating {:?} in {:?}", cur, e);
         match *cur {
             Form::Symbol(ref s) => {
                 let mut t = e;
-                println!("Looking up {} in {:?}", s, t);
+                //println!("Looking up {} in {:?}", s, t);
                 while s != t.car().unwrap().car().unwrap().sym().unwrap() {
                     t = t.cdr().unwrap();
                 }
@@ -105,7 +135,13 @@ fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
             Form::Pair(ref c, ref p) => {
                 let comb = eval(Rc::clone(&e), Rc::clone(c));
                 match *comb {
-                    Form::PrimComb(ref n,  ref f) => return f(e, Rc::clone(p)),
+                    Form::PrimComb(ref n,  ref f) => match f(e, Rc::clone(p)) {
+                        PossibleTailCall::Result(r) => return r,
+                        PossibleTailCall::TailCall(ne, nx) => {
+                            e = ne;
+                            x = Some(nx);
+                        },
+                    },
                     Form::DeriComb{ref se, ref de, ref params, ref body } => {
                         let mut new_e = Rc::clone(se);
                         if let Some(de) = de {
@@ -114,6 +150,7 @@ fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
                         if let Some(params) = params.sym() {
                             new_e = assoc(params, Rc::clone(p), new_e);
                         }
+                        // always a tail call
                         e = new_e;
                         x = Some(Rc::clone(body));
                     },
@@ -143,14 +180,14 @@ fn root_env() -> Rc<Form> {
     assoc_vec(vec![
         // TODO: Should be properly tail recursive
         ("eval", Rc::new(Form::PrimComb("eval".to_owned(), |e, p| {
-            println!("To get eval body, evaluating {:?} in {:?}", p.car(), e);
+            //println!("To get eval body, evaluating {:?} in {:?}", p.car(), e);
             let b = eval(Rc::clone(&e), p.car().unwrap());
             let e = if let Some(ne) = p.cdr().unwrap().car() {
-                println!("To get eval env, evaluating {:?} in {:?}", ne, e);
+                //println!("To get eval env, evaluating {:?} in {:?}", ne, e);
                 eval(e, ne)
             } else { e };
-            println!("Evaling {:?} in {:?}", b, e);
-            eval(e, b)
+            //println!("Evaling {:?} in {:?}", b, e);
+            PossibleTailCall::TailCall(e, b)
         }))),
         // (vau de params body)
         ("vau", Rc::new(Form::PrimComb("vau".to_owned(), |e, p| {
@@ -158,116 +195,116 @@ fn root_env() -> Rc<Form> {
             let params = p.cdr().unwrap().car().unwrap();
             let body   = p.cdr().unwrap().cdr().unwrap().car().unwrap();
 
-            Rc::new(Form::DeriComb { se: e, de, params, body })
+            PossibleTailCall::Result(Rc::new(Form::DeriComb { se: e, de, params, body }))
         }))),
         ("=", Rc::new(Form::PrimComb("=".to_owned(), |e, p| {
             let a = eval(Rc::clone(&e), p.car().unwrap());
             let b = eval(e, p.cdr().unwrap().car().unwrap());
-            Rc::new(Form::Bool(a == b))
+            PossibleTailCall::Result(Rc::new(Form::Bool(a == b)))
         }))),
         ("if", Rc::new(Form::PrimComb("if".to_owned(), |e, p| {
             if eval(Rc::clone(&e), p.car().unwrap()).truthy() {
-                eval(e, p.cdr().unwrap().car().unwrap())
+                PossibleTailCall::TailCall(e, p.cdr().unwrap().car().unwrap())
             } else if let Some(els) = p.cdr().unwrap().cdr().and_then(|x| x.car()) {
-                eval(e, els)
+                PossibleTailCall::TailCall(e, els)
             } else {
                 // should we really allow this? (2 arg if with no else)
-                Rc::new(Form::Nil)
+                PossibleTailCall::Result(Rc::new(Form::Nil))
             }
         }))),
         ("cons", Rc::new(Form::PrimComb("cons".to_owned(), |e, p| {
             let h = eval(Rc::clone(&e), p.car().unwrap());
             let t = eval(e, p.cdr().unwrap().car().unwrap());
-            Rc::new(Form::Pair(h, t))
+            PossibleTailCall::Result(Rc::new(Form::Pair(h, t)))
         }))),
         ("car", Rc::new(Form::PrimComb("car".to_owned(), |e, p| {
-            eval(Rc::clone(&e), p.car().unwrap()).car().unwrap()
+            PossibleTailCall::Result(eval(Rc::clone(&e), p.car().unwrap()).car().unwrap())
         }))),
         ("cdr", Rc::new(Form::PrimComb("cdr".to_owned(), |e, p| {
-            eval(Rc::clone(&e), p.car().unwrap()).cdr().unwrap()
+            PossibleTailCall::Result(eval(Rc::clone(&e), p.car().unwrap()).cdr().unwrap())
         }))),
         ("quote", Rc::new(Form::PrimComb("quote".to_owned(), |e, p| {
-            p.car().unwrap()
+            PossibleTailCall::Result(p.car().unwrap())
         }))),
 
         ("+", Rc::new(Form::PrimComb("+".to_owned(), |e, p| {
             let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
             let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
-            Rc::new(Form::Int(a + b))
+            PossibleTailCall::Result(Rc::new(Form::Int(a + b)))
         }))),
         ("-", Rc::new(Form::PrimComb("-".to_owned(), |e, p| {
             let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
             let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
-            Rc::new(Form::Int(a - b))
+            PossibleTailCall::Result(Rc::new(Form::Int(a - b)))
         }))),
         ("*", Rc::new(Form::PrimComb("*".to_owned(), |e, p| {
             let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
             let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
-            Rc::new(Form::Int(a * b))
+            PossibleTailCall::Result(Rc::new(Form::Int(a * b)))
         }))),
         ("/", Rc::new(Form::PrimComb("/".to_owned(), |e, p| {
             let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
             let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
-            Rc::new(Form::Int(a / b))
+            PossibleTailCall::Result(Rc::new(Form::Int(a / b)))
         }))),
         ("%", Rc::new(Form::PrimComb("%".to_owned(), |e, p| {
             let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
             let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
-            Rc::new(Form::Int(a % b))
+            PossibleTailCall::Result(Rc::new(Form::Int(a % b)))
         }))),
         ("&", Rc::new(Form::PrimComb("&".to_owned(), |e, p| {
             let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
             let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
-            Rc::new(Form::Int(a & b))
+            PossibleTailCall::Result(Rc::new(Form::Int(a & b)))
         }))),
         ("|", Rc::new(Form::PrimComb("|".to_owned(), |e, p| {
             let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
             let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
-            Rc::new(Form::Int(a | b))
+            PossibleTailCall::Result(Rc::new(Form::Int(a | b)))
         }))),
         ("^", Rc::new(Form::PrimComb("^".to_owned(), |e, p| {
             let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
             let b = eval(e, p.cdr().unwrap().car().unwrap()).int().unwrap();
-            Rc::new(Form::Int(a ^ b))
+            PossibleTailCall::Result(Rc::new(Form::Int(a ^ b)))
         }))),
 
         ("comb?", Rc::new(Form::PrimComb("comb?".to_owned(), |e, p| {
-            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+            PossibleTailCall::Result(Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
                 Form::PrimComb(n, f)  => true,
                 Form::DeriComb { .. } => true,
                 _                     => false,
-            }))
+            })))
         }))),
         ("pair?", Rc::new(Form::PrimComb("pair?".to_owned(), |e, p| {
-            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+            PossibleTailCall::Result(Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
                 Form::Pair(_a,_b) => true,
                 _                 => false,
-            }))
+            })))
         }))),
         ("symbol?", Rc::new(Form::PrimComb("symbol?".to_owned(), |e, p| {
-            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+            PossibleTailCall::Result(Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
                 Form::Symbol(_) => true,
                 _               => false,
-            }))
+            })))
         }))),
         ("int?", Rc::new(Form::PrimComb("int?".to_owned(), |e, p| {
-            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+            PossibleTailCall::Result(Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
                 Form::Int(_) => true,
                 _            => false,
-            }))
+            })))
         }))),
         // maybe bool? but also could be derived. Nil def
         ("bool?", Rc::new(Form::PrimComb("bool?".to_owned(), |e, p| {
-            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+            PossibleTailCall::Result(Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
                 Form::Bool(_) => true,
                 _             => false,
-            }))
+            })))
         }))),
         ("nil?", Rc::new(Form::PrimComb("nil?".to_owned(), |e, p| {
-            Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
+            PossibleTailCall::Result(Rc::new(Form::Bool(match &*eval(e, p.car().unwrap()) {
                 Form::Nil => true,
                 _         => false,
-            }))
+            })))
         }))),
 
         // consts
