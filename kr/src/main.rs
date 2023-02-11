@@ -90,19 +90,30 @@ fn parse_test() {
        (* n (self self (- n 1)))
     ))";
     eval_test(&g, &e, &format!("{} {} (fact fact 6)", LET, FACT), 720);
-
-    let BADID = "
+    let VAPPLY = format!("
+    {}
+    !(let1 vapply (vau de p
+       !(let1 f    (eval (car p) de))
+       !(let1 p    (eval (car (cdr p)) de))
+       !(let1 nde  (eval (car (cdr (cdr p))) de))
+       (eval (cons f p) nde)
+    ))", LET);
+    let BADID = format!("
+    {}
     !(let1 badid (vau de p
-       !(let1 self   (eval (car p) de))
-       !(let1 n      (eval (car (cdr p)) de))
-       !(let1 acc    (eval (car (cdr (cdr p))) de))
-       !(if (= 0 n) acc)
-       (self self (- n 1) (+ acc 1))
-    ))";
+       !(let1 inner (vau ide ip
+           !(let1 self   (car ip))
+           !(let1 n      (car (cdr ip)))
+           !(let1 acc    (car (cdr (cdr ip))))
+           !(if (= 0 n) acc)
+           (vapply self (cons self (cons (- n 1) (cons (+ acc 1) nil))) de)
+       ))
+       (vapply inner (cons inner (cons (eval (car p) de) (cons 0 nil))) de)
+    ))", VAPPLY);
     // Won't work unless tail calls work
     // can't go too much higher though, because the env keeps growing
     // and the Rc::drop will overflow the stack lol
-    eval_test(&g, &e, &format!("{} {} (badid badid 1000 0)", LET, BADID), 1000);
+    eval_test(&g, &e, &format!("{} (badid 1000)", BADID), 1000);
 
     // TODO, finish lambda
     let LAMBDA = "
