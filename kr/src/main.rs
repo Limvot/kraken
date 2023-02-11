@@ -94,10 +94,11 @@ fn parse_test() {
     {}
     !(let1 vapply (vau de p
        !(let1 f    (eval (car p) de))
-       !(let1 p    (eval (car (cdr p)) de))
+       !(let1 ip   (eval (car (cdr p)) de))
        !(let1 nde  (eval (car (cdr (cdr p))) de))
-       (eval (cons f p) nde)
+       (eval (cons f ip) nde)
     ))", LET);
+
     let BADID = format!("
     {}
     !(let1 badid (vau de p
@@ -114,6 +115,20 @@ fn parse_test() {
     // can't go too much higher though, because the env keeps growing
     // and the Rc::drop will overflow the stack lol
     eval_test(&g, &e, &format!("{} (badid 1000)", BADID), 1000);
+
+    let VMAP = format!("
+    {}
+    !(let1 vmap (vau de p
+       !(let1 vmap_inner (vau ide ip
+           !(let1 self   (car ip))
+           !(let1 f      (car (cdr ip)))
+           !(let1 l      (car (cdr (cdr ip))))
+           !(if (= nil l) l)
+           (cons (vapply f (cons (car l) nil) de) (vapply self (cons self (cons f (cons (cdr l) nil))) de))
+       ))
+       (vapply vmap_inner (cons vmap_inner (cons (eval (car p) de) (cons (eval (car (cdr p)) de) nil))) de)
+    ))", VAPPLY);
+    eval_test(&g, &e, &format!("{} (vmap (vau de p (+ 1 (car p))) '(1 2 3))", VMAP), (2, (3, (4, Form::Nil))));
 
     // TODO, finish lambda
     let LAMBDA = "
@@ -236,6 +251,11 @@ fn root_env() -> Rc<Form> {
         }))),
         ("quote", Rc::new(Form::PrimComb("quote".to_owned(), |e, p| {
             PossibleTailCall::Result(p.car().unwrap())
+        }))),
+
+        ("debug", Rc::new(Form::PrimComb("debug".to_owned(), |e, p| {
+            println!("Debug: {:?}", eval(Rc::clone(&e), p.car().unwrap()));
+            PossibleTailCall::TailCall(e, p.cdr().unwrap().car().unwrap())
         }))),
 
         ("+", Rc::new(Form::PrimComb("+".to_owned(), |e, p| {
