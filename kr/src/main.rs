@@ -99,6 +99,8 @@ fn parse_test() {
        (eval (cons f ip) nde)
     ))", LET);
 
+    // need the vapply to keep env in check because otherwise the env keeps growing
+    // and the Rc::drop will overflow the stack lol
     let BADID = format!("
     {}
     !(let1 badid (vau de p
@@ -112,10 +114,9 @@ fn parse_test() {
        (vapply inner (cons inner (cons (eval (car p) de) (cons 0 nil))) de)
     ))", VAPPLY);
     // Won't work unless tail calls work
-    // can't go too much higher though, because the env keeps growing
-    // and the Rc::drop will overflow the stack lol
     eval_test(&g, &e, &format!("{} (badid 1000)", BADID), 1000);
 
+    // Maybe define in terms of a right fold?
     let VMAP = format!("
     {}
     !(let1 vmap (vau de p
@@ -130,17 +131,96 @@ fn parse_test() {
     ))", VAPPLY);
     eval_test(&g, &e, &format!("{} (vmap (vau de p (+ 1 (car p))) '(1 2 3))", VMAP), (2, (3, (4, Form::Nil))));
 
-    // TODO, finish lambda
-    let LAMBDA = "
-    ((vau root_env _ (eval '((lambda x 2))
-      (cons (cons 'lambda
+    // Make sure (wrap (vau ...)) and internal style are optimized the same
+    let WRAP = format!("
+    {}
+    !(let1 wrap (vau de p
+       !(let1 f (eval (car p) de))
+       (vau ide p (vapply f (vmap (vau _ xp (eval (car xp) ide)) p) ide))
+    ))", VMAP);
+    eval_test(&g, &e, &format!("{} ((wrap (vau _ p (+ (car p) 1))) (+ 1 2))", WRAP), 4);
+    // TODO: unwrap
 
-        (vau de p  (eval (cons vau (cons '_ (cons (car p) (cons (car (cdr p)) nil)))) de))
+    let VFOLDL = format!("
+    {}
+    !(let1 vfoldl (vau de p
+       !(let1 vfoldl_inner (vau ide ip
+           !(let1 self   (car ip))
+           !(let1 f      (car (cdr ip)))
+           !(let1 a      (car (cdr (cdr ip))))
+           !(let1 l      (car (cdr (cdr (cdr ip)))))
+           !(if (= nil l) a)
+           (vapply self (cons self (cons f (cons (vapply f (cons a (cons (car l) nil)) de) (cons (cdr l) nil)))) de)
+       ))
+       (vapply vfoldl_inner (cons vfoldl_inner (cons (eval (car p) de) (cons (eval (car (cdr p)) de) (cons (eval (car (cdr (cdr p))) de) nil)))) de)
+    ))", WRAP);
+    eval_test(&g, &e, &format!("{} (vfoldl (vau de p (+ (car p) (car (cdr p)))) 0 '(1 2 3))", VFOLDL), 6);
 
-      ) root_env))))
-    ";
+    let ZIPD = format!("
+    {}
+    !(let1 zipd (vau de p
+       !(let1 zipd_inner (vau ide ip
+           !(let1 self   (car ip))
+           !(let1 a      (car (cdr ip)))
+           !(let1 b      (car (cdr (cdr ip))))
+           !(if (= nil a) a)
+           !(if (= nil b) b)
+           (cons (cons (car a) (car b)) (vapply self (cons self (cons (cdr a) (cons (cdr b) nil))) de))
+       ))
+       (vapply zipd_inner (cons zipd_inner (cons (eval (car p) de) (cons (eval (car (cdr p)) de) nil))) de)
+    ))", VFOLDL);
+    eval_test(&g, &e, &format!("{} (zipd '(1 2 3) '(4 5 6))", ZIPD), ((1,4), ((2,5), ((3,6), Form::Nil))));
 
-    eval_test(&g, &e, LAMBDA, 2);
+    let CONCAT = format!("
+    {}
+    !(let1 concat (vau de p
+       !(let1 concat_inner (vau ide ip
+           !(let1 self   (car ip))
+           !(let1 a      (car (cdr ip)))
+           !(let1 b      (car (cdr (cdr ip))))
+           !(if (= nil a) b)
+           (cons (car a) (vapply self (cons self (cons (cdr a) (cons b nil))) de))
+       ))
+       (vapply concat_inner (cons concat_inner (cons (eval (car p) de) (cons (eval (car (cdr p)) de) nil))) de)
+    ))", ZIPD);
+    eval_test(&g, &e, &format!("{} (concat '(1 2 3) '(4 5 6))", CONCAT), (1, (2, (3, (4, (5, (6, Form::Nil)))))));
+
+    // Should do some error checking, I suppose?
+    // Also, extend for variadic (no zip, but back to fold I think)
+    let BVAU = format!("
+    {}
+    !(let1 bvau (vau se p
+       (if (= nil (cdr (cdr p)))
+           ; No de case
+           !(let1 p_ls (car p))
+           !(let1 b_v  (car (cdr p)))
+           (vau _ dp
+               !(let1 zipped_env (concat (zipd p_ls dp) se))
+               (eval b_v zipped_env)
+           )
+
+           ; de case
+           !(let1 de_s (car p))
+           !(let1 p_ls (car (cdr p)))
+           !(let1 b_v  (car (cdr (cdr p))))
+           (vau dde dp
+               !(let1 dde_se (cons (cons de_s dde) se))
+               !(let1 zipped_env (concat (zipd p_ls dp) dde_se))
+               (eval b_v zipped_env)
+           )
+       )
+    ))", CONCAT);
+    eval_test(&g, &e, &format!("{} ((bvau _ (a b c) (+ a (- b c))) 10 2 3)", BVAU), 9);
+    eval_test(&g, &e, &format!("{} ((bvau (a b c) (+ a (- b c))) 10 2 3)", BVAU), 9);
+    eval_test(&g, &e, &format!("{} ((wrap (bvau _ (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", BVAU), 7);
+    eval_test(&g, &e, &format!("{} ((wrap (bvau (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", BVAU), 7);
+
+    let LAMBDA = format!("
+    {}
+    !(let1 lambda (vau de p
+       (wrap (vapply bvau p de))
+    ))", BVAU);
+    eval_test(&g, &e, &format!("{} ((lambda (a b c) (+ a (- b c))) (+ 10 1) (+ 2 2) (+ 5 3))", LAMBDA), 7);
 }
 
 fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
@@ -153,6 +233,7 @@ fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
             Form::Symbol(ref s) => {
                 let mut t = e;
                 //println!("Looking up {} in {:?}", s, t);
+                //println!("Looking up {}", s);
                 while s != t.car().unwrap().car().unwrap().sym().unwrap() {
                     t = t.cdr().unwrap();
                 }
