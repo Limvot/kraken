@@ -190,13 +190,21 @@ fn parse_test() {
     let BVAU = format!("
     {}
     !(let1 bvau (vau se p
+       !(let1 match_params (wrap (vau 0 p
+            !(let1 self (car                p))
+            !(let1 p_ls (car (cdr           p)))
+            !(let1 dp   (car (cdr (cdr      p))))
+            !(let1 e    (car (cdr (cdr (cdr p)))))
+            !(if (= nil   p_ls) e)
+            !(if (symbol? p_ls) (cons (cons p_ls dp) e))
+            (self self (cdr p_ls) (cdr dp) (self self (car p_ls) (car dp) e))
+       )))
        (if (= nil (cdr (cdr p)))
            ; No de case
            !(let1 p_ls (car p))
            !(let1 b_v  (car (cdr p)))
-           (vau _ dp
-               !(let1 zipped_env (concat (zipd p_ls dp) se))
-               (eval b_v zipped_env)
+           (vau 0 dp
+               (eval b_v (match_params match_params p_ls dp se))
            )
 
            ; de case
@@ -204,14 +212,22 @@ fn parse_test() {
            !(let1 p_ls (car (cdr p)))
            !(let1 b_v  (car (cdr (cdr p))))
            (vau dde dp
-               !(let1 dde_se (cons (cons de_s dde) se))
-               !(let1 zipped_env (concat (zipd p_ls dp) dde_se))
-               (eval b_v zipped_env)
+               (eval b_v (match_params match_params p_ls dp (cons (cons de_s dde) se)))
            )
        )
     ))", CONCAT);
     eval_test(&g, &e, &format!("{} ((bvau _ (a b c) (+ a (- b c))) 10 2 3)", BVAU), 9);
     eval_test(&g, &e, &format!("{} ((bvau (a b c) (+ a (- b c))) 10 2 3)", BVAU), 9);
+
+    eval_test(&g, &e, &format!("{} ((bvau (a b . c) c) 10 2 3)", BVAU), (3, Form::Nil));
+    eval_test(&g, &e, &format!("{} ((bvau (a b . c) c) 10 2)", BVAU), Form::Nil);
+    eval_test(&g, &e, &format!("{} ((bvau (a b . c) c) 10 2 3 4 5)", BVAU), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((bvau c c) 3 4 5)", BVAU), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((bvau c c))", BVAU), Form::Nil);
+    eval_test(&g, &e, &format!("{} ((bvau ((a b) . c) c) (10 2) 3 4 5)", BVAU), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((bvau ((a b) . c) a) (10 2) 3 4 5)", BVAU), 10);
+    eval_test(&g, &e, &format!("{} ((bvau ((a b) . c) b) (10 2) 3 4 5)", BVAU), 2);
+
     eval_test(&g, &e, &format!("{} ((wrap (bvau _ (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", BVAU), 7);
     eval_test(&g, &e, &format!("{} ((wrap (bvau (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", BVAU), 7);
 
@@ -221,6 +237,15 @@ fn parse_test() {
        (wrap (vapply bvau p de))
     ))", BVAU);
     eval_test(&g, &e, &format!("{} ((lambda (a b c) (+ a (- b c))) (+ 10 1) (+ 2 2) (+ 5 3))", LAMBDA), 7);
+
+    eval_test(&g, &e, &format!("{} ((lambda (a b . c) c) 10 2 3)", LAMBDA), (3, Form::Nil));
+    eval_test(&g, &e, &format!("{} ((lambda (a b . c) c) 10 2)", LAMBDA), Form::Nil);
+    eval_test(&g, &e, &format!("{} ((lambda (a b . c) c) 10 2 3 4 5)", LAMBDA), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((lambda c c) 3 4 5)", LAMBDA), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((lambda c c))", LAMBDA), Form::Nil);
+    eval_test(&g, &e, &format!("{} ((lambda ((a b) . c) c) '(10 2) 3 4 5)", LAMBDA), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((lambda ((a b) . c) a) '(10 2) 3 4 5)", LAMBDA), 10);
+    eval_test(&g, &e, &format!("{} ((lambda ((a b) . c) b) '(10 2) 3 4 5)", LAMBDA), 2);
 }
 
 fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
