@@ -169,6 +169,7 @@ version = "0.1.0"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
+ "once_cell",
  "regex",
 ]
 

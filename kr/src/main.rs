@@ -239,16 +239,12 @@ fn parse_test() {
     }
     assert!(g.parse("((22)").is_err());
 }
+fn eval_test<T: Into<Form>>(gram: &grammar::TermParser, e: &Rc<Form>, code: &str, expected: T) {
+    assert_eq!(*eval(Rc::clone(e), Rc::new(gram.parse(code).unwrap())), expected.into());
+}
 
 #[test]
-fn eval_test() {
-    let g = grammar::TermParser::new();
-    let e = root_env();
-
-    fn eval_test<T: Into<Form>>(gram: &grammar::TermParser, e: &Rc<Form>, code: &str, expected: T) {
-        assert_eq!(*eval(Rc::clone(e), Rc::new(gram.parse(code).unwrap())), expected.into());
-    }
-
+fn basic_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     eval_test(&g, &e, "(+ 2 (car (cons 4 '(1 2))))", 6);
     eval_test(&g, &e, "(= 17 ((vau d p (+ (eval (car p) d) 13)) (+ 1 3)))", true);
     eval_test(&g, &e, "(if (= 2 2) (+ 1 2) (+ 3 4))", 3);
@@ -289,12 +285,20 @@ fn eval_test() {
     eval_test(&g, &e, "!(bool?) true", true);
 
     eval_test(&g, &e, "((vau root_env _ (eval 'a (cons (cons 'a 2) root_env))))", 2);
-    let def_let = "!((vau root_env p (eval (car p)
+}
+
+
+use once_cell::sync::Lazy;
+static LET: Lazy<String> = Lazy::new(|| {
+    "!((vau root_env p (eval (car p)
       (cons (cons 'let1
      (vau de p (eval (car (cdr (cdr p))) (cons (cons (car p) (eval (car (cdr p)) de)) de)))
-    ) root_env))))";
+    ) root_env))))".to_owned()
+});
 
-    eval_test(&g, &e, &format!("{} (let1 x 10 (+ x 7))", def_let), 17);
+#[test]
+fn fib_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
+    eval_test(&g, &e, &format!("{} (let1 x 10 (+ x 7))", *LET), 17);
     let def_fib = "
     !(let1 fib (vau de p
        !(let1 self (eval (car p) de))
@@ -303,8 +307,10 @@ fn eval_test() {
        !(if (= 1 n) 1)
        (+ (self self (- n 1)) (self self (- n 2)))
     ))";
-    eval_test(&g, &e, &format!("{} {} (fib fib 6)", def_let, def_fib), 8);
-
+    eval_test(&g, &e, &format!("{} {} (fib fib 6)", *LET, def_fib), 8);
+}
+#[test]
+fn fact_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     let def_fact = "
     !(let1 fact (vau de p
        !(let1 self (eval (car p) de))
@@ -312,16 +318,20 @@ fn eval_test() {
        !(if (= 0 n) 1)
        (* n (self self (- n 1)))
     ))";
-    eval_test(&g, &e, &format!("{} {} (fact fact 6)", def_let, def_fact), 720);
-    let def_vapply = format!("
+    eval_test(&g, &e, &format!("{} {} (fact fact 6)", *LET, def_fact), 720);
+}
+static VAPPLY: Lazy<String> = Lazy::new(|| {
+    format!("
     {}
     !(let1 vapply (vau de p
        !(let1 f    (eval (car p) de))
        !(let1 ip   (eval (car (cdr p)) de))
        !(let1 nde  (eval (car (cdr (cdr p))) de))
        (eval (cons f ip) nde)
-    ))", def_let);
-
+    ))", *LET)
+});
+#[test]
+fn vapply_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     // need the vapply to keep env in check because otherwise the env keeps growing
     // and the Rc::drop will overflow the stack lol
     let def_badid = format!("
@@ -335,12 +345,13 @@ fn eval_test() {
            (vapply self (cons self (cons (- n 1) (cons (+ acc 1) nil))) de)
        ))
        (vapply inner (cons inner (cons (eval (car p) de) (cons 0 nil))) de)
-    ))", def_vapply);
+    ))", *VAPPLY);
     // Won't work unless tail calls work
     eval_test(&g, &e, &format!("{} (badid 1000)", def_badid), 1000);
+}
 
-    // Maybe define in terms of a right fold?
-    let def_vmap = format!("
+static VMAP: Lazy<String> = Lazy::new(|| {
+    format!("
     {}
     !(let1 vmap (vau de p
        !(let1 vmap_inner (vau ide ip
@@ -351,41 +362,60 @@ fn eval_test() {
            (cons (vapply f (cons (car l) nil) de) (vapply self (cons self (cons f (cons (cdr l) nil))) de))
        ))
        (vapply vmap_inner (cons vmap_inner (cons (eval (car p) de) (cons (eval (car (cdr p)) de) nil))) de)
-    ))", def_vapply);
-    eval_test(&g, &e, &format!("{} (vmap (vau de p (+ 1 (car p))) '(1 2 3))", def_vmap), (2, (3, (4, Form::Nil))));
+    ))", *VAPPLY)
+});
+#[test]
+fn vmap_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
+    // Maybe define in terms of a right fold?
+    eval_test(&g, &e, &format!("{} (vmap (vau de p (+ 1 (car p))) '(1 2 3))", *VMAP), (2, (3, (4, Form::Nil))));
+}
 
-    // Make sure (wrap (vau ...)) and internal style are optimized the same
-    let def_wrap = format!("
+static WRAP: Lazy<String> = Lazy::new(|| {
+    format!("
     {}
     !(let1 wrap (vau de p
        !(let1 f (eval (car p) de))
        (vau ide p (vapply f (vmap (vau _ xp (eval (car xp) ide)) p) ide))
-    ))", def_vmap);
-    eval_test(&g, &e, &format!("{} ((wrap (vau _ p (+ (car p) 1))) (+ 1 2))", def_wrap), 4);
+    ))", *VMAP)
+});
+#[test]
+fn wrap_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
+    // Make sure (wrap (vau ...)) and internal style are optimized the same
+    eval_test(&g, &e, &format!("{} ((wrap (vau _ p (+ (car p) 1))) (+ 1 2))", *WRAP), 4);
+}
 
-    let def_unwrap = format!("
+static UNWRAP: Lazy<String> = Lazy::new(|| {
+    format!("
     {}
     !(let1 unwrap (vau de p
        !(let1 f (eval (car p) de))
        (vau ide p (vapply f (vmap (vau _ xp (cons quote (cons (car xp) nil))) p) ide))
-    ))", def_wrap);
+    ))", *WRAP)
+});
+#[test]
+fn unwrap_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     // Can't represent prims in tests :( - they do work though, uncommenting and checking the
     // failed assert verifies
     //eval_test(&g, &e, &format!("{} ((unwrap (vau de p             (car p)))         (+ 1 2))", def_unwrap), ("quote", (("+", (1, (2, Form::Nil))), Form::Nil)));
     //eval_test(&g, &e, &format!("{} ((unwrap (vau de p       (eval (car p) de)))     (+ 1 2))", def_unwrap), (("+", (1, (2, Form::Nil))), Form::Nil));
-    eval_test(&g, &e, &format!("{} ((unwrap (vau de p (eval (eval (car p) de) de))) (+ 1 2))", def_unwrap), 3);
-    eval_test(&g, &e, &format!("{} ((unwrap (vau de p (+ (eval (eval (car p) de) de) 1))) (+ 1 2))", def_unwrap), 4);
+    eval_test(&g, &e, &format!("{} ((unwrap (vau de p (eval (eval (car p) de) de))) (+ 1 2))",       *UNWRAP), 3);
+    eval_test(&g, &e, &format!("{} ((unwrap (vau de p (+ (eval (eval (car p) de) de) 1))) (+ 1 2))", *UNWRAP), 4);
+}
 
-    // Should this allow envs at all? It technically can, but I feel like it kinda goes against the
-    // sensible deriviation
-    let def_lapply = format!("
+static LAPPLY: Lazy<String> = Lazy::new(|| {
+    format!("
     {}
     !(let1 lapply (vau de p
        !(let1 f    (eval (car p) de))
        !(let1 ip   (eval (car (cdr p)) de))
        !(let1 nde  (eval (car (cdr (cdr p))) de))
        (eval (cons (unwrap f) ip) nde)
-    ))", def_unwrap);
+    ))", *UNWRAP)
+});
+#[test]
+fn lapply_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
+    // Should this allow envs at all? It technically can, but I feel like it kinda goes against the
+    // sensible deriviation
     let def_lbadid = format!("
     {}
     !(let1 lbadid (vau de p
@@ -397,12 +427,14 @@ fn eval_test() {
            (lapply self (cons self (cons (- n 1) (cons (+ acc 1) nil))) de)
        )))
        (lapply inner (cons inner (cons (eval (car p) de) (cons 0 nil))) de)
-    ))", def_lapply);
+    ))", *LAPPLY);
     // Won't work unless tail calls work
     // takes a while though
-    //eval_test(&g, &e, &format!("{} (lbadid 1000)", def_lbadid), 1000);
+    eval_test(&g, &e, &format!("{} (lbadid 1000)", def_lbadid), 1000);
+}
 
-    let def_vfoldl = format!("
+static VFOLDL: Lazy<String> = Lazy::new(|| {
+    format!("
     {}
     !(let1 vfoldl (vau de p
        !(let1 vfoldl_inner (vau ide ip
@@ -414,8 +446,11 @@ fn eval_test() {
            (vapply self (cons self (cons f (cons (vapply f (cons a (cons (car l) nil)) de) (cons (cdr l) nil)))) de)
        ))
        (vapply vfoldl_inner (cons vfoldl_inner (cons (eval (car p) de) (cons (eval (car (cdr p)) de) (cons (eval (car (cdr (cdr p))) de) nil)))) de)
-    ))", def_lapply);
-    eval_test(&g, &e, &format!("{} (vfoldl (vau de p (+ (car p) (car (cdr p)))) 0 '(1 2 3))", def_vfoldl), 6);
+    ))", *LAPPLY)
+});
+#[test]
+fn vfoldl_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
+    eval_test(&g, &e, &format!("{} (vfoldl (vau de p (+ (car p) (car (cdr p)))) 0 '(1 2 3))", *VFOLDL), 6);
 
     let def_zipd = format!("
     {}
@@ -429,7 +464,7 @@ fn eval_test() {
            (cons (cons (car a) (car b)) (vapply self (cons self (cons (cdr a) (cons (cdr b) nil))) de))
        ))
        (vapply zipd_inner (cons zipd_inner (cons (eval (car p) de) (cons (eval (car (cdr p)) de) nil))) de)
-    ))", def_vfoldl);
+    ))", *VFOLDL);
     eval_test(&g, &e, &format!("{} (zipd '(1 2 3) '(4 5 6))", def_zipd), ((1,4), ((2,5), ((3,6), Form::Nil))));
 
     let def_concat = format!("
@@ -512,27 +547,27 @@ fn eval_test() {
     // should fail
     //eval_test(&g, &e, &format!("{} ((lambda (a b c) c) 10 2 3 4)", def_lambda), 3);
 
-    let def_let2 = format!("
+    let LET2 = format!("
     {}
     !(let1 let1 (bvau dp (s v b)
         (eval b (match_params match_params s (eval v dp) dp))
     ))
     ", def_lambda);
-    eval_test(&g, &e, &format!("{} (let1 x               (+ 10 1) (+ x 1))", def_let2), 12);
-    eval_test(&g, &e, &format!("{} (let1 x               '(10 1) x)", def_let2), (10, (1, Form::Nil)));
-    eval_test(&g, &e, &format!("{} (let1 (a b)           '(10 1) a)", def_let2), 10);
-    eval_test(&g, &e, &format!("{} (let1 (a b)           '(10 1) b)", def_let2),  1);
-    eval_test(&g, &e, &format!("{} (let1 (a b . c)       '(10 1) c)", def_let2),  Form::Nil);
-    eval_test(&g, &e, &format!("{} (let1 (a b . c)       '(10 1 2 3) c)", def_let2),  (2, (3, Form::Nil)));
-    eval_test(&g, &e, &format!("{} (let1 ((a . b) . c)   '((10 1) 2 3) a)", def_let2),  10);
-    eval_test(&g, &e, &format!("{} (let1 ((a . b) . c)   '((10 1) 2 3) b)", def_let2),  (1, Form::Nil));
+    eval_test(&g, &e, &format!("{} (let1 x               (+ 10 1) (+ x 1))", LET2), 12);
+    eval_test(&g, &e, &format!("{} (let1 x               '(10 1) x)", LET2), (10, (1, Form::Nil)));
+    eval_test(&g, &e, &format!("{} (let1 (a b)           '(10 1) a)", LET2), 10);
+    eval_test(&g, &e, &format!("{} (let1 (a b)           '(10 1) b)", LET2),  1);
+    eval_test(&g, &e, &format!("{} (let1 (a b . c)       '(10 1) c)", LET2),  Form::Nil);
+    eval_test(&g, &e, &format!("{} (let1 (a b . c)       '(10 1 2 3) c)", LET2),  (2, (3, Form::Nil)));
+    eval_test(&g, &e, &format!("{} (let1 ((a . b) . c)   '((10 1) 2 3) a)", LET2),  10);
+    eval_test(&g, &e, &format!("{} (let1 ((a . b) . c)   '((10 1) 2 3) b)", LET2),  (1, Form::Nil));
     // should fail
-    //eval_test(&g, &e, &format!("{} (let1 (a b c) '(10 2 3 4) a)", def_let2), 10);
+    //eval_test(&g, &e, &format!("{} (let1 (a b c) '(10 2 3 4) a)", LET2), 10);
 
     let def_array = format!("
     {}
     !(let1 array (lambda args args))
-    ", def_let2);
+    ", LET2);
     eval_test(&g, &e, &format!("{} (array 1 2 (+ 3 4))", def_array), (1, (2, (7, Form::Nil))));
 
     let def_Y = format!("
