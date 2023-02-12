@@ -49,13 +49,13 @@ impl Form {
     }
     pub fn car(&self) -> Option<Rc<Form>> {
         match self {
-            Form::Pair(car, cdr) => Some(Rc::clone(car)),
+            Form::Pair(car, _cdr) => Some(Rc::clone(car)),
             _ => None,
         }
     }
     pub fn cdr(&self) -> Option<Rc<Form>> {
         match self {
-            Form::Pair(car, cdr) => Some(Rc::clone(cdr)),
+            Form::Pair(_car, cdr) => Some(Rc::clone(cdr)),
             _ => None,
         }
     }
