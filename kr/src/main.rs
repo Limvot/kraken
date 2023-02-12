@@ -121,6 +121,14 @@ fn root_env() -> Rc<Form> {
             println!("Debug: {:?}", eval(Rc::clone(&e), p.car().unwrap()));
             PossibleTailCall::TailCall(e, p.cdr().unwrap().car().unwrap())
         }))),
+        ("assert", Rc::new(Form::PrimComb("assert".to_owned(), |e, p| {
+            let thing = eval(Rc::clone(&e), p.car().unwrap());
+            if !thing.truthy() {
+                println!("Assert failed: {:?}", thing);
+            }
+            assert!(thing.truthy());
+            PossibleTailCall::TailCall(e, p.cdr().unwrap().car().unwrap())
+        }))),
 
         ("+", Rc::new(Form::PrimComb("+".to_owned(), |e, p| {
             let a = eval(Rc::clone(&e), p.car().unwrap()).int().unwrap();
@@ -354,7 +362,45 @@ fn eval_test() {
        (vau ide p (vapply f (vmap (vau _ xp (eval (car xp) ide)) p) ide))
     ))", def_vmap);
     eval_test(&g, &e, &format!("{} ((wrap (vau _ p (+ (car p) 1))) (+ 1 2))", def_wrap), 4);
-    // TODO: unwrap
+
+    let def_unwrap = format!("
+    {}
+    !(let1 unwrap (vau de p
+       !(let1 f (eval (car p) de))
+       (vau ide p (vapply f (vmap (vau _ xp (cons quote (cons (car xp) nil))) p) ide))
+    ))", def_wrap);
+    // Can't represent prims in tests :( - they do work though, uncommenting and checking the
+    // failed assert verifies
+    //eval_test(&g, &e, &format!("{} ((unwrap (vau de p             (car p)))         (+ 1 2))", def_unwrap), ("quote", (("+", (1, (2, Form::Nil))), Form::Nil)));
+    //eval_test(&g, &e, &format!("{} ((unwrap (vau de p       (eval (car p) de)))     (+ 1 2))", def_unwrap), (("+", (1, (2, Form::Nil))), Form::Nil));
+    eval_test(&g, &e, &format!("{} ((unwrap (vau de p (eval (eval (car p) de) de))) (+ 1 2))", def_unwrap), 3);
+    eval_test(&g, &e, &format!("{} ((unwrap (vau de p (+ (eval (eval (car p) de) de) 1))) (+ 1 2))", def_unwrap), 4);
+
+    // Should this allow envs at all? It technically can, but I feel like it kinda goes against the
+    // sensible deriviation
+    let def_lapply = format!("
+    {}
+    !(let1 lapply (vau de p
+       !(let1 f    (eval (car p) de))
+       !(let1 ip   (eval (car (cdr p)) de))
+       !(let1 nde  (eval (car (cdr (cdr p))) de))
+       (eval (cons (unwrap f) ip) nde)
+    ))", def_unwrap);
+    let def_lbadid = format!("
+    {}
+    !(let1 lbadid (vau de p
+       !(let1 inner (wrap (vau ide ip
+           !(let1 self   (car ip))
+           !(let1 n      (car (cdr ip)))
+           !(let1 acc    (car (cdr (cdr ip))))
+           !(if (= 0 n) acc)
+           (lapply self (cons self (cons (- n 1) (cons (+ acc 1) nil))) de)
+       )))
+       (lapply inner (cons inner (cons (eval (car p) de) (cons 0 nil))) de)
+    ))", def_lapply);
+    // Won't work unless tail calls work
+    // takes a while though
+    //eval_test(&g, &e, &format!("{} (lbadid 1000)", def_lbadid), 1000);
 
     let def_vfoldl = format!("
     {}
@@ -368,7 +414,7 @@ fn eval_test() {
            (vapply self (cons self (cons f (cons (vapply f (cons a (cons (car l) nil)) de) (cons (cdr l) nil)))) de)
        ))
        (vapply vfoldl_inner (cons vfoldl_inner (cons (eval (car p) de) (cons (eval (car (cdr p)) de) (cons (eval (car (cdr (cdr p))) de) nil)))) de)
-    ))", def_wrap);
+    ))", def_lapply);
     eval_test(&g, &e, &format!("{} (vfoldl (vau de p (+ (car p) (car (cdr p)))) 0 '(1 2 3))", def_vfoldl), 6);
 
     let def_zipd = format!("
@@ -409,7 +455,7 @@ fn eval_test() {
          !(let1 p_ls (car (cdr           p)))
          !(let1 dp   (car (cdr (cdr      p))))
          !(let1 e    (car (cdr (cdr (cdr p)))))
-         !(if (= nil   p_ls) e)
+         !(if (= nil   p_ls) (assert (= nil dp) e))
          !(if (symbol? p_ls) (cons (cons p_ls dp) e))
          (self self (cdr p_ls) (cdr dp) (self self (car p_ls) (car dp) e))
     )))
@@ -463,6 +509,8 @@ fn eval_test() {
     eval_test(&g, &e, &format!("{} ((lambda ((a b) . c) b) '(10 2) 3 4 5)", def_lambda), 2);
     eval_test(&g, &e, &format!("{} ((lambda ((a b . c)  d) b) '(10 2 3 4) 3)", def_lambda), 2);
     eval_test(&g, &e, &format!("{} ((lambda ((a b . c)  d) c) '(10 2 3 4) 3)", def_lambda), (3, (4, Form::Nil)));
+    // should fail
+    //eval_test(&g, &e, &format!("{} ((lambda (a b c) c) 10 2 3 4)", def_lambda), 3);
 
     let def_let2 = format!("
     {}
@@ -478,4 +526,29 @@ fn eval_test() {
     eval_test(&g, &e, &format!("{} (let1 (a b . c)       '(10 1 2 3) c)", def_let2),  (2, (3, Form::Nil)));
     eval_test(&g, &e, &format!("{} (let1 ((a . b) . c)   '((10 1) 2 3) a)", def_let2),  10);
     eval_test(&g, &e, &format!("{} (let1 ((a . b) . c)   '((10 1) 2 3) b)", def_let2),  (1, Form::Nil));
+    // should fail
+    //eval_test(&g, &e, &format!("{} (let1 (a b c) '(10 2 3 4) a)", def_let2), 10);
+
+    let def_array = format!("
+    {}
+    !(let1 array (lambda args args))
+    ", def_let2);
+    eval_test(&g, &e, &format!("{} (array 1 2 (+ 3 4))", def_array), (1, (2, (7, Form::Nil))));
+
+    let def_Y = format!("
+    {}
+    !(let1 Y (lambda (f3)
+        ((lambda (x1) (x1 x1))
+         (lambda (x2) (f3 (wrap (vau app_env y (lapply (x2 x2) y app_env)))))))
+    )
+    ", def_array);
+    eval_test(&g, &e, &format!("{} ((Y (lambda (recurse) (lambda (n) (if (= 0 n) 1 (* n (recurse (- n 1))))))) 5)", def_Y), 120);
+
+    let def_rlambda = format!("
+    {}
+    !(let1 rlambda (bvau se (n p b)
+        (eval (array Y (array lambda (array n) (array lambda p b))) se)
+    ))
+    ", def_Y);
+    eval_test(&g, &e, &format!("{} ((rlambda recurse (n) (if (= 0 n) 1 (* n (recurse (- n 1))))) 5)", def_rlambda), 120);
 }
