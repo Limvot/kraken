@@ -4,7 +4,7 @@ lalrpop_mod!(pub grammar);
 use std::rc::Rc;
 
 mod ast;
-use crate::ast::{Form,PossibleTailCall};
+use crate::ast::{MarkedForm,Form,PossibleTailCall};
 
 fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
     let mut e = e;
@@ -37,9 +37,7 @@ fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
                         if let Some(de) = de {
                             new_e = assoc(de, Rc::clone(&e), new_e);
                         }
-                        if let Some(params) = params.sym() {
-                            new_e = assoc(params, Rc::clone(p), new_e);
-                        }
+                        new_e = assoc(params, Rc::clone(p), new_e);
                         // always a tail call
                         e = new_e;
                         x = Some(Rc::clone(body));
@@ -82,7 +80,7 @@ fn root_env() -> Rc<Form> {
         // (vau de params body)
         ("vau", Rc::new(Form::PrimComb("vau".to_owned(), |e, p| {
             let de     = p.car().unwrap().sym().map(|s| s.to_owned());
-            let params = p.cdr().unwrap().car().unwrap();
+            let params = p.cdr().unwrap().car().unwrap().sym().unwrap().to_owned();
             let body   = p.cdr().unwrap().cdr().unwrap().car().unwrap();
 
             PossibleTailCall::Result(Rc::new(Form::DeriComb { se: e, de, params, body }))
@@ -219,10 +217,11 @@ fn root_env() -> Rc<Form> {
 
 fn main() {
     let input = "(= 17 ((vau d p (+ (eval (car p) d) 13)) (+ 1 3)))";
-    let parsed_input = grammar::TermParser::new().parse(input).unwrap();
-    println!("Parsed input is {:?}", parsed_input);
-    let result = eval(root_env(), Rc::new(parsed_input));
-    println!("Result is {:?}", result);
+    let parsed_input = Rc::new(grammar::TermParser::new().parse(input).unwrap());
+    println!("Parsed input is {} - {:?}", parsed_input, parsed_input);
+    println!("Parsed unvaled that is {}", Rc::new(MarkedForm::Value(Rc::clone(&parsed_input))).unval().unwrap());
+    let result = eval(root_env(), parsed_input);
+    println!("Result is {} - {:?}", result, result);
 }
 
 #[test]
