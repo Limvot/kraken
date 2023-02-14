@@ -90,6 +90,26 @@ fn root_env() -> Rc<Form> {
             let b = eval(e, p.cdr().unwrap().car().unwrap());
             PossibleTailCall::Result(Rc::new(Form::Bool(a == b)))
         }))),
+        ("<", Rc::new(Form::PrimComb("<".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap());
+            let b = eval(e, p.cdr().unwrap().car().unwrap());
+            PossibleTailCall::Result(Rc::new(Form::Bool(a.int().unwrap() < b.int().unwrap())))
+        }))),
+        (">", Rc::new(Form::PrimComb(">".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap());
+            let b = eval(e, p.cdr().unwrap().car().unwrap());
+            PossibleTailCall::Result(Rc::new(Form::Bool(a.int().unwrap() > b.int().unwrap())))
+        }))),
+        ("<=", Rc::new(Form::PrimComb("<=".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap());
+            let b = eval(e, p.cdr().unwrap().car().unwrap());
+            PossibleTailCall::Result(Rc::new(Form::Bool(a.int().unwrap() <= b.int().unwrap())))
+        }))),
+        (">=", Rc::new(Form::PrimComb(">=".to_owned(), |e, p| {
+            let a = eval(Rc::clone(&e), p.car().unwrap());
+            let b = eval(e, p.cdr().unwrap().car().unwrap());
+            PossibleTailCall::Result(Rc::new(Form::Bool(a.int().unwrap() >= b.int().unwrap())))
+        }))),
         ("if", Rc::new(Form::PrimComb("if".to_owned(), |e, p| {
             if eval(Rc::clone(&e), p.car().unwrap()).truthy() {
                 PossibleTailCall::TailCall(e, p.cdr().unwrap().car().unwrap())
@@ -266,6 +286,11 @@ fn basic_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     eval_test(&g, &e, "(^ 2 1)",  3);
     eval_test(&g, &e, "(^ 3 1)",  2);
 
+    eval_test(&g, &e, "(< 3 1)",  false);
+    eval_test(&g, &e, "(<= 3 1)",  false);
+    eval_test(&g, &e, "(> 3 1)",  true);
+    eval_test(&g, &e, "(>= 3 1)",  true);
+
     eval_test(&g, &e, "(comb? +)", true);
     eval_test(&g, &e, "(comb? (vau d p 1))", true);
     eval_test(&g, &e, "(comb? 1)", false);
@@ -285,6 +310,7 @@ fn basic_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     eval_test(&g, &e, "!(bool?) true", true);
 
     eval_test(&g, &e, "((vau root_env _ (eval 'a (cons (cons 'a 2) root_env))))", 2);
+    eval_test(&g, &e, "'name-dash", "name-dash");
 }
 
 
@@ -719,4 +745,51 @@ fn match_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     eval_test(&g, &e, &format!("{} (match '(1 2) 1 2 2 3 '(1 2) 7 _ 0)", *MATCH), 7);
     eval_test(&g, &e, &format!("{} (let1 a 70 (match (+ 60 10) (unquote a) 100 2 3 _ 0))", *MATCH), 100);
 }
+static RBTREE: Lazy<String> = Lazy::new(|| {
+    format!("
+    {}
+ !(let1 empty (list 'B  nil nil nil))
+ !(let1 E     empty)
+ !(let1 EE    (list 'BB nil nil nil))
 
+ !(let1 generic-foldl (rlambda generic-foldl (f z t) (match t
+                                                  (unquote E)         z
+
+                                                  (c a x b)  !(let1 new_left_result (generic-foldl f z a))
+                                                             !(let1 folded (f new_left_result x))
+                                                             (generic-foldl f folded b))))
+
+ !(let1 blacken (lambda (t) (match t
+                         ('R a x b) (list 'B a x b)
+                         t          t)))
+ !(let1 balance (lambda (t) (match t
+                         ; figures 1 and 2
+                         ('B ('R ('R a x b) y c) z d)    (list 'R (list 'B a x b) y (list 'B c z d))
+                         ('B ('R a x ('R b y c)) z d)    (list 'R (list 'B a x b) y (list 'B c z d))
+                         ('B a x ('R ('R b y c) z d))    (list 'R (list 'B a x b) y (list 'B c z d))
+                         ('B a x ('R b y ('R c z d)))    (list 'R (list 'B a x b) y (list 'B c z d))
+                         ; figure 8, double black cases
+                         ('BB ('R a x ('R b y c)) z d)   (list 'B (list 'B a x b) y (list 'B c z d))
+                         ('BB a x ('R ('R b y c) z d))   (list 'B (list 'B a x b) y (list 'B c z d))
+                         ; already balenced
+                         t                               t)))
+
+ !(let1 map-insert !(let1 ins (rlambda ins (t k v) (match t
+                                  (unquote E)                    (list 'R t (list k v) t)
+                                  (c a x b) !(if   (< k (car x)) (balance (list c (ins a k v) x b)))
+                                            !(if   (= k (car x)) (list c a (list k v) b))
+                                            (balance (list c a x (ins b k v))))))
+                   (lambda (t k v) (blacken (ins t k v))))
+
+ !(let1 map-empty            empty)
+
+ !(let1 make-test-tree (rlambda make-test-tree (n t) (if (<= n 0) t
+                                                                  (make-test-tree (- n 1) (map-insert t n (= 0 (% n 10)))))))
+ !(let1 reduce-test-tree (lambda (tree) (generic-foldl (lambda (a x) (if (car (cdr x)) (+ a 1) a)) 0 tree)))
+    ", *MATCH)
+});
+#[test]
+fn rbtree_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
+    eval_test(&g, &e, &format!("{} (reduce-test-tree (make-test-tree 10 map-empty))", *RBTREE), 1);
+    eval_test(&g, &e, &format!("{} (reduce-test-tree (make-test-tree 20 map-empty))", *RBTREE), 2);
+}
