@@ -116,7 +116,8 @@ fn root_env() -> Rc<Form> {
         }))),
 
         ("debug", Rc::new(Form::PrimComb("debug".to_owned(), |e, p| {
-            println!("Debug: {:?}", eval(Rc::clone(&e), p.car().unwrap()));
+            //println!("Debug: {:?}", eval(Rc::clone(&e), p.car().unwrap()));
+            println!("Debug: {}", eval(Rc::clone(&e), p.car().unwrap()));
             PossibleTailCall::TailCall(e, p.cdr().unwrap().car().unwrap())
         }))),
         ("assert", Rc::new(Form::PrimComb("assert".to_owned(), |e, p| {
@@ -657,38 +658,65 @@ fn and_or_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     eval_test(&g, &e, &format!("{} (or true  false)", *AND_OR), true);
     eval_test(&g, &e, &format!("{} (or false false)", *AND_OR), false);
 }
-static MATCH: Lazy<String> = Lazy::new(|| {
+static LEN: Lazy<String> = Lazy::new(|| {
     format!("
     {}
-    !(let1 match (vau de (x . cases)
-        !(let1 evaluate_case (rlambda evaluate_case (access c)
-                   !(if (symbol? c)                                            (array true                       (lambda (b) (array let (array c access) b))))
-                   !(if (and (array? c) (= 2 (len c)) (= 'unquote (idx c 0)))  (array (array = access (idx c 1)) (lambda (b) b)))
-                   !(if (and (array? c) (= 2 (len c)) (= 'quote   (idx c 0)))  (array (array = access c)         (lambda (b) b)))
-                   !(if (array?  c)
-                             !(let1 tests             (array and (array array? access) (array = (len c) (array len access))))
-                             !(let1 (tests body_func) ((lambda recurse (tests body_func i) (if (= i (len c))
-                                                                                                     (array tests body_func)
-                                                                                                     ; else
-                                                                                                     !(let1 (inner_test inner_body_func) (evaluate_case (array idx access i) (idx c i)) )
-                                                                                                     (recurse (concat tests (array inner_test))
-                                                                                                              (lambda (b) (body_func (inner_body_func b)))
-                                                                                                              (+ i 1))))
-                                                            tests (lambda (b) b) 0))
-                             (array tests body_func))
-                   (array (array = access c)         (lambda (b) b))
+    !(let1 len (lambda (l)
+        !(let1 len_helper (rlambda len_helper (l a)
+            (if (pair? l) (len_helper (cdr l) (+ 1 a))
+                          a)
         ))
-        !(let1 helper (rlambda helper (x_sym cases i) (if (< i (- (len cases) 1))  (let1 (test body_func) (evaluate_case x_sym (idx cases i))
-                                                                                             (concat (array test (body_func (idx cases (+ i 1)))) (helper x_sym cases (+ i 2))))
-
-                                                                                   (array true (array assert false)))))
-
-        (eval (array let (array '___MATCH_SYM x) (concat (array cond) (helper '___MATCH_SYM cases 0))) de)
+        (len_helper l 0)
     ))
     ", *AND_OR)
 });
-//#[test]
-//fn match_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-//    eval_test(&g, &e, &format!("{} (match (+ 1 2) 1 2 2 3 3 4 true 0)", *MATCH), 120);
-//}
+
+#[test]
+fn len_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
+    eval_test(&g, &e, &format!("{} (len '())",       *LEN), 0);
+    eval_test(&g, &e, &format!("{} (len '(1))",      *LEN), 1);
+    eval_test(&g, &e, &format!("{} (len '(1 2))",    *LEN), 2);
+    eval_test(&g, &e, &format!("{} (len '(1 2 3))",  *LEN), 3);
+}
+static MATCH: Lazy<String> = Lazy::new(|| {
+    format!("
+    {}
+    !(let1 match (bvau de (x . cases)
+        !(let1 evaluate_case (rlambda evaluate_case (access c)
+                   !(if (symbol? c)                              (list true                          (lambda (b) (list let1 c access b))))
+                   !(if (and (pair? c) (= 'unquote (car c)))     (list (list = access (car (cdr c))) (lambda (b) b)))
+                   !(if (and (pair? c) (= 'quote   (car c)))     (list (list = access c)             (lambda (b) b)))
+                   !(if (pair? c)
+                             !(let1 tests             (list and (list pair? access) (list = (len c) (list len access))))
+                             !(let1 (tests body_func) ((rlambda recurse (c tests access body_func) (if (pair? c)
+                                                                                                     !(let1 (inner_test inner_body_func) (evaluate_case (list car access) (car c)))
+                                                                                                     (recurse (cdr c)
+                                                                                                              (list and tests inner_test)
+                                                                                                              (list cdr access)
+                                                                                                              (lambda (b) (body_func (inner_body_func b))))
+                                                                                                     ; else
+                                                                                                     (list tests body_func)
+                                                                                                     ))
+                                                            c tests access (lambda (b) b)))
+                             (list tests body_func))
+                   (list (list = access c)         (lambda (b) b))
+        ))
+        !(let1 helper (rlambda helper (x_sym cases) (if (= nil cases) (list assert false) 
+                                                                      (let1 (test body_func) (evaluate_case x_sym (car cases))
+                                                                                             (concat (list if test (body_func (car (cdr cases)))) (list (helper x_sym (cdr (cdr cases)))))))))
+
+        (eval (list let1 '___MATCH_SYM x (helper '___MATCH_SYM cases)) de)
+        ;!(let1 expanded (list let1 '___MATCH_SYM x (helper '___MATCH_SYM cases)))
+        ;(debug expanded (eval expanded de))
+    ))
+    ", *LEN)
+});
+#[test]
+fn match_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
+    eval_test(&g, &e, &format!("{} (match (+ 1 2) 1 2 2 3 3 4 _ 0)", *MATCH), 4);
+    eval_test(&g, &e, &format!("{} (match '(1 2)  1 2 2 3 3 4 _ 0)", *MATCH), 0);
+    eval_test(&g, &e, &format!("{} (match '(1 2) 1 2 2 3 (a b) (+ a (+ 2 b)) _ 0)", *MATCH), 5);
+    eval_test(&g, &e, &format!("{} (match '(1 2) 1 2 2 3 '(1 2) 7 _ 0)", *MATCH), 7);
+    eval_test(&g, &e, &format!("{} (let1 a 70 (match (+ 60 10) (unquote a) 100 2 3 _ 0))", *MATCH), 100);
+}
 
