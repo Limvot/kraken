@@ -4,20 +4,20 @@ lalrpop_mod!(pub grammar);
 use std::rc::Rc;
 
 mod ast;
-use crate::ast::{partial_eval,Ctx,eval,root_env,MarkedForm,Form,PossibleTailCall};
+use crate::ast::{partial_eval,new_base_ctxs,eval,root_env,MarkedForm,Form,PossibleTailCall};
 
 
 fn main() {
     let input = "(= 17 ((vau d p (+ (eval (car p) d) 13)) (+ 1 3)))";
     let parsed_input = Rc::new(grammar::TermParser::new().parse(input).unwrap());
     println!("Parsed input is {} - {:?}", parsed_input, parsed_input);
-    let ctx = Ctx::default();
-    let (ctx, marked) = parsed_input.marked(ctx);
+    let (bctx, dctx) = new_base_ctxs();
+    let (bctx, marked) = parsed_input.marked(bctx);
     let unvaled = marked.unval().unwrap();
     println!("Parsed unvaled that is    {}", unvaled);
-    match partial_eval(ctx, unvaled) {
-        Ok((ctx, ped)) => println!("Parsed unvaled pe that is {}", ped),
-        Err(e)         => println!("Partial evaluation error {}", e),
+    match partial_eval(bctx, dctx, unvaled) {
+        Ok((bctx, ped)) => println!("Parsed unvaled pe that is {}", ped),
+        Err(e)          => println!("Partial evaluation error {}", e),
     };
     let result = eval(root_env(), parsed_input);
     println!("Result is {} - {:?}", result, result);
@@ -43,16 +43,13 @@ fn eval_test<T: Into<Form>>(gram: &grammar::TermParser, e: &Rc<Form>, code: &str
     let parsed = Rc::new(gram.parse(code).unwrap());
     let basic_result = eval(Rc::clone(e), Rc::clone(&parsed));
     assert_eq!(*basic_result, expected.into());
-    let ctx = Ctx::default();
-    let (ctx, marked) = parsed.marked(ctx);
+    let (bctx, dctx) = new_base_ctxs();
+    let (bctx, marked) = parsed.marked(bctx);
     let unvaled = marked.unval().unwrap();
-    let (ctx, ped) = partial_eval(ctx, unvaled).unwrap();
-    let (ctx, marked_basic_result) = basic_result.marked(ctx);
+    let (bctx, ped) = partial_eval(bctx, dctx, unvaled).unwrap();
+    let (bctx, marked_basic_result) = basic_result.marked(bctx);
     println!("pe got {}", ped);
     assert_eq!(*ped, *marked_basic_result);
-}
-
-fn partial_eval_test(gram: &grammar::TermParser, ctx: &Ctx, code: &str, expected: &str) {
 }
 
 #[test]
