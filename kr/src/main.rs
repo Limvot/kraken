@@ -11,9 +11,11 @@ fn main() {
     let input = "(= 17 ((vau d p (+ (eval (car p) d) 13)) (+ 1 3)))";
     let parsed_input = Rc::new(grammar::TermParser::new().parse(input).unwrap());
     println!("Parsed input is {} - {:?}", parsed_input, parsed_input);
-    let unvaled = Rc::new(MarkedForm::Value(Rc::clone(&parsed_input))).unval().unwrap();
+    let ctx = Ctx::default();
+    let (ctx, marked) = parsed_input.marked(ctx);
+    let unvaled = marked.unval().unwrap();
     println!("Parsed unvaled that is    {}", unvaled);
-    match partial_eval(Ctx::default(), unvaled) {
+    match partial_eval(ctx, unvaled) {
         Ok((ctx, ped)) => println!("Parsed unvaled pe that is {}", ped),
         Err(e)         => println!("Partial evaluation error {}", e),
     };
