@@ -1,7 +1,7 @@
 use std::fmt;
 use std::rc::Rc;
 use std::convert::From;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet,BTreeMap};
 use std::result::Result;
 use std::iter;
 
@@ -112,14 +112,8 @@ impl Form {
                         let sequence_params = vec![];
                         let rest_params = Some(params);
                         //
-                        let inner_env = if let Some(de) = &de {
-                            massoc(de, Rc::new(MarkedForm::SuspendedEnvLookup { name: Some(de.clone()), id: id.clone() }), Rc::clone(&se))
-                        } else { Rc::clone(&se) };
-                        // not yet supporting sequence params
-                        let inner_env = if let Some(p)  = &rest_params {
-                            massoc(p, Rc::new(MarkedForm::SuspendedParamLookup { name: Some(p.clone()), id: id.clone(), cdr_num: 0, car: false }), inner_env)
-                        } else { inner_env };
-                        let (bctx, body) = partial_eval(bctx, dctx.copy_push_env(&inner_env), Rc::clone(&body))?;
+                        let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None);
+                        let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
                         //
                         //
                         let ids = dctx.e.ids().union(&body.ids());
@@ -378,18 +372,6 @@ pub enum PossibleMarkedTailCall {
     TailCall(Rc<MarkedForm>, Rc<MarkedForm>),
 }
 
-// force is for drop_redundent_eval
-// memo is only for recording currently executing hashes (calls and if's)
-// only_head is not currently used
-//only_head env env_counter memo env_stack force
-//
-//I feel like ctx should only be used for things passed back up?
-//or maybe we split into an upwards and downwards ctx
-//bidirectional is only env_counter, though a true memoization would also count
-//ok
-//we have Ctx - env_counter (maybe true memoization eventually)
-//and Dctx - env env_stack memo(currently_executing) force
-
 #[derive(Clone)]
 pub struct BCtx {
     id_counter: i32
@@ -402,20 +384,62 @@ impl BCtx {
     }
 }
 
+
+// force is for drop_redundent_eval
+// memo is only for recording currently executing hashes (calls and if's)
+// only_head is not currently used
+//only_head env env_counter memo env_stack force
+//
+//I feel like ctx should only be used for things passed back up?
+//or maybe we split into an upwards and downwards ctx
+//bidirectional is only env_counter, though a true memoization would also count
+//ok
+//we have Ctx - env_counter (maybe true memoization eventually)
+//and Dctx - env env_stack memo(currently_executing) force
+//
+//env_stack should be something like BTreeMap<EnvID, (EnvLookup,ParamLookupMain)>
+// SuspendedEnvLookup   { name: Option<String>, id: EnvID },
+// SuspendedParamLookup { name: Option<String>, id: EnvID, cdr_num: i32, car: bool },
 #[derive(Clone)]
 pub struct DCtx {
     e : Rc<MarkedForm>,
+    sus_env_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
+    sus_prm_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
 }
 impl DCtx {
-    pub fn copy_push_env(&self, e: &Rc<MarkedForm>) -> Self {
-        DCtx { e: Rc::clone(e) }
+    pub fn copy_set_env(&self, e: &Rc<MarkedForm>) -> Self {
+        DCtx { e: Rc::clone(e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack) }
+    }
+    pub fn copy_push_frame(&self, id: EnvID, se: &Rc<MarkedForm>, de: &Option<String>, e: Option<Rc<MarkedForm>>, rest_params: &Option<String>, prms: Option<Rc<MarkedForm>>) -> Self {
+        let mut sus_env_stack = Rc::clone(&self.sus_env_stack);
+        let mut sus_prm_stack = Rc::clone(&self.sus_prm_stack);
+        let inner_env = if let Some(de) = de {
+            let de_val = if let Some(e) = e {
+                Rc::make_mut(&mut sus_env_stack).insert(id.clone(), Rc::clone(&e));
+                e
+            } else {
+                Rc::new(MarkedForm::SuspendedEnvLookup { name: Some(de.clone()), id: id.clone() })
+            };
+            massoc(de, de_val, Rc::clone(se))
+        } else { Rc::clone(se) };
+        // not yet supporting sequence params
+        let inner_env = if let Some(p)  = rest_params {
+            let p_val = if let Some(prms) = prms {
+                Rc::make_mut(&mut sus_prm_stack).insert(id.clone(), Rc::clone(&prms));
+                prms
+            } else {
+                Rc::new(MarkedForm::SuspendedParamLookup { name: Some(p.clone()), id: id.clone(), cdr_num: 0, car: false })
+            };
+            massoc(p, p_val, inner_env)
+        } else { inner_env };
+        DCtx { e: inner_env, sus_env_stack, sus_prm_stack }
     }
 }
 
 pub fn new_base_ctxs() -> (BCtx,DCtx) {
     let bctx = BCtx { id_counter: 0 };
     let (bctx, root_env) = root_env().marked(bctx);
-    (bctx, DCtx { e: root_env } )
+    (bctx, DCtx { e: root_env, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()) } )
 }
 
 pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>), String> {
@@ -429,12 +453,18 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
             return Ok((bctx, t.car()?.cdr()?));
         },
         MarkedForm::SuspendedEnvLookup { name, id }       => {
-            // lookup in stack
-            Ok((bctx, x))
+            if let Some(v) = dctx.sus_env_stack.get(id) {
+                Ok((bctx, Rc::clone(v)))
+            } else {
+                Ok((bctx, x))
+            }
         },
         MarkedForm::SuspendedParamLookup { name, id, cdr_num, car }       => {
-            // lookup in stack
-            Ok((bctx, x))
+            if let Some(v) = dctx.sus_prm_stack.get(id) {
+                Ok((bctx, Rc::clone(v)))
+            } else {
+                Ok((bctx, x))
+            }
         },
         MarkedForm::SuspendedPair { ids, attempted, car, cdr } => {
             let (    bctx, mut car) = partial_eval(bctx, dctx.clone(), Rc::clone(car))?;
@@ -468,12 +498,10 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
                     if let Ok((bctx, r)) = match &*car {
                         MarkedForm::PrimComb { name, wrap_level, f} => f(bctx.clone(), dctx.clone(), Rc::clone(&cdr)),
                         MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
-                            //DeriComb { ids: NeededIds, se: Rc<MarkedForm>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm> },
-                            let inner_env = if let Some(de) = de { massoc(de, Rc::clone(&dctx.e), Rc::clone(se)) } else { Rc::clone(se) };
                             // not yet supporting sequence params
-                            let inner_env = if let Some(p)  = rest_params { massoc(p, Rc::clone(&cdr), inner_env) } else { inner_env };
+                            let inner_dcts = dctx.copy_push_frame(id.clone(), &se, &de, Some(Rc::clone(&dctx.e)), &rest_params, Some(Rc::clone(&cdr)));
                             // check for id in it?
-                            partial_eval(bctx.clone(), dctx.copy_push_env(&inner_env), Rc::clone(body)).map(|(ibctx, res)| { (ibctx, PossibleMarkedTailCall::Result(res)) })
+                            partial_eval(bctx.clone(), inner_dcts, Rc::clone(body)).map(|(ibctx, res)| { (ibctx, PossibleMarkedTailCall::Result(res)) })
                         },
                         _ => break,
                     } {
@@ -482,7 +510,7 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
                             // Sigh, no tail-callin right now
                             PossibleMarkedTailCall::TailCall(new_env, next) => {
                                 println!("Doing tail call of {} in {}", next, new_env);
-                                if let Ok((new_bctx, res)) = partial_eval(bctx.clone(), dctx.copy_push_env(&new_env), Rc::clone(&next)) {
+                                if let Ok((new_bctx, res)) = partial_eval(bctx.clone(), dctx.copy_set_env(&new_env), Rc::clone(&next)) {
                                     println!("Doing tail call result is {}", res);
                                     return Ok((new_bctx, res));
                                 } else {
