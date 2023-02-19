@@ -39,11 +39,20 @@ fn parse_test() {
 }
 
 fn eval_test<T: Into<Form>>(gram: &grammar::TermParser, e: &Rc<Form>, code: &str, expected: T) {
-    assert_eq!(*eval(Rc::clone(e), Rc::new(gram.parse(code).unwrap())), expected.into());
+    println!("Doing {}", code);
+    let parsed = Rc::new(gram.parse(code).unwrap());
+    let basic_result = eval(Rc::clone(e), Rc::clone(&parsed));
+    assert_eq!(*basic_result, expected.into());
+    let ctx = Ctx::default();
+    let (ctx, marked) = parsed.marked(ctx);
+    let unvaled = marked.unval().unwrap();
+    let (ctx, ped) = partial_eval(ctx, unvaled).unwrap();
+    let (ctx, marked_basic_result) = basic_result.marked(ctx);
+    println!("pe got {}", ped);
+    assert_eq!(*ped, *marked_basic_result);
 }
 
-fn partial_eval_test<T: Into<Form>>(gram: &grammar::TermParser, e: &Rc<Form>, code: &str, expected: T) {
-    assert_eq!(*eval(Rc::clone(e), Rc::new(gram.parse(code).unwrap())), expected.into());
+fn partial_eval_test(gram: &grammar::TermParser, ctx: &Ctx, code: &str, expected: &str) {
 }
 
 #[test]

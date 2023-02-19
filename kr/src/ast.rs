@@ -105,25 +105,36 @@ impl Form {
                         let de     = p.car()?.sym().map(|s| s.to_owned()).ok();
                         let params = p.cdr()?.car()?.sym()?.to_owned();
                         let body   = p.cdr()?.cdr()?.car()?.unval()?;
-                        // TODO: pe-body, figure out wrap level, sequence params, etc
+                        let se = Rc::clone(&ctx.e);
+                        let (ctx, id) = ctx.new_id();
+                        // TODO: figure out wrap level, sequence params, etc
                         let wrap_level = 0;
                         let sequence_params = vec![];
                         let rest_params = Some(params);
+                        //
+                        let inner_env = if let Some(de) = &de {
+                            massoc(de, Rc::new(MarkedForm::SuspendedEnvLookup { name: Some(de.clone()), id: id.clone() }), Rc::clone(&se))
+                        } else { Rc::clone(&se) };
+                        // not yet supporting sequence params
+                        let inner_env = if let Some(p)  = &rest_params {
+                            massoc(p, Rc::new(MarkedForm::SuspendedParamLookup { name: Some(p.clone()), id: id.clone(), cdr_num: 0, car: false }), inner_env)
+                        } else { inner_env };
+                        let (ctx, body) = partial_eval(ctx.copy_with(&inner_env), Rc::clone(&body)).map(|(ictx, res)| { (ictx.copy_with(&ctx.e), res) })?;
+                        //
+                        //
                         let ids = ctx.e.ids().union(&body.ids());
-                        let (ctx, id) = ctx.new_id();
-                        let e = Rc::clone(&ctx.e);
                         Ok((ctx, PossibleMarkedTailCall::Result(Rc::new(
-                            MarkedForm::DeriComb { ids, se: e, de, id, wrap_level, sequence_params, rest_params, body },
+                            MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body },
                         ))))
                     }}),
                     // TODO: handle vif etc
                     "if" => Rc::new(MarkedForm::PrimComb { name: "if".to_owned(), wrap_level: 0, f: |ctx, p| {
-                        let (ctx, cond) = partial_eval(ctx, p.car()?)?;
+                        let (ctx, cond) = partial_eval(ctx, p.car()?.unval()?)?;
                         let e = Rc::clone(&ctx.e);
                         if cond.truthy()? {
-                            Ok((ctx, PossibleMarkedTailCall::TailCall(e, p.cdr()?.car()?)))
+                            Ok((ctx, PossibleMarkedTailCall::TailCall(e, p.cdr()?.car()?.unval()?)))
                         } else {
-                            Ok((ctx, PossibleMarkedTailCall::TailCall(e, p.cdr()?.cdr()?.car()?)))
+                            Ok((ctx, PossibleMarkedTailCall::TailCall(e, p.cdr()?.cdr()?.car()?.unval()?)))
                         }
                     }}),
                     // TODO: handle these in the context of paritals
@@ -398,7 +409,11 @@ pub fn partial_eval(ctx: Ctx, x: Rc<MarkedForm>) -> Result<(Ctx,Rc<MarkedForm>),
             }
             return Ok((ctx, t.car()?.cdr()?));
         },
-        MarkedForm::SuspendedLookup { name, id, cdr_num, car }       => {
+        MarkedForm::SuspendedEnvLookup { name, id }       => {
+            // lookup in stack
+            Ok((ctx, x))
+        },
+        MarkedForm::SuspendedParamLookup { name, id, cdr_num, car }       => {
             // lookup in stack
             Ok((ctx, x))
         },
@@ -446,7 +461,7 @@ pub fn partial_eval(ctx: Ctx, x: Rc<MarkedForm>) -> Result<(Ctx,Rc<MarkedForm>),
                             PossibleMarkedTailCall::Result(result) => return Ok((ctx, result)),
                             // Sigh, no tail-callin right now
                             PossibleMarkedTailCall::TailCall(new_env, next) => {
-                                println!("Doing tail call of {} in {}", new_env, next);
+                                println!("Doing tail call of {} in {}", next, new_env);
                                 if let Ok((new_ctx, res)) = partial_eval(ctx.copy_with(&new_env), Rc::clone(&next)) {
                                     println!("Doing tail call result is {}", res);
                                     return Ok((new_ctx.copy_with(&ctx.e), res));
@@ -499,7 +514,8 @@ pub enum MarkedForm {
     Pair(NeededIds, Rc<MarkedForm>,Rc<MarkedForm>),
 
     SuspendedSymbol(String),
-    SuspendedLookup { name: Option<String>, id: EnvID, cdr_num: i32, car: bool },
+    SuspendedParamLookup { name: Option<String>, id: EnvID, cdr_num: i32, car: bool },
+    SuspendedEnvLookup   { name: Option<String>, id: EnvID },
     // resume hash is folded into ids
     SuspendedPair { ids: NeededIds, attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>},
 
@@ -523,30 +539,32 @@ impl MarkedForm {
     }
     pub fn ids(&self) -> NeededIds {
         match self {
-            MarkedForm::Nil                          => NeededIds::new_none(),
-            MarkedForm::Int(i)                       => NeededIds::new_none(),
-            MarkedForm::Bool(b)                      => NeededIds::new_none(),
-            MarkedForm::Symbol(s)                    => NeededIds::new_none(), 
-            MarkedForm::Pair(ids,car,cdr)            => ids.clone(),
-            MarkedForm::SuspendedSymbol(name)        => NeededIds::new_true(),
-            MarkedForm::SuspendedLookup { id, .. }   => NeededIds::new_single(id.clone()),
-            MarkedForm::SuspendedPair{ ids, .. }     => ids.clone(),
-            MarkedForm::PrimComb { .. }              => NeededIds::new_none(),
-            MarkedForm::DeriComb { ids, .. }         => ids.clone(),
+            MarkedForm::Nil                              => NeededIds::new_none(),
+            MarkedForm::Int(i)                           => NeededIds::new_none(),
+            MarkedForm::Bool(b)                          => NeededIds::new_none(),
+            MarkedForm::Symbol(s)                        => NeededIds::new_none(), 
+            MarkedForm::Pair(ids,car,cdr)                => ids.clone(),
+            MarkedForm::SuspendedSymbol(name)            => NeededIds::new_true(),
+            MarkedForm::SuspendedEnvLookup { id, .. }    => NeededIds::new_single(id.clone()),
+            MarkedForm::SuspendedParamLookup { id, .. }  => NeededIds::new_single(id.clone()),
+            MarkedForm::SuspendedPair{ ids, .. }         => ids.clone(),
+            MarkedForm::PrimComb { .. }                  => NeededIds::new_none(),
+            MarkedForm::DeriComb { ids, .. }             => ids.clone(),
         }
     }
     pub fn is_value(&self) -> bool {
         match match self {
-            MarkedForm::Nil                          => return true,
-            MarkedForm::Int(i)                       => return true,
-            MarkedForm::Bool(b)                      => return true,
-            MarkedForm::Symbol(s)                    => return true, 
-            MarkedForm::SuspendedSymbol(name)        => return false,
-            MarkedForm::SuspendedLookup { id, .. }   => return false,
-            MarkedForm::SuspendedPair{ ids, .. }     => return false,
-            MarkedForm::PrimComb { .. }              => return true,
-            MarkedForm::Pair(ids,car,cdr)            => ids.clone(),
-            MarkedForm::DeriComb { ids, .. }         => ids.clone(),
+            MarkedForm::Nil                             => return true,
+            MarkedForm::Int(i)                          => return true,
+            MarkedForm::Bool(b)                         => return true,
+            MarkedForm::Symbol(s)                       => return true, 
+            MarkedForm::SuspendedSymbol(name)           => return false,
+            MarkedForm::SuspendedEnvLookup { id, .. }   => return false,
+            MarkedForm::SuspendedParamLookup { id, .. } => return false,
+            MarkedForm::SuspendedPair{ ids, .. }        => return false,
+            MarkedForm::PrimComb { .. }                 => return true,
+            MarkedForm::Pair(ids,car,cdr)               => ids.clone(),
+            MarkedForm::DeriComb { ids, .. }            => ids.clone(),
         } {
             NeededIds::True(hashes)     => false,
             NeededIds::None(hashes)     => true,
@@ -561,7 +579,8 @@ impl MarkedForm {
             MarkedForm::Symbol(s)                    => Ok(Rc::new(MarkedForm::SuspendedSymbol(s.clone()))), 
             MarkedForm::Pair(ids,car,cdr)            => Ok(Rc::new(MarkedForm::SuspendedPair { ids: NeededIds::new_true(), attempted: Attempted::False, car: car.unval()?, cdr: Rc::clone(cdr)})),
             MarkedForm::SuspendedSymbol(name)        => Err("trying to unval a suspended symbol"),
-            MarkedForm::SuspendedLookup { .. }       => Err("trying to unval a suspended lookup"),
+            MarkedForm::SuspendedEnvLookup { .. }    => Err("trying to unval a suspended env lookup"),
+            MarkedForm::SuspendedParamLookup { .. }  => Err("trying to unval a suspended param lookup"),
             MarkedForm::SuspendedPair{ ids, .. }     => Err("trying to unval a suspended pair"),
             MarkedForm::PrimComb { .. }              => Ok(Rc::clone(self)),
             MarkedForm::DeriComb { .. }              => Ok(Rc::clone(self)),
@@ -575,7 +594,8 @@ impl MarkedForm {
             MarkedForm::Symbol(s)                    => Ok(true), 
             MarkedForm::Pair(ids,car,cdr)            => Ok(true),
             MarkedForm::SuspendedSymbol(name)        => Err("trying to truthy a suspended symbol"),
-            MarkedForm::SuspendedLookup { .. }       => Err("trying to truthy a suspended lookup"),
+            MarkedForm::SuspendedEnvLookup { .. }    => Err("trying to truthy a suspended env lookup"),
+            MarkedForm::SuspendedParamLookup { .. }  => Err("trying to truthy a suspended param lookup"),
             MarkedForm::SuspendedPair{ ids, .. }     => Err("trying to truthy a suspended pair"),
             MarkedForm::PrimComb { .. }              => Ok(true),
             MarkedForm::DeriComb { .. }              => Ok(true),
@@ -634,9 +654,10 @@ impl fmt::Display for MarkedForm {
                     }
                 }
             },
-            MarkedForm::SuspendedSymbol(name)                        => write!(f, "{}", name),
-            MarkedForm::SuspendedLookup { name, id, cdr_num, car }   => write!(f, "{:?}({:?}{}{})", name, id, cdr_num, car),
-            MarkedForm::PrimComb { name, wrap_level, .. }            => write!(f, "<{}{}>", name, wrap_level),
+            MarkedForm::SuspendedSymbol(name)                           => write!(f, "{}", name),
+            MarkedForm::SuspendedEnvLookup { name, id }                 => write!(f, "{:?}({:?}env)", name, id),
+            MarkedForm::SuspendedParamLookup { name, id, cdr_num, car } => write!(f, "{:?}({:?}{}{})", name, id, cdr_num, car),
+            MarkedForm::PrimComb { name, wrap_level, .. }               => write!(f, "<{}{}>", name, wrap_level),
 
             MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => write!(f, "{:?}#<{}/{:?}/{:?}/{}/{:?}/{:?}/{}>", ids, se, de, id, wrap_level, sequence_params, rest_params, body),
 
