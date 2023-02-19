@@ -364,6 +364,7 @@ pub enum PossibleMarkedTailCall {
     Result(Rc<MarkedForm>),
     TailCall(Rc<MarkedForm>, Rc<MarkedForm>),
 }
+#[derive(Clone)]
 pub struct Ctx {
     e : Rc<MarkedForm>,
     id_counter: i32
@@ -373,6 +374,9 @@ impl Ctx {
         let new_id = EnvID(self.id_counter);
         self.id_counter += 1;
         (self, new_id)
+    }
+    pub fn copy_with(&self, e: &Rc<MarkedForm>) -> Self {
+        Ctx { e: Rc::clone(e), id_counter: self.id_counter }
     }
 }
 impl Default for Ctx {
@@ -396,9 +400,56 @@ pub fn partial_eval(ctx: Ctx, x: Rc<MarkedForm>) -> Result<(Ctx,Rc<MarkedForm>),
             Ok((ctx, x))
         },
         MarkedForm::SuspendedPair { ids, attempted, car, cdr } => {
-            let (ctx, car) = partial_eval(ctx, Rc::clone(car))?;
-            let (ctx, cdr) = partial_eval(ctx, Rc::clone(cdr))?;
-            // check to see if can do call
+            let (    ctx, mut car) = partial_eval(ctx, Rc::clone(car))?;
+            let (mut ctx, mut cdr) = partial_eval(ctx, Rc::clone(cdr))?;
+            while let Some(wrap_level) = car.wrap_level() {
+                if wrap_level > 0 {
+                    fn map_unval_peval(ctx: Ctx, x: Rc<MarkedForm>) -> Result<(Ctx,Rc<MarkedForm>),String> {
+                        match &*x {
+                            MarkedForm::Pair(ids, x_car, x_cdr) => {
+                                let (ctx, new_x_car) = partial_eval(ctx, x_car.unval()?)?;
+                                let (ctx, new_x_cdr) = map_unval_peval(ctx, Rc::clone(x_cdr))?;
+                                return Ok((ctx, Rc::new(MarkedForm::Pair(new_x_car.ids().union(&new_x_cdr.ids()), new_x_car, new_x_cdr))));
+                            },
+                            MarkedForm::Nil => return Ok((ctx,x)),
+                            _               => return Err("not a list".to_owned()),
+                        }
+                    }
+                    if let Ok((new_ctx, new_cdr)) = map_unval_peval(ctx.clone(), Rc::clone(&cdr)) {
+                        car = car.decrement_wrap_level().unwrap();
+                        cdr = new_cdr;
+                        ctx = new_ctx;
+                    } else {
+                        break;
+                    }
+                } else {
+                    // check to see if can do call
+                    if let Ok((ctx, r)) = match &*car {
+                        MarkedForm::PrimComb { name, wrap_level, f} => f(ctx.clone(), Rc::clone(&cdr)),
+                        MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => break,
+                        _ => break,
+                    } {
+                        match r {
+                            PossibleMarkedTailCall::Result(result) => return Ok((ctx, result)),
+                            // Sigh, no tail-callin right now
+                            PossibleMarkedTailCall::TailCall(new_env, next) => {
+                                if let Ok((new_ctx, res)) = partial_eval(ctx.copy_with(&new_env), Rc::clone(&next)) {
+                                    return Ok((new_ctx.copy_with(&ctx.e), res));
+                                } else {
+                                    if new_env == ctx.e {
+                                        return Ok((ctx, next));
+                                    } else {
+                                        // maybe this should enplace the TailCall with an eval
+                                        break; // break out to reconstruction
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        break; // failed function call
+                    }
+                }
+            }
             // update IDs
             let new_ids = car.ids().union(&cdr.ids());
             let new_ids = if let Attempted::True(Some(id))   = attempted   { new_ids.add_id(id.clone())     } else { new_ids };
@@ -440,6 +491,20 @@ pub enum MarkedForm {
     DeriComb { ids: NeededIds, se: Rc<MarkedForm>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm> },
 }
 impl MarkedForm {
+    pub fn wrap_level(&self) -> Option<i32> {
+        match self {
+            MarkedForm::PrimComb { name, wrap_level, f} => Some(*wrap_level),
+            MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => Some(*wrap_level),
+            _ => None,
+        }
+    }
+    pub fn decrement_wrap_level(&self) -> Option<Rc<Self>> {
+        match self {
+            MarkedForm::PrimComb { name, wrap_level, f } => Some(Rc::new(MarkedForm::PrimComb { name: name.clone(), wrap_level: wrap_level-1, f: *f })),
+            MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => Some(Rc::new(MarkedForm::DeriComb { ids: ids.clone(), se: Rc::clone(se), de: de.clone(), id: id.clone(), wrap_level: wrap_level-1, sequence_params: sequence_params.clone(), rest_params: rest_params.clone(), body: Rc::clone(body) })),
+            _ => None,
+        }
+    }
     pub fn ids(&self) -> NeededIds {
         match self {
             MarkedForm::Nil                          => NeededIds::new_none(),
@@ -515,7 +580,8 @@ impl fmt::Display for MarkedForm {
             MarkedForm::Bool(b)               => write!(f, "{}", b),
             MarkedForm::Symbol(s)             => write!(f, "{}", s),
             MarkedForm::Pair(ids, car, cdr)   => {
-                write!(f, "{:?}#({}", ids, car)?;
+                //write!(f, "{:?}#({}", ids, car)?;
+                write!(f, "({}", car)?;
                 let mut traverse: Rc<MarkedForm> = Rc::clone(cdr);
                 loop {
                     match &*traverse {
@@ -541,13 +607,18 @@ impl fmt::Display for MarkedForm {
             MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => write!(f, "{:?}#<{}/{:?}/{:?}/{}/{:?}/{:?}/{}>", ids, se, de, id, wrap_level, sequence_params, rest_params, body),
 
             MarkedForm::SuspendedPair{ ids, attempted, car, cdr } => {
-                write!(f, "{:?}{:?}#{{{}", ids, attempted, car)?;
+                //write!(f, "{:?}{:?}#{{{}", ids, attempted, car)?;
+                write!(f, "{{{}", car)?;
                 let mut traverse: Rc<MarkedForm> = Rc::clone(cdr);
                 loop {
                     match &*traverse {
                         MarkedForm::Pair(ref ids, ref carp, ref cdrp) => {
                             write!(f, " {}", carp)?;
                             traverse = Rc::clone(cdrp);
+                        },
+                        MarkedForm::Nil => {
+                            write!(f, "}}")?;
+                            return Ok(());
                         },
                         x => {
                             write!(f, ". {}}}", x)?;
