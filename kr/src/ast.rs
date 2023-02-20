@@ -327,6 +327,14 @@ impl NeededIds {
     fn new_true()           -> Self { NeededIds::True(                         BTreeSet::new()) }
     fn new_none()           -> Self { NeededIds::None(                         BTreeSet::new()) }
     fn new_single(i: EnvID) -> Self { NeededIds::Some(iter::once(i).collect(), BTreeSet::new()) }
+    fn needs_nothing(&self) -> bool {
+        match self {
+            NeededIds::True(hashes)     => false,
+            NeededIds::None(hashes)     => hashes.is_empty(),
+            NeededIds::Some(set,hashes) => false,
+        }
+
+    }
     fn hashes(&self) -> &BTreeSet<Hash> {
         match self {
             NeededIds::True(hashes)     => hashes,
@@ -347,21 +355,20 @@ impl NeededIds {
         }
     }
     fn union_without(&self, other: &NeededIds, without: EnvID) -> Self {
-        match self {
-            NeededIds::True(hashes)      => NeededIds::True(hashes.union(other.hashes()).cloned().collect()),
-            NeededIds::None(hashes)      => other.union_hashes(hashes).without(without),
-            NeededIds::Some(set, hashes) => match other {
-                NeededIds::True(ohashes)      => NeededIds::True(hashes.union(ohashes).cloned().collect()),
-                NeededIds::None(ohashes)      => NeededIds::Some(set.iter()     .cloned().filter(|x| *x != without).collect(),      hashes.union(ohashes).cloned().collect()),
-                NeededIds::Some(oset,ohashes) => NeededIds::Some(set.union(oset).cloned().filter(|x| *x != without).collect(), hashes.union(ohashes).cloned().collect()),
-            },
-        }
+        self.union(other).without(without)
     }
     fn without(self, without: EnvID) -> Self {
         match self {
             NeededIds::True(_)      => self,
             NeededIds::None(_)      => self,
-            NeededIds::Some(set, hashes) => NeededIds::Some(set.into_iter().filter(|x| *x != without).collect(), hashes),
+            NeededIds::Some(set, hashes) => {
+                let new: BTreeSet<EnvID> = set.into_iter().filter(|x| *x != without).collect();
+                if new.is_empty() {
+                    NeededIds::None(hashes)
+                } else {
+                    NeededIds::Some(new, hashes)
+                }
+            },
         }
     }
     fn union_hashes(&self, other: &BTreeSet<Hash>) -> Self {
@@ -427,10 +434,11 @@ pub struct DCtx {
     real_set: Rc<BTreeSet<EnvID>>,
     force: bool,
     current: Rc<BTreeSet<Hash>>,
+    ident: usize,
 }
 impl DCtx {
     pub fn copy_set_env(&self, e: &Rc<MarkedForm>) -> Self {
-        DCtx { e: Rc::clone(e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), force: self.force, current: Rc::clone(&self.current)  }
+        DCtx { e: Rc::clone(e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), force: self.force, current: Rc::clone(&self.current), ident: self.ident+1  }
     }
     pub fn copy_push_frame(&self, id: EnvID, se: &Rc<MarkedForm>, de: &Option<String>, e: Option<Rc<MarkedForm>>, rest_params: &Option<String>, prms: Option<Rc<MarkedForm>>) -> Self {
         let mut sus_env_stack = Rc::clone(&self.sus_env_stack);
@@ -460,7 +468,7 @@ impl DCtx {
         } else { inner_env };
         // Push on current frame hash?!
         let new_current = Rc::clone(&self.current);
-        DCtx { e: inner_env, sus_env_stack, sus_prm_stack, real_set, force: self.force, current: new_current }
+        DCtx { e: inner_env, sus_env_stack, sus_prm_stack, real_set, force: self.force, current: new_current, ident: self.ident+1 }
     }
 
     pub fn can_progress(&self, ids: NeededIds) -> bool {
@@ -476,7 +484,7 @@ impl DCtx {
 pub fn new_base_ctxs() -> (BCtx,DCtx) {
     let bctx = BCtx { id_counter: 0 };
     let (bctx, root_env) = root_env().marked(bctx);
-    (bctx, DCtx { e: root_env, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()), real_set: Rc::new(BTreeSet::new()), force: false, current: Rc::new(BTreeSet::new()) } )
+    (bctx, DCtx { e: root_env, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()), real_set: Rc::new(BTreeSet::new()), force: false, current: Rc::new(BTreeSet::new()), ident: 0 } )
 }
 
 pub fn combiner_return_ok(x: Rc<MarkedForm>, check_id: EnvID) -> bool {
@@ -547,7 +555,7 @@ pub fn combiner_return_ok(x: Rc<MarkedForm>, check_id: EnvID) -> bool {
 }
 
 pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>), String> {
-    println!("PE: {}", x);
+    println!("{:ident$}PE: {}", "", x, ident=dctx.ident*4);
     let should_go = dctx.force || dctx.can_progress(x.ids());
     if !should_go {
         println!("Shouldn't go!");
@@ -631,10 +639,11 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
                         MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
                             // not yet supporting sequence params
                             // needs to check hash
-                            let inner_dcts = dctx.copy_push_frame(id.clone(), &se, &de, Some(Rc::clone(&dctx.e)), &rest_params, Some(Rc::clone(&cdr)));
+                            let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, Some(Rc::clone(&dctx.e)), &rest_params, Some(Rc::clone(&cdr)));
                             // check for id in it?
                             // needs to check return OK
-                            if let Ok((bctx, r)) = partial_eval(bctx.clone(), inner_dcts, Rc::clone(body)) {
+                            println!("{:ident$}doing a call eval of {} in {}", "", body, inner_dctx.e, ident=inner_dctx.ident*4);
+                            if let Ok((bctx, r)) = partial_eval(bctx.clone(), inner_dctx, Rc::clone(body)) {
                                 if combiner_return_ok(Rc::clone(&r), id.clone()) {
                                     return Ok((bctx, r));
                                 }
@@ -660,12 +669,26 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
             let (bctx, cdr) = partial_eval(bctx, dctx,         Rc::clone(cdr))?;
             Ok((bctx, Rc::new(MarkedForm::Pair(car.ids().union(&cdr.ids()), car, cdr))))
         },
-        MarkedForm::PrimComb { .. }              => Ok((bctx, x)),
         // Sub stuff
         //
         // (mif (or (and (not (marked_env_real? env)) (not (marked_env_real? se)))   ; both aren't real, re-evaluation of creation site
         //          (and      (marked_env_real? env)  (not (marked_env_real? se))))  ; new env real, but se isn't - creation!
-        MarkedForm::DeriComb { .. }              => Ok((bctx, x)),
+        MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
+            if !se.ids().needs_nothing() {
+                // the current env is our new se
+                let se = Rc::clone(&dctx.e);
+                let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None);
+                let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
+                //
+                //
+                let ids = dctx.e.ids().union_without(&body.ids(), id.clone());
+                println!("\tUnion of {:?} and {:?} without {:?} is {:?}", dctx.e.ids(), body.ids(), id, ids);
+                Ok((bctx, Rc::new(MarkedForm::DeriComb { ids: ids.clone(), se, de: de.clone(), id: id.clone(), wrap_level: *wrap_level, sequence_params: sequence_params.clone(), rest_params: rest_params.clone(), body })))
+            } else {
+                Ok((bctx, x))
+            }
+        },
+        MarkedForm::PrimComb { .. }              => Ok((bctx, x)),
         _                                        => Ok((bctx, x)),
     }
 }
