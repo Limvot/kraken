@@ -405,14 +405,21 @@ pub struct DCtx {
     e : Rc<MarkedForm>,
     sus_env_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
     sus_prm_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
+    real_set: Rc<BTreeSet<EnvID>>,
+    force: bool,
+    current: Rc<BTreeSet<Hash>>,
 }
 impl DCtx {
     pub fn copy_set_env(&self, e: &Rc<MarkedForm>) -> Self {
-        DCtx { e: Rc::clone(e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack) }
+        DCtx { e: Rc::clone(e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), force: self.force, current: Rc::clone(&self.current)  }
     }
     pub fn copy_push_frame(&self, id: EnvID, se: &Rc<MarkedForm>, de: &Option<String>, e: Option<Rc<MarkedForm>>, rest_params: &Option<String>, prms: Option<Rc<MarkedForm>>) -> Self {
         let mut sus_env_stack = Rc::clone(&self.sus_env_stack);
         let mut sus_prm_stack = Rc::clone(&self.sus_prm_stack);
+        let mut real_set = Rc::clone(&self.real_set);
+        if (e.is_some() || prms.is_some()) {
+            Rc::make_mut(&mut real_set).insert(id.clone());
+        }
         let inner_env = if let Some(de) = de {
             let de_val = if let Some(e) = e {
                 Rc::make_mut(&mut sus_env_stack).insert(id.clone(), Rc::clone(&e));
@@ -432,18 +439,34 @@ impl DCtx {
             };
             massoc(p, p_val, inner_env)
         } else { inner_env };
-        DCtx { e: inner_env, sus_env_stack, sus_prm_stack }
+        // Push on current frame hash?!
+        let new_current = Rc::clone(&self.current);
+        DCtx { e: inner_env, sus_env_stack, sus_prm_stack, real_set, force: self.force, current: new_current }
+    }
+
+    pub fn can_progress(&self, ids: NeededIds) -> bool {
+        // check if ids is true || ids intersection EnvIDs in our stacks is non empty || ids.hashes - current is non empty
+        match ids {
+            NeededIds::True(hashes)     => true,
+            NeededIds::None(hashes)     =>                                        !self.current.is_superset(&hashes),
+            NeededIds::Some(ids,hashes) => (!self.real_set.is_disjoint(&ids)) || (!self.current.is_superset(&hashes)),
+        }
     }
 }
 
 pub fn new_base_ctxs() -> (BCtx,DCtx) {
     let bctx = BCtx { id_counter: 0 };
     let (bctx, root_env) = root_env().marked(bctx);
-    (bctx, DCtx { e: root_env, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()) } )
+    (bctx, DCtx { e: root_env, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()), real_set: Rc::new(BTreeSet::new()), force: false, current: Rc::new(BTreeSet::new()) } )
 }
 
 pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>), String> {
     println!("PE: {}", x);
+    let should_go = dctx.force || dctx.can_progress(x.ids());
+    if !should_go {
+        println!("Shouldn't go!");
+        return Ok((bctx, x));
+    }
     match &*x {
         MarkedForm::SuspendedSymbol(name) => {
             let mut t = Rc::clone(&dctx.e);
