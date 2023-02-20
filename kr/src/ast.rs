@@ -116,7 +116,8 @@ impl Form {
                         let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
                         //
                         //
-                        let ids = dctx.e.ids().union(&body.ids());
+                        let ids = dctx.e.ids().union_without(&body.ids(), id.clone());
+                        println!("\tUnion of {:?} and {:?} without {:?} is {:?}", dctx.e.ids(), body.ids(), id, ids);
                         Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(
                             MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body },
                         ))))
@@ -345,6 +346,24 @@ impl NeededIds {
             },
         }
     }
+    fn union_without(&self, other: &NeededIds, without: EnvID) -> Self {
+        match self {
+            NeededIds::True(hashes)      => NeededIds::True(hashes.union(other.hashes()).cloned().collect()),
+            NeededIds::None(hashes)      => other.union_hashes(hashes).without(without),
+            NeededIds::Some(set, hashes) => match other {
+                NeededIds::True(ohashes)      => NeededIds::True(hashes.union(ohashes).cloned().collect()),
+                NeededIds::None(ohashes)      => NeededIds::Some(set.iter()     .cloned().filter(|x| *x != without).collect(),      hashes.union(ohashes).cloned().collect()),
+                NeededIds::Some(oset,ohashes) => NeededIds::Some(set.union(oset).cloned().filter(|x| *x != without).collect(), hashes.union(ohashes).cloned().collect()),
+            },
+        }
+    }
+    fn without(self, without: EnvID) -> Self {
+        match self {
+            NeededIds::True(_)      => self,
+            NeededIds::None(_)      => self,
+            NeededIds::Some(set, hashes) => NeededIds::Some(set.into_iter().filter(|x| *x != without).collect(), hashes),
+        }
+    }
     fn union_hashes(&self, other: &BTreeSet<Hash>) -> Self {
         match self {
             NeededIds::True(hashes)      => NeededIds::True(             other.union(hashes).cloned().collect()),
@@ -460,6 +479,73 @@ pub fn new_base_ctxs() -> (BCtx,DCtx) {
     (bctx, DCtx { e: root_env, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()), real_set: Rc::new(BTreeSet::new()), force: false, current: Rc::new(BTreeSet::new()) } )
 }
 
+pub fn combiner_return_ok(x: Rc<MarkedForm>, check_id: EnvID) -> bool {
+    match match &*x {
+        MarkedForm::Nil                                        => return true,
+        MarkedForm::Int(_)                                     => return true,
+        MarkedForm::Bool(_)                                    => return true,
+        MarkedForm::Symbol(_)                                  => return true,
+        MarkedForm::Pair(ids,_,_)                              => ids,
+
+        MarkedForm::SuspendedSymbol(_)                         => return false,
+        MarkedForm::SuspendedParamLookup { id, .. }            => return *id != check_id,
+        MarkedForm::SuspendedEnvLookup   { id, .. }            => return *id != check_id,
+        MarkedForm::SuspendedPair { ids, attempted, car, cdr } => {
+           // expand with (veval body {env}) and (func ...params) | func doesn't take de and func+params are return ok
+           return false
+        },
+
+        MarkedForm::PrimComb { .. }                            => return true,
+        MarkedForm::DeriComb { ids, .. }                       => ids,
+    } {
+        NeededIds::True(_hashes)     => false,
+        NeededIds::None(_hashes)     => true,
+        NeededIds::Some(ids,_hashes) => !ids.contains(&check_id),
+    }
+    //; Handles let 4.3 through macro level leaving it as (<comb wraplevel=1 (y) (+ y x 12)> 13)
+    //; need handling of symbols (which is illegal for eval but ok for calls) to push it farther
+    //(combiner_return_ok (rec-lambda combiner_return_ok (func_result env_id)
+    //    (cond   ((not (later_head? func_result)) (not (check_for_env_id_in_result env_id func_result)))
+    //    ; special cases now
+    //    ;   *(veval body {env}) => (combiner_return_ok {env})
+    //    ;       The reason we don't have to check body is that this form is only creatable in ways that body was origionally a value and only need {env}
+    //    ;           Either it's created by eval, in which case it's fine, or it's created by something like (eval (array veval x de) de2) and the array has checked it,
+    //    ;           or it's created via literal vau invocation, in which case the body is a value.
+    //            ((and (marked_array? func_result)
+    //                  (prim_comb? (idx (.marked_array_values func_result) 0))
+    //                  (= 'veval (.prim_comb_sym (idx (.marked_array_values func_result) 0)))
+    //                  (= 3 (len (.marked_array_values func_result)))
+    //                  (combiner_return_ok (idx (.marked_array_values func_result) 2) env_id))                                       true)
+    //    ;   (func ...params) => (and (doesn't take de func) (foldl combiner_return_ok (cons func params)))
+    //    ;
+    //            ((and (marked_array? func_result)
+    //                  (not (comb_takes_de? (idx (.marked_array_values func_result) 0) (len (.marked_array_values func_result))))
+    //                  (foldl (lambda (a x) (and a (combiner_return_ok x env_id))) true (.marked_array_values func_result)))         true)
+
+    //    ;   So that's enough for macro like, but we would like to take it farther
+    //    ;       For like (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a)))))
+    //    ;           we get to (+ 13 x 12) not being a value, and it reconstructs
+    //    ;           (<comb wraplevel=1 (y) (+ y x 12)> 13)
+    //    ;           and that's what eval gets, and eval then gives up as well.
+
+    //    ;           That will get caught by the above cases to remain the expansion (<comb wraplevel=1 (y) (+ y x 12)> 13),
+    //    ;           but ideally we really want another case to allow (+ 13 x 12) to bubble up
+    //    ;           I think it would be covered by the (func ...params) case if a case is added to allow symbols to be bubbled up if their
+    //    ;           needed for progress wasn't true or the current environment, BUT this doesn't work for eval, just for functions,
+    //    ;           since eval changes the entire env chain (but that goes back to case 1, and might be eliminated at compile if it's an env reachable from the func).
+    //    ;
+    //    ;
+    //    ;   Do note a key thing to be avoided is allowing any non-val inside a comb, since that can cause a fake env's ID to
+    //    ;   reference the wrong env/comb in the chain.
+    //    ;   We do allow calling eval with a fake env, but since it's only callable withbody value and is strict (by calling this)
+    //    ;   about it's return conditions, and the env it's called with must be ok in the chain, and eval doesn't introduce a new scope, it works ok.
+    //    ;   We do have to be careful about allowing returned later symbols from it though, since it could be an entirely different env chain.
+
+    //            (true false)
+    //    )
+    //))
+}
+
 pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>), String> {
     println!("PE: {}", x);
     let should_go = dctx.force || dctx.can_progress(x.ids());
@@ -518,44 +604,53 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
                     if !cdr.is_value() {
                         break;
                     }
-                    if let Ok((bctx, r)) = match &*car {
-                        MarkedForm::PrimComb { name, wrap_level, f} => f(bctx.clone(), dctx.clone(), Rc::clone(&cdr)),
-                        MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
-                            // not yet supporting sequence params
-                            let inner_dcts = dctx.copy_push_frame(id.clone(), &se, &de, Some(Rc::clone(&dctx.e)), &rest_params, Some(Rc::clone(&cdr)));
-                            // check for id in it?
-                            partial_eval(bctx.clone(), inner_dcts, Rc::clone(body)).map(|(ibctx, res)| { (ibctx, PossibleMarkedTailCall::Result(res)) })
-                        },
-                        _ => break,
-                    } {
-                        match r {
-                            PossibleMarkedTailCall::Result(result) => return Ok((bctx, result)),
-                            // Sigh, no tail-callin right now
-                            PossibleMarkedTailCall::TailCall(new_env, next) => {
-                                println!("Doing tail call of {} in {}", next, new_env);
-                                if let Ok((new_bctx, res)) = partial_eval(bctx.clone(), dctx.copy_set_env(&new_env), Rc::clone(&next)) {
-                                    println!("Doing tail call result is {}", res);
-                                    return Ok((new_bctx, res));
-                                } else {
-                                    println!("Tail call failed");
-                                    if new_env == dctx.e {
-                                        return Ok((bctx, next));
-                                    } else {
-                                        // maybe this should enplace the TailCall with an eval
-                                        break; // break out to reconstruction
+                    match &*car {
+                        MarkedForm::PrimComb { name, wrap_level, f} => {
+                            if let Ok((bctx, r)) = f(bctx.clone(), dctx.clone(), Rc::clone(&cdr)) {
+                                match r {
+                                    PossibleMarkedTailCall::Result(result) => return Ok((bctx, result)),
+                                    // Sigh, no tail-callin right now
+                                    PossibleMarkedTailCall::TailCall(new_env, next) => {
+                                        println!("Doing tail call of {} in {}", next, new_env);
+                                        if let Ok((new_bctx, res)) = partial_eval(bctx.clone(), dctx.copy_set_env(&new_env), Rc::clone(&next)) {
+                                            println!("Doing tail call result is {}", res);
+                                            return Ok((new_bctx, res));
+                                        } else {
+                                            println!("Tail call failed");
+                                            if new_env == dctx.e {
+                                                return Ok((bctx, next));
+                                            } else {
+                                                // maybe this should enplace the TailCall with an eval
+                                                break; // break out to reconstruction
+                                            }
+                                        }
                                     }
                                 }
-                            }
+                            } else { break; }
                         }
-                    } else {
-                        break; // failed function call
+                        MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
+                            // not yet supporting sequence params
+                            // needs to check hash
+                            let inner_dcts = dctx.copy_push_frame(id.clone(), &se, &de, Some(Rc::clone(&dctx.e)), &rest_params, Some(Rc::clone(&cdr)));
+                            // check for id in it?
+                            // needs to check return OK
+                            if let Ok((bctx, r)) = partial_eval(bctx.clone(), inner_dcts, Rc::clone(body)) {
+                                if combiner_return_ok(Rc::clone(&r), id.clone()) {
+                                    return Ok((bctx, r));
+                                }
+                            }
+                            break; // failed call for one reason or the other
+                        },
+                        _ => break,
                     }
                 }
             }
             // update IDs
             let new_ids = car.ids().union(&cdr.ids());
+            // TODO: This should be new-attempted and only if it takes the dynamic env? (if not attempted, carry over)
+            // basicallly if rec-stop OR not good to return
+            // This would come from trying it again, if you do
             let new_ids = if let Attempted::True(Some(id))   = attempted   { new_ids.add_id(id.clone())     } else { new_ids };
-            // This would come from trying it again
             //let new_ids = if let Some(hash) = resume_hash { new_ids.add_hash(hash) } else { new_ids };
             let new_attempted = attempted.clone();
             Ok((bctx, Rc::new(MarkedForm::SuspendedPair{ ids: new_ids, attempted: new_attempted, car, cdr })))
@@ -563,10 +658,13 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
         MarkedForm::Pair(ids,car,cdr)                => {
             let (bctx, car) = partial_eval(bctx, dctx.clone(), Rc::clone(car))?;
             let (bctx, cdr) = partial_eval(bctx, dctx,         Rc::clone(cdr))?;
-            Ok((bctx, Rc::new(MarkedForm::Pair(car.ids().union(&cdr.ids()),car, cdr))))
+            Ok((bctx, Rc::new(MarkedForm::Pair(car.ids().union(&cdr.ids()), car, cdr))))
         },
         MarkedForm::PrimComb { .. }              => Ok((bctx, x)),
         // Sub stuff
+        //
+        // (mif (or (and (not (marked_env_real? env)) (not (marked_env_real? se)))   ; both aren't real, re-evaluation of creation site
+        //          (and      (marked_env_real? env)  (not (marked_env_real? se))))  ; new env real, but se isn't - creation!
         MarkedForm::DeriComb { .. }              => Ok((bctx, x)),
         _                                        => Ok((bctx, x)),
     }
@@ -730,7 +828,8 @@ impl fmt::Display for MarkedForm {
             MarkedForm::SuspendedParamLookup { name, id, cdr_num, car } => write!(f, "{:?}({:?}{}{})", name, id, cdr_num, car),
             MarkedForm::PrimComb { name, wrap_level, .. }               => write!(f, "<{}{}>", name, wrap_level),
 
-            MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => write!(f, "{:?}#<{}/{:?}/{:?}/{}/{:?}/{:?}/{}>", ids, se, de, id, wrap_level, sequence_params, rest_params, body),
+            //MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => write!(f, "{:?}#[{}/{:?}/{:?}/{}/{:?}/{:?}/{}]", ids, se, de, id, wrap_level, sequence_params, rest_params, body),
+            MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => write!(f, "{:?}#[/{:?}/{:?}/{}/{:?}/{:?}/{}]", ids, de, id, wrap_level, sequence_params, rest_params, body),
 
             MarkedForm::SuspendedPair{ ids, attempted, car, cdr } => {
                 //write!(f, "{:?}{:?}#{{{}", ids, attempted, car)?;

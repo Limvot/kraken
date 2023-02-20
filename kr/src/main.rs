@@ -48,7 +48,7 @@ fn eval_test<T: Into<Form>>(gram: &grammar::TermParser, e: &Rc<Form>, code: &str
     let unvaled = marked.unval().unwrap();
     let (bctx, ped) = partial_eval(bctx, dctx, unvaled).unwrap();
     let (bctx, marked_basic_result) = basic_result.marked(bctx);
-    println!("pe got {}", ped);
+    println!("Final PE {}", ped);
     assert_eq!(*ped, *marked_basic_result);
 }
 
