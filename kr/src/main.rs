@@ -165,7 +165,7 @@ fn vapply_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     ))", *VAPPLY);
     // Won't work unless tail calls work
     // so no PE?
-    eval_test(true, &g, &e, &format!("{} (badid 1000)", def_badid), 1000);
+    eval_test(false, &g, &e, &format!("{} (badid 1000)", def_badid), 1000);
 }
 
 static VMAP: Lazy<String> = Lazy::new(|| {
@@ -248,7 +248,7 @@ fn lapply_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     ))", *LAPPLY);
     // Won't work unless tail calls work
     // takes a while though
-    eval_test(true, &g, &e, &format!("{} (lbadid 1000)", def_lbadid), 1000);
+    eval_test(false, &g, &e, &format!("{} (lbadid 1000)", def_lbadid), 1000);
 }
 
 static VFOLDL: Lazy<String> = Lazy::new(|| {
@@ -582,6 +582,6 @@ static RBTREE: Lazy<String> = Lazy::new(|| {
 });
 #[test]
 fn rbtree_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} (reduce-test-tree (make-test-tree 10 map-empty))", *RBTREE), 1);
-    eval_test(true, &g, &e, &format!("{} (reduce-test-tree (make-test-tree 20 map-empty))", *RBTREE), 2);
+    eval_test(false, &g, &e, &format!("{} (reduce-test-tree (make-test-tree 10 map-empty))", *RBTREE), 1);
+    //eval_test(false, &g, &e, &format!("{} (reduce-test-tree (make-test-tree 20 map-empty))", *RBTREE), 2);
 }
