@@ -123,7 +123,7 @@ impl Form {
                         let sequence_params = vec![];
                         let rest_params = Some(params);
                         //
-                        let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None);
+                        let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None, &body).unwrap();
                         let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
                         Ok((bctx, PossibleMarkedTailCall::Result(MarkedForm::new_deri_comb( se, de, id, wrap_level, sequence_params, rest_params, body ))))
                     }}),
@@ -323,6 +323,13 @@ impl fmt::Display for Form {
 pub struct EnvID(i32);
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct MFHash(u64);
+impl MFHash {
+    pub fn combine(&self, other: &MFHash) -> Self {
+        let mut h = DefaultHasher::new();
+        "combine/".hash(&mut h); self.0.hash(&mut h); other.hash(&mut h);
+        MFHash(h.finish())
+    }
+}
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum NeededIds {
@@ -434,7 +441,7 @@ impl DCtx {
     pub fn copy_set_env(&self, e: &Rc<MarkedForm>) -> Self {
         DCtx { e: Rc::clone(e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), force: self.force, current: Rc::clone(&self.current), ident: self.ident+1  }
     }
-    pub fn copy_push_frame(&self, id: EnvID, se: &Rc<MarkedForm>, de: &Option<String>, e: Option<Rc<MarkedForm>>, rest_params: &Option<String>, prms: Option<Rc<MarkedForm>>) -> Self {
+    pub fn copy_push_frame(&self, id: EnvID, se: &Rc<MarkedForm>, de: &Option<String>, e: Option<Rc<MarkedForm>>, rest_params: &Option<String>, prms: Option<Rc<MarkedForm>>, body: &Rc<MarkedForm>) -> Result<Self,MFHash> {
         let mut sus_env_stack = Rc::clone(&self.sus_env_stack);
         let mut sus_prm_stack = Rc::clone(&self.sus_prm_stack);
         let mut real_set = Rc::clone(&self.real_set);
@@ -460,9 +467,15 @@ impl DCtx {
             };
             massoc(p, p_val, inner_env)
         } else { inner_env };
-        // Push on current frame hash?!
-        let new_current = Rc::clone(&self.current);
-        DCtx { e: inner_env, sus_env_stack, sus_prm_stack, real_set, force: self.force, current: new_current, ident: self.ident+1 }
+        // Push on current frame hash
+        let new_hash = inner_env.hash().combine(&body.hash());
+        if self.current.contains(&new_hash) {
+            println!("Hash Rec Stop!");
+            Err(new_hash)
+        } else {
+            let new_current = Rc::new(self.current.iter().cloned().chain(iter::once(new_hash)).collect());
+            Ok(DCtx { e: inner_env, sus_env_stack, sus_prm_stack, real_set, force: self.force, current: new_current, ident: self.ident+1 })
+        }
     }
 
     pub fn can_progress(&self, ids: NeededIds) -> bool {
@@ -581,6 +594,7 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
             let (    bctx, mut car) = partial_eval(bctx, dctx.clone(), Rc::clone(car))?;
             let (mut bctx, mut cdr) = partial_eval(bctx, dctx.clone(), Rc::clone(cdr))?;
             let mut new_attempted = attempted.clone();
+            let mut maybe_rec_hash = None;
             while let Some(wrap_level) = car.wrap_level() {
                 if wrap_level > 0 {
                     fn map_unval_peval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>),String> {
@@ -636,14 +650,18 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
                             new_attempted = Attempted::True(if de.is_some() { Some(dctx.e.ids()) } else { None });
                             // not yet supporting sequence params
                             // needs to check hash
-                            let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, Some(Rc::clone(&dctx.e)), &rest_params, Some(Rc::clone(&cdr)));
-                            // check for id in it?
-                            // needs to check return OK
-                            println!("{:ident$}doing a call eval of {} in {}", "", body, inner_dctx.e, ident=inner_dctx.ident*4);
-                            if let Ok((bctx, r)) = partial_eval(bctx.clone(), inner_dctx, Rc::clone(body)) {
-                                if combiner_return_ok(Rc::clone(&r), id.clone()) {
-                                    return Ok((bctx, r));
-                                }
+                            match dctx.copy_push_frame(id.clone(), &se, &de, Some(Rc::clone(&dctx.e)), &rest_params, Some(Rc::clone(&cdr)), body) {
+                                Ok(inner_dctx) => {
+                                    println!("{:ident$}doing a call eval of {} in {}", "", body, inner_dctx.e, ident=inner_dctx.ident*4);
+                                    if let Ok((bctx, r)) = partial_eval(bctx.clone(), inner_dctx, Rc::clone(body)) {
+                                        if combiner_return_ok(Rc::clone(&r), id.clone()) {
+                                            return Ok((bctx, r));
+                                        }
+                                    }
+                                },
+                                Err(rec_stop_hash) => {
+                                    maybe_rec_hash = Some(rec_stop_hash);
+                                },
                             }
                             break; // failed call for one reason or the other
                         },
@@ -651,7 +669,7 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
                     }
                 }
             }
-            Ok((bctx, MarkedForm::new_suspended_pair( new_attempted, car, cdr )))
+            Ok((bctx, MarkedForm::new_suspended_pair( new_attempted, car, cdr, maybe_rec_hash )))
         },
         MarkedForm::Pair(h,ids,car,cdr)                => {
             let (bctx, car) = partial_eval(bctx, dctx.clone(), Rc::clone(car))?;
@@ -662,7 +680,7 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
             if !se.ids().needs_nothing() {
                 // the current env is our new se
                 let se = Rc::clone(&dctx.e);
-                let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None);
+                let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None, body).expect("Not sure if this can ever fail or not... maybe for Y comb recursion?");
                 let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
                 Ok((bctx, MarkedForm::new_deri_comb( se, de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), body )))
             } else {
@@ -701,7 +719,7 @@ impl MarkedForm {
         "Pair(ids,car,cdr)".hash(&mut h); car.hash().hash(&mut h); cdr.hash().hash(&mut h);
         Rc::new(MarkedForm::Pair(MFHash(h.finish()), car.ids().union(&cdr.ids()), car, cdr))
     }
-    pub fn new_suspended_pair(attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>) -> Rc<MarkedForm> {
+    pub fn new_suspended_pair(attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>, rec_hash: Option<MFHash>) -> Rc<MarkedForm> {
         let mut h = DefaultHasher::new();
         "SuspendedPair".hash(&mut h); attempted.hash(&mut h); car.hash().hash(&mut h); cdr.hash().hash(&mut h);
         let ids = car.ids().union(&cdr.ids());
@@ -714,6 +732,9 @@ impl MarkedForm {
                                        },
             NeededIds::Some(_,_)    => ids,
         };
+        if let Some(rec_hash) = rec_hash {
+            ids.add_hash(rec_hash);
+        }
         Rc::new(MarkedForm::SuspendedPair{ hash: MFHash(h.finish()), attempted, ids, car, cdr })
     }
     pub fn new_deri_comb(se: Rc<MarkedForm>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm>) -> Rc<MarkedForm> {
@@ -798,7 +819,7 @@ impl MarkedForm {
             MarkedForm::Int(i)                       => Ok(Rc::clone(self)),
             MarkedForm::Bool(b)                      => Ok(Rc::clone(self)),
             MarkedForm::Symbol(s)                    => Ok(Rc::new(MarkedForm::SuspendedSymbol(s.clone()))), 
-            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(MarkedForm::new_suspended_pair( Attempted::False, car.unval()?, Rc::clone(cdr))),
+            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(MarkedForm::new_suspended_pair( Attempted::False, car.unval()?, Rc::clone(cdr), None)),
             MarkedForm::SuspendedSymbol(name)        => Err("trying to unval a suspended symbol"),
             MarkedForm::SuspendedEnvLookup { .. }    => Err("trying to unval a suspended env lookup"),
             MarkedForm::SuspendedParamLookup { .. }  => Err("trying to unval a suspended param lookup"),
