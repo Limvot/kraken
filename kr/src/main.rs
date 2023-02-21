@@ -39,7 +39,7 @@ fn parse_test() {
 }
 
 fn eval_test<T: Into<Form>>(also_pe: bool, gram: &grammar::TermParser, e: &Rc<Form>, code: &str, expected: T) {
-    println!("Doing {}", code);
+    println!("Doing test {}", code);
     let parsed = Rc::new(gram.parse(code).unwrap());
     let basic_result = eval(Rc::clone(e), Rc::clone(&parsed));
     assert_eq!(*basic_result, expected.into());

@@ -1,9 +1,10 @@
 use std::fmt;
 use std::rc::Rc;
 use std::convert::From;
-use std::collections::{BTreeSet,BTreeMap};
+use std::collections::{BTreeSet,BTreeMap,hash_map::DefaultHasher};
 use std::result::Result;
 use std::iter;
+use std::hash::{Hash,Hasher};
 
 
 // TODO:
@@ -89,17 +90,17 @@ impl Form {
             Form::Pair(car, cdr)        => {
                 let (bctx, car) = car.marked(bctx);
                 let (bctx, cdr) = cdr.marked(bctx);
-                (bctx, Rc::new(MarkedForm::Pair(NeededIds::new_none(), car, cdr)))
+                (bctx, MarkedForm::new_pair(car, cdr))
             },
             Form::DeriComb { se, de, params, body } => {
                 // this is a bit sus, but we don't run into it as of yet
                 panic!();
-                let (bctx, se)     = se.marked(bctx);
-                let (bctx, body)   = body.marked(bctx);
-                let (bctx, new_id) = bctx.new_id();
-                (bctx, Rc::new(MarkedForm::DeriComb { ids: NeededIds::new_none(), se, de: de.clone(),
-                                                     id: new_id, wrap_level: 0, sequence_params: vec![],
-                                                     rest_params: Some(params.clone()), body }))
+                //let (bctx, se)     = se.marked(bctx);
+                //let (bctx, body)   = body.marked(bctx);
+                //let (bctx, new_id) = bctx.new_id();
+                //(bctx, Rc::new(MarkedForm::DeriComb { ids: NeededIds::new_none(), se, de: de.clone(),
+                //                                     id: new_id, wrap_level: 0, sequence_params: vec![],
+                //                                     rest_params: Some(params.clone()), body }))
             },
             Form::PrimComb(name, _f)    => {
                 (bctx, match &name[..] {
@@ -124,13 +125,7 @@ impl Form {
                         //
                         let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None);
                         let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
-                        //
-                        //
-                        let ids = dctx.e.ids().union_without(&body.ids(), id.clone());
-                        println!("\tUnion of {:?} and {:?} without {:?} is {:?}", dctx.e.ids(), body.ids(), id, ids);
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(
-                            MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body },
-                        ))))
+                        Ok((bctx, PossibleMarkedTailCall::Result(MarkedForm::new_deri_comb( se, de, id, wrap_level, sequence_params, rest_params, body ))))
                     }}),
                     // TODO: handle vif, partial eval branches
                     "if" => Rc::new(MarkedForm::PrimComb { name: "if".to_owned(), takes_de: true, wrap_level: 0, f: |bctx, dctx, p| {
@@ -146,7 +141,7 @@ impl Form {
                     "cons" => Rc::new(MarkedForm::PrimComb { name: "cons".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
                         let h =  p.car()?;
                         let t =  p.cdr()?.car()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Pair(h.ids().union(&t.ids()), h, t)))))
+                        Ok((bctx, PossibleMarkedTailCall::Result(MarkedForm::new_pair(h, t))))
                     }}),
                     "car" => Rc::new(MarkedForm::PrimComb { name: "car".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
                         Ok((bctx, PossibleMarkedTailCall::Result(p.car()?.car()?)))
@@ -254,8 +249,8 @@ impl Form {
                     }}),
                     "pair?" => Rc::new(MarkedForm::PrimComb { name: "pair?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
                         Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(match &* p.car()? {
-                            MarkedForm::Pair(_i, _a,_b) => true,
-                            _                           => false,
+                            MarkedForm::Pair(_h, _i, _a,_b) => true,
+                            _                               => false,
                         })))))
                     }}),
                     "symbol?" => Rc::new(MarkedForm::PrimComb { name: "symbol?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
@@ -324,16 +319,16 @@ impl fmt::Display for Form {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct EnvID(i32);
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Hash(u64);
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MFHash(u64);
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum NeededIds {
-    True(BTreeSet<Hash>),
-    None(BTreeSet<Hash>),
-    Some(BTreeSet<EnvID>,BTreeSet<Hash>),
+    True(BTreeSet<MFHash>),
+    None(BTreeSet<MFHash>),
+    Some(BTreeSet<EnvID>,BTreeSet<MFHash>),
 }
 impl NeededIds {
     fn new_true()           -> Self { NeededIds::True(                         BTreeSet::new()) }
@@ -346,7 +341,7 @@ impl NeededIds {
             NeededIds::Some(set,hashes) => false,
         }
     }
-    fn hashes(&self) -> &BTreeSet<Hash> {
+    fn hashes(&self) -> &BTreeSet<MFHash> {
         match self {
             NeededIds::True(hashes)     => hashes,
             NeededIds::None(hashes)     => hashes,
@@ -381,14 +376,14 @@ impl NeededIds {
             },
         }
     }
-    fn union_hashes(&self, other: &BTreeSet<Hash>) -> Self {
+    fn union_hashes(&self, other: &BTreeSet<MFHash>) -> Self {
         match self {
             NeededIds::True(hashes)      => NeededIds::True(             other.union(hashes).cloned().collect()),
             NeededIds::None(hashes)      => NeededIds::None(             other.union(hashes).cloned().collect()),
             NeededIds::Some(set, hashes) => NeededIds::Some(set.clone(), other.union(hashes).cloned().collect()),
         }
     }
-    fn add_hash(&self, h: Hash) -> Self {
+    fn add_hash(&self, h: MFHash) -> Self {
         match self {
             NeededIds::True(hashes)      => NeededIds::True(             hashes.iter().cloned().chain(iter::once(h)).collect()),
             NeededIds::None(hashes)      => NeededIds::None(             hashes.iter().cloned().chain(iter::once(h)).collect()),
@@ -432,7 +427,7 @@ pub struct DCtx {
     sus_prm_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
     real_set: Rc<BTreeSet<EnvID>>,
     force: bool,
-    current: Rc<BTreeSet<Hash>>,
+    current: Rc<BTreeSet<MFHash>>,
     ident: usize,
 }
 impl DCtx {
@@ -492,12 +487,12 @@ pub fn combiner_return_ok(x: Rc<MarkedForm>, check_id: EnvID) -> bool {
         MarkedForm::Int(_)                                     => return true,
         MarkedForm::Bool(_)                                    => return true,
         MarkedForm::Symbol(_)                                  => return true,
-        MarkedForm::Pair(ids,_,_)                              => ids,
+        MarkedForm::Pair(h,ids,_,_)                            => ids,
 
         MarkedForm::SuspendedSymbol(_)                         => return false,
         MarkedForm::SuspendedParamLookup { id, .. }            => return *id != check_id,
         MarkedForm::SuspendedEnvLookup   { id, .. }            => return *id != check_id,
-        MarkedForm::SuspendedPair { ids, attempted, car, cdr } => {
+        MarkedForm::SuspendedPair { .. }                       => {
            // expand with (veval body {env}) and (func ...params) | func doesn't take de and func+params are return ok
            return false
         },
@@ -582,7 +577,7 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
                 Ok((bctx, x))
             }
         },
-        MarkedForm::SuspendedPair { ids, attempted, car, cdr } => {
+        MarkedForm::SuspendedPair { hash, ids, attempted, car, cdr } => {
             let (    bctx, mut car) = partial_eval(bctx, dctx.clone(), Rc::clone(car))?;
             let (mut bctx, mut cdr) = partial_eval(bctx, dctx.clone(), Rc::clone(cdr))?;
             let mut new_attempted = attempted.clone();
@@ -590,10 +585,10 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
                 if wrap_level > 0 {
                     fn map_unval_peval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>),String> {
                         match &*x {
-                            MarkedForm::Pair(ids, x_car, x_cdr) => {
+                            MarkedForm::Pair(h, ids, x_car, x_cdr) => {
                                 let (bctx, new_x_car) = partial_eval(bctx, dctx.clone(), x_car.unval()?)?;
                                 let (bctx, new_x_cdr) = map_unval_peval(bctx, dctx.clone(), Rc::clone(x_cdr))?;
-                                return Ok((bctx, Rc::new(MarkedForm::Pair(new_x_car.ids().union(&new_x_cdr.ids()), new_x_car, new_x_cdr))));
+                                return Ok((bctx, MarkedForm::new_pair(new_x_car, new_x_cdr)));
                             },
                             MarkedForm::Nil => return Ok((bctx,x)),
                             _               => return Err("not a list".to_owned()),
@@ -637,7 +632,7 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
                                 }
                             } else { break; }
                         }
-                        MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
+                        MarkedForm::DeriComb { hash, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
                             new_attempted = Attempted::True(if de.is_some() { Some(dctx.e.ids()) } else { None });
                             // not yet supporting sequence params
                             // needs to check hash
@@ -656,35 +651,20 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
                     }
                 }
             }
-            // update IDs
-            let new_ids = car.ids().union(&cdr.ids());
-            let new_ids = match new_ids {
-                NeededIds::True(_)      => new_ids,
-                NeededIds::None(hashes) => match &new_attempted {
-                                               Attempted::False            => NeededIds::True(hashes),
-                                               Attempted::True(Some(oids)) => oids.union_hashes(&hashes),
-                                               Attempted::True(None)       => NeededIds::None(hashes),
-                                           },
-                NeededIds::Some(_,_)    => new_ids,
-            };
-            Ok((bctx, Rc::new(MarkedForm::SuspendedPair{ ids: new_ids, attempted: new_attempted, car, cdr })))
+            Ok((bctx, MarkedForm::new_suspended_pair( new_attempted, car, cdr )))
         },
-        MarkedForm::Pair(ids,car,cdr)                => {
+        MarkedForm::Pair(h,ids,car,cdr)                => {
             let (bctx, car) = partial_eval(bctx, dctx.clone(), Rc::clone(car))?;
             let (bctx, cdr) = partial_eval(bctx, dctx,         Rc::clone(cdr))?;
-            Ok((bctx, Rc::new(MarkedForm::Pair(car.ids().union(&cdr.ids()), car, cdr))))
+            Ok((bctx, MarkedForm::new_pair(car, cdr)))
         },
-        MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
+        MarkedForm::DeriComb { hash, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
             if !se.ids().needs_nothing() {
                 // the current env is our new se
                 let se = Rc::clone(&dctx.e);
                 let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None);
                 let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
-                //
-                //
-                let ids = dctx.e.ids().union_without(&body.ids(), id.clone());
-                println!("\tUnion of {:?} and {:?} without {:?} is {:?}", dctx.e.ids(), body.ids(), id, ids);
-                Ok((bctx, Rc::new(MarkedForm::DeriComb { ids: ids.clone(), se, de: de.clone(), id: id.clone(), wrap_level: *wrap_level, sequence_params: sequence_params.clone(), rest_params: rest_params.clone(), body })))
+                Ok((bctx, MarkedForm::new_deri_comb( se, de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), body )))
             } else {
                 Ok((bctx, x))
             }
@@ -693,7 +673,7 @@ pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,R
         _                                        => Ok((bctx, x)),
     }
 }
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum Attempted {
     True(Option<NeededIds>),
     False,
@@ -704,18 +684,65 @@ pub enum MarkedForm {
     Int(i32),
     Bool(bool),
     Symbol(String),
-    Pair(NeededIds, Rc<MarkedForm>,Rc<MarkedForm>),
+    Pair(MFHash, NeededIds, Rc<MarkedForm>,Rc<MarkedForm>),
 
     SuspendedSymbol(String),
     SuspendedParamLookup { name: Option<String>, id: EnvID, cdr_num: i32, car: bool },
     SuspendedEnvLookup   { name: Option<String>, id: EnvID },
     // resume hash is folded into ids
-    SuspendedPair { ids: NeededIds, attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>},
+    SuspendedPair { hash: MFHash, ids: NeededIds, attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>},
 
     PrimComb { name: String, takes_de: bool, wrap_level: i32, f: fn(BCtx,DCtx,Rc<MarkedForm>) -> Result<(BCtx,PossibleMarkedTailCall),String> },
-    DeriComb { ids: NeededIds, se: Rc<MarkedForm>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm> },
+    DeriComb { hash: MFHash, ids: NeededIds, se: Rc<MarkedForm>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm> },
 }
 impl MarkedForm {
+    pub fn new_pair(car: Rc<MarkedForm>, cdr: Rc<MarkedForm>) -> Rc<MarkedForm> {
+        let mut h = DefaultHasher::new();
+        "Pair(ids,car,cdr)".hash(&mut h); car.hash().hash(&mut h); cdr.hash().hash(&mut h);
+        Rc::new(MarkedForm::Pair(MFHash(h.finish()), car.ids().union(&cdr.ids()), car, cdr))
+    }
+    pub fn new_suspended_pair(attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>) -> Rc<MarkedForm> {
+        let mut h = DefaultHasher::new();
+        "SuspendedPair".hash(&mut h); attempted.hash(&mut h); car.hash().hash(&mut h); cdr.hash().hash(&mut h);
+        let ids = car.ids().union(&cdr.ids());
+        let ids = match ids {
+            NeededIds::True(_)      => ids,
+            NeededIds::None(hashes) => match &attempted {
+                                           Attempted::False            => NeededIds::True(hashes),
+                                           Attempted::True(Some(oids)) => oids.union_hashes(&hashes),
+                                           Attempted::True(None)       => NeededIds::None(hashes),
+                                       },
+            NeededIds::Some(_,_)    => ids,
+        };
+        Rc::new(MarkedForm::SuspendedPair{ hash: MFHash(h.finish()), attempted, ids, car, cdr })
+    }
+    pub fn new_deri_comb(se: Rc<MarkedForm>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm>) -> Rc<MarkedForm> {
+        let mut h = DefaultHasher::new();
+        "DeriComb".hash(&mut h); se.hash().hash(&mut h); de.hash(&mut h); id.hash(&mut h); wrap_level.hash(&mut h);
+        sequence_params.hash(&mut h); rest_params.hash(&mut h); body.hash().hash(&mut h);
+        let ids = se.ids().union_without(&body.ids(), id.clone());
+        Rc::new(MarkedForm::DeriComb{ hash: MFHash(h.finish()), ids, se, de, id, wrap_level, sequence_params, rest_params, body })
+    }
+    pub fn hash(&self) -> MFHash {
+        let mut h = DefaultHasher::new();
+        {
+            let state = &mut h;
+            match self {
+                MarkedForm::Nil                                            => { "Nil".hash(state); },
+                MarkedForm::Int(i)                                         => { "Int(i)".hash(state); i.hash(state); },
+                MarkedForm::Bool(b)                                        => { "Bool(b)".hash(state); b.hash(state); },
+                MarkedForm::Symbol(s)                                      => { "Symbol(s)".hash(state); s.hash(state); }, 
+                MarkedForm::Pair(hash,ids,car,cdr)                         => { return *hash; },
+                MarkedForm::SuspendedSymbol(name)                          => { "SuspendedSymbol(name)".hash(state); name.hash(state); },
+                MarkedForm::SuspendedParamLookup { name, id, cdr_num, car }=> { "SuspendedParamLookup".hash(state); name.hash(state); id.hash(state); cdr_num.hash(state); car.hash(state); },
+                MarkedForm::SuspendedEnvLookup { name, id }                => { "SuspendedEnvLookup".hash(state); name.hash(state); id.hash(state); },
+                MarkedForm::SuspendedPair{ hash, .. }                      => { return *hash; },
+                MarkedForm::PrimComb { name, wrap_level, .. }              => { "PrimComb".hash(state); name.hash(state); wrap_level.hash(state); },
+                MarkedForm::DeriComb { hash, .. }                          => { return *hash; },
+            }
+        }
+        MFHash(h.finish())
+    }
     pub fn wrap_level(&self) -> Option<i32> {
         match self {
             MarkedForm::PrimComb { wrap_level, .. } => Some(*wrap_level),
@@ -726,7 +753,7 @@ impl MarkedForm {
     pub fn decrement_wrap_level(&self) -> Option<Rc<Self>> {
         match self {
             MarkedForm::PrimComb { name, takes_de, wrap_level, f } => Some(Rc::new(MarkedForm::PrimComb { name: name.clone(), takes_de: *takes_de, wrap_level: wrap_level-1, f: *f })),
-            MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => Some(Rc::new(MarkedForm::DeriComb { ids: ids.clone(), se: Rc::clone(se), de: de.clone(), id: id.clone(), wrap_level: wrap_level-1, sequence_params: sequence_params.clone(), rest_params: rest_params.clone(), body: Rc::clone(body) })),
+            MarkedForm::DeriComb { hash, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => Some(MarkedForm::new_deri_comb(Rc::clone(se), de.clone(), id.clone(), wrap_level-1, sequence_params.clone(), rest_params.clone(), Rc::clone(body))),
             _ => None,
         }
     }
@@ -736,7 +763,7 @@ impl MarkedForm {
             MarkedForm::Int(i)                           => NeededIds::new_none(),
             MarkedForm::Bool(b)                          => NeededIds::new_none(),
             MarkedForm::Symbol(s)                        => NeededIds::new_none(), 
-            MarkedForm::Pair(ids,car,cdr)                => ids.clone(),
+            MarkedForm::Pair(hash,ids,car,cdr)           => ids.clone(),
             MarkedForm::SuspendedSymbol(name)            => NeededIds::new_true(),
             MarkedForm::SuspendedEnvLookup { id, .. }    => NeededIds::new_single(id.clone()),
             MarkedForm::SuspendedParamLookup { id, .. }  => NeededIds::new_single(id.clone()),
@@ -757,7 +784,7 @@ impl MarkedForm {
             MarkedForm::SuspendedParamLookup { id, .. } => return false,
             MarkedForm::SuspendedPair{ ids, .. }        => return false,
             MarkedForm::PrimComb { .. }                 => return true,
-            MarkedForm::Pair(ids,car,cdr)               => ids.clone(),
+            MarkedForm::Pair(hash,ids,car,cdr)          => ids.clone(),
             MarkedForm::DeriComb { ids, .. }            => ids.clone(),
         } {
             NeededIds::True(hashes)     => false,
@@ -771,7 +798,7 @@ impl MarkedForm {
             MarkedForm::Int(i)                       => Ok(Rc::clone(self)),
             MarkedForm::Bool(b)                      => Ok(Rc::clone(self)),
             MarkedForm::Symbol(s)                    => Ok(Rc::new(MarkedForm::SuspendedSymbol(s.clone()))), 
-            MarkedForm::Pair(ids,car,cdr)            => Ok(Rc::new(MarkedForm::SuspendedPair { ids: NeededIds::new_true(), attempted: Attempted::False, car: car.unval()?, cdr: Rc::clone(cdr)})),
+            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(MarkedForm::new_suspended_pair( Attempted::False, car.unval()?, Rc::clone(cdr))),
             MarkedForm::SuspendedSymbol(name)        => Err("trying to unval a suspended symbol"),
             MarkedForm::SuspendedEnvLookup { .. }    => Err("trying to unval a suspended env lookup"),
             MarkedForm::SuspendedParamLookup { .. }  => Err("trying to unval a suspended param lookup"),
@@ -786,7 +813,7 @@ impl MarkedForm {
             MarkedForm::Int(i)                       => Ok(true),
             MarkedForm::Bool(b)                      => Ok(*b),
             MarkedForm::Symbol(s)                    => Ok(true), 
-            MarkedForm::Pair(ids,car,cdr)            => Ok(true),
+            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(true),
             MarkedForm::SuspendedSymbol(name)        => Err("trying to truthy a suspended symbol"),
             MarkedForm::SuspendedEnvLookup { .. }    => Err("trying to truthy a suspended env lookup"),
             MarkedForm::SuspendedParamLookup { .. }  => Err("trying to truthy a suspended param lookup"),
@@ -809,13 +836,13 @@ impl MarkedForm {
     }
     pub fn car(&self) -> Result<Rc<MarkedForm>, &'static str> {
         match self {
-            MarkedForm::Pair(ids,car,cdr)            => Ok(Rc::clone(car)),
+            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(Rc::clone(car)),
             _                                        => Err("not a pair"),
         }
     }
     pub fn cdr(&self) -> Result<Rc<MarkedForm>, &'static str> {
         match self {
-            MarkedForm::Pair(ids,car,cdr)            => Ok(Rc::clone(cdr)),
+            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(Rc::clone(cdr)),
             _                                        => Err("not a pair"),
         }
     }
@@ -827,13 +854,13 @@ impl fmt::Display for MarkedForm {
             MarkedForm::Int(i)                => write!(f, "{}", i),
             MarkedForm::Bool(b)               => write!(f, "{}", b),
             MarkedForm::Symbol(s)             => write!(f, "{}", s),
-            MarkedForm::Pair(ids, car, cdr)   => {
+            MarkedForm::Pair(hash, ids, car, cdr)   => {
                 //write!(f, "{:?}#({}", ids, car)?;
                 write!(f, "({}", car)?;
                 let mut traverse: Rc<MarkedForm> = Rc::clone(cdr);
                 loop {
                     match &*traverse {
-                        MarkedForm::Pair(ref ids, ref carp, ref cdrp) => {
+                        MarkedForm::Pair(ref hash, ref ids, ref carp, ref cdrp) => {
                             write!(f, " {}", carp)?;
                             traverse = Rc::clone(cdrp);
                         },
@@ -854,15 +881,15 @@ impl fmt::Display for MarkedForm {
             MarkedForm::PrimComb { name, wrap_level, .. }               => write!(f, "<{}{}>", name, wrap_level),
 
             //MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => write!(f, "{:?}#[{}/{:?}/{:?}/{}/{:?}/{:?}/{}]", ids, se, de, id, wrap_level, sequence_params, rest_params, body),
-            MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => write!(f, "{:?}#[/{:?}/{:?}/{}/{:?}/{:?}/{}]", ids, de, id, wrap_level, sequence_params, rest_params, body),
+            MarkedForm::DeriComb { hash, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => write!(f, "{:?}#[/{:?}/{:?}/{}/{:?}/{:?}/{}]", ids, de, id, wrap_level, sequence_params, rest_params, body),
 
-            MarkedForm::SuspendedPair{ ids, attempted, car, cdr } => {
+            MarkedForm::SuspendedPair{ hash, ids, attempted, car, cdr } => {
                 //write!(f, "{:?}{:?}#{{{}", ids, attempted, car)?;
                 write!(f, "{{{}", car)?;
                 let mut traverse: Rc<MarkedForm> = Rc::clone(cdr);
                 loop {
                     match &*traverse {
-                        MarkedForm::Pair(ref ids, ref carp, ref cdrp) => {
+                        MarkedForm::Pair(ref hash, ref ids, ref carp, ref cdrp) => {
                             write!(f, " {}", carp)?;
                             traverse = Rc::clone(cdrp);
                         },
@@ -925,13 +952,11 @@ pub fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
     }
 }
 fn massoc(k: &str, v: Rc<MarkedForm>, l: Rc<MarkedForm>) -> Rc<MarkedForm> {
-    Rc::new(MarkedForm::Pair(
-                l.ids().union(&v.ids()),
-                Rc::new(MarkedForm::Pair(
-                        v.ids(),
+    MarkedForm::new_pair(
+                MarkedForm::new_pair(
                         Rc::new(MarkedForm::Symbol(k.to_owned())),
-                        v)),
-                l))
+                        v),
+                l)
 }
 fn assoc(k: &str, v: Rc<Form>, l: Rc<Form>) -> Rc<Form> {
     Rc::new(Form::Pair(
