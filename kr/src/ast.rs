@@ -9,10 +9,9 @@ use std::hash::{Hash,Hasher};
 
 // TODO:
 // -extend vau & env logic and SuspendedPair PE with sequence_params & wrap_level
-// -add veval and vif & -1 wrap_level handling to SuspendedPair
-// -add current-hashes to if, DeriComb Calls, and DCtx-push/can_progress, and Hash to *everything*
-// -expand combiner_Return_ok with (veval body {env}) and (func ...params) | func doesn't take de and func+params are return ok
-// -add drop redundent veval
+// -add current-hashes to if
+// -expand combiner_Return_ok with (func ...params) | func doesn't take de and func+params are return ok
+// -add recursive drop redundent veval
 // -add compiler
 
 impl From<i32>  for Form { fn from(item: i32)  -> Self { Form::Int(item) } }
@@ -80,211 +79,6 @@ impl Form {
             _                    => None,
         }
     }
-
-    pub fn marked(&self, bctx: BCtx) -> (BCtx, Rc<MarkedForm>) {
-        match &*self {
-            Form::Nil                   => (bctx, Rc::new(MarkedForm::Nil)),
-            Form::Int(i)                => (bctx, Rc::new(MarkedForm::Int(*i))),
-            Form::Bool(b)               => (bctx, Rc::new(MarkedForm::Bool(*b))),
-            Form::Symbol(s)             => (bctx, Rc::new(MarkedForm::Symbol(s.clone()))),
-            Form::Pair(car, cdr)        => {
-                let (bctx, car) = car.marked(bctx);
-                let (bctx, cdr) = cdr.marked(bctx);
-                (bctx, MarkedForm::new_pair(car, cdr))
-            },
-            Form::DeriComb { se, de, params, body } => {
-                // this is a bit sus, but we don't run into it as of yet
-                panic!();
-                //let (bctx, se)     = se.marked(bctx);
-                //let (bctx, body)   = body.marked(bctx);
-                //let (bctx, new_id) = bctx.new_id();
-                //(bctx, Rc::new(MarkedForm::DeriComb { ids: NeededIds::new_none(), se, de: de.clone(),
-                //                                     id: new_id, wrap_level: 0, sequence_params: vec![],
-                //                                     rest_params: Some(params.clone()), body }))
-            },
-            Form::PrimComb(name, _f)    => {
-                (bctx, match &name[..] {
-                    "eval" => Rc::new(MarkedForm::PrimComb { name: "eval".to_owned(), takes_de: true, wrap_level: 1, f: |bctx, dctx, p| {
-                        // put in partial eval logic,
-                        // and veval
-                        let b = p.car()?.unval()?;
-                        let e = p.cdr()?.car()?;
-                        //println!("Doing Eval (via tail call) of {} in {}", b, e);
-                        Ok((bctx, PossibleMarkedTailCall::TailCall(e, b)))
-                    }}),
-                    "vau" => Rc::new(MarkedForm::PrimComb { name: "vau".to_owned(), takes_de: true, wrap_level: 0, f: |bctx, dctx, p| {
-                        let de     = p.car()?.sym().map(|s| s.to_owned()).ok();
-                        let params = p.cdr()?.car()?.sym()?.to_owned();
-                        let body   = p.cdr()?.cdr()?.car()?.unval()?;
-                        let se = Rc::clone(&dctx.e);
-                        let (bctx, id) = bctx.new_id();
-                        // TODO: figure out wrap level, sequence params, etc
-                        let wrap_level = 0;
-                        let sequence_params = vec![];
-                        let rest_params = Some(params);
-                        //
-                        let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None, &body).unwrap();
-                        let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(MarkedForm::new_deri_comb( se, None, de, id, wrap_level, sequence_params, rest_params, body ))))
-                    }}),
-                    // TODO: handle vif, partial eval branches
-                    "if" => Rc::new(MarkedForm::PrimComb { name: "if".to_owned(), takes_de: true, wrap_level: 0, f: |bctx, dctx, p| {
-                        let (bctx, cond) = partial_eval(bctx, dctx.clone(), p.car()?.unval()?)?;
-                        let e = Rc::clone(&dctx.e);
-                        if cond.truthy()? {
-                            Ok((bctx, PossibleMarkedTailCall::TailCall(e, p.cdr()?.car()?.unval()?)))
-                        } else {
-                            Ok((bctx, PossibleMarkedTailCall::TailCall(e, p.cdr()?.cdr()?.car()?.unval()?)))
-                        }
-                    }}),
-                    // TODO: handle these in the context of paritals
-                    "cons" => Rc::new(MarkedForm::PrimComb { name: "cons".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let h =  p.car()?;
-                        let t =  p.cdr()?.car()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(MarkedForm::new_pair(h, t))))
-                    }}),
-                    "car" => Rc::new(MarkedForm::PrimComb { name: "car".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        Ok((bctx, PossibleMarkedTailCall::Result(p.car()?.car()?)))
-                    }}),
-                    "cdr" => Rc::new(MarkedForm::PrimComb { name: "cdr".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        Ok((bctx, PossibleMarkedTailCall::Result(p.car()?.cdr()?)))
-                    }}),
-                    "quote" => Rc::new(MarkedForm::PrimComb { name: "quote".to_owned(), takes_de: false, wrap_level: 0, f: |bctx, dctx, p| {
-                        Ok((bctx, PossibleMarkedTailCall::Result(p.car()?)))
-                    }}),
-                    // This one needs to control eval to print debug before continuint
-                    // which is werid to PE
-                    "debug" => Rc::new(MarkedForm::PrimComb { name: "debug".to_owned(), takes_de: true, wrap_level: 0, f: |bctx, dctx, p| {
-                        panic!();
-                        let e = Rc::clone(&dctx.e);
-                        Ok((bctx, PossibleMarkedTailCall::TailCall(e, p.cdr()?.car()?)))
-                    }}),
-                    // ditto
-                    "assert" => Rc::new(MarkedForm::PrimComb { name: "assert".to_owned(), takes_de: true, wrap_level: 0, f: |bctx, dctx, p| {
-                        //panic!();
-                        println!("Assert test {:?}", p.car());
-                        let (bctx, cond) = partial_eval(bctx, dctx.clone(), p.car()?.unval()?)?;
-                        println!("\tAssert result {}", cond);
-                        if !cond.truthy()? {
-                            println!("Assert failed: {:?}", cond);
-                        }
-                        assert!(cond.truthy()?);
-                        let e = Rc::clone(&dctx.e);
-                        Ok((bctx, PossibleMarkedTailCall::TailCall(e, p.cdr()?.car()?.unval()?)))
-                    }}),
-                    // (vau de params body), should be able to take in wrap_level != 1 and do stuff
-                    "=" => Rc::new(MarkedForm::PrimComb { name: "=".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?;
-                        let b =  p.cdr()?.car()?;
-                        //println!("DOing (= {} {}) = {}", a, b, a==b);
-                        // TODO: double check that this ignores ids etc. It should, since
-                        // wrap_level=1 should mean that everything's a value
-                        // also, it should just check by hash then?
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(a == b)))))
-                    }}),
-                    "<" => Rc::new(MarkedForm::PrimComb { name: "<".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?;
-                        let b =  p.cdr()?.car()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(a.int()? < b.int()?)))))
-                    }}),
-                    ">" => Rc::new(MarkedForm::PrimComb { name: ">".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?;
-                        let b =  p.cdr()?.car()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(a.int()? > b.int()?)))))
-                    }}),
-                    "<=" => Rc::new(MarkedForm::PrimComb { name: "<=".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?;
-                        let b =  p.cdr()?.car()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(a.int()? <= b.int()?)))))
-                    }}),
-                    ">=" => Rc::new(MarkedForm::PrimComb { name: ">=".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?;
-                        let b =  p.cdr()?.car()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(a.int()? >= b.int()?)))))
-                    }}),
-                    "+" => Rc::new(MarkedForm::PrimComb { name: "+".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?.int()?;
-                        let b =  p.cdr()?.car()?.int()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Int(a + b)))))
-                    }}),
-                    "-" => Rc::new(MarkedForm::PrimComb { name: "-".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?.int()?;
-                        let b =  p.cdr()?.car()?.int()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Int(a - b)))))
-                    }}),
-                    "*" => Rc::new(MarkedForm::PrimComb { name: "*".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?.int()?;
-                        let b =  p.cdr()?.car()?.int()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Int(a * b)))))
-                    }}),
-                    "/" => Rc::new(MarkedForm::PrimComb { name: "/".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?.int()?;
-                        let b =  p.cdr()?.car()?.int()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Int(a / b)))))
-                    }}),
-                    "%" => Rc::new(MarkedForm::PrimComb { name: "%".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?.int()?;
-                        let b =  p.cdr()?.car()?.int()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Int(a % b)))))
-                    }}),
-                    "&" => Rc::new(MarkedForm::PrimComb { name: "&".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?.int()?;
-                        let b =  p.cdr()?.car()?.int()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Int(a & b)))))
-                    }}),
-                    "|" => Rc::new(MarkedForm::PrimComb { name: "|".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?.int()?;
-                        let b =  p.cdr()?.car()?.int()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Int(a | b)))))
-                    }}),
-                    "^" => Rc::new(MarkedForm::PrimComb { name: "^".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        let a =  p.car()?.int()?;
-                        let b =  p.cdr()?.car()?.int()?;
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Int(a ^ b)))))
-                    }}),
-                    "comb?" => Rc::new(MarkedForm::PrimComb { name: "comb?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(match &* p.car()? {
-                            MarkedForm::PrimComb { .. }  => true,
-                            MarkedForm::DeriComb { .. }  => true,
-                            _                            => false,
-                        })))))
-                    }}),
-                    "pair?" => Rc::new(MarkedForm::PrimComb { name: "pair?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(match &* p.car()? {
-                            MarkedForm::Pair(_h, _i, _a,_b) => true,
-                            _                               => false,
-                        })))))
-                    }}),
-                    "symbol?" => Rc::new(MarkedForm::PrimComb { name: "symbol?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(match &* p.car()? {
-                            MarkedForm::Symbol(_) => true,
-                            _                     => false,
-                        })))))
-                    }}),
-                    "int?" => Rc::new(MarkedForm::PrimComb { name: "int?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(match &* p.car()? {
-                            MarkedForm::Int(_) => true,
-                            _                  => false,
-                        })))))
-                    }}),
-                    // maybe bool? but also could be derived. Nil def
-                    "bool?" => Rc::new(MarkedForm::PrimComb { name: "bool?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(match &* p.car()? {
-                            MarkedForm::Bool(_) => true,
-                            _                   => false,
-                        })))))
-                    }}),
-                    "nil?" => Rc::new(MarkedForm::PrimComb { name: "nil?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
-                        Ok((bctx, PossibleMarkedTailCall::Result(Rc::new(MarkedForm::Bool(match &* p.car()? {
-                            MarkedForm::Nil => true,
-                            _               => false,
-                        })))))
-                    }}),
-                    _ => panic!("gah! don't have partial eval version of {}", name),
-                })
-            },
-        }
-    }
 }
 impl fmt::Display for Form {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -320,595 +114,6 @@ impl fmt::Display for Form {
         }
     }
 }
-
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct EnvID(i32);
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct MFHash(u64);
-impl MFHash {
-    pub fn combine(&self, other: &MFHash) -> Self {
-        let mut h = DefaultHasher::new();
-        "combine/".hash(&mut h); self.0.hash(&mut h); other.hash(&mut h);
-        MFHash(h.finish())
-    }
-}
-
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub enum NeededIds {
-    True(BTreeSet<MFHash>),
-    None(BTreeSet<MFHash>),
-    Some(BTreeSet<EnvID>,BTreeSet<MFHash>),
-}
-impl NeededIds {
-    fn new_true()           -> Self { NeededIds::True(                         BTreeSet::new()) }
-    fn new_none()           -> Self { NeededIds::None(                         BTreeSet::new()) }
-    fn new_single(i: EnvID) -> Self { NeededIds::Some(iter::once(i).collect(), BTreeSet::new()) }
-    fn needs_nothing(&self) -> bool {
-        match self {
-            NeededIds::True(hashes)     => false,
-            NeededIds::None(hashes)     => hashes.is_empty(),
-            NeededIds::Some(set,hashes) => false,
-        }
-    }
-    fn hashes(&self) -> &BTreeSet<MFHash> {
-        match self {
-            NeededIds::True(hashes)     => hashes,
-            NeededIds::None(hashes)     => hashes,
-            NeededIds::Some(set,hashes) => hashes,
-        }
-    }
-    fn union(&self, other: &NeededIds) -> Self {
-        match self {
-            NeededIds::True(hashes)      => NeededIds::True(hashes.union(other.hashes()).cloned().collect()),
-            NeededIds::None(hashes)      => other.union_hashes(hashes),
-            NeededIds::Some(set, hashes) => match other {
-                NeededIds::True(ohashes)      => NeededIds::True(hashes.union(ohashes).cloned().collect()),
-                NeededIds::None(ohashes)      => NeededIds::Some(set.clone(), hashes.union(ohashes).cloned().collect()),
-                NeededIds::Some(oset,ohashes) => NeededIds::Some(set.union(oset).cloned().collect(), hashes.union(ohashes).cloned().collect()),
-            },
-        }
-    }
-    fn union_without(&self, other: &NeededIds, without: EnvID) -> Self {
-        self.union(other).without(without)
-    }
-    fn without(self, without: EnvID) -> Self {
-        match self {
-            NeededIds::True(_)      => self,
-            NeededIds::None(_)      => self,
-            NeededIds::Some(set, hashes) => {
-                let new: BTreeSet<EnvID> = set.into_iter().filter(|x| *x != without).collect();
-                if new.is_empty() {
-                    NeededIds::None(hashes)
-                } else {
-                    NeededIds::Some(new, hashes)
-                }
-            },
-        }
-    }
-    fn union_hashes(&self, other: &BTreeSet<MFHash>) -> Self {
-        match self {
-            NeededIds::True(hashes)      => NeededIds::True(             other.union(hashes).cloned().collect()),
-            NeededIds::None(hashes)      => NeededIds::None(             other.union(hashes).cloned().collect()),
-            NeededIds::Some(set, hashes) => NeededIds::Some(set.clone(), other.union(hashes).cloned().collect()),
-        }
-    }
-    fn add_hash(&self, h: MFHash) -> Self {
-        match self {
-            NeededIds::True(hashes)      => NeededIds::True(             hashes.iter().cloned().chain(iter::once(h)).collect()),
-            NeededIds::None(hashes)      => NeededIds::None(             hashes.iter().cloned().chain(iter::once(h)).collect()),
-            NeededIds::Some(set, hashes) => NeededIds::Some(set.clone(), hashes.iter().cloned().chain(iter::once(h)).collect()),
-        }
-    }
-    fn add_id(&self, i: EnvID) -> Self {
-        match self {
-            NeededIds::True(hashes)      => NeededIds::True(                                                    hashes.clone()),
-            NeededIds::None(hashes)      => NeededIds::Some(iter::once(i).collect(),                            hashes.clone()),
-            NeededIds::Some(set, hashes) => NeededIds::Some(set.iter().cloned().chain(iter::once(i)).collect(), hashes.clone()),
-        }
-    }
-}
-pub enum PossibleMarkedTailCall {
-    Result(Rc<MarkedForm>),
-    TailCall(Rc<MarkedForm>, Rc<MarkedForm>),
-}
-
-#[derive(Clone)]
-pub struct BCtx {
-    id_counter: i32
-}
-impl BCtx {
-    pub fn new_id(mut self) -> (Self, EnvID) {
-        let new_id = EnvID(self.id_counter);
-        self.id_counter += 1;
-        (self, new_id)
-    }
-}
-
-
-// force is for drop_redundent_eval
-// memo is only for recording currently executing hashes (calls and if's, current for us)
-// only_head is not currently used
-//only_head env env_counter memo env_stack force
-#[derive(Clone)]
-pub struct DCtx {
-    e : Rc<MarkedForm>,
-    sus_env_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
-    sus_prm_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
-    real_set: Rc<BTreeSet<EnvID>>,
-    force: bool,
-    current: Rc<BTreeSet<MFHash>>,
-    ident: usize,
-}
-impl DCtx {
-    pub fn copy_set_env(&self, e: &Rc<MarkedForm>) -> Self {
-        DCtx { e: Rc::clone(e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), force: self.force, current: Rc::clone(&self.current), ident: self.ident+1  }
-    }
-    pub fn copy_push_frame(&self, id: EnvID, se: &Rc<MarkedForm>, de: &Option<String>, e: Option<Rc<MarkedForm>>, rest_params: &Option<String>, prms: Option<Rc<MarkedForm>>, body: &Rc<MarkedForm>) -> Result<Self,MFHash> {
-        let mut sus_env_stack = Rc::clone(&self.sus_env_stack);
-        let mut sus_prm_stack = Rc::clone(&self.sus_prm_stack);
-        let mut real_set = Rc::clone(&self.real_set);
-        if (e.is_some() || prms.is_some()) {
-            Rc::make_mut(&mut real_set).insert(id.clone());
-        }
-        let inner_env = if let Some(de) = de {
-            let de_val = if let Some(e) = e {
-                Rc::make_mut(&mut sus_env_stack).insert(id.clone(), Rc::clone(&e));
-                e
-            } else {
-                Rc::new(MarkedForm::SuspendedEnvLookup { name: Some(de.clone()), id: id.clone() })
-            };
-            massoc(de, de_val, Rc::clone(se))
-        } else { Rc::clone(se) };
-        // not yet supporting sequence params
-        let inner_env = if let Some(p)  = rest_params {
-            let p_val = if let Some(prms) = prms {
-                Rc::make_mut(&mut sus_prm_stack).insert(id.clone(), Rc::clone(&prms));
-                prms
-            } else {
-                Rc::new(MarkedForm::SuspendedParamLookup { name: Some(p.clone()), id: id.clone(), cdr_num: 0, car: false })
-            };
-            massoc(p, p_val, inner_env)
-        } else { inner_env };
-        // Push on current frame hash
-        let new_hash = inner_env.hash().combine(&body.hash());
-        if self.current.contains(&new_hash) {
-            println!("Hash Rec Stop!");
-            Err(new_hash)
-        } else {
-            let new_current = Rc::new(self.current.iter().cloned().chain(iter::once(new_hash)).collect());
-            Ok(DCtx { e: inner_env, sus_env_stack, sus_prm_stack, real_set, force: self.force, current: new_current, ident: self.ident+1 })
-        }
-    }
-
-    pub fn can_progress(&self, ids: NeededIds) -> bool {
-        // check if ids is true || ids intersection EnvIDs in our stacks is non empty || ids.hashes - current is non empty
-        match ids {
-            NeededIds::True(hashes)     => true,
-            NeededIds::None(hashes)     =>                                        !self.current.is_superset(&hashes),
-            NeededIds::Some(ids,hashes) => (!self.real_set.is_disjoint(&ids)) || (!self.current.is_superset(&hashes)),
-        }
-    }
-}
-
-pub fn new_base_ctxs() -> (BCtx,DCtx) {
-    let bctx = BCtx { id_counter: 0 };
-    let (bctx, root_env) = root_env().marked(bctx);
-    (bctx, DCtx { e: root_env, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()), real_set: Rc::new(BTreeSet::new()), force: false, current: Rc::new(BTreeSet::new()), ident: 0 } )
-}
-
-pub fn combiner_return_ok(x: Rc<MarkedForm>, check_id: EnvID) -> bool {
-    match match &*x {
-        MarkedForm::Nil                                        => return true,
-        MarkedForm::Int(_)                                     => return true,
-        MarkedForm::Bool(_)                                    => return true,
-        MarkedForm::Symbol(_)                                  => return true,
-        MarkedForm::Pair(h,ids,_,_)                            => ids,
-
-        MarkedForm::SuspendedSymbol(_)                         => return false,
-        MarkedForm::SuspendedParamLookup { id, .. }            => return *id != check_id,
-        MarkedForm::SuspendedEnvLookup   { id, .. }            => return *id != check_id,
-        MarkedForm::SuspendedPair { .. }                       => {
-           // expand with (veval body {env}) and (func ...params) | func doesn't take de and func+params are return ok
-           return false
-        },
-
-        MarkedForm::PrimComb { .. }                            => return true,
-        MarkedForm::DeriComb { ids, .. }                       => ids,
-    } {
-        NeededIds::True(_hashes)     => false,
-        NeededIds::None(_hashes)     => true,
-        NeededIds::Some(ids,_hashes) => !ids.contains(&check_id),
-    }
-    //; Handles let 4.3 through macro level leaving it as (<comb wraplevel=1 (y) (+ y x 12)> 13)
-    //; need handling of symbols (which is illegal for eval but ok for calls) to push it farther
-    //(combiner_return_ok (rec-lambda combiner_return_ok (func_result env_id)
-    //    (cond   ((not (later_head? func_result)) (not (check_for_env_id_in_result env_id func_result)))
-    //    ; special cases now
-    //    ;   *(veval body {env}) => (combiner_return_ok {env})
-    //    ;       The reason we don't have to check body is that this form is only creatable in ways that body was origionally a value and only need {env}
-    //    ;           Either it's created by eval, in which case it's fine, or it's created by something like (eval (array veval x de) de2) and the array has checked it,
-    //    ;           or it's created via literal vau invocation, in which case the body is a value.
-    //            ((and (marked_array? func_result)
-    //                  (prim_comb? (idx (.marked_array_values func_result) 0))
-    //                  (= 'veval (.prim_comb_sym (idx (.marked_array_values func_result) 0)))
-    //                  (= 3 (len (.marked_array_values func_result)))
-    //                  (combiner_return_ok (idx (.marked_array_values func_result) 2) env_id))                                       true)
-    //    ;   (func ...params) => (and (doesn't take de func) (foldl combiner_return_ok (cons func params)))
-    //    ;
-    //            ((and (marked_array? func_result)
-    //                  (not (comb_takes_de? (idx (.marked_array_values func_result) 0) (len (.marked_array_values func_result))))
-    //                  (foldl (lambda (a x) (and a (combiner_return_ok x env_id))) true (.marked_array_values func_result)))         true)
-
-    //    ;   So that's enough for macro like, but we would like to take it farther
-    //    ;       For like (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a)))))
-    //    ;           we get to (+ 13 x 12) not being a value, and it reconstructs
-    //    ;           (<comb wraplevel=1 (y) (+ y x 12)> 13)
-    //    ;           and that's what eval gets, and eval then gives up as well.
-
-    //    ;           That will get caught by the above cases to remain the expansion (<comb wraplevel=1 (y) (+ y x 12)> 13),
-    //    ;           but ideally we really want another case to allow (+ 13 x 12) to bubble up
-    //    ;           I think it would be covered by the (func ...params) case if a case is added to allow symbols to be bubbled up if their
-    //    ;           needed for progress wasn't true or the current environment, BUT this doesn't work for eval, just for functions,
-    //    ;           since eval changes the entire env chain (but that goes back to case 1, and might be eliminated at compile if it's an env reachable from the func).
-    //    ;
-    //    ;
-    //    ;   Do note a key thing to be avoided is allowing any non-val inside a comb, since that can cause a fake env's ID to
-    //    ;   reference the wrong env/comb in the chain.
-    //    ;   We do allow calling eval with a fake env, but since it's only callable withbody value and is strict (by calling this)
-    //    ;   about it's return conditions, and the env it's called with must be ok in the chain, and eval doesn't introduce a new scope, it works ok.
-    //    ;   We do have to be careful about allowing returned later symbols from it though, since it could be an entirely different env chain.
-
-    //            (true false)
-    //    )
-    //))
-}
-
-pub fn partial_eval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>), String> {
-    //println!("{:ident$}PE: {}", "", x, ident=dctx.ident*4);
-    let should_go = dctx.force || dctx.can_progress(x.ids());
-    if !should_go {
-        //println!("{:ident$}Shouldn't go!", "", ident=dctx.ident*4);
-        return Ok((bctx, x));
-    }
-    match &*x {
-        MarkedForm::SuspendedSymbol(name) => {
-            let mut t = Rc::clone(&dctx.e);
-            while name != t.car()?.car()?.sym()? {
-                t = t.cdr()?;
-            }
-            Ok((bctx, t.car()?.cdr()?.tag_name(name)))
-        },
-        MarkedForm::SuspendedEnvLookup { name, id } => {
-            if let Some(v) = dctx.sus_env_stack.get(id) {
-                if let Some(name) = name {
-                    Ok((bctx, v.tag_name(name)))
-                } else {
-                    Ok((bctx, Rc::clone(v)))
-                }
-            } else {
-                Ok((bctx, x))
-            }
-        },
-        MarkedForm::SuspendedParamLookup { name, id, cdr_num, car } => {
-            if let Some(v) = dctx.sus_prm_stack.get(id) {
-                if let Some(name) = name {
-                    Ok((bctx, v.tag_name(name)))
-                } else {
-                    Ok((bctx, Rc::clone(v)))
-                }
-            } else {
-                Ok((bctx, x))
-            }
-        },
-        MarkedForm::SuspendedPair { hash, ids, attempted, car, cdr } => {
-            let (    bctx, mut car) = partial_eval(bctx, dctx.clone(), Rc::clone(car))?;
-            let (mut bctx, mut cdr) = partial_eval(bctx, dctx.clone(), Rc::clone(cdr))?;
-            let mut new_attempted = attempted.clone();
-            let mut maybe_rec_hash = None;
-            while let Some(wrap_level) = car.wrap_level() {
-                if wrap_level > 0 {
-                    fn map_unval_peval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>),String> {
-                        match &*x {
-                            MarkedForm::Pair(h, ids, x_car, x_cdr) => {
-                                let (bctx, new_x_car) = partial_eval(bctx, dctx.clone(), x_car.unval()?)?;
-                                let (bctx, new_x_cdr) = map_unval_peval(bctx, dctx.clone(), Rc::clone(x_cdr))?;
-                                return Ok((bctx, MarkedForm::new_pair(new_x_car, new_x_cdr)));
-                            },
-                            MarkedForm::Nil => return Ok((bctx,x)),
-                            _               => return Err("not a list".to_owned()),
-                        }
-                    }
-                    if let Ok((new_bctx, new_cdr)) = map_unval_peval(bctx.clone(), dctx.clone(), Rc::clone(&cdr)) {
-                        car = car.decrement_wrap_level().unwrap();
-                        cdr = new_cdr;
-                        bctx = new_bctx;
-                    } else {
-                        break;
-                    }
-                } else {
-                    // check to see if can do call
-                    // not pure values are fine for -1 wraps, which we need to add? veval and vif?
-                    if !cdr.is_value() {
-                        break;
-                    }
-                    match &*car {
-                        MarkedForm::PrimComb { name, takes_de, wrap_level, f} => {
-                            new_attempted = Attempted::True(if *takes_de { Some(dctx.e.ids()) } else { None });
-                            let ident_amount = dctx.ident*4;
-                            //println!("{:ident$}doing a call eval of {}", "", name, ident=ident_amount);
-                            match f(bctx.clone(), dctx.clone(), Rc::clone(&cdr)) {
-                                Ok((bctx, r)) => {
-                                    match r {
-                                        PossibleMarkedTailCall::Result(result) => return Ok((bctx, result)),
-                                        // Sigh, no tail-callin right now
-                                        PossibleMarkedTailCall::TailCall(new_env, next) => {
-                                            //println!("{:ident$}doing a tail call  of {} in {}", "", next, new_env, ident=ident_amount);
-                                            if let Ok((new_bctx, res)) = partial_eval(bctx.clone(), dctx.copy_set_env(&new_env), Rc::clone(&next)) {
-                                                //println!("{:ident$}doing a tail call result is {}", "", res, ident=ident_amount);
-                                                return Ok((new_bctx, res));
-                                            } else {
-                                                //println!("Tail call failed");
-                                                if new_env == dctx.e {
-                                                    //println!("{:ident$}Tail call failed, but can emplace", "", ident=ident_amount);
-                                                    return Ok((bctx, next));
-                                                } else {
-                                                    //println!("{:ident$}Tail call failed, can't emplace", "", ident=ident_amount);
-                                                    // maybe this should enplace the TailCall with an eval
-                                                    break; // break out to reconstruction
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                Err(msg) => {
-                                    //println!("{:ident$}failed {:?}", "", msg, ident=ident_amount);
-                                    break;
-                                },
-                            }
-                        }
-                        MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
-                            new_attempted = Attempted::True(if de.is_some() { Some(dctx.e.ids()) } else { None });
-                            // not yet supporting sequence params
-                            // needs to check hash
-                            match dctx.copy_push_frame(id.clone(), &se, &de, Some(Rc::clone(&dctx.e)), &rest_params, Some(Rc::clone(&cdr)), body) {
-                                Ok(inner_dctx) => {
-                                    //println!("{:ident$}doing a call eval of {} in {}", "", body, inner_dctx.e, ident=inner_dctx.ident*4);
-                                    let ident_amount = inner_dctx.ident*4;
-                                    //println!("{:ident$}doing a call eval of {:?}", "", lookup_name, ident=ident_amount);
-                                    //if let Ok((bctx, r)) = partial_eval(bctx.clone(), inner_dctx, Rc::clone(body)) {
-                                    //    if combiner_return_ok(Rc::clone(&r), id.clone()) {
-                                    //        return Ok((bctx, r));
-                                    //    }
-                                    //}
-                                    match partial_eval(bctx.clone(), inner_dctx, Rc::clone(body)) {
-                                        Ok((bctx, r)) => {
-                                            if combiner_return_ok(Rc::clone(&r), id.clone()) {
-                                                return Ok((bctx, r));
-                                            } else {
-                                                //println!("{:ident$}combiner return not ok {}", "", r, ident=ident_amount);
-                                            }
-                                        }
-                                        Err(msg) => {
-                                            //println!("{:ident$}failed {:?}", "", msg, ident=ident_amount);
-                                        }
-                                    }
-                                },
-                                Err(rec_stop_hash) => {
-                                    maybe_rec_hash = Some(rec_stop_hash);
-                                },
-                            }
-                            break; // failed call for one reason or the other
-                        },
-                        _ => break,
-                    }
-                }
-            }
-            Ok((bctx, MarkedForm::new_suspended_pair( new_attempted, car, cdr, maybe_rec_hash )))
-        },
-        MarkedForm::Pair(h,ids,car,cdr)                => {
-            let (bctx, car) = partial_eval(bctx, dctx.clone(), Rc::clone(car))?;
-            let (bctx, cdr) = partial_eval(bctx, dctx,         Rc::clone(cdr))?;
-            Ok((bctx, MarkedForm::new_pair(car, cdr)))
-        },
-        MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
-            if !se.ids().needs_nothing() {
-                // the current env is our new se
-                let se = Rc::clone(&dctx.e);
-                let inner_dctx = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None, body).expect("Not sure if this can ever fail or not... maybe for Y comb recursion?");
-                let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
-                Ok((bctx, MarkedForm::new_deri_comb( se, lookup_name.clone(), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), body )))
-            } else {
-                Ok((bctx, x))
-            }
-        },
-        MarkedForm::PrimComb { .. }              => Ok((bctx, x)),
-        _                                        => Ok((bctx, x)),
-    }
-}
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub enum Attempted {
-    True(Option<NeededIds>),
-    False,
-}
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum MarkedForm {
-    Nil,
-    Int(i32),
-    Bool(bool),
-    Symbol(String),
-    Pair(MFHash, NeededIds, Rc<MarkedForm>,Rc<MarkedForm>),
-
-    SuspendedSymbol(String),
-    SuspendedParamLookup { name: Option<String>, id: EnvID, cdr_num: i32, car: bool },
-    SuspendedEnvLookup   { name: Option<String>, id: EnvID },
-    // resume hash is folded into ids
-    SuspendedPair { hash: MFHash, ids: NeededIds, attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>},
-
-    PrimComb { name: String, takes_de: bool, wrap_level: i32, f: fn(BCtx,DCtx,Rc<MarkedForm>) -> Result<(BCtx,PossibleMarkedTailCall),String> },
-    DeriComb { hash: MFHash, lookup_name: Option<String>, ids: NeededIds, se: Rc<MarkedForm>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm> },
-}
-impl MarkedForm {
-    pub fn new_pair(car: Rc<MarkedForm>, cdr: Rc<MarkedForm>) -> Rc<MarkedForm> {
-        let mut h = DefaultHasher::new();
-        "Pair(ids,car,cdr)".hash(&mut h); car.hash().hash(&mut h); cdr.hash().hash(&mut h);
-        Rc::new(MarkedForm::Pair(MFHash(h.finish()), car.ids().union(&cdr.ids()), car, cdr))
-    }
-    pub fn new_suspended_pair(attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>, rec_hash: Option<MFHash>) -> Rc<MarkedForm> {
-        let mut h = DefaultHasher::new();
-        "SuspendedPair".hash(&mut h); attempted.hash(&mut h); car.hash().hash(&mut h); cdr.hash().hash(&mut h);
-        let ids = car.ids().union(&cdr.ids());
-        let ids = match ids {
-            NeededIds::True(_)      => ids,
-            NeededIds::None(hashes) => match &attempted {
-                                           Attempted::False            => NeededIds::True(hashes),
-                                           Attempted::True(Some(oids)) => oids.union_hashes(&hashes),
-                                           Attempted::True(None)       => NeededIds::None(hashes),
-                                       },
-            NeededIds::Some(_,_)    => ids,
-        };
-        if let Some(rec_hash) = rec_hash {
-            ids.add_hash(rec_hash);
-        }
-        Rc::new(MarkedForm::SuspendedPair{ hash: MFHash(h.finish()), attempted, ids, car, cdr })
-    }
-    pub fn new_deri_comb(se: Rc<MarkedForm>, lookup_name: Option<String>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm>) -> Rc<MarkedForm> {
-        let mut h = DefaultHasher::new();
-        "DeriComb".hash(&mut h); se.hash().hash(&mut h); de.hash(&mut h); id.hash(&mut h); wrap_level.hash(&mut h);
-        sequence_params.hash(&mut h); rest_params.hash(&mut h); body.hash().hash(&mut h);
-        let ids = se.ids().union_without(&body.ids(), id.clone());
-        Rc::new(MarkedForm::DeriComb{ hash: MFHash(h.finish()), lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body })
-    }
-    pub fn tag_name(self: &Rc<MarkedForm>, name: &str) -> Rc<MarkedForm> {
-        match &**self {
-            MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } =>
-                 MarkedForm::new_deri_comb(Rc::clone(se), Some(name.to_owned()), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), Rc::clone(body)),
-            _ => Rc::clone(self),
-        }
-    }
-    pub fn hash(&self) -> MFHash {
-        let mut h = DefaultHasher::new();
-        {
-            let state = &mut h;
-            match self {
-                MarkedForm::Nil                                            => { "Nil".hash(state); },
-                MarkedForm::Int(i)                                         => { "Int(i)".hash(state); i.hash(state); },
-                MarkedForm::Bool(b)                                        => { "Bool(b)".hash(state); b.hash(state); },
-                MarkedForm::Symbol(s)                                      => { "Symbol(s)".hash(state); s.hash(state); }, 
-                MarkedForm::Pair(hash,ids,car,cdr)                         => { return *hash; },
-                MarkedForm::SuspendedSymbol(name)                          => { "SuspendedSymbol(name)".hash(state); name.hash(state); },
-                MarkedForm::SuspendedParamLookup { name, id, cdr_num, car }=> { "SuspendedParamLookup".hash(state); name.hash(state); id.hash(state); cdr_num.hash(state); car.hash(state); },
-                MarkedForm::SuspendedEnvLookup { name, id }                => { "SuspendedEnvLookup".hash(state); name.hash(state); id.hash(state); },
-                MarkedForm::SuspendedPair{ hash, .. }                      => { return *hash; },
-                MarkedForm::PrimComb { name, wrap_level, .. }              => { "PrimComb".hash(state); name.hash(state); wrap_level.hash(state); },
-                MarkedForm::DeriComb { hash, .. }                          => { return *hash; },
-            }
-        }
-        MFHash(h.finish())
-    }
-    pub fn wrap_level(&self) -> Option<i32> {
-        match self {
-            MarkedForm::PrimComb { wrap_level, .. } => Some(*wrap_level),
-            MarkedForm::DeriComb { wrap_level, .. } => Some(*wrap_level),
-            _ => None,
-        }
-    }
-    pub fn decrement_wrap_level(&self) -> Option<Rc<Self>> {
-        match self {
-            MarkedForm::PrimComb { name, takes_de, wrap_level, f } => Some(Rc::new(MarkedForm::PrimComb { name: name.clone(), takes_de: *takes_de, wrap_level: wrap_level-1, f: *f })),
-            MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => Some(MarkedForm::new_deri_comb(Rc::clone(se), lookup_name.clone(), de.clone(), id.clone(), wrap_level-1, sequence_params.clone(), rest_params.clone(), Rc::clone(body))),
-            _ => None,
-        }
-    }
-    pub fn ids(&self) -> NeededIds {
-        match self {
-            MarkedForm::Nil                              => NeededIds::new_none(),
-            MarkedForm::Int(i)                           => NeededIds::new_none(),
-            MarkedForm::Bool(b)                          => NeededIds::new_none(),
-            MarkedForm::Symbol(s)                        => NeededIds::new_none(), 
-            MarkedForm::Pair(hash,ids,car,cdr)           => ids.clone(),
-            MarkedForm::SuspendedSymbol(name)            => NeededIds::new_true(),
-            MarkedForm::SuspendedEnvLookup { id, .. }    => NeededIds::new_single(id.clone()),
-            MarkedForm::SuspendedParamLookup { id, .. }  => NeededIds::new_single(id.clone()),
-            MarkedForm::SuspendedPair{ ids, .. }         => ids.clone(),
-            MarkedForm::PrimComb { .. }                  => NeededIds::new_none(),
-            MarkedForm::DeriComb { ids, .. }             => ids.clone(),
-        }
-    }
-    // TODO: this might be essentially the same as NeededIds.nothing_needed()
-    pub fn is_value(&self) -> bool {
-        match match self {
-            MarkedForm::Nil                             => return true,
-            MarkedForm::Int(i)                          => return true,
-            MarkedForm::Bool(b)                         => return true,
-            MarkedForm::Symbol(s)                       => return true, 
-            MarkedForm::SuspendedSymbol(name)           => return false,
-            MarkedForm::SuspendedEnvLookup { id, .. }   => return false,
-            MarkedForm::SuspendedParamLookup { id, .. } => return false,
-            MarkedForm::SuspendedPair{ ids, .. }        => return false,
-            MarkedForm::PrimComb { .. }                 => return true,
-            MarkedForm::Pair(hash,ids,car,cdr)          => ids.clone(),
-            MarkedForm::DeriComb { ids, .. }            => ids.clone(),
-        } {
-            NeededIds::True(hashes)     => false,
-            NeededIds::None(hashes)     => true,
-            NeededIds::Some(ids,hashes) => false,
-        }
-    }
-    pub fn unval(self: &Rc<MarkedForm>) -> Result<Rc<MarkedForm>, &'static str> {
-        match &**self {
-            MarkedForm::Nil                          => Ok(Rc::clone(self)),
-            MarkedForm::Int(i)                       => Ok(Rc::clone(self)),
-            MarkedForm::Bool(b)                      => Ok(Rc::clone(self)),
-            MarkedForm::Symbol(s)                    => Ok(Rc::new(MarkedForm::SuspendedSymbol(s.clone()))), 
-            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(MarkedForm::new_suspended_pair( Attempted::False, car.unval()?, Rc::clone(cdr), None)),
-            MarkedForm::SuspendedSymbol(name)        => Err("trying to unval a suspended symbol"),
-            MarkedForm::SuspendedEnvLookup { .. }    => Err("trying to unval a suspended env lookup"),
-            MarkedForm::SuspendedParamLookup { .. }  => Err("trying to unval a suspended param lookup"),
-            MarkedForm::SuspendedPair{ ids, .. }     => Err("trying to unval a suspended pair"),
-            MarkedForm::PrimComb { .. }              => Ok(Rc::clone(self)),
-            MarkedForm::DeriComb { .. }              => Ok(Rc::clone(self)),
-        }
-    }
-    pub fn truthy(&self) -> Result<bool,&'static str> {
-        match self {
-            MarkedForm::Nil                          => Ok(false),
-            MarkedForm::Int(i)                       => Ok(true),
-            MarkedForm::Bool(b)                      => Ok(*b),
-            MarkedForm::Symbol(s)                    => Ok(true), 
-            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(true),
-            MarkedForm::SuspendedSymbol(name)        => Err("trying to truthy a suspended symbol"),
-            MarkedForm::SuspendedEnvLookup { .. }    => Err("trying to truthy a suspended env lookup"),
-            MarkedForm::SuspendedParamLookup { .. }  => Err("trying to truthy a suspended param lookup"),
-            MarkedForm::SuspendedPair{ ids, .. }     => Err("trying to truthy a suspended pair"),
-            MarkedForm::PrimComb { .. }              => Ok(true),
-            MarkedForm::DeriComb { .. }              => Ok(true),
-        }
-    }
-    pub fn sym(&self) -> Result<&str,&'static str> {
-        match self {
-            MarkedForm::Symbol(s)                    => Ok(s), 
-            _                                        => Err("not a symbol"),
-        }
-    }
-    pub fn int(&self) -> Result<i32,&'static str> {
-        match self {
-            MarkedForm::Int(i)                       => Ok(*i), 
-            _                                        => Err("not a int"),
-        }
-    }
-    pub fn car(&self) -> Result<Rc<MarkedForm>, &'static str> {
-        match self {
-            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(Rc::clone(car)),
-            _                                        => Err("not a pair"),
-        }
-    }
-    pub fn cdr(&self) -> Result<Rc<MarkedForm>, &'static str> {
-        match self {
-            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(Rc::clone(cdr)),
-            _                                        => Err("not a pair"),
-        }
-    }
-}
 impl fmt::Display for MarkedForm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -937,6 +142,8 @@ impl fmt::Display for MarkedForm {
                     }
                 }
             },
+            MarkedForm::SuspendedEnvEval { hash, ids, x, e }            => write!(f, "{{veval {} {}}}", x, e),
+            MarkedForm::SuspendedIf      { hash, ids, c, t, e }         => write!(f, "{{if {} {} {}}}", c, t, e),
             MarkedForm::SuspendedSymbol(name)                           => write!(f, "{}", name),
             MarkedForm::SuspendedEnvLookup { name, id }                 => write!(f, "{:?}({:?}env)", name, id),
             MarkedForm::SuspendedParamLookup { name, id, cdr_num, car } => write!(f, "{:?}({:?}{}{})", name, id, cdr_num, car),
@@ -1197,4 +404,830 @@ pub fn root_env() -> Rc<Form> {
         ("false", Rc::new(Form::Bool(false))),
         ("nil",   Rc::new(Form::Nil)),
     ])
+}
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct EnvID(i32);
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct MFHash(u64);
+impl MFHash {
+    pub fn combine(&self, other: &MFHash) -> Self {
+        let mut h = DefaultHasher::new();
+        "combine/".hash(&mut h); self.0.hash(&mut h); other.hash(&mut h);
+        MFHash(h.finish())
+    }
+}
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum NeededIds {
+    True(BTreeSet<MFHash>),
+    None(BTreeSet<MFHash>),
+    Some(BTreeSet<EnvID>,BTreeSet<MFHash>),
+}
+impl NeededIds {
+    fn new_true()           -> Self { NeededIds::True(                         BTreeSet::new()) }
+    fn new_none()           -> Self { NeededIds::None(                         BTreeSet::new()) }
+    fn new_single(i: EnvID) -> Self { NeededIds::Some(iter::once(i).collect(), BTreeSet::new()) }
+    fn needs_nothing(&self) -> bool {
+        match self {
+            NeededIds::True(hashes)     => false,
+            NeededIds::None(hashes)     => hashes.is_empty(),
+            NeededIds::Some(set,hashes) => false,
+        }
+    }
+    fn hashes(&self) -> &BTreeSet<MFHash> {
+        match self {
+            NeededIds::True(hashes)     => hashes,
+            NeededIds::None(hashes)     => hashes,
+            NeededIds::Some(set,hashes) => hashes,
+        }
+    }
+    fn union(&self, other: &NeededIds) -> Self {
+        match self {
+            NeededIds::True(hashes)      => NeededIds::True(hashes.union(other.hashes()).cloned().collect()),
+            NeededIds::None(hashes)      => other.union_hashes(hashes),
+            NeededIds::Some(set, hashes) => match other {
+                NeededIds::True(ohashes)      => NeededIds::True(hashes.union(ohashes).cloned().collect()),
+                NeededIds::None(ohashes)      => NeededIds::Some(set.clone(), hashes.union(ohashes).cloned().collect()),
+                NeededIds::Some(oset,ohashes) => NeededIds::Some(set.union(oset).cloned().collect(), hashes.union(ohashes).cloned().collect()),
+            },
+        }
+    }
+    fn union_without(&self, other: &NeededIds, without: EnvID) -> Self {
+        self.union(other).without(without)
+    }
+    fn without(self, without: EnvID) -> Self {
+        match self {
+            NeededIds::True(_)      => self,
+            NeededIds::None(_)      => self,
+            NeededIds::Some(set, hashes) => {
+                let new: BTreeSet<EnvID> = set.into_iter().filter(|x| *x != without).collect();
+                if new.is_empty() {
+                    NeededIds::None(hashes)
+                } else {
+                    NeededIds::Some(new, hashes)
+                }
+            },
+        }
+    }
+    fn union_hashes(&self, other: &BTreeSet<MFHash>) -> Self {
+        match self {
+            NeededIds::True(hashes)      => NeededIds::True(             other.union(hashes).cloned().collect()),
+            NeededIds::None(hashes)      => NeededIds::None(             other.union(hashes).cloned().collect()),
+            NeededIds::Some(set, hashes) => NeededIds::Some(set.clone(), other.union(hashes).cloned().collect()),
+        }
+    }
+    fn add_hash(&self, h: MFHash) -> Self {
+        match self {
+            NeededIds::True(hashes)      => NeededIds::True(             hashes.iter().cloned().chain(iter::once(h)).collect()),
+            NeededIds::None(hashes)      => NeededIds::None(             hashes.iter().cloned().chain(iter::once(h)).collect()),
+            NeededIds::Some(set, hashes) => NeededIds::Some(set.clone(), hashes.iter().cloned().chain(iter::once(h)).collect()),
+        }
+    }
+    fn add_id(&self, i: EnvID) -> Self {
+        match self {
+            NeededIds::True(hashes)      => NeededIds::True(                                                    hashes.clone()),
+            NeededIds::None(hashes)      => NeededIds::Some(iter::once(i).collect(),                            hashes.clone()),
+            NeededIds::Some(set, hashes) => NeededIds::Some(set.iter().cloned().chain(iter::once(i)).collect(), hashes.clone()),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct BCtx {
+    id_counter: i32
+}
+impl BCtx {
+    pub fn new_id(mut self) -> (Self, EnvID) {
+        let new_id = EnvID(self.id_counter);
+        self.id_counter += 1;
+        (self, new_id)
+    }
+}
+
+
+// force is for drop_redundent_eval, which will be integrated now
+// memo is only for recording currently executing hashes (calls and if's, current for us)
+// only_head is not currently used
+//only_head env env_counter memo env_stack force
+#[derive(Clone)]
+pub struct DCtx {
+    e : Rc<MarkedForm>,
+    sus_env_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
+    sus_prm_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
+    real_set: Rc<BTreeSet<EnvID>>,
+    current: Rc<BTreeSet<MFHash>>,
+    ident: usize,
+}
+impl DCtx {
+    pub fn copy_set_env(&self, e: &Rc<MarkedForm>) -> Self {
+        DCtx { e: Rc::clone(e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), current: Rc::clone(&self.current), ident: self.ident+1  }
+    }
+    pub fn copy_push_frame(&self, id: EnvID, se: &Rc<MarkedForm>, de: &Option<String>, e: Option<Rc<MarkedForm>>, rest_params: &Option<String>, prms: Option<Rc<MarkedForm>>, body: &Rc<MarkedForm>) -> Result<Self,MFHash> {
+        let mut sus_env_stack = Rc::clone(&self.sus_env_stack);
+        let mut sus_prm_stack = Rc::clone(&self.sus_prm_stack);
+        let mut real_set = Rc::clone(&self.real_set);
+        if (e.is_some() || prms.is_some()) {
+            Rc::make_mut(&mut real_set).insert(id.clone());
+        }
+        let inner_env = if let Some(de) = de {
+            let de_val = if let Some(e) = e {
+                Rc::make_mut(&mut sus_env_stack).insert(id.clone(), Rc::clone(&e));
+                e
+            } else {
+                Rc::new(MarkedForm::SuspendedEnvLookup { name: Some(de.clone()), id: id.clone() })
+            };
+            massoc(de, de_val, Rc::clone(se))
+        } else { Rc::clone(se) };
+        // not yet supporting sequence params
+        let inner_env = if let Some(p)  = rest_params {
+            let p_val = if let Some(prms) = prms {
+                Rc::make_mut(&mut sus_prm_stack).insert(id.clone(), Rc::clone(&prms));
+                prms
+            } else {
+                Rc::new(MarkedForm::SuspendedParamLookup { name: Some(p.clone()), id: id.clone(), cdr_num: 0, car: false })
+            };
+            massoc(p, p_val, inner_env)
+        } else { inner_env };
+        // Push on current frame hash
+        let new_hash = inner_env.hash().combine(&body.hash());
+        if self.current.contains(&new_hash) {
+            println!("Hash Rec Stop!");
+            Err(new_hash)
+        } else {
+            let new_current = Rc::new(self.current.iter().cloned().chain(iter::once(new_hash)).collect());
+            Ok(DCtx { e: inner_env, sus_env_stack, sus_prm_stack, real_set, current: new_current, ident: self.ident+1 })
+        }
+    }
+
+    pub fn can_progress(&self, ids: NeededIds) -> bool {
+        // check if ids is true || ids intersection EnvIDs in our stacks is non empty || ids.hashes - current is non empty
+        match ids {
+            NeededIds::True(hashes)     => true,
+            NeededIds::None(hashes)     =>                                        !self.current.is_superset(&hashes),
+            NeededIds::Some(ids,hashes) => (!self.real_set.is_disjoint(&ids)) || (!self.current.is_superset(&hashes)),
+        }
+    }
+}
+
+pub fn new_base_ctxs() -> (BCtx,DCtx) {
+    let bctx = BCtx { id_counter: 0 };
+    let (bctx, root_env) = mark(root_env(), bctx);
+    (bctx, DCtx { e: root_env, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()), real_set: Rc::new(BTreeSet::new()), current: Rc::new(BTreeSet::new()), ident: 0 } )
+}
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum Attempted {
+    True(Option<NeededIds>),
+    False,
+}
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum MarkedForm {
+    Nil,
+    Int(i32),
+    Bool(bool),
+    Symbol(String),
+    Pair(MFHash, NeededIds, Rc<MarkedForm>,Rc<MarkedForm>),
+
+    SuspendedSymbol(String),
+    SuspendedParamLookup { name: Option<String>, id: EnvID, cdr_num: i32, car: bool },
+    SuspendedEnvLookup   { name: Option<String>, id: EnvID },
+    // resume hash is folded into ids
+    SuspendedPair { hash: MFHash, ids: NeededIds, attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>},
+
+    SuspendedEnvEval { hash: MFHash, ids: NeededIds, x: Rc<MarkedForm>, e: Rc<MarkedForm> },
+    SuspendedIf      { hash: MFHash, ids: NeededIds, c: Rc<MarkedForm>, t: Rc<MarkedForm>, e: Rc<MarkedForm> },
+
+    PrimComb { name: String, takes_de: bool, wrap_level: i32, f: fn(BCtx,DCtx,Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>),String> },
+    DeriComb { hash: MFHash, lookup_name: Option<String>, ids: NeededIds, se: Rc<MarkedForm>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm> },
+}
+impl MarkedForm {
+    pub fn new_suspended_env_eval(x: Rc<MarkedForm>, e: Rc<MarkedForm>) -> Rc<MarkedForm> {
+        let mut h = DefaultHasher::new();
+        "SuspendedEnvEval(x,e)".hash(&mut h); x.hash().hash(&mut h); e.hash().hash(&mut h);
+        Rc::new(MarkedForm::SuspendedEnvEval{ hash: MFHash(h.finish()), ids: e.ids(), x, e })
+    }
+    pub fn new_suspended_if(c: Rc<MarkedForm>, t: Rc<MarkedForm>, e: Rc<MarkedForm>) -> Rc<MarkedForm> {
+        let mut h = DefaultHasher::new();
+        "SuspendedIf(c,t,e)".hash(&mut h); c.hash().hash(&mut h); t.hash().hash(&mut h); e.hash().hash(&mut h);
+        Rc::new(MarkedForm::SuspendedIf{ hash: MFHash(h.finish()), ids: c.ids().union(&t.ids()).union(&e.ids()), c, t, e })
+    }
+    pub fn new_pair(car: Rc<MarkedForm>, cdr: Rc<MarkedForm>) -> Rc<MarkedForm> {
+        let mut h = DefaultHasher::new();
+        "Pair(ids,car,cdr)".hash(&mut h); car.hash().hash(&mut h); cdr.hash().hash(&mut h);
+        Rc::new(MarkedForm::Pair(MFHash(h.finish()), car.ids().union(&cdr.ids()), car, cdr))
+    }
+    pub fn new_suspended_pair(attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>, rec_hash: Option<MFHash>) -> Rc<MarkedForm> {
+        let mut h = DefaultHasher::new();
+        "SuspendedPair".hash(&mut h); attempted.hash(&mut h); car.hash().hash(&mut h); cdr.hash().hash(&mut h);
+        let ids = car.ids().union(&cdr.ids());
+        let ids = match ids {
+            NeededIds::True(_)      => ids,
+            NeededIds::None(hashes) => match &attempted {
+                                           Attempted::False            => NeededIds::True(hashes),
+                                           Attempted::True(Some(oids)) => oids.union_hashes(&hashes),
+                                           Attempted::True(None)       => NeededIds::None(hashes),
+                                       },
+            NeededIds::Some(_,_)    => ids,
+        };
+        if let Some(rec_hash) = rec_hash {
+            ids.add_hash(rec_hash);
+        }
+        Rc::new(MarkedForm::SuspendedPair{ hash: MFHash(h.finish()), attempted, ids, car, cdr })
+    }
+    pub fn new_deri_comb(se: Rc<MarkedForm>, lookup_name: Option<String>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm>) -> Rc<MarkedForm> {
+        let mut h = DefaultHasher::new();
+        "DeriComb".hash(&mut h); se.hash().hash(&mut h); de.hash(&mut h); id.hash(&mut h); wrap_level.hash(&mut h);
+        sequence_params.hash(&mut h); rest_params.hash(&mut h); body.hash().hash(&mut h);
+        let ids = se.ids().union_without(&body.ids(), id.clone());
+        Rc::new(MarkedForm::DeriComb{ hash: MFHash(h.finish()), lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body })
+    }
+    pub fn tag_name(self: &Rc<MarkedForm>, name: &str) -> Rc<MarkedForm> {
+        match &**self {
+            MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } =>
+                 MarkedForm::new_deri_comb(Rc::clone(se), Some(name.to_owned()), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), Rc::clone(body)),
+            _ => Rc::clone(self),
+        }
+    }
+    pub fn hash(&self) -> MFHash {
+        let mut h = DefaultHasher::new();
+        {
+            let state = &mut h;
+            match self {
+                MarkedForm::Nil                                            => { "Nil".hash(state); },
+                MarkedForm::Int(i)                                         => { "Int(i)".hash(state); i.hash(state); },
+                MarkedForm::Bool(b)                                        => { "Bool(b)".hash(state); b.hash(state); },
+                MarkedForm::Symbol(s)                                      => { "Symbol(s)".hash(state); s.hash(state); }, 
+                MarkedForm::Pair(hash,ids,car,cdr)                         => { return *hash; },
+                MarkedForm::SuspendedSymbol(name)                          => { "SuspendedSymbol(name)".hash(state); name.hash(state); },
+                MarkedForm::SuspendedParamLookup { name, id, cdr_num, car }=> { "SuspendedParamLookup".hash(state); name.hash(state); id.hash(state); cdr_num.hash(state); car.hash(state); },
+                MarkedForm::SuspendedEnvEval { hash, .. }                  => { return *hash; },
+                MarkedForm::SuspendedIf      { hash, .. }                  => { return *hash; },
+                MarkedForm::SuspendedEnvLookup { name, id }                => { "SuspendedEnvLookup".hash(state); name.hash(state); id.hash(state); },
+                MarkedForm::SuspendedPair{ hash, .. }                      => { return *hash; },
+                MarkedForm::PrimComb { name, wrap_level, .. }              => { "PrimComb".hash(state); name.hash(state); wrap_level.hash(state); },
+                MarkedForm::DeriComb { hash, .. }                          => { return *hash; },
+            }
+        }
+        MFHash(h.finish())
+    }
+    pub fn wrap_level(&self) -> Option<i32> {
+        match self {
+            MarkedForm::PrimComb { wrap_level, .. } => Some(*wrap_level),
+            MarkedForm::DeriComb { wrap_level, .. } => Some(*wrap_level),
+            _ => None,
+        }
+    }
+    pub fn decrement_wrap_level(&self) -> Option<Rc<Self>> {
+        match self {
+            MarkedForm::PrimComb { name, takes_de, wrap_level, f } => Some(Rc::new(MarkedForm::PrimComb { name: name.clone(), takes_de: *takes_de, wrap_level: wrap_level-1, f: *f })),
+            MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => Some(MarkedForm::new_deri_comb(Rc::clone(se), lookup_name.clone(), de.clone(), id.clone(), wrap_level-1, sequence_params.clone(), rest_params.clone(), Rc::clone(body))),
+            _ => None,
+        }
+    }
+    pub fn ids(&self) -> NeededIds {
+        match self {
+            MarkedForm::Nil                              => NeededIds::new_none(),
+            MarkedForm::Int(i)                           => NeededIds::new_none(),
+            MarkedForm::Bool(b)                          => NeededIds::new_none(),
+            MarkedForm::Symbol(s)                        => NeededIds::new_none(), 
+            MarkedForm::Pair(hash,ids,car,cdr)           => ids.clone(),
+            MarkedForm::SuspendedSymbol(name)            => NeededIds::new_true(),
+            MarkedForm::SuspendedEnvLookup { id, .. }    => NeededIds::new_single(id.clone()),
+            MarkedForm::SuspendedParamLookup { id, .. }  => NeededIds::new_single(id.clone()),
+            MarkedForm::SuspendedEnvEval { ids, ..}      => ids.clone(),
+            MarkedForm::SuspendedIf      { ids, ..}      => ids.clone(),
+            MarkedForm::SuspendedPair{ ids, .. }         => ids.clone(),
+            MarkedForm::PrimComb { .. }                  => NeededIds::new_none(),
+            MarkedForm::DeriComb { ids, .. }             => ids.clone(),
+        }
+    }
+    // TODO: this might be essentially the same as NeededIds.nothing_needed()
+    pub fn is_value(&self) -> bool {
+        match match self {
+            MarkedForm::Nil                             => return true,
+            MarkedForm::Int(i)                          => return true,
+            MarkedForm::Bool(b)                         => return true,
+            MarkedForm::Symbol(s)                       => return true, 
+            MarkedForm::SuspendedSymbol(name)           => return false,
+            MarkedForm::SuspendedEnvLookup { id, .. }   => return false,
+            MarkedForm::SuspendedParamLookup { id, .. } => return false,
+            MarkedForm::SuspendedEnvEval { ids, ..}     => return false,
+            MarkedForm::SuspendedIf      { ids, ..}     => return false,
+            MarkedForm::SuspendedPair{ ids, .. }        => return false,
+            MarkedForm::PrimComb { .. }                 => return true,
+            MarkedForm::Pair(hash,ids,car,cdr)          => ids.clone(),
+            MarkedForm::DeriComb { ids, .. }            => ids.clone(),
+        } {
+            NeededIds::True(hashes)     => false,
+            NeededIds::None(hashes)     => true,
+            NeededIds::Some(ids,hashes) => false,
+        }
+    }
+    pub fn unval(self: &Rc<MarkedForm>) -> Result<Rc<MarkedForm>, &'static str> {
+        match &**self {
+            MarkedForm::Nil                          => Ok(Rc::clone(self)),
+            MarkedForm::Int(i)                       => Ok(Rc::clone(self)),
+            MarkedForm::Bool(b)                      => Ok(Rc::clone(self)),
+            MarkedForm::Symbol(s)                    => Ok(Rc::new(MarkedForm::SuspendedSymbol(s.clone()))), 
+            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(MarkedForm::new_suspended_pair( Attempted::False, car.unval()?, Rc::clone(cdr), None)),
+            MarkedForm::SuspendedSymbol(name)        => Err("trying to unval a suspended symbol"),
+            MarkedForm::SuspendedEnvLookup { .. }    => Err("trying to unval a suspended env lookup"),
+            MarkedForm::SuspendedParamLookup { .. }  => Err("trying to unval a suspended param lookup"),
+            MarkedForm::SuspendedEnvEval { .. }      => Err("trying to unval a suspended env eval"),
+            MarkedForm::SuspendedIf      { .. }      => Err("trying to unval a suspended if"),
+            MarkedForm::SuspendedPair{ ids, .. }     => Err("trying to unval a suspended pair"),
+            MarkedForm::PrimComb { .. }              => Ok(Rc::clone(self)),
+            MarkedForm::DeriComb { .. }              => Ok(Rc::clone(self)),
+        }
+    }
+    pub fn truthy(&self) -> Result<bool,&'static str> {
+        match self {
+            MarkedForm::Nil                          => Ok(false),
+            MarkedForm::Int(i)                       => Ok(true),
+            MarkedForm::Bool(b)                      => Ok(*b),
+            MarkedForm::Symbol(s)                    => Ok(true), 
+            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(true),
+            MarkedForm::SuspendedSymbol(name)        => Err("trying to truthy a suspended symbol"),
+            MarkedForm::SuspendedEnvLookup { .. }    => Err("trying to truthy a suspended env lookup"),
+            MarkedForm::SuspendedParamLookup { .. }  => Err("trying to truthy a suspended param lookup"),
+            MarkedForm::SuspendedEnvEval { .. }      => Err("trying to truthy a suspended env eval"),
+            MarkedForm::SuspendedIf      { .. }      => Err("trying to truthy a suspended if"),
+            MarkedForm::SuspendedPair{ ids, .. }     => Err("trying to truthy a suspended pair"),
+            MarkedForm::PrimComb { .. }              => Ok(true),
+            MarkedForm::DeriComb { .. }              => Ok(true),
+        }
+    }
+    pub fn sym(&self) -> Result<&str,&'static str> {
+        match self {
+            MarkedForm::Symbol(s)                    => Ok(s), 
+            _                                        => Err("not a symbol"),
+        }
+    }
+    pub fn int(&self) -> Result<i32,&'static str> {
+        match self {
+            MarkedForm::Int(i)                       => Ok(*i), 
+            _                                        => Err("not a int"),
+        }
+    }
+    pub fn car(&self) -> Result<Rc<MarkedForm>, &'static str> {
+        match self {
+            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(Rc::clone(car)),
+            _                                        => Err("not a pair"),
+        }
+    }
+    pub fn cdr(&self) -> Result<Rc<MarkedForm>, &'static str> {
+        match self {
+            MarkedForm::Pair(hash,ids,car,cdr)       => Ok(Rc::clone(cdr)),
+            _                                        => Err("not a pair"),
+        }
+    }
+}
+
+pub fn mark(form: Rc<Form>, bctx: BCtx) -> (BCtx, Rc<MarkedForm>) {
+    match &*form {
+        Form::Nil                   => (bctx, Rc::new(MarkedForm::Nil)),
+        Form::Int(i)                => (bctx, Rc::new(MarkedForm::Int(*i))),
+        Form::Bool(b)               => (bctx, Rc::new(MarkedForm::Bool(*b))),
+        Form::Symbol(s)             => (bctx, Rc::new(MarkedForm::Symbol(s.clone()))),
+        Form::Pair(car, cdr)        => {
+            let (bctx, car) = mark(Rc::clone(car),bctx);
+            let (bctx, cdr) = mark(Rc::clone(cdr),bctx);
+            (bctx, MarkedForm::new_pair(car, cdr))
+        },
+        Form::DeriComb { se, de, params, body } => {
+            panic!();
+        },
+        Form::PrimComb(name, _f)    => {
+            (bctx, match &name[..] {
+                "eval" => Rc::new(MarkedForm::PrimComb { name: "eval".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    Ok((bctx, MarkedForm::new_suspended_env_eval(p.car()?.unval()?, p.cdr()?.car()?)))
+                }}),
+                "vau" => Rc::new(MarkedForm::PrimComb { name: "vau".to_owned(), takes_de: true, wrap_level: 0, f: |bctx, dctx, p| {
+                    let de     = p.car()?.sym().map(|s| s.to_owned()).ok();
+                    let params = p.cdr()?.car()?.sym()?.to_owned();
+                    let body   = p.cdr()?.cdr()?.car()?.unval()?;
+                    let se = Rc::clone(&dctx.e);
+                    let (bctx, id) = bctx.new_id();
+                    let wrap_level = 0;
+                    let sequence_params = vec![];
+                    let rest_params = Some(params);
+                    Ok((bctx, MarkedForm::new_deri_comb( se, None, de, id, wrap_level, sequence_params, rest_params, body )))
+                }}),
+                "if" => Rc::new(MarkedForm::PrimComb { name: "if".to_owned(), takes_de: false, wrap_level: 0, f: |bctx, dctx, p| {
+                    Ok((bctx, MarkedForm::new_suspended_if(p.car()?.unval()?, p.cdr()?.car()?.unval()?, p.cdr()?.cdr()?.car()?.unval()?)))
+                }}),
+                // TODO: handle these in the context of paritals
+                "cons" => Rc::new(MarkedForm::PrimComb { name: "cons".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let h =  p.car()?;
+                    let t =  p.cdr()?.car()?;
+                    Ok((bctx, MarkedForm::new_pair(h, t)))
+                }}),
+                "car" => Rc::new(MarkedForm::PrimComb { name: "car".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    Ok((bctx, p.car()?.car()?))
+                }}),
+                "cdr" => Rc::new(MarkedForm::PrimComb { name: "cdr".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    Ok((bctx, p.car()?.cdr()?))
+                }}),
+                "quote" => Rc::new(MarkedForm::PrimComb { name: "quote".to_owned(), takes_de: false, wrap_level: 0, f: |bctx, dctx, p| {
+                    Ok((bctx, p.car()?))
+                }}),
+                "debug" => Rc::new(MarkedForm::PrimComb { name: "debug".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    // This one is a bit weird - we put the wrap level at 1 so both sides are pe'd,
+                    // and always returns Err so that it's not optimized away
+                    Err("debug can't be partial-evaluated away".to_owned())
+                }}),
+                // ditto
+                "assert" => Rc::new(MarkedForm::PrimComb { name: "assert".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let cond = p.car()?;
+                    if !cond.truthy()? {
+                        println!("Assert failed: {:?}", cond);
+                    }
+                    assert!(cond.truthy()?);
+                    Ok((bctx, p.cdr()?.car()?))
+                }}),
+                "=" => Rc::new(MarkedForm::PrimComb { name: "=".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?;
+                    let b =  p.cdr()?.car()?;
+                    //println!("DOing (= {} {}) = {}", a, b, a==b);
+                    // TODO: double check that this ignores ids etc. It should, since
+                    // wrap_level=1 should mean that everything's a value
+                    // also, it should just check by hash then?
+                    Ok((bctx, Rc::new(MarkedForm::Bool(a == b))))
+                }}),
+                "<" => Rc::new(MarkedForm::PrimComb { name: "<".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?;
+                    let b =  p.cdr()?.car()?;
+                    Ok((bctx, Rc::new(MarkedForm::Bool(a.int()? < b.int()?))))
+                }}),
+                ">" => Rc::new(MarkedForm::PrimComb { name: ">".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?;
+                    let b =  p.cdr()?.car()?;
+                    Ok((bctx, Rc::new(MarkedForm::Bool(a.int()? > b.int()?))))
+                }}),
+                "<=" => Rc::new(MarkedForm::PrimComb { name: "<=".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?;
+                    let b =  p.cdr()?.car()?;
+                    Ok((bctx, Rc::new(MarkedForm::Bool(a.int()? <= b.int()?))))
+                }}),
+                ">=" => Rc::new(MarkedForm::PrimComb { name: ">=".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?;
+                    let b =  p.cdr()?.car()?;
+                    Ok((bctx, Rc::new(MarkedForm::Bool(a.int()? >= b.int()?))))
+                }}),
+                "+" => Rc::new(MarkedForm::PrimComb { name: "+".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?.int()?;
+                    let b =  p.cdr()?.car()?.int()?;
+                    Ok((bctx, Rc::new(MarkedForm::Int(a + b))))
+                }}),
+                "-" => Rc::new(MarkedForm::PrimComb { name: "-".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?.int()?;
+                    let b =  p.cdr()?.car()?.int()?;
+                    Ok((bctx, Rc::new(MarkedForm::Int(a - b))))
+                }}),
+                "*" => Rc::new(MarkedForm::PrimComb { name: "*".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?.int()?;
+                    let b =  p.cdr()?.car()?.int()?;
+                    Ok((bctx, Rc::new(MarkedForm::Int(a * b))))
+                }}),
+                "/" => Rc::new(MarkedForm::PrimComb { name: "/".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?.int()?;
+                    let b =  p.cdr()?.car()?.int()?;
+                    Ok((bctx, Rc::new(MarkedForm::Int(a / b))))
+                }}),
+                "%" => Rc::new(MarkedForm::PrimComb { name: "%".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?.int()?;
+                    let b =  p.cdr()?.car()?.int()?;
+                    Ok((bctx, Rc::new(MarkedForm::Int(a % b))))
+                }}),
+                "&" => Rc::new(MarkedForm::PrimComb { name: "&".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?.int()?;
+                    let b =  p.cdr()?.car()?.int()?;
+                    Ok((bctx, Rc::new(MarkedForm::Int(a & b))))
+                }}),
+                "|" => Rc::new(MarkedForm::PrimComb { name: "|".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?.int()?;
+                    let b =  p.cdr()?.car()?.int()?;
+                    Ok((bctx, Rc::new(MarkedForm::Int(a | b))))
+                }}),
+                "^" => Rc::new(MarkedForm::PrimComb { name: "^".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    let a =  p.car()?.int()?;
+                    let b =  p.cdr()?.car()?.int()?;
+                    Ok((bctx, Rc::new(MarkedForm::Int(a ^ b))))
+                }}),
+                "comb?" => Rc::new(MarkedForm::PrimComb { name: "comb?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    Ok((bctx, Rc::new(MarkedForm::Bool(match &* p.car()? {
+                        MarkedForm::PrimComb { .. }  => true,
+                        MarkedForm::DeriComb { .. }  => true,
+                        _                            => false,
+                    }))))
+                }}),
+                "pair?" => Rc::new(MarkedForm::PrimComb { name: "pair?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    Ok((bctx, Rc::new(MarkedForm::Bool(match &* p.car()? {
+                        MarkedForm::Pair(_h, _i, _a,_b) => true,
+                        _                               => false,
+                    }))))
+                }}),
+                "symbol?" => Rc::new(MarkedForm::PrimComb { name: "symbol?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    Ok((bctx, Rc::new(MarkedForm::Bool(match &* p.car()? {
+                        MarkedForm::Symbol(_) => true,
+                        _                     => false,
+                    }))))
+                }}),
+                "int?" => Rc::new(MarkedForm::PrimComb { name: "int?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    Ok((bctx, Rc::new(MarkedForm::Bool(match &* p.car()? {
+                        MarkedForm::Int(_) => true,
+                        _                  => false,
+                    }))))
+                }}),
+                // maybe bool? but also could be derived. Nil def
+                "bool?" => Rc::new(MarkedForm::PrimComb { name: "bool?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    Ok((bctx, Rc::new(MarkedForm::Bool(match &* p.car()? {
+                        MarkedForm::Bool(_) => true,
+                        _                   => false,
+                    }))))
+                }}),
+                "nil?" => Rc::new(MarkedForm::PrimComb { name: "nil?".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
+                    Ok((bctx, Rc::new(MarkedForm::Bool(match &* p.car()? {
+                        MarkedForm::Nil => true,
+                        _               => false,
+                    }))))
+                }}),
+                _ => panic!("gah! don't have partial eval version of {}", name),
+            })
+        },
+    }
+}
+
+pub fn combiner_return_ok(x: Rc<MarkedForm>, check_id: EnvID) -> bool {
+    match match &*x {
+        MarkedForm::Nil                                        => return true,
+        MarkedForm::Int(_)                                     => return true,
+        MarkedForm::Bool(_)                                    => return true,
+        MarkedForm::Symbol(_)                                  => return true,
+        MarkedForm::Pair(h,ids,_,_)                            => ids,
+
+        MarkedForm::SuspendedSymbol(_)                         => return false,
+        MarkedForm::SuspendedParamLookup { id, .. }            => return *id != check_id,
+        MarkedForm::SuspendedEnvLookup   { id, .. }            => return *id != check_id,
+
+        MarkedForm::SuspendedEnvEval { e, .. }                 => return combiner_return_ok(Rc::clone(e), check_id),
+        MarkedForm::SuspendedIf      { c, t, e, .. }           => return combiner_return_ok(Rc::clone(c), check_id.clone()) &&
+                                                                         combiner_return_ok(Rc::clone(t), check_id.clone()) &&
+                                                                         combiner_return_ok(Rc::clone(e), check_id),
+        MarkedForm::SuspendedPair { .. }                       => {
+           // expand with (func ...params) | func doesn't take de and func+params are return ok
+           return false
+        },
+
+        MarkedForm::PrimComb { .. }                            => return true,
+        MarkedForm::DeriComb { ids, .. }                       => ids,
+    } {
+        NeededIds::True(_hashes)     => false,
+        NeededIds::None(_hashes)     => true,
+        NeededIds::Some(ids,_hashes) => !ids.contains(&check_id),
+    }
+    //; Handles let 4.3 through macro level leaving it as (<comb wraplevel=1 (y) (+ y x 12)> 13)
+    //; need handling of symbols (which is illegal for eval but ok for calls) to push it farther
+    //(combiner_return_ok (rec-lambda combiner_return_ok (func_result env_id)
+    //    (cond   ((not (later_head? func_result)) (not (check_for_env_id_in_result env_id func_result)))
+    //    ; special cases now
+    //    ;   *(veval body {env}) => (combiner_return_ok {env})
+    //    ;       The reason we don't have to check body is that this form is only creatable in ways that body was origionally a value and only need {env}
+    //    ;           Either it's created by eval, in which case it's fine, or it's created by something like (eval (array veval x de) de2) and the array has checked it,
+    //    ;           or it's created via literal vau invocation, in which case the body is a value.
+    //            ((and (marked_array? func_result)
+    //                  (prim_comb? (idx (.marked_array_values func_result) 0))
+    //                  (= 'veval (.prim_comb_sym (idx (.marked_array_values func_result) 0)))
+    //                  (= 3 (len (.marked_array_values func_result)))
+    //                  (combiner_return_ok (idx (.marked_array_values func_result) 2) env_id))                                       true)
+    //    ;   (func ...params) => (and (doesn't take de func) (foldl combiner_return_ok (cons func params)))
+    //    ;
+    //            ((and (marked_array? func_result)
+    //                  (not (comb_takes_de? (idx (.marked_array_values func_result) 0) (len (.marked_array_values func_result))))
+    //                  (foldl (lambda (a x) (and a (combiner_return_ok x env_id))) true (.marked_array_values func_result)))         true)
+
+    //    ;   So that's enough for macro like, but we would like to take it farther
+    //    ;       For like (let1 a 12 (wrap (vau (x) (let1 y (+ a 1) (+ y x a)))))
+    //    ;           we get to (+ 13 x 12) not being a value, and it reconstructs
+    //    ;           (<comb wraplevel=1 (y) (+ y x 12)> 13)
+    //    ;           and that's what eval gets, and eval then gives up as well.
+
+    //    ;           That will get caught by the above cases to remain the expansion (<comb wraplevel=1 (y) (+ y x 12)> 13),
+    //    ;           but ideally we really want another case to allow (+ 13 x 12) to bubble up
+    //    ;           I think it would be covered by the (func ...params) case if a case is added to allow symbols to be bubbled up if their
+    //    ;           needed for progress wasn't true or the current environment, BUT this doesn't work for eval, just for functions,
+    //    ;           since eval changes the entire env chain (but that goes back to case 1, and might be eliminated at compile if it's an env reachable from the func).
+    //    ;
+    //    ;
+    //    ;   Do note a key thing to be avoided is allowing any non-val inside a comb, since that can cause a fake env's ID to
+    //    ;   reference the wrong env/comb in the chain.
+    //    ;   We do allow calling eval with a fake env, but since it's only callable withbody value and is strict (by calling this)
+    //    ;   about it's return conditions, and the env it's called with must be ok in the chain, and eval doesn't introduce a new scope, it works ok.
+    //    ;   We do have to be careful about allowing returned later symbols from it though, since it could be an entirely different env chain.
+
+    //            (true false)
+    //    )
+    //))
+}
+
+pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>), String> {
+    let mut bctx = bctx_in;
+    let mut dctx = dctx_in;
+    let mut next_form = Some(form);
+    let mut force = false;
+    loop {
+        let x = next_form.take().unwrap();
+        //println!("{:ident$}PE: {}", "", x, ident=dctx.ident*4);
+        if !(force || dctx.can_progress(x.ids())) {
+            //println!("{:ident$}Shouldn't go!", "", ident=dctx.ident*4);
+            return Ok((bctx, x));
+        }
+        force = false;
+        // TODO: check all these error propegating ?'s, maybe they shouldn't propegate but instead
+        // reform?
+        match &*x {
+            MarkedForm::Pair(h,ids,car,cdr) => {
+                let (bctxp, car) = partial_eval(bctx,  dctx.clone(), Rc::clone(car))?;
+                let (bctxp, cdr) = partial_eval(bctxp, dctx.clone(), Rc::clone(cdr))?;
+                bctx = bctxp;
+                next_form = Some(MarkedForm::new_pair(car, cdr));
+            },
+            MarkedForm::SuspendedSymbol(name) => {
+                let mut t = Rc::clone(&dctx.e);
+                while name != t.car()?.car()?.sym()? {
+                    t = t.cdr()?;
+                }
+                next_form = Some(t.car()?.cdr()?.tag_name(name));
+            },
+            MarkedForm::SuspendedEnvLookup { name, id } => {
+                let v = dctx.sus_env_stack.get(id).expect("suspended env lookup can't progress, should be impossible b/c ids");
+                next_form = Some(if let Some(name) = name { v.tag_name(name) } else { Rc::clone(v) });
+            },
+            MarkedForm::SuspendedParamLookup { name, id, cdr_num, car } => {
+                let v = dctx.sus_prm_stack.get(id).expect("suspended param lookup can't progress, should be impossible b/c ids");
+                next_form = Some(if let Some(name) = name { v.tag_name(name) } else { Rc::clone(v) });
+            },
+            MarkedForm::SuspendedEnvEval { x, e, .. } => {
+                // this bit is a little tricky - we'd like to tail call, but we can't lose our env
+                // if it fails.
+                let (bctxp, e) = partial_eval(bctx,  dctx.clone(),          Rc::clone(e))?;
+                let (bctxp, x) = partial_eval(bctxp, dctx.copy_set_env(&e), Rc::clone(x))?;
+                bctx = bctxp;
+                if x.is_value() {
+                    next_form = Some(x);
+                } else {
+                    next_form = Some(MarkedForm::new_suspended_env_eval(x, e));
+                }
+                // Note also that we drop redundent vevals at the bottom of the loop tail-call loop
+                // with force
+            },
+            MarkedForm::SuspendedIf { c, t, e, .. } => {
+                let (bctxp, c) = partial_eval(bctx, dctx.clone(), Rc::clone(c))?;
+                if let Ok(b) = c.truthy() {
+                    bctx = bctxp;
+                    if b {
+                        next_form = Some(Rc::clone(t));
+                    } else {
+                        next_form = Some(Rc::clone(e));
+                    }
+                } else {
+                    // TODO: Need to add hash checking to this one
+                    let (bctxp, t) = partial_eval(bctxp, dctx.clone(), Rc::clone(t))?;
+                    let (bctxp, e) = partial_eval(bctxp, dctx.clone(), Rc::clone(e))?;
+                    bctx = bctxp;
+                    next_form = Some(MarkedForm::new_suspended_if(c,t,e));
+                }
+            },
+            MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
+                // TODO: figure out wrap level, sequence params, etc
+                //if !se.ids().needs_nothing() {
+                //    // the current env is our new se
+                //    let se = Rc::clone(&dctx.e);
+                //}
+
+                // Should this be this, or replacement with e?
+                let (bctxp, se) = partial_eval(bctx, dctx.clone(), Rc::clone(&se))?;
+                bctx = bctxp;
+                if let Ok(inner_dctx) = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None, body) {
+                    let (bctxp, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
+                    bctx = bctxp;
+                    next_form = Some(MarkedForm::new_deri_comb(se, lookup_name.clone(), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), body));
+                } else {
+                    // Not 100% sure the rec-hash hit is legitamate
+                    return Ok((bctx, x));
+                }
+            },
+            MarkedForm::SuspendedPair { hash, ids, attempted, car, cdr } => {
+                let (bctxp, mut car) = partial_eval(bctx,  dctx.clone(), Rc::clone(car))?;
+                let (bctxp, mut cdr) = partial_eval(bctxp, dctx.clone(), Rc::clone(cdr))?;
+                bctx = bctxp;
+                let mut new_attempted = attempted.clone();
+                let mut maybe_rec_hash = None;
+                let mut return_ok = false;
+                while let Some(wrap_level) = car.wrap_level() {
+                    if wrap_level > 0 {
+                        fn map_unval_peval(bctx: BCtx, dctx: DCtx, x: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>),String> {
+                            match &*x {
+                                MarkedForm::Pair(h, ids, x_car, x_cdr) => {
+                                    let (bctx, new_x_car) = partial_eval(bctx, dctx.clone(), x_car.unval()?)?;
+                                    let (bctx, new_x_cdr) = map_unval_peval(bctx, dctx.clone(), Rc::clone(x_cdr))?;
+                                    return Ok((bctx, MarkedForm::new_pair(new_x_car, new_x_cdr)));
+                                },
+                                MarkedForm::Nil => return Ok((bctx,x)),
+                                _               => return Err("not a list".to_owned()),
+                            }
+                        }
+                        if let Ok((new_bctx, new_cdr)) = map_unval_peval(bctx.clone(), dctx.clone(), Rc::clone(&cdr)) {
+                            car = car.decrement_wrap_level().unwrap();
+                            cdr = new_cdr;
+                            bctx = new_bctx;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        // check to see if can do call
+                        // We might want to enable not pure values for cons/car/cdr?
+                        if !cdr.is_value() {
+                            break;
+                        }
+                        match &*car {
+                            MarkedForm::PrimComb { name, takes_de, wrap_level, f} => {
+                                new_attempted = Attempted::True(if *takes_de { Some(dctx.e.ids()) } else { None });
+                                let ident_amount = dctx.ident*4;
+                                println!("{:ident$}doing a call eval of {}", "", name, ident=ident_amount);
+                                println!("{:ident$}parameters {} are a val because {:?}", "", cdr, cdr.ids(), ident=ident_amount);
+                                match f(bctx.clone(), dctx.clone(), Rc::clone(&cdr)) {
+                                    Ok((bctxp, r)) => {
+                                        bctx = bctxp;
+                                        next_form = Some(r);
+                                        // TODO: figure out how to drop this to the bottom of the
+                                        // loop for redundent veval elim
+                                        return_ok = true;
+                                        // might be a tail call
+                                        force = true;
+                                    },
+                                    Err(msg) => {
+                                        println!("{:ident$}failed {:?}", "", msg, ident=ident_amount);
+                                    },
+                                }
+                            }
+                            MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
+                                new_attempted = Attempted::True(if de.is_some() { Some(dctx.e.ids()) } else { None });
+                                // not yet supporting sequence params
+                                match dctx.copy_push_frame(id.clone(), &se, &de, Some(Rc::clone(&dctx.e)), &rest_params, Some(Rc::clone(&cdr)), body) {
+                                    Ok(inner_dctx) => {
+                                        let ident_amount = inner_dctx.ident*4;
+                                        //println!("{:ident$}doing a call eval of {} in {}", "", body, inner_dctx.e, ident=inner_dctx.ident*4);
+                                        println!("{:ident$}doing a call eval of {:?}", "", lookup_name, ident=ident_amount);
+                                        println!("{:ident$}with_parameters {}", "", cdr, ident=ident_amount);
+
+                                        //Here is where we could do a tail call instead, but there
+                                        //would be no recovery back into the call-form...
+                                        match partial_eval(bctx.clone(), inner_dctx, Rc::clone(body)) {
+                                            Ok((bctxp, r)) => {
+                                                if combiner_return_ok(Rc::clone(&r), id.clone()) {
+                                                    // here also shouldn't be able to continue, but
+                                                    // just in case
+                                                    bctx = bctxp;
+                                                    next_form = Some(r);
+                                                    return_ok = true;
+                                                } else {
+                                                    println!("{:ident$}combiner return not ok {}", "", r, ident=ident_amount);
+                                                }
+                                            }
+                                            Err(msg) => {
+                                                println!("{:ident$}failed {:?}", "", msg, ident=ident_amount);
+                                            }
+                                        }
+                                    },
+                                    Err(rec_stop_hash) => {
+                                        maybe_rec_hash = Some(rec_stop_hash);
+                                    },
+                                }
+                            },
+                            _ => {},
+                        }
+                        break;
+                    }
+                }
+                if !return_ok {
+                    next_form = Some(MarkedForm::new_suspended_pair( new_attempted, car, cdr, maybe_rec_hash ));
+                }
+            },
+            // Values should never get here b/c ids UNLESS FORCE HAH
+            _                                        => return Ok((bctx, x)),
+        }
+        // basic Drop redundent veval
+        // Old one was recursive over parameters to combs, which we might need, since the redundent veval isn't captured by
+        // ids. TODO!
+        if let Some(form) = next_form.as_ref() {
+            if let MarkedForm::SuspendedEnvEval { x, e, .. } = &**form {
+                if (*e == dctx.e) {
+                    next_form = Some(Rc::clone(x));
+                    force = true;
+                }
+            }
+        }
+    }
 }

@@ -4,7 +4,7 @@ lalrpop_mod!(pub grammar);
 use std::rc::Rc;
 
 mod ast;
-use crate::ast::{partial_eval,new_base_ctxs,eval,root_env,MarkedForm,Form,PossibleTailCall};
+use crate::ast::{mark,partial_eval,new_base_ctxs,eval,root_env,MarkedForm,Form,PossibleTailCall};
 
 
 fn main() {
@@ -12,7 +12,7 @@ fn main() {
     let parsed_input = Rc::new(grammar::TermParser::new().parse(input).unwrap());
     println!("Parsed input is {} - {:?}", parsed_input, parsed_input);
     let (bctx, dctx) = new_base_ctxs();
-    let (bctx, marked) = parsed_input.marked(bctx);
+    let (bctx, marked) = mark(Rc::clone(&parsed_input),bctx);
     let unvaled = marked.unval().unwrap();
     println!("Parsed unvaled that is    {}", unvaled);
     match partial_eval(bctx, dctx, unvaled) {
@@ -45,11 +45,12 @@ fn eval_test<T: Into<Form>>(also_pe: bool, gram: &grammar::TermParser, e: &Rc<Fo
     assert_eq!(*basic_result, expected.into());
     if also_pe {
         let (bctx, dctx) = new_base_ctxs();
-        let (bctx, marked) = parsed.marked(bctx);
+        let (bctx, marked) = mark(parsed,bctx);
         let unvaled = marked.unval().unwrap();
         let (bctx, ped) = partial_eval(bctx, dctx, unvaled).unwrap();
-        let (bctx, marked_basic_result) = basic_result.marked(bctx);
+        let (bctx, marked_basic_result) = mark(basic_result,bctx);
         println!("Final PE {}", ped);
+        println!("wanted {}", marked_basic_result);
         assert_eq!(*ped, *marked_basic_result);
     }
 }
