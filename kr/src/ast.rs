@@ -14,6 +14,10 @@ use std::hash::{Hash,Hasher};
 // -add recursive drop redundent veval
 // -mark rec-hash on DeriComb
 // -add compiler
+//
+// -use current fake comb ids instead of hashes
+//      -do they have to be added to not-under thing like hashes
+// -make cons work only for SuspendedParam/Env
 
 impl From<i32>  for Form { fn from(item: i32)  -> Self { Form::Int(item) } }
 impl From<bool> for Form { fn from(item: bool) -> Self { Form::Bool(item) } }
@@ -420,9 +424,9 @@ impl MFHash {
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum NeededIds {
-    True(BTreeSet<MFHash>),
-    None(BTreeSet<MFHash>),
-    Some(BTreeSet<EnvID>,BTreeSet<MFHash>),
+    True(BTreeSet<EnvID>),
+    None(BTreeSet<EnvID>),
+    Some(BTreeSet<EnvID>,BTreeSet<EnvID>),
 }
 impl NeededIds {
     fn new_true()           -> Self { NeededIds::True(                         BTreeSet::new()) }
@@ -430,27 +434,27 @@ impl NeededIds {
     fn new_single(i: EnvID) -> Self { NeededIds::Some(iter::once(i).collect(), BTreeSet::new()) }
     fn needs_nothing(&self) -> bool {
         match self {
-            NeededIds::True(hashes)     => false,
-            NeededIds::None(hashes)     => hashes.is_empty(),
-            NeededIds::Some(set,hashes) => false,
+            NeededIds::True(    under) => false,
+            NeededIds::None(    under) => under.is_empty(),
+            NeededIds::Some(set,under) => false,
         }
     }
-    fn hashes(&self) -> &BTreeSet<MFHash> {
+    fn under(&self) -> &BTreeSet<EnvID> {
         match self {
-            NeededIds::True(hashes)     => hashes,
-            NeededIds::None(hashes)     => hashes,
-            NeededIds::Some(set,hashes) => hashes,
+            NeededIds::True(under)        => under,
+            NeededIds::None(under)        => under,
+            NeededIds::Some(needed,under) => under,
         }
     }
     fn union(&self, other: &NeededIds) -> Self {
         match self {
             // add assert that otherhashes!={} -> hashes=={}
-            NeededIds::True(hashes)      => NeededIds::True(hashes.union(other.hashes()).cloned().collect()),
-            NeededIds::None(hashes)      => other.union_hashes(hashes),
-            NeededIds::Some(set, hashes) => match other {
-                NeededIds::True(ohashes)      => NeededIds::True(hashes.union(ohashes).cloned().collect()),
-                NeededIds::None(ohashes)      => NeededIds::Some(set.clone(), hashes.union(ohashes).cloned().collect()),
-                NeededIds::Some(oset,ohashes) => NeededIds::Some(set.union(oset).cloned().collect(), hashes.union(ohashes).cloned().collect()),
+            NeededIds::True(under)      => NeededIds::True(under.union(other.under()).cloned().collect()),
+            NeededIds::None(under)      => other.union_under(under),
+            NeededIds::Some(set, under) => match other {
+                NeededIds::True(ounder)      => NeededIds::True(                                    under.union(ounder).cloned().collect()),
+                NeededIds::None(ounder)      => NeededIds::Some(set.clone(),                        under.union(ounder).cloned().collect()),
+                NeededIds::Some(oset,ounder) => NeededIds::Some(set.union(oset).cloned().collect(), under.union(ounder).cloned().collect()),
             },
         }
     }
@@ -461,50 +465,53 @@ impl NeededIds {
         match self {
             NeededIds::True(_)      => self,
             NeededIds::None(_)      => self,
-            NeededIds::Some(set, hashes) => {
+            NeededIds::Some(set, under) => {
                 let new: BTreeSet<EnvID> = set.into_iter().filter(|x| *x != without).collect();
                 if new.is_empty() {
-                    NeededIds::None(hashes)
+                    NeededIds::None(under)
                 } else {
-                    NeededIds::Some(new, hashes)
+                    NeededIds::Some(new, under)
                 }
             },
         }
     }
-    fn union_hashes(&self, other: &BTreeSet<MFHash>) -> Self {
+    fn without_under(self, without: &EnvID) -> Self {
+        match self {
+            NeededIds::True(     under) => NeededIds::True(      under.into_iter().filter(|x| x != without).collect()),
+            NeededIds::None(     under) => NeededIds::None(      under.into_iter().filter(|x| x != without).collect()),
+            NeededIds::Some(set, under) => NeededIds::Some(set, (under.into_iter().filter(|x| x != without).collect())),
+        }
+    }
+    fn union_under(&self, other: &BTreeSet<EnvID>) -> Self {
         match self {
             // add assert that otherhashes!={} -> hashes=={}
-            NeededIds::True(hashes)      => NeededIds::True(             other.union(hashes).cloned().collect()),
-            NeededIds::None(hashes)      => NeededIds::None(             other.union(hashes).cloned().collect()),
-            NeededIds::Some(set, hashes) => NeededIds::Some(set.clone(), other.union(hashes).cloned().collect()),
+            NeededIds::True(     under)  => NeededIds::True(             other.union(under).cloned().collect()),
+            NeededIds::None(     under)  => NeededIds::None(             other.union(under).cloned().collect()),
+            NeededIds::Some(set, under)  => NeededIds::Some(set.clone(), other.union(under).cloned().collect()),
         }
     }
     // This should kinda eliminate True, as it can't progress, but we still want true in the sense
     // that it could contain all sorts of IDs
     // True(<nonempty>) should really only exist if kkkkkkkkkkkkkk
-    fn add_hash(&self, h: MFHash) -> Self {
+    fn add_under(&self, u: EnvID) -> Self {
         match self {
-            NeededIds::True(hashes)      => {
-                let to_ret = NeededIds::True(             hashes.iter().cloned().chain(iter::once(h)).collect());
-                println!("We just added {:?} to result in {:?} by making it {:?}", h, to_ret, hashes.iter().cloned().chain(iter::once(h)).collect::<BTreeSet<MFHash>>());
-                to_ret
-            },
-            NeededIds::None(hashes)      => NeededIds::None(             hashes.iter().cloned().chain(iter::once(h)).collect()),
-            NeededIds::Some(set, hashes) => NeededIds::Some(set.clone(), hashes.iter().cloned().chain(iter::once(h)).collect()),
+            NeededIds::True(     under) => NeededIds::True(             under.iter().cloned().chain(iter::once(u)).collect()),
+            NeededIds::None(     under) => NeededIds::None(             under.iter().cloned().chain(iter::once(u)).collect()),
+            NeededIds::Some(set, under) => NeededIds::Some(set.clone(), under.iter().cloned().chain(iter::once(u)).collect()),
         }
     }
     fn add_id(&self, i: EnvID) -> Self {
         match self {
-            NeededIds::True(hashes)      => NeededIds::True(                                                    hashes.clone()),
-            NeededIds::None(hashes)      => NeededIds::Some(iter::once(i).collect(),                            hashes.clone()),
-            NeededIds::Some(set, hashes) => NeededIds::Some(set.iter().cloned().chain(iter::once(i)).collect(), hashes.clone()),
+            NeededIds::True(     under) => NeededIds::True(                                                    under.clone()),
+            NeededIds::None(     under) => NeededIds::Some(iter::once(i).collect(),                            under.clone()),
+            NeededIds::Some(set, under) => NeededIds::Some(set.iter().cloned().chain(iter::once(i)).collect(), under.clone()),
         }
     }
     fn may_contain_id(&self, i: EnvID) -> bool {
         match self {
-            NeededIds::True(hashes)      => true,
-            NeededIds::None(hashes)      => false,
-            NeededIds::Some(set, hashes) => set.contains(&i),
+            NeededIds::True(     under) => true,
+            NeededIds::None(     under) => false,
+            NeededIds::Some(set, under) => set.contains(&i),
         }
     }
 }
@@ -532,28 +539,34 @@ pub struct DCtx {
     sus_env_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
     sus_prm_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
     real_set: Rc<BTreeSet<EnvID>>,
-    current: Rc<BTreeSet<MFHash>>,
+    fake_set: Rc<BTreeSet<EnvID>>,
     ident: usize,
 }
 impl DCtx {
     pub fn copy_set_env(&self, e: &Rc<MarkedForm>) -> Self {
-        DCtx { e: Rc::clone(e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), current: Rc::clone(&self.current), ident: self.ident+1  }
+        DCtx { e: Rc::clone(e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), fake_set: Rc::clone(&self.fake_set), ident: self.ident+1  }
     }
-    pub fn copy_push_hash(&self, h: MFHash) -> Result<Self,&'static str> {
-        if !self.current.contains(&h) {
-            Ok(DCtx { e: Rc::clone(&self.e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), current: Rc::new(self.current.iter().cloned().chain(iter::once(h)).collect()), ident: self.ident })
-        } else {
-            Err("hash already in")
-        }
-    }
-    pub fn copy_push_frame(&self, id: EnvID, se: &Rc<MarkedForm>, de: &Option<String>, e: Option<Rc<MarkedForm>>, rest_params: &Option<String>, prms: Option<Rc<MarkedForm>>, body: &Rc<MarkedForm>) -> Result<Self,MFHash> {
+    //pub fn copy_push_hash(&self, h: MFHash) -> Result<Self,&'static str> {
+        //if !self.current.contains(&h) {
+            //Ok(DCtx { e: Rc::clone(&self.e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), current: Rc::new(self.current.iter().cloned().chain(iter::once(h)).collect()), ident: self.ident })
+        //} else {
+            //Err("hash already in")
+        //}
+    //}
+    pub fn copy_push_frame(&self, id: EnvID, se: &Rc<MarkedForm>, de: &Option<String>, e: Option<Rc<MarkedForm>>, rest_params: &Option<String>, prms: Option<Rc<MarkedForm>>, body: &Rc<MarkedForm>) -> Result<Self,EnvID> {
         let mut sus_env_stack = Rc::clone(&self.sus_env_stack);
         let mut sus_prm_stack = Rc::clone(&self.sus_prm_stack);
-        let mut real_set = Rc::clone(&self.real_set);
+        let mut real_set = (*self.real_set).clone();
+        let mut fake_set = (*self.fake_set).clone();
         if (e.is_some() || prms.is_some()) {
-            Rc::make_mut(&mut real_set).insert(id.clone());
+            real_set.insert(id.clone());
+            fake_set.remove(&id);
         } else {
-            Rc::make_mut(&mut real_set).remove(&id);
+            if fake_set.contains(&id) {
+                return Err(id.clone());
+            }
+            fake_set.insert(id.clone());
+            real_set.remove(&id);
         }
         let inner_env = if let Some(de) = de {
             let de_val = if let Some(e) = e {
@@ -576,23 +589,15 @@ impl DCtx {
             };
             massoc(p, p_val, inner_env)
         } else { inner_env };
-        // Push on current frame hash
-        let new_hash = inner_env.hash().combine(&body.hash());
-        if self.current.contains(&new_hash) {
-            println!("Hash Rec Stop!");
-            Err(new_hash)
-        } else {
-            let new_current = Rc::new(self.current.iter().cloned().chain(iter::once(new_hash)).collect());
-            Ok(DCtx { e: inner_env, sus_env_stack, sus_prm_stack, real_set, current: new_current, ident: self.ident+1 })
-        }
+        Ok(DCtx { e: inner_env, sus_env_stack, sus_prm_stack, real_set: Rc::new(real_set), fake_set: Rc::new(fake_set), ident: self.ident+1 })
     }
 
     pub fn can_progress(&self, ids: NeededIds) -> bool {
         // check if ids is true || ids intersection EnvIDs in our stacks is non empty || ids.hashes - current is non empty
         match ids {
-            NeededIds::True(hashes)     => hashes.is_empty() || (!self.current.is_superset(&hashes)), //true, - if we have hashes, that means we don't know what's in but can't progress b/c hashes
-            NeededIds::None(hashes)     =>                                        !self.current.is_superset(&hashes),
-            NeededIds::Some(ids,hashes) => (!self.real_set.is_disjoint(&ids)) || (!self.current.is_superset(&hashes)),
+            NeededIds::True(    under) => under.is_empty() || (!self.fake_set.is_superset(&under)), //true, - if we have hashes, that means we don't know what's in but can't progress b/c hashes
+            NeededIds::None(    under) =>                                        !self.fake_set.is_superset(&under),
+            NeededIds::Some(ids,under) => (!self.real_set.is_disjoint(&ids)) || (!self.fake_set.is_superset(&under)),
         }
     }
 }
@@ -600,7 +605,7 @@ impl DCtx {
 pub fn new_base_ctxs() -> (BCtx,DCtx) {
     let bctx = BCtx { id_counter: 0 };
     let (bctx, root_env) = mark(root_env(), bctx);
-    (bctx, DCtx { e: root_env, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()), real_set: Rc::new(BTreeSet::new()), current: Rc::new(BTreeSet::new()), ident: 0 } )
+    (bctx, DCtx { e: root_env, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()), real_set: Rc::new(BTreeSet::new()), fake_set: Rc::new(BTreeSet::new()), ident: 0 } )
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -634,40 +639,46 @@ impl MarkedForm {
         "SuspendedEnvEval(x,e)".hash(&mut h); x.hash().hash(&mut h); e.hash().hash(&mut h);
         Rc::new(MarkedForm::SuspendedEnvEval{ hash: MFHash(h.finish()), ids: e.ids(), x, e })
     }
-    pub fn new_suspended_if(c: Rc<MarkedForm>, t: Rc<MarkedForm>, e: Rc<MarkedForm>, rec_hash: Option<MFHash>) -> Rc<MarkedForm> {
+    pub fn new_suspended_if(c: Rc<MarkedForm>, t: Rc<MarkedForm>, e: Rc<MarkedForm>, rec_under: Option<EnvID>) -> Rc<MarkedForm> {
         let mut h = DefaultHasher::new();
         "SuspendedIf(c,t,e)".hash(&mut h); c.hash().hash(&mut h); t.hash().hash(&mut h); e.hash().hash(&mut h);
         let new_ids = c.ids().union(&t.ids()).union(&e.ids());
-        let new_ids = if let Some(rec_hash) = rec_hash { new_ids.add_hash(rec_hash) } else { new_ids };
+        let new_ids = if let Some(rec_under) = rec_under { new_ids.add_under(rec_under) } else { new_ids };
         Rc::new(MarkedForm::SuspendedIf{ hash: MFHash(h.finish()), ids: new_ids, c, t, e })
     }
     pub fn new_pair(car: Rc<MarkedForm>, cdr: Rc<MarkedForm>) -> Rc<MarkedForm> {
         let mut h = DefaultHasher::new();
         "Pair(ids,car,cdr)".hash(&mut h); car.hash().hash(&mut h); cdr.hash().hash(&mut h);
-        Rc::new(MarkedForm::Pair(MFHash(h.finish()), car.ids().union(&cdr.ids()), car, cdr))
+        let new_ids = car.ids().union(&cdr.ids());
+        //println!("For new pair, union of {:?} and {:?} is  {:?}", car.ids(), cdr.ids(), new_ids); 
+        Rc::new(MarkedForm::Pair(MFHash(h.finish()), new_ids, car, cdr))
     }
-    pub fn new_suspended_pair(attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>, rec_hash: Option<MFHash>) -> Rc<MarkedForm> {
+    pub fn new_suspended_pair(attempted: Attempted, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>, rec_under: Option<EnvID>) -> Rc<MarkedForm> {
         let mut h = DefaultHasher::new();
         "SuspendedPair".hash(&mut h); attempted.hash(&mut h); car.hash().hash(&mut h); cdr.hash().hash(&mut h);
         let ids = car.ids().union(&cdr.ids());
         let ids = match ids {
             NeededIds::True(_)      => ids,
-            NeededIds::None(hashes) => match &attempted {
-                                           Attempted::False            => NeededIds::True(hashes),
-                                           Attempted::True(Some(oids)) => oids.union_hashes(&hashes),
-                                           Attempted::True(None)       => NeededIds::None(hashes),
+            NeededIds::None(under) => match &attempted {
+                                           Attempted::False            => NeededIds::True(under),
+                                           Attempted::True(Some(oids)) => oids.union_under(&under),
+                                           Attempted::True(None)       => NeededIds::None(under),
                                        },
             NeededIds::Some(_,_)    => ids,
         };
-        let ids = if let Some(rec_hash) = rec_hash { ids.add_hash(rec_hash) } else { ids };
+        let ids = if let Some(rec_under) = rec_under { ids.add_under(rec_under) } else { ids };
         Rc::new(MarkedForm::SuspendedPair{ hash: MFHash(h.finish()), attempted, ids, car, cdr })
     }
-    pub fn new_deri_comb(se: Rc<MarkedForm>, lookup_name: Option<String>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm>, rec_hash: Option<MFHash>) -> Rc<MarkedForm> {
+    pub fn new_deri_comb(se: Rc<MarkedForm>, lookup_name: Option<String>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm>, rec_under: Option<EnvID>) -> Rc<MarkedForm> {
         let mut h = DefaultHasher::new();
         "DeriComb".hash(&mut h); se.hash().hash(&mut h); de.hash(&mut h); id.hash(&mut h); wrap_level.hash(&mut h);
         sequence_params.hash(&mut h); rest_params.hash(&mut h); body.hash().hash(&mut h);
         let ids = se.ids().union_without(&body.ids(), id.clone());
-        let ids = if let Some(rec_hash) = rec_hash { ids.add_hash(rec_hash) } else { ids };
+        let ids = if let Some(rec_under) = rec_under {
+            ids.add_under(rec_under)
+        } else {
+            ids.without_under(&id)
+        };
         Rc::new(MarkedForm::DeriComb{ hash: MFHash(h.finish()), lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body })
     }
     pub fn tag_name(self: &Rc<MarkedForm>, name: &str) -> Rc<MarkedForm> {
@@ -1029,9 +1040,9 @@ pub fn combiner_return_ok(x: &Rc<MarkedForm>, check_id: Option<EnvID>) -> bool {
         MarkedForm::PrimComb { .. }                            => return true,
         MarkedForm::DeriComb { ids, .. }                       => ids,
     } {
-        NeededIds::True(_hashes)     => false,
-        NeededIds::None(_hashes)     => true,
-        NeededIds::Some(ids,_hashes) => check_id.map(|check_id| !ids.contains(&check_id)).unwrap_or(true),
+        NeededIds::True(    _under) => false,
+        NeededIds::None(    _under) => true,
+        NeededIds::Some(ids,_under) => check_id.map(|check_id| !ids.contains(&check_id)).unwrap_or(true),
     }
     //; Handles let 4.3 through macro level leaving it as (<comb wraplevel=1 (y) (+ y x 12)> 13)
     //; need handling of symbols (which is illegal for eval but ok for calls) to push it farther
@@ -1089,7 +1100,8 @@ pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> (BCtx
             //println!("{:ident$}Shouldn't go!", "", ident=dctx.ident*4);
             return (bctx, x);
         }
-        println!("{:ident$}({}) PE(force:{}) {}", "", dctx.ident, force, x, ident=dctx.ident*4);
+        //println!("{:ident$}({}) PE(force:{}) {:?} (because of {:?})", "", dctx.ident, force, x, x.ids(), ident=dctx.ident*4);
+        println!("{:ident$}({}) PE(force:{}) {} (because of {:?})", "", dctx.ident, force, x, x.ids(), ident=dctx.ident*4);
         match partial_eval_step(&x, force, bctx.clone(), &mut dctx) {
             Ok((new_bctx,new_force,new_form)) => {
                 bctx = new_bctx; force = new_force; next_form = Some(new_form);
@@ -1175,20 +1187,20 @@ fn partial_eval_step(x: &Rc<MarkedForm>, forced: bool, bctx: BCtx, dctx: &mut DC
                 }
             } else {
                 // TODO: Need to add hash checking to this one
-                let new_if_hash = MarkedForm::new_suspended_if(Rc::clone(&c), Rc::clone(t), Rc::clone(e), None).hash();
-                println!("IF HASH {:?} ? {:?}", new_if_hash, dctx.current);
-                match dctx.copy_push_hash(new_if_hash.clone()) {
-                    Ok(dctx) => {
-                        println!("SIF hash fine, doing both subs");
+                //let new_if_hash = MarkedForm::new_suspended_if(Rc::clone(&c), Rc::clone(t), Rc::clone(e), None).hash();
+                //println!("IF HASH {:?} ? {:?}", new_if_hash, dctx.current);
+                //match dctx.copy_push_hash(new_if_hash.clone()) {
+                    //Ok(dctx) => {
+                        //println!("SIF hash fine, doing both subs");
                         let (bctx, t) = partial_eval(bctx, dctx.clone(), Rc::clone(t));
-                        let (bctx, e) = partial_eval(bctx, dctx,         Rc::clone(e));
+                        let (bctx, e) = partial_eval(bctx, dctx.clone(), Rc::clone(e));
                         Ok((bctx, false, MarkedForm::new_suspended_if(c,t,e, None)))
-                    },
-                    Err(rec_stop_msg) => {
-                        println!("SIF hash stopped {}", rec_stop_msg);
-                        Ok((bctx, false, MarkedForm::new_suspended_if(c, Rc::clone(t), Rc::clone(e), Some(new_if_hash))))
-                    }
-                }
+                    //},
+                    //Err(rec_stop_msg) => {
+                        //println!("SIF hash stopped {}", rec_stop_msg);
+                        //Ok((bctx, false, MarkedForm::new_suspended_if(c, Rc::clone(t), Rc::clone(e), Some(new_if_hash))))
+                    //}
+                //}
             }
         },
         MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
@@ -1211,12 +1223,12 @@ fn partial_eval_step(x: &Rc<MarkedForm>, forced: bool, bctx: BCtx, dctx: &mut DC
                         //println!("{:ident$}result was {}", "", body, ident=ident_amount);
                         Ok((bctx, false, MarkedForm::new_deri_comb(se, lookup_name.clone(), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), body, None)))
                     },
-                    Err(rec_stop_hash) => {
+                    Err(rec_stop_under) => {
                         //println!("{:ident$}call of {:?} failed b/c rec_stop_hash", "", lookup_name, ident=dctx.ident*4);
                         //maybe_rec_hash = Some(rec_stop_hash);
                         // TODO: should this mark the hash on DeriComb?
                         //Err("recursion stopped in dericomb".to_owned())
-                        Ok((bctx, false, MarkedForm::new_deri_comb(se, lookup_name.clone(), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), Rc::clone(body), Some(rec_stop_hash))))
+                        Ok((bctx, false, MarkedForm::new_deri_comb(se, lookup_name.clone(), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), Rc::clone(body), Some(rec_stop_under))))
                         //Ok((bctx, false, MarkedForm::new_suspended_pair( new_attempted, car, cdr, maybe_rec_hash )))
                     },
                 }
@@ -1229,7 +1241,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, forced: bool, bctx: BCtx, dctx: &mut DC
             let (    bctx, mut car) = partial_eval(bctx, dctx.clone(), Rc::clone(car));
             let (mut bctx, mut cdr) = partial_eval(bctx, dctx.clone(), Rc::clone(cdr));
             let mut new_attempted = attempted.clone();
-            let mut maybe_rec_hash = None;
+            let mut maybe_rec_under = None;
             let mut return_ok = false;
             while let Some(wrap_level) = car.wrap_level() {
                 if wrap_level > 0 {
@@ -1305,9 +1317,9 @@ fn partial_eval_step(x: &Rc<MarkedForm>, forced: bool, bctx: BCtx, dctx: &mut DC
                                         return Ok((bctx, false, r));
                                     }
                                 },
-                                Err(rec_stop_hash) => {
-                                    println!("{:ident$}call of {:?} failed b/c rec_stop_hash", "", lookup_name, ident=dctx.ident*4);
-                                    maybe_rec_hash = Some(rec_stop_hash);
+                                Err(rec_stop_under) => {
+                                    println!("{:ident$}call of {:?} failed b/c rec_stop_under", "", lookup_name, ident=dctx.ident*4);
+                                    maybe_rec_under = Some(rec_stop_under);
                                 },
                             }
                         },
@@ -1317,7 +1329,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, forced: bool, bctx: BCtx, dctx: &mut DC
                 }
             }
             // Call failed, do the re-wrap-up ourselves b/c of our possibly advanced wrap/params
-            Ok((bctx, false, MarkedForm::new_suspended_pair( new_attempted, car, cdr, maybe_rec_hash )))
+            Ok((bctx, false, MarkedForm::new_suspended_pair( new_attempted, car, cdr, maybe_rec_under )))
         },
         // Values should never get here b/c ids UNLESS FORCE HAH
         _                                        => Err("value evaled".to_owned()),
