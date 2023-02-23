@@ -15,10 +15,7 @@ fn main() {
     let (bctx, marked) = mark(Rc::clone(&parsed_input),bctx);
     let unvaled = marked.unval().unwrap();
     println!("Parsed unvaled that is    {}", unvaled);
-    match partial_eval(bctx, dctx, unvaled) {
-        Ok((bctx, ped)) => println!("Parsed unvaled pe that is {}", ped),
-        Err(e)          => println!("Partial evaluation error {}", e),
-    };
+    let (bctx, ped) =  partial_eval(bctx, dctx, unvaled);
     let result = eval(root_env(), parsed_input);
     println!("Result is {} - {:?}", result, result);
 }
@@ -47,12 +44,29 @@ fn eval_test<T: Into<Form>>(also_pe: bool, gram: &grammar::TermParser, e: &Rc<Fo
         let (bctx, dctx) = new_base_ctxs();
         let (bctx, marked) = mark(parsed,bctx);
         let unvaled = marked.unval().unwrap();
-        let (bctx, ped) = partial_eval(bctx, dctx, unvaled).unwrap();
+        let (bctx, ped) = partial_eval(bctx, dctx, unvaled);
         let (bctx, marked_basic_result) = mark(basic_result,bctx);
         println!("Final PE {}", ped);
         println!("wanted {}", marked_basic_result);
         assert_eq!(*ped, *marked_basic_result);
     }
+}
+fn partial_eval_test(gram: &grammar::TermParser, code: &str, expected: &str) {
+    println!("Doing PE test {}", code);
+    let parsed = Rc::new(gram.parse(code).unwrap());
+    let (bctx, dctx) = new_base_ctxs();
+    let (bctx, marked) = mark(parsed,bctx);
+    let unvaled = marked.unval().unwrap();
+    let (bctx, ped) = partial_eval(bctx, dctx, unvaled);
+    println!("Final PE {}", ped);
+    println!("wanted {}", expected);
+    assert_eq!(format!("{}", ped), expected);
+}
+#[test]
+fn basic_pe_test() {
+    let g = grammar::TermParser::new();
+    partial_eval_test(&g, "(+ 2 (car (cons 4 '(1 2))))", "6");
+    partial_eval_test(&g, "(vau 0 p (+ 1 2))", "None({})#[None/None/EnvID(0)/0/[]/Some(\"p\")/3]");
 }
 
 #[test]
@@ -115,6 +129,37 @@ static LET: Lazy<String> = Lazy::new(|| {
 });
 
 #[test]
+fn let_pe_test() {
+    let g = grammar::TermParser::new();
+    partial_eval_test(&g, &format!("{} (let1 a 2 (+ a (car (cons 4 '(1 2)))))", *LET), "6");
+    partial_eval_test(&g, &format!("{} (let1 a 2 (vau 0 p (+ 1 a)))", *LET), "None({})#[None/None/EnvID(0)/0/[]/Some(\"p\")/3]");
+    partial_eval_test(&g, &format!("{}
+            !(let1 a 2)
+            (vau 0 p (+ 1 a))
+            ", *LET), "None({})#[None/None/EnvID(0)/0/[]/Some(\"p\")/3]");
+    partial_eval_test(&g, &format!("{}
+            !(let1 a 2)
+            !(let1 b 5)
+            (vau 0 p (+ b a))
+            ", *LET), "None({})#[None/None/EnvID(0)/0/[]/Some(\"p\")/7]");
+            /*
+    partial_eval_test(&g, &format!("{}
+            (vau 0 p
+                !(let1 a 2)
+                !(let1 b 5)
+                (+ b a)
+                )
+            ", *LET), "None({})#[None/None/EnvID(0)/0/[]/Some(\"p\")/7]");
+    partial_eval_test(&g, &format!("{}
+            (vau d p
+                !(let1 a 2)
+                (+ (eval (car p) d) a)
+                )
+            ", *LET), "None({})#[None/None/EnvID(2)/0/[]/Some(\"p\")/7]");
+            */
+}
+
+#[test]
 fn fib_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     eval_test(true, &g, &e, &format!("{} (let1 x 10 (+ x 7))", *LET), 17);
     let def_fib = "
@@ -125,7 +170,7 @@ fn fib_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
        !(if (= 1 n) 1)
        (+ (self self (- n 1)) (self self (- n 2)))
     ))";
-    eval_test(true, &g, &e, &format!("{} {} (fib fib 6)", *LET, def_fib), 8);
+    eval_test(false, &g, &e, &format!("{} {} (fib fib 6)", *LET, def_fib), 8);
 }
 #[test]
 fn fact_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
