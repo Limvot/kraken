@@ -529,12 +529,15 @@ impl DCtx {
         let mut real_set = Rc::clone(&self.real_set);
         if (e.is_some() || prms.is_some()) {
             Rc::make_mut(&mut real_set).insert(id.clone());
+        } else {
+            Rc::make_mut(&mut real_set).remove(&id);
         }
         let inner_env = if let Some(de) = de {
             let de_val = if let Some(e) = e {
                 Rc::make_mut(&mut sus_env_stack).insert(id.clone(), Rc::clone(&e));
                 e
             } else {
+                Rc::make_mut(&mut sus_env_stack).remove(&id);
                 Rc::new(MarkedForm::SuspendedEnvLookup { name: Some(de.clone()), id: id.clone() })
             };
             massoc(de, de_val, Rc::clone(se))
@@ -545,6 +548,7 @@ impl DCtx {
                 Rc::make_mut(&mut sus_prm_stack).insert(id.clone(), Rc::clone(&prms));
                 prms
             } else {
+                Rc::make_mut(&mut sus_prm_stack).remove(&id);
                 Rc::new(MarkedForm::SuspendedParamLookup { name: Some(p.clone()), id: id.clone(), cdr_num: 0, car: false })
             };
             massoc(p, p_val, inner_env)
@@ -820,7 +824,9 @@ pub fn mark(form: Rc<Form>, bctx: BCtx) -> (BCtx, Rc<MarkedForm>) {
                 // TODO: handle these in the context of paritals
                 "cons" => Rc::new(MarkedForm::PrimComb { name: "cons".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
                     let h =  p.car()?;
+                    //println!("Consing with head {}", h);
                     let t =  p.cdr()?.car()?;
+                    //println!("Consing with tail {}", t);
                     Ok((bctx, MarkedForm::new_pair(h, t)))
                 }}),
                 "car" => Rc::new(MarkedForm::PrimComb { name: "car".to_owned(), takes_de: false, wrap_level: 1, f: |bctx, dctx, p| {
@@ -1043,6 +1049,7 @@ pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> Resul
             //println!("{:ident$}Shouldn't go!", "", ident=dctx.ident*4);
             return Ok((bctx, x));
         }
+        let forced = force;
         force = false;
         // TODO: check all these error propegating ?'s, maybe they shouldn't propegate but instead
         // reform?
@@ -1101,22 +1108,43 @@ pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> Resul
             },
             MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
                 // TODO: figure out wrap level, sequence params, etc
-                //if !se.ids().needs_nothing() {
-                //    // the current env is our new se
-                //    let se = Rc::clone(&dctx.e);
-                //}
+                if forced || !se.ids().needs_nothing() {
+                    let old_se_ids = se.ids();
+                    let se = if !se.ids().needs_nothing() {
+                        // the current env is our new se
+                        Rc::clone(&dctx.e)
+                    } else {
+                        Rc::clone(se)
+                    };
 
-                // Should this be this, or replacement with e?
-                let (bctxp, se) = partial_eval(bctx, dctx.clone(), Rc::clone(&se))?;
-                bctx = bctxp;
-                if let Ok(inner_dctx) = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None, body) {
-                    let (bctxp, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
-                    bctx = bctxp;
-                    next_form = Some(MarkedForm::new_deri_comb(se, lookup_name.clone(), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), body));
+                    let ident_amount = dctx.ident*4;
+                    if let Ok(inner_dctx) = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None, body) {
+                        //println!("{:ident$}Doing a body deri for {:?} because ({} || {:?}) which is {}", "", lookup_name, forced, old_se_ids, x, ident=ident_amount);
+                        let (bctxp, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
+                        //println!("{:ident$}result was {}", "", body, ident=ident_amount);
+                        bctx = bctxp;
+                        next_form = Some(MarkedForm::new_deri_comb(se, lookup_name.clone(), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), body));
+                    } else {
+                        return Ok((bctx, x));
+                    }
                 } else {
-                    // Not 100% sure the rec-hash hit is legitamate
                     return Ok((bctx, x));
                 }
+
+                // Should this be this, or replacement with e?
+                //let ident_amount = dctx.ident*4;
+                //let (bctxp, se) = partial_eval(bctx, dctx.clone(), Rc::clone(&se))?;
+                //bctx = bctxp;
+                //if let Ok(inner_dctx) = dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None, body) {
+                    //println!("{:ident$}Doing a body deri for {:?} which is {}", "", lookup_name, x, ident=ident_amount);
+                    //let (bctxp, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
+                    //bctx = bctxp;
+                    //next_form = Some(MarkedForm::new_deri_comb(se, lookup_name.clone(), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), body));
+                //} else {
+                    //// Not 100% sure the rec-hash hit is legitamate
+                    //println!("{:ident$}Rec hash stopped deri for {:?} which is {}", "", lookup_name, x, ident=ident_amount);
+                    //return Ok((bctx, x));
+                //}
             },
             MarkedForm::SuspendedPair { hash, ids, attempted, car, cdr } => {
                 let (bctxp, mut car) = partial_eval(bctx,  dctx.clone(), Rc::clone(car))?;
@@ -1155,8 +1183,8 @@ pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> Resul
                             MarkedForm::PrimComb { name, takes_de, wrap_level, f} => {
                                 new_attempted = Attempted::True(if *takes_de { Some(dctx.e.ids()) } else { None });
                                 let ident_amount = dctx.ident*4;
-                                println!("{:ident$}doing a call eval of {}", "", name, ident=ident_amount);
-                                println!("{:ident$}parameters {} are a val because {:?}", "", cdr, cdr.ids(), ident=ident_amount);
+                                //println!("{:ident$}doing a call eval of {}", "", name, ident=ident_amount);
+                                //println!("{:ident$}parameters {} are a val because {:?}", "", cdr, cdr.ids(), ident=ident_amount);
                                 match f(bctx.clone(), dctx.clone(), Rc::clone(&cdr)) {
                                     Ok((bctxp, r)) => {
                                         bctx = bctxp;
@@ -1179,8 +1207,8 @@ pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> Resul
                                     Ok(inner_dctx) => {
                                         let ident_amount = inner_dctx.ident*4;
                                         //println!("{:ident$}doing a call eval of {} in {}", "", body, inner_dctx.e, ident=inner_dctx.ident*4);
-                                        println!("{:ident$}doing a call eval of {:?}", "", lookup_name, ident=ident_amount);
-                                        println!("{:ident$}with_parameters {}", "", cdr, ident=ident_amount);
+                                        //println!("{:ident$}doing a call eval of {:?}", "", lookup_name, ident=ident_amount);
+                                        //println!("{:ident$}with_parameters {}", "", cdr, ident=ident_amount);
 
                                         //Here is where we could do a tail call instead, but there
                                         //would be no recovery back into the call-form...
@@ -1193,7 +1221,7 @@ pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> Resul
                                                     next_form = Some(r);
                                                     return_ok = true;
                                                 } else {
-                                                    println!("{:ident$}combiner return not ok {}", "", r, ident=ident_amount);
+                                                    //println!("{:ident$}combiner return not ok {}", "", r, ident=ident_amount);
                                                 }
                                             }
                                             Err(msg) => {
