@@ -536,15 +536,17 @@ impl BCtx {
 #[derive(Clone)]
 pub struct DCtx {
     e : Rc<MarkedForm>,
+    current_id: Option<EnvID>,
     sus_env_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
     sus_prm_stack: Rc<BTreeMap<EnvID, Rc<MarkedForm>>>,
     real_set: Rc<BTreeSet<EnvID>>,
     fake_set: Rc<BTreeSet<EnvID>>,
+    fake_if_set: Rc<BTreeSet<EnvID>>,
     ident: usize,
 }
 impl DCtx {
     pub fn copy_set_env(&self, e: &Rc<MarkedForm>) -> Self {
-        DCtx { e: Rc::clone(e), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), fake_set: Rc::clone(&self.fake_set), ident: self.ident+1  }
+        DCtx { e: Rc::clone(e), current_id: self.current_id.clone(), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), fake_set: Rc::clone(&self.fake_set), fake_if_set: Rc::clone(&self.fake_if_set), ident: self.ident+1  }
     }
     //pub fn copy_push_hash(&self, h: MFHash) -> Result<Self,&'static str> {
         //if !self.current.contains(&h) {
@@ -558,9 +560,14 @@ impl DCtx {
         let mut sus_prm_stack = Rc::clone(&self.sus_prm_stack);
         let mut real_set = (*self.real_set).clone();
         let mut fake_set = (*self.fake_set).clone();
+        if self.fake_if_set.contains(&id) {
+            println!("Fake if real rec stopper");
+            return Err(id);
+        }
         if (e.is_some() || prms.is_some()) {
             real_set.insert(id.clone());
-            fake_set.remove(&id);
+            // We're not actually not under fake still!
+            //fake_set.remove(&id);
         } else {
             if fake_set.contains(&id) {
                 return Err(id.clone());
@@ -589,15 +596,23 @@ impl DCtx {
             };
             massoc(p, p_val, inner_env)
         } else { inner_env };
-        Ok(DCtx { e: inner_env, sus_env_stack, sus_prm_stack, real_set: Rc::new(real_set), fake_set: Rc::new(fake_set), ident: self.ident+1 })
+        Ok(DCtx { e: inner_env, current_id: Some(id), sus_env_stack, sus_prm_stack, real_set: Rc::new(real_set), fake_set: Rc::new(fake_set), fake_if_set: Rc::clone(&self.fake_if_set), ident: self.ident+1 })
+    }
+    pub fn copy_push_fake_if(&self) -> Self {
+        let new_fake_if_set = if let Some(current_id) = self.current_id.as_ref() {
+            let mut x = (*self.fake_if_set).clone();
+            x.insert(current_id.clone());
+            Rc::new(x)
+        } else { Rc::clone(&self.fake_if_set) };
+        DCtx { e: Rc::clone(&self.e), current_id: self.current_id.clone(), sus_env_stack: Rc::clone(&self.sus_env_stack), sus_prm_stack: Rc::clone(&self.sus_prm_stack), real_set: Rc::clone(&self.real_set), fake_set: Rc::clone(&self.fake_set), fake_if_set: new_fake_if_set, ident: self.ident+1 }
     }
 
     pub fn can_progress(&self, ids: NeededIds) -> bool {
         // check if ids is true || ids intersection EnvIDs in our stacks is non empty || ids.hashes - current is non empty
         match ids {
-            NeededIds::True(    under) => under.is_empty() || (!self.fake_set.is_superset(&under)), //true, - if we have hashes, that means we don't know what's in but can't progress b/c hashes
-            NeededIds::None(    under) =>                                        !self.fake_set.is_superset(&under),
-            NeededIds::Some(ids,under) => (!self.real_set.is_disjoint(&ids)) || (!self.fake_set.is_superset(&under)),
+            NeededIds::True(    under) => under.is_empty()                   || (!(self.fake_set.union(&self.fake_if_set).cloned().collect::<BTreeSet<EnvID>>()).is_superset(&under)), //true, - if we have hashes, that means we don't know what's in but can't progress b/c hashes
+            NeededIds::None(    under) =>                                        !(self.fake_set.union(&self.fake_if_set).cloned().collect::<BTreeSet<EnvID>>()).is_superset(&under),
+            NeededIds::Some(ids,under) => (!self.real_set.is_disjoint(&ids)) || (!(self.fake_set.union(&self.fake_if_set).cloned().collect::<BTreeSet<EnvID>>()).is_superset(&under)),
         }
     }
 }
@@ -605,7 +620,7 @@ impl DCtx {
 pub fn new_base_ctxs() -> (BCtx,DCtx) {
     let bctx = BCtx { id_counter: 0 };
     let (bctx, root_env) = mark(root_env(), bctx);
-    (bctx, DCtx { e: root_env, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()), real_set: Rc::new(BTreeSet::new()), fake_set: Rc::new(BTreeSet::new()), ident: 0 } )
+    (bctx, DCtx { e: root_env, current_id: None, sus_env_stack: Rc::new(BTreeMap::new()), sus_prm_stack: Rc::new(BTreeMap::new()), real_set: Rc::new(BTreeSet::new()), fake_set: Rc::new(BTreeSet::new()), fake_if_set: Rc::new(BTreeSet::new()), ident: 0 } )
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
