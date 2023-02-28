@@ -677,8 +677,7 @@
     (drop_redundent_veval (rec-lambda drop_redundent_veval (partial_eval_helper x de env_stack pectx indent) (dlet (
                                                     (env_id (.marked_env_id de))
                                                     (r (if
-                                                      (and (marked_array? x)
-                                                           (not (.marked_array_is_val x)))
+                                                      (and (marked_array? x) (not (.marked_array_is_val x)))
                                                            (if (and (prim_comb? (idx (.marked_array_values x) 0))
                                                                     (= 'veval (.prim_comb_sym (idx (.marked_array_values x) 0)))
                                                                     (= 3 (len (.marked_array_values x)))
@@ -686,8 +685,8 @@
                                                                     (= env_id (.marked_env_id (idx (.marked_array_values x) 2)))) (drop_redundent_veval partial_eval_helper (idx (.marked_array_values x) 1) de env_stack pectx (+ 1 indent))
                                                                                                                                    ; wait, can it do this? will this mess with eval?
 
-                                                            ; basically making sure that this comb's params are still good to eval
-                                                            (if (and (or (prim_comb? (idx (.marked_array_values x) 0)) (comb? (idx (.marked_array_values x) 0)))
+                                                           ; basically making sure that this comb's params are still good to eval
+                                                           (if (and (or (prim_comb? (idx (.marked_array_values x) 0)) (comb? (idx (.marked_array_values x) 0)))
                                                                      (!= -1 (.any_comb_wrap_level (idx (.marked_array_values x) 0))))
                                                                 (dlet (((pectx err ress changed) (foldl (dlambda ((c er ds changed) p) (dlet (
                                                                                                       (pre_hash (.hash p))
@@ -1862,6 +1861,10 @@
           (global '$num_mallocs  '(mut i32) (i32.const 0))
           (global '$num_sbrks    '(mut i32) (i32.const 0))
           (global '$num_frees    '(mut i32) (i32.const 0))
+
+          (global '$num_evals             '(mut i32) (i32.const 0))
+          (global '$num_compiled_dzero    '(mut i32) (i32.const 0))
+          (global '$num_compiled_done     '(mut i32) (i32.const 0))
 
           (global '$num_array_innerdrops    '(mut i32) (i32.const 0))
           (global '$num_env_innerdrops    '(mut i32) (i32.const 0))
@@ -4166,6 +4169,7 @@
               ((k_eval          func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval          '(param $p i64) '(param $d i64) '(param $s i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
 
                   (ensure_not_op_n_params_set_ptr_len i32.lt_u 1)
+                  (global.set '$num_evals   (i32.add (i32.const 1) (global.get '$num_evals)))
                   (_if '$using_d_env '(result i64)
                         (i32.eq (i32.const 1) (local.get '$len))
                         (then
@@ -5671,11 +5675,17 @@
                                                                                 (local.tee '$tmp)
                                                                                 (_if '$is_wrap_0
                                                                                     (is_wrap_code 0 (local.get '$tmp))
-                                                                                    (then wrap_0_param_code)
+                                                                                    (then
+                                                                                      (global.set '$num_compiled_dzero   (i32.add (i32.const 1) (global.get '$num_compiled_dzero)))
+                                                                                       wrap_0_param_code
+                                                                                    )
                                                                                     (else
                                                                                         (_if '$is_wrap_1
                                                                                             (is_wrap_code 1 (local.get '$tmp))
-                                                                                            (then wrap_1_param_code)
+                                                                                            (then
+                                                                                             (global.set '$num_compiled_done (i32.add (i32.const 1) (global.get '$num_compiled_done)))
+                                                                                              wrap_1_param_code
+                                                                                            )
                                                                                             (else wrap_x_param_code)
                                                                                         )
                                                                                     )
@@ -6370,6 +6380,25 @@
                     (mk_int_code_i32s (global.get '$num_frees))
                     (mk_int_code_i32s (global.get '$num_mallocs))
                     (mk_int_code_i32s (global.get '$num_sbrks))
+
+                    (mk_int_code_i32s (global.get '$num_compiled_dzero))
+                    (mk_int_code_i32s (global.get '$num_compiled_done))
+                    (mk_int_code_i32s (global.get '$num_evals))
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print (i64.const newline_msg_val))
+
+                    (call '$print )
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print )
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print )
+
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print (i64.const newline_msg_val))
 
                     (call '$print (i64.const newline_msg_val))
                     (call '$print )
