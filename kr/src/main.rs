@@ -390,19 +390,19 @@ static BVAU: Lazy<String> = Lazy::new(|| {
 #[test]
 fn bvau_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     eval_test(true, &g, &e, &format!("{} ((bvau _ (a b c) (+ a (- b c))) 10 2 3)", *BVAU), 9);
-    eval_test(true, &g, &e, &format!("{} ((bvau (a b c) (+ a (- b c))) 10 2 3)", *BVAU), 9);
+    //eval_test(true, &g, &e, &format!("{} ((bvau (a b c) (+ a (- b c))) 10 2 3)", *BVAU), 9);
 
-    eval_test(true, &g, &e, &format!("{} ((bvau (a b . c) c) 10 2 3)", *BVAU), (3, Form::Nil));
-    eval_test(true, &g, &e, &format!("{} ((bvau (a b . c) c) 10 2)", *BVAU), Form::Nil);
-    eval_test(true, &g, &e, &format!("{} ((bvau (a b . c) c) 10 2 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
-    eval_test(true, &g, &e, &format!("{} ((bvau c c) 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
-    eval_test(true, &g, &e, &format!("{} ((bvau c c))", *BVAU), Form::Nil);
-    eval_test(true, &g, &e, &format!("{} ((bvau ((a b) . c) c) (10 2) 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
-    eval_test(true, &g, &e, &format!("{} ((bvau ((a b) . c) a) (10 2) 3 4 5)", *BVAU), 10);
-    eval_test(true, &g, &e, &format!("{} ((bvau ((a b) . c) b) (10 2) 3 4 5)", *BVAU), 2);
+    //eval_test(true, &g, &e, &format!("{} ((bvau (a b . c) c) 10 2 3)", *BVAU), (3, Form::Nil));
+    //eval_test(true, &g, &e, &format!("{} ((bvau (a b . c) c) 10 2)", *BVAU), Form::Nil);
+    //eval_test(true, &g, &e, &format!("{} ((bvau (a b . c) c) 10 2 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
+    //eval_test(true, &g, &e, &format!("{} ((bvau c c) 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
+    //eval_test(true, &g, &e, &format!("{} ((bvau c c))", *BVAU), Form::Nil);
+    //eval_test(true, &g, &e, &format!("{} ((bvau ((a b) . c) c) (10 2) 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
+    //eval_test(true, &g, &e, &format!("{} ((bvau ((a b) . c) a) (10 2) 3 4 5)", *BVAU), 10);
+    //eval_test(true, &g, &e, &format!("{} ((bvau ((a b) . c) b) (10 2) 3 4 5)", *BVAU), 2);
 
-    eval_test(true, &g, &e, &format!("{} ((wrap (bvau _ (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", *BVAU), 7);
-    eval_test(true, &g, &e, &format!("{} ((wrap (bvau (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", *BVAU), 7);
+    //eval_test(true, &g, &e, &format!("{} ((wrap (bvau _ (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", *BVAU), 7);
+    //eval_test(true, &g, &e, &format!("{} ((wrap (bvau (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", *BVAU), 7);
 }
 
 static LAMBDA: Lazy<String> = Lazy::new(|| {

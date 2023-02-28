@@ -155,7 +155,10 @@ impl fmt::Display for MarkedForm {
             MarkedForm::PrimComb { name, wrap_level, .. }               => write!(f, "<{}{}>", name, wrap_level),
 
             //MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => write!(f, "{:?}#[{}/{:?}/{:?}/{}/{:?}/{:?}/{}]", ids, se, de, id, wrap_level, sequence_params, rest_params, body),
-            MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => write!(f, "{:?}#[{:?}/{:?}/{:?}/{}/{:?}/{:?}/{}]", ids, lookup_name, de, id, wrap_level, sequence_params, rest_params, body),
+            MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
+                //let env_form = format!("{}", se);
+                write!(f, "{:?}#[{:?}/{:?}/{:?}/{}/{:?}/{:?}/{}]", ids, lookup_name, de, id, wrap_level, sequence_params, rest_params, body)
+            },
 
             MarkedForm::SuspendedPair{ hash, ids, attempted, car, cdr } => {
                 //write!(f, "{:?}{:?}#{{{}", ids, attempted, car)?;
@@ -436,6 +439,13 @@ impl NeededIds {
         match self {
             NeededIds::True(    under) => false,
             NeededIds::None(    under) => under.is_empty(),
+            NeededIds::Some(set,under) => false,
+        }
+    }
+    fn is_true(&self) -> bool {
+        match self {
+            NeededIds::True(    under) => true,
+            NeededIds::None(    under) => false,
             NeededIds::Some(set,under) => false,
         }
     }
@@ -1207,6 +1217,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, forced: bool, bctx: BCtx, dctx: &mut DC
                 //match dctx.copy_push_hash(new_if_hash.clone()) {
                     //Ok(dctx) => {
                         //println!("SIF hash fine, doing both subs");
+                        let dctx = dctx.copy_push_fake_if();
                         let (bctx, t) = partial_eval(bctx, dctx.clone(), Rc::clone(t));
                         let (bctx, e) = partial_eval(bctx, dctx.clone(), Rc::clone(e));
                         Ok((bctx, false, MarkedForm::new_suspended_if(c,t,e, None)))
@@ -1221,6 +1232,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, forced: bool, bctx: BCtx, dctx: &mut DC
         MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
             // TODO: figure out wrap level, sequence params, etc
             if forced || !se.ids().needs_nothing() {
+            //if ids.is_true() || !se.ids().needs_nothing() {
                 let old_se_ids = se.ids();
                 let se = if !se.ids().needs_nothing() {
                     // the current env is our new se
@@ -1233,13 +1245,15 @@ fn partial_eval_step(x: &Rc<MarkedForm>, forced: bool, bctx: BCtx, dctx: &mut DC
 
                 match dctx.copy_push_frame(id.clone(), &se, &de, None, &rest_params, None, body) {
                     Ok(inner_dctx) => {
-                        //println!("{:ident$}Doing a body deri for {:?} because ({} || {:?}) which is {}", "", lookup_name, forced, old_se_ids, x, ident=ident_amount);
+                        println!("{:ident$}Doing a body deri for {:?} because ({} || {:?}) which is {}", "", lookup_name, forced, old_se_ids, x, ident=ident_amount);
+                        println!("{:ident$}and also body ids is {:?}", "", body.ids(), ident=ident_amount);
+                        //println!("{:ident$}and fake is {:?} and fake_if is {:?}", "", , ident=ident_amount);
                         let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body));
-                        //println!("{:ident$}result was {}", "", body, ident=ident_amount);
+                        println!("{:ident$}result was {}", "", body, ident=ident_amount);
                         Ok((bctx, false, MarkedForm::new_deri_comb(se, lookup_name.clone(), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), body, None)))
                     },
                     Err(rec_stop_under) => {
-                        //println!("{:ident$}call of {:?} failed b/c rec_stop_hash", "", lookup_name, ident=dctx.ident*4);
+                        println!("{:ident$}call of {:?} failed b/c rec_stop_under", "", lookup_name, ident=dctx.ident*4);
                         //maybe_rec_hash = Some(rec_stop_hash);
                         // TODO: should this mark the hash on DeriComb?
                         //Err("recursion stopped in dericomb".to_owned())
@@ -1298,6 +1312,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, forced: bool, bctx: BCtx, dctx: &mut DC
                                 Ok((bctxp, r)) => {
                                     // force true b/c might be a tail call
                                     return Ok((bctx, true, r));
+                                    //return Ok((bctx, name == "eval" || name == "if", r));
                                 },
                                 Err(msg) => {
                                     println!("{:ident$} call to {} failed {:?}", "", name, msg, ident=ident_amount);
