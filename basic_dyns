@@ -1,0 +1,16 @@
+
+
+
+
+
+
+            evals       all_evals   evaled_wrap_1   evaled_wrap_0   compiled_dyn_1  compiled_dyn_0
+non-PE      114_170     5_032_297   1_291_489       398_104         1               0
+    PE      0           0           0               0               10              0
+
+
+
+ scheme --script ../../partial_eval.scm rbtree-opt.kp no_partial_eval && mv csc_out.wasm rbtree-opt.wasm && time wasmtime ./rbtree-opt.wasm 10
+ scheme --script ../../partial_eval.scm rbtree-opt.kp                 && mv csc_out.wasm rbtree-opt.wasm && time wasmtime ./rbtree-opt.wasm 10
+
+

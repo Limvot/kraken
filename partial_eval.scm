@@ -1863,6 +1863,9 @@
           (global '$num_frees    '(mut i32) (i32.const 0))
 
           (global '$num_evals             '(mut i32) (i32.const 0))
+          (global '$num_all_evals             '(mut i32) (i32.const 0))
+          (global '$num_interp_dzero    '(mut i32) (i32.const 0))
+          (global '$num_interp_done     '(mut i32) (i32.const 0))
           (global '$num_compiled_dzero    '(mut i32) (i32.const 0))
           (global '$num_compiled_done     '(mut i32) (i32.const 0))
 
@@ -4029,6 +4032,7 @@
               ((k_eval_helper func_idx funcs) (array func_idx (+ 1 func_idx) (concat funcs (func '$eval_helper '(param $it i64) '(param $env i64) '(result i64) '(local $len i32) '(local $ptr i32) '(local $current_env i64) '(local $res i64) '(local $env_ptr i32) '(local $tmp_ptr i32) '(local $i i32) '(local $comb i64) '(local $params i64) '(local $wrap i32) '(local $tmp i64) '(local $rc_bytes i64) '(local $rc_ptr i32) '(local $rc_tmp i32)
 
 
+            (global.set '$num_all_evals   (i32.add (i32.const 1) (global.get '$num_all_evals)))
             ; The cool thing about Vau calculus / Kernel / Kraken
             ; is that everything is a value that evaluates to itself except symbols
             ; and arrays.
@@ -4112,6 +4116,17 @@
                           )
                           (local.set '$wrap (i32.wrap_i64 (extract_wrap_code (local.get '$comb))))
                           (local.set '$params (call '$slice_impl (generate_dup (local.get '$it)) (i32.const 1) (local.get '$len)))
+
+                          ; Pure benchmarking
+                          (_if '$is_wrap_one
+                               (i32.eq (i32.const 1) (local.get '$wrap))
+                               (then (global.set '$num_interp_done  (i32.add (i32.const 1) (global.get '$num_interp_done))))
+                               (else
+                                 (_if '$is_wrap_zero
+                                      (i32.eqz (local.get '$wrap))
+                                      (then (global.set '$num_interp_dzero (i32.add (i32.const 1) (global.get '$num_interp_dzero))))
+                                      (else (unreachable)))))
+
                           ; we'll reuse len and ptr now for params
                           (local.set '$len (extract_size_code (local.get '$params)))
                           (local.set '$ptr (extract_ptr_code  (local.get '$params)))
@@ -6383,12 +6398,21 @@
 
                     (mk_int_code_i32s (global.get '$num_compiled_dzero))
                     (mk_int_code_i32s (global.get '$num_compiled_done))
+                    (mk_int_code_i32s (global.get '$num_interp_dzero))
+                    (mk_int_code_i32s (global.get '$num_interp_done))
+                    (mk_int_code_i32s (global.get '$num_all_evals))
                     (mk_int_code_i32s (global.get '$num_evals))
                     (call '$print (i64.const newline_msg_val))
                     (call '$print (i64.const newline_msg_val))
                     (call '$print (i64.const newline_msg_val))
                     (call '$print (i64.const newline_msg_val))
 
+                    (call '$print )
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print )
+                    (call '$print (i64.const newline_msg_val))
+                    (call '$print )
+                    (call '$print (i64.const newline_msg_val))
                     (call '$print )
                     (call '$print (i64.const newline_msg_val))
                     (call '$print )
