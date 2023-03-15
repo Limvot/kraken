@@ -3,10 +3,82 @@
 
 
 
+RB-TREE
 
             evals       all_evals   evaled_wrap_1   evaled_wrap_0   compiled_dyn_1  compiled_dyn_0
-non-PE      114_170     5_032_297   1_291_489       398_104         1               0
-    PE      0           0           0               0               10              0
+non-PE10    114_170     5_032_297   1_291_489       398_104         1               0
+    PE10    0           0           0               0               10              0
+nonPE9 97087 4278001 1097965 338383 1 0
+   PE9 0 0 0 0 9 0
+nonPE8 80160 3532131 906548 279379 1 0
+   PE8 0 0 0 0 8 0
+nonPE7 67050 2952848 757932 233513 1 0
+   PE7 0 0 0 0 7 0
+nonPE6 50361 2219792 569723 175593 1 0
+   PE6 0 0 0 0 6 0
+nonPE5 37299 1643049 421745 129938 1 0
+   PE5 0 0 0 0 5 0
+nonPE4 24393 1074730 275873  85000 1 0
+   PE4 0 0 0 0 4 0
+nonPE3 15304  672998 172802  53200 1 0
+   PE3 0 0 0 0 3 0
+nonPE2  6453  284080  72939  22484 1 0
+   PE2 0 0 0 0 2 0
+nonPE1  1385   59899  15413   4750 1 0
+   PE1 0 0 0 0 1 0
+
+
+
+
+
+
+Fib
+
+            evals       all_evals   evaled_wrap_1   evaled_wrap_0   compiled_dyn_1  compiled_dyn_0
+non-PE35    29860726    1320920726  337695363       119442881       1               0
+non-PE30     2692560     119107888   30450112        10770217       1               0
+non-PE25      242808      10740492    2745825          971209       1               0
+non-PE20       21914        969010     247731           87633       1               0
+non-PE15        1996         87916      22478            7961       1               0
+non-PE10         200          8468       2167             777       1               0
+
+    PE10           0             0          0               0       0               0
+    PE15           0             0          0               0       0               0
+    PE20           0             0          0               0       0               0
+    PE25           0             0          0               0       0               0
+    PE30           0             0          0               0       0               0
+    PE35           0             0          0               0       0               0
+
+
+
+
+
+
+
+
+cfold
+            evals       all_evals   evaled_wrap_1   evaled_wrap_0   compiled_dyn_1  compiled_dyn_0
+non-PE5     239660      10897376    2784275          879066         1               0
+    PE5          0             0          0               0         0               0
+
+
+deriv
+            evals       all_evals   evaled_wrap_1   evaled_wrap_0   compiled_dyn_1  compiled_dyn_0
+non-PE2     257693      11708558    2990090         946500          1               0
+    PE2          0             0          0              0          2               0
+
+
+nqueens
+            evals       all_evals   evaled_wrap_1   evaled_wrap_0   compiled_dyn_1  compiled_dyn_0
+non-PE7     271720      13530241          3429161         1108393   1               0
+    PE7          0             0                0               0   0               0
+
+
+
+
+
+
+
 
 
 
