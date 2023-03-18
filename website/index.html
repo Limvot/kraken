@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en-us">
+<meta charset="UTF-8">
+    <head>
+	 	<style>
+			@font-face {
+				font-family: 'Recursive';
+				font-style: oblique 0deg 15deg;
+				font-weight: 300 1000;
+				font-display: swap;
+				src: url(./Recursive.woff2) format('woff2');
+				unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+			}
+			:root {
+				--rec-wght: 400;
+				--rec-slnt: 0;
+				--rec-mono: 0;
+				--rec-casl: 0;
+				--rec-csrv: 0;
+			}
+			* {
+				font-variation-settings: "wght" var(--rec-wght),
+					                     "slnt" var(--rec-slnt),
+										 "MONO" var(--rec-mono),
+										 "CASL" var(--rec-casl),
+										 "CRSV" var(--rec-csrv);
+			}
+			body {
+                max-width: 45em;
+				margin: 1em auto;
+				padding: 0 .62em;
+				font: 1.2em/1.62 'Recursive', sans-serif;
+			}
+			h1, h2, h3, h4 {
+				line-height:1.2;
+				--rec-wght: 700;
+				--rec-casl: 1;
+				--rec-crsv: 1;
+			}
+			h1 {
+				line-height:0.7;
+				font-size: 4em;
+				--rec-wght: 900;
+				--rec-slnt: -15;
+				text-decoration: underline;
+				text-decoration-thickness: 0.4rem;
+				//border-bottom: 0.08em solid;
+				//border-left: 0.1em solid;
+				//display: inline-block;
+			}
+			h2 { font-size: 3em; }
+			h3 { font-size: 1.5em; }
+			h4 { font-size: 1.2em; }
+			i { --rec-slnt: -14; }
+			b { --rec-wght: 600; }
+			.run_container { position: relative; }
+			.editor {
+				font-family: 'Recursive', monospace;
+				font-size: 1rem;
+				--rec-mono: 1;
+				border-radius: 6px;
+				box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 1px 5px 0 rgba(0, 0, 0, 0.12), 0 3px 1px -2px rgba(0, 0, 0, 0.2);
+				height: 7em;
+				letter-spacing: normal;
+				tab-size: 4;
+			}
+			.output {
+				margin-block-start: 1rem;
+				font-family: 'Recursive', monospace;
+				font-size: 1rem;
+				--rec-mono: 1;
+				tab-size: 4;
+				height: 5em;
+				width: 100%;
+			}
+			.run_button {
+				font-family: 'Recursive', sans-serif;
+				font-size: 1em;
+				--rec-wght: 900;
+				--rec-slnt: -15;
+				--rec-casl: 1;
+				--rec-crsv: 1;
+				position: absolute;
+				top: 0;
+				right: 0;
+			}
+		</style>
+    </head>
+    <body>
+	    <header><h1>Kraken</h1></header>
+	    <i>FOSS Fexprs: <a title="Kraken on GitHub" href="https://github.com/limvot/kraken">https://github.com/limvot/kraken</a></i>
+        <br>
+	    <h3>Demo:</h3>
+		<div class="run_container">
+			<div class="editor" id="hello_editor">; Of course
+(println "Hello World")
+; Just print 3
+(println "Math works:" (+ 1 2))
+</div>
+			<textarea class="output" id="hello_output">Output will appear here</textarea>
+			<button class="run_button" onclick="executeKraken(hello_editor_jar.toString(), 'hello_output')"><b>Run</b></button> <br>
+		</div>
+        <a name="concept"/>
+	    <h3>Concept:</h3>
+	    <ul>
+		    <li> Minimal, close to the metal Kernel/Scheme (operate on words, bytes, arrays) as AST / core language, with Kernel/Vau calculus inspiration oblivating the need for non-reader macros (<a title="Kernel/Vau calculus thesis" href="https://web.wpi.edu/Pubs/ETD/Available/etd-090110-124904/unrestricted/jshutt.pdf">Kernel/Vau calculus thesis</a>)
+            <li> Full Context-free (and eventually, context sensitive) reader macros using FUN-GLL (<a title="fun-gll paper" href="https://www.sciencedirect.com/science/article/pii/S2590118420300058">FUN-GLL paper</a>) to extend language's syntax dynamically
+	 	    <li> Implement Type Systems as Macros (but using Vaus instead of macros) (<a title="type systems as macros paper 1" href="http://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf">paper, up to System Fω</a>) (<a title="type systems as macros paper 2" href="https://www.ccs.neu.edu/home/stchang/pubs/cbtb-popl2020.pdf">second paper, up to dependent types</a>)
+		    <li> Use above "type systems as vaus" to create richer language and embed entire other programming languages (syntax, semantics, and type system) for flawless interop/FFI (C, Go, Lua, JS, etc)
+            <li> File is interpreted, and then if "main" exists it is compiled, spidering backwards to referenced functions and data (Allows interpreted code to do metaprogramming, dependency resolution, generate code, etc, which is then compiled)
+            <li> Regionalized Value State Dependence Graph as backend-IR, enabling simpler implementations of powerful optimizations (<a title="RSVDG paper" href="https://arxiv.org/pdf/1912.05036.pdf">RSVDG paper</a>) so that embedded languages have good performance when compiled with little code
+	    </ul>
+        <a name="about"/>
+	    <h3> About:</h3>
+	    <p> Currently, I am bootstrapping this new core Lisp out of my prior compiler for my programming language, Kraken. I have implemented the first version of the FUN-GLL algorithm and have working vaus and context-free reader macros.
+        <p> The general flow is that the input files will be executed with the core Lisp interpreter, and if there is a "main" symbol defined the compiler emits C code for that function & all other functions & data that it references. In this way the language supports very powerful meta-programming at compile time, including adding syntax to the language, arbitrary computation, and importing other files, and then compiles into a static executable.
+	    <p> Below are a few examples of using the vau / live grammar modification / context-free reader macros to implement basic methods as well as embed the BF language into the core Lisp. The core Lisp implementation has been compiled to WebAssembly and should be able to run in your browser. Feel free to make edits and play around below.
+	    <br>
+Note that the current implementation is inefficient, and sometimes has problems running in phone web browsers.
+        <a name="hello_example"/>
+        <a name="vau_core"/>
+        <h4>Vau/Kernel as simple core:</h4>
+        By constructing our core language on a very simple Vau/Kernel base, we can keep the base truely tiny, and build up normal Lisp functions and programming language features in the language itself. This should help implement other programming languages concisely, and will hopefully make optimization easier and more broadly applicable.
+        <br>
+        Below is the current prelude that adds quoting, quasiquoting, syntax for arrays and quoting/quasiquoting, do, if, let, and even lambda itself!
+        <a name="next_steps"/>
+        <h3>Next Steps</h3>
+        <ul>
+            <li> Implement persistent functional data structures
+                <ul>
+                    <li> Hash Array-Mapped Trie (HAMT) / Relaxed Radix Balance Tree (RRB-Tree)
+                    <li> Hash Map based on the above
+                        <li> Hash Set based on the above
+                </ul>
+            <li> Prototype Type Systems as Macros, may require macro system rewrite/upgrade
+            <li> Sketch out Kraken language on top of core Lisp, includes basic Hindley-Milner type system implemented with Macros and above data structures
+            <li> Re-self-host using functional approach in above Kraken language
+            <li> Use Type System Macros to implement automatic transient creation on HAMT/RBB-Tree as an optimization
+            <li> Implement RVSDG IR and develop best bang-for-buck optimizations using it
+        </ul>
+
+		<link rel="stylesheet" href="./default.min.css">
+		<script src="./highlight.min.js"></script>
+		<script type="module">
+			import {CodeJar} from './codejar.js'
+			document.querySelectorAll('.editor').forEach((editor_div) => {
+				window[editor_div.id + "_jar"] = CodeJar(editor_div, hljs.highlightElement) 
+			});
+		</script>
+		<script>
+			var output_name = ""
+			var Module = {
+				noInitialRun: true,
+				onRuntimeInitialized: () => {
+				},
+				print: txt => {
+					document.getElementById(output_name).value += txt + "\n";
+				},
+				printErr: txt => {
+					document.getElementById(output_name).value += "STDERR:[" + txt + "]\n";
+				}
+			};
+			function executeKraken(code, new_output_name) {
+				output_name = new_output_name
+				document.getElementById(new_output_name).value = "running...\n";
+				Module.callMain(["-C", code]);
+			}
+		</script>
+		<script type="text/javascript" src="k_prime.js"></script>
+    </body>
+</html>
