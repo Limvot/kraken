@@ -398,7 +398,7 @@ impl MarkedForm {
             MarkedForm::Int(i)                       => Ok(Rc::clone(self)),
             MarkedForm::Bool(b)                      => Ok(Rc::clone(self)),
             MarkedForm::Symbol(s)                    => Ok(Rc::new(MarkedForm::SuspendedSymbol(NeededIds::new_true(), s.clone()))), 
-            MarkedForm::Pair(ids,car,cdr)            => Ok(MarkedForm::new_suspended_pair(None, car.unval()?, Rc::clone(cdr), None, None)),
+            MarkedForm::Pair(ids,car,cdr)            => Ok(MarkedForm::new_suspended_pair(Some(NeededIds::new_true()), car.unval()?, Rc::clone(cdr), None, None)),
             MarkedForm::SuspendedSymbol(ids, name)   => bail!("trying to unval a suspended symbol"),
             MarkedForm::SuspendedEnvLookup { .. }    => bail!("trying to unval a suspended env lookup"),
             MarkedForm::SuspendedParamLookup { .. }  => bail!("trying to unval a suspended param lookup"),
@@ -676,7 +676,7 @@ pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> Resul
     let mut next_form = Some(form);
     loop {
         let x = next_form.take().unwrap();
-        //println!("{:ident$}PE: {}", "", x, ident=dctx.ident*4);
+        println!("{:ident$}PE: {}", "", x, ident=dctx.ident*4);
         if !dctx.can_progress(x.ids()) {
             //println!("{:ident$}Shouldn't go!", "", ident=dctx.ident*4);
             return Ok((bctx, x));
@@ -693,6 +693,7 @@ pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> Resul
         //  - this current env ends in a suspended param/env, and that id is in ids (the *weird* case)
         if let MarkedForm::SuspendedEnvEval { x, e, .. } = &*new_form {
             if !x.ids().may_contain_id(&true_id) {
+                println!("{:ident$}Dropping redundent eval: {}", "", x, ident=dctx.ident*4);
                 next_form = Some(Rc::clone(x));
                 // do we still need force for drop redundent veval?
                 // Not while it's not recursive, at elaset
@@ -903,7 +904,10 @@ fn partial_eval_step(x: &Rc<MarkedForm>, bctx: BCtx, dctx: &mut DCtx) -> Result<
                             }
                             println!("{:ident$}doing a call eval of {}", "", name, ident=dctx.ident*4);
                             println!("{:ident$}parameters {} are? a val because {:?}", "", cdr, cdr.ids(), ident=dctx.ident*4);
-                            return f(bctx.clone(), dctx.clone(), Rc::clone(&cdr)); 
+                            //return f(bctx.clone(), dctx.clone(), Rc::clone(&cdr)); 
+                            let (bctx,result) = f(bctx.clone(), dctx.clone(), Rc::clone(&cdr))?; 
+                            println!("{:ident$}successful result is {}", "", result, ident=dctx.ident*4);
+                            return Ok((bctx,result));
                         }
                         MarkedForm::DeriComb {  lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
                             if !cdr.is_value() {
@@ -1009,8 +1013,8 @@ impl fmt::Display for MarkedForm {
             },
 
             MarkedForm::SuspendedPair{ ids, car, cdr } => {
-                //write!(f, "{:?}{:?}#{{{}", ids, attempted, car)?;
-                write!(f, "{{{}", car)?;
+                write!(f, "{:?}#{{{}", ids, car)?;
+                //write!(f, "{{{}", car)?;
                 let mut traverse: Rc<MarkedForm> = Rc::clone(cdr);
                 loop {
                     match &*traverse {
