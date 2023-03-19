@@ -10,6 +10,7 @@ build = "build.rs"
 lalrpop-util = {version="0.19.7", features=["lexer"]}
 regex = "1"
 once_cell = "1.17.0"
+anyhow = "1"
 
 [build-dependencies]
 lalrpop = "0.19.7"
