@@ -28,7 +28,7 @@ fn eval_test<T: Into<Form>>(also_pe: bool, gram: &grammar::TermParser, e: &Rc<Fo
         let (bctx, dctx) = new_base_ctxs();
         let (bctx, marked) = mark(parsed,bctx);
         let unvaled = marked.unval().unwrap();
-        let (bctx, ped) = partial_eval(bctx, dctx, unvaled);
+        let (bctx, ped) = partial_eval(bctx, dctx, unvaled).unwrap();
         let (bctx, marked_basic_result) = mark(basic_result,bctx);
         println!("Final PE {}", ped);
         println!("wanted {}", marked_basic_result);
@@ -41,7 +41,7 @@ fn partial_eval_test(gram: &grammar::TermParser, code: &str, expected: &str) {
     let (bctx, dctx) = new_base_ctxs();
     let (bctx, marked) = mark(parsed,bctx);
     let unvaled = marked.unval().unwrap();
-    let (bctx, ped) = partial_eval(bctx, dctx, unvaled);
+    let (bctx, ped) = partial_eval(bctx, dctx, unvaled).unwrap();
     println!("Final PE {}", ped);
     println!("wanted {}", expected);
     assert_eq!(format!("{}", ped), expected);
