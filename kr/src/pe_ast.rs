@@ -224,12 +224,13 @@ impl DCtx {
             println!("Fake if real rec stopper");
             return PushFrameResult::UnderIf(id);
         }
-        if (e.is_some() || prms.is_some()) {
+        if (e.is_some() && prms.is_some()) {
             real_set.insert(id.clone());
             // We're not actually not under fake still!
             //fake_set.remove(&id);
         } else {
             if fake_set.contains(&id) {
+                println!("Fake body rec stopper");
                 return PushFrameResult::UnderBody(id.clone());
             }
             fake_set.insert(id.clone());
@@ -527,6 +528,7 @@ pub fn mark(form: Rc<Form>, bctx: BCtx) -> (BCtx, Rc<MarkedForm>) {
                     let wrap_level = 0;
                     let sequence_params = vec![];
                     let rest_params = Some(params);
+                    println!("vau, making a new func {:?} - {}", id, p);
                     Ok((bctx, MarkedForm::new_deri_comb( se, None, de, id, wrap_level, sequence_params, rest_params, body, None )))
                 }}),
                 "eval"  => make_eval_prim(),
@@ -676,7 +678,7 @@ pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> Resul
     let mut next_form = Some(form);
     loop {
         let x = next_form.take().unwrap();
-        println!("{:ident$}PE: {}", "", x, ident=dctx.ident*4);
+        //println!("{:ident$}PE: {}", "", x, ident=dctx.ident*4);
         if !dctx.can_progress(x.ids()) {
             //println!("{:ident$}Shouldn't go!", "", ident=dctx.ident*4);
             return Ok((bctx, x));
@@ -684,6 +686,7 @@ pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> Resul
         //println!("{:ident$}({}) PE(force:{}) {:?} (because of {:?})", "", dctx.ident, force, x, x.ids(), ident=dctx.ident*4);
         //println!("{:ident$}({}) PE {} (because of {:?})", "", dctx.ident, x, x.ids(), ident=dctx.ident*4);
         let (new_bctx, new_form) =  partial_eval_step(&x, bctx.clone(), &mut dctx)?;
+        bctx = new_bctx;
         // basic Drop redundent veval
         // Old one was recursive over parameters to combs, which we might need, since the redundent veval isn't captured by
         // ids. TODO!
@@ -859,7 +862,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, bctx: BCtx, dctx: &mut DCtx) -> Result<
                     println!("{:ident$}Doing a body deri for {:?} which is {}", "", lookup_name, x, ident=ident_amount);
                     println!("{:ident$}and also body ids is {:?}", "", body.ids(), ident=ident_amount);
                     let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body))?;
-                    println!("{:ident$}result was {}", "", body, ident=ident_amount);
+                    //println!("{:ident$}result was {}", "", body, ident=ident_amount);
                     Ok((bctx, MarkedForm::new_deri_comb(se, lookup_name.clone(), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), body, None)))
                 },
                 PushFrameResult::UnderBody(rec_stop_under) => {
@@ -903,10 +906,11 @@ fn partial_eval_step(x: &Rc<MarkedForm>, bctx: BCtx, dctx: &mut DCtx) -> Result<
                                 break;
                             }
                             println!("{:ident$}doing a call eval of {}", "", name, ident=dctx.ident*4);
-                            println!("{:ident$}parameters {} are? a val because {:?}", "", cdr, cdr.ids(), ident=dctx.ident*4);
+                            //println!("{:ident$}parameters {} are? a val because {:?}", "", cdr, cdr.ids(), ident=dctx.ident*4);
                             //return f(bctx.clone(), dctx.clone(), Rc::clone(&cdr)); 
                             let (bctx,result) = f(bctx.clone(), dctx.clone(), Rc::clone(&cdr))?; 
-                            println!("{:ident$}successful result is {}", "", result, ident=dctx.ident*4);
+                            //println!("{:ident$}successful result is {}", "", result, ident=dctx.ident*4);
+                            println!("{:ident$}successful result", "", ident=dctx.ident*4);
                             return Ok((bctx,result));
                         }
                         MarkedForm::DeriComb {  lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {

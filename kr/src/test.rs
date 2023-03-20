@@ -116,16 +116,16 @@ static LET: Lazy<String> = Lazy::new(|| {
 fn let_pe_test() {
     let g = grammar::TermParser::new();
     partial_eval_test(&g, &format!("{} (let1 a 2 (+ a (car (cons 4 '(1 2)))))", *LET), "6");
-    partial_eval_test(&g, &format!("{} (let1 a 2 (vau 0 p (+ 1 a)))", *LET),"NeededIds { heads: {}, tails: {}, body_stopped: {}, if_stopped: {} }#[None/None/EnvID(1)/0/[]/Some(\"p\")/3]");
+    partial_eval_test(&g, &format!("{} (let1 a 2 (vau 0 p (+ 1 a)))", *LET),"NeededIds { heads: {}, tails: {}, body_stopped: {}, if_stopped: {} }#[None/None/EnvID(3)/0/[]/Some(\"p\")/3]");
     partial_eval_test(&g, &format!("{}
             !(let1 a 2)
             (vau 0 p (+ 1 a))
-            ", *LET), "NeededIds { heads: {}, tails: {}, body_stopped: {}, if_stopped: {} }#[None/None/EnvID(1)/0/[]/Some(\"p\")/3]");
+            ", *LET), "NeededIds { heads: {}, tails: {}, body_stopped: {}, if_stopped: {} }#[None/None/EnvID(3)/0/[]/Some(\"p\")/3]");
     partial_eval_test(&g, &format!("{}
             !(let1 a 2)
             !(let1 b 5)
             (vau 0 p (+ b a))
-            ", *LET), "NeededIds { heads: {}, tails: {}, body_stopped: {}, if_stopped: {} }#[None/None/EnvID(1)/0/[]/Some(\"p\")/7]");
+            ", *LET), "NeededIds { heads: {}, tails: {}, body_stopped: {}, if_stopped: {} }#[None/None/EnvID(3)/0/[]/Some(\"p\")/7]");
             /*
     partial_eval_test(&g, &format!("{}
             (vau 0 p
@@ -399,7 +399,6 @@ static LAMBDA: Lazy<String> = Lazy::new(|| {
 #[test]
 fn lambda_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     eval_test(true, &g, &e, &format!("{} ((lambda (a b c) (+ a (- b c))) (+ 10 1) (+ 2 2) (+ 5 3))", *LAMBDA), 7);
-
     eval_test(true, &g, &e, &format!("{} ((lambda (a b . c) c) 10 2 3)", *LAMBDA), (3, Form::Nil));
     eval_test(true, &g, &e, &format!("{} ((lambda (a b . c) c) 10 2)", *LAMBDA), Form::Nil);
     eval_test(true, &g, &e, &format!("{} ((lambda (a b . c) c) 10 2 3 4 5)", *LAMBDA), (3, (4, (5, Form::Nil))));
