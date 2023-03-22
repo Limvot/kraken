@@ -100,7 +100,6 @@
 			<textarea class="output" id="hello_output">Output will appear here</textarea>
 			<button class="run_button" onclick="executeKraken(hello_editor_jar.toString(), 'hello_output')"><b>Run</b></button> <br>
 		</div>
-        <a name="concept"/>
 	    <h3>Concept:</h3>
 	    <ul>
 		    <li> Minimal, purely functional Kernel/Scheme as core language, with Kernel/Vau calculus inspiration oblivating the need for non-reader macros (<a title="Kernel/Vau calculus thesis" href="https://web.wpi.edu/Pubs/ETD/Available/etd-090110-124904/unrestricted/jshutt.pdf">Kernel/Vau calculus thesis</a>)
@@ -109,13 +108,11 @@
 		    <li> Use fexprs to bootstrap more complex features, like delimited continuations
 		    <li> Use above "type systems as fexprs" to add types and create a statically-typed language on top (with Algebraic Effects using the underlying delimited continuations, etc)
 	    </ul>
-        <a name="about"/>
 	    <h3> About:</h3>
 		<p>This is my 3rd run at this Lisp concept, with Partial Evaluation to make fexprs fast forming the core of my current PhD research. <a href="https://miloignis.room409.xyz/">(tiny personal PhD website here)</a></p>
         <h4>Vau/Kernel as simple core:</h4>
         By constructing our core language on a very simple Vau/Kernel base, we can keep the base truely tiny, and build up normal Lisp functions and programming language features in the language itself. This should help implement other programming languages concisely, and will hopefully make optimization easier and more broadly applicable.
         <br>
-        <a name="next_steps"/>
         <h3>Next Steps</h3>
         <ul>
             <li> Implement persistent functional data structures
