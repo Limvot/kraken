@@ -456,13 +456,13 @@ impl MarkedForm {
         }
     }
 }
-fn make_eval_prim() -> Rc<MarkedForm> {
-    Rc::new(MarkedForm::PrimComb { name: "eval".to_owned(), nonval_ok: false, takes_de: false, wrap_level: 1, f: eval_func })
+fn make_eval_prim(wrap_level: i32) -> Rc<MarkedForm> {
+    Rc::new(MarkedForm::PrimComb { name: "eval".to_owned(), nonval_ok: false, takes_de: false, wrap_level, f: eval_func })
 }
 fn eval_func(bctx: BCtx, dctx: DCtx, p: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>)> {
     //println!("Ok, this is inside eval looking at {}", p);
     if !p.car()?.is_value() {
-        Ok((bctx, MarkedForm::new_suspended_pair( Some(p.car().unwrap().ids()), make_eval_prim(), p, None, None )))
+        Ok((bctx, MarkedForm::new_suspended_pair( Some(p.car().unwrap().ids()), make_eval_prim(0), p, None, None )))
     } else {
         //println!("Ok, returning new suspended env eval with");
         //println!("\t{} {}", p.car()?.unval()?, p.cdr()?.car()?);
@@ -472,25 +472,33 @@ fn eval_func(bctx: BCtx, dctx: DCtx, p: Rc<MarkedForm>) -> Result<(BCtx,Rc<Marke
 
 
 // Implement the suspended param / suspended env traversal
-fn make_cons_prim() -> Rc<MarkedForm> {
-    Rc::new(MarkedForm::PrimComb { name: "cons".to_owned(), nonval_ok: false, takes_de: false, wrap_level: 1, f: cons_func})
+fn make_cons_prim(wrap_level: i32) -> Rc<MarkedForm> {
+    Rc::new(MarkedForm::PrimComb { name: "cons".to_owned(), nonval_ok: false, takes_de: false, wrap_level, f: cons_func})
 }
 fn cons_func(bctx: BCtx, dctx: DCtx, p: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>)> {
     let h =  p.car()?;
     let t =  p.cdr()?.car()?;
     Ok((bctx, MarkedForm::new_pair(h, t)))
 }
-fn make_car_prim()-> Rc<MarkedForm> {
-    Rc::new(MarkedForm::PrimComb { name: "car".to_owned(), nonval_ok: false, takes_de: false, wrap_level: 1, f: car_func})
+fn make_car_prim(wrap_level: i32)-> Rc<MarkedForm> {
+    Rc::new(MarkedForm::PrimComb { name: "car".to_owned(), nonval_ok: true, takes_de: false, wrap_level, f: car_func})
 }
 fn car_func(bctx: BCtx, dctx: DCtx, p: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>)> {
-    Ok((bctx, p.car()?.car()?))
+    let maybe_pair = p.car()?;
+    match maybe_pair.car() {
+        Ok(x)  => Ok((bctx, x)),
+        Err(_) => Ok((bctx, MarkedForm::new_suspended_pair(Some(maybe_pair.ids()), make_car_prim(0), p, None, None))),
+    }
 }
-fn make_cdr_prim() -> Rc<MarkedForm> {
-    Rc::new(MarkedForm::PrimComb { name: "cdr".to_owned(), nonval_ok: false, takes_de: false, wrap_level: 1, f: cdr_func})
+fn make_cdr_prim(wrap_level: i32) -> Rc<MarkedForm> {
+    Rc::new(MarkedForm::PrimComb { name: "cdr".to_owned(), nonval_ok: true, takes_de: false, wrap_level, f: cdr_func})
 }
 fn cdr_func(bctx: BCtx, dctx: DCtx, p: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>)> {
-    Ok((bctx, p.car()?.cdr()?))
+    let maybe_pair = p.car()?;
+    match maybe_pair.cdr() {
+        Ok(x)  => Ok((bctx, x)),
+        Err(_) => Ok((bctx, MarkedForm::new_suspended_pair(Some(maybe_pair.ids()), make_cdr_prim(0), p, None, None))),
+    }
 }
 
 
@@ -531,10 +539,10 @@ pub fn mark(form: Rc<Form>, bctx: BCtx) -> (BCtx, Rc<MarkedForm>) {
                     println!("vau, making a new func {:?} - {}", id, p);
                     Ok((bctx, MarkedForm::new_deri_comb( se, None, de, id, wrap_level, sequence_params, rest_params, body, None )))
                 }}),
-                "eval"  => make_eval_prim(),
-                "cons"  => make_cons_prim(),
-                "car"   => make_car_prim(),
-                "cdr"   => make_cdr_prim(),
+                "eval"  => make_eval_prim(1),
+                "cons"  => make_cons_prim(1),
+                "car"   => make_car_prim(1),
+                "cdr"   => make_cdr_prim(1),
                 "debug" => make_debug_prim(),
                 // Like Debug, listed as wrap_level 1 so bothe sides are pe'd, even though it would
                 // be sequencing at runtime
@@ -761,6 +769,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, bctx: BCtx, dctx: &mut DCtx) -> Result<
         MarkedForm::SuspendedSymbol(ids, name) => {
             // Have to account for the *weird* case that the env chain ends in a suspended param / suspended env
             println!("Lookin up symbol {}", name);
+            //println!("Lookin up symbol {} in {}", name, dctx.e);
             let mut t = Rc::clone(&dctx.e);
             loop {
                 if let Ok(cmp) = t.car().and_then(|kv| kv.car()).and_then(|s| s.sym().map(|s| s.to_owned())) {
