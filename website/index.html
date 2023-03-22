@@ -103,40 +103,30 @@
         <a name="concept"/>
 	    <h3>Concept:</h3>
 	    <ul>
-		    <li> Minimal, close to the metal Kernel/Scheme (operate on words, bytes, arrays) as AST / core language, with Kernel/Vau calculus inspiration oblivating the need for non-reader macros (<a title="Kernel/Vau calculus thesis" href="https://web.wpi.edu/Pubs/ETD/Available/etd-090110-124904/unrestricted/jshutt.pdf">Kernel/Vau calculus thesis</a>)
-            <li> Full Context-free (and eventually, context sensitive) reader macros using FUN-GLL (<a title="fun-gll paper" href="https://www.sciencedirect.com/science/article/pii/S2590118420300058">FUN-GLL paper</a>) to extend language's syntax dynamically
-	 	    <li> Implement Type Systems as Macros (but using Vaus instead of macros) (<a title="type systems as macros paper 1" href="http://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf">paper, up to System Fω</a>) (<a title="type systems as macros paper 2" href="https://www.ccs.neu.edu/home/stchang/pubs/cbtb-popl2020.pdf">second paper, up to dependent types</a>)
-		    <li> Use above "type systems as vaus" to create richer language and embed entire other programming languages (syntax, semantics, and type system) for flawless interop/FFI (C, Go, Lua, JS, etc)
-            <li> File is interpreted, and then if "main" exists it is compiled, spidering backwards to referenced functions and data (Allows interpreted code to do metaprogramming, dependency resolution, generate code, etc, which is then compiled)
-            <li> Regionalized Value State Dependence Graph as backend-IR, enabling simpler implementations of powerful optimizations (<a title="RSVDG paper" href="https://arxiv.org/pdf/1912.05036.pdf">RSVDG paper</a>) so that embedded languages have good performance when compiled with little code
+		    <li> Minimal, purely functional Kernel/Scheme as core language, with Kernel/Vau calculus inspiration oblivating the need for non-reader macros (<a title="Kernel/Vau calculus thesis" href="https://web.wpi.edu/Pubs/ETD/Available/etd-090110-124904/unrestricted/jshutt.pdf">Kernel/Vau calculus thesis</a>)
+			<li> Partial evaluation to make fexprs fast (my PhD research!)
+	 	    <li> Implement Type Systems as Macros (but using Fexprs instead of macros) (<a title="type systems as macros paper 1" href="http://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf">paper, up to System Fω</a>) (<a title="type systems as macros paper 2" href="https://www.ccs.neu.edu/home/stchang/pubs/cbtb-popl2020.pdf">second paper, up to dependent types</a>)
+		    <li> Use fexprs to bootstrap more complex features, like delimited continuations
+		    <li> Use above "type systems as fexprs" to add types and create a statically-typed language on top (with Algebraic Effects using the underlying delimited continuations, etc)
 	    </ul>
         <a name="about"/>
 	    <h3> About:</h3>
-	    <p> Currently, I am bootstrapping this new core Lisp out of my prior compiler for my programming language, Kraken. I have implemented the first version of the FUN-GLL algorithm and have working vaus and context-free reader macros.
-        <p> The general flow is that the input files will be executed with the core Lisp interpreter, and if there is a "main" symbol defined the compiler emits C code for that function & all other functions & data that it references. In this way the language supports very powerful meta-programming at compile time, including adding syntax to the language, arbitrary computation, and importing other files, and then compiles into a static executable.
-	    <p> Below are a few examples of using the vau / live grammar modification / context-free reader macros to implement basic methods as well as embed the BF language into the core Lisp. The core Lisp implementation has been compiled to WebAssembly and should be able to run in your browser. Feel free to make edits and play around below.
-	    <br>
-Note that the current implementation is inefficient, and sometimes has problems running in phone web browsers.
-        <a name="hello_example"/>
-        <a name="vau_core"/>
+		<p>This is my 3rd run at this Lisp concept, with Partial Evaluation to make fexprs fast forming the core of my current PhD research. <a href="https://miloignis.room409.xyz/">(tiny personal PhD website here)</a></p>
         <h4>Vau/Kernel as simple core:</h4>
         By constructing our core language on a very simple Vau/Kernel base, we can keep the base truely tiny, and build up normal Lisp functions and programming language features in the language itself. This should help implement other programming languages concisely, and will hopefully make optimization easier and more broadly applicable.
         <br>
-        Below is the current prelude that adds quoting, quasiquoting, syntax for arrays and quoting/quasiquoting, do, if, let, and even lambda itself!
         <a name="next_steps"/>
         <h3>Next Steps</h3>
         <ul>
             <li> Implement persistent functional data structures
                 <ul>
-                    <li> Hash Array-Mapped Trie (HAMT) / Relaxed Radix Balance Tree (RRB-Tree)
-                    <li> Hash Map based on the above
-                        <li> Hash Set based on the above
+                    <li> ✔ RB-Tree
+                    <li> ☐ Hash Array-Mapped Trie (HAMT) / Relaxed Radix Balance Tree (RRB-Tree)
+                    <li> ☐ Hash Map based on the above
+                    <li> ☐ Hash Set based on the above
                 </ul>
-            <li> Prototype Type Systems as Macros, may require macro system rewrite/upgrade
-            <li> Sketch out Kraken language on top of core Lisp, includes basic Hindley-Milner type system implemented with Macros and above data structures
+            <li> Sketch out Kraken language on top of core Lisp, includes basic Hindley-Milner type system
             <li> Re-self-host using functional approach in above Kraken language
-            <li> Use Type System Macros to implement automatic transient creation on HAMT/RBB-Tree as an optimization
-            <li> Implement RVSDG IR and develop best bang-for-buck optimizations using it
         </ul>
 
 		<link rel="stylesheet" href="./default.min.css">
