@@ -1,0 +1,77 @@
+@font-face {
+  font-family: 'Inter';
+  font-weight: 100 900;
+  font-display: swap;
+  font-style: oblique 0deg 10deg;
+  src: url("./Inter.var.woff2?v=3.19") format("woff2");
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-weight: 400;
+  font-display: swap;
+  src: url("./JetBrainsMono-Regular.woff2") format("woff2");
+}
+:root {
+	--rec-wght: 400;
+	--rec-slnt: 0;
+}
+* {
+	font-variation-settings: "wght" var(--rec-wght),
+							 "slnt" var(--rec-slnt);
+}
+body {
+	max-width: 45em;
+	margin: 1em auto;
+	padding: 0 .62em;
+	font: 1.2em/1.62 'Inter', sans-serif;
+}
+h1, h2, h3, h4 {
+	line-height:1.0;
+	--rec-wght: 700;
+}
+h1 {
+	font-size: 4em;
+	--rec-wght: 900;
+	letter-spacing: -0.025em;
+	//--rec-slnt: -15;
+	line-height:0.2;
+	text-decoration: underline;
+	text-decoration-thickness: 0.4rem;
+	//border-bottom: 0.08em solid;
+	//border-left: 0.1em solid;
+	//display: inline-block;
+}
+h2 { font-size: 3em; }
+h3 { font-size: 1.5em; }
+h4 { font-size: 1.2em; }
+i { --rec-slnt: -14; }
+b { --rec-wght: 600; }
+.run_container { position: relative; }
+.editor {
+	font-family: 'JetBrains Mono', monospace;
+	font-size: 1rem;
+	--rec-mono: 1;
+	border-radius: 6px;
+	box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 1px 5px 0 rgba(0, 0, 0, 0.12), 0 3px 1px -2px rgba(0, 0, 0, 0.2);
+	height: 7em;
+	letter-spacing: normal;
+	tab-size: 4;
+}
+.output {
+	margin-block-start: 1rem;
+	font-family: 'JetBrains Mono', monospace;
+	font-size: 1rem;
+	--rec-mono: 1;
+	tab-size: 4;
+	height: 5em;
+	width: 100%;
+}
+.run_button {
+	font-family: 'Inter', sans-serif;
+	font-size: 1em;
+	--rec-wght: 900;
+	--rec-slnt: -15;
+	position: absolute;
+	top: 0;
+	right: 0;
+}
