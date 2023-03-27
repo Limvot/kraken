@@ -356,10 +356,11 @@ impl MarkedForm {
         };
         Rc::new(MarkedForm::DeriComb{  lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body })
     }
-    pub fn tag_name(self: &Rc<MarkedForm>, name: &str) -> Rc<MarkedForm> {
+    pub fn tag_name(self: &Rc<MarkedForm>, new_name: &str) -> Rc<MarkedForm> {
         match &**self {
             MarkedForm::DeriComb {  lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } =>
-                 Rc::new(MarkedForm::DeriComb {  lookup_name: Some(name.to_owned()), ids: ids.clone(), se: Rc::clone(se), de: de.clone(), id: id.clone(), wrap_level: *wrap_level, sequence_params: sequence_params.clone(), rest_params: rest_params.clone(), body: Rc::clone(body) }),
+                 Rc::new(MarkedForm::DeriComb {  lookup_name: Some(new_name.to_owned()), ids: ids.clone(), se: Rc::clone(se), de: de.clone(), id: id.clone(), wrap_level: *wrap_level, sequence_params: sequence_params.clone(), rest_params: rest_params.clone(), body: Rc::clone(body) }),
+            MarkedForm::SuspendedParamLookup { name, id, cdr_num, car, evaled } => Rc::new(MarkedForm::SuspendedParamLookup { name: Some(new_name.to_owned()), id: id.clone(), cdr_num: *cdr_num, car: *car, evaled: *evaled }),
             _ => Rc::clone(self),
         }
     }
@@ -414,6 +415,24 @@ impl MarkedForm {
             MarkedForm::DeriComb { ids, .. }            => ids.clone(),
         };
         ids.heads.is_empty() && ids.tails.is_empty()
+    }
+    pub fn is_pair(&self) -> bool {
+        match self {
+            MarkedForm::Pair(ids,car,cdr)   => true,
+            _                               => false,
+        }
+    }
+    pub fn is_suspended_param(&self) -> bool {
+        match self {
+            MarkedForm::SuspendedParamLookup { .. } => true,
+            _                                       => false,
+        }
+    }
+    pub fn is_suspended_env(&self) -> bool {
+        match self {
+            MarkedForm::SuspendedEnvLookup { .. } => true,
+            _                                     => false,
+        }
     }
     pub fn unval(self: &Rc<MarkedForm>) -> Result<Rc<MarkedForm>> {
         match &**self {
@@ -479,28 +498,47 @@ impl MarkedForm {
     }
 }
 fn make_eval_prim(wrap_level: i32) -> Rc<MarkedForm> {
-    Rc::new(MarkedForm::PrimComb { name: "eval".to_owned(), nonval_ok: false, takes_de: false, wrap_level, f: eval_func })
+    Rc::new(MarkedForm::PrimComb { name: "eval".to_owned(), nonval_ok: true, takes_de: false, wrap_level, f: eval_func })
 }
 fn eval_func(bctx: BCtx, dctx: DCtx, p: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>)> {
     //println!("Ok, this is inside eval looking at {}", p);
-    if !p.car()?.is_value() {
-        Ok((bctx, MarkedForm::new_suspended_pair( Some(p.car().unwrap().ids()), make_eval_prim(0), p, None, None )))
+    let x = p.car()?;
+    let e = p.cdr()?.car()?;
+    if !x.is_value() {
+        println!("Checking compatability");
+        if let (MarkedForm::SuspendedParamLookup { name, id, cdr_num, car, evaled: false }, MarkedForm::SuspendedEnvLookup { name: oname, id: oid }) = (&*x, &*e) {
+            if id == oid {
+                return Ok((bctx, Rc::new(MarkedForm::SuspendedParamLookup { name: name.clone(), id: id.clone(), cdr_num: *cdr_num, car: *car, evaled: true })));
+            }
+        }
+        Ok((bctx, MarkedForm::new_suspended_pair( Some(x.ids()), make_eval_prim(0), p, None, None )))
     } else {
         //println!("Ok, returning new suspended env eval with");
         //println!("\t{} {}", p.car()?.unval()?, p.cdr()?.car()?);
-        Ok((bctx, MarkedForm::new_suspended_env_eval(p.car()?.unval()?, p.cdr()?.car()?)))
+        Ok((bctx, MarkedForm::new_suspended_env_eval(x.unval()?, e)))
     }
 }
 
 
 // Implement the suspended param / suspended env traversal
 fn make_cons_prim(wrap_level: i32) -> Rc<MarkedForm> {
-    Rc::new(MarkedForm::PrimComb { name: "cons".to_owned(), nonval_ok: false, takes_de: false, wrap_level, f: cons_func})
+    Rc::new(MarkedForm::PrimComb { name: "cons".to_owned(), nonval_ok: true, takes_de: false, wrap_level, f: cons_func})
 }
 fn cons_func(bctx: BCtx, dctx: DCtx, p: Rc<MarkedForm>) -> Result<(BCtx,Rc<MarkedForm>)> {
+    // the non-vals we should allow are
+    // (value . SuspendedParam)
+    // ! maybe not!(value . SuspendedEnv)
+    // (value . pair)
+    // (pair  . pair)
     let h =  p.car()?;
     let t =  p.cdr()?.car()?;
-    Ok((bctx, MarkedForm::new_pair(h, t)))
+    if !(h.is_value() || h.is_pair()) {
+        Ok((bctx, MarkedForm::new_suspended_pair(Some(h.ids()), make_cons_prim(0), p, None, None)))
+    } else if !(t.is_value() || t.is_pair() || t.is_suspended_param() || t.is_suspended_env()) {
+        Ok((bctx, MarkedForm::new_suspended_pair(Some(t.ids()), make_cons_prim(0), p, None, None)))
+    } else {
+        Ok((bctx, MarkedForm::new_pair(h, t)))
+    }
 }
 fn make_car_prim(wrap_level: i32)-> Rc<MarkedForm> {
     Rc::new(MarkedForm::PrimComb { name: "car".to_owned(), nonval_ok: true, takes_de: false, wrap_level, f: car_func})
@@ -726,7 +764,8 @@ pub fn partial_eval(bctx_in: BCtx, dctx_in: DCtx, form: Rc<MarkedForm>) -> Resul
         //  - this current env ends in a suspended param/env, and that id is in ids (the *weird* case)
         if let MarkedForm::SuspendedEnvEval { x, e, .. } = &*new_form {
             if !x.ids().may_contain_id(&true_id) {
-                println!("{:ident$}Dropping redundent eval: {}", "", x, ident=dctx.ident*4);
+                println!("{:ident$}Dropping redundent eval: {} from {}", "", x, e, ident=dctx.ident*4);
+                //println!("{:ident$}Dropping redundent eval: {}", "", x, ident=dctx.ident*4);
                 next_form = Some(Rc::clone(x));
                 // do we still need force for drop redundent veval?
                 // Not while it's not recursive, at elaset
@@ -796,6 +835,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, bctx: BCtx, dctx: &mut DCtx) -> Result<
             loop {
                 if let Ok(cmp) = t.car().and_then(|kv| kv.car()).and_then(|s| s.sym().map(|s| s.to_owned())) {
                     if *name == cmp {
+                        println!("\tgot for symbol {} {}", name, t.car()?.cdr()?.tag_name(name));
                         return Ok((bctx, t.car()?.cdr()?.tag_name(name)));
                     } else {
                         t = t.cdr()?;
@@ -815,6 +855,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, bctx: BCtx, dctx: &mut DCtx) -> Result<
                     }
                 }
             }
+            println!("\tcouldn't find it, returning suspended");
             return Ok((bctx, Rc::new(MarkedForm::SuspendedSymbol(t.ids(), name.clone()))));
         },
         MarkedForm::SuspendedEnvLookup { name, id } => {
