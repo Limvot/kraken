@@ -103,6 +103,28 @@ pub struct NeededIds {
     body_stopped: BTreeSet<EnvID>,
     if_stopped: BTreeSet<EnvID>,
 }
+impl fmt::Display for NeededIds {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.heads.is_empty() && self.tails.is_empty() && self.body_stopped.is_empty() && self.if_stopped.is_empty() {
+            write!(f, "NeedsNone");
+        } else {
+            write!(f, "Needs");
+            if !self.heads.is_empty() {
+                write!(f, "H{:?}", self.heads);
+            }
+            if !self.tails.is_empty() {
+                write!(f, "T{:?}", self.tails);
+            }
+            if !self.body_stopped.is_empty() {
+                write!(f, "B{:?}", self.body_stopped);
+            }
+            if !self.if_stopped.is_empty() {
+                write!(f, "I{:?}", self.if_stopped);
+            }
+        }
+        Ok(())
+    }
+}
 
 impl NeededIds {
     fn new_true()           -> Self { NeededIds { heads: iter::once(true_id).collect(), tails: BTreeSet::new(), body_stopped: BTreeSet::new(), if_stopped: BTreeSet::new() } }
@@ -253,7 +275,7 @@ impl DCtx {
                 prms
             } else {
                 Rc::make_mut(&mut sus_prm_stack).remove(&id);
-                Rc::new(MarkedForm::SuspendedParamLookup { name: Some(p.clone()), id: id.clone(), cdr_num: 0, car: false })
+                Rc::new(MarkedForm::SuspendedParamLookup { name: Some(p.clone()), id: id.clone(), cdr_num: 0, car: false, evaled: false })
             };
             massoc(p, p_val, inner_env)
         } else { inner_env };
@@ -293,7 +315,7 @@ pub enum MarkedForm {
     Pair(NeededIds, Rc<MarkedForm>,Rc<MarkedForm>),
 
     SuspendedSymbol(NeededIds, String), // Needs IDs if Env chains into suspended
-    SuspendedParamLookup { name: Option<String>, id: EnvID, cdr_num: i32, car: bool },
+    SuspendedParamLookup { name: Option<String>, id: EnvID, cdr_num: i32, car: bool, evaled: bool },
     SuspendedEnvLookup   { name: Option<String>, id: EnvID },
     SuspendedPair        { ids: NeededIds, car: Rc<MarkedForm>, cdr: Rc<MarkedForm>},
 
@@ -442,16 +464,16 @@ impl MarkedForm {
     pub fn car(&self) -> Result<Rc<MarkedForm>> {
         match self {
             MarkedForm::Pair(ids,car,cdr)                                       => Ok(Rc::clone(car)),
-            MarkedForm::SuspendedParamLookup { name, id, cdr_num, car } if !car => Ok(Rc::new(MarkedForm::SuspendedParamLookup { name: name.clone(), id: id.clone(),
-                                                                                                                                 cdr_num: *cdr_num, car: true })),
+            MarkedForm::SuspendedParamLookup { name, id, cdr_num, car, evaled } if !car && !evaled => Ok(Rc::new(MarkedForm::SuspendedParamLookup { name: name.clone(), id: id.clone(),
+                                                                                                                                 cdr_num: *cdr_num, car: true, evaled: false })),
             _                                                                   => bail!("not a pair for car: {}", self),
         }
     }
     pub fn cdr(&self) -> Result<Rc<MarkedForm>> {
         match self {
             MarkedForm::Pair(ids,car,cdr)                                       => Ok(Rc::clone(cdr)),
-            MarkedForm::SuspendedParamLookup { name, id, cdr_num, car } if !car => Ok(Rc::new(MarkedForm::SuspendedParamLookup { name: name.clone(), id: id.clone(),
-                                                                                                                                 cdr_num: *cdr_num+1, car: *car })),
+            MarkedForm::SuspendedParamLookup { name, id, cdr_num, car, evaled } if !car && !evaled => Ok(Rc::new(MarkedForm::SuspendedParamLookup { name: name.clone(), id: id.clone(),
+                                                                                                                                 cdr_num: *cdr_num+1, car: *car, evaled: false })),
             _                                                                   => bail!("not a pair for cdr: {}", self),
         }
     }
@@ -802,7 +824,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, bctx: BCtx, dctx: &mut DCtx) -> Result<
                 panic!("failed env lookup (forced)");
             }
         },
-        MarkedForm::SuspendedParamLookup { name, id, cdr_num, car } => {
+        MarkedForm::SuspendedParamLookup { name, id, cdr_num, car, evaled } => {
             if let Some(v) = dctx.sus_prm_stack.get(id) {
                 let mut translated_value = if let Some(name) = name { v.tag_name(name) } else { Rc::clone(v) };
                 for i in 0..*cdr_num {
@@ -810,6 +832,11 @@ fn partial_eval_step(x: &Rc<MarkedForm>, bctx: BCtx, dctx: &mut DCtx) -> Result<
                 }
                 if *car {
                     translated_value = translated_value.car()?;
+                }
+                if *evaled {
+                    // but with this, we have to deal with unval failures
+                    // actually, do we have to deal with unval failures?
+                    translated_value = MarkedForm::new_suspended_env_eval(translated_value.unval().unwrap(), Rc::new(MarkedForm::SuspendedEnvLookup { name: None, id: id.clone() }));
                 }
                 Ok((bctx, translated_value))
             } else {
@@ -1012,21 +1039,21 @@ impl fmt::Display for MarkedForm {
                     }
                 }
             },
-            MarkedForm::SuspendedEnvEval {  ids, x, e }            => write!(f, "({:?}){{Sveval {} {}}}", ids, x, e),
-            MarkedForm::SuspendedIf      {  ids, c, t, e }         => write!(f, "({:?}){{Sif {} {} {}}}", ids, c, t, e),
-            MarkedForm::SuspendedSymbol(ids,name)                  => write!(f, "({:?}){}", ids, name),
+            MarkedForm::SuspendedEnvEval {  ids, x, e }            => write!(f, "({}){{Sveval {} {}}}", ids, x, e),
+            MarkedForm::SuspendedIf      {  ids, c, t, e }         => write!(f, "({}){{Sif {} {} {}}}", ids, c, t, e),
+            MarkedForm::SuspendedSymbol(ids,name)                  => write!(f, "({}){}", ids, name),
             MarkedForm::SuspendedEnvLookup { name, id }                 => write!(f, "{:?}({:?}env)", name, id),
-            MarkedForm::SuspendedParamLookup { name, id, cdr_num, car } => write!(f, "{:?}({:?}{}{})", name, id, cdr_num, car),
+            MarkedForm::SuspendedParamLookup { name, id, cdr_num, car, evaled } => write!(f, "{:?}({:?}{}{}{})", name, id, cdr_num, car, evaled),
             MarkedForm::PrimComb { name, wrap_level, .. }               => write!(f, "<{}{}>", name, wrap_level),
 
             //MarkedForm::DeriComb { ids, se, de, id, wrap_level, sequence_params, rest_params, body } => write!(f, "{:?}#[{}/{:?}/{:?}/{}/{:?}/{:?}/{}]", ids, se, de, id, wrap_level, sequence_params, rest_params, body),
             MarkedForm::DeriComb {  lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
                 //let env_form = format!("{}", se);
-                write!(f, "{:?}#[{:?}/{:?}/{:?}/{}/{:?}/{:?}/{}]", ids, lookup_name, de, id, wrap_level, sequence_params, rest_params, body)
+                write!(f, "{}#[{:?}/{:?}/{:?}/{}/{:?}/{:?}/{}]", ids, lookup_name, de, id, wrap_level, sequence_params, rest_params, body)
             },
 
             MarkedForm::SuspendedPair{ ids, car, cdr } => {
-                write!(f, "{:?}#{{{}", ids, car)?;
+                write!(f, "{}#{{{}", ids, car)?;
                 //write!(f, "{{{}", car)?;
                 let mut traverse: Rc<MarkedForm> = Rc::clone(cdr);
                 loop {
