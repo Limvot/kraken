@@ -29,7 +29,10 @@ body {
 h1, h2, h3, h4 {
 	line-height:1.2;
 	--rec-wght: 700;
-	--rec-casl: 1;
+	//--rec-casl: 1;
+	--rec-casl: 0.5;
+	//--rec-casl: 0;
+	//--rec-mono: 1;
 	--rec-crsv: 1;
 }
 h1 {

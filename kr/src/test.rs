@@ -50,9 +50,15 @@ fn partial_eval_test(gram: &grammar::TermParser, code: &str, expected: &str) {
 fn basic_pe_test() {
     let g = grammar::TermParser::new();
     partial_eval_test(&g, "(+ 2 (car (cons 4 '(1 2))))", "6");
-    partial_eval_test(&g, "(vau 0 p (+ 1 2))", "NeededIds { heads: {}, tails: {}, body_stopped: {}, if_stopped: {} }#[None/None/EnvID(1)/0/[]/Some(\"p\")/3]");
+    partial_eval_test(&g, "(vau 0 p (+ 1 2))", "NeedsNone#[None/None/EnvID(1)/0/[]/Some(\"p\")/3]");
 
-    partial_eval_test(&g, "(vau de p (+ (eval (car p) de) (eval (car (cdr p)) de)))", "NeededIds { heads: {}, tails: {}, body_stopped: {}, if_stopped: {} }#[None/Some(\"de\")/EnvID(1)/0/[]/Some(\"p\")/NeededIds { heads: {EnvID(1)}, tails: {}, body_stopped: {}, if_stopped: {} }#{<+0> NeededIds { heads: {EnvID(1)}, tails: {}, body_stopped: {}, if_stopped: {} }#{<eval0> Some(\"p\")(EnvID(1)0true) Some(\"de\")(EnvID(1)env)} NeededIds { heads: {EnvID(1)}, tails: {}, body_stopped: {}, if_stopped: {} }#{<eval0> Some(\"p\")(EnvID(1)1true) Some(\"de\")(EnvID(1)env)}}]");
+    partial_eval_test(&g, "(vau de p (+ (eval (car p) de) (eval (car (cdr p)) de)))", "NeedsNone#[None/Some(\"de\")/EnvID(1)/0/[]/Some(\"p\")/NeedsH{EnvID(1)}#{<+0> Some(\"p\")(EnvID(1)0truetrue) Some(\"p\")(EnvID(1)1truetrue)}]");
+
+    partial_eval_test(&g, "(vau de p (eval '(+ a 2) (cons (cons 'a (eval      (car p)  de))
+                                                         ((vau de p de)))))", "NeedsNone#[None/Some(\"de\")/EnvID(1)/0/[]/Some(\"p\")/NeedsH{EnvID(1)}#{<+0> Some(\"a\")(EnvID(1)0truetrue) 2}]");
+    //partial_eval_test(&g, "(vau de p (eval (+ a b) (cons (cons 'a (eval      (car p)  de))
+    //                                               (cons (cons 'b (eval (car (cdr p)) de))
+    //                                                     de))))", "");
 }
 
 #[test]
@@ -118,16 +124,16 @@ static LET: Lazy<String> = Lazy::new(|| {
 fn let_pe_test() {
     let g = grammar::TermParser::new();
     partial_eval_test(&g, &format!("{} (let1 a 2 (+ a (car (cons 4 '(1 2)))))", *LET), "6");
-    partial_eval_test(&g, &format!("{} (let1 a 2 (vau 0 p (+ 1 a)))", *LET),"NeededIds { heads: {}, tails: {}, body_stopped: {}, if_stopped: {} }#[None/None/EnvID(3)/0/[]/Some(\"p\")/3]");
+    partial_eval_test(&g, &format!("{} (let1 a 2 (vau 0 p (+ 1 a)))", *LET),"NeedsNone#[None/None/EnvID(3)/0/[]/Some(\"p\")/3]");
     partial_eval_test(&g, &format!("{}
             !(let1 a 2)
             (vau 0 p (+ 1 a))
-            ", *LET), "NeededIds { heads: {}, tails: {}, body_stopped: {}, if_stopped: {} }#[None/None/EnvID(3)/0/[]/Some(\"p\")/3]");
+            ", *LET), "NeedsNone#[None/None/EnvID(3)/0/[]/Some(\"p\")/3]");
     partial_eval_test(&g, &format!("{}
             !(let1 a 2)
             !(let1 b 5)
             (vau 0 p (+ b a))
-            ", *LET), "NeededIds { heads: {}, tails: {}, body_stopped: {}, if_stopped: {} }#[None/None/EnvID(3)/0/[]/Some(\"p\")/7]");
+            ", *LET), "NeedsNone#[None/None/EnvID(3)/0/[]/Some(\"p\")/7]");
             /*
     partial_eval_test(&g, &format!("{}
             (vau 0 p
