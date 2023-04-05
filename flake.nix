@@ -98,7 +98,8 @@
             #wasm3
 
             clang cmake
-            (rust-bin.stable.latest.default.override { targets = [ "wasm32-wasi" ]; })
+            cargo cargo-flamegraph
+            #(rust-bin.stable.latest.default.override { targets = [ "wasm32-wasi" ]; })
             #stack (haskellPackages.ghcWithPackages (p: [p.parallel]))
             koka
             pkgs_old.emscripten

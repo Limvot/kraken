@@ -6,6 +6,10 @@ build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+
+[profile.bench]
+debug = true
+
 [dependencies]
 lalrpop-util = {version="0.19.7", features=["lexer"]}
 regex = "1"
