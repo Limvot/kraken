@@ -25,28 +25,21 @@ body {
 	margin: 1em auto;
 	padding: 0 .62em;
 	font: 1.2em/1.62 'Recursive', sans-serif;
+	background-color: #f5f3ef;
 }
 h1, h2, h3, h4 {
-	line-height:1.2;
-	--rec-wght: 700;
-	//--rec-casl: 1;
+	line-height:0.2;
+	--rec-wght: 900;
+	--rec-slnt: -10;
 	--rec-casl: 0.5;
-	//--rec-casl: 0;
-	//--rec-mono: 1;
 	--rec-crsv: 1;
+	--rec-mono: 0;
+	letter-spacing: -0.015em;
+	font-size: 4em;
 }
 h1 {
-	letter-spacing: -0.015em;
-	//line-height:0.2;
-	line-height:0.2;
-	font-size: 4em;
-	--rec-wght: 900;
-	--rec-slnt: -15;
 	text-decoration: underline;
 	text-decoration-thickness: 0.4rem;
-	//border-bottom: 0.08em solid;
-	//border-left: 0.1em solid;
-	//display: inline-block;
 }
 h2 { font-size: 3em; }
 h3 { font-size: 1.5em; }
@@ -77,9 +70,11 @@ b { --rec-wght: 600; }
 	font-family: 'Recursive', sans-serif;
 	font-size: 1em;
 	--rec-wght: 900;
-	--rec-slnt: -15;
-	--rec-casl: 1;
+	--rec-slnt: -10;
+	--rec-casl: 0.5;
 	--rec-crsv: 1;
+	--rec-mono: 0;
+	letter-spacing: -0.015em;
 	position: absolute;
 	top: 0;
 	right: 0;
