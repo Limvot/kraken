@@ -25,8 +25,8 @@ body {
 	margin: 1em auto;
 	padding: 0 .62em;
 	font: 1.2em/1.62 'Recursive', sans-serif;
-	background-color: #f5f3ef;
 }
+body, .remark-slide-content { background-color: #f5f3ef; }
 h1, h2, h3, h4 {
 	line-height:0.2;
 	--rec-wght: 900;
