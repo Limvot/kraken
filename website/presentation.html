@@ -2,13 +2,20 @@
 <html>
   <head>
     <title>Kraken Quals Presentation</title>
-	<link id="theme" rel="stylesheet" type="text/css" href="recursive.css"/>
+    <link id="theme" rel="stylesheet" type="text/css" href="recursive.css"/>
+	<!--<link id="theme" rel="stylesheet" type="text/css" href="slick.css"/>-->
     <link href="favicon.png" rel="icon" type="image/png"/>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
     <style type="text/css">
 body { max-width: unset; }
-.title > h1 { font-size: 4em; }
-h1 { font-size: 2.5em; }
+.title > h1 {
+	font-size: 4em;
+	line-height:1;
+}
+h1 {
+  font-size: 2.5em;
+  line-height:1;
+}
 .rerun_container { position: relative; }
     </style>
   </head>
@@ -19,22 +26,164 @@ class: center, middle, title
 
 # Kraken
 
-_FOSS Fexprs: <a title="Kraken on GitHub" href="https://github.com/limvot/kraken">https://github.com/limvot/kraken</a>_
+_Fexprs are a better foundation for functional Lisps_
 
 ---
 
 # Agenda
 
-1. Introduction
-2. Deep-dive
-3. ...
-
-[NOTE]: This file is portable; you don't need any other file, or an internet connection for this presentation.
+1. Fexprs Intro
+2. Past Work: Practical compilation of fexprs using partial evaluation
+3. Current Work: Scheme & the more generic re-do
+4. Future Work: Layered Languages, DSLs
 ---
+class: center, middle, title
+# Fexprs Intro
 
+_The Lisp Wars_
+---
+# Background: Lisp
+
+A quick overview:
+
+<pre><code class="remark_code">        ; semicolon begins a comment
+4       ; numbers and
+"hello" ; strings look normal and evaluate to themselves
+</code></pre>
+--
+Essentially every non-atomic expression is a parentheses delimited list.
+This is true for:
+<pre><code class="remark_code">(+ 1 2)                     ; function calls, evaluates to 3
+
+(if false (+ 1 2) (- 1 2))  ; other special forms like if
+
+(let ((a 1)
+      (b 2))                ; or let
+      (+ a b))
+
+(lambda (a b) (+ a b))      ; or lambda to create closures
+</code></pre>
+
+---
+# Background: Lisp
+
+One of the key hallmarks of Lisp is macros
+
+<pre><code class="remark_code">(or a b)
+</code></pre>
+becomes
+<pre><code class="remark_code">(let ((temp a))
+      (if temp 
+          temp 
+          b))
+</code></pre>
+---
+# Background: Lisp
+
+This could be defined via 
+<pre><code class="remark_code">(define-maco (or . body)
+(cond
+  ((nil? body)       #f)
+  ((nil? (cdr body)) (car body))
+  (else              (list 'let (list (list 'temp (car body)))
+                            (list 'if 'temp 'temp (car (cdr body)))))))
+</code></pre>
+But not hygenic!
+Could become so using explicit calls to _gensym_
+---
+# Background: Lisp
+
+Pattern matching, hygenic by default
+<pre><code class="remark_code">(letrec-syntax
+  ((or (syntax-rules ()
+         ((or) #f)
+         ((or a) a)
+         ((or a b)
+          (let ((temp a))
+            (if temp
+                temp
+                b)))))))
+</code></pre>
+---
+# Background: Fexprs tho
+
+Something of a combo between the two - direct style, but naturally hygenic by default.
+<pre><code class="remark_code">(vau de (a b) (let ((temp (eval a de)))
+                    (if temp
+                        temp
+                        (eval b de))))
+</code></pre>
+---
+# Motivation and examples
+
+1. Vau/Combiners unify and make first class functions, macros, and built-in forms in a single simple system
+2. They are also much simpler conceptually than macro systems, which often end up quite complex (Racket has positive and negative evaluation levels, etc)
+3. Downside: naively executing a language using combiners instead of macros is exceedingly slow
+	4. The code of the fexpr (analogus to a macro invocation) is re-executed at runtime, every time it is encountered
+	5. Additionally, because it is unclear what code will be evaluated as a parameter to a function call and what code must be passed unevaluated to the combiner, little optimization can be done.
+
+---
+# Solution: Partial Eval
+1. Partially evaluate a purely functional version of this language in a nearly-single pass over the entire program
+2. Environment chains consisting of both "real" environments with every contained symbol mapped to a value and "fake" environments that only have placeholder values.
+3. Since the language is purely functional, we know that if a symbol evaluates to a value anywhere, it will always evaluate to that value at runtime, and we can perform inlining and continue partial evaluation.
+4. If the resulting partially-evaluated program only contains static references to a subset of built in combiners and functions (combiners that evaluate their parameters exactly once), the program can be compiled just like it was a normal Scheme program
+---
+# Example time!
+1. We will wrap angle brackets <> around values that are not representable in the syntax of the language - i.e. + is a symbol that will be looked up in an environment, <+> is the addition function.
+2.  We will use square brackets [] to indiciate array values, and we will use a single quote to indicate symbol values ', for instance '+ is the symbol + as a value.
+3. Additionally, we will use curly braces ({}) to indicate the environment (mapping symbols to values). Elipses will be used to omit unnecessary information.
+4. Finally, we will not show the static environment nested in combiners, but know that each combiner carries with it the environment it was created with, which becomes the upper environment when its body is executing (the immediate environment being populated with the parameters).
+---
+# A few more things..
+1. ; is the comment character for the language
+2. We will sometimes make larger evaluation jumps for (some) brevity
+3. wraplevel is how many times a combiner will evaluate its parameters before the body starts executing. 0 makes it work like a macro, 1 is like a function, etc
+4. Wrap takes a combiner and returns the same combiner with an incremented wraplevel, unwrap does the reverese
+5. Typing these examples by hand is too finicky, next time they'll be autogenerated with color by the prototype partial evaluator!
+---
+{ ...root environment...}
+(wrap (vau (n) (* n 2)))
+---
+# Small Vau-specific Example (implementing quote)
+{ ...root environment...}
+((vau (x) x) hello)
+---
+# Conclusion: slow
+1. Look at all of the steps it took to simply get a function value that multiplies by 2!
+2. This would make our program much slower if this happened at runtime, for every function in the program.
+3. What's the solution? Partial Evaluation!
+---
+# Partial Eval: How it works
+1. Evaluate as much as possible ahead of time, at compile time.
+2. If some call sites are indeterminate, they can still be compiled, but there will have to be a runtime check inserted that splits evaluation based on if the combiner evaluates its parameters or not, and eval and all builtins will have to be compiled into the resulting executable.
+3. When compiling in the wraplevel=1 side of conditional, further partial evaluate the parameter value
+---
+# Partial evaluation could have done all the work from that last big example at compile time, leaving only the final value to be compiled:
+<comb wraplevel=1 (n) (* n 2)>
+
+Additionally, if this was a more complex function that used other functions, those functions would also generally be fully partially evaluated at compile time.
+It's the full power of Vau/Combiners/Fexprs with the expected runtime performance of Scheme!
+---
+# Partial Eval: Current Status
+1. No longer *super* slow
+2. Fixed most BigO algo problems (any naive traversal is exponential)
+3. Otherwise, the implementation is slow (pure function, Chicken Scheme not built for it, mostly un-profiled and optimized, etc)
+4. Compiles wraplevel=0 combs to a assert(false), but simple to implement.
+5. Working through bugs - right now figuring out why some things don't partially evaluate as far as they should
+---
+# Partial Eval: Future
+Allow type systems to be built using Vaus, like the type-systems-as-macros paper (https://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf).
+This type system could pass down type hints to the partial evaluator, enabling:
+
+2. Compiletime: Drop optimizing compiled version if wraplevel=0
+3. Compiletime: Drop emitting constant code for if wraplevel=1
+4. Runtime: Eliminate branch on wrap level
+5. Runtime: Eliminate other typechecks for builtin functions
+---
 # Introduction
 
-HEre's some test code:
+Here's some test code:
 
 .run_container[
 <div class="editor" id="hello_editor">; Of course
