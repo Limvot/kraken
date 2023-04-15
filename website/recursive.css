@@ -48,6 +48,7 @@ h4 { font-size: 1.2em; }
 i { --rec-slnt: -14; }
 em { --rec-slnt: -14; }
 b { --rec-wght: 600; }
+strong { --rec-wght: 600; }
 .run_container { position: relative; }
 .editor, .remark-code, .remark-inline-code {
 	font-family: 'Recursive', monospace;

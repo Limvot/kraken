@@ -105,7 +105,7 @@ Pattern matching, hygenic by default
                 b)))))))
 </code></pre>
 ---
-# Background: Fexprs tho
+# Background: Fexprs
 
 Something of a combo between the two - direct style, but naturally hygenic by default.
 <pre><code class="remark_code">(vau de (a b) (let ((temp (eval a de)))
@@ -113,6 +113,93 @@ Something of a combo between the two - direct style, but naturally hygenic by de
                         temp
                         (eval b de))))
 </code></pre>
+---
+# Background: Fexprs - detail
+
+Ok, Fexprs are calls to combiners - combiners are either applicatives or operatives.
+Combiners are introduced with _vau_ and take an extra paramter (here called _dynamic_env_, earlier called _de_) which is the dynamic environment.
+<pre><code class="remark_code">(vau dynamicEnv (normalParam1 normalParam2) (body of combiner))
+</code></pre>
+--
+Lisps, as well as Kraken, have an _eval_ function.
+This function takes in code as a data structure, and in R5RS Scheme an "environment specifier", and in Kraken, a full environment (like what is passed as _dynamicEnv_). 
+<pre><code class="remark_code">(eval some_code an_environment)
+---
+# Background: Fexprs - detail
+
+- **Normal Lisp** (Scheme, Common Lisp, etc)
+--
+
+  - Functions - runtime, evaluate parameters once, return value
+--
+
+  - Macros - expansion time, do not evaluate parameters, return code to be inlined
+--
+
+  - Special Forms - look like function or macro calls, but do something special (if, lambda, etc)
+--
+
+- **Kraken** (and Kernel)
+--
+
+  - Combiners
+--
+
+      - Applicatives (like normal functions, combiners that evaluate all their parameters once in their dynamic environment)
+--
+      - Operatives (combiners that do something unusual with their parameters, do not evaluate them right away)
+--
+
+_Operatives can replace macros and special forms, so combiners replace all_
+---
+# Background: Fexprs - detail
+
+Combiners, like functions in Lisp, are first class.
+This means that unlike in Lisp, Kraken's version of macros and special forms are *both* first class.
+
+---
+# Background: Fexprs - detail
+As we've mentioned, in Scheme _or_ is a macro expanding
+<pre><code class="remark_code">(or a b)
+</code></pre>
+to
+<pre><code class="remark_code">(let ((temp a))
+      (if temp temp 
+               b))
+</code></pre>
+
+So passing it to a higher-order function doesn't work, you have to wrap it in a function:
+<pre><code class="remark_code">> (fold or #f (list #t #f))
+Exception: invalid syntax and 
+> (fold (lambda (a b) (or a b)) #f (list #t #f))
+#t
+</code></pre>
+---
+# Background: Fexprs - detail
+But in Kraken, _or_ is a combiner (an operative!), so it's first-class
+<pre><code class="remark_code">(vau de (a b) (let ((temp (eval a de)))
+                    (if temp temp
+                             (eval b de))))
+</code></pre>
+So it's pefectly legal to pass to a higher-order combiner:
+<pre><code class="remark_code">> (foldl or false (array true false))
+true
+</code></pre>
+---
+# Background: Fexprs - detail
+
+All special forms in Kaken are combiners too, and are thus also first class.
+In this case, we can not only pass the raw _if_ around, but we can make an _inverse_if_ which inverts its condition (kinda macro-like)  and pass it around.
+<pre><code class="remark_code">> (let ((use_if (lambda (new_if) (new_if true 1 2)))
+        (inverse_if (vau de (c t e) (if (not (eval c de))
+                                        (eval t de)
+                                        (eval e de))))
+       )
+       (list (use_if if) (use_if inverse_if)))
+(1 2)
+</code></pre>
+What were special forms in Lisp are now just built-in combiners in Kraken.
+*if* is not any more special than *+*, and in both cases you can define your own versions that would be indistinguishable, and in both cases they are first-class.
 ---
 # Motivation and examples
 
