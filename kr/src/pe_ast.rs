@@ -470,7 +470,11 @@ impl MarkedForm {
         Rc::new(MarkedForm::DeriComb { hash: calculate_hash(&("DeriComb", &lookup_name, &ids, &se, &de, &id, &wrap_level, &sequence_params, &rest_params, &body)), lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body })
     }
     pub fn new_deri_comb(se: Rc<MarkedForm>, lookup_name: Option<String>, de: Option<String>, id: EnvID, wrap_level: i32, sequence_params: Vec<String>, rest_params: Option<String>, body: Rc<MarkedForm>, rec_under: Option<EnvID>) -> Rc<MarkedForm> {
-        let ids = se.ids().union_without(&body.ids(), &id);
+        // HERE! Body ids might cause it to want to evaluate but it won't if SE isn't a legal env
+        // do we ever need body ids except for true?
+        // and can we remove se at some point?
+        //let ids = if !se.is_legal_env_chain().unwrap() { se.ids() } else { se.ids().union_without(&body.ids(), &id) };
+        let ids = if body.ids().may_contain_id(&true_id) { se.ids().union(&NeededIds::new_true()) } else { se.ids() };
         let ids = if let Some(rec_under) = rec_under {
             ids.add_body_under(rec_under)
         } else {
@@ -912,6 +916,7 @@ pub fn partial_eval(bctx_in: BCtx, dctx: DCtx, form: Rc<MarkedForm>, use_memo: b
     let mut skipped_from: Option<(BCtx, DCtx, Rc<MarkedForm>)> = None;
     let mut one04s = 0;
     let mut last: Option<Rc<MarkedForm>> = None;
+    let mut doublings = 0;
     loop {
         let x = next_form.take().unwrap();
         println!("{:ident$}({})PE:", "", dctx.ident*4, ident=dctx.ident*4);
@@ -925,12 +930,28 @@ pub fn partial_eval(bctx_in: BCtx, dctx: DCtx, form: Rc<MarkedForm>, use_memo: b
             //println!("{:ident$}PE: {}", "", x, ident=dctx.ident*4);
         }
         if let Some(l) = last {
-            assert!(x != l);
+            if x == l {
+                doublings += 1;
+            } else {
+                doublings = 0;
+            }
+        } else {
+            doublings = 0;
         }
+        if doublings == 100 {
+            println!("100 doublings of {}", x);
+            println!("(because of {:?} with {:?}/{:?})", x.ids(), dctx.real_set, dctx.fake_set);
+        }
+        assert!(doublings < 100);
         last = Some(Rc::clone(&x));
         //println!("{:ident$}PE: {}", "", x, ident=dctx.ident*4);
         if !dctx.can_progress(x.ids()) {
             //println!("{:ident$}Shouldn't go! (because of {:?} with {:?}/{:?})", "", x.ids(), dctx.real_set, dctx.fake_set, ident=dctx.ident*4);
+            if !(x.is_value() || !dctx.fake_set.is_empty()) {
+                println!("Hmm what's wrong here - it's not a value, but our fake set is empty...");
+                println!("{:ident$}{}", "", x, ident=dctx.ident*4);
+                println!("{:ident$}Shouldn't go! (because of {:?} with {:?}/{:?})", "", x.ids(), dctx.real_set, dctx.fake_set, ident=dctx.ident*4);
+            }
             assert!(x.is_value() || !dctx.fake_set.is_empty());
             let (mut bctx, (uses_env, used_ids)) = bctx.pop_used_ids();
             //if form.is_legal_env_chain().unwrap_or(false) && x.is_legal_env_chain().unwrap_or(false) && x != form {
@@ -982,7 +1003,7 @@ pub fn partial_eval(bctx_in: BCtx, dctx: DCtx, form: Rc<MarkedForm>, use_memo: b
         //if false {
         if use_memo && got.map(|(ids,maybe_e_hash,it)| maybe_e_hash.map(|h| h == calculate_hash(&dctx.e)).unwrap_or(true) && dctx.real_hash_set(None).is_superset(ids)).unwrap_or(false) {
             let skip = Rc::clone(&got.unwrap().2);
-            println!("{:ident$}({}) PE ", "", dctx.ident, ident=dctx.ident*4);
+            println!("{:ident$}({}) SKIPPING PE ", "", dctx.ident, ident=dctx.ident*4);
             //println!("{:ident$}({}) PE {} skip forwards to {}", "", dctx.ident, x, skip, ident=dctx.ident*4);
             //println!("{:ident$}({}) PE {} skip forwards to {} inside {} - got was {:?} and our hash is {}", "", dctx.ident, x, skip, dctx.e, got, calculate_hash(&dctx.e), ident=dctx.ident*4);
             //skipped_from = Some((bctx.clone(), dctx.clone(), x));
@@ -1012,6 +1033,7 @@ pub fn partial_eval(bctx_in: BCtx, dctx: DCtx, form: Rc<MarkedForm>, use_memo: b
                 if !x.ids().may_contain_id(&true_id) && e.is_legal_env_chain()? {
                     //println!("{:ident$}Dropping redundent eval: {} from {}", "", x, e, ident=dctx.ident*4);
                     //println!("{:ident$}Dropping redundent eval: {}", "", x, ident=dctx.ident*4);
+                    println!("{:ident$}Dropping redundent eval:", "", ident=dctx.ident*4);
                     next_form = Some(Rc::clone(x));
                     // do we still need force for drop redundent veval?
                     // Not while it's not recursive, at elaset
@@ -1119,6 +1141,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, bctx: BCtx, dctx: &DCtx, use_memo: bool
             }
         },
         MarkedForm::SuspendedParamLookup { hash, name, id, cdr_num, car, evaled } => {
+println!("SUSSUS param lookup");
             if let Some(v) = dctx.sus_prm_stack.get(id) {
                 let bctx = bctx.add_id(id.clone());
                 let mut translated_value = if let Some(name) = name { v.tag_name(name) } else { Rc::clone(v) };
@@ -1190,6 +1213,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, bctx: BCtx, dctx: &DCtx, use_memo: bool
             }
         },
         MarkedForm::DeriComb { hash, lookup_name, ids, se, de, id, wrap_level, sequence_params, rest_params, body } => {
+println!("SUSSUS deri comb");
             // TODO: figure out wrap level, sequence params, etc
             // the current env is our new se
             
@@ -1224,6 +1248,7 @@ fn partial_eval_step(x: &Rc<MarkedForm>, bctx: BCtx, dctx: &DCtx, use_memo: bool
             }
         },
         MarkedForm::SuspendedPair { hash, ids, env, car, cdr, attempted, under_if } => {
+println!("SUSSUS suspended pair");
             let (e_override, bctx, env) = if let Some(env) = env {
                 let (bctx, nenv) = partial_eval(bctx, dctx.clone(), Rc::clone(env), use_memo)?;
                 if !nenv.is_legal_env_chain()? {
