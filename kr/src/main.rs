@@ -19,7 +19,7 @@ fn main() {
     let (bctx, marked) = mark(Rc::clone(&parsed_input),bctx);
     let unvaled = marked.unval().unwrap();
     println!("Parsed unvaled that is    {}", unvaled);
-    let (bctx, ped) =  partial_eval(bctx, dctx, unvaled).unwrap();
+    let (bctx, ped) =  partial_eval(bctx, dctx, unvaled, true).unwrap();
     let result = eval(root_env(), parsed_input);
     println!("Result is {} - {:?}", result, result);
 }
