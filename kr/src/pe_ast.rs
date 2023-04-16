@@ -149,16 +149,25 @@ impl NeededIds {
             if_stopped:     self.if_stopped.union(&other.if_stopped).cloned().collect(),
         }
     }
-    fn union_without(&self, other: &NeededIds, without: &EnvID) -> Self {
+    //fn union_without(&self, other: &NeededIds, without: &EnvID) -> Self {
+        //NeededIds {
+            //heads:          self.heads.union(&other.heads)              .filter(|x| *x != without).cloned().collect(),
+            //tails:          self.tails.union(&other.tails)              .filter(|x| *x != without).cloned().collect(),
+            //body_stopped:   self.body_stopped.union(&other.body_stopped).filter(|x| *x != without).cloned().collect(),
+            //if_stopped:     self.if_stopped.union(&other.if_stopped)    .filter(|x| *x != without).cloned().collect(),
+        //}
+    //}
+    fn without(&self, without: &EnvID) -> Self {
         NeededIds {
-            heads:          self.heads.union(&other.heads)              .filter(|x| *x != without).cloned().collect(),
-            tails:          self.tails.union(&other.tails)              .filter(|x| *x != without).cloned().collect(),
-            body_stopped:   self.body_stopped.union(&other.body_stopped).filter(|x| *x != without).cloned().collect(),
-            if_stopped:     self.if_stopped.union(&other.if_stopped)    .filter(|x| *x != without).cloned().collect(),
+            heads:          self.heads.iter()       .filter(|x| *x != without).cloned().collect(),
+            tails:          self.tails.iter()       .filter(|x| *x != without).cloned().collect(),
+            body_stopped:   self.body_stopped.iter().filter(|x| *x != without).cloned().collect(),
+            if_stopped:     self.if_stopped.iter()  .filter(|x| *x != without).cloned().collect(),
         }
     }
     fn union_into_tail(&self, other: &NeededIds, without_tail: Option<&EnvID>) -> Self {
-        let tails: BTreeSet<EnvID> = self.tails.union(&other.heads).chain(other.tails.iter()).cloned().filter(|x| without_tail.is_none() || x != without_tail.unwrap()).collect();
+        let new_tails = other.heads.union(&other.tails).filter(|x| without_tail.is_none() || *x != without_tail.unwrap());
+        let tails: BTreeSet<EnvID> = self.tails.iter().chain(new_tails).cloned().collect();
         assert!(!tails.contains(&true_id));
         NeededIds {
             heads:          self.heads.clone(),
@@ -354,8 +363,19 @@ impl DCtx {
                             real_set: Rc::clone(&self.real_set), fake_set: Rc::clone(&self.fake_set), fake_if_set: new_fake_if_set, ident: self.ident+1 })
     }
 
-    pub fn can_progress(&self, ids: NeededIds) -> bool {
+    //pub fn can_progress(&self, ids: NeededIds) -> bool {
+    pub fn can_progress(&self, x: &Rc<MarkedForm>) -> bool {
+        let ids = x.ids();
         // check if ids is true || ids intersection EnvIDs in our stacks is non empty || ids.hashes - current is non empty
+        let all_needed:   BTreeSet<EnvID> = ids.heads.union(&ids.tails).filter(|x| **x != true_id).cloned().collect();
+        let all_possible: BTreeSet<EnvID> = self.real_set.union(&self.fake_set).cloned().collect();
+        let ok = all_possible.is_superset(&all_needed);
+        if !ok {
+            println!("Gah - needed {:?}", all_needed);
+            println!("Gah - have total (fake and real) {:?}", all_possible);
+            println!("it: {}", x);
+        }
+        assert!(ok);
         ids.heads.contains(&true_id) || !self.real_set.is_disjoint(&ids.heads) || !self.fake_set.is_superset(&ids.body_stopped) || !self.fake_if_set.is_superset(&ids.if_stopped)
     }
 }
@@ -474,7 +494,8 @@ impl MarkedForm {
         // do we ever need body ids except for true?
         // and can we remove se at some point?
         //let ids = if !se.is_legal_env_chain().unwrap() { se.ids() } else { se.ids().union_without(&body.ids(), &id) };
-        let ids = if body.ids().may_contain_id(&true_id) { se.ids().union(&NeededIds::new_true()) } else { se.ids() };
+        //let ids = if body.ids().may_contain_id(&true_id) { se.ids().union(&NeededIds::new_true()) } else { se.ids() };
+        let ids = if !se.is_legal_env_chain().unwrap() { se.ids().union_into_tail(&body.ids(), Some(&id)) } else { se.ids().union(&body.ids().without(&id)) };
         let ids = if let Some(rec_under) = rec_under {
             ids.add_body_under(rec_under)
         } else {
@@ -945,7 +966,8 @@ pub fn partial_eval(bctx_in: BCtx, dctx: DCtx, form: Rc<MarkedForm>, use_memo: b
         assert!(doublings < 100);
         last = Some(Rc::clone(&x));
         //println!("{:ident$}PE: {}", "", x, ident=dctx.ident*4);
-        if !dctx.can_progress(x.ids()) {
+        //if !dctx.can_progress(x.ids()) {
+        if !dctx.can_progress(&x) {
             //println!("{:ident$}Shouldn't go! (because of {:?} with {:?}/{:?})", "", x.ids(), dctx.real_set, dctx.fake_set, ident=dctx.ident*4);
             if !(x.is_value() || !dctx.fake_set.is_empty()) {
                 println!("Hmm what's wrong here - it's not a value, but our fake set is empty...");
@@ -1229,11 +1251,13 @@ println!("SUSSUS deri comb");
                 PushFrameResult::Ok(inner_dctx) => {
                     //println!("{:ident$}Doing a body deri for {:?} which is {}", "", lookup_name, x, ident=ident_amount);
                     //println!("{:ident$}and also body ids is {:?}", "", body.ids(), ident=ident_amount);
+                    println!("{:ident$}pushing DeriComb for {:?}", "", id, ident=ident_amount);
                     // inner use doesn't count since through se
                     let uses_env = bctx.get_uses_env();
                     let (bctx, body) = partial_eval(bctx, inner_dctx, Rc::clone(&body), use_memo)?;
                     let bctx = bctx.set_uses_env(uses_env);
                     let bctx = bctx.pop_id_frame(id);
+                    println!("{:ident$}popping DeriComb for {:?}", "", id, ident=ident_amount);
                     //println!("{:ident$}result was {}", "", body, ident=ident_amount);
                     Ok((bctx, MarkedForm::new_deri_comb(se, lookup_name.clone(), de.clone(), id.clone(), *wrap_level, sequence_params.clone(), rest_params.clone(), body, None)))
                 },
@@ -1329,19 +1353,33 @@ println!("SUSSUS suspended pair");
 
                                     //Here is where we could do a tail call instead, but there
                                     //would be no recovery back into the call-form...
+                                    println!("{:ident$}pushing true derived call for for {:?}", "", id, ident=ident_amount);
                                     let e_mask = (de.is_some() && !e_override) || bctx.get_uses_env();
                                     let (bctx, r) =  partial_eval(bctx.clone(), inner_dctx, Rc::clone(body), use_memo)?;
+                                    println!("{:ident$}popping true derived call for for {:?}", "", id, ident=ident_amount);
                                     let newue = e_mask && bctx.get_uses_env();
                                     let bctx = bctx.set_uses_env(newue);
 
                                     let mut bctx = bctx.pop_id_frame(id);
                                     if combiner_return_ok(&r, Some(id.clone())) {
+                                        println!("{:ident$}return ok {:?} - {:?}", "", id, r.ids(), ident=ident_amount);
                                         return Ok((bctx, r));
                                     } else {
                                         if need_denv && !e_override {
                                             bctx = bctx.set_uses_env(true);
                                         }
-                                        return Ok((bctx, MarkedForm::new_suspended_pair( saved_env, Some(r.ids()), car, cdr, None)));
+                                        let id = id.clone();
+                                        let car_ids = car.ids();
+                                        let cdr_ids = cdr.ids();
+                                        let sus_pair = MarkedForm::new_suspended_pair( saved_env, Some(r.ids()), car, cdr, None);
+                                        println!("{:ident$}return not ok, doing sus pair {:?} - {:?} (car_ids {:?}, cdr_ids {:?})", "", id, sus_pair.ids(), car_ids, cdr_ids, ident=ident_amount);
+                                        if r.ids().may_contain_id(&id) {
+                                            println!("Need self to be real but we were - {}", r);
+                                            //ok, so the not progressing when se isn't a legal env is preventing progress that could be made with a real env
+                                            // which makes sense
+                                        }
+                                        assert!(!r.ids().may_contain_id(&id));
+                                        return Ok((bctx, sus_pair));
                                     }
                                 },
                                 PushFrameResult::UnderBody(rec_stop_under) => { unreachable!() },

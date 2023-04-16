@@ -204,9 +204,9 @@ What were special forms in Lisp are now just built-in combiners in Kraken.
 # Motivation and examples
 
 1. Vau/Combiners unify and make first class functions, macros, and built-in forms in a single simple system
-2. They are also much simpler conceptually than macro systems, which often end up quite complex (Racket has positive and negative evaluation levels, etc)
+2. They are also much simpler conceptually than macro systems while being hygenic by default
 3. Downside: naively executing a language using combiners instead of macros is exceedingly slow
-	4. The code of the fexpr (analogus to a macro invocation) is re-executed at runtime, every time it is encountered
+	4. The code of the operative combiner (analogus to a macro invocation) is re-executed at runtime, every time it is encountered
 	5. Additionally, because it is unclear what code will be evaluated as a parameter to a function call and what code must be passed unevaluated to the combiner, little optimization can be done.
 
 ---
@@ -215,6 +215,53 @@ What were special forms in Lisp are now just built-in combiners in Kraken.
 2. Environment chains consisting of both "real" environments with every contained symbol mapped to a value and "fake" environments that only have placeholder values.
 3. Since the language is purely functional, we know that if a symbol evaluates to a value anywhere, it will always evaluate to that value at runtime, and we can perform inlining and continue partial evaluation.
 4. If the resulting partially-evaluated program only contains static references to a subset of built in combiners and functions (combiners that evaluate their parameters exactly once), the program can be compiled just like it was a normal Scheme program
+---
+# Intuition
+
+Macros, espicially *define-macro* macros, are essentially functions that runat expansion time and compute new code from old code.
+This is essentially partial evaluation / inlining, depending on how you look at it.
+
+It thus makes sense to ask if we can identify and partial evaluate / inline operative combiners to remove and optimize them like macros. Indeed, if we can determine what calls are to applicative combiners we can optimize their parameters, and if we can determine what calls are to macro-like operative combiners, we can try to do the equlivant of macro expansion.
+
+For Kraken, this is exactly what we do, using a specialized form of Partial Evaluation to do so.
+---
+# Challenges
+
+So what's the hard part? Why hasn't this been done before?
+
+- Detour through Lisp history?
+
+Determining even what code will be evaluated is difficult.
+
+- Partial Evaluation
+  - Can't use a binding time analysis pass with offline partial evaluation, which elminates quite a bit of mainline partial evaluation research
+  - Online partial evaluation research generally does not have to deal with the same level of partially/fully dynamic and sometimes explicit environments
+      - woo
+---
+# Research
+
+- *Practical compilation of fexprs using partial evaluation*
+  - Currently under review for ICFP '23
+  - Wrote partial evaluator with compiler
+      - Heavily specialized to optimize away operative combiners like macros written in a specific way
+      - Prototype faster than Python and other interpreted Lisps
+      - Static calls fully optimized like a normal function call in other langauges
+      - Dynamic calls have a single branch of overhead - if normal applicative combiner function like call, post-branch optimized as usual
+      - Optimizes away Y Combinator recursion to static recursive jumps (inc tail call opt)
+  - Bit of an odd language: purely functional, array based, environment values
+---
+# Research
+
+**insert benchmarks**
+
+---
+# Current Research
+
+- More normal language: purely functional Scheme
+- Environments are just association lists
+  - Fully manipulateable as normal list/pairs
+- Partial evaluation that supports naturaly-written operative combiners, like the running *or* example
+
 ---
 # Example time!
 1. We will wrap angle brackets <> around values that are not representable in the syntax of the language - i.e. + is a symbol that will be looked up in an environment, <+> is the addition function.
