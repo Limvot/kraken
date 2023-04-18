@@ -16,6 +16,14 @@ h1 {
   font-size: 2.5em;
   line-height:1;
 }
+.pull-left > * {
+  float: left;
+  width: 48%;
+}
+.pull-right > * {
+  float: right;
+  width: 48%;
+}
 .rerun_container { position: relative; }
     </style>
   </head>
@@ -250,9 +258,348 @@ Determining even what code will be evaluated is difficult.
       - Optimizes away Y Combinator recursion to static recursive jumps (inc tail call opt)
   - Bit of an odd language: purely functional, array based, environment values
 ---
-# Research
+# Base Language: Syntax
 
-**insert benchmarks**
+$$
+\newcommand{\alt} {\mid}
+\newcommand{\kraken} {\textit{Kraken}}
+\newcommand{\kprim}    [2] {\langle #1~\textbf{#2} \rangle}
+\newcommand{\kenv}     [3] {\langle \langle #1~|#2,~#3 \rangle \rangle}
+\newcommand{\kcomb}    [5] {\langle \textbf{comb} ~ #1 ~ #2 ~ #3 ~ #4 ~ #5\rangle}
+\newcommand{\keval}    [2] {[\text{eval} ~ #1 ~ #2]}
+\newcommand{\kcombine} [3] {[\text{combine} ~ #1 ~ #2 ~ #3 ]}
+$$
+
+.mathSize8[
+$$
+  \begin{array}{rcll}
+    n & \in & \mathbb{N} & \text{(Integers)} \\\
+    s & \in & Symbols    &                   \\\
+    o & \in & \kprim{1}{eval}, \kprim{0}{vau},\kprim{1}{wrap}, \kprim{1}{unwrap}, & \\\
+    &&\kprim{0}{if0}, \kprim{0}{vif0}, \kprim{1}{int-to-symbol},&\\\
+    &&\kprim{1}{symbol?}, \kprim{1}{int?}, \kprim{1}{combiner?},\kprim{1}{env?},&\\\
+    &&\kprim{1}{array?}, \kprim{1}{len}, \kprim{1}{idx}, \kprim{1}{concat},&\\\
+    &&\kprim{1}{+}, \kprim{1}{<=} &\text{(Primitives)}\\\
+    E &:=& \kenv{(s \leftarrow T)\dots}{}{E} \alt \kenv{(s \leftarrow T)\dots}{s' \leftarrow E}{E} & \text{(Environments)}\\\
+    A &:=& (T \dots)& \text{(Arrays)}\\\
+    C &:=& \kcomb{n}{s'}{E}{(s\dots)}{T} & \text{(Combiners)}\\\
+    S &:=& n \alt o \alt E \alt C & \text{(Self evaluating terms)}\\\
+    V &:=& S \alt s \alt A & \text{(Values)}\\\
+    T &:=& V \alt AT & \text{(Terms)}\\\
+    AT &:=& \keval{T}{E} \alt \kcombine{T}{(T\dots)}{E} & \text{(Active terms)}\\\
+  \end{array}
+$$
+]
+
+---
+# Base Language: Contexts
+
+$$
+\newcommand{\Ctxt}            {\mathcal{E}}
+\newcommand{\InCtxt}  [1]     {\Ctxt[#1]}
+$$
+
+.mathSize8[
+$$
+  \begin{array}{rcl}
+    \Ctxt &:=& \square \alt \kcombine{\Ctxt}{(T\dots)}{E} \alt \kcombine{T}{(\Ctxt,T\dots)}{E}\\\
+    && \alt \kcombine{T}{(T\dots,\Ctxt,T\dots)}{E} \alt \kcombine{T}{(T\dots,\Ctxt)}{E}\\\
+  \end{array}
+$$
+]
+
+---
+# Base: Small-Step Semantics
+
+.mathSize8[
+$$
+  \begin{array}{rcl}
+    \InCtxt{E}    &\rightarrow& \InCtxt{E'} ~ (\text{if } E \rightarrow E')\\\
+    \keval{S}{E}  &\rightarrow& S\\\
+    \keval{s}{E}  &\rightarrow& lookup(s,E)\\\
+    \keval{(T_1~T_2\dots)}{E}  &\rightarrow& \kcombine{\keval{T_1}{E}}{(T_2\dots)}{E}\\\
+    \\\
+    \kcombine{\kcomb{(S~n)}{s'}{E'}{(s\dots)}{Tb}}{(V\dots)}{E} &\rightarrow& \kcombine{\kcomb{n}{s'}{E'}{s}{Tb}}{\\\&&\keval{V}{E}\dots}{E}\\\
+    \kcombine{\kcomb{0}{s'}{E'}{(s\dots)}{Tb}}{(V\dots)}{E} &\rightarrow& \keval{Tb}{\kenv{(s \leftarrow V)\dots}{s' \leftarrow E}{E'}}\\\
+    \\\
+    \kcombine{\kprim{(S~n)}{o}}{(V\dots)}{E} &\rightarrow& \kcombine{\kprim{n}{o}}{(\keval{V}{E}\dots)}{E}\\\
+  \end{array}
+$$
+]
+
+---
+# Base: Selected Primitives
+
+.mathSize8[
+$$
+  \begin{array}{rcl}
+    \kcombine{\kprim{0}{eval}}{(V~E')}{E} &\rightarrow& \keval{V}{E'}\\\
+    \kcombine{\kprim{0}{vau}}{(s'~(s\dots)~V)}{E} &\rightarrow& \kcomb{0}{s'}{E}{(s\dots)}{V}\\\
+    \kcombine{\kprim{0}{wrap}}{\kcomb{0}{s'}{E'}{(s\dots)}{V}}{E} &\rightarrow& \kcomb{1}{s'}{E'}{(s\dots)}{V}\\\
+    \kcombine{\kprim{1}{unwrap}}{\kcomb{1}{s'}{E'}{(s\dots)}{V}}{E} &\rightarrow& \kcomb{0}{s'}{E'}{(s\dots)}{V}\\\
+    \kcombine{\kprim{0}{if0}}{(V_c~V_t~V_e)}{E} &\rightarrow& \kcombine{\kprim{0}{vif0}}{\\&&(\keval{V_c}{E}~V_t~V_e)}{E}\\\
+    \kcombine{\kprim{0}{vif0}}{(0~V_t~V_e)}{E} &\rightarrow& \keval{V_t}{E}\\\
+    \kcombine{\kprim{0}{vif0}}{(n~V_t~V_e)}{E} &\rightarrow& \keval{V_e}{E} ~\text{(n != 0)}\\\
+    \kcombine{\kprim{0}{int-to-symbol}}{(n)}{E} &\rightarrow& 'sn ~\text{(symbol made out of the number n)}\\\
+    \kcombine{\kprim{0}{array}}{(V\dots)}{E} &\rightarrow& (V\dots)\\\
+  \end{array}
+$$
+]
+
+---
+# Selected Explanations
+
+.mathSize9[
+- \\(\kprim{0}{eval}\\): evaluates its argument in the given environment.
+- \\(\kprim{0}{vau}\\): creates a new combiner and is analogous to lambda in other languages, but with a "wrap level" of 0, meaning the created combiner does not evaluate its arguments.
+- \\(\kprim{0}{wrap}\\): increments the wrap level of its argument. Specifically, we are "wrapping" a "wrap level" n combiner (possibly "wrap level" 0, created by *vau* to create a "wrap level" n+1 combiner. A wrap level 1 combiner is analogous to regular functions in other languages.
+- \\(\kprim{0}{unwrap}\\): decrements the "wrap level" of the passed combiner, the inverse of *wrap*.
+- \\(\kprim{0}{if}\\): evaluates only its condition and converts to the \\(\kprim{0}{vif}\\) primitive for the next step. It cannot evaluate both branches due to the risk of non-termination.
+- \\(\kprim{0}{vif}\\): evaluates and returns one of the two branches based on if the condition is non-zero. 
+- \\(\kprim{0}{int-to-symbol}\\): creates a symbol out of an integer.
+- \\(\kprim{0}{array}\\): returns an array made out of its parameter list.
+]
+
+---
+# Less Interesting Prims
+
+.mathSize9[
+- \\(\kcombine{\kprim{0}{type-test?}}{(A)}{E}\\): *array?*, *comb?*, *int?*, and *symbol?*, each return 0 if the single argument is of that type, otherwise they return 1.
+- \\(\kcombine{\kprim{0}{len}}{(A)}{E}\\): returns the length of the single array argument.
+- \\(\kcombine{\kprim{0}{idx}}{(A~n)}{E}\\): returns the nth item array A.
+- \\(\kcombine{\kprim{0}{concat}}{(A~B)}{E}\\): combines both array arguments into a single concatenated array.
+- \\(\kcombine{\kprim{0}{+}}{(A~A)}{E}\\): adds its arguments
+- \\(\kcombine{\kprim{0}{<=}}{(A~A)}{E}\\): returns 0 if its arguments are in increasing order, and 1 otherwise.
+]
+
+---
+# Base Language Summary
+
+- This base calculus defined above is not only capable of normal lambda-calculus computations with primitives and derived user applicatives, but also supports a superset of macro-like behaviors via its support for operatives.
+- All of the advantages listed in the introduction apply to this calculus, as do the performance drawbacks, at least if implemented naively. Our partial evaluation and compilation framework will demonstrate how to compile this base language into reasonably performant binaries (WebAssembly bytecode, for our prototype).
+
+---
+class: center, middle, title
+# Slow
+--
+
+*so slow......*
+---
+# Partial Eval: How it works
+
+
+- Online, no binding time analysis
+- Partially Evaluate combiners with partially-static environments
+- Prevent infinate recursion by blocking on
+    - Recursive calls underneath a partially evaluated body
+    - Recursive path to *if*
+- Track call frames that need to be real to progress on every AST node
+    - Can zero-in on areas that will make progress
+    - Also tracks nodes previously stopped by recursion-stopper in case no longer under the frame that stopped the recursion
+- Evaluate derived calls with parameter values, inline result even if not value if it doesn't depend on call frame
+
+---
+# Partial Eval Semantics:
+
+.pull-left[![](images/Kraken_NonCall_PE_Semantics.png)]
+
+.pull-right[![](images/Kraken_Call_PE_Semantics.png)]
+
+---
+# Partial Eval Semantics:
+
+.pull-left[![](images/Kraken_aux_helpers.png)]
+
+.pull-right[![](images/Kraken_aux_helpers2.png)]
+
+---
+# Partial Eval Semantics:
+
+.pull-left[![](images/Kraken_aux_helpers3.png)]
+
+.pull-right[![](images/Kraken_pe_primitives.png)]
+
+---
+class: center, middle, title
+# Optimizations
+---
+# "The Trick" - Sorta...
+
+<pre><code class="remark_code">(lambda (f) (f (+ 1 2)))
+</code></pre>
+To something like
+<pre><code class="remark_code">function(f):
+  if wrap_level(f) == 1:
+    f(3)
+  else:
+    f([`+ 1 2])
+</code></pre>
+
+- Insert runtime check for dynamic call sites
+- When compiling in the wraplevel=1 side of conditional, further partial evaluate the parameter value
+- Only a single branch of overhead for dynamic function calls
+
+---
+# Lazy Environment Instantiation
+
+<pre><code class="remark_code">(lambda (f) (f))
+</code></pre>
+<pre><code class="remark_code">function(f):
+  if uses_env(f):
+    env_cache = make_env()
+    f(env_cache)
+  else:
+    f()
+</code></pre>
+
+Not only do we ask if *f* evaluate its parameters, but also does it take in an environment containing `{ f: <>, ...}`, etc
+
+---
+# Type-Inference-Based Primitive Inlining
+
+For instance, consider the following code:
+<pre><code class="remark_code">(cond (and (array? a) (= 3 (len a)))    (idx a 2)
+      true                              nil)
+</code></pre>
+
+- Call to *idx* fully inlined without type or bounds checking
+- No type information is needed to inline type predicates, as they only need to look at the tag bits.
+- Equality checks can be inlined as a simple word/ptr compare if any of its parameters are of a type that can be word/ptr compared (ints, bools, and symbols).
+
+---
+# Immediately-Called Closure Inlining
+
+Inlining calls to closure values that are allocated and then immediately used:
+
+This is inlined
+<pre><code class="remark_code">(let (a (+ 1 2))
+         (+ a 3))
+</code></pre>
+to this
+<pre><code class="remark_code">((wrap (vau (a) (+ a 3))) (+ 1 2))
+</code></pre>
+and then inlined (plus lazy environment allocation)
+
+
+---
+# Y-Combinator Elimination
+
+- When compiling a combiner, pre-emptive memoization
+- Partial-evaluation to normalize
+- Eager lang - extra lambda - eta-conversion in the compiler
+
+---
+# Current Status
+1. No longer *super* slow
+2. Fixed most BigO algo problems (any naive traversal is exponential)
+3. Otherwise, the implementation is slow (pure function, Chicken Scheme not built for it, mostly un-profiled and optimized, etc)
+4. Compiles wraplevel=0 combs to a assert(false), but simple to implement.
+5. Working through bugs - right now figuring out why some things don't partially evaluate as far as they should
+---
+# Benchmarks
+
+- Fib - Calculating the nth Fibonacci number
+- RB-Tree - Inserting n items into a red-black tree, then traversing the tree to sum its values
+- Deriv - Computing a symbolic derivative of a large expression
+- Cfold - Constant-folding a large expression
+- NQueens - Placing n number of queens on the board such that no two queens are diagonal, vertical, or horizontal from each other
+
+---
+# Results:
+
+Number of eval calls with no partial evaluation for Fexprs
+.mathSize8[
+$$
+	\begin{array}{||c | c c c c c ||} 
+		\hline
+		&Evals & Eval w1 Calls & Eval w0 Calls & Comp Dyn & Comp Dyn\\\ 
+        & & & & w1 Calls & w0 Calls\\\
+		\hline\hline
+		Cfold 5 & 10897376 & 2784275 & 879066  & 1 & 0 \\\ 
+		\hline
+		  Deriv 2  & 11708558 & 2990090 & 946500 & 1 & 0 \\\ 
+        \hline
+		  NQueens 7 & 13530241 & 3429161 & 1108393 & 1 & 0 \\\ 
+    \hline
+		  Fib 30 & 119107888 & 30450112 & 10770217 & 1 & 0 \\\ 
+    \hline
+		  RB-Tree 10 & 5032297 & 1291489 & 398104 & 1 & 0 \\\
+		\hline
+	\end{array}
+$$
+]
+
+Number of eval calls in Partially Evaluated Fexprs
+.mathSize8[
+$$
+	\begin{array}{||c | c c c c c ||} 
+		\hline
+		&Evals & Eval w1 Calls & Eval w0 Calls & Comp Dyn & Comp Dyn\\\ 
+        & & & & w1 Calls & w0 Calls\\\
+		\hline\hline
+		Cfold 5 & 0 & 0 & 0  & 0 & 0 \\\ 
+		\hline
+		  Deriv 2  & 0 & 0 & 0 & 2 & 0 \\\ 
+        \hline
+		  NQueens 7 & 0 & 0 & 0 & 0 & 0 \\\ 
+    \hline
+		  Fib 30 & 0 & 0 & 0 & 0 & 0 \\\
+    \hline
+		  RB-Tree 10 & 0 & 0 & 0 & 10 & 0 \\\ 
+		\hline
+	\end{array}
+$$
+]
+
+---
+# Results:
+Number of calls to the runtime's eval function for RB-Tree. The table shows the non-partial evaluation numbers -> partial evaluation numbers.
+
+.mathSize8[
+$$
+	\begin{array}{||c | c c c c c ||} 
+		\hline
+		&Evals & Eval w1 Calls & Eval w0 Calls & Comp Dyn & Comp Dyn\\\ 
+        & & & & w1 Calls & w0 Calls\\\
+		\hline\hline
+		  RB-Tree 7 & 2952848 -> 0 & 757932 -> 0 & 233513 -> 0 & 1 -> 7 & 0 -> 0\\\ 
+        \hline
+		  RB-Tree 8 & 3532131 -> 0 & 906548 -> 0 & 279379 -> 0 & 1 -> 8 & 0 -> 0\\\ 
+        \hline
+		  RB-Tree 9 & 4278001 -> 0 & 1097965 -> 0 & 3383831 -> 0 & 1 -> 9 & 0 -> 0\\\ 
+		\hline
+	\end{array}
+$$
+]
+
+
+---
+# Results:
+
+.pull-left[![](images/fib_table.csv_.png)]
+
+.pull-right[![](images/slow_fib_table.csv_.png)]
+
+---
+# Results:
+
+.pull-left[![](images/slow_rbtree_table.csv_.png)]
+
+.pull-right[![](images/slow_rbtree_table.csv_.png)]
+
+---
+# Results:
+
+.pull-left[![](images/rbtree_table.csv_.png)]
+
+.pull-right[![](images/rbtree_table.csv_log.png)]
+
+---
+# Results:
+
+.pull-right[![](images/cfold_table.csv_.png)]
+
+.pull-left[![](images/deriv_table.csv_.png)]
 
 ---
 # Current Research
@@ -263,57 +610,18 @@ Determining even what code will be evaluated is difficult.
 - Partial evaluation that supports naturaly-written operative combiners, like the running *or* example
 
 ---
-# Example time!
-1. We will wrap angle brackets <> around values that are not representable in the syntax of the language - i.e. + is a symbol that will be looked up in an environment, <+> is the addition function.
-2.  We will use square brackets [] to indiciate array values, and we will use a single quote to indicate symbol values ', for instance '+ is the symbol + as a value.
-3. Additionally, we will use curly braces ({}) to indicate the environment (mapping symbols to values). Elipses will be used to omit unnecessary information.
-4. Finally, we will not show the static environment nested in combiners, but know that each combiner carries with it the environment it was created with, which becomes the upper environment when its body is executing (the immediate environment being populated with the parameters).
----
-# A few more things..
-1. ; is the comment character for the language
-2. We will sometimes make larger evaluation jumps for (some) brevity
-3. wraplevel is how many times a combiner will evaluate its parameters before the body starts executing. 0 makes it work like a macro, 1 is like a function, etc
-4. Wrap takes a combiner and returns the same combiner with an incremented wraplevel, unwrap does the reverese
-5. Typing these examples by hand is too finicky, next time they'll be autogenerated with color by the prototype partial evaluator!
----
-{ ...root environment...}
-(wrap (vau (n) (* n 2)))
----
-# Small Vau-specific Example (implementing quote)
-{ ...root environment...}
-((vau (x) x) hello)
----
-# Conclusion: slow
-1. Look at all of the steps it took to simply get a function value that multiplies by 2!
-2. This would make our program much slower if this happened at runtime, for every function in the program.
-3. What's the solution? Partial Evaluation!
----
-# Partial Eval: How it works
-1. Evaluate as much as possible ahead of time, at compile time.
-2. If some call sites are indeterminate, they can still be compiled, but there will have to be a runtime check inserted that splits evaluation based on if the combiner evaluates its parameters or not, and eval and all builtins will have to be compiled into the resulting executable.
-3. When compiling in the wraplevel=1 side of conditional, further partial evaluate the parameter value
----
-# Partial evaluation could have done all the work from that last big example at compile time, leaving only the final value to be compiled:
-<comb wraplevel=1 (n) (* n 2)>
+# Future
 
-Additionally, if this was a more complex function that used other functions, those functions would also generally be fully partially evaluated at compile time.
-It's the full power of Vau/Combiners/Fexprs with the expected runtime performance of Scheme!
+- Partial Evaluation / Kraken evolution:
+    - More standard Scheme
+    - Environments as association-lists
+    - More flexiably-written macro-like fexprs
+- Performance: Better Reference Counting, Tail-Recursion Modulo Cons
+- Implement Delimited Continuations as Fexprs
+- Allow type systems to be built using Fexprs, like the type-systems-as-macros paper (https://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf).
 ---
-# Partial Eval: Current Status
-1. No longer *super* slow
-2. Fixed most BigO algo problems (any naive traversal is exponential)
-3. Otherwise, the implementation is slow (pure function, Chicken Scheme not built for it, mostly un-profiled and optimized, etc)
-4. Compiles wraplevel=0 combs to a assert(false), but simple to implement.
-5. Working through bugs - right now figuring out why some things don't partially evaluate as far as they should
----
-# Partial Eval: Future
-Allow type systems to be built using Vaus, like the type-systems-as-macros paper (https://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf).
-This type system could pass down type hints to the partial evaluator, enabling:
-
-2. Compiletime: Drop optimizing compiled version if wraplevel=0
-3. Compiletime: Drop emitting constant code for if wraplevel=1
-4. Runtime: Eliminate branch on wrap level
-5. Runtime: Eliminate other typechecks for builtin functions
+class: center, middle, title
+# Backup Slides
 ---
 # Introduction
 
@@ -346,6 +654,16 @@ boro
 		<script type="module">
 import {CodeJar} from './codejar.js'
 window.loadEverything = function() {
+  var renderMath = function() {
+    //renderMathInElement(document.body);
+    //renderMathInElement(document.body, {delimiters: [
+    //  {left: "$$",  right: "$$",  display: true},
+    //  {left: "$",   right: "$",   display: false},
+    //  {left: "\\[", right: "\\]", display: true},
+    //  {left: "\\(", right: "\\)", display: false},
+    //]});
+  }
+  //var slideshow = remark.create({}, renderMath); 
   var slideshow = remark.create(); 
   document.querySelectorAll('.editor').forEach((editor_div) => {
       if (window[editor_div.id + "_jar"] == undefined) {
@@ -371,6 +689,12 @@ window.loadEverything = function() {
        }
     }
   })
+  MathJax.Hub.Config({
+    tex2jax: {
+      skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+    }
+  });
+  MathJax.Hub.Configured();
 }
 		</script>
 		<script>
@@ -394,5 +718,7 @@ window.loadEverything = function() {
 		</script>
 		<script type="text/javascript" src="k_prime.js"></script>
         <script src="remark-latest.min.js"></script>
+        <!--<script src="MathJax.js"></script>-->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS_HTML&delayStartupUntil=configured" type="text/javascript"></script>
   </body>
 </html>

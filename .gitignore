@@ -9,7 +9,6 @@ build-ninja
 *.swi
 *.swj
 *.swk
-*.png
 .*.un~
 callgrind*
 .stfolder
