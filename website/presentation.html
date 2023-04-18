@@ -40,15 +40,17 @@ _Fexprs are a better foundation for functional Lisps_
 
 # Agenda
 
-1. Fexprs Intro
-2. Past Work: Practical compilation of fexprs using partial evaluation
-3. Current Work: Scheme & the more generic re-do
-4. Future Work: Layered Languages, DSLs
+1. Fexprs Intro / Lisp Background
+2. Macro and Fexpr comparison
+3. Fexpr problems
+4. Past Work: Practical compilation of fexprs using partial evaluation
+5. Current Work: Scheme & the more generic re-do
+6. Future Work: Delimited Continuations, Layered Languages, DSLs
 ---
 class: center, middle, title
 # Fexprs Intro
 
-_The Lisp Wars_
+_Lisp Background_
 ---
 # Background: Lisp
 
@@ -115,7 +117,7 @@ Pattern matching, hygenic by default
 ---
 # Background: Fexprs
 
-Something of a combo between the two - direct style, but naturally hygenic by default.
+Something of a combo between the two - direct style, but naturally hygienic by default.
 <pre><code class="remark_code">(vau de (a b) (let ((temp (eval a de)))
                     (if temp
                         temp
@@ -125,7 +127,7 @@ Something of a combo between the two - direct style, but naturally hygenic by de
 # Background: Fexprs - detail
 
 Ok, Fexprs are calls to combiners - combiners are either applicatives or operatives.
-Combiners are introduced with _vau_ and take an extra paramter (here called _dynamic_env_, earlier called _de_) which is the dynamic environment.
+Combiners are introduced with _vau_ and take an extra parameter (here called _dynamic_env_, earlier called _de_) which is the dynamic environment.
 <pre><code class="remark_code">(vau dynamicEnv (normalParam1 normalParam2) (body of combiner))
 </code></pre>
 --
@@ -189,7 +191,7 @@ But in Kraken, _or_ is a combiner (an operative!), so it's first-class
                     (if temp temp
                              (eval b de))))
 </code></pre>
-So it's pefectly legal to pass to a higher-order combiner:
+So it's perfectly legal to pass to a higher-order combiner:
 <pre><code class="remark_code">> (foldl or false (array true false))
 true
 </code></pre>
@@ -212,7 +214,7 @@ What were special forms in Lisp are now just built-in combiners in Kraken.
 # Motivation and examples
 
 1. Vau/Combiners unify and make first class functions, macros, and built-in forms in a single simple system
-2. They are also much simpler conceptually than macro systems while being hygenic by default
+2. They are also much simpler conceptually than macro systems while being hygienic by default
 3. Downside: naively executing a language using combiners instead of macros is exceedingly slow
 	4. The code of the operative combiner (analogus to a macro invocation) is re-executed at runtime, every time it is encountered
 	5. Additionally, because it is unclear what code will be evaluated as a parameter to a function call and what code must be passed unevaluated to the combiner, little optimization can be done.
@@ -226,10 +228,10 @@ What were special forms in Lisp are now just built-in combiners in Kraken.
 ---
 # Intuition
 
-Macros, espicially *define-macro* macros, are essentially functions that runat expansion time and compute new code from old code.
+Macros, especially *define-macro* macros, are essentially functions that run at expansion time and compute new code from old code.
 This is essentially partial evaluation / inlining, depending on how you look at it.
 
-It thus makes sense to ask if we can identify and partial evaluate / inline operative combiners to remove and optimize them like macros. Indeed, if we can determine what calls are to applicative combiners we can optimize their parameters, and if we can determine what calls are to macro-like operative combiners, we can try to do the equlivant of macro expansion.
+It thus makes sense to ask if we can identify and partial evaluate / inline operative combiners to remove and optimize them like macros. Indeed, if we can determine what calls are to applicative combiners we can optimize their parameters, and if we can determine what calls are to macro-like operative combiners, we can try to do the equivalent of macro expansion.
 
 For Kraken, this is exactly what we do, using a specialized form of Partial Evaluation to do so.
 ---
@@ -242,18 +244,18 @@ So what's the hard part? Why hasn't this been done before?
 Determining even what code will be evaluated is difficult.
 
 - Partial Evaluation
-  - Can't use a binding time analysis pass with offline partial evaluation, which elminates quite a bit of mainline partial evaluation research
+  - Can't use a binding time analysis pass with offline partial evaluation, which eliminates quite a bit of mainline partial evaluation research
   - Online partial evaluation research generally does not have to deal with the same level of partially/fully dynamic and sometimes explicit environments
       - woo
 ---
 # Research
 
-- *Practical compilation of fexprs using partial evaluation*
+- *Practical compilation of Fexprs using partial evaluation*
   - Currently under review for ICFP '23
   - Wrote partial evaluator with compiler
       - Heavily specialized to optimize away operative combiners like macros written in a specific way
       - Prototype faster than Python and other interpreted Lisps
-      - Static calls fully optimized like a normal function call in other langauges
+      - Static calls fully optimized like a normal function call in other languages
       - Dynamic calls have a single branch of overhead - if normal applicative combiner function like call, post-branch optimized as usual
       - Optimizes away Y Combinator recursion to static recursive jumps (inc tail call opt)
   - Bit of an odd language: purely functional, array based, environment values
@@ -607,7 +609,7 @@ $$
 - More normal language: purely functional Scheme
 - Environments are just association lists
   - Fully manipulateable as normal list/pairs
-- Partial evaluation that supports naturaly-written operative combiners, like the running *or* example
+- Partial evaluation that supports naturally-written operative combiners, like the running *or* example
 
 ---
 # Future
@@ -615,7 +617,7 @@ $$
 - Partial Evaluation / Kraken evolution:
     - More standard Scheme
     - Environments as association-lists
-    - More flexiably-written macro-like fexprs
+    - More flexibly-written macro-like fexprs
 - Performance: Better Reference Counting, Tail-Recursion Modulo Cons
 - Implement Delimited Continuations as Fexprs
 - Allow type systems to be built using Fexprs, like the type-systems-as-macros paper (https://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf).
@@ -639,12 +641,6 @@ Here's some test code:
 <pre><code class="remark_code" id="hello_editor_output">output here...</code></pre>
 <button class="run_button" onclick="executeKraken(hello_editor_jar[1].toString(), 'hello_editor_output')">Rerun</button> <br>
 ]
----
-
-
-# Another slideo
-
-boro
 
 </textarea>
 
