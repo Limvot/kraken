@@ -24,7 +24,11 @@ h1 {
   float: right;
   width: 48%;
 }
+.fullWidthImg > * { width: 95%; }
 .rerun_container { position: relative; }
+.mathSize9 { font-size: 0.9em; }
+.mathSize8 { font-size: 0.8em; }
+.mathSize6 { font-size: 0.6em; }
     </style>
   </head>
   <body onload="loadEverything();">
@@ -52,6 +56,12 @@ class: center, middle, title
 
 _Lisp Background_
 ---
+(from Wikipedia)
+.fullWidthImg[![](images/lisp_timeline_screenshot.png)]
+---
+(from Wikipedia)
+.fullWidthImg[![](images/lisp_timeline_screenshot_edited.png)]
+---
 # Background: Lisp
 
 A quick overview:
@@ -64,14 +74,13 @@ A quick overview:
 Essentially every non-atomic expression is a parentheses delimited list.
 This is true for:
 <pre><code class="remark_code">(+ 1 2)                     ; function calls, evaluates to 3
-
 (if false (+ 1 2) (- 1 2))  ; other special forms like if
-
 (let ((a 1)
       (b 2))                ; or let
       (+ a b))
-
 (lambda (a b) (+ a b))      ; or lambda to create closures
+(quote (1 a 3))             ; (equivalent to (list 1 'a 3)
+'(+ 1 2)                    ; expands to (quote (+ 1 2)) -> (list '+ 1 2)
 </code></pre>
 
 ---
@@ -194,6 +203,34 @@ But in Kraken, _or_ is a combiner (an operative!), so it's first-class
 So it's perfectly legal to pass to a higher-order combiner:
 <pre><code class="remark_code">> (foldl or false (array true false))
 true
+</code></pre>
+---
+# Background: Fexprs - detail
+<pre><code class="remark_code"> foldr:
+(let (helper (rec-lambda recurse (f z vs i)
+          (if (= i (len (idx vs 0)))
+              z
+              (lapply f (snoc (recurse f z vs (+ i 1))
+                              (map (lambda (x) (idx x i)) vs))))))
+     (lambda (f z & vs) (helper f z vs 0)))
+</code></pre>
+(lapply reduces the wrap-level of the function by 1, equivalent to quoting the inputs)
+---
+# Background: Fexprs - detail
+<pre><code class="remark_code"> foldr:
+(rec-lambda recurse (f z l)
+          (if (= nil l)
+              z
+              (lapply f (list (car l) (recurse f z (cdr l))))))
+</code></pre>
+(lapply reduces the wrap-level of the function by 1, equivalent to quoting the inputs)
+---
+# Background: Fexprs - detail
+<pre><code class="remark_code"> foldr:
+(rec-lambda recurse (f z l)
+          (if (= nil l)
+              z
+              (f (car l) (recurse f z (cdr l)))))
 </code></pre>
 ---
 # Background: Fexprs - detail
@@ -339,7 +376,7 @@ $$
     \kcombine{\kprim{0}{vau}}{(s'~(s\dots)~V)}{E} &\rightarrow& \kcomb{0}{s'}{E}{(s\dots)}{V}\\\
     \kcombine{\kprim{0}{wrap}}{\kcomb{0}{s'}{E'}{(s\dots)}{V}}{E} &\rightarrow& \kcomb{1}{s'}{E'}{(s\dots)}{V}\\\
     \kcombine{\kprim{1}{unwrap}}{\kcomb{1}{s'}{E'}{(s\dots)}{V}}{E} &\rightarrow& \kcomb{0}{s'}{E'}{(s\dots)}{V}\\\
-    \kcombine{\kprim{0}{if0}}{(V_c~V_t~V_e)}{E} &\rightarrow& \kcombine{\kprim{0}{vif0}}{\\&&(\keval{V_c}{E}~V_t~V_e)}{E}\\\
+    \kcombine{\kprim{0}{if0}}{(V_c~V_t~V_e)}{E} &\rightarrow& \kcombine{\kprim{0}{vif0}}{\\\&&(\keval{V_c}{E}~V_t~V_e)}{E}\\\
     \kcombine{\kprim{0}{vif0}}{(0~V_t~V_e)}{E} &\rightarrow& \keval{V_t}{E}\\\
     \kcombine{\kprim{0}{vif0}}{(n~V_t~V_e)}{E} &\rightarrow& \keval{V_e}{E} ~\text{(n != 0)}\\\
     \kcombine{\kprim{0}{int-to-symbol}}{(n)}{E} &\rightarrow& 'sn ~\text{(symbol made out of the number n)}\\\

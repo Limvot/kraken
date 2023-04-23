@@ -26,9 +26,6 @@ body {
 	padding: 0 .62em;
 	font: 1.2em/1.62 'Recursive', sans-serif;
 }
-.mathSize9 { font-size: 0.9em; }
-.mathSize8 { font-size: 0.8em; }
-.mathSize6 { font-size: 0.6em; }
 //body, .remark-slide-content { background-color: #eff3f5; }
 body, .remark-slide-content { background-color: #f5f3ef; }
 h1, h2, h3, h4 {
