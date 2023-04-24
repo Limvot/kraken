@@ -13,8 +13,11 @@ body { max-width: unset; }
 	line-height:1;
 }
 h1 {
-  font-size: 2.5em;
   line-height:1;
+
+  --rec-wght: 700;
+  //--rec-slnt: -0;
+  --rec-casl: 0.40;
 }
 .pull-left > * {
   float: left;
@@ -55,6 +58,13 @@ class: center, middle, title
 # Fexprs Intro
 
 _Lisp Background_
+---
+# Background: Fexprs in Lisp
+
+- 1960s - In earliest Lisps
+- 1980 - Argument that they shoudln't be included due to inability for static analysis to fix optimization problems (Kent Pitman, "Special Forms in Lisp")
+- 1998 - Adding fexprs to lambda calculus produces a trivial theory (Mitchell Wand, "The Theory of Fexprs is Trivial")
+- 2010 - Fexprs are not trivial with internal syntax, make sense with lexical scoping (John Shutt, "Fexprs as the basis of Lisp function application or $ vau: the ultimate abstraction", also earlier papers)
 ---
 (from Wikipedia)
 .fullWidthImg[![](images/lisp_timeline_screenshot.png)]
@@ -147,29 +157,15 @@ This function takes in code as a data structure, and in R5RS Scheme an "environm
 # Background: Fexprs - detail
 
 - **Normal Lisp** (Scheme, Common Lisp, etc)
---
-
   - Functions - runtime, evaluate parameters once, return value
---
-
   - Macros - expansion time, do not evaluate parameters, return code to be inlined
---
-
   - Special Forms - look like function or macro calls, but do something special (if, lambda, etc)
 --
 
 - **Kraken** (and Kernel)
---
-
   - Combiners
---
-
       - Applicatives (like normal functions, combiners that evaluate all their parameters once in their dynamic environment)
---
       - Operatives (combiners that do something unusual with their parameters, do not evaluate them right away)
---
-
-_Operatives can replace macros and special forms, so combiners replace all_
 ---
 # Background: Fexprs - detail
 
@@ -182,15 +178,14 @@ As we've mentioned, in Scheme _or_ is a macro expanding
 <pre><code class="remark_code">(or a b)
 </code></pre>
 to
-<pre><code class="remark_code">(let ((temp a))
-      (if temp temp 
-               b))
+<pre><code class="remark_code">(let ((temp a)) (if temp temp b))
 </code></pre>
 
 So passing it to a higher-order function doesn't work, you have to wrap it in a function:
 <pre><code class="remark_code">> (fold or #f (list #t #f))
 Exception: invalid syntax and 
-> (fold (lambda (a b) (or a b)) #f (list #t #f))
+</code></pre>
+<pre><code class="remark_code">> (fold (lambda (a b) (or a b)) #f (list #t #f))
 #t
 </code></pre>
 ---
@@ -207,25 +202,12 @@ true
 ---
 # Background: Fexprs - detail
 <pre><code class="remark_code"> foldr:
-(let (helper (rec-lambda recurse (f z vs i)
-          (if (= i (len (idx vs 0)))
-              z
-              (lapply f (snoc (recurse f z vs (+ i 1))
-                              (map (lambda (x) (idx x i)) vs))))))
-     (lambda (f z & vs) (helper f z vs 0)))
-</code></pre>
-(lapply reduces the wrap-level of the function by 1, equivalent to quoting the inputs)
----
-# Background: Fexprs - detail
-<pre><code class="remark_code"> foldr:
 (rec-lambda recurse (f z l)
           (if (= nil l)
               z
               (lapply f (list (car l) (recurse f z (cdr l))))))
 </code></pre>
 (lapply reduces the wrap-level of the function by 1, equivalent to quoting the inputs)
----
-# Background: Fexprs - detail
 <pre><code class="remark_code"> foldr:
 (rec-lambda recurse (f z l)
           (if (= nil l)
@@ -233,22 +215,7 @@ true
               (f (car l) (recurse f z (cdr l)))))
 </code></pre>
 ---
-# Background: Fexprs - detail
-
-All special forms in Kaken are combiners too, and are thus also first class.
-In this case, we can not only pass the raw _if_ around, but we can make an _inverse_if_ which inverts its condition (kinda macro-like)  and pass it around.
-<pre><code class="remark_code">> (let ((use_if (lambda (new_if) (new_if true 1 2)))
-        (inverse_if (vau de (c t e) (if (not (eval c de))
-                                        (eval t de)
-                                        (eval e de))))
-       )
-       (list (use_if if) (use_if inverse_if)))
-(1 2)
-</code></pre>
-What were special forms in Lisp are now just built-in combiners in Kraken.
-*if* is not any more special than *+*, and in both cases you can define your own versions that would be indistinguishable, and in both cases they are first-class.
----
-# Motivation and examples
+# Pros and Cons
 
 1. Vau/Combiners unify and make first class functions, macros, and built-in forms in a single simple system
 2. They are also much simpler conceptually than macro systems while being hygienic by default
@@ -258,10 +225,8 @@ What were special forms in Lisp are now just built-in combiners in Kraken.
 
 ---
 # Solution: Partial Eval
-1. Partially evaluate a purely functional version of this language in a nearly-single pass over the entire program
-2. Environment chains consisting of both "real" environments with every contained symbol mapped to a value and "fake" environments that only have placeholder values.
-3. Since the language is purely functional, we know that if a symbol evaluates to a value anywhere, it will always evaluate to that value at runtime, and we can perform inlining and continue partial evaluation.
-4. If the resulting partially-evaluated program only contains static references to a subset of built in combiners and functions (combiners that evaluate their parameters exactly once), the program can be compiled just like it was a normal Scheme program
+1. Evaluate parts of program that only depend on statically-known data ahead of time and insert resulting values into generated code
+2. The parts of the resulting partially-evaluated program that only contains static references to a subset of built in combiners and functions (combiners that evaluate their parameters exactly once) can be compiled just like it was a normal Scheme program
 ---
 # Intuition
 
@@ -276,14 +241,13 @@ For Kraken, this is exactly what we do, using a specialized form of Partial Eval
 
 So what's the hard part? Why hasn't this been done before?
 
-- Detour through Lisp history?
+- Previously mentioned history
 
 Determining even what code will be evaluated is difficult.
 
 - Partial Evaluation
   - Can't use a binding time analysis pass with offline partial evaluation, which eliminates quite a bit of mainline partial evaluation research
-  - Online partial evaluation research generally does not have to deal with the same level of partially/fully dynamic and sometimes explicit environments
-      - woo
+  - Online partial evaluation research generally does not have to deal with the same level of partially/fully dynamic first-class explicit environments
 ---
 # Research
 
@@ -386,32 +350,6 @@ $$
 ]
 
 ---
-# Selected Explanations
-
-.mathSize9[
-- \\(\kprim{0}{eval}\\): evaluates its argument in the given environment.
-- \\(\kprim{0}{vau}\\): creates a new combiner and is analogous to lambda in other languages, but with a "wrap level" of 0, meaning the created combiner does not evaluate its arguments.
-- \\(\kprim{0}{wrap}\\): increments the wrap level of its argument. Specifically, we are "wrapping" a "wrap level" n combiner (possibly "wrap level" 0, created by *vau* to create a "wrap level" n+1 combiner. A wrap level 1 combiner is analogous to regular functions in other languages.
-- \\(\kprim{0}{unwrap}\\): decrements the "wrap level" of the passed combiner, the inverse of *wrap*.
-- \\(\kprim{0}{if}\\): evaluates only its condition and converts to the \\(\kprim{0}{vif}\\) primitive for the next step. It cannot evaluate both branches due to the risk of non-termination.
-- \\(\kprim{0}{vif}\\): evaluates and returns one of the two branches based on if the condition is non-zero. 
-- \\(\kprim{0}{int-to-symbol}\\): creates a symbol out of an integer.
-- \\(\kprim{0}{array}\\): returns an array made out of its parameter list.
-]
-
----
-# Less Interesting Prims
-
-.mathSize9[
-- \\(\kcombine{\kprim{0}{type-test?}}{(A)}{E}\\): *array?*, *comb?*, *int?*, and *symbol?*, each return 0 if the single argument is of that type, otherwise they return 1.
-- \\(\kcombine{\kprim{0}{len}}{(A)}{E}\\): returns the length of the single array argument.
-- \\(\kcombine{\kprim{0}{idx}}{(A~n)}{E}\\): returns the nth item array A.
-- \\(\kcombine{\kprim{0}{concat}}{(A~B)}{E}\\): combines both array arguments into a single concatenated array.
-- \\(\kcombine{\kprim{0}{+}}{(A~A)}{E}\\): adds its arguments
-- \\(\kcombine{\kprim{0}{<=}}{(A~A)}{E}\\): returns 0 if its arguments are in increasing order, and 1 otherwise.
-]
-
----
 # Base Language Summary
 
 - This base calculus defined above is not only capable of normal lambda-calculus computations with primitives and derived user applicatives, but also supports a superset of macro-like behaviors via its support for operatives.
@@ -420,9 +358,6 @@ $$
 ---
 class: center, middle, title
 # Slow
---
-
-*so slow......*
 ---
 # Partial Eval: How it works
 
@@ -483,16 +418,15 @@ To something like
 
 <pre><code class="remark_code">(lambda (f) (f))
 </code></pre>
+compiled to equivalent of
 <pre><code class="remark_code">function(f):
   if uses_env(f):
-    env_cache = make_env()
+    if not env_cache:
+      env_cache = make_env()
     f(env_cache)
   else:
     f()
 </code></pre>
-
-Not only do we ask if *f* evaluate its parameters, but also does it take in an environment containing `{ f: <>, ...}`, etc
-
 ---
 # Type-Inference-Based Primitive Inlining
 
@@ -528,12 +462,10 @@ and then inlined (plus lazy environment allocation)
 - Eager lang - extra lambda - eta-conversion in the compiler
 
 ---
-# Current Status
-1. No longer *super* slow
-2. Fixed most BigO algo problems (any naive traversal is exponential)
-3. Otherwise, the implementation is slow (pure function, Chicken Scheme not built for it, mostly un-profiled and optimized, etc)
-4. Compiles wraplevel=0 combs to a assert(false), but simple to implement.
-5. Working through bugs - right now figuring out why some things don't partially evaluate as far as they should
+# Outcomes
+1. All macro-like combiner calls are partially evaluated away
+2. No interpreted evaluation calls remain
+3. Optimizations allow reasonable performance
 ---
 # Benchmarks
 
@@ -614,53 +546,93 @@ $$
 
 ---
 # Results:
+.fullWidthImg[![](images/fib_table.csv_.png)]
+---
+# Results:
+.fullWidthImg[![](images/slow_fib_table.csv_.png)]
+---
+# Results:
+.fullWidthImg[![](images/slow_rbtree_table.csv_.png)]
+---
+# Results:
+.fullWidthImg[![](images/rbtree_table.csv_.png)]
+---
+# Results: (log scale)
+.fullWidthImg[![](images/rbtree_table.csv_log.png)]
+---
+# Results:
+.fullWidthImg[![](images/cfold_table.csv_.png)]
+---
+# Results:
+.fullWidthImg[![](images/deriv_table.csv_.png)]
+---
+# Current & Future
 
+- Partial Evaluation / Kraken evolution:
+    - More normal language: purely functional Scheme
+    - More standard Scheme
+    - Environments as association-lists
+        - Fully manipulateable as normal list/pairs
+    - Partial evaluation that supports naturally-written operative combiners, like the running *or* example
+    - Performance: Better Reference Counting, Tail-Recursion Modulo Cons
+- Implement Delimited Continuations as Fexprs
+- Implement Automatic Differentiation as Fexprs
+- Investigate Hardware as Fexprs
+- Allow type systems to be built using Fexprs, like the type-systems-as-macros paper
+---
+class: center, middle, title
+# Backup Slides
+---
+# Background: Fexprs - detail
+
+All special forms in Kaken are combiners too, and are thus also first class.
+In this case, we can not only pass the raw _if_ around, but we can make an _inverse_if_ which inverts its condition (kinda macro-like)  and pass it around.
+<pre><code class="remark_code">> (let ((use_if (lambda (new_if) (new_if true 1 2)))
+        (inverse_if (vau de (c t e) (if (not (eval c de))
+                                        (eval t de)
+                                        (eval e de))))
+       )
+       (list (use_if if) (use_if inverse_if)))
+(1 2)
+</code></pre>
+What were special forms in Lisp are now just built-in combiners in Kraken.
+*if* is not any more special than *+*, and in both cases you can define your own versions that would be indistinguishable, and in both cases they are first-class.
+---
+# Solution: Partial Eval
+1. Partially evaluate a purely functional version of this language in a nearly-single pass over the entire program
+2. Environment chains consisting of both "real" environments with every contained symbol mapped to a value and "fake" environments that only have placeholder values.
+4. The parts of the resulting partially-evaluated program that only contains static references to a subset of built in combiners and functions (combiners that evaluate their parameters exactly once) can be compiled just like it was a normal Scheme program
+---
+# Selected Explanations
+
+.mathSize9[
+- \\(\kprim{0}{eval}\\): evaluates its argument in the given environment.
+- \\(\kprim{0}{vau}\\): creates a new combiner and is analogous to lambda in other languages, but with a "wrap level" of 0, meaning the created combiner does not evaluate its arguments.
+- \\(\kprim{0}{wrap}\\): increments the wrap level of its argument. Specifically, we are "wrapping" a "wrap level" n combiner (possibly "wrap level" 0, created by *vau* to create a "wrap level" n+1 combiner. A wrap level 1 combiner is analogous to regular functions in other languages.
+- \\(\kprim{0}{unwrap}\\): decrements the "wrap level" of the passed combiner, the inverse of *wrap*.
+- \\(\kprim{0}{if}\\): evaluates only its condition and converts to the \\(\kprim{0}{vif}\\) primitive for the next step. It cannot evaluate both branches due to the risk of non-termination.
+- \\(\kprim{0}{vif}\\): evaluates and returns one of the two branches based on if the condition is non-zero. 
+- \\(\kprim{0}{int-to-symbol}\\): creates a symbol out of an integer.
+- \\(\kprim{0}{array}\\): returns an array made out of its parameter list.
+]
+
+---
+# Less Interesting Prims
+
+.mathSize9[
+- \\(\kcombine{\kprim{0}{type-test?}}{(A)}{E}\\): *array?*, *comb?*, *int?*, and *symbol?*, each return 0 if the single argument is of that type, otherwise they return 1.
+- \\(\kcombine{\kprim{0}{len}}{(A)}{E}\\): returns the length of the single array argument.
+- \\(\kcombine{\kprim{0}{idx}}{(A~n)}{E}\\): returns the nth item array A.
+- \\(\kcombine{\kprim{0}{concat}}{(A~B)}{E}\\): combines both array arguments into a single concatenated array.
+- \\(\kcombine{\kprim{0}{+}}{(A~A)}{E}\\): adds its arguments
+- \\(\kcombine{\kprim{0}{<=}}{(A~A)}{E}\\): returns 0 if its arguments are in increasing order, and 1 otherwise.
+]
+---
+# Results:
 .pull-left[![](images/fib_table.csv_.png)]
 
 .pull-right[![](images/slow_fib_table.csv_.png)]
 
----
-# Results:
-
-.pull-left[![](images/slow_rbtree_table.csv_.png)]
-
-.pull-right[![](images/slow_rbtree_table.csv_.png)]
-
----
-# Results:
-
-.pull-left[![](images/rbtree_table.csv_.png)]
-
-.pull-right[![](images/rbtree_table.csv_log.png)]
-
----
-# Results:
-
-.pull-right[![](images/cfold_table.csv_.png)]
-
-.pull-left[![](images/deriv_table.csv_.png)]
-
----
-# Current Research
-
-- More normal language: purely functional Scheme
-- Environments are just association lists
-  - Fully manipulateable as normal list/pairs
-- Partial evaluation that supports naturally-written operative combiners, like the running *or* example
-
----
-# Future
-
-- Partial Evaluation / Kraken evolution:
-    - More standard Scheme
-    - Environments as association-lists
-    - More flexibly-written macro-like fexprs
-- Performance: Better Reference Counting, Tail-Recursion Modulo Cons
-- Implement Delimited Continuations as Fexprs
-- Allow type systems to be built using Fexprs, like the type-systems-as-macros paper (https://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf).
----
-class: center, middle, title
-# Backup Slides
 ---
 # Introduction
 
