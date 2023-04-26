@@ -225,6 +225,16 @@ $$
 \newcommand{\kcomb}    [5] {\langle \textbf{comb} ~ #1 ~ #2 ~ #3 ~ #4 ~ #5\rangle}
 \newcommand{\keval}    [2] {[\text{eval} ~ #1 ~ #2]}
 \newcommand{\kcombine} [3] {[\text{combine} ~ #1 ~ #2 ~ #3 ]}
+\newcommand{\kmkd}    [2] {/#1/#2}
+\newcommand{\kval}        {\mathsf{val}}
+\newcommand{\kfresh}      {\mathsf{freshCall}}
+\newcommand{\falsev}          {\mathsf{false}}
+\newcommand{\truev}           {\mathsf{true}}
+\newcommand{\kpval}     [4] {[\text{peval} ~ #1 ~ #2 ~ #3 ~ #4]}
+\newcommand{\kpcombine} [5] {[\text{combine} ~ #1 ~ #2 ~ #3 ~ #4 ~ #5]}
+\newcommand{\kpeval}      [5] {[\text{peval} ~ #1 ~ #2 ~ #3 ~ #4 ~ #5]}
+\newcommand{\kunval}  [1] {\text{unval}(#1)}
+\newcommand{\katt}    [2] {\mathsf{atmdCall}~#1~#2}
 $$
 
 .mathSize8[
@@ -327,8 +337,87 @@ Marco expansion kind of *is* partial evaluation!
     - Also tracks nodes previously stopped by recursion-stopper in case no longer under the frame that stopped the recursion
 - Evaluate derived calls with parameter values, inline result even if not value if it doesn't depend on call frame
 ---
-# Partial Eval Rule Walkthrough
+# Partial Eval Example
 
+
+.mathSize8[
+$$
+  \begin{array}{cc}
+           \\\
+           (+~1~2) & \text{The initial code}\\\
+           \\\
+           \kmkd{\kval}{(\kmkd{\emptyset}{+}~1~2)} & \text{Marked}\\\
+           \\\
+           \kmkd{\kfresh}{(\kmkd{\truev}{+}~1~2)} & \text{Then unvaled}\\\
+           \\\
+           \kpval{\kmkd{\kfresh}{(\kmkd{\truev}{+}~1~2)}}{\kmkd{i_r}{E}}{ES}{FS} & \text{We can't show the entire env,}\\\
+           &\text{but for illustration say that E}\\\
+           &\text{maps "+" to the primitive}\\\
+           &\text{+ combiner}\\\
+           \\\
+           \kpcombine{\kpeval{\kmkd{\truev}{+}}{\kmkd{i_r}{E}}{ES}{FS}}{(1~2)}{\kmkd{i_r}{E}}{ES}{FS} & \text{Begin call, PV combiner}\\\
+           \\\
+\kpcombine{\kprim{1}{+}}{(1~2)}{\kmkd{i_r}{E}}{ES}{FS} & \text{Lookup replaces the symbol +}\\\
+& \text{with the primitive} \\\&\text{combiner}\\\
+  \end{array}
+$$
+]
+---
+# Partial Eval Example
+
+
+.mathSize8[
+$$
+  \begin{array}{cc}
+           \\\
+      \kpcombine{\kprim{0}{+}}{(\kpval{\kunval{1}}{\kmkd{i_r}{E}}{ES}{FS} & \text{Unval+PartialEval to evaluate}\\\
+           \\\
+      \kpval{\kunval{2}}{\kmkd{i_r}{E}}{ES}{FS})}{\kmkd{i_r}{E}}{ES}{FS} & \text{parameters, but integers stay the} \\\&\text{same}\\\
+      \\\
+      \kpcombine{\kprim{0}{+}}{(1~2)}{\kmkd{i_r}{E}}{ES}{FS} & \text{And then the call}\\\
+           \\\
+      +(1~2) & \text{Primitive does the calculation}\\\
+           \\\
+      3 & \text{result is 3, as expected,}\\\
+      & \text{which is legal to return}\\\
+  \end{array}
+$$
+]
+---
+# Partial Eval Example 2
+
+.mathSize8[
+$$
+  \begin{array}{cc}
+  (vau~(x)~(+~1~2~x)) & \text{The initial code}\\\
+    \\\
+      \kmkd{\kval}{(\kmkd{\emptyset}{vau}~\kmkd{\kval}{(x)}~\kmkd{\kval}{(\kmkd{\emptyset}{+}~1~2~x)})} & \text{Parsed and marked syntax}\\\
+    \\\
+    \kmkd{\kfresh}{(\kmkd{\truev}{vau}~\kmkd{\kval}{(x)}~\kmkd{\kval}{(\kmkd{\emptyset}{+}~1~2~x)})} & \text{Unvaled}\\\
+      &\\\
+      \kpval{\kmkd{\kfresh}{&\text{We can't show the entire env.} \\\ (\kmkd{\truev}{vau}~\kmkd{\kval}{(x)}~\kmkd{\kval}{(\kmkd{\emptyset}{+}~1~2~x)})&\text{For illustration, E maps "vau"} \\\ }}{\kmkd{i_r}{E}}{ES}{FS} &\text{to the primitive vau combiner}\\\
+    \\\
+      \kpcombine{\kpeval{\kmkd{\truev}{vau}}{\kmkd{i_r}{E}}{ES}{FS}}{& \\\ (\kmkd{\kval}{(x)}~\kmkd{\kval}{(\kmkd{\emptyset}{+}~1~2~x)}))}{\kmkd{i_r}{E}}{ES}{FS} & \text{Begin call, PV combiner}\\\
+  \end{array}
+$$
+]
+---
+# Partial Eval Example 2
+
+.mathSize8[
+$$
+  \begin{array}{cc}
+      \kpval{&\text{The symbol Vau maps to its}\\\
+      \kmkd{7}{\kcomb{0}{s'}{\kmkd{i_f}{E}}{(x)}{\kmkd{\kfresh}{(\kmkd{\truev}{+}~1~2~\kmkd{\emptyset}{x})}}}}{ &\text{combiner value that will now}\\\
+      \kmkd{i_r}{E}}{ES}{FS} &\text{be partially evaluated}\\\
+      \\\
+      \kmkd{7}{\kcomb{0}{s'}{\kmkd{i_f}{E}}{(x)}{&\text{Partial evaluating the body} \\\ \kpval{\kmkd{\kfresh}{(\kmkd{\truev}{+}~1~2~\kmkd{\emptyset}{x})}}{& \text{with fake environment. Notice, we} \\\ \kmkd{7_f}{\kenv{(x \leftarrow \kmkd{7}{x})}{}{\kmkd{i_r}{E}}}}{ES}{FS}}} & \text{are almost back to our first example}\\\
+      &\\\
+      \kmkd{7}{\kcomb{0}{s'}{\kmkd{i_r}{E}}{(x)}{\kmkd{\katt{\emptyset}{\emptyset}}{(\kprim{0}{+}~3~\kmkd{7}{x})}}} & \text{We'll fast forward through the}\\\
+      & \text{process from our first example}\\\
+  \end{array}
+$$
+]
 ---
 class: center, middle, title
 # Optimizations
