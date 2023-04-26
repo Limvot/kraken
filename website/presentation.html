@@ -335,6 +335,7 @@ Marco expansion kind of *is* partial evaluation!
 - Track call frames that need to be real to progress on every AST node
     - Can zero-in on areas that will make progress
     - Also tracks nodes previously stopped by recursion-stopper in case no longer under the frame that stopped the recursion
+    - AST nodes marked like so: \\(\kmkd{7}{x}\\)
 - Evaluate derived calls with parameter values, inline result even if not value if it doesn't depend on call frame
 ---
 # Partial Eval Example
