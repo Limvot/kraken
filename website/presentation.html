@@ -47,50 +47,30 @@ _Fexprs are a better foundation for functional Lisps_
 
 # Agenda
 
-1. Fexprs Intro / Lisp Background
+1. Lisp Background
 2. Macro and Fexpr comparison
 3. Fexpr problems
 4. Past Work: Practical compilation of fexprs using partial evaluation
-5. Current Work: Scheme & the more generic re-do
-6. Future Work: Delimited Continuations, Layered Languages, DSLs
+      1. Kraken Language
+      2. Partial Evalaution
+      3. Optimizations
+5. Current & Future Work: Scheme & the more generic re-do, Delimited Continuations, Automatic Differientation, Type Systems
 ---
 class: center, middle, title
-# Fexprs Intro
+# Macros and Fexprs
 
 _Lisp Background_
 ---
-# Background: Fexprs in Lisp
-
-- 1960s - In earliest Lisps
-- 1980 - Argument that they shoudln't be included due to inability for static analysis to fix optimization problems (Kent Pitman, "Special Forms in Lisp")
-- 1998 - Adding fexprs to lambda calculus produces a trivial theory (Mitchell Wand, "The Theory of Fexprs is Trivial")
-- 2010 - Fexprs are not trivial with internal syntax, make sense with lexical scoping (John Shutt, "Fexprs as the basis of Lisp function application or $ vau: the ultimate abstraction", also earlier papers)
----
-(from Wikipedia)
-.fullWidthImg[![](images/lisp_timeline_screenshot.png)]
----
-(from Wikipedia)
-.fullWidthImg[![](images/lisp_timeline_screenshot_edited.png)]
----
 # Background: Lisp
 
-A quick overview:
-
-<pre><code class="remark_code">        ; semicolon begins a comment
-4       ; numbers and
-"hello" ; strings look normal and evaluate to themselves
-</code></pre>
---
 Essentially every non-atomic expression is a parentheses delimited list.
 This is true for:
 <pre><code class="remark_code">(+ 1 2)                     ; function calls, evaluates to 3
-(if false (+ 1 2) (- 1 2))  ; other special forms like if
-(let ((a 1)
-      (b 2))                ; or let
-      (+ a b))
-(lambda (a b) (+ a b))      ; or lambda to create closures
-(quote (1 a 3))             ; (equivalent to (list 1 'a 3)
-'(+ 1 2)                    ; expands to (quote (+ 1 2)) -> (list '+ 1 2)
+
+(or a b)                    ; macro invocations, expands to
+                            ;   (let ((t a)) (if t t b))
+
+(if false (+ 1 2) (- 1 2))  ; special forms like if
 </code></pre>
 
 ---
@@ -107,25 +87,18 @@ becomes
           b))
 </code></pre>
 ---
-# Background: Lisp
+# Background: Lisp Macros
 
-This could be defined via 
+Procedure like:
 <pre><code class="remark_code">(define-maco (or . body)
 (cond
-  ((nil? body)       #f)
   ((nil? (cdr body)) (car body))
   (else              (list 'let (list (list 'temp (car body)))
                             (list 'if 'temp 'temp (car (cdr body)))))))
 </code></pre>
-But not hygenic!
-Could become so using explicit calls to _gensym_
----
-# Background: Lisp
-
-Pattern matching, hygenic by default
+Pattern matching:
 <pre><code class="remark_code">(letrec-syntax
   ((or (syntax-rules ()
-         ((or) #f)
          ((or a) a)
          ((or a b)
           (let ((temp a))
@@ -134,46 +107,7 @@ Pattern matching, hygenic by default
                 b)))))))
 </code></pre>
 ---
-# Background: Fexprs
-
-Something of a combo between the two - direct style, but naturally hygienic by default.
-<pre><code class="remark_code">(vau de (a b) (let ((temp (eval a de)))
-                    (if temp
-                        temp
-                        (eval b de))))
-</code></pre>
----
-# Background: Fexprs - detail
-
-Ok, Fexprs are calls to combiners - combiners are either applicatives or operatives.
-Combiners are introduced with _vau_ and take an extra parameter (here called _dynamic_env_, earlier called _de_) which is the dynamic environment.
-<pre><code class="remark_code">(vau dynamicEnv (normalParam1 normalParam2) (body of combiner))
-</code></pre>
---
-Lisps, as well as Kraken, have an _eval_ function.
-This function takes in code as a data structure, and in R5RS Scheme an "environment specifier", and in Kraken, a full environment (like what is passed as _dynamicEnv_). 
-<pre><code class="remark_code">(eval some_code an_environment)
----
-# Background: Fexprs - detail
-
-- **Normal Lisp** (Scheme, Common Lisp, etc)
-  - Functions - runtime, evaluate parameters once, return value
-  - Macros - expansion time, do not evaluate parameters, return code to be inlined
-  - Special Forms - look like function or macro calls, but do something special (if, lambda, etc)
---
-
-- **Kraken** (and Kernel)
-  - Combiners
-      - Applicatives (like normal functions, combiners that evaluate all their parameters once in their dynamic environment)
-      - Operatives (combiners that do something unusual with their parameters, do not evaluate them right away)
----
-# Background: Fexprs - detail
-
-Combiners, like functions in Lisp, are first class.
-This means that unlike in Lisp, Kraken's version of macros and special forms are *both* first class.
-
----
-# Background: Fexprs - detail
+# Background: Lisp Macros
 As we've mentioned, in Scheme _or_ is a macro expanding
 <pre><code class="remark_code">(or a b)
 </code></pre>
@@ -189,77 +123,97 @@ Exception: invalid syntax and
 #t
 </code></pre>
 ---
-# Background: Fexprs - detail
-But in Kraken, _or_ is a combiner (an operative!), so it's first-class
+# Background: Fexprs
+
+Something of a combo between the two - direct style, but naturally hygienic by default.
 <pre><code class="remark_code">(vau de (a b) (let ((temp (eval a de)))
-                    (if temp temp
-                             (eval b de))))
+                    (if temp
+                        temp
+                        (eval b de))))
 </code></pre>
+But in Kraken, _or_ is a combiner (an operative!), so it's first-class
 So it's perfectly legal to pass to a higher-order combiner:
 <pre><code class="remark_code">> (foldl or false (array true false))
 true
 </code></pre>
 ---
+# Background: Fexprs in Lisp
+
+- 1960s - In earliest Lisps
+- 1980 - Argument that they shoudln't be included due to inability for static analysis to fix optimization problems (Kent Pitman, "Special Forms in Lisp")
+- 1998 - Adding fexprs to lambda calculus produces a trivial theory (Mitchell Wand, "The Theory of Fexprs is Trivial")
+- 2010 - Fexprs are not trivial with internal syntax, make sense with lexical scoping (John Shutt, "Fexprs as the basis of Lisp function application or $ vau: the ultimate abstraction", also earlier papers)
+---
+(from Wikipedia)
+.fullWidthImg[![](images/lisp_timeline_screenshot.png)]
+---
+(from Wikipedia)
+.fullWidthImg[![](images/lisp_timeline_screenshot_edited.png)]
+---
 # Background: Fexprs - detail
-<pre><code class="remark_code"> foldr:
-(rec-lambda recurse (f z l)
-          (if (= nil l)
-              z
-              (lapply f (list (car l) (recurse f z (cdr l))))))
+
+Ok, Fexprs are calls to combiners - combiners are either applicatives or operatives.
+Combiners are introduced with _vau_ and take an extra parameter (here called _dynamic_env_, earlier called _de_) which is the dynamic environment.
+<pre><code class="remark_code">(vau dynamicEnv (normalParam1 normalParam2) (body of combiner))
 </code></pre>
-(lapply reduces the wrap-level of the function by 1, equivalent to quoting the inputs)
-<pre><code class="remark_code"> foldr:
-(rec-lambda recurse (f z l)
-          (if (= nil l)
-              z
-              (f (car l) (recurse f z (cdr l)))))
-</code></pre>
+--
+Lisps, as well as Kraken, have an _eval_ function.
+This function takes in code as a data structure, and in R5RS Scheme an "environment specifier", and in Kraken, a full environment (like what is passed as _dynamicEnv_). 
+<pre><code class="remark_code">(eval some_code an_environment)
 ---
 # Pros and Cons
-
+**Pros:**
 1. Vau/Combiners unify and make first class functions, macros, and built-in forms in a single simple system
 2. They are also much simpler conceptually than macro systems while being hygienic by default
-3. Downside: naively executing a language using combiners instead of macros is exceedingly slow
-	4. The code of the operative combiner (analogus to a macro invocation) is re-executed at runtime, every time it is encountered
-	5. Additionally, because it is unclear what code will be evaluated as a parameter to a function call and what code must be passed unevaluated to the combiner, little optimization can be done.
 
+**Cons:**
+1. The code of the operative combiner (analogus to a macro invocation) is re-executed at runtime, every time it is encountered
+2. Additionally, because it is unclear what code will be evaluated as a parameter to a function call and what code must be passed unevaluated to the combiner, little optimization can be done.
+
+---
+# Background: Fexprs - detail
+
+- **Normal Lisp** (Scheme, Common Lisp, etc)
+  - Functions - runtime, evaluate parameters once, return value
+  - Macros - expansion time, do not evaluate parameters, return code to be inlined
+  - Special Forms - look like function or macro calls, but do something special (if, lambda, etc)
+--
+
+- **Kraken** (and Kernel)
+  - Combiners
+      - Applicatives (like normal functions, combiners that evaluate all their parameters once in their dynamic environment)
+      - Operatives (combiners that do something unusual with their parameters, do not evaluate them right away)
 ---
 # Solution: Partial Eval
 1. Evaluate parts of program that only depend on statically-known data ahead of time and insert resulting values into generated code
 2. The parts of the resulting partially-evaluated program that only contains static references to a subset of built in combiners and functions (combiners that evaluate their parameters exactly once) can be compiled just like it was a normal Scheme program
+
+**This is novel! No one has sucessfully pulled this off, to our knowledge.**
+Why?
+- Can't use a binding time analysis pass with offline partial evaluation, which eliminates quite a bit of mainline partial evaluation research
+- Online partial evaluation research generally does not have to deal with the same level of partially/fully dynamic first-class explicit environments
 ---
-# Intuition
+# Research Contributions
 
-Macros, especially *define-macro* macros, are essentially functions that run at expansion time and compute new code from old code.
-This is essentially partial evaluation / inlining, depending on how you look at it.
-
-It thus makes sense to ask if we can identify and partial evaluate / inline operative combiners to remove and optimize them like macros. Indeed, if we can determine what calls are to applicative combiners we can optimize their parameters, and if we can determine what calls are to macro-like operative combiners, we can try to do the equivalent of macro expansion.
-
-For Kraken, this is exactly what we do, using a specialized form of Partial Evaluation to do so.
----
-# Challenges
-
-So what's the hard part? Why hasn't this been done before?
-
-- Previously mentioned history
-
-Determining even what code will be evaluated is difficult.
-
-- Partial Evaluation
-  - Can't use a binding time analysis pass with offline partial evaluation, which eliminates quite a bit of mainline partial evaluation research
-  - Online partial evaluation research generally does not have to deal with the same level of partially/fully dynamic first-class explicit environments
----
-# Research
-
-- *Practical compilation of Fexprs using partial evaluation*
-  - Currently under review for ICFP '23
-  - Wrote partial evaluator with compiler
+- Programming Language, Kraken, that is entirely based on fexprs
+- Novel Partial Evaluation algorithm
       - Heavily specialized to optimize away operative combiners like macros written in a specific way
-      - Prototype faster than Python and other interpreted Lisps
+- Compiler
       - Static calls fully optimized like a normal function call in other languages
       - Dynamic calls have a single branch of overhead - if normal applicative combiner function like call, post-branch optimized as usual
       - Optimizes away Y Combinator recursion to static recursive jumps (inc tail call opt)
-  - Bit of an odd language: purely functional, array based, environment values
+      - Prototype faster than Python and other interpreted Lisps
+- Paper: *Practical compilation of Fexprs using partial evaluation*
+  - Currently under review for ICFP '23
+---
+# Kraken
+
+- Entirly based on fexprs as only means of computation
+    - No macros, no special forms, no seperate functions
+    - Not just tacked-on to an existing language, entirely different foundation
+- Purely Functional
+      - callbacks/monad-like interaction with outside world
+- In the Lisp tradition
 ---
 # Base Language: Syntax
 
@@ -361,6 +315,7 @@ class: center, middle, title
 ---
 # Partial Eval: How it works
 
+Marco expansion kind of *is* partial evaluation!
 
 - Online, no binding time analysis
 - Partially Evaluate combiners with partially-static environments
@@ -371,33 +326,22 @@ class: center, middle, title
     - Can zero-in on areas that will make progress
     - Also tracks nodes previously stopped by recursion-stopper in case no longer under the frame that stopped the recursion
 - Evaluate derived calls with parameter values, inline result even if not value if it doesn't depend on call frame
-
 ---
-# Partial Eval Semantics:
-
-.pull-left[![](images/Kraken_NonCall_PE_Semantics.png)]
-
-.pull-right[![](images/Kraken_Call_PE_Semantics.png)]
-
----
-# Partial Eval Semantics:
-
-.pull-left[![](images/Kraken_aux_helpers.png)]
-
-.pull-right[![](images/Kraken_aux_helpers2.png)]
-
----
-# Partial Eval Semantics:
-
-.pull-left[![](images/Kraken_aux_helpers3.png)]
-
-.pull-right[![](images/Kraken_pe_primitives.png)]
+# Partial Eval Rule Walkthrough
 
 ---
 class: center, middle, title
 # Optimizations
 ---
-# "The Trick" - Sorta...
+# Optimization Adgenda
+
+- "The Trick" - handling dynamic calls
+- Lazy Environment Instantiation
+- Type-Inference-Based Primitive Inlining
+- Immediately-Called Closure Inlining
+- Y-Combinator Elimination
+---
+# "The Trick"
 
 <pre><code class="remark_code">(lambda (f) (f (+ 1 2)))
 </code></pre>
@@ -412,6 +356,8 @@ To something like
 - Insert runtime check for dynamic call sites
 - When compiling in the wraplevel=1 side of conditional, further partial evaluate the parameter value
 - Only a single branch of overhead for dynamic function calls
+
+*Really a critical part of the dance, not an optional optimization*
 
 ---
 # Lazy Environment Instantiation
@@ -431,39 +377,59 @@ compiled to equivalent of
 # Type-Inference-Based Primitive Inlining
 
 For instance, consider the following code:
-<pre><code class="remark_code">(cond (and (array? a) (= 3 (len a)))    (idx a 2)
-      true                              nil)
+<pre><code class="remark_code">(if (and (array? a) (= 3 (len a)))    (idx a 2)
+                                      nil)
 </code></pre>
 
 - Call to *idx* fully inlined without type or bounds checking
 - No type information is needed to inline type predicates, as they only need to look at the tag bits.
 - Equality checks can be inlined as a simple word/ptr compare if any of its parameters are of a type that can be word/ptr compared (ints, bools, and symbols).
 
+<pre><code class="remark_code">if is_array(a) and len(a) == 3:
+    *(a+2)
+else: nil
+</code></pre>
+
 ---
 # Immediately-Called Closure Inlining
 
 Inlining calls to closure values that are allocated and then immediately used:
 
-This is inlined
-<pre><code class="remark_code">(let (a (+ 1 2))
-         (+ a 3))
+This is partial-evaled
+<pre><code class="remark_code">(let (b (+ a 2))
+         (+ b 3))
 </code></pre>
 to this
-<pre><code class="remark_code">((wrap (vau (a) (+ a 3))) (+ 1 2))
+<pre><code class="remark_code">((wrap (vau (b) (+ b 3))) (+ a 2))
 </code></pre>
 and then inlined (plus lazy environment allocation)
+<pre><code class="remark_code">b = a + 2;
+b + 3
+</code></pre>
 
 
 ---
 # Y-Combinator Elimination
+<pre><code class="remark_code">(Y (lambda (self) (lambda (n)
+  (if (= 0 n) 1
+              (* n (self (- n 1)))))))
+</code></pre>
 
 - When compiling a combiner, pre-emptive memoization
 - Partial-evaluation to normalize
 - Eager lang - extra lambda - eta-conversion in the compiler
 
+<pre><code class="remark_code">def fact(n):
+  if n == 0:
+    1
+  else:
+    n * fact(n - 1)
+</code></pre>
+
 ---
 # Outcomes
 1. All macro-like combiner calls are partially evaluated away
+    - No downside to using fexprs for everything
 2. No interpreted evaluation calls remain
 3. Optimizations allow reasonable performance
 ---
@@ -474,6 +440,8 @@ and then inlined (plus lazy environment allocation)
 - Deriv - Computing a symbolic derivative of a large expression
 - Cfold - Constant-folding a large expression
 - NQueens - Placing n number of queens on the board such that no two queens are diagonal, vertical, or horizontal from each other
+
+There isn't a standard suite to use here, this was a set we liked from a previosu paper that is relevent for both functional and imperitive languages.
 
 ---
 # Results:
@@ -566,6 +534,15 @@ $$
 # Results:
 .fullWidthImg[![](images/deriv_table.csv_.png)]
 ---
+# Research Conclusion
+
+- Purely functional Lisp based entirely on Fexprs - Kraken
+- Novel Partial Evaluation algorithm specifically designed to remove all macro-like fexprs
+    - No interpreted evaluation calls remain
+- Compiler implementing partial evaluation and additional optimizations achiving feasible performance (70,000x+ speedup, etc)
+
+*Little to no downside to basing Lisp-like functional language on fexprs*
+---
 # Current & Future
 
 - Partial Evaluation / Kraken evolution:
@@ -577,11 +554,50 @@ $$
     - Performance: Better Reference Counting, Tail-Recursion Modulo Cons
 - Implement Delimited Continuations as Fexprs
 - Implement Automatic Differentiation as Fexprs
-- Investigate Hardware as Fexprs
 - Allow type systems to be built using Fexprs, like the type-systems-as-macros paper
+- Investigate Hardware as Fexprs
+---
+class: center, middle, title
+# Thank you!
 ---
 class: center, middle, title
 # Backup Slides
+---
+# Partial Eval Semantics:
+
+.pull-left[![](images/Kraken_NonCall_PE_Semantics.png)]
+
+.pull-right[![](images/Kraken_Call_PE_Semantics.png)]
+
+---
+# Partial Eval Semantics:
+
+.pull-left[![](images/Kraken_aux_helpers.png)]
+
+.pull-right[![](images/Kraken_aux_helpers2.png)]
+
+---
+# Partial Eval Semantics:
+
+.pull-left[![](images/Kraken_aux_helpers3.png)]
+
+.pull-right[![](images/Kraken_pe_primitives.png)]
+
+---
+# Background: Fexprs - detail
+<pre><code class="remark_code"> foldr:
+(rec-lambda recurse (f z l)
+          (if (= nil l)
+              z
+              (lapply f (list (car l) (recurse f z (cdr l))))))
+</code></pre>
+(lapply reduces the wrap-level of the function by 1, equivalent to quoting the inputs)
+<pre><code class="remark_code"> foldr:
+(rec-lambda recurse (f z l)
+          (if (= nil l)
+              z
+              (f (car l) (recurse f z (cdr l)))))
+</code></pre>
 ---
 # Background: Fexprs - detail
 
@@ -602,6 +618,15 @@ What were special forms in Lisp are now just built-in combiners in Kraken.
 1. Partially evaluate a purely functional version of this language in a nearly-single pass over the entire program
 2. Environment chains consisting of both "real" environments with every contained symbol mapped to a value and "fake" environments that only have placeholder values.
 4. The parts of the resulting partially-evaluated program that only contains static references to a subset of built in combiners and functions (combiners that evaluate their parameters exactly once) can be compiled just like it was a normal Scheme program
+---
+# Intuition
+
+Macros, especially *define-macro* macros, are essentially functions that run at expansion time and compute new code from old code.
+This is essentially partial evaluation / inlining, depending on how you look at it.
+
+It thus makes sense to ask if we can identify and partial evaluate / inline operative combiners to remove and optimize them like macros. Indeed, if we can determine what calls are to applicative combiners we can optimize their parameters, and if we can determine what calls are to macro-like operative combiners, we can try to do the equivalent of macro expansion.
+
+For Kraken, this is exactly what we do, using a specialized form of Partial Evaluation to do so.
 ---
 # Selected Explanations
 
