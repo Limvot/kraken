@@ -1,4 +1,5 @@
 use std::fmt;
+use std::boxed::Box;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::convert::From;
@@ -30,6 +31,7 @@ pub enum Form {
     PrimComb(String, fn(Rc<Form>, Rc<Form>) -> PossibleTailCall),
     DeriComb { se: Rc<Form>, de: Option<String>, params: String, body: Rc<Form> },
 }
+
 impl Form {
     pub fn truthy(&self) -> bool {
         match self {
@@ -106,46 +108,63 @@ impl fmt::Display for Form {
     }
 }
 
+struct Cursor { e: Rc<Form>, f: Rc<Form>, next: Cont }
+enum Cont {
+    ID,
+    Call { p: Rc<Form>, ne: Rc<Form>, nc: Box<Cont> },
+}
+
+
 pub fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
-    let mut e = e;
-    let mut x = Option::Some(f);
+    let mut cursor = Cursor { e, f, next: Cont::ID };
     loop {
-        let cur = x.take().unwrap();
-        match *cur {
-            Form::Symbol(ref s) => {
-                let mut t = e;
+        let Cursor { e, f, mut next } = cursor;
+        if let Form::Pair(ref c, ref p) = *f {
+            cursor = Cursor { e: Rc::clone(&e), f: Rc::clone(c), next: Cont::Call { p: Rc::clone(p), ne: e, nc: Box::new(next) } }
+        } else {
+            let mut v = if let Form::Symbol(ref s) = *f {
+                let mut t = Rc::clone(&e);
                 while s != t.car().unwrap().car().unwrap().sym().unwrap() {
                     t = t.cdr().unwrap();
                 }
-                return t.car().unwrap().cdr().unwrap();
-            },
-            Form::Pair(ref c, ref p) => {
-                let comb = eval(Rc::clone(&e), Rc::clone(c));
-                match *comb {
-                    Form::PrimComb(ref _n,  ref f) => match f(e, Rc::clone(p)) {
-                        PossibleTailCall::Result(r) => return r,
-                        PossibleTailCall::TailCall(ne, nx) => {
-                            e = ne;
-                            x = Some(nx);
-                        },
-                    },
-                    Form::DeriComb{ref se, ref de, ref params, ref body } => {
-                        let mut new_e = Rc::clone(se);
-                        if let Some(de) = de {
-                            new_e = assoc(de, Rc::clone(&e), new_e);
+                t.car().unwrap().cdr().unwrap()
+            } else {
+                f
+            };
+            // inner nc popping loop with mutable v?
+            loop {
+                match next {
+                    Cont::ID => return v,
+                    Cont::Call { p, ne, nc } => {
+                        match *v {
+                            Form::PrimComb(ref _n,  ref f) => match f(ne, p) {
+                                PossibleTailCall::Result(r) => {
+                                    v = r;
+                                    next = *nc;
+                                },
+                                PossibleTailCall::TailCall(ne, nf) => {
+                                    cursor = Cursor { e: ne, f: nf, next: *nc };
+                                    break;
+                                },
+                            },
+                            Form::DeriComb{ref se, ref de, ref params, ref body } => {
+                                let mut new_e = Rc::clone(se);
+                                if let Some(de) = de {
+                                    new_e = assoc(de, Rc::clone(&ne), new_e);
+                                }
+                                new_e = assoc(params, p, new_e);
+                                cursor = Cursor { e: new_e, f: Rc::clone(body), next: *nc };
+                                break;
+                            },
+                            _ => panic!("Tried to call not a Prim/DeriComb {:?}", v),
                         }
-                        new_e = assoc(params, Rc::clone(p), new_e);
-                        // always a tail call
-                        e = new_e;
-                        x = Some(Rc::clone(body));
-                    },
-                    _ => panic!("Tried to call not a Prim/DeriComb {:?}", comb),
+                    }
                 }
-            },
-            _ => return cur,
+            }
         }
     }
 }
+
 fn assoc(k: &str, v: Rc<Form>, l: Rc<Form>) -> Rc<Form> {
     Rc::new(Form::Pair(
                 Rc::new(Form::Pair(
