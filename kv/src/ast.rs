@@ -111,9 +111,9 @@ impl fmt::Display for Form {
 pub struct Cursor { f: Rc<Form>, c: Cont }
 pub enum Cont {
     ID,
-    Eval    {              e: Rc<Form>, nc: Box<Cont> },
-    Call    { p: Rc<Form>, e: Rc<Form>, nc: Box<Cont> },
-    //MidPrim { f: fn(Rc<Form>, Rc<Form>, Cont) -> Cursor, cd: Rc<Form>, nc: Box<Cont> },
+    Eval     {              e: Rc<Form>, nc: Box<Cont> },
+    Call     { p: Rc<Form>, e: Rc<Form>, nc: Box<Cont> },
+    PramEval { to_eval: u32, collected: Vec<Rc<Form>>, f: fn(Rc<Form>, Rc<Form>, Cont) -> Cursor, nc: Box<Cont> },
 }
 
 pub fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
@@ -162,7 +162,13 @@ pub fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
                     },
                     _ => panic!("Tried to call not a Prim/DeriComb {:?}", f),
                 }
-            }
+            },
+            Cont::PramEval { to_eval, collected, f, nc } => {
+                // tricky bit - if to_eval > 0 && collected.size == 0, then we haven't started yet
+                // and we should push an eval on the thingy
+                // otherwise, we're collecting, and need to push a new one
+                panic!("Wait this doesn't quite work we need to pass around the remaining params to eval too");
+            },
         }
     }
 }
