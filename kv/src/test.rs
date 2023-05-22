@@ -80,6 +80,14 @@ fn basic_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     eval_test(true, &g, &e, "(set (cell 1) 2)", 1);
     eval_test(true, &g, &e, "(cell? (cell 1))", true);
     eval_test(true, &g, &e, "((vau de p (eval (quote (cons (set a 2) (get a))) (cons (cons (quote a) (cell 1)) de))))", (1,2));
+
+    eval_test(true, &g, &e, "(reset 1)", 1);
+    eval_test(true, &g, &e, "(reset (+ 1 2))", 3);
+    eval_test(true, &g, &e, "(reset (+ 1 (shift (vau de p 2))))", 2);
+    eval_test(true, &g, &e, "(reset (+ 1 (shift (vau de p ((car p) 2)))))", 3);
+    eval_test(true, &g, &e, "(reset (+ 1 (shift (vau de p ((car p) ((car p) 2)) ))))", 4);
+    eval_test(true, &g, &e, "(reset (+ 1 (shift (vau de p (+ ((car p) 3) ((car p) ((car p) 2))) ))))", 8);
+    eval_test(true, &g, &e, "((reset (+ 1 (shift (vau de p (car p))))) 2)", 3);
 }
 
 
