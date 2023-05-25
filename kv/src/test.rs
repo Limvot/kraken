@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::grammar;
-use crate::ast::{eval,root_env,Form,PossibleTailCall};
+use crate::ast::{eval,root_env,Form};
 
 #[test]
 fn parse_test() {
