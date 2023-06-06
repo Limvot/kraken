@@ -5,6 +5,8 @@ use std::rc::Rc;
 
 mod ast;
 use crate::ast::{eval,root_env};
+//mod opt;
+//use crate::opt::opt_eval;
 mod test;
 
 fn main() {
@@ -13,7 +15,11 @@ fn main() {
     let input = "(= (+ 1 3) (* 2 2))";
     let parsed_input = Rc::new(grammar::TermParser::new().parse(input).unwrap());
     //println!("Parsed input is {} - {:?}", parsed_input, parsed_input);
-    let result = eval(root_env(), parsed_input);
+    let root = root_env();
+    let     result =     eval(Rc::clone(&root), Rc::clone(&parsed_input));
+    //let opt_result = opt_eval(root, parsed_input);
     println!("Result is {} - {:?}", result, result);
+    //println!("Opt Result is {} - {:?}", opt_result, opt_result);
+    //assert!(opt_result.congruent(result));
 }
 
