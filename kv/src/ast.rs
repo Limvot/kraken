@@ -15,49 +15,192 @@ impl<A: Into<Form>, B: Into<Form>> From<(A, B)> for Form {
     }
 }
 
-impl Form {
-    pub fn truthy(&self) -> bool {
+pub trait FormT: std::fmt::Debug {
+    fn nil() -> Rc<Self>;
+    fn truthy(&self) -> bool;
+    fn int(&self) -> Option<i32>;
+    fn sym(&self) -> Option<&str>;
+    fn pair(&self) -> Option<(Rc<Self>,Rc<Self>)>;
+    fn car(&self) -> Option<Rc<Self>>;
+    fn cdr(&self) -> Option<Rc<Self>>;
+    fn prim_comb(&self) -> Option<(i32, PrimCombI)>;
+    fn deri_comb(&self) -> Option<(Rc<Self>, Option<String>, String, Rc<Self>)>;
+    fn cont_comb(&self) -> Option<Cont<Self>>;
+    fn is_nil(&self) -> bool;
+    fn append(&self, x: Rc<Self>) -> Option<Rc<Self>>;
+    fn assoc(k: &str, v: Rc<Self>, l: Rc<Self>) -> Rc<Self>;
+    fn impl_prim(ins: PrimCombI, e: Rc<Self>, ps: Rc<Self>, c: Cont<Self>, metac: Cont<Self>) -> Cursor<Self>;
+}
+
+impl FormT for Form {
+    fn prim_comb(&self) -> Option<(i32, PrimCombI)> {
+        match self {
+            Form::PrimComb{ eval_limit, ins } => Some((*eval_limit,*ins)),
+            _ => None,
+        }
+    }
+    fn deri_comb(&self) -> Option<(Rc<Self>, Option<String>, String, Rc<Self>)> {
+        match self {
+            Form::DeriComb{ se, de, params, body } => Some((Rc::clone(se), de.clone(), params.clone(), Rc::clone(body))),
+            _ => None,
+        }
+    }
+    fn cont_comb(&self) -> Option<Cont<Self>> {
+        match self {
+            Form::ContComb(c) => Some(c.clone()),
+            _ => None,
+        }
+    }
+    fn nil() -> Rc<Self> {
+        Rc::new(Form::Nil)
+    }
+    fn truthy(&self) -> bool {
         match self {
             Form::Bool(b) => *b,
             Form::Nil     => false,
             _             => true,
         }
     }
-    pub fn int(&self) -> Option<i32> {
+    fn int(&self) -> Option<i32> {
         match self {
             Form::Int(i) => Some(*i),
             _ => None,
         }
     }
-    pub fn sym(&self) -> Option<&str> {
+    fn sym(&self) -> Option<&str> {
         match self {
             Form::Symbol(s) => Some(s),
             _ => None,
         }
     }
-    pub fn car(&self) -> Option<Rc<Form>> {
+    fn pair(&self) -> Option<(Rc<Form>,Rc<Form>)> {
+        match self {
+            Form::Pair(car, cdr) => Some((Rc::clone(car),Rc::clone(cdr))),
+            _ => None,
+        }
+    }
+    fn car(&self) -> Option<Rc<Form>> {
         match self {
             Form::Pair(car, _cdr) => Some(Rc::clone(car)),
             _ => None,
         }
     }
-    pub fn cdr(&self) -> Option<Rc<Form>> {
+    fn cdr(&self) -> Option<Rc<Form>> {
         match self {
             Form::Pair(_car, cdr) => Some(Rc::clone(cdr)),
             _ => None,
         }
     }
-    pub fn is_nil(&self) -> bool {
+    fn is_nil(&self) -> bool {
         match self {
             Form::Nil            => true,
             _                    => false,
         }
     }
-    pub fn append(&self, x: Rc<Form>) -> Option<Form> {
+    fn append(&self, x: Rc<Form>) -> Option<Rc<Form>> {
         match self {
-            Form::Pair(car, cdr) => cdr.append(x).map(|x| Form::Pair(Rc::clone(car), Rc::new(x))),
-            Form::Nil            => Some(Form::Pair(x, Rc::new(Form::Nil))),
+            Form::Pair(car, cdr) => cdr.append(x).map(|x| Rc::new(Form::Pair(Rc::clone(car), x))),
+            Form::Nil            => Some(Rc::new(Form::Pair(x, Rc::new(Form::Nil)))),
             _                    => None,
+        }
+    }
+    fn assoc(k: &str, v: Rc<Form>, l: Rc<Form>) -> Rc<Form> {
+        Rc::new(Form::Pair(
+                    Rc::new(Form::Pair(
+                            Rc::new(Form::Symbol(k.to_owned())),
+                            v)),
+                    l))
+    }
+    fn impl_prim(ins: PrimCombI, e: Rc<Form>, ps: Rc<Form>, c: Cont<Form>, metac: Cont<Form>) -> Cursor<Form> {
+        match ins {
+            PrimCombI::Eval => Cursor { f: ps.car().unwrap(), c: Cont::Eval { e: ps.cdr().unwrap().car().unwrap(), nc: Box::new(c) }, metac },
+            PrimCombI::Vau => {
+                let de     = ps.car().unwrap().sym().map(|s| s.to_owned());
+                let params = ps.cdr().unwrap().car().unwrap().sym().unwrap().to_owned();
+                let body   = ps.cdr().unwrap().cdr().unwrap().car().unwrap();
+     
+                Cursor { f: Rc::new(Form::DeriComb { se: e, de, params, body }), c: c, metac: metac }
+            },
+            PrimCombI::If => if ps.car().unwrap().truthy() {
+                                 Cursor { f: ps.cdr().unwrap().car().unwrap(), c: Cont::Eval { e: e, nc: Box::new(c) }, metac }
+                             } else {
+                                 Cursor { f: ps.cdr().unwrap().cdr().unwrap().car().unwrap(), c: Cont::Eval { e: e, nc: Box::new(c) }, metac }
+                             },
+     
+            PrimCombI::Reset => Cursor { f: ps.car().unwrap(),
+                                         c: Cont::Eval { e: e, nc: Box::new(Cont::MetaRet) },
+                                         metac: Cont::CatchRet { nc: Box::new(c), restore_meta: Box::new(metac) } },
+            PrimCombI::Shift => Cursor { f: ps.car().unwrap(),
+                                         c: Cont::Call { p: Rc::new(Form::Pair(Rc::new(Form::ContComb(c)),
+                                                                  Rc::new(Form::Nil))),
+                                                         e: e,
+                                                         nc: Box::new(Cont::MetaRet) },
+                                         metac: Cont::CatchRet { nc: Box::new(metac.clone()), restore_meta: Box::new(metac) } },
+     
+            PrimCombI::Cell => Cursor { f: Rc::new(Form::Cell(RefCell::new(ps.car().unwrap()))), c, metac },
+            PrimCombI::Set  => match &*ps.car().unwrap() {
+                                 Form::Cell(cell) => Cursor { f: cell.replace(ps.cdr().unwrap().car().unwrap()), c: c, metac },
+                                 _             => panic!("set on not cell"),
+                             },
+            PrimCombI::Get => match &*ps.car().unwrap() {
+                                Form::Cell(cell) => Cursor { f: Rc::clone(&cell.borrow()), c: c, metac },
+                                _             => panic!("get on not cell"),
+                            },
+     
+            PrimCombI::Cons  => Cursor { f: Rc::new(Form::Pair(ps.car().unwrap(), ps.cdr().unwrap().car().unwrap())), c: c, metac },
+            PrimCombI::Car   => Cursor { f: ps.car().unwrap().car().unwrap(), c: c, metac },
+            PrimCombI::Cdr   => Cursor { f: ps.car().unwrap().cdr().unwrap(), c: c, metac },
+            PrimCombI::Quote => Cursor { f: ps.car().unwrap(), c: c, metac: metac },
+            PrimCombI::Assert => {
+                                    let thing = ps.car().unwrap();
+                                    if !thing.truthy() {
+                                        println!("Assert failed: {:?}", thing);
+                                    }
+                                    assert!(thing.truthy());
+                                    Cursor { f: ps.cdr().unwrap().car().unwrap(), c: Cont::Eval { e: e, nc: Box::new(c) }, metac }
+                                },
+     
+            PrimCombI::Eq     => Cursor { f: Rc::new(Form::Bool(ps.car().unwrap()                == ps.cdr().unwrap().car().unwrap())), c, metac },
+            PrimCombI::Lt     => Cursor { f: Rc::new(Form::Bool(ps.car().unwrap().int().unwrap()  < ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+            PrimCombI::LEq    => Cursor { f: Rc::new(Form::Bool(ps.car().unwrap().int().unwrap() <= ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+            PrimCombI::Gt     => Cursor { f: Rc::new(Form::Bool(ps.car().unwrap().int().unwrap()  > ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+            PrimCombI::GEq    => Cursor { f: Rc::new(Form::Bool(ps.car().unwrap().int().unwrap() >= ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+     
+            PrimCombI::Plus   => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   + ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+            PrimCombI::Minus  => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   - ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+            PrimCombI::Mult   => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   * ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+            PrimCombI::Div    => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   / ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+            PrimCombI::Mod    => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   % ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+            PrimCombI::And    => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   & ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+            PrimCombI::Or     => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   | ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+            PrimCombI::Xor    => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   ^ ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
+     
+            PrimCombI::CombP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
+                                    Form::PrimComb { eval_limit, ins } => true,
+                                    Form::DeriComb { .. }              => true,
+                                    _                                  => false,
+                                })), c, metac },
+            PrimCombI::CellP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
+                                    Form::Cell(_c) => true,
+                                    _              => false,
+                                })), c, metac },
+            PrimCombI::PairP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
+                                    Form::Pair(_a,_b) => true,
+                                    _                 => false,
+                                })), c, metac },
+            PrimCombI::SymbolP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
+                                   Form::Symbol(_) => true,
+                                   _               => false,
+                               })), c, metac },
+            PrimCombI::IntP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
+                                   Form::Int(_) => true,
+                                   _            => false,
+                               })), c, metac },
+            PrimCombI::BoolP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
+                                    Form::Bool(_) => true,
+                                    _             => false,
+                                })), c, metac },
+            PrimCombI::NilP =>  Cursor { f: Rc::new(Form::Bool(ps.car().unwrap().is_nil())), c, metac },
         }
     }
 }
@@ -108,21 +251,34 @@ pub enum Form {
     Pair(Rc<Form>,Rc<Form>),
     PrimComb { eval_limit: i32, ins: PrimCombI },
     DeriComb { se: Rc<Form>, de: Option<String>, params: String, body: Rc<Form> },
-    ContComb(Cont),
+    ContComb(Cont<Form>),
 }
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Cont {
+//#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq)]
+pub enum Cont<F: FormT + ?Sized> {
     Exit,
     MetaRet,
-    CatchRet { nc: Box<Cont>,  restore_meta: Box<Cont> },
-    Eval     {              e: Rc<Form>, nc: Box<Cont> },
-    Call     { p: Rc<Form>, e: Rc<Form>, nc: Box<Cont> },
-    PramEval { eval_limit: i32, to_eval: Rc<Form>, collected: Option<Rc<Form>>, e: Rc<Form>, ins: PrimCombI, nc: Box<Cont> },
+    CatchRet { nc: Box<Cont<F>>,  restore_meta: Box<Cont<F>> },
+    Eval     {                    e: Rc<F>, nc: Box<Cont<F>> },
+    Call     { p: Rc<F>,          e: Rc<F>, nc: Box<Cont<F>> },
+    PramEval { eval_limit: i32, to_eval: Rc<F>, collected: Option<Rc<F>>, e: Rc<F>, ins: PrimCombI, nc: Box<Cont<F>> },
 }
-pub struct Cursor { f: Rc<Form>, c: Cont, metac: Cont }
+impl<F: FormT> Clone for Cont<F> {
+    fn clone(&self) -> Self {
+        match self {
+            Cont::Exit                                                       => Cont::Exit,
+            Cont::MetaRet                                                    => Cont::MetaRet,
+            Cont::CatchRet { nc,  restore_meta     } => Cont::CatchRet { nc: nc.clone(),  restore_meta: restore_meta.clone() },
+            Cont::Eval     {                 e, nc } => Cont::Eval     {                             e: Rc::clone(e),        nc: nc.clone() },
+            Cont::Call     { p,              e, nc } => Cont::Call     {  p: Rc::clone(p),           e: Rc::clone(e),        nc: nc.clone() },
+            Cont::PramEval { eval_limit, to_eval, collected, e, ins, nc} => Cont::PramEval { eval_limit: *eval_limit, to_eval: Rc::clone(to_eval), collected: collected.as_ref().map(|x| Rc::clone(x)), e: Rc::clone(e), ins: ins.clone(), nc: nc.clone() },
+        }
+    }
+}
+pub struct Cursor<F: FormT + ?Sized> { f: Rc<F>, c: Cont<F>, metac: Cont<F> }
 
-pub fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
-    let mut cursor = Cursor { f, c: Cont::Eval { e, nc: Box::new(Cont::MetaRet) }, metac: Cont::Exit };
+pub fn eval<F: FormT>(e: Rc<F>, f: Rc<F>) -> Rc<F> {
+    let mut cursor = Cursor::<F> { f, c: Cont::Eval { e, nc: Box::new(Cont::MetaRet) }, metac: Cont::Exit };
     loop {
         let Cursor { f, c, metac } = cursor;
         match c {
@@ -137,16 +293,16 @@ pub fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
             },
             Cont::PramEval { eval_limit, to_eval, collected, e, ins, nc } => {
                 let next_collected = if let Some(collected) = collected {
-                    Rc::new(collected.append(f).unwrap())
-                } else { Rc::new(Form::Nil) };
+                    collected.append(f).unwrap()
+                } else { F::nil() };
                 if eval_limit == 0 || to_eval.is_nil() {
                     let mut traverse = to_eval;
                     let mut next_collected = next_collected;
                     while !traverse.is_nil() {
-                        next_collected = Rc::new(next_collected.append(traverse.car().unwrap()).unwrap());
+                        next_collected = next_collected.append(traverse.car().unwrap()).unwrap();
                         traverse = traverse.cdr().unwrap();
                     }
-                    cursor = impl_prim(ins, e, next_collected, *nc, metac);
+                    cursor = F::impl_prim(ins, e, next_collected, *nc, metac);
                 } else {
                     cursor = Cursor { f: to_eval.car().unwrap(), c: Cont::Eval { e: Rc::clone(&e), nc: Box::new(Cont::PramEval { eval_limit: eval_limit - 1,
                                                                                                                                  to_eval: to_eval.cdr().unwrap(),
@@ -155,58 +311,44 @@ pub fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
                 }
             },
             Cont::Eval { e, nc } => {
-                match *f {
-                    Form::Pair(ref comb, ref p) => {
-                        cursor = Cursor { f: Rc::clone(comb), c: Cont::Eval { e: Rc::clone(&e), nc: Box::new(Cont::Call { p: Rc::clone(p), e: e, nc: nc }) }, metac }
-                    },
-                    Form::Symbol(ref s) => {
-                        let mut t = Rc::clone(&e);
-                        let mut dist = 0;
-                        while s != t.car().unwrap().car().unwrap().sym().unwrap() {
-                            t = t.cdr().unwrap();
-                            dist += 1;
-                        }
-                        cursor = Cursor { f: t.car().unwrap().cdr().unwrap(), c: *nc, metac };
-                    },
-                    _ => {
-                        cursor = Cursor { f: Rc::clone(&f), c: *nc, metac };
-                    },
+                if let Some((comb, p)) = f.pair() {
+                   cursor = Cursor { f: comb, c: Cont::Eval { e: Rc::clone(&e), nc: Box::new(Cont::Call { p, e, nc }) }, metac }
+                } else if let Some(s) = f.sym() {
+                   let mut t = Rc::clone(&e);
+                   let mut dist = 0;
+                   while s != t.car().unwrap().car().unwrap().sym().unwrap() {
+                        t = t.cdr().unwrap();
+                        dist += 1;
+                    }
+                    cursor = Cursor { f: t.car().unwrap().cdr().unwrap(), c: *nc, metac };
+                } else {
+                    cursor = Cursor { f: Rc::clone(&f), c: *nc, metac };
                 }
             },
             Cont::Call { p, e, nc } => {
-                match *f {
-                    Form::PrimComb { eval_limit, ins } => {
-                        cursor = Cursor { f: Rc::new(Form::Nil), c: Cont::PramEval { eval_limit, to_eval: p, collected: None, e, ins, nc: nc }, metac };
+                if let Some((eval_limit, ins)) = f.prim_comb() {
+                    cursor = Cursor { f: F::nil(), c: Cont::PramEval { eval_limit, to_eval: p, collected: None, e, ins, nc: nc }, metac };
+                } else if let Some((se, de, params, body)) = f.deri_comb() {
+                    let mut new_e = se;
+                    if let Some(de) = de {
+                        new_e = F::assoc(&de, Rc::clone(&e), new_e);
                     }
-                    Form::DeriComb{ref se, ref de, ref params, ref body } => {
-                        let mut new_e = Rc::clone(se);
-                        if let Some(de) = de {
-                            new_e = assoc(de, Rc::clone(&e), new_e);
-                        }
-                        new_e = assoc(params, p, new_e);
-                        cursor = Cursor { f: Rc::clone(body), c: Cont::Eval { e: new_e, nc: nc }, metac };
-                    },
-                    Form::ContComb(ref c) => {
-                        cursor = Cursor { f: p.car().unwrap(), c: Cont::Eval { e, nc: Box::new(c.clone()) }, metac: Cont::CatchRet { nc: nc, restore_meta: Box::new(metac) } };
-                    },
-                    _ => panic!("Tried to call not a Prim/DeriComb/ContComb {:?}, nc was {:?}", f, nc),
+                    new_e = F::assoc(&params, p, new_e);
+                    cursor = Cursor { f: body, c: Cont::Eval { e: new_e, nc: nc }, metac };
+                } else if let Some(c) = f.cont_comb() {
+                    cursor = Cursor { f: p.car().unwrap(), c: Cont::Eval { e, nc: Box::new(c.clone()) }, metac: Cont::CatchRet { nc: nc, restore_meta: Box::new(metac) } };
+                } else {
+                    panic!("Tried to call not a Prim/DeriComb/ContComb {:?}, nc was {:?}", f, nc);
                 }
             },
         }
     }
 }
 
-pub fn assoc(k: &str, v: Rc<Form>, l: Rc<Form>) -> Rc<Form> {
-    Rc::new(Form::Pair(
-                Rc::new(Form::Pair(
-                        Rc::new(Form::Symbol(k.to_owned())),
-                        v)),
-                l))
-}
 pub fn assoc_vec(kvs: Vec<(&str, Rc<Form>)>) -> Rc<Form> {
     let mut to_ret = Rc::new(Form::Nil);
     for (k, v) in kvs {
-        to_ret = assoc(k, v, to_ret);
+        to_ret = Form::assoc(k, v, to_ret);
     }
     to_ret
 }
@@ -254,98 +396,6 @@ pub enum PrimCombI {
         NilP,
 }
 
-pub fn impl_prim(ins: PrimCombI, e: Rc<Form>, ps: Rc<Form>, c: Cont, metac: Cont) -> Cursor {
-    match ins {
-        PrimCombI::Eval => Cursor { f: ps.car().unwrap(), c: Cont::Eval { e: ps.cdr().unwrap().car().unwrap(), nc: Box::new(c) }, metac },
-        PrimCombI::Vau => {
-            let de     = ps.car().unwrap().sym().map(|s| s.to_owned());
-            let params = ps.cdr().unwrap().car().unwrap().sym().unwrap().to_owned();
-            let body   = ps.cdr().unwrap().cdr().unwrap().car().unwrap();
-
-            Cursor { f: Rc::new(Form::DeriComb { se: e, de, params, body }), c: c, metac: metac }
-        },
-        PrimCombI::If => if ps.car().unwrap().truthy() {
-                             Cursor { f: ps.cdr().unwrap().car().unwrap(), c: Cont::Eval { e: e, nc: Box::new(c) }, metac }
-                         } else {
-                             Cursor { f: ps.cdr().unwrap().cdr().unwrap().car().unwrap(), c: Cont::Eval { e: e, nc: Box::new(c) }, metac }
-                         },
-
-        PrimCombI::Reset => Cursor { f: ps.car().unwrap(),
-                                     c: Cont::Eval { e: e, nc: Box::new(Cont::MetaRet) },
-                                     metac: Cont::CatchRet { nc: Box::new(c), restore_meta: Box::new(metac) } },
-        PrimCombI::Shift => Cursor { f: ps.car().unwrap(),
-                                     c: Cont::Call { p: Rc::new(Form::Pair(Rc::new(Form::ContComb(c)),
-                                                              Rc::new(Form::Nil))),
-                                                     e: e,
-                                                     nc: Box::new(Cont::MetaRet) },
-                                     metac: Cont::CatchRet { nc: Box::new(metac.clone()), restore_meta: Box::new(metac) } },
-
-        PrimCombI::Cell => Cursor { f: Rc::new(Form::Cell(RefCell::new(ps.car().unwrap()))), c, metac },
-        PrimCombI::Set  => match &*ps.car().unwrap() {
-                             Form::Cell(cell) => Cursor { f: cell.replace(ps.cdr().unwrap().car().unwrap()), c: c, metac },
-                             _             => panic!("set on not cell"),
-                         },
-        PrimCombI::Get => match &*ps.car().unwrap() {
-                            Form::Cell(cell) => Cursor { f: Rc::clone(&cell.borrow()), c: c, metac },
-                            _             => panic!("get on not cell"),
-                        },
-
-        PrimCombI::Cons  => Cursor { f: Rc::new(Form::Pair(ps.car().unwrap(), ps.cdr().unwrap().car().unwrap())), c: c, metac },
-        PrimCombI::Car   => Cursor { f: ps.car().unwrap().car().unwrap(), c: c, metac },
-        PrimCombI::Cdr   => Cursor { f: ps.car().unwrap().cdr().unwrap(), c: c, metac },
-        PrimCombI::Quote => Cursor { f: ps.car().unwrap(), c: c, metac: metac },
-        PrimCombI::Assert => {
-                                let thing = ps.car().unwrap();
-                                if !thing.truthy() {
-                                    println!("Assert failed: {:?}", thing);
-                                }
-                                assert!(thing.truthy());
-                                Cursor { f: ps.cdr().unwrap().car().unwrap(), c: Cont::Eval { e: e, nc: Box::new(c) }, metac }
-                            },
-
-        PrimCombI::Eq     => Cursor { f: Rc::new(Form::Bool(ps.car().unwrap()                == ps.cdr().unwrap().car().unwrap())), c, metac },
-        PrimCombI::Lt     => Cursor { f: Rc::new(Form::Bool(ps.car().unwrap().int().unwrap()  < ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-        PrimCombI::LEq    => Cursor { f: Rc::new(Form::Bool(ps.car().unwrap().int().unwrap() <= ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-        PrimCombI::Gt     => Cursor { f: Rc::new(Form::Bool(ps.car().unwrap().int().unwrap()  > ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-        PrimCombI::GEq    => Cursor { f: Rc::new(Form::Bool(ps.car().unwrap().int().unwrap() >= ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-
-        PrimCombI::Plus   => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   + ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-        PrimCombI::Minus  => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   - ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-        PrimCombI::Mult   => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   * ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-        PrimCombI::Div    => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   / ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-        PrimCombI::Mod    => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   % ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-        PrimCombI::And    => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   & ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-        PrimCombI::Or     => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   | ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-        PrimCombI::Xor    => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   ^ ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
-
-        PrimCombI::CombP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
-                                Form::PrimComb { eval_limit, ins } => true,
-                                Form::DeriComb { .. }              => true,
-                                _                                  => false,
-                            })), c, metac },
-        PrimCombI::CellP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
-                                Form::Cell(_c) => true,
-                                _              => false,
-                            })), c, metac },
-        PrimCombI::PairP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
-                                Form::Pair(_a,_b) => true,
-                                _                 => false,
-                            })), c, metac },
-        PrimCombI::SymbolP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
-                               Form::Symbol(_) => true,
-                               _               => false,
-                           })), c, metac },
-        PrimCombI::IntP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
-                               Form::Int(_) => true,
-                               _            => false,
-                           })), c, metac },
-        PrimCombI::BoolP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
-                                Form::Bool(_) => true,
-                                _             => false,
-                            })), c, metac },
-        PrimCombI::NilP =>  Cursor { f: Rc::new(Form::Bool(ps.car().unwrap().is_nil())), c, metac },
-    }
-}
 
 
 // Have eval?/maybe Cont?/maybe Cursor? parameterized on value type?
