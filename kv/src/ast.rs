@@ -4,6 +4,40 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::convert::From;
 
+pub trait FormT: std::fmt::Debug {
+    fn nil() -> Rc<Self>;
+    fn truthy(&self) -> bool;
+    fn int(&self) -> Option<i32>;
+    fn sym(&self) -> Option<&str>;
+    fn pair(&self) -> Option<(Rc<Self>,Rc<Self>)>;
+    fn car(&self) -> Option<Rc<Self>>;
+    fn cdr(&self) -> Option<Rc<Self>>;
+    fn call(&self, p: Rc<Self>, e: Rc<Self>, nc: Box<Cont<Self>>, metac: Cont<Self>) -> Cursor<Self>;
+    fn is_nil(&self) -> bool;
+    fn append(&self, x: Rc<Self>) -> Option<Rc<Self>>;
+    fn assoc(k: &str, v: Rc<Self>, l: Rc<Self>) -> Rc<Self>;
+    fn impl_prim(ins: PrimCombI, e: Rc<Self>, ps: Rc<Self>, c: Cont<Self>, metac: Cont<Self>) -> Cursor<Self>;
+}
+
+// Idea: 
+//  Call of DeriComb starts a trace
+//  Every form wrapped
+//      wrapped contains value for this run as well as reference? into trace for code version
+
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum Form {
+    Nil,
+    Int(i32),
+    Bool(bool),
+    Symbol(String),
+    Cell(RefCell<Rc<Form>>),
+    Pair(Rc<Form>,Rc<Form>),
+    PrimComb { eval_limit: i32, ins: PrimCombI },
+    DeriComb { se: Rc<Form>, de: Option<String>, params: String, body: Rc<Form> },
+    ContComb(Cont<Form>),
+}
+
 // todo, strings not symbols?
 impl From<String> for Form { fn from(item: String) -> Self { Form::Symbol(item) } }
 impl From<&str>   for Form { fn from(item: &str)   -> Self { Form::Symbol(item.to_owned()) } }
@@ -15,40 +49,63 @@ impl<A: Into<Form>, B: Into<Form>> From<(A, B)> for Form {
     }
 }
 
-pub trait FormT: std::fmt::Debug {
-    fn nil() -> Rc<Self>;
-    fn truthy(&self) -> bool;
-    fn int(&self) -> Option<i32>;
-    fn sym(&self) -> Option<&str>;
-    fn pair(&self) -> Option<(Rc<Self>,Rc<Self>)>;
-    fn car(&self) -> Option<Rc<Self>>;
-    fn cdr(&self) -> Option<Rc<Self>>;
-    fn prim_comb(&self) -> Option<(i32, PrimCombI)>;
-    fn deri_comb(&self) -> Option<(Rc<Self>, Option<String>, String, Rc<Self>)>;
-    fn cont_comb(&self) -> Option<Cont<Self>>;
-    fn is_nil(&self) -> bool;
-    fn append(&self, x: Rc<Self>) -> Option<Rc<Self>>;
-    fn assoc(k: &str, v: Rc<Self>, l: Rc<Self>) -> Rc<Self>;
-    fn impl_prim(ins: PrimCombI, e: Rc<Self>, ps: Rc<Self>, c: Cont<Self>, metac: Cont<Self>) -> Cursor<Self>;
+impl fmt::Display for Form {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Form::Nil                   => write!(f, "nil"),
+            Form::Int(i)                => write!(f, "{i}"),
+            Form::Bool(b)               => write!(f, "{b}"),
+            Form::Symbol(s)             => write!(f, "{s}"),
+            Form::Cell(c)               => write!(f, "@{}", c.borrow()),
+            Form::Pair(car, cdr)        => {
+                write!(f, "({}", car)?;
+                let mut traverse: Rc<Form> = Rc::clone(cdr);
+                loop {
+                    match &*traverse {
+                        Form::Pair(ref carp, ref cdrp) => {
+                            write!(f, " {}", carp)?;
+                            traverse = Rc::clone(cdrp);
+                        },
+                        Form::Nil => {
+                            write!(f, ")")?;
+                            return Ok(());
+                        },
+                        x => {
+                            write!(f, ". {x})")?;
+                            return Ok(());
+                        },
+                    }
+                }
+            },
+            Form::PrimComb { eval_limit, ins }    => write!(f, "<{eval_limit}> - {ins:?}"),
+            Form::DeriComb { se: _, de, params, body } => {
+                write!(f, "<{} {} {}>", de.as_ref().unwrap_or(&"".to_string()), params, body)
+            },
+            Form::ContComb(_)    => write!(f, "<cont>"),
+        }
+    }
 }
 
 impl FormT for Form {
-    fn prim_comb(&self) -> Option<(i32, PrimCombI)> {
+    fn call(&self, p: Rc<Self>, e: Rc<Self>, nc: Box<Cont<Self>>, metac: Cont<Self>) -> Cursor<Self> {
         match self {
-            Form::PrimComb{ eval_limit, ins } => Some((*eval_limit,*ins)),
-            _ => None,
-        }
-    }
-    fn deri_comb(&self) -> Option<(Rc<Self>, Option<String>, String, Rc<Self>)> {
-        match self {
-            Form::DeriComb{ se, de, params, body } => Some((Rc::clone(se), de.clone(), params.clone(), Rc::clone(body))),
-            _ => None,
-        }
-    }
-    fn cont_comb(&self) -> Option<Cont<Self>> {
-        match self {
-            Form::ContComb(c) => Some(c.clone()),
-            _ => None,
+            Form::PrimComb{eval_limit, ins} => {
+                Cursor { f: Self::nil(), c: Cont::PramEval { eval_limit: *eval_limit, to_eval: p, collected: None, e, ins: *ins, nc: nc }, metac }
+            }
+            Form::DeriComb {se, de, params, body} => {
+                let mut new_e = Rc::clone(se);
+                if let Some(de) = de {
+                    new_e = Self::assoc(&de, Rc::clone(&e), new_e);
+                }
+                new_e = Self::assoc(&params, p, new_e);
+                Cursor { f: Rc::clone(body), c: Cont::Eval { e: new_e, nc: nc }, metac }
+            }
+            Form::ContComb(c) => {
+                Cursor { f: p.car().unwrap(), c: Cont::Eval { e, nc: Box::new(c.clone()) }, metac: Cont::CatchRet { nc: nc, restore_meta: Box::new(metac) } }
+            }
+            _ => {
+                panic!("Tried to call not a Prim/DeriComb/ContComb {:?}, nc was {:?}", self, nc);
+           }
         }
     }
     fn nil() -> Rc<Self> {
@@ -176,9 +233,9 @@ impl FormT for Form {
             PrimCombI::Xor    => Cursor { f: Rc::new(Form::Int(ps.car().unwrap().int().unwrap()   ^ ps.cdr().unwrap().car().unwrap().int().unwrap())), c, metac },
      
             PrimCombI::CombP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
-                                    Form::PrimComb { eval_limit, ins } => true,
-                                    Form::DeriComb { .. }              => true,
-                                    _                                  => false,
+                                    Form::PrimComb { .. } => true,
+                                    Form::DeriComb { .. } => true,
+                                    _                     => false,
                                 })), c, metac },
             PrimCombI::CellP => Cursor { f: Rc::new(Form::Bool(match &*ps.car().unwrap() {
                                     Form::Cell(_c) => true,
@@ -203,55 +260,6 @@ impl FormT for Form {
             PrimCombI::NilP =>  Cursor { f: Rc::new(Form::Bool(ps.car().unwrap().is_nil())), c, metac },
         }
     }
-}
-impl fmt::Display for Form {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Form::Nil                   => write!(f, "nil"),
-            Form::Int(i)                => write!(f, "{i}"),
-            Form::Bool(b)               => write!(f, "{b}"),
-            Form::Symbol(s)             => write!(f, "{s}"),
-            Form::Cell(c)               => write!(f, "@{}", c.borrow()),
-            Form::Pair(car, cdr)        => {
-                write!(f, "({}", car)?;
-                let mut traverse: Rc<Form> = Rc::clone(cdr);
-                loop {
-                    match &*traverse {
-                        Form::Pair(ref carp, ref cdrp) => {
-                            write!(f, " {}", carp)?;
-                            traverse = Rc::clone(cdrp);
-                        },
-                        Form::Nil => {
-                            write!(f, ")")?;
-                            return Ok(());
-                        },
-                        x => {
-                            write!(f, ". {x})")?;
-                            return Ok(());
-                        },
-                    }
-                }
-            },
-            Form::PrimComb { eval_limit, ins }    => write!(f, "<{eval_limit}> - {ins:?}"),
-            Form::DeriComb { se, de, params, body } => {
-                write!(f, "<{} {} {}>", de.as_ref().unwrap_or(&"".to_string()), params, body)
-            },
-            Form::ContComb(_)    => write!(f, "<cont>"),
-        }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum Form {
-    Nil,
-    Int(i32),
-    Bool(bool),
-    Symbol(String),
-    Cell(RefCell<Rc<Form>>),
-    Pair(Rc<Form>,Rc<Form>),
-    PrimComb { eval_limit: i32, ins: PrimCombI },
-    DeriComb { se: Rc<Form>, de: Option<String>, params: String, body: Rc<Form> },
-    ContComb(Cont<Form>),
 }
 //#[derive(Debug, Eq, PartialEq, Clone)]
 #[derive(Debug, Eq, PartialEq)]
@@ -315,10 +323,8 @@ pub fn eval<F: FormT>(e: Rc<F>, f: Rc<F>) -> Rc<F> {
                    cursor = Cursor { f: comb, c: Cont::Eval { e: Rc::clone(&e), nc: Box::new(Cont::Call { p, e, nc }) }, metac }
                 } else if let Some(s) = f.sym() {
                    let mut t = Rc::clone(&e);
-                   let mut dist = 0;
                    while s != t.car().unwrap().car().unwrap().sym().unwrap() {
                         t = t.cdr().unwrap();
-                        dist += 1;
                     }
                     cursor = Cursor { f: t.car().unwrap().cdr().unwrap(), c: *nc, metac };
                 } else {
@@ -326,20 +332,7 @@ pub fn eval<F: FormT>(e: Rc<F>, f: Rc<F>) -> Rc<F> {
                 }
             },
             Cont::Call { p, e, nc } => {
-                if let Some((eval_limit, ins)) = f.prim_comb() {
-                    cursor = Cursor { f: F::nil(), c: Cont::PramEval { eval_limit, to_eval: p, collected: None, e, ins, nc: nc }, metac };
-                } else if let Some((se, de, params, body)) = f.deri_comb() {
-                    let mut new_e = se;
-                    if let Some(de) = de {
-                        new_e = F::assoc(&de, Rc::clone(&e), new_e);
-                    }
-                    new_e = F::assoc(&params, p, new_e);
-                    cursor = Cursor { f: body, c: Cont::Eval { e: new_e, nc: nc }, metac };
-                } else if let Some(c) = f.cont_comb() {
-                    cursor = Cursor { f: p.car().unwrap(), c: Cont::Eval { e, nc: Box::new(c.clone()) }, metac: Cont::CatchRet { nc: nc, restore_meta: Box::new(metac) } };
-                } else {
-                    panic!("Tried to call not a Prim/DeriComb/ContComb {:?}, nc was {:?}", f, nc);
-                }
+                cursor = f.call(p, e, nc, metac);
             },
         }
     }
