@@ -1,7 +1,9 @@
 use std::rc::Rc;
 
 use crate::grammar;
-use crate::ast::{eval,root_env,Form};
+use crate::basic::{root_env,Form};
+use crate::opt::{OptForm};
+use crate::eval::{eval};
 
 #[test]
 fn parse_test() {
@@ -23,8 +25,15 @@ fn eval_test<T: Into<Form>>(also_pe: bool, gram: &grammar::TermParser, e: &Rc<Fo
     let parsed = gram.parse(code).unwrap();
     let basic_result = eval(Rc::clone(e), Rc::clone(&parsed));
     assert_eq!(*basic_result, expected.into());
-    if also_pe {
-    }
+
+    let opt_root:  Rc<OptForm> = (&**e).into();
+    let opt_input: Rc<OptForm> = (&*parsed).into();
+    let opt_result =     eval(opt_root, opt_input);
+    assert!(opt_result.congruent(&*basic_result));
+
+
+    //if also_pe {
+    //}
 }
 
 #[test]
