@@ -68,9 +68,6 @@ impl fmt::Display for Form {
 }
 
 impl Form {
-    fn nil() -> Rc<Self> {
-        Rc::new(Form::Nil)
-    }
     fn truthy(&self) -> bool {
         match self {
             Form::Bool(b) => *b,
@@ -127,7 +124,7 @@ impl FormT for Form {
     fn call(&self, p: Rc<Self>, e: Rc<Self>, nc: Box<Cont<Self>>, metac: Cont<Self>) -> Cursor<Self> {
         match self {
             Form::PrimComb{eval_limit, ins} => {
-                Cursor { f: Self::nil(), c: Cont::PramEval { eval_limit: *eval_limit, to_eval: p, collected: None, e, ins: *ins, nc: nc }, metac }
+                Cursor { f: Rc::new(Form::Nil), c: Cont::PramEval { eval_limit: *eval_limit, to_eval: p, collected: None, e, ins: *ins, nc: nc }, metac }
             }
             Form::DeriComb {se, de, params, body} => {
                 let mut new_e = Rc::clone(se);

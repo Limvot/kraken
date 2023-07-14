@@ -8,9 +8,12 @@ use crate::eval::{FormT,Cont,Cursor,PrimCombI};
 use crate::basic::Form;
 
 #[derive(Debug, Eq, PartialEq)]
+struct Trace {}
+
+#[derive(Debug, Eq, PartialEq)]
 pub struct OptForm {
     inner: OptFormInner,
-    code_ptr: usize
+    trace: Option<Rc<Trace>>
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -70,13 +73,13 @@ impl fmt::Display for OptForm {
 impl From<&Form> for Rc<OptForm> {
     fn from(x: &Form) -> Self {
         match x {
-            Form::Nil                           => OptForm::new(OptFormInner::Nil),
-            Form::Int(i)                        => OptForm::new(OptFormInner::Int(*i)),
-            Form::Bool(b)                       => OptForm::new(OptFormInner::Bool(*b)),
-            Form::Symbol(s)                     => OptForm::new(OptFormInner::Symbol(s.to_owned())),
+            Form::Nil                           => OptForm::new(OptFormInner::Nil, None),
+            Form::Int(i)                        => OptForm::new(OptFormInner::Int(*i), None),
+            Form::Bool(b)                       => OptForm::new(OptFormInner::Bool(*b), None),
+            Form::Symbol(s)                     => OptForm::new(OptFormInner::Symbol(s.to_owned()), None),
             Form::Cell(cell)                    => panic!("bad"),
-            Form::Pair(car,cdr)                 => OptForm::new(OptFormInner::Pair((&**car).into(), (&**cdr).into())),
-            Form::PrimComb { eval_limit, ins }  => OptForm::new(OptFormInner::PrimComb { eval_limit: *eval_limit, ins: *ins }),
+            Form::Pair(car,cdr)                 => OptForm::new(OptFormInner::Pair((&**car).into(), (&**cdr).into()), None),
+            Form::PrimComb { eval_limit, ins }  => OptForm::new(OptFormInner::PrimComb { eval_limit: *eval_limit, ins: *ins }, None),
             Form::DeriComb { .. }               => panic!("bad"),
             Form::ContComb(c)                   => panic!("bad"),
         }
@@ -84,10 +87,16 @@ impl From<&Form> for Rc<OptForm> {
 }
 
 impl OptForm {
-    fn new(inner: OptFormInner) -> Rc<Self> { Rc::new(OptForm { inner, code_ptr: 0 }) }
-    fn nil() -> Rc<Self> {
-        OptForm::new(OptFormInner::Nil)
+    fn tc(&self) -> Option<Rc<Trace>> {
+        self.trace.as_ref().map(Rc::clone)
     }
+    fn tor(&self, o: &Rc<OptForm>) -> Option<Rc<Trace>> {
+        match &self.trace {
+            Some(t) => Some(Rc::clone(t)),
+            None    => o.trace.as_ref().map(Rc::clone)
+        }
+    }
+    fn new(inner: OptFormInner, trace: Option<Rc<Trace>>) -> Rc<Self> { Rc::new(OptForm { inner, trace }) }
     fn truthy(&self) -> bool {
         match &self.inner {
             OptFormInner::Bool(b) => *b,
@@ -102,10 +111,11 @@ impl OptForm {
         }
     }
     fn append(&self, x: Rc<OptForm>) -> Option<Rc<OptForm>> {
+        let trace = self.tor(&x);
         match &self.inner {
-            OptFormInner::Pair(car, cdr) => cdr.append(x).map(|x| OptForm::new(OptFormInner::Pair(Rc::clone(car), x))),
-            OptFormInner::Nil            => Some(OptForm::new(OptFormInner::Pair(x, OptForm::new(OptFormInner::Nil )))),
-            _                       => None,
+            OptFormInner::Pair(car, cdr) => cdr.append(x).map(|x| OptForm::new(OptFormInner::Pair(Rc::clone(car), x), trace)),
+            OptFormInner::Nil            => Some(OptForm::new(OptFormInner::Pair(x, OptForm::new(OptFormInner::Nil, trace.as_ref().map(Rc::clone))), trace)),
+            _                            => None,
         }
     }
     pub fn congruent(&self, other: &Form) -> bool {
@@ -157,9 +167,10 @@ impl FormT for OptForm {
     fn call(&self, p: Rc<Self>, e: Rc<Self>, nc: Box<Cont<Self>>, metac: Cont<Self>) -> Cursor<Self> {
         match &self.inner {
             OptFormInner::PrimComb{eval_limit, ins} => {
-                Cursor { f: Self::nil(), c: Cont::PramEval { eval_limit: *eval_limit, to_eval: p, collected: None, e, ins: *ins, nc: nc }, metac }
+                Cursor { f: OptForm::new(OptFormInner::Nil, None), c: Cont::PramEval { eval_limit: *eval_limit, to_eval: p, collected: None, e, ins: *ins, nc: nc }, metac }
             }
             OptFormInner::DeriComb {se, de, params, body, code} => {
+                // TODO: Add traces here?
                 let mut new_e = Rc::clone(se);
                 if let Some(de) = de {
                     new_e = assoc(&de, Rc::clone(&e), new_e);
@@ -168,6 +179,7 @@ impl FormT for OptForm {
                 Cursor { f: Rc::clone(body), c: Cont::Eval { e: new_e, nc: nc }, metac }
             }
             OptFormInner::ContComb(c) => {
+                // TODO: Add traces here?
                 Cursor { f: p.car().unwrap(), c: Cont::Eval { e, nc: Box::new(c.clone()) }, metac: Cont::CatchRet { nc: nc, restore_meta: Box::new(metac) } }
             }
             _ => {
@@ -179,10 +191,11 @@ impl FormT for OptForm {
         match ins {
             PrimCombI::Eval => Cursor { f: Rc::clone(&ps[0]), c: Cont::Eval { e: Rc::clone(&ps[1]), nc: Box::new(c) }, metac },
             PrimCombI::Vau => {
+                // Add traces here? If no on-going?
                 let de     = ps[0].sym().map(|s| s.to_owned());
                 let params = ps[1].sym().unwrap().to_owned();
                 let body   = Rc::clone(&ps[2]);
-                Cursor { f: OptForm::new(OptFormInner::DeriComb { se: e, de, params, body, code: Some(Rc::new(RefCell::new(vec![]))) }), c, metac }
+                Cursor { f: OptForm::new(OptFormInner::DeriComb { se: e, de, params, body, code: Some(Rc::new(RefCell::new(vec![]))) }, None), c, metac }
             },
             PrimCombI::If => if ps[0].truthy() {
                                  Cursor { f: Rc::clone(&ps[1]), c: Cont::Eval { e: e, nc: Box::new(c) }, metac }
@@ -194,8 +207,9 @@ impl FormT for OptForm {
                                          c: Cont::Eval { e: e, nc: Box::new(Cont::MetaRet) },
                                          metac: Cont::CatchRet { nc: Box::new(c), restore_meta: Box::new(metac) } },
             PrimCombI::Shift => Cursor { f: Rc::clone(&ps[0]),
-                                         c: Cont::Call { p: OptForm::new(OptFormInner::Pair(OptForm::new(OptFormInner::ContComb(c)),
-                                                                                            OptForm::new(OptFormInner::Nil))),
+                                         // Trace here
+                                         c: Cont::Call { p: OptForm::new(OptFormInner::Pair(OptForm::new(OptFormInner::ContComb(c), None),
+                                                                                            OptForm::new(OptFormInner::Nil, None)), None),
                                                          e: e,
                                                          nc: Box::new(Cont::MetaRet) },
                                          metac: Cont::CatchRet { nc: Box::new(metac.clone()), restore_meta: Box::new(metac) } },
@@ -208,7 +222,7 @@ impl FormT for OptForm {
                                     Cursor { f: Rc::clone(&ps[1]), c: Cont::Eval { e: e, nc: Box::new(c) }, metac }
                                 },
      
-            PrimCombI::Cell => Cursor { f: OptForm::new(OptFormInner::Cell(RefCell::new(Rc::clone(&ps[0])))), c, metac },
+            PrimCombI::Cell => Cursor { f: OptForm::new(OptFormInner::Cell(RefCell::new(Rc::clone(&ps[0]))), ps[0].tc()), c, metac },
             PrimCombI::Set  => match &ps[0].inner {
                                  OptFormInner::Cell(cell) => Cursor { f: cell.replace(Rc::clone(&ps[1])), c, metac },
                                  _             => panic!("set on not cell"),
@@ -218,60 +232,63 @@ impl FormT for OptForm {
                                 _             => panic!("get on not cell"),
                             },
      
-            PrimCombI::Cons  => Cursor { f: OptForm::new(OptFormInner::Pair(Rc::clone(&ps[0]), Rc::clone(&ps[1]))), c, metac },
+            PrimCombI::Cons  => Cursor { f: OptForm::new(OptFormInner::Pair(Rc::clone(&ps[0]), Rc::clone(&ps[1])), ps[0].tor(&ps[1])), c, metac },
             PrimCombI::Car   => Cursor { f: ps[0].car().unwrap(), c, metac },
             PrimCombI::Cdr   => Cursor { f: ps[0].cdr().unwrap(), c, metac },
             PrimCombI::Quote => Cursor { f: Rc::clone(&ps[0]),                c, metac },
      
-            PrimCombI::Eq     => Cursor { f: OptForm::new(OptFormInner::Bool(ps[0]                == ps[1])),                c, metac },
-            PrimCombI::Lt     => Cursor { f: OptForm::new(OptFormInner::Bool(ps[0].int().unwrap()  < ps[1].int().unwrap())), c, metac },
-            PrimCombI::LEq    => Cursor { f: OptForm::new(OptFormInner::Bool(ps[0].int().unwrap() <= ps[1].int().unwrap())), c, metac },
-            PrimCombI::Gt     => Cursor { f: OptForm::new(OptFormInner::Bool(ps[0].int().unwrap()  > ps[1].int().unwrap())), c, metac },
-            PrimCombI::GEq    => Cursor { f: OptForm::new(OptFormInner::Bool(ps[0].int().unwrap() >= ps[1].int().unwrap())), c, metac },
+            PrimCombI::Eq     => Cursor { f: OptForm::new(OptFormInner::Bool(ps[0]                == ps[1]), ps[0].tor(&ps[1])),                c, metac },
+            PrimCombI::Lt     => Cursor { f: OptForm::new(OptFormInner::Bool(ps[0].int().unwrap()  < ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
+            PrimCombI::LEq    => Cursor { f: OptForm::new(OptFormInner::Bool(ps[0].int().unwrap() <= ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
+            PrimCombI::Gt     => Cursor { f: OptForm::new(OptFormInner::Bool(ps[0].int().unwrap()  > ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
+            PrimCombI::GEq    => Cursor { f: OptForm::new(OptFormInner::Bool(ps[0].int().unwrap() >= ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
      
-            PrimCombI::Plus   => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   + ps[1].int().unwrap())), c, metac },
-            PrimCombI::Minus  => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   - ps[1].int().unwrap())), c, metac },
-            PrimCombI::Mult   => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   * ps[1].int().unwrap())), c, metac },
-            PrimCombI::Div    => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   / ps[1].int().unwrap())), c, metac },
-            PrimCombI::Mod    => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   % ps[1].int().unwrap())), c, metac },
-            PrimCombI::And    => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   & ps[1].int().unwrap())), c, metac },
-            PrimCombI::Or     => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   | ps[1].int().unwrap())), c, metac },
-            PrimCombI::Xor    => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   ^ ps[1].int().unwrap())), c, metac },
+            PrimCombI::Plus   => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   + ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
+            PrimCombI::Minus  => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   - ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
+            PrimCombI::Mult   => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   * ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
+            PrimCombI::Div    => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   / ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
+            PrimCombI::Mod    => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   % ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
+            PrimCombI::And    => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   & ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
+            PrimCombI::Or     => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   | ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
+            PrimCombI::Xor    => Cursor { f: OptForm::new(OptFormInner::Int(ps[0].int().unwrap()   ^ ps[1].int().unwrap()), ps[0].tor(&ps[1])), c, metac },
      
             PrimCombI::CombP => Cursor { f: OptForm::new(OptFormInner::Bool(match &ps[0].inner {
                                     OptFormInner::PrimComb { .. } => true,
                                     OptFormInner::DeriComb { .. } => true,
                                     _                        => false,
-                                })), c, metac },
+                                }), ps[0].tc()), c, metac },
             PrimCombI::CellP => Cursor { f: OptForm::new(OptFormInner::Bool(match &ps[0].inner {
                                     OptFormInner::Cell(_c) => true,
                                     _                 => false,
-                                })), c, metac },
+                                }), ps[0].tc()), c, metac },
             PrimCombI::PairP => Cursor { f: OptForm::new(OptFormInner::Bool(match &ps[0].inner {
                                     OptFormInner::Pair(_a,_b) => true,
                                     _                    => false,
-                                })), c, metac },
+                                }), ps[0].tc()), c, metac },
             PrimCombI::SymbolP => Cursor { f: OptForm::new(OptFormInner::Bool(match &ps[0].inner {
                                     OptFormInner::Symbol(_) => true,
                                     _                  => false,
-                               })), c, metac },
+                                }), ps[0].tc()), c, metac },
             PrimCombI::IntP => Cursor { f: OptForm::new(OptFormInner::Bool(match &ps[0].inner {
                                     OptFormInner::Int(_) => true,
                                     _               => false,
-                               })), c, metac },
+                                }), ps[0].tc()), c, metac },
             PrimCombI::BoolP => Cursor { f: OptForm::new(OptFormInner::Bool(match &ps[0].inner {
                                     OptFormInner::Bool(_) => true,
                                     _             => false,
-                                })), c, metac },
-            PrimCombI::NilP =>  Cursor { f: OptForm::new(OptFormInner::Bool(ps[0].is_nil())), c, metac },
+                                }), ps[0].tc()), c, metac },
+            PrimCombI::NilP =>  Cursor { f: OptForm::new(OptFormInner::Bool(ps[0].is_nil()), ps[0].tc()), c, metac },
         }
     }
 }
 
 fn assoc(k: &str, v: Rc<OptForm>, l: Rc<OptForm>) -> Rc<OptForm> {
+    let at = v.tc();
+    let bt = v.tc();
+    let tort = v.tor(&l);
     OptForm::new(OptFormInner::Pair(
                 OptForm::new(OptFormInner::Pair(
-                        OptForm::new(OptFormInner::Symbol(k.to_owned())),
-                        v)),
-                l))
+                        OptForm::new(OptFormInner::Symbol(k.to_owned()), at),
+                        v), bt),
+                l), tort)
 }
