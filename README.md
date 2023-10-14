@@ -7,7 +7,7 @@ The Kraken Programming Language
 
 Currently developing the third iteration, a Scheme-like based on a functional Vau calculus partially-evaluated for efficency and compiling to WebAssembly.
 
-*Heavily* inspiried by John Shutt's thesis: https://web.wpi.edu/Pubs/ETD/Available/etd-090110-124904/unrestricted/jshutt.pdf
+*Heavily* inspiried by John Shutt's thesis: https://digitalwpi.wpi.edu/concern/etds/ht24wj541
 with partial evaluation during compilation to make it efficient.
 
 
