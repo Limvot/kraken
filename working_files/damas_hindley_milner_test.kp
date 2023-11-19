@@ -1,2 +1,0 @@
-#lang (with_import "./types.kp" stlc) stlc_start_symbol
-let id = \ x . x in ((id println) (id "woo"))

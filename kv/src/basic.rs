@@ -166,6 +166,8 @@ impl FormT for Form {
                                                                   Rc::new(Form::Nil))),
                                                          e: e,
                                                          nc: Box::new(Cont::MetaRet) },
+                                         // I think this is unnecessary and can just be "metac },"
+                                         // because reset puts this metac in
                                          metac: Cont::CatchRet { nc: Box::new(metac.clone()), restore_meta: Box::new(metac) } },
             PrimCombI::Assert => {
                                     let thing = Rc::clone(&ps[0]);

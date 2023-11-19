@@ -1,0 +1,31 @@
+use std::str::FromStr;
+use std::rc::Rc;
+use sl::Form;
+
+grammar;
+
+pub Term: Rc<Form> = {
+    NUM => Rc::new(Form::Int(i32::from_str(<>).unwrap())),
+    SYM => Rc::new(Form::Symbol(<>.to_owned())),
+	"(" <ListInside?> ")" => <>.unwrap_or(Rc::new(Form::Nil)),
+	"'" <Term> => Rc::new(Form::Pair(Rc::new(Form::Symbol("quote".to_owned())), Rc::new(Form::Pair(<>, Rc::new(Form::Nil))))),
+	"!" <h: Term> <t: Term> => {
+        h.append(t).unwrap()
+     },
+};
+ListInside: Rc<Form> = {
+	<Term> => Rc::new(Form::Pair(<>, Rc::new(Form::Nil))),
+	<h: Term> <t: ListInside> => Rc::new(Form::Pair(h, t)),
+	<a: Term> "." <d: Term> => Rc::new(Form::Pair(a, d)),
+}
+match {
+    "(",
+    ")",
+    ".",
+    "'",
+    "!",
+    r"[0-9]+"                                  => NUM,
+    r"[a-zA-Z+*/_=?%&|^<>-][\w+*/=_?%&|^<>-]*" => SYM,
+    r"(;[^\n]*\n)|\s+"                         => { }
+}
+

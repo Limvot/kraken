@@ -1,8 +1,0 @@
-
-((wrap (vau (quote)
-
-
-(vau () (array (quote a) (+ 1 2)))
-
-; impl of quote
-)) (vau (x5) x5))

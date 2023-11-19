@@ -1,5 +1,0 @@
-x lisp tree
-x explain quote
-x show fold's internals
-x fix if0 primitive
-_ partial evaluation

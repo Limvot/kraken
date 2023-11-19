@@ -13,3 +13,4 @@ build-ninja
 callgrind*
 .stfolder
 *.wasm
+*/target
