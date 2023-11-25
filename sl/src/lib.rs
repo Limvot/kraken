@@ -5,7 +5,25 @@ use std::cell::RefCell;
 
 use anyhow::{anyhow,bail,Result};
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+
+// This first Simple Lisp really is
+//
+// No fexprs, no mutation, no continuations, no macros, no strings.
+// Int/Bool/Nil/Pair/Symbol/Closure/Prim.
+//
+// Figuring out GC between a JIT and Rust will be tricky.
+// Can start with a like tracing-JIT-into-bytecode
+// Replcing Env with pairs or somesuch would make JIT interop easier I think, because we wouldn't
+// have to deal with refcell, but then we would again for mutation.
+// Maybe doing all allocation on the Rust side with #[no_mangle] functions would make things easier
+// mmmm no let's make our own Box, Rc, maybe Arc
+// rustonomicon
+
+// What if we're cute and use the ID
+// like we will eventually use value tagging
+// like, use the same encoding
+// interned symbols and all
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
 pub struct ID {
     id: i64
 }
@@ -15,9 +33,9 @@ pub enum Form {
     Nil,
     Int(i32),
     Bool(bool),
-    Symbol(String, Option<RefCell<ID>>),
-    Pair(Rc<Form>, Rc<Form>, Option<RefCell<ID>>),
-    Closure(Vec<String>, Rc<RefCell<Env>>, Rc<Form>, Option<RefCell<ID>>),
+    Symbol(String, RefCell<Option<ID>>),
+    Pair(Rc<Form>, Rc<Form>, RefCell<Option<ID>>),
+    Closure(Vec<String>, Rc<RefCell<Env>>, Rc<Form>, RefCell<Option<ID>>),
     Prim(Prim),
 }
 
@@ -47,7 +65,7 @@ impl Form {
         }
     }
     fn new_pair(car: Rc<Form>, cdr: Rc<Form>) -> Rc<Form> {
-        Rc::new(Form::Pair(car, cdr, None))
+        Rc::new(Form::Pair(car, cdr, RefCell::new(None)))
     }
     fn new_nil() -> Rc<Form> {
         Rc::new(Form::Nil)
@@ -59,7 +77,7 @@ impl Form {
         Rc::new(Form::Bool(b))
     }
     fn new_closure(params: Vec<String>, env: Rc<RefCell<Env>>, body: Rc<Form>) -> Rc<Form> {
-        Rc::new(Form::Closure(params, env, body, None))
+        Rc::new(Form::Closure(params, env, body, RefCell::new(None)))
     }
     fn truthy(&self) -> bool {
         match self {
@@ -118,8 +136,8 @@ impl Form {
     }
     pub fn append(&self, x: Rc<Form>) -> Result<Rc<Form>> {
         match self {
-            Form::Pair(car, cdr, _id) => cdr.append(x).map(|x| Rc::new(Form::Pair(Rc::clone(car), x, None))),
-            Form::Nil            => Ok(Rc::new(Form::Pair(x, Rc::new(Form::Nil), None))),
+            Form::Pair(car, cdr, _id) => cdr.append(x).map(|x| Rc::new(Form::Pair(Rc::clone(car), x, RefCell::new(None)))),
+            Form::Nil            => Ok(Rc::new(Form::Pair(x, Rc::new(Form::Nil), RefCell::new(None)))),
             _                    => Err(anyhow!("append to not a pair")),
         }
     }
@@ -164,8 +182,48 @@ impl Env {
         }
     }
     pub fn define(&mut self, s: String, v: Rc<Form>) {
+        // no mutation, shadowing in inner scope ok
+        assert!(!self.m.contains_key(&s));
         self.m.insert(s, v);
     }
+}
+
+#[derive(Debug)]
+struct Stats {
+    id_counter: i64,
+    func_calls: BTreeMap<ID, i64>,
+}
+impl Stats {
+    fn new() -> Stats {
+        Stats {
+            id_counter: 0,
+            func_calls: BTreeMap::new()
+        }
+    }
+    fn alloc_id(&mut self) -> ID {
+        self.id_counter += 1;
+        ID { id: self.id_counter }
+    }
+    fn count_call(&mut self, id: &RefCell<Option<ID>>) {
+        // shenanigins for controlling the guard
+        {
+            if id.borrow().is_none() {
+                let new_id = self.alloc_id();
+                id.replace(Some(new_id));
+            }
+        }
+        let id = id.borrow().unwrap();
+        let entry = self.func_calls.entry(id).or_insert(0);
+        *entry += 1;
+    }
+}
+
+pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
+    let e = Env::root_env();
+    let mut stats = Stats::new();
+    let to_ret = tree_walker_eval(f, e, &mut stats)?;
+    println!("Stats were {stats:?}");
+    Ok(to_ret)
 }
 
 // add functions
@@ -175,17 +233,17 @@ impl Env {
 // Symbol ID's could actually be used for environment lookups
 //  this is just interning
 
-pub fn tree_walker_eval(f: Rc<Form>, e: Rc<RefCell<Env>>) -> Result<Rc<Form>> {
+fn tree_walker_eval(f: Rc<Form>, e: Rc<RefCell<Env>>, stats: &mut Stats) -> Result<Rc<Form>> {
     println!("tree_walker_eval({f})");
     Ok(match &*f {
         Form::Symbol(s, _id) => e.borrow().lookup(s)?,
         Form::Pair(car, cdr, _id) => {
             match &**car {
                 Form::Symbol(s, _id) if s == "if" => {
-                    if tree_walker_eval(cdr.car()?, Rc::clone(&e))?.truthy() {
-                        tree_walker_eval(cdr.cdr()?.car()?, e)?
+                    if tree_walker_eval(cdr.car()?, Rc::clone(&e), stats)?.truthy() {
+                        tree_walker_eval(cdr.cdr()?.car()?, e, stats)?
                     } else {
-                        tree_walker_eval(cdr.cdr()?.cdr()?.car()?, e)?
+                        tree_walker_eval(cdr.cdr()?.cdr()?.car()?, e, stats)?
                     }
 
                 }
@@ -194,19 +252,19 @@ pub fn tree_walker_eval(f: Rc<Form>, e: Rc<RefCell<Env>>) -> Result<Rc<Form>> {
                     let mut traverse = Rc::clone(cdr);
                     while let Ok((ncar, ncdr)) = traverse.pair() {
                         traverse = ncdr;
-                        last_result = tree_walker_eval(ncar, Rc::clone(&e))?;
+                        last_result = tree_walker_eval(ncar, Rc::clone(&e), stats)?;
                     }
                     last_result
 
                 }
                 Form::Symbol(s, _id) if s == "debug" => {
-                    println!("debug: {}", tree_walker_eval(cdr.car()?, e)?);
+                    println!("debug: {}", tree_walker_eval(cdr.car()?, e, stats)?);
                     Form::new_nil()
                 }
                 // This is a fast and loose ~simple lisp~, so just go for it
                 // and can have convention that this is always top levelish
                 Form::Symbol(s, _id) if s == "define" => {
-                    let v = tree_walker_eval(cdr.cdr()?.car()?, Rc::clone(&e))?;
+                    let v = tree_walker_eval(cdr.cdr()?.car()?, Rc::clone(&e), stats)?;
                     e.borrow_mut().define(cdr.car()?.sym()?.to_string(), v);
                     Form::new_nil()
                 }
@@ -225,13 +283,14 @@ pub fn tree_walker_eval(f: Rc<Form>, e: Rc<RefCell<Env>>) -> Result<Rc<Form>> {
                     Form::new_closure(params_vec, Rc::clone(&e), body)
                 }
                 _ => {
-                    let comb = tree_walker_eval(Rc::clone(car), Rc::clone(&e))?;
+                    let comb = tree_walker_eval(Rc::clone(car), Rc::clone(&e), stats)?;
                     match &*comb {
                         Form::Closure(ps, ie, b, id) => {
+                            stats.count_call(id);
                             let mut arguments_vec = vec![];
                             let mut arguments = Rc::clone(cdr);
                             while let Ok((ncar, ncdr)) = arguments.pair() {
-                                arguments_vec.push(tree_walker_eval(ncar, Rc::clone(&e))?);
+                                arguments_vec.push(tree_walker_eval(ncar, Rc::clone(&e), stats)?);
                                 arguments = ncdr;
                             }
                             if ps.len() != arguments_vec.len() {
@@ -241,15 +300,15 @@ pub fn tree_walker_eval(f: Rc<Form>, e: Rc<RefCell<Env>>) -> Result<Rc<Form>> {
                             for (name, value) in ps.iter().zip(arguments_vec.into_iter()) {
                                 new_env.borrow_mut().define(name.to_string(), value);
                             }
-                            tree_walker_eval(Rc::clone(b), new_env)?
+                            tree_walker_eval(Rc::clone(b), new_env, stats)?
                         },
                         Form::Prim(p) => {
-                            let a = tree_walker_eval(cdr.car()?, Rc::clone(&e))?;
+                            let a = tree_walker_eval(cdr.car()?, Rc::clone(&e), stats)?;
                             match comb.prim().unwrap() {
                                 Prim::Car => a.car()?,
                                 Prim::Cdr => a.cdr()?,
                                 _ => {
-                                    let b = tree_walker_eval(cdr.cdr()?.car()?, Rc::clone(&e))?;
+                                    let b = tree_walker_eval(cdr.cdr()?.car()?, Rc::clone(&e), stats)?;
                                     match comb.prim().unwrap() {
                                         Prim::Add => Form::new_int(a.int()? + b.int()?),
                                         Prim::Sub => Form::new_int(a.int()? - b.int()?),
@@ -275,13 +334,13 @@ pub fn tree_walker_eval(f: Rc<Form>, e: Rc<RefCell<Env>>) -> Result<Rc<Form>> {
 }
 
 // todo, strings not symbols?
-impl From<String> for Form { fn from(item: String) -> Self { Form::Symbol(item, None) } }
-impl From<&str>   for Form { fn from(item: &str)   -> Self { Form::Symbol(item.to_owned(), None) } }
+impl From<String> for Form { fn from(item: String) -> Self { Form::Symbol(item, RefCell::new(None)) } }
+impl From<&str>   for Form { fn from(item: &str)   -> Self { Form::Symbol(item.to_owned(), RefCell::new(None)) } }
 impl From<i32>    for Form { fn from(item: i32)    -> Self { Form::Int(item) } }
 impl From<bool>   for Form { fn from(item: bool)   -> Self { Form::Bool(item) } }
 impl<A: Into<Form>, B: Into<Form>> From<(A, B)> for Form {
     fn from(item: (A, B)) -> Self {
-        Form::Pair(Rc::new(item.0.into()), Rc::new(item.1.into()), None)
+        Form::Pair(Rc::new(item.0.into()), Rc::new(item.1.into()), RefCell::new(None))
     }
 }
 
