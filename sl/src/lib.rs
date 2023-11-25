@@ -146,6 +146,9 @@ impl Form {
 #[derive(Debug)]
 pub struct Env {
     u: Option<Rc<RefCell<Env>>>,
+    // split  this into
+    // BTreeMap<String, usize>
+    // Vec<usize> so that traced code can refer by index
     m: BTreeMap<String, Rc<Form>>
 }
 impl Env {
@@ -189,22 +192,34 @@ impl Env {
 }
 
 #[derive(Debug)]
-struct Stats {
+struct Trace {
+    id: ID,
+}
+impl Trace {
+    fn new(id: ID) -> Self {
+        Trace { id }
+    }
+}
+
+#[derive(Debug)]
+struct Ctx {
     id_counter: i64,
     func_calls: BTreeMap<ID, i64>,
+    tracing: Option<Trace>,
 }
-impl Stats {
-    fn new() -> Stats {
-        Stats {
+impl Ctx {
+    fn new() -> Ctx {
+        Ctx {
             id_counter: 0,
-            func_calls: BTreeMap::new()
+            func_calls: BTreeMap::new(),
+            tracing: None,
         }
     }
     fn alloc_id(&mut self) -> ID {
         self.id_counter += 1;
         ID { id: self.id_counter }
     }
-    fn count_call(&mut self, id: &RefCell<Option<ID>>) {
+    fn trace_call_start(&mut self, id: &RefCell<Option<ID>>) {
         // shenanigins for controlling the guard
         {
             if id.borrow().is_none() {
@@ -215,124 +230,212 @@ impl Stats {
         let id = id.borrow().unwrap();
         let entry = self.func_calls.entry(id).or_insert(0);
         *entry += 1;
+        if *entry > 10 && self.tracing.is_none() {
+            self.tracing = Some(Trace::new(id));
+        }
     }
+    fn trace_call_end(&mut self, id: &RefCell<Option<ID>>) {
+        let id = { *id.borrow() };
+        // associate with it or something
+    }
+}
+enum Cont {
+    MetaRet,
+    Ret  { e: Rc<RefCell<Env>>,                    c: Box<Cont> },
+    Eval {                                         c: Box<Cont> }, 
+    Prim { s: &'static str,       to_go: Rc<Form>, c: Box<Cont> },
+    Call { evaled: Vec<Rc<Form>>, to_go: Rc<Form>, c: Box<Cont> },
 }
 
 pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
-    let e = Env::root_env();
-    let mut stats = Stats::new();
-    let to_ret = tree_walker_eval(f, e, &mut stats)?;
-    println!("Stats were {stats:?}");
-    Ok(to_ret)
-}
+    let mut ctx = Ctx::new();
+    let mut f = f;
+    let mut e = Env::root_env();
+    let mut c = Cont::Eval { c: Box::new(Cont::MetaRet) };
 
-// add functions
-// variables
-// optimized as a function based off side table of id keyed -> opt
-// that id might be nice for debugging too
-// Symbol ID's could actually be used for environment lookups
-//  this is just interning
-
-fn tree_walker_eval(f: Rc<Form>, e: Rc<RefCell<Env>>, stats: &mut Stats) -> Result<Rc<Form>> {
-    println!("tree_walker_eval({f})");
-    Ok(match &*f {
-        Form::Symbol(s, _id) => e.borrow().lookup(s)?,
-        Form::Pair(car, cdr, _id) => {
-            match &**car {
-                Form::Symbol(s, _id) if s == "if" => {
-                    if tree_walker_eval(cdr.car()?, Rc::clone(&e), stats)?.truthy() {
-                        tree_walker_eval(cdr.cdr()?.car()?, e, stats)?
-                    } else {
-                        tree_walker_eval(cdr.cdr()?.cdr()?.car()?, e, stats)?
+    loop {
+        match c {
+            Cont::MetaRet => {
+                println!("Ctx were {ctx:?}");
+                return Ok(f);
+            }
+            Cont::Ret { e: ne, c: nc } => {
+                e = ne;
+                c = *nc;
+            },
+            Cont::Prim { s, to_go, c: nc } => {
+                match s {
+                    "if" => {
+                        if f.truthy() {
+                            f = to_go.car()?;
+                        } else {
+                            f = to_go.cdr()?.car()?;
+                        }
+                        c = Cont::Eval { c: nc };
+                    },
+                    "or" => {
+                        if !f.truthy() {
+                            f = to_go.car()?;
+                            c = Cont::Eval { c: nc };
+                        } else {
+                            c = *nc;
+                        }
+                    },
+                    "and" => {
+                        if f.truthy() {
+                            f = to_go.car()?;
+                            c = Cont::Eval { c: nc };
+                        } else {
+                            c = *nc;
+                        }
+                    },
+                    "begin" => {
+                        if to_go.is_nil() {
+                            c = *nc;
+                        } else {
+                            f = to_go.car()?;
+                            c = Cont::Eval { c: Box::new(Cont::Prim { s: "begin", to_go: to_go.cdr()?, c: nc }) };
+                        }
+                    },
+                    "debug" => {
+                        println!("Debug: {f}");
+                        c = *nc;
+                    },
+                    "define" => {
+                        e.borrow_mut().define(to_go.sym()?.to_string(), Rc::clone(&f));
+                        c = *nc;
+                    },
+                    _ => {
+                        panic!("bad prim {s}");
                     }
-
                 }
-                Form::Symbol(s, _id) if s == "begin" => {
-                    let mut last_result = Form::new_nil();
-                    let mut traverse = Rc::clone(cdr);
-                    while let Ok((ncar, ncdr)) = traverse.pair() {
-                        traverse = ncdr;
-                        last_result = tree_walker_eval(ncar, Rc::clone(&e), stats)?;
-                    }
-                    last_result
-
-                }
-                Form::Symbol(s, _id) if s == "debug" => {
-                    println!("debug: {}", tree_walker_eval(cdr.car()?, e, stats)?);
-                    Form::new_nil()
-                }
-                // This is a fast and loose ~simple lisp~, so just go for it
-                // and can have convention that this is always top levelish
-                Form::Symbol(s, _id) if s == "define" => {
-                    let v = tree_walker_eval(cdr.cdr()?.car()?, Rc::clone(&e), stats)?;
-                    e.borrow_mut().define(cdr.car()?.sym()?.to_string(), v);
-                    Form::new_nil()
-                }
-                Form::Symbol(s, _id) if s == "quote" => {
-                    cdr.car()?
-                }
-                // (lambda (a b) body)
-                Form::Symbol(s, _id) if s == "lambda" => {
-                    let mut params_vec = vec![];
-                    let mut params = cdr.car()?;
-                    while let Ok((ncar, ncdr)) = params.pair() {
-                        params_vec.push(ncar.sym()?.to_string());
-                        params = ncdr;
-                    }
-                    let body = cdr.cdr()?.car()?;
-                    Form::new_closure(params_vec, Rc::clone(&e), body)
-                }
-                _ => {
-                    let comb = tree_walker_eval(Rc::clone(car), Rc::clone(&e), stats)?;
+            },
+            Cont::Call { mut evaled, to_go, c: nc } => {
+                evaled.push(f);
+                if to_go.is_nil() {
+                    // do call
+                    let arg_len = evaled.len() - 1;
+                    let mut evaled_iter = evaled.into_iter();
+                    let comb = evaled_iter.next().unwrap();
                     match &*comb {
                         Form::Closure(ps, ie, b, id) => {
-                            stats.count_call(id);
-                            let mut arguments_vec = vec![];
-                            let mut arguments = Rc::clone(cdr);
-                            while let Ok((ncar, ncdr)) = arguments.pair() {
-                                arguments_vec.push(tree_walker_eval(ncar, Rc::clone(&e), stats)?);
-                                arguments = ncdr;
-                            }
-                            if ps.len() != arguments_vec.len() {
+                            if ps.len() != arg_len {
                                 bail!("arguments length doesn't match");
                             }
-                            let new_env = Env::chain(&e);
-                            for (name, value) in ps.iter().zip(arguments_vec.into_iter()) {
+                            let new_env = Env::chain(&ie);
+                            for (name, value) in ps.iter().zip(evaled_iter) {
                                 new_env.borrow_mut().define(name.to_string(), value);
                             }
-                            tree_walker_eval(Rc::clone(b), new_env, stats)?
+                            ctx.trace_call_start(id);
+                            c = Cont::Eval { c: Box::new(Cont::Ret { e: Rc::clone(&e), c: nc }) };
+                            f = Rc::clone(&b);
+                            e = new_env;
                         },
                         Form::Prim(p) => {
-                            let a = tree_walker_eval(cdr.car()?, Rc::clone(&e), stats)?;
-                            match comb.prim().unwrap() {
+                            let a = evaled_iter.next().unwrap();
+                            f = match comb.prim().unwrap() {
                                 Prim::Car => a.car()?,
                                 Prim::Cdr => a.cdr()?,
                                 _ => {
-                                    let b = tree_walker_eval(cdr.cdr()?.car()?, Rc::clone(&e), stats)?;
+                                    let b = evaled_iter.next().unwrap();
                                     match comb.prim().unwrap() {
-                                        Prim::Add => Form::new_int(a.int()? + b.int()?),
-                                        Prim::Sub => Form::new_int(a.int()? - b.int()?),
-                                        Prim::Mul => Form::new_int(a.int()? * b.int()?),
-                                        Prim::Div => Form::new_int(a.int()? / b.int()?),
-                                        Prim::Mod => Form::new_int(a.int()? % b.int()?),
+                                        Prim::Add  => Form::new_int(a.int()? + b.int()?),
+                                        Prim::Sub  => Form::new_int(a.int()? - b.int()?),
+                                        Prim::Mul  => Form::new_int(a.int()? * b.int()?),
+                                        Prim::Div  => Form::new_int(a.int()? / b.int()?),
+                                        Prim::Mod  => Form::new_int(a.int()? % b.int()?),
                                         Prim::Cons => Form::new_pair(a, b),
-                                        Prim::Eq  => Form::new_bool(a.my_eq(&b)),
+                                        Prim::Eq   => Form::new_bool(a.my_eq(&b)),
                                         _ => unreachable!(),
                                     }
                                 }
-                            }
+                            };
+                            c = *nc;
                         },
                         _ => {
                             bail!("tried to call a non-comb {}", comb)
                         },
                     }
+                } else {
+                    f = to_go.car()?;
+                    c = Cont::Eval { c: Box::new(Cont::Call { evaled, to_go: to_go.cdr()?, c: nc }) };
                 }
             }
-        },
-        _ => f
-    })
+            Cont::Eval { c: nc } => {
+                let tmp = f;
+                match &*tmp {
+                    Form::Symbol(s, _id) => {
+                        f = e.borrow().lookup(s)?;
+                        c = *nc;
+                    },
+                    Form::Pair(car, cdr, _id) => {
+                        match &**car {
+                            Form::Symbol(s, _id) if s == "if" => {
+                                f = cdr.car()?;
+                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "if", to_go: cdr.cdr()?, c: nc }) };
+                            }
+                            // and/or has to short-circut, so special form
+                            // just like Scheme (bad ;) )
+                            Form::Symbol(s, _id) if s == "or" => {
+                                f = cdr.car()?;
+                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "or", to_go: cdr.cdr()?, c: nc }) };
+                            }
+                            Form::Symbol(s, _id) if s == "and" => {
+                                f = cdr.car()?;
+                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "and", to_go: cdr.cdr()?, c: nc }) };
+                            }
+                            Form::Symbol(s, _id) if s == "begin" => {
+                                f = cdr.car()?;
+                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "begin", to_go: cdr.cdr()?, c: nc }) };
+                            }
+                            Form::Symbol(s, _id) if s == "debug" => {
+                                f = cdr.car()?;
+                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "debug", to_go: cdr.cdr()?, c: nc }) };
+                            }
+                            // This is a fast and loose ~simple lisp~, so just go for it
+                            // and can have convention that this is always top levelish
+                            Form::Symbol(s, _id) if s == "define" => {
+                                // note the swap, evaluating the second not the first (define a value..)
+                                f = cdr.cdr()?.car()?;
+                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "define", to_go: cdr.car()?, c: nc }) };
+                            }
+                            Form::Symbol(s, _id) if s == "quote" => {
+                                f = cdr.car()?;
+                                c = *nc;
+                            }
+                            // (lambda (a b) body)
+                            Form::Symbol(s, _id) if s == "lambda" => {
+                                let mut params_vec = vec![];
+                                let mut params = cdr.car()?;
+                                while let Ok((ncar, ncdr)) = params.pair() {
+                                    params_vec.push(ncar.sym()?.to_string());
+                                    params = ncdr;
+                                }
+                                let body = cdr.cdr()?.car()?;
+                                f = Form::new_closure(params_vec, Rc::clone(&e), body);
+                                c = *nc;
+                            }
+                            _ => {
+                                f = Rc::clone(car);
+                                c = Cont::Eval { c: Box::new(Cont::Call { evaled: vec![], to_go: Rc::clone(cdr), c: nc }) };
+                            }
+                        }
+                    },
+                    _ =>  {
+                        // value, no eval
+                        f = tmp;
+                        c = *nc;
+                    }
+                }
+            }
+        }
+    }
 }
 
+// optimized as a function based off side table of id keyed -> opt
+// that id might be nice for debugging too
+// Symbol ID's could actually be used for environment lookups
+//  this is just interning
 // todo, strings not symbols?
 impl From<String> for Form { fn from(item: String) -> Self { Form::Symbol(item, RefCell::new(None)) } }
 impl From<&str>   for Form { fn from(item: &str)   -> Self { Form::Symbol(item.to_owned(), RefCell::new(None)) } }
