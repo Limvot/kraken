@@ -28,15 +28,16 @@ fn main() -> Result<()> {
 
 
 
-        ;(define faft (lambda (n) (if (= n 1) 1 (+ n (faft (- n 1))))))
-        ;(debug 'gonna_faft_it)
-        ;(debug faft)
+        (define faft (lambda (n) (if (= n 1) (debug 1) (+ n (faft (- n 1))))))
+        (debug 'gonna_faft_it)
+        (debug faft)
+        (debug (faft 6))
         ;(debug (faft 400))
 
-        (define faft2 (lambda (n a) (if (= n 1) a (faft2 (- n 1) (+ n a)))))
-        (debug 'gonna_faft2_it)
-        (debug faft2)
-        (debug (faft2 400 1))
+        ;(define faft2 (lambda (n a) (if (= n 1) a (faft2 (- n 1) (+ n a)))))
+        ;(debug 'gonna_faft2_it)
+        ;(debug faft2)
+        ;(debug (faft2 400 1))
 
 
 

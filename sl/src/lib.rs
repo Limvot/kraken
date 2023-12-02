@@ -27,6 +27,11 @@ use anyhow::{anyhow,bail,Result};
 pub struct ID {
     id: i64
 }
+impl fmt::Display for ID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.id)
+    }
+}
 
 #[derive(Debug)]
 pub enum Form {
@@ -35,7 +40,7 @@ pub enum Form {
     Bool(bool),
     Symbol(String, RefCell<Option<ID>>),
     Pair(Rc<Form>, Rc<Form>, RefCell<Option<ID>>),
-    Closure(Vec<String>, Rc<RefCell<Env>>, Rc<Form>, RefCell<Option<ID>>),
+    Closure(Vec<String>, Rc<RefCell<Env>>, Rc<Form>, ID),
     Prim(Prim),
 }
 
@@ -55,13 +60,13 @@ pub enum Prim {
 impl Form {
     fn my_eq(&self, o: &Rc<Form>) -> bool {
         match self {
-            Form::Nil => o.is_nil(),
-            Form::Int(i) => if let Ok(oi) = o.int() { *i == oi } else { false },
-            Form::Bool(b) => if let Ok(ob) = o.bool() { *b == ob } else { false },
-            Form::Symbol(s, _id) => if let Ok(os) = o.sym() { s == os } else { false },
-            Form::Pair(a,b,_id) => if let Ok((oa,ob)) = o.pair() { a.my_eq(&oa) && b.my_eq(&ob) } else { false },
-            Form::Closure(_, _, _, _) => false,
-            Form::Prim(p) => match &**o { Form::Prim(op) => p == op, _ => false },
+            Form::Nil                   => o.is_nil(),
+            Form::Int(i)                => if let Ok(oi) = o.int()  { *i == oi } else { false },
+            Form::Bool(b)               => if let Ok(ob) = o.bool() { *b == ob } else { false },
+            Form::Symbol(s, _id)        => if let Ok(os) = o.sym()  {  s == os } else { false },
+            Form::Pair(a,b,_id)         => if let Ok((oa,ob)) = o.pair() { a.my_eq(&oa) && b.my_eq(&ob) } else { false },
+            Form::Closure(_, _, _, _)   => false,
+            Form::Prim(p)               => match &**o { Form::Prim(op) => p == op, _ => false },
         }
     }
     fn new_pair(car: Rc<Form>, cdr: Rc<Form>) -> Rc<Form> {
@@ -76,8 +81,8 @@ impl Form {
     fn new_bool(b: bool) -> Rc<Form> {
         Rc::new(Form::Bool(b))
     }
-    fn new_closure(params: Vec<String>, env: Rc<RefCell<Env>>, body: Rc<Form>) -> Rc<Form> {
-        Rc::new(Form::Closure(params, env, body, RefCell::new(None)))
+    fn new_closure(params: Vec<String>, env: Rc<RefCell<Env>>, body: Rc<Form>, ctx: &mut Ctx) -> Rc<Form> {
+        Rc::new(Form::Closure(params, env, body, ctx.alloc_id()))
     }
     fn truthy(&self) -> bool {
         match self {
@@ -156,16 +161,16 @@ impl Env {
         Rc::new(RefCell::new(Env {
             u: None,
             m: [
-                ("+", Rc::new(Form::Prim(Prim::Add))),
-                ("-", Rc::new(Form::Prim(Prim::Sub))),
-                ("*", Rc::new(Form::Prim(Prim::Mul))),
-                ("/", Rc::new(Form::Prim(Prim::Div))),
-                ("%", Rc::new(Form::Prim(Prim::Mod))),
+                ("+",    Rc::new(Form::Prim(Prim::Add))),
+                ("-",    Rc::new(Form::Prim(Prim::Sub))),
+                ("*",    Rc::new(Form::Prim(Prim::Mul))),
+                ("/",    Rc::new(Form::Prim(Prim::Div))),
+                ("%",    Rc::new(Form::Prim(Prim::Mod))),
                 ("cons", Rc::new(Form::Prim(Prim::Cons))),
-                ("cdr", Rc::new(Form::Prim(Prim::Cdr))),
-                ("car", Rc::new(Form::Prim(Prim::Car))),
-                ("=", Rc::new(Form::Prim(Prim::Eq))),
-                ("nil", Form::new_nil()),
+                ("cdr",  Rc::new(Form::Prim(Prim::Cdr))),
+                ("car",  Rc::new(Form::Prim(Prim::Car))),
+                ("=",    Rc::new(Form::Prim(Prim::Eq))),
+                ("nil",  Form::new_nil()),
             ].into_iter().map(|(s,p)| (s.to_owned(), p)).collect()
         }))
     }
@@ -192,12 +197,39 @@ impl Env {
 }
 
 #[derive(Debug)]
+enum Op {
+    Guard { const_value: Rc<Form>, side: (Option<Rc<Form>>, Rc<Cont>) },
+    Debug,
+    Define { sym: String },
+}
+impl fmt::Display for Op {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Op::Guard { const_value, side } => write!(f, "Guard"),
+            Op::Debug                       => write!(f, "Debug"),
+            Op::Define { sym }              => write!(f, "Define {sym}"),
+        }
+    }
+}
+#[derive(Debug)]
 struct Trace {
     id: ID,
+    // needs to track which are constants
+    ops: Vec<Op>,
 }
 impl Trace {
     fn new(id: ID) -> Self {
-        Trace { id }
+        Trace { id, ops: vec![] }
+    }
+}
+impl fmt::Display for Trace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Trace for {} [", self.id)?;
+        for op in &self.ops {
+            write!(f, " {}", op)?;
+        }
+        write!(f, " ]")?;
+        Ok(())
     }
 }
 
@@ -206,6 +238,12 @@ struct Ctx {
     id_counter: i64,
     func_calls: BTreeMap<ID, i64>,
     tracing: Option<Trace>,
+    traces: BTreeMap<ID, Trace>,
+}
+impl fmt::Display for Ctx {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Ctx")
+    }
 }
 impl Ctx {
     fn new() -> Ctx {
@@ -213,97 +251,170 @@ impl Ctx {
             id_counter: 0,
             func_calls: BTreeMap::new(),
             tracing: None,
+            traces: BTreeMap::new(),
         }
     }
     fn alloc_id(&mut self) -> ID {
         self.id_counter += 1;
         ID { id: self.id_counter }
     }
-    fn trace_call_start(&mut self, id: &RefCell<Option<ID>>) {
-        // shenanigins for controlling the guard
-        {
-            if id.borrow().is_none() {
-                let new_id = self.alloc_id();
-                id.replace(Some(new_id));
-            }
-        }
-        let id = id.borrow().unwrap();
+    fn trace_running(&self) -> bool { self.tracing.is_some() }
+    fn trace_call_start(&mut self, id: ID) {
+
+        // Needs to take and use parameters for mid-trace
+        //  needs to guard on function called if non-constant
+
         let entry = self.func_calls.entry(id).or_insert(0);
+        println!("tracing call start for {id}, has been called {} times so far", *entry);
         *entry += 1;
-        if *entry > 10 && self.tracing.is_none() {
+        if let Some(trace) = &self.tracing {
+            if trace.id == id {
+                println!("Ending trace at recursive call!");
+                println!("\t{}", trace);
+                self.traces.insert(id, self.tracing.take().unwrap());
+            }
+        } else if *entry > 1 && self.traces.get(&id).is_none() {
             self.tracing = Some(Trace::new(id));
         }
     }
-    fn trace_call_end(&mut self, id: &RefCell<Option<ID>>) {
-        let id = { *id.borrow() };
+    fn trace_call_end(&mut self, id: ID) {
         // associate with it or something
+        println!("tracing call end for {id}");
+        if let Some(trace) = &self.tracing {
+            if trace.id == id {
+                println!("Ending trace at end of call!");
+                println!("\t{}", trace);
+                self.traces.insert(id, self.tracing.take().unwrap());
+            }
+        }
+    }
+    fn trace_guard<T: Into<Form> + std::fmt::Debug >(&mut self, value: T, other: impl Fn()->(Option<Rc<Form>>,Rc<Cont>)) {
+        println!("Tracing guard {value:?}");
+        if let Some(trace) = &mut self.tracing {
+            trace.ops.push(Op::Guard { const_value: Rc::new(value.into()), side: other() });
+        }
+    }
+    fn trace_debug(&mut self) {
+        if let Some(trace) = &mut self.tracing {
+            trace.ops.push(Op::Debug);
+        }
+    }
+    fn trace_define(&mut self, sym: &str) {
+        if let Some(trace) = &mut self.tracing {
+            trace.ops.push(Op::Define { sym: sym.to_owned() });
+        }
+    }
+    fn trace_call_bit(&mut self) {
+        if let Some(trace) = &mut self.tracing {
+            // TODO
+        }
+    }
+    // Trace call start, of course, handles the other side!
+    // Though I guess that means call start should recieve the parameters
+    //  also, for like variables, it should guard on what function
+    //      if dynamic, interacts with the constant tracking
+    fn trace_prim(&mut self, p: &Prim) {
+        if let Some(trace) = &mut self.tracing {
+            // TODO
+        }
+    }
+    fn trace_lookup(&mut self, s: &str) {
+        if let Some(trace) = &mut self.tracing {
+            // TODO
+        }
+    }
+    fn trace_constant(&mut self, c: &Rc<Form>) {
+        if let Some(trace) = &mut self.tracing {
+            // TODO
+        }
+    }
+    fn trace_lambda(&mut self, params: &[String], e: &Rc<RefCell<Env>>, body: &Rc<Form>) {
+        if let Some(trace) = &mut self.tracing {
+            // TODO
+        }
     }
 }
+#[derive(Clone,Debug)]
 enum Cont {
     MetaRet,
-    Ret  { e: Rc<RefCell<Env>>,                    c: Box<Cont> },
-    Eval {                                         c: Box<Cont> }, 
-    Prim { s: &'static str,       to_go: Rc<Form>, c: Box<Cont> },
-    Call { evaled: Vec<Rc<Form>>, to_go: Rc<Form>, c: Box<Cont> },
+    Ret  { e: Rc<RefCell<Env>>,   id: ID,          c: Rc<Cont> },
+    Eval {                                         c: Rc<Cont> }, 
+    Prim { s: &'static str,       to_go: Rc<Form>, c: Rc<Cont> },
+    Call { evaled: Vec<Rc<Form>>, to_go: Rc<Form>, c: Rc<Cont> },
 }
 
 pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
     let mut ctx = Ctx::new();
     let mut f = f;
     let mut e = Env::root_env();
-    let mut c = Cont::Eval { c: Box::new(Cont::MetaRet) };
+    let mut c = Cont::Eval { c: Rc::new(Cont::MetaRet) };
 
     loop {
         match c {
             Cont::MetaRet => {
-                println!("Ctx were {ctx:?}");
+                println!("Ctx was {ctx}");
+                assert!(!ctx.trace_running());
                 return Ok(f);
             }
-            Cont::Ret { e: ne, c: nc } => {
+            Cont::Ret { e: ne, id, c: nc } => {
+                ctx.trace_call_end(id);
                 e = ne;
-                c = *nc;
+                c = (*nc).clone();
             },
             Cont::Prim { s, to_go, c: nc } => {
                 match s {
                     "if" => {
+                        let thn = to_go.car()?;
+                        let els = to_go.cdr()?.car()?;
                         if f.truthy() {
-                            f = to_go.car()?;
+                            ctx.trace_guard(true, || (Some(Rc::clone(&els)), Rc::new(Cont::Eval { c: Rc::clone(&nc) })));
+                            f = thn;
                         } else {
-                            f = to_go.cdr()?.car()?;
+                            ctx.trace_guard(false, ||(Some(Rc::clone(&thn)), Rc::new(Cont::Eval { c: Rc::clone(&nc) })));
+                            f = els;
                         }
                         c = Cont::Eval { c: nc };
                     },
                     "or" => {
+                        let other = to_go.car()?;
                         if !f.truthy() {
-                            f = to_go.car()?;
+                            ctx.trace_guard(false, || (None, nc.clone()));
+                            f = other;
                             c = Cont::Eval { c: nc };
                         } else {
-                            c = *nc;
+                            ctx.trace_guard(true, || (Some(Rc::clone(&other)), Rc::new(Cont::Eval { c: Rc::clone(&nc) })));
+                            c = (*nc).clone();
                         }
                     },
                     "and" => {
+                        let other = to_go.car()?;
                         if f.truthy() {
-                            f = to_go.car()?;
+                            ctx.trace_guard(true, || (None, nc.clone()));
+                            f = other;
                             c = Cont::Eval { c: nc };
                         } else {
-                            c = *nc;
+                            ctx.trace_guard(false, || (Some(Rc::clone(&other)), Rc::new(Cont::Eval { c: Rc::clone(&nc) })));
+                            c = (*nc).clone();
                         }
                     },
                     "begin" => {
                         if to_go.is_nil() {
-                            c = *nc;
+                            c = (*nc).clone();
                         } else {
                             f = to_go.car()?;
-                            c = Cont::Eval { c: Box::new(Cont::Prim { s: "begin", to_go: to_go.cdr()?, c: nc }) };
+                            c = Cont::Eval { c: Rc::new(Cont::Prim { s: "begin", to_go: to_go.cdr()?, c: nc }) };
                         }
                     },
                     "debug" => {
                         println!("Debug: {f}");
-                        c = *nc;
+                        ctx.trace_debug();
+                        c = (*nc).clone();
                     },
                     "define" => {
-                        e.borrow_mut().define(to_go.sym()?.to_string(), Rc::clone(&f));
-                        c = *nc;
+                        let sym = to_go.sym()?.to_string();
+                        ctx.trace_define(&sym);
+                        e.borrow_mut().define(sym, Rc::clone(&f));
+                        c = (*nc).clone();
                     },
                     _ => {
                         panic!("bad prim {s}");
@@ -311,6 +422,7 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                 }
             },
             Cont::Call { mut evaled, to_go, c: nc } => {
+                ctx.trace_call_bit();
                 evaled.push(f);
                 if to_go.is_nil() {
                     // do call
@@ -326,12 +438,13 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                             for (name, value) in ps.iter().zip(evaled_iter) {
                                 new_env.borrow_mut().define(name.to_string(), value);
                             }
-                            ctx.trace_call_start(id);
-                            c = Cont::Eval { c: Box::new(Cont::Ret { e: Rc::clone(&e), c: nc }) };
+                            ctx.trace_call_start(*id);
+                            c = Cont::Eval { c: Rc::new(Cont::Ret { e: Rc::clone(&e), id: *id, c: nc }) };
                             f = Rc::clone(&b);
                             e = new_env;
                         },
                         Form::Prim(p) => {
+                            ctx.trace_prim(p);
                             let a = evaled_iter.next().unwrap();
                             f = match comb.prim().unwrap() {
                                 Prim::Car => a.car()?,
@@ -350,7 +463,7 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                                     }
                                 }
                             };
-                            c = *nc;
+                            c = (*nc).clone();
                         },
                         _ => {
                             bail!("tried to call a non-comb {}", comb)
@@ -358,50 +471,52 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                     }
                 } else {
                     f = to_go.car()?;
-                    c = Cont::Eval { c: Box::new(Cont::Call { evaled, to_go: to_go.cdr()?, c: nc }) };
+                    c = Cont::Eval { c: Rc::new(Cont::Call { evaled, to_go: to_go.cdr()?, c: nc }) };
                 }
             }
             Cont::Eval { c: nc } => {
                 let tmp = f;
                 match &*tmp {
                     Form::Symbol(s, _id) => {
+                        ctx.trace_lookup(s);
                         f = e.borrow().lookup(s)?;
-                        c = *nc;
+                        c = (*nc).clone();
                     },
                     Form::Pair(car, cdr, _id) => {
                         match &**car {
                             Form::Symbol(s, _id) if s == "if" => {
                                 f = cdr.car()?;
-                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "if", to_go: cdr.cdr()?, c: nc }) };
+                                c = Cont::Eval { c: Rc::new(Cont::Prim { s: "if", to_go: cdr.cdr()?, c: nc }) };
                             }
                             // and/or has to short-circut, so special form
                             // just like Scheme (bad ;) )
                             Form::Symbol(s, _id) if s == "or" => {
                                 f = cdr.car()?;
-                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "or", to_go: cdr.cdr()?, c: nc }) };
+                                c = Cont::Eval { c: Rc::new(Cont::Prim { s: "or", to_go: cdr.cdr()?, c: nc }) };
                             }
                             Form::Symbol(s, _id) if s == "and" => {
                                 f = cdr.car()?;
-                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "and", to_go: cdr.cdr()?, c: nc }) };
+                                c = Cont::Eval { c: Rc::new(Cont::Prim { s: "and", to_go: cdr.cdr()?, c: nc }) };
                             }
                             Form::Symbol(s, _id) if s == "begin" => {
                                 f = cdr.car()?;
-                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "begin", to_go: cdr.cdr()?, c: nc }) };
+                                c = Cont::Eval { c: Rc::new(Cont::Prim { s: "begin", to_go: cdr.cdr()?, c: nc }) };
                             }
                             Form::Symbol(s, _id) if s == "debug" => {
                                 f = cdr.car()?;
-                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "debug", to_go: cdr.cdr()?, c: nc }) };
+                                c = Cont::Eval { c: Rc::new(Cont::Prim { s: "debug", to_go: cdr.cdr()?, c: nc }) };
                             }
                             // This is a fast and loose ~simple lisp~, so just go for it
                             // and can have convention that this is always top levelish
                             Form::Symbol(s, _id) if s == "define" => {
                                 // note the swap, evaluating the second not the first (define a value..)
                                 f = cdr.cdr()?.car()?;
-                                c = Cont::Eval { c: Box::new(Cont::Prim { s: "define", to_go: cdr.car()?, c: nc }) };
+                                c = Cont::Eval { c: Rc::new(Cont::Prim { s: "define", to_go: cdr.car()?, c: nc }) };
                             }
                             Form::Symbol(s, _id) if s == "quote" => {
                                 f = cdr.car()?;
-                                c = *nc;
+                                ctx.trace_constant(&f);
+                                c = (*nc).clone();
                             }
                             // (lambda (a b) body)
                             Form::Symbol(s, _id) if s == "lambda" => {
@@ -412,19 +527,23 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                                     params = ncdr;
                                 }
                                 let body = cdr.cdr()?.car()?;
-                                f = Form::new_closure(params_vec, Rc::clone(&e), body);
-                                c = *nc;
+                                // Later on, the id of the closure should maybe be augmented
+                                // or replaced with the id of the code it was made out of?
+                                ctx.trace_lambda(&params_vec, &e, &body);
+                                f = Form::new_closure(params_vec, Rc::clone(&e), body, &mut ctx);
+                                c = (*nc).clone();
                             }
                             _ => {
                                 f = Rc::clone(car);
-                                c = Cont::Eval { c: Box::new(Cont::Call { evaled: vec![], to_go: Rc::clone(cdr), c: nc }) };
+                                c = Cont::Eval { c: Rc::new(Cont::Call { evaled: vec![], to_go: Rc::clone(cdr), c: nc }) };
                             }
                         }
                     },
                     _ =>  {
                         // value, no eval
                         f = tmp;
-                        c = *nc;
+                        ctx.trace_constant(&f);
+                        c = (*nc).clone();
                     }
                 }
             }
@@ -475,7 +594,7 @@ impl fmt::Display for Form {
                 }
             },
             Form::Closure(params, inner_env, code, id) => {
-                write!(f, "<closure {:?}>", params)
+                write!(f, "<closure{} {:?}>", id, params)
             }
             Form::Prim(p) => {
                 match p {
