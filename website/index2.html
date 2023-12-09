@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en-us">
+<meta charset="UTF-8">
+    <head>
+		<!--<link id="theme" rel="stylesheet" type="text/css" href="slick.css"/>-->
+		<link id="theme" rel="stylesheet" type="text/css" href="recursive.css"/>
+    </head>
+    <body>
+        <!--<div class="top_spacer"></div>-->
+		<!--<div class="run_container">-->
+			<!--<div class="editor" id="hello_editor">; Of course-->
+<!--(println "Hello World")-->
+<!--; Just print 3-->
+<!--(println "Math works:" (+ 1 2))-->
+<!--</div>-->
+			<!--<textarea class="output" id="hello_output">Output will appear here</textarea>-->
+			<!--<button class="run_button" onclick="executeKraken(hello_editor_jar.toString(), 'hello_output')">Run</button> <br>-->
+		<!--</div>-->
+
+			<script>
+// based on https://codepen.io/alvarotrigo/pen/ZEJgqLN
+// Thank you!
+var words = [
+    `; define control flow<pre><code>(vau de (a b)
+  (let ((temp (eval a de)))
+       (if temp
+           temp
+           (eval b de))))</code></pre>`,
+    '(println "Hello World")',
+    '; higher-order lazy fold<br>(fold or #f (list #t #f))',
+    //'Lorem ipsum dolor sit amet',
+    //' consectetur adipiscing elit',
+    //'sed do eiusmod tempor incididunt'
+],
+    part,
+    i = 0,
+    offset = 0,
+    len = words.length,
+    forwards = true,
+    skip_count = 0,
+    skip_delay = 30,
+    speed = 70;
+var wordflick = function () {
+  setInterval(function () {
+    if (forwards) {
+      if (offset >= words[i].length) {
+        ++skip_count;
+        if (skip_count == skip_delay) {
+          forwards = false;
+          skip_count = 0;
+        }
+      }
+    } else {
+      if (offset == 0) {
+        forwards = true;
+        i++;
+        offset = 0;
+        if (i >= len) {
+          i = 0;
+        }
+      }
+    }
+    part = words[i].substr(0, offset);
+    if (skip_count == 0) {
+      if (forwards) {
+        offset++;
+        if (words[i][offset] == '<') {
+            while (words[i][offset] != '>') {
+                offset++;
+            }
+        }
+      } else {
+        offset = Math.max(offset-4, 0);
+      }
+    }
+    document.getElementsByClassName('word')[0].innerHTML = part;
+  },speed);
+};
+
+window.onload = function () {
+  wordflick();
+};
+</script>
+
+
+		<header><div class="logo_container">
+<div class="word"></div>
+          <h1 class="logo">Kraken</h1>
+        </div></header>
+	    <i>FOSS Fexprs: <a title="Kraken on GitHub" href="https://github.com/limvot/kraken">https://github.com/limvot/kraken</a></i>
+		<!--<button onclick="toggleTheme()" style="float: right;">Swap Theme</button>-->
+        <br>
+	    <h3>Concept:</h3>
+	    <ul>
+		    <li> Minimal, purely functional Kernel/Scheme as core language, with Kernel/Vau calculus inspiration oblivating the need for non-reader macros (<a title="Kernel/Vau calculus thesis" href="https://web.wpi.edu/Pubs/ETD/Available/etd-090110-124904/unrestricted/jshutt.pdf">Kernel/Vau calculus thesis</a>)
+				<li> Partial evaluation (or now, maybe tracing JIT compilation) to make fexprs fast (my PhD research! First paper on <a href="https://arxiv.org/abs/2303.12254">arXiv</a>)
+	 	    <li> Implement Type Systems as Macros (but using Fexprs instead of macros) (<a title="type systems as macros paper 1" href="http://www.ccs.neu.edu/home/stchang/pubs/ckg-popl2017.pdf">paper, up to System Fω</a>) (<a title="type systems as macros paper 2" href="https://www.ccs.neu.edu/home/stchang/pubs/cbtb-popl2020.pdf">second paper, up to dependent types</a>)
+		    <li> Use above "type systems as fexprs" to add types and create a statically-typed language on top (with Algebraic Effects using the underlying delimited continuations, etc)
+	    </ul>
+	    <h3> About:</h3>
+		<p>This is my 4th run at this Lisp concept, with tracing JIT compilation to make fexprs fast forming the core of my current PhD research. <a href="https://miloignis.room409.xyz/">(tiny personal PhD website here)</a></p>
+        <h4>Vau/Kernel as simple core:</h4>
+        By constructing our core language on a very simple Vau/Kernel base, we can keep the base truely tiny, and build up normal Lisp functions and programming language features in the language itself. This should help implement other programming languages concisely, and will hopefully make optimization easier and more broadly applicable.
+        <br>
+        <h3>Next Steps</h3>
+        <ul>
+            <li> Implement persistent functional data structures
+                <ul>
+                    <li> ✔ RB-Tree
+                    <li> ☐ Hash Array-Mapped Trie (HAMT) / Relaxed Radix Balance Tree (RRB-Tree)
+                    <li> ☐ Hash Map based on the above
+                    <li> ☐ Hash Set based on the above
+                </ul>
+            <li> Sketch out Kraken language on top of core Lisp, includes basic Hindley-Milner type system
+            <li> Re-self-host using functional approach in above Kraken language
+        </ul>
+
+		<link rel="stylesheet" href="./default.min.css">
+		<script src="./highlight.min.js"></script>
+		<script type="module">
+			import {CodeJar} from './codejar.js'
+			document.querySelectorAll('.editor').forEach((editor_div) => {
+				window[editor_div.id + "_jar"] = CodeJar(editor_div, hljs.highlightElement) 
+			});
+		</script>
+		<script>
+			var output_name = ""
+			var Module = {
+				noInitialRun: true,
+				onRuntimeInitialized: () => {
+				},
+				print: txt => {
+					document.getElementById(output_name).value += txt + "\n";
+				},
+				printErr: txt => {
+					document.getElementById(output_name).value += "STDERR:[" + txt + "]\n";
+				}
+			};
+			function executeKraken(code, new_output_name) {
+				output_name = new_output_name
+				document.getElementById(new_output_name).value = "running...\n";
+				Module.callMain(["-C", code]);
+			}
+			function toggleTheme() {
+				let theme = document.getElementById('theme')
+				if (theme.getAttribute("href") == "recursive.css") {
+					theme.setAttribute("href", "slick.css");
+				} else {
+					theme.setAttribute("href", "recursive.css");
+				}
+			}
+		</script>
+		<script type="text/javascript" src="k_prime.js"></script>
+    </body>
+</html>

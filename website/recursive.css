@@ -27,7 +27,8 @@ body {
 	font: 1.2em/1.62 'Recursive', sans-serif;
 }
 //body, .remark-slide-content { background-color: #eff3f5; }
-body, .remark-slide-content { background-color: #f5f3ef; }
+//body, .remark-slide-content { background-color: #f5f3ef; }
+body, .remark-slide-content { background-color: #f0f6f0; color: #222323; }
 h1, h2, h3, h4 {
 	line-height:0.4;
 	--rec-wght: 900;
@@ -38,9 +39,53 @@ h1, h2, h3, h4 {
 	letter-spacing: -0.015em;
 	font-size: 4em;
 }
-h1 {
+.top_spacer {
+	position: static;
+	height: 20vh;
+}
+.word {
+	/*height: 20vh;*/
+	/*font-size: 7cqw;*/
+	font-size: 6cqw;
+	font-family: 'Recursive', monospace;
+	--rec-mono: 1;
+	letter-spacing: normal;
+	tab-size: 4;
+
+    position: absolute;
+	top: 15%;
+	bottom: auto;
+	right: auto;
+	display: block;
+}
+.logo {
 	text-decoration: underline;
 	text-decoration-thickness: 0.4rem;
+
+	/*font-size: 13em;*/
+	/*font-size: 15vw;*/
+	font-size: 28cqw;
+	/*line-height:0.4;*/
+	--rec-wght: 900;
+	--rec-slnt: 0;
+	--rec-casl: 0.0;
+	--rec-crsv: 1;
+	--rec-mono: 0;
+	/*letter-spacing: -0.015em;*/
+	letter-spacing: 0em;
+	position: absolute;
+	top: auto;
+	bottom: 2%;
+	right: auto;
+	display: block;
+	/*overflow: hidden;*/
+}
+.logo_container {
+	position: static;
+	/*height: 100vh;*/
+	height: 100vh;
+	container-type: inline-size;
+	/*max-width: initial;*/
 }
 h2 { font-size: 3em; }
 h3 { font-size: 1.5em; }
