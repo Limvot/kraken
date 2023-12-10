@@ -69,8 +69,20 @@ var wordflick = function () {
                 offset++;
             }
         }
+        while (words[i][offset] == ' ') {
+            offset++;
+        }
       } else {
-        offset = Math.max(offset-4, 0);
+        for (var j = 0; j < 4; j++) {
+          if (offset > 0) {
+            offset--;
+            if (words[i][offset] == '>') {
+                while (words[i][offset] != '<') {
+                    offset--;
+                }
+            }
+          }
+        }
       }
     }
     document.getElementsByClassName('word')[0].innerHTML = part;

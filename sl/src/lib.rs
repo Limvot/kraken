@@ -200,14 +200,24 @@ impl Env {
 enum Op {
     Guard { const_value: Rc<Form>, side: (Option<Rc<Form>>, Rc<Cont>) },
     Debug,
-    Define { sym: String },
+    Define  { sym: String },
+    Prim    {   p: Prim },
+    Const   { con: Rc<Form> },
+    Lookup  { sym: String },
+    Return,
+    Loop,
 }
 impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Op::Guard { const_value, side } => write!(f, "Guard"),
-            Op::Debug                       => write!(f, "Debug"),
-            Op::Define { sym }              => write!(f, "Define {sym}"),
+            Op::Guard   { const_value, side } => write!(f, "Guard({const_value})"),
+            Op::Debug                         => write!(f, "Debug"),
+            Op::Define  { sym }               => write!(f, "Define({sym})"),
+            Op::Prim    { p }                 => write!(f, "Prim{p:?}"),
+            Op::Const   { con }               => write!(f, "Const_{con}"),
+            Op::Lookup  { sym }               => write!(f, "Lookup({sym})"),
+            Op::Loop                          => write!(f, "Loop"),
+            Op::Return                        => write!(f, "Return"),
         }
     }
 }
@@ -259,29 +269,49 @@ impl Ctx {
         ID { id: self.id_counter }
     }
     fn trace_running(&self) -> bool { self.tracing.is_some() }
-    fn trace_call_start(&mut self, id: ID) {
+
+    // Though I guess that means call start should recieve the parameters
+    //  also, for like variables, it should guard on what function
+    //      if dynamic, interacts with the constant tracking
+    //  5 options
+    //      - not tracing, closure        - do stats
+    //      - not tracing, prim           - do nothing
+    //      - tracing, Constant Prim      - inline prim
+    //      - tracing, Constant Closure   - inline call
+    //      - tracing, Dynamic            - emit call
+    fn trace_call_start(&mut self, arg_len: usize, id: Option<ID>) {
 
         // Needs to take and use parameters for mid-trace
         //  needs to guard on function called if non-constant
 
-        let entry = self.func_calls.entry(id).or_insert(0);
-        println!("tracing call start for {id}, has been called {} times so far", *entry);
-        *entry += 1;
-        if let Some(trace) = &self.tracing {
-            if trace.id == id {
-                println!("Ending trace at recursive call!");
-                println!("\t{}", trace);
-                self.traces.insert(id, self.tracing.take().unwrap());
+        if let Some(id) = id {
+            let entry = self.func_calls.entry(id).or_insert(0);
+            println!("tracing call start for {id}, has been called {} times so far", *entry);
+            *entry += 1;
+            if *entry > 1 && self.tracing.is_none() && self.traces.get(&id).is_none() {
+                self.tracing = Some(Trace::new(id));
+                return; // don't record self, of course
             }
-        } else if *entry > 1 && self.traces.get(&id).is_none() {
-            self.tracing = Some(Trace::new(id));
+        }
+        if let Some(trace) = &mut self.tracing {
+            if let Some(id) = id {
+                if trace.id == id {
+                    trace.ops.push(Op::Loop);
+                    println!("Ending trace at recursive call!");
+                    println!("\t{}", trace);
+                    self.traces.insert(id, self.tracing.take().unwrap());
+                    return;
+                }
+            }
+            // either inline (prim/closure) or dynamic call
         }
     }
     fn trace_call_end(&mut self, id: ID) {
         // associate with it or something
         println!("tracing call end for {id}");
-        if let Some(trace) = &self.tracing {
+        if let Some(trace) = &mut self.tracing {
             if trace.id == id {
+                trace.ops.push(Op::Return);
                 println!("Ending trace at end of call!");
                 println!("\t{}", trace);
                 self.traces.insert(id, self.tracing.take().unwrap());
@@ -309,23 +339,15 @@ impl Ctx {
             // TODO
         }
     }
-    // Trace call start, of course, handles the other side!
-    // Though I guess that means call start should recieve the parameters
-    //  also, for like variables, it should guard on what function
-    //      if dynamic, interacts with the constant tracking
-    fn trace_prim(&mut self, p: &Prim) {
-        if let Some(trace) = &mut self.tracing {
-            // TODO
-        }
-    }
     fn trace_lookup(&mut self, s: &str) {
         if let Some(trace) = &mut self.tracing {
-            // TODO
+            trace.ops.push(Op::Lookup { sym: s.to_owned() });
+            // constant depends on which env
         }
     }
     fn trace_constant(&mut self, c: &Rc<Form>) {
         if let Some(trace) = &mut self.tracing {
-            // TODO
+            trace.ops.push(Op::Const { con: Rc::clone(c) });
         }
     }
     fn trace_lambda(&mut self, params: &[String], e: &Rc<RefCell<Env>>, body: &Rc<Form>) {
@@ -438,13 +460,13 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                             for (name, value) in ps.iter().zip(evaled_iter) {
                                 new_env.borrow_mut().define(name.to_string(), value);
                             }
-                            ctx.trace_call_start(*id);
+                            ctx.trace_call_start(arg_len, Some(*id));
                             c = Cont::Eval { c: Rc::new(Cont::Ret { e: Rc::clone(&e), id: *id, c: nc }) };
                             f = Rc::clone(&b);
                             e = new_env;
                         },
                         Form::Prim(p) => {
-                            ctx.trace_prim(p);
+                            ctx.trace_call_start(arg_len, None);
                             let a = evaled_iter.next().unwrap();
                             f = match comb.prim().unwrap() {
                                 Prim::Car => a.car()?,
