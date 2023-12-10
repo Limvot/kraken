@@ -4,8 +4,6 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::convert::From;
 
-use crate::eval::{FormT,Cont,Cursor,PrimCombI};
-
 #[derive(Debug, Eq, PartialEq)]
 pub enum Form {
     Nil,
@@ -16,7 +14,7 @@ pub enum Form {
     Pair(Rc<Form>,Rc<Form>),
     PrimComb { eval_limit: i32, ins: PrimCombI },
     DeriComb { se: Rc<Form>, de: Option<String>, params: String, body: Rc<Form> },
-    ContComb(Cont<Form>),
+    ContComb(Cont),
 }
 
 // todo, strings not symbols?
@@ -88,9 +86,6 @@ impl Form {
             _                    => None,
         }
     }
-}
-
-impl FormT for Form {
     fn sym(&self) -> Option<&str> {
         match self {
             Form::Symbol(s) => Some(s),
@@ -121,7 +116,7 @@ impl FormT for Form {
             _                    => false,
         }
     }
-    fn call(&self, p: Rc<Self>, e: Rc<Self>, nc: Box<Cont<Self>>, metac: Cont<Self>) -> Cursor<Self> {
+    fn call(&self, p: Rc<Self>, e: Rc<Self>, nc: Box<Cont>, metac: Cont) -> Cursor {
         match self {
             Form::PrimComb{eval_limit, ins} => {
                 Cursor { f: Rc::new(Form::Nil), c: Cont::PramEval { eval_limit: *eval_limit, to_eval: p, collected: None, e, ins: *ins, nc: nc }, metac }
@@ -142,7 +137,7 @@ impl FormT for Form {
            }
         }
     }
-    fn impl_prim(ins: PrimCombI, e: Rc<Self>, ps: Vec<Rc<Self>>, c: Cont<Self>, metac: Cont<Self>) -> Cursor<Self> {
+    fn impl_prim(ins: PrimCombI, e: Rc<Self>, ps: Vec<Rc<Self>>, c: Cont, metac: Cont) -> Cursor {
         match ins {
             PrimCombI::Eval => Cursor { f: Rc::clone(&ps[0]), c: Cont::Eval { e: Rc::clone(&ps[1]), nc: Box::new(c) }, metac },
             PrimCombI::Vau => {
@@ -238,6 +233,7 @@ impl FormT for Form {
     }
 }
 
+
 fn assoc(k: &str, v: Rc<Form>, l: Rc<Form>) -> Rc<Form> {
     Rc::new(Form::Pair(
                 Rc::new(Form::Pair(
@@ -304,5 +300,127 @@ pub fn root_env() -> Rc<Form> {
         ("false",   Rc::new(Form::Bool(false))),
         ("nil",     Rc::new(Form::Nil)),
     ])
+}
+
+
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum Cont {
+    Exit,
+    MetaRet,
+    CatchRet { nc: Box<Cont>,  restore_meta: Box<Cont> },
+    Eval     {                    e: Rc<Form>, nc: Box<Cont> },
+    Call     { p: Rc<Form>,          e: Rc<Form>, nc: Box<Cont> },
+    PramEval { eval_limit: i32, to_eval: Rc<Form>, collected: Option<Vec<Rc<Form>>>, e: Rc<Form>, ins: PrimCombI, nc: Box<Cont> },
+}
+impl Clone for Cont {
+    fn clone(&self) -> Self {
+        match self {
+            Cont::Exit                                                   => Cont::Exit,
+            Cont::MetaRet                                                => Cont::MetaRet,
+            Cont::CatchRet { nc,  restore_meta     }                     => Cont::CatchRet { nc: nc.clone(),  restore_meta: restore_meta.clone() },
+            Cont::Eval     {                 e, nc }                     => Cont::Eval     {                             e: Rc::clone(e),        nc: nc.clone() },
+            Cont::Call     { p,              e, nc }                     => Cont::Call     { p: Rc::clone(p),            e: Rc::clone(e),        nc: nc.clone() },
+            Cont::PramEval { eval_limit, to_eval, collected, e, ins, nc} => Cont::PramEval { eval_limit: *eval_limit, to_eval: Rc::clone(to_eval),
+                                                                                             collected: collected.as_ref().map(|x| x.iter().map(|x| Rc::clone(x)).collect()),
+                                                                                             e: Rc::clone(e), ins: ins.clone(), nc: nc.clone() },
+        }
+    }
+}
+pub struct Cursor { pub f: Rc<Form>, pub c: Cont, pub metac: Cont }
+
+pub fn eval(e: Rc<Form>, f: Rc<Form>) -> Rc<Form> {
+    let mut cursor = Cursor { f, c: Cont::Eval { e, nc: Box::new(Cont::MetaRet) }, metac: Cont::Exit };
+    loop {
+        let Cursor { f, c, metac } = cursor;
+        match c {
+            Cont::Exit => {
+                return f;
+            },
+            Cont::MetaRet => {
+                cursor = Cursor { f: f, c: metac.clone(), metac: metac };
+            },
+            Cont::CatchRet { nc, restore_meta } => {
+                cursor = Cursor { f: f, c: *nc, metac: *restore_meta };
+            },
+            Cont::Eval { e, nc } => {
+                if let Some((comb, p)) = f.pair() {
+                   cursor = Cursor { f: comb, c: Cont::Eval { e: Rc::clone(&e), nc: Box::new(Cont::Call { p, e, nc }) }, metac }
+                } else if let Some(s) = f.sym() {
+                   let mut t = Rc::clone(&e);
+                   while s != t.car().unwrap().car().unwrap().sym().unwrap() {
+                        t = t.cdr().unwrap();
+                    }
+                    cursor = Cursor { f: t.car().unwrap().cdr().unwrap(), c: *nc, metac };
+                } else {
+                    cursor = Cursor { f: Rc::clone(&f), c: *nc, metac };
+                }
+            },
+            Cont::PramEval { eval_limit, to_eval, collected, e, ins, nc } => {
+                let mut next_collected = if let Some(mut collected) = collected {
+                    collected.push(f); collected
+                } else { vec![] };
+                if eval_limit == 0 || to_eval.is_nil() {
+                    let mut traverse = to_eval;
+                    while !traverse.is_nil() {
+                        next_collected.push(traverse.car().unwrap());
+                        traverse = traverse.cdr().unwrap();
+                    }
+                    cursor = Form::impl_prim(ins, e, next_collected, *nc, metac);
+                } else {
+                    cursor = Cursor { f: to_eval.car().unwrap(), c: Cont::Eval { e: Rc::clone(&e), nc: Box::new(Cont::PramEval { eval_limit: eval_limit - 1,
+                                                                                                                                 to_eval: to_eval.cdr().unwrap(),
+                                                                                                                                 collected: Some(next_collected),
+                                                                                                                                 e, ins, nc }) }, metac };
+                }
+            },
+            Cont::Call { p, e, nc } => {
+                cursor = f.call(p, e, nc, metac);
+            },
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub enum PrimCombI {
+        Eval,
+        Vau,
+        If,
+
+        Reset,
+        Shift,
+
+        Cell,
+        Set,
+        Get,
+
+        Cons,
+        Car,
+        Cdr,
+        Quote,
+        Assert,
+
+        Eq,
+        Lt,
+        LEq,
+        Gt,
+        GEq,
+
+        Plus,
+        Minus,
+        Mult,
+        Div,
+        Mod,
+        And,
+        Or,
+        Xor,
+
+        CombP,
+        CellP,
+        PairP,
+        SymbolP,
+        IntP,
+        BoolP,
+        NilP,
 }
 

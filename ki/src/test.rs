@@ -1,9 +1,7 @@
 use std::rc::Rc;
 
 use crate::grammar;
-use crate::basic::{root_env,Form};
-use crate::opt::{OptForm};
-use crate::eval::{eval};
+use ki::{root_env,Form,eval};
 
 #[test]
 fn parse_test() {
@@ -20,83 +18,74 @@ fn parse_test() {
     assert!(g.parse("((22)").is_err());
 }
 
-fn eval_test<T: Into<Form>>(also_pe: bool, gram: &grammar::TermParser, e: &Rc<Form>, code: &str, expected: T) {
+fn eval_test<T: Into<Form>>(gram: &grammar::TermParser, e: &Rc<Form>, code: &str, expected: T) {
     println!("Doing test {}", code);
     let parsed = gram.parse(code).unwrap();
     let basic_result = eval(Rc::clone(e), Rc::clone(&parsed));
     assert_eq!(*basic_result, expected.into());
-
-    let opt_root:  Rc<OptForm> = (&**e).into();
-    let opt_input: Rc<OptForm> = (&*parsed).into();
-    let opt_result =     eval(opt_root, opt_input);
-    assert!(opt_result.congruent(&*basic_result));
-
-
-    //if also_pe {
-    //}
 }
 
 #[test]
 fn basic_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, "(+ 2 (car (cons 4 '(1 2))))", 6);
-    eval_test(true, &g, &e, "(= 17 ((vau d p (+ (eval (car p) d) 13)) (+ 1 3)))", true);
-    eval_test(true, &g, &e, "(if (= 2 2) (+ 1 2) (+ 3 4))", 3);
-    eval_test(true, &g, &e, "(quote a)", "a");
-    eval_test(true, &g, &e, "'a", "a");
-    eval_test(true, &g, &e, "'(1 . a)", (1, "a"));
-    eval_test(true, &g, &e, "'(1 a)", (1, ("a", Form::Nil)));
-    eval_test(true, &g, &e, "true", true);
-    eval_test(true, &g, &e, "false", false);
-    eval_test(true, &g, &e, "nil", Form::Nil);
+    eval_test(&g, &e, "(+ 2 (car (cons 4 '(1 2))))", 6);
+    eval_test(&g, &e, "(= 17 ((vau d p (+ (eval (car p) d) 13)) (+ 1 3)))", true);
+    eval_test(&g, &e, "(if (= 2 2) (+ 1 2) (+ 3 4))", 3);
+    eval_test(&g, &e, "(quote a)", "a");
+    eval_test(&g, &e, "'a", "a");
+    eval_test(&g, &e, "'(1 . a)", (1, "a"));
+    eval_test(&g, &e, "'(1 a)", (1, ("a", Form::Nil)));
+    eval_test(&g, &e, "true", true);
+    eval_test(&g, &e, "false", false);
+    eval_test(&g, &e, "nil", Form::Nil);
 
-    eval_test(true, &g, &e, "(+ 1 2)",  3);
-    eval_test(true, &g, &e, "(- 1 2)", -1);
-    eval_test(true, &g, &e, "(* 1 2)",  2);
-    eval_test(true, &g, &e, "(/ 4 2)",  2);
-    eval_test(true, &g, &e, "(% 3 2)",  1);
-    eval_test(true, &g, &e, "(& 3 2)",  2);
-    eval_test(true, &g, &e, "(| 2 1)",  3);
-    eval_test(true, &g, &e, "(^ 2 1)",  3);
-    eval_test(true, &g, &e, "(^ 3 1)",  2);
+    eval_test(&g, &e, "(+ 1 2)",  3);
+    eval_test(&g, &e, "(- 1 2)", -1);
+    eval_test(&g, &e, "(* 1 2)",  2);
+    eval_test(&g, &e, "(/ 4 2)",  2);
+    eval_test(&g, &e, "(% 3 2)",  1);
+    eval_test(&g, &e, "(& 3 2)",  2);
+    eval_test(&g, &e, "(| 2 1)",  3);
+    eval_test(&g, &e, "(^ 2 1)",  3);
+    eval_test(&g, &e, "(^ 3 1)",  2);
 
-    eval_test(true, &g, &e, "(< 3 1)",  false);
-    eval_test(true, &g, &e, "(<= 3 1)",  false);
-    eval_test(true, &g, &e, "(> 3 1)",  true);
-    eval_test(true, &g, &e, "(>= 3 1)",  true);
+    eval_test(&g, &e, "(< 3 1)",  false);
+    eval_test(&g, &e, "(<= 3 1)",  false);
+    eval_test(&g, &e, "(> 3 1)",  true);
+    eval_test(&g, &e, "(>= 3 1)",  true);
 
-    eval_test(true, &g, &e, "(comb? +)", true);
-    eval_test(true, &g, &e, "(comb? (vau d p 1))", true);
-    eval_test(true, &g, &e, "(comb? 1)", false);
-    eval_test(true, &g, &e, "(pair? '(a))", true);
-    //eval_test(true, &g, &e, "(pair? '())",  true);
-    eval_test(true, &g, &e, "(nil? nil)", true);
-    eval_test(true, &g, &e, "(nil? 1)", false);
-    eval_test(true, &g, &e, "(pair? 1)", false);
-    eval_test(true, &g, &e, "(symbol? 'a)", true);
-    eval_test(true, &g, &e, "(symbol? 1)", false);
-    eval_test(true, &g, &e, "(int? 1)", true);
-    eval_test(true, &g, &e, "(int? true)", false);
-    eval_test(true, &g, &e, "(bool? true)", true);
-    eval_test(true, &g, &e, "(bool? 1)", false);
+    eval_test(&g, &e, "(comb? +)", true);
+    eval_test(&g, &e, "(comb? (vau d p 1))", true);
+    eval_test(&g, &e, "(comb? 1)", false);
+    eval_test(&g, &e, "(pair? '(a))", true);
+    //eval_test(&g, &e, "(pair? '())",  true);
+    eval_test(&g, &e, "(nil? nil)", true);
+    eval_test(&g, &e, "(nil? 1)", false);
+    eval_test(&g, &e, "(pair? 1)", false);
+    eval_test(&g, &e, "(symbol? 'a)", true);
+    eval_test(&g, &e, "(symbol? 1)", false);
+    eval_test(&g, &e, "(int? 1)", true);
+    eval_test(&g, &e, "(int? true)", false);
+    eval_test(&g, &e, "(bool? true)", true);
+    eval_test(&g, &e, "(bool? 1)", false);
 
-    eval_test(true, &g, &e, "!(bool?) 1",    false);
-    eval_test(true, &g, &e, "!(bool?) true", true);
+    eval_test(&g, &e, "!(bool?) 1",    false);
+    eval_test(&g, &e, "!(bool?) true", true);
 
-    eval_test(true, &g, &e, "((vau root_env _ (eval 'a (cons (cons 'a 2) root_env))))", 2);
-    eval_test(true, &g, &e, "'name-dash", "name-dash");
+    eval_test(&g, &e, "((vau root_env _ (eval 'a (cons (cons 'a 2) root_env))))", 2);
+    eval_test(&g, &e, "'name-dash", "name-dash");
 
-    eval_test(true, &g, &e, "(get (cell 1))", 1);
-    eval_test(true, &g, &e, "(set (cell 1) 2)", 1);
-    eval_test(true, &g, &e, "(cell? (cell 1))", true);
-    eval_test(true, &g, &e, "((vau de p (eval (quote (cons (set a 2) (get a))) (cons (cons (quote a) (cell 1)) de))))", (1,2));
+    eval_test(&g, &e, "(get (cell 1))", 1);
+    eval_test(&g, &e, "(set (cell 1) 2)", 1);
+    eval_test(&g, &e, "(cell? (cell 1))", true);
+    eval_test(&g, &e, "((vau de p (eval (quote (cons (set a 2) (get a))) (cons (cons (quote a) (cell 1)) de))))", (1,2));
 
-    eval_test(true, &g, &e, "(reset 1)", 1);
-    eval_test(true, &g, &e, "(reset (+ 1 2))", 3);
-    eval_test(true, &g, &e, "(reset (+ 1 (shift (vau de p 2))))", 2);
-    eval_test(true, &g, &e, "(reset (+ 1 (shift (vau de p ((car p) 2)))))", 3);
-    eval_test(true, &g, &e, "(reset (+ 1 (shift (vau de p ((car p) ((car p) 2)) ))))", 4);
-    eval_test(true, &g, &e, "(reset (+ 1 (shift (vau de p (+ ((car p) 3) ((car p) ((car p) 2))) ))))", 8);
-    eval_test(true, &g, &e, "((reset (+ 1 (shift (vau de p (car p))))) 2)", 3);
+    eval_test(&g, &e, "(reset 1)", 1);
+    eval_test(&g, &e, "(reset (+ 1 2))", 3);
+    eval_test(&g, &e, "(reset (+ 1 (shift (vau de p 2))))", 2);
+    eval_test(&g, &e, "(reset (+ 1 (shift (vau de p ((car p) 2)))))", 3);
+    eval_test(&g, &e, "(reset (+ 1 (shift (vau de p ((car p) ((car p) 2)) ))))", 4);
+    eval_test(&g, &e, "(reset (+ 1 (shift (vau de p (+ ((car p) 3) ((car p) ((car p) 2))) ))))", 8);
+    eval_test(&g, &e, "((reset (+ 1 (shift (vau de p (car p))))) 2)", 3);
 }
 
 
@@ -111,7 +100,7 @@ static LET: Lazy<String> = Lazy::new(|| {
 
 #[test]
 fn fib_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} (let1 x 10 (+ x 7))", *LET), 17);
+    eval_test(&g, &e, &format!("{} (let1 x 10 (+ x 7))", *LET), 17);
     let def_fib = "
     !(let1 fib (vau de p
        !(let1 self (eval (car p) de))
@@ -120,7 +109,7 @@ fn fib_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
        !(if (= 1 n) 1)
        (+ (self self (- n 1)) (self self (- n 2)))
     ))";
-    eval_test(false, &g, &e, &format!("{} {} (fib fib 6)", *LET, def_fib), 8);
+    eval_test(&g, &e, &format!("{} {} (fib fib 6)", *LET, def_fib), 8);
 }
 #[test]
 fn fact_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
@@ -131,7 +120,7 @@ fn fact_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
        !(if (= 0 n) 1)
        (* n (self self (- n 1)))
     ))";
-    eval_test(true, &g, &e, &format!("{} {} (fact fact 6)", *LET, def_fact), 720);
+    eval_test(&g, &e, &format!("{} {} (fact fact 6)", *LET, def_fact), 720);
 }
 static VAPPLY: Lazy<String> = Lazy::new(|| {
     format!("
@@ -161,7 +150,7 @@ fn vapply_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     ))", *VAPPLY);
     // Won't work unless tail calls work
     // so no PE?
-    eval_test(false, &g, &e, &format!("{} (badid 1000)", def_badid), 1000);
+    eval_test(&g, &e, &format!("{} (badid 1000)", def_badid), 1000);
 }
 
 static VMAP: Lazy<String> = Lazy::new(|| {
@@ -181,8 +170,8 @@ static VMAP: Lazy<String> = Lazy::new(|| {
 #[test]
 fn vmap_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     // Maybe define in terms of a right fold?
-    //eval_test(true, &g, &e, &format!("{} (vmap (vau de p (+ 1 (car p))) '(1 2 3))", *VMAP), (2, (3, (4, Form::Nil))));
-    eval_test(true, &g, &e, &format!("{} (vmap (vau de p (+ 1 (car p))) '(1))", *VMAP), (2, Form::Nil));
+    //eval_test(&g, &e, &format!("{} (vmap (vau de p (+ 1 (car p))) '(1 2 3))", *VMAP), (2, (3, (4, Form::Nil))));
+    eval_test(&g, &e, &format!("{} (vmap (vau de p (+ 1 (car p))) '(1))", *VMAP), (2, Form::Nil));
 }
 
 static WRAP: Lazy<String> = Lazy::new(|| {
@@ -196,7 +185,7 @@ static WRAP: Lazy<String> = Lazy::new(|| {
 #[test]
 fn wrap_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     // Make sure (wrap (vau ...)) and internal style are optimized the same
-    eval_test(true, &g, &e, &format!("{} ((wrap (vau _ p (+ (car p) 1))) (+ 1 2))", *WRAP), 4);
+    eval_test(&g, &e, &format!("{} ((wrap (vau _ p (+ (car p) 1))) (+ 1 2))", *WRAP), 4);
 }
 
 static UNWRAP: Lazy<String> = Lazy::new(|| {
@@ -211,10 +200,10 @@ static UNWRAP: Lazy<String> = Lazy::new(|| {
 fn unwrap_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     // Can't represent prims in tests :( - they do work though, uncommenting and checking the
     // failed assert verifies
-    //eval_test(true, &g, &e, &format!("{} ((unwrap (vau de p             (car p)))         (+ 1 2))", def_unwrap), ("quote", (("+", (1, (2, Form::Nil))), Form::Nil)));
-    //eval_test(true, &g, &e, &format!("{} ((unwrap (vau de p       (eval (car p) de)))     (+ 1 2))", def_unwrap), (("+", (1, (2, Form::Nil))), Form::Nil));
-    eval_test(true, &g, &e, &format!("{} ((unwrap (vau de p (eval (eval (car p) de) de))) (+ 1 2))",       *UNWRAP), 3);
-    eval_test(true, &g, &e, &format!("{} ((unwrap (vau de p (+ (eval (eval (car p) de) de) 1))) (+ 1 2))", *UNWRAP), 4);
+    //eval_test(&g, &e, &format!("{} ((unwrap (vau de p             (car p)))         (+ 1 2))", def_unwrap), ("quote", (("+", (1, (2, Form::Nil))), Form::Nil)));
+    //eval_test(&g, &e, &format!("{} ((unwrap (vau de p       (eval (car p) de)))     (+ 1 2))", def_unwrap), (("+", (1, (2, Form::Nil))), Form::Nil));
+    eval_test(&g, &e, &format!("{} ((unwrap (vau de p (eval (eval (car p) de) de))) (+ 1 2))",       *UNWRAP), 3);
+    eval_test(&g, &e, &format!("{} ((unwrap (vau de p (+ (eval (eval (car p) de) de) 1))) (+ 1 2))", *UNWRAP), 4);
 }
 
 static LAPPLY: Lazy<String> = Lazy::new(|| {
@@ -245,7 +234,7 @@ fn lapply_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
     ))", *LAPPLY);
     // Won't work unless tail calls work
     // takes a while though
-    eval_test(false, &g, &e, &format!("{} (lbadid 1000)", def_lbadid), 1000);
+    eval_test(&g, &e, &format!("{} (lbadid 1000)", def_lbadid), 1000);
 }
 
 static VFOLDL: Lazy<String> = Lazy::new(|| {
@@ -265,7 +254,7 @@ static VFOLDL: Lazy<String> = Lazy::new(|| {
 });
 #[test]
 fn vfoldl_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} (vfoldl (vau de p (+ (car p) (car (cdr p)))) 0 '(1 2 3))", *VFOLDL), 6);
+    eval_test(&g, &e, &format!("{} (vfoldl (vau de p (+ (car p) (car (cdr p)))) 0 '(1 2 3))", *VFOLDL), 6);
 }
 static ZIPD: Lazy<String> = Lazy::new(|| {
     format!("
@@ -284,7 +273,7 @@ static ZIPD: Lazy<String> = Lazy::new(|| {
 });
 #[test]
 fn zipd_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} (zipd '(1 2 3) '(4 5 6))", *ZIPD), ((1,4), ((2,5), ((3,6), Form::Nil))));
+    eval_test(&g, &e, &format!("{} (zipd '(1 2 3) '(4 5 6))", *ZIPD), ((1,4), ((2,5), ((3,6), Form::Nil))));
 }
 static CONCAT: Lazy<String> = Lazy::new(|| {
     format!("
@@ -303,7 +292,7 @@ static CONCAT: Lazy<String> = Lazy::new(|| {
 
 #[test]
 fn concat_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} (concat '(1 2 3) '(4 5 6))", *CONCAT), (1, (2, (3, (4, (5, (6, Form::Nil)))))));
+    eval_test(&g, &e, &format!("{} (concat '(1 2 3) '(4 5 6))", *CONCAT), (1, (2, (3, (4, (5, (6, Form::Nil)))))));
 }
 
 static BVAU: Lazy<String> = Lazy::new(|| {
@@ -339,20 +328,20 @@ static BVAU: Lazy<String> = Lazy::new(|| {
 });
 #[test]
 fn bvau_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} ((bvau _ (a b c) (+ a (- b c))) 10 2 3)", *BVAU), 9);
-    eval_test(true, &g, &e, &format!("{} ((bvau (a b c) (+ a (- b c))) 10 2 3)", *BVAU), 9);
+    eval_test(&g, &e, &format!("{} ((bvau _ (a b c) (+ a (- b c))) 10 2 3)", *BVAU), 9);
+    eval_test(&g, &e, &format!("{} ((bvau (a b c) (+ a (- b c))) 10 2 3)", *BVAU), 9);
 
-    eval_test(true, &g, &e, &format!("{} ((bvau (a b . c) c) 10 2 3)", *BVAU), (3, Form::Nil));
-    eval_test(true, &g, &e, &format!("{} ((bvau (a b . c) c) 10 2)", *BVAU), Form::Nil);
-    eval_test(true, &g, &e, &format!("{} ((bvau (a b . c) c) 10 2 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
-    eval_test(true, &g, &e, &format!("{} ((bvau c c) 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
-    eval_test(true, &g, &e, &format!("{} ((bvau c c))", *BVAU), Form::Nil);
-    eval_test(true, &g, &e, &format!("{} ((bvau ((a b) . c) c) (10 2) 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
-    eval_test(true, &g, &e, &format!("{} ((bvau ((a b) . c) a) (10 2) 3 4 5)", *BVAU), 10);
-    eval_test(true, &g, &e, &format!("{} ((bvau ((a b) . c) b) (10 2) 3 4 5)", *BVAU), 2);
+    eval_test(&g, &e, &format!("{} ((bvau (a b . c) c) 10 2 3)", *BVAU), (3, Form::Nil));
+    eval_test(&g, &e, &format!("{} ((bvau (a b . c) c) 10 2)", *BVAU), Form::Nil);
+    eval_test(&g, &e, &format!("{} ((bvau (a b . c) c) 10 2 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((bvau c c) 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((bvau c c))", *BVAU), Form::Nil);
+    eval_test(&g, &e, &format!("{} ((bvau ((a b) . c) c) (10 2) 3 4 5)", *BVAU), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((bvau ((a b) . c) a) (10 2) 3 4 5)", *BVAU), 10);
+    eval_test(&g, &e, &format!("{} ((bvau ((a b) . c) b) (10 2) 3 4 5)", *BVAU), 2);
 
-    eval_test(true, &g, &e, &format!("{} ((wrap (bvau _ (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", *BVAU), 7);
-    eval_test(true, &g, &e, &format!("{} ((wrap (bvau (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", *BVAU), 7);
+    eval_test(&g, &e, &format!("{} ((wrap (bvau _ (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", *BVAU), 7);
+    eval_test(&g, &e, &format!("{} ((wrap (bvau (a b c) (+ a (- b c)))) (+ 10 1) (+ 2 2) (+ 5 3))", *BVAU), 7);
 }
 
 static LAMBDA: Lazy<String> = Lazy::new(|| {
@@ -364,19 +353,19 @@ static LAMBDA: Lazy<String> = Lazy::new(|| {
 });
 #[test]
 fn lambda_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} ((lambda (a b c) (+ a (- b c))) (+ 10 1) (+ 2 2) (+ 5 3))", *LAMBDA), 7);
-    eval_test(true, &g, &e, &format!("{} ((lambda (a b . c) c) 10 2 3)", *LAMBDA), (3, Form::Nil));
-    eval_test(true, &g, &e, &format!("{} ((lambda (a b . c) c) 10 2)", *LAMBDA), Form::Nil);
-    eval_test(true, &g, &e, &format!("{} ((lambda (a b . c) c) 10 2 3 4 5)", *LAMBDA), (3, (4, (5, Form::Nil))));
-    eval_test(true, &g, &e, &format!("{} ((lambda c c) 3 4 5)", *LAMBDA), (3, (4, (5, Form::Nil))));
-    eval_test(true, &g, &e, &format!("{} ((lambda c c))", *LAMBDA), Form::Nil);
-    eval_test(true, &g, &e, &format!("{} ((lambda ((a b) . c) c) '(10 2) 3 4 5)", *LAMBDA), (3, (4, (5, Form::Nil))));
-    eval_test(true, &g, &e, &format!("{} ((lambda ((a b) . c) a) '(10 2) 3 4 5)", *LAMBDA), 10);
-    eval_test(true, &g, &e, &format!("{} ((lambda ((a b) . c) b) '(10 2) 3 4 5)", *LAMBDA), 2);
-    eval_test(true, &g, &e, &format!("{} ((lambda ((a b . c)  d) b) '(10 2 3 4) 3)", *LAMBDA), 2);
-    eval_test(true, &g, &e, &format!("{} ((lambda ((a b . c)  d) c) '(10 2 3 4) 3)", *LAMBDA), (3, (4, Form::Nil)));
+    eval_test(&g, &e, &format!("{} ((lambda (a b c) (+ a (- b c))) (+ 10 1) (+ 2 2) (+ 5 3))", *LAMBDA), 7);
+    eval_test(&g, &e, &format!("{} ((lambda (a b . c) c) 10 2 3)", *LAMBDA), (3, Form::Nil));
+    eval_test(&g, &e, &format!("{} ((lambda (a b . c) c) 10 2)", *LAMBDA), Form::Nil);
+    eval_test(&g, &e, &format!("{} ((lambda (a b . c) c) 10 2 3 4 5)", *LAMBDA), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((lambda c c) 3 4 5)", *LAMBDA), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((lambda c c))", *LAMBDA), Form::Nil);
+    eval_test(&g, &e, &format!("{} ((lambda ((a b) . c) c) '(10 2) 3 4 5)", *LAMBDA), (3, (4, (5, Form::Nil))));
+    eval_test(&g, &e, &format!("{} ((lambda ((a b) . c) a) '(10 2) 3 4 5)", *LAMBDA), 10);
+    eval_test(&g, &e, &format!("{} ((lambda ((a b) . c) b) '(10 2) 3 4 5)", *LAMBDA), 2);
+    eval_test(&g, &e, &format!("{} ((lambda ((a b . c)  d) b) '(10 2 3 4) 3)", *LAMBDA), 2);
+    eval_test(&g, &e, &format!("{} ((lambda ((a b . c)  d) c) '(10 2 3 4) 3)", *LAMBDA), (3, (4, Form::Nil)));
     // should fail
-    //eval_test(true, &g, &e, &format!("{} ((lambda (a b c) c) 10 2 3 4)", *LAMBDA), 3);
+    //eval_test(&g, &e, &format!("{} ((lambda (a b c) c) 10 2 3 4)", *LAMBDA), 3);
 }
 
 static LET2: Lazy<String> = Lazy::new(|| {
@@ -391,16 +380,16 @@ static LET2: Lazy<String> = Lazy::new(|| {
 #[test]
 fn let2_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
 
-    eval_test(true, &g, &e, &format!("{} (let1 x               (+ 10 1) (+ x 1))", *LET2), 12);
-    eval_test(true, &g, &e, &format!("{} (let1 x               '(10 1) x)", *LET2), (10, (1, Form::Nil)));
-    eval_test(true, &g, &e, &format!("{} (let1 (a b)           '(10 1) a)", *LET2), 10);
-    eval_test(true, &g, &e, &format!("{} (let1 (a b)           '(10 1) b)", *LET2),  1);
-    eval_test(true, &g, &e, &format!("{} (let1 (a b . c)       '(10 1) c)", *LET2),  Form::Nil);
-    eval_test(true, &g, &e, &format!("{} (let1 (a b . c)       '(10 1 2 3) c)", *LET2),  (2, (3, Form::Nil)));
-    eval_test(true, &g, &e, &format!("{} (let1 ((a . b) . c)   '((10 1) 2 3) a)", *LET2),  10);
-    eval_test(true, &g, &e, &format!("{} (let1 ((a . b) . c)   '((10 1) 2 3) b)", *LET2),  (1, Form::Nil));
+    eval_test( &g, &e, &format!("{} (let1 x               (+ 10 1) (+ x 1))", *LET2), 12);
+    eval_test( &g, &e, &format!("{} (let1 x               '(10 1) x)", *LET2), (10, (1, Form::Nil)));
+    eval_test( &g, &e, &format!("{} (let1 (a b)           '(10 1) a)", *LET2), 10);
+    eval_test( &g, &e, &format!("{} (let1 (a b)           '(10 1) b)", *LET2),  1);
+    eval_test( &g, &e, &format!("{} (let1 (a b . c)       '(10 1) c)", *LET2),  Form::Nil);
+    eval_test( &g, &e, &format!("{} (let1 (a b . c)       '(10 1 2 3) c)", *LET2),  (2, (3, Form::Nil)));
+    eval_test( &g, &e, &format!("{} (let1 ((a . b) . c)   '((10 1) 2 3) a)", *LET2),  10);
+    eval_test( &g, &e, &format!("{} (let1 ((a . b) . c)   '((10 1) 2 3) b)", *LET2),  (1, Form::Nil));
     // should fail
-    //eval_test(true, &g, &e, &format!("{} (let1 (a b c) '(10 2 3 4) a)", *LET2), 10);
+    //eval_test(&g, &e, &format!("{} (let1 (a b c) '(10 2 3 4) a)", *LET2), 10);
 }
 
 static LIST: Lazy<String> = Lazy::new(|| {
@@ -412,7 +401,7 @@ static LIST: Lazy<String> = Lazy::new(|| {
 
 #[test]
 fn list_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} (list 1 2 (+ 3 4))", *LIST), (1, (2, (7, Form::Nil))));
+    eval_test(&g, &e, &format!("{} (list 1 2 (+ 3 4))", *LIST), (1, (2, (7, Form::Nil))));
 }
 
 static Y: Lazy<String> = Lazy::new(|| {
@@ -428,7 +417,7 @@ static Y: Lazy<String> = Lazy::new(|| {
 #[test]
 fn y_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
 
-    eval_test(true, &g, &e, &format!("{} ((Y (lambda (recurse) (lambda (n) (if (= 0 n) 1 (* n (recurse (- n 1))))))) 5)", *Y), 120);
+    eval_test(&g, &e, &format!("{} ((Y (lambda (recurse) (lambda (n) (if (= 0 n) 1 (* n (recurse (- n 1))))))) 5)", *Y), 120);
 
 }
 
@@ -443,7 +432,7 @@ static RLAMBDA: Lazy<String> = Lazy::new(|| {
 
 #[test]
 fn rlambda_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} ((rlambda recurse (n) (if (= 0 n) 1 (* n (recurse (- n 1))))) 5)", *RLAMBDA), 120);
+    eval_test(&g, &e, &format!("{} ((rlambda recurse (n) (if (= 0 n) 1 (* n (recurse (- n 1))))) 5)", *RLAMBDA), 120);
 }
 static AND_OR: Lazy<String> = Lazy::new(|| {
     // need to extend for varidac
@@ -462,15 +451,15 @@ static AND_OR: Lazy<String> = Lazy::new(|| {
 
 #[test]
 fn and_or_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} (and true  true)",  *AND_OR), true);
-    eval_test(true, &g, &e, &format!("{} (and false true)",  *AND_OR), false);
-    eval_test(true, &g, &e, &format!("{} (and true  false)", *AND_OR), false);
-    eval_test(true, &g, &e, &format!("{} (and false false)", *AND_OR), false);
+    eval_test(&g, &e, &format!("{} (and true  true)",  *AND_OR), true);
+    eval_test(&g, &e, &format!("{} (and false true)",  *AND_OR), false);
+    eval_test(&g, &e, &format!("{} (and true  false)", *AND_OR), false);
+    eval_test(&g, &e, &format!("{} (and false false)", *AND_OR), false);
 
-    eval_test(true, &g, &e, &format!("{} (or true  true)",  *AND_OR), true);
-    eval_test(true, &g, &e, &format!("{} (or false true)",  *AND_OR), true);
-    eval_test(true, &g, &e, &format!("{} (or true  false)", *AND_OR), true);
-    eval_test(true, &g, &e, &format!("{} (or false false)", *AND_OR), false);
+    eval_test(&g, &e, &format!("{} (or true  true)",  *AND_OR), true);
+    eval_test(&g, &e, &format!("{} (or false true)",  *AND_OR), true);
+    eval_test(&g, &e, &format!("{} (or true  false)", *AND_OR), true);
+    eval_test(&g, &e, &format!("{} (or false false)", *AND_OR), false);
 }
 static LEN: Lazy<String> = Lazy::new(|| {
     format!("
@@ -487,10 +476,10 @@ static LEN: Lazy<String> = Lazy::new(|| {
 
 #[test]
 fn len_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} (len '())",       *LEN), 0);
-    eval_test(true, &g, &e, &format!("{} (len '(1))",      *LEN), 1);
-    eval_test(true, &g, &e, &format!("{} (len '(1 2))",    *LEN), 2);
-    eval_test(true, &g, &e, &format!("{} (len '(1 2 3))",  *LEN), 3);
+    eval_test(&g, &e, &format!("{} (len '())",       *LEN), 0);
+    eval_test(&g, &e, &format!("{} (len '(1))",      *LEN), 1);
+    eval_test(&g, &e, &format!("{} (len '(1 2))",    *LEN), 2);
+    eval_test(&g, &e, &format!("{} (len '(1 2 3))",  *LEN), 3);
 }
 static MATCH: Lazy<String> = Lazy::new(|| {
     format!("
@@ -527,11 +516,11 @@ static MATCH: Lazy<String> = Lazy::new(|| {
 });
 #[test]
 fn match_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(true, &g, &e, &format!("{} (match (+ 1 2) 1 2 2 3 3 4 _ 0)", *MATCH), 4);
-    eval_test(true, &g, &e, &format!("{} (match '(1 2)  1 2 2 3 3 4 _ 0)", *MATCH), 0);
-    eval_test(true, &g, &e, &format!("{} (match '(1 2) 1 2 2 3 (a b) (+ a (+ 2 b)) _ 0)", *MATCH), 5);
-    eval_test(true, &g, &e, &format!("{} (match '(1 2) 1 2 2 3 '(1 2) 7 _ 0)", *MATCH), 7);
-    eval_test(true, &g, &e, &format!("{} (let1 a 70 (match (+ 60 10) (unquote a) 100 2 3 _ 0))", *MATCH), 100);
+    eval_test(&g, &e, &format!("{} (match (+ 1 2) 1 2 2 3 3 4 _ 0)", *MATCH), 4);
+    eval_test(&g, &e, &format!("{} (match '(1 2)  1 2 2 3 3 4 _ 0)", *MATCH), 0);
+    eval_test(&g, &e, &format!("{} (match '(1 2) 1 2 2 3 (a b) (+ a (+ 2 b)) _ 0)", *MATCH), 5);
+    eval_test(&g, &e, &format!("{} (match '(1 2) 1 2 2 3 '(1 2) 7 _ 0)", *MATCH), 7);
+    eval_test(&g, &e, &format!("{} (let1 a 70 (match (+ 60 10) (unquote a) 100 2 3 _ 0))", *MATCH), 100);
 }
 static RBTREE: Lazy<String> = Lazy::new(|| {
     format!("
@@ -578,6 +567,6 @@ static RBTREE: Lazy<String> = Lazy::new(|| {
 });
 #[test]
 fn rbtree_eval_test() { let g = grammar::TermParser::new(); let e = root_env();
-    eval_test(false, &g, &e, &format!("{} (reduce-test-tree (make-test-tree 10 map-empty))", *RBTREE), 1);
-    //eval_test(false, &g, &e, &format!("{} (reduce-test-tree (make-test-tree 20 map-empty))", *RBTREE), 2);
+    eval_test(&g, &e, &format!("{} (reduce-test-tree (make-test-tree 10 map-empty))", *RBTREE), 1);
+    //eval_test(&g, &e, &format!("{} (reduce-test-tree (make-test-tree 20 map-empty))", *RBTREE), 2);
 }

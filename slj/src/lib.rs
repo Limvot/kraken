@@ -286,12 +286,20 @@ impl Ctx {
     // Though I guess that means call start should recieve the parameters
     //  also, for like variables, it should guard on what function
     //      if dynamic, interacts with the constant tracking
-    //  5 options
+    //  7 options
     //      - not tracing, closure        - do stats
     //      - not tracing, prim           - do nothing
     //      - tracing, Constant Prim      - inline prim
     //      - tracing, Constant Closure   - inline call
-    //      - tracing, Dynamic            - emit call
+    //      - tracing, Static, tail-self  - emit loop
+    //      - tracing, Static,nontail-self- emit call
+    //      - tracing, Dynamic, other     - emit call
+    //
+    //      inline call is slightly tricky, have to add our own Env accounting
+    //      emit call is trickier, because we either have to stop or postpone tracing
+    //          use return stack, and count the post-return as it's own trace?
+    //              weirder, but would eventually jive with continuations better?
+    //              eh for now use trace stack in ctx and cont stack out, have them match?
     fn trace_call_start(&mut self, arg_len: usize, id: Option<ID>) {
 
         // Needs to take and use parameters for mid-trace

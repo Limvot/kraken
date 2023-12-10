@@ -1,5 +1,5 @@
 [package]
-name = "kv"
+name = "ki"
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
@@ -15,10 +15,6 @@ lalrpop-util = {version="0.19.7", features=["lexer"]}
 regex = "1"
 once_cell = "1.17.0"
 anyhow = "1"
-cranelift = "0.95.1"
-cranelift-module = "0.95.1"
-cranelift-jit = "0.95.1"
-cranelift-native = "0.95.1"
 
 [build-dependencies]
 lalrpop = "0.19.7"

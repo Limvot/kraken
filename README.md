@@ -12,11 +12,12 @@ Currently developing the fourth iteration, a Scheme-like based on a functional V
 
 Working up to a JIT for fexprs by starting with
 
-- sl - a Simple Lisp JIT (WIP)
-- ?
-- ?
-- ?
-- kv - A fexpr interpeter with mutation and delimited continuations - need to add a JIT to this
+- [ ] slj - a Simple Lisp JIT (WIP)
+- [ ] clj - a continuation lisp JIT?
+- [ ] mlj - a mutation lisp JIT?
+- [ ] flj - a fexpr Lisp JIT?
+- [x] ki  - A fexpr interpeter with mutation and delimited continuations
+- [ ] kj  - A fexpr+mutation+delimited continuations JIT
 
 
 koka_bench: Licensed under Apache-2.0, as they are derived from the benchmarks of the Koka project, see the readme and license in koka_bench for more, or https://github.com/koka-lang/koka for the source project.

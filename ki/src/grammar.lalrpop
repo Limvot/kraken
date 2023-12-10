@@ -1,7 +1,6 @@
 use std::str::FromStr;
 use std::rc::Rc;
-use crate::basic::Form;
-use crate::eval::FormT;
+use ki::Form;
 
 grammar;
 
