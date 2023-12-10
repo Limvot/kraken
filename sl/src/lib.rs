@@ -201,11 +201,11 @@ enum Op {
     Guard { const_value: Rc<Form>, side: (Option<Rc<Form>>, Rc<Cont>) },
     Debug,
     Define  { sym: String },
-    Prim    {   p: Prim },
     Const   { con: Rc<Form> },
     Lookup  { sym: String },
+    Call(Vec<usize>),
+    Loop(Vec<usize>),
     Return,
-    Loop,
 }
 impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -213,10 +213,10 @@ impl fmt::Display for Op {
             Op::Guard   { const_value, side } => write!(f, "Guard({const_value})"),
             Op::Debug                         => write!(f, "Debug"),
             Op::Define  { sym }               => write!(f, "Define({sym})"),
-            Op::Prim    { p }                 => write!(f, "Prim{p:?}"),
             Op::Const   { con }               => write!(f, "Const_{con}"),
             Op::Lookup  { sym }               => write!(f, "Lookup({sym})"),
-            Op::Loop                          => write!(f, "Loop"),
+            Op::Call(params)                  => write!(f, "Call({:?})", params),
+            Op::Loop(params)                  => write!(f, "Loop({:?})", params),
             Op::Return                        => write!(f, "Return"),
         }
     }
@@ -226,10 +226,11 @@ struct Trace {
     id: ID,
     // needs to track which are constants
     ops: Vec<Op>,
+    param_stack: Vec<usize>,
 }
 impl Trace {
     fn new(id: ID) -> Self {
-        Trace { id, ops: vec![] }
+        Trace { id, ops: vec![], param_stack: vec![] }
     }
 }
 impl fmt::Display for Trace {
@@ -239,6 +240,13 @@ impl fmt::Display for Trace {
             write!(f, " {}", op)?;
         }
         write!(f, " ]")?;
+        if !self.param_stack.is_empty() {
+            write!(f, "[")?;
+            for s in &self.param_stack {
+                write!(f, " {}", s)?;
+            }
+            write!(f, " ]")?;
+        }
         Ok(())
     }
 }
@@ -270,6 +278,11 @@ impl Ctx {
     }
     fn trace_running(&self) -> bool { self.tracing.is_some() }
 
+    fn trace_call_bit(&mut self) {
+        if let Some(trace) = &mut self.tracing {
+            trace.param_stack.push(trace.ops.len()-1);
+        }
+    }
     // Though I guess that means call start should recieve the parameters
     //  also, for like variables, it should guard on what function
     //      if dynamic, interacts with the constant tracking
@@ -294,16 +307,24 @@ impl Ctx {
             }
         }
         if let Some(trace) = &mut self.tracing {
+            let f_params = trace.param_stack.split_off(trace.param_stack.len()-arg_len-1); // include function
             if let Some(id) = id {
                 if trace.id == id {
-                    trace.ops.push(Op::Loop);
-                    println!("Ending trace at recursive call!");
-                    println!("\t{}", trace);
-                    self.traces.insert(id, self.tracing.take().unwrap());
-                    return;
+                    // check for tail recursion
+                    if trace.param_stack.is_empty() {
+                        trace.ops.push(Op::Loop(f_params));
+                        println!("Ending trace at tail recursive call!");
+                        println!("\t{}", trace);
+                        self.traces.insert(id, self.tracing.take().unwrap());
+                        return;
+                    } else {
+                        // call, and also we have to suspend tracing?
+                        // can treat same as dynamic call if suspend, same thing really
+                    }
                 }
             }
             // either inline (prim/closure) or dynamic call
+            trace.ops.push(Op::Call(f_params));
         }
     }
     fn trace_call_end(&mut self, id: ID) {
@@ -332,11 +353,6 @@ impl Ctx {
     fn trace_define(&mut self, sym: &str) {
         if let Some(trace) = &mut self.tracing {
             trace.ops.push(Op::Define { sym: sym.to_owned() });
-        }
-    }
-    fn trace_call_bit(&mut self) {
-        if let Some(trace) = &mut self.tracing {
-            // TODO
         }
     }
     fn trace_lookup(&mut self, s: &str) {

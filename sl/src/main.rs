@@ -37,6 +37,7 @@ fn main() -> Result<()> {
         ;(define faft2 (lambda (n a) (if (= n 1) a (faft2 (- n 1) (+ n a)))))
         ;(debug 'gonna_faft2_it)
         ;(debug faft2)
+        ;(debug (faft2 6 1))
         ;(debug (faft2 400 1))
 
 
