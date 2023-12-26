@@ -16,7 +16,7 @@ use anyhow::{anyhow,bail,Result};
 // Replcing Env with pairs or somesuch would make JIT interop easier I think, because we wouldn't
 // have to deal with refcell, but then we would again for mutation.
 // Maybe doing all allocation on the Rust side with #[no_mangle] functions would make things easier
-// mmmm no let's make our own Box, Rc, maybe Arc
+// mmmm no let's make our own Box, Rc, maybe Arc, Vec too?
 // rustonomicon
 
 // What if we're cute and use the ID
@@ -38,8 +38,8 @@ pub enum Form {
     Nil,
     Int(i32),
     Bool(bool),
-    Symbol(String, RefCell<Option<ID>>),
-    Pair(Rc<Form>, Rc<Form>, RefCell<Option<ID>>),
+    Symbol(String),
+    Pair(Rc<Form>, Rc<Form>),
     Closure(Vec<String>, Rc<RefCell<Env>>, Rc<Form>, ID),
     Prim(Prim),
 }
@@ -63,14 +63,14 @@ impl Form {
             Form::Nil                   => o.is_nil(),
             Form::Int(i)                => if let Ok(oi) = o.int()  { *i == oi } else { false },
             Form::Bool(b)               => if let Ok(ob) = o.bool() { *b == ob } else { false },
-            Form::Symbol(s, _id)        => if let Ok(os) = o.sym()  {  s == os } else { false },
-            Form::Pair(a,b,_id)         => if let Ok((oa,ob)) = o.pair() { a.my_eq(&oa) && b.my_eq(&ob) } else { false },
+            Form::Symbol(s)             => if let Ok(os) = o.sym()  {  s == os } else { false },
+            Form::Pair(a,b)             => if let Ok((oa,ob)) = o.pair() { a.my_eq(&oa) && b.my_eq(&ob) } else { false },
             Form::Closure(_, _, _, _)   => false,
             Form::Prim(p)               => match &**o { Form::Prim(op) => p == op, _ => false },
         }
     }
     fn new_pair(car: Rc<Form>, cdr: Rc<Form>) -> Rc<Form> {
-        Rc::new(Form::Pair(car, cdr, RefCell::new(None)))
+        Rc::new(Form::Pair(car, cdr))
     }
     fn new_nil() -> Rc<Form> {
         Rc::new(Form::Nil)
@@ -111,25 +111,25 @@ impl Form {
     }
     fn sym(&self) -> Result<&str> {
         match self {
-            Form::Symbol(s, _id) => Ok(s),
+            Form::Symbol(s) => Ok(s),
             _ => Err(anyhow!("sym on not a sym")),
         }
     }
     fn pair(&self) -> Result<(Rc<Form>,Rc<Form>)> {
         match self {
-            Form::Pair(car, cdr, _id) => Ok((Rc::clone(car),Rc::clone(cdr))),
+            Form::Pair(car, cdr) => Ok((Rc::clone(car),Rc::clone(cdr))),
             _ => Err(anyhow!("pair on not a pair")),
         }
     }
     fn car(&self) -> Result<Rc<Form>> {
         match self {
-            Form::Pair(car, _cdr, _id) => Ok(Rc::clone(car)),
+            Form::Pair(car, cdr) => Ok(Rc::clone(car)),
             _ => Err(anyhow!("car on not a pair")),
         }
     }
     fn cdr(&self) -> Result<Rc<Form>> {
         match self {
-            Form::Pair(_car, cdr, _id) => Ok(Rc::clone(cdr)),
+            Form::Pair(_car, cdr) => Ok(Rc::clone(cdr)),
             _ => Err(anyhow!("cdr on not a pair")),
         }
     }
@@ -141,8 +141,8 @@ impl Form {
     }
     pub fn append(&self, x: Rc<Form>) -> Result<Rc<Form>> {
         match self {
-            Form::Pair(car, cdr, _id) => cdr.append(x).map(|x| Rc::new(Form::Pair(Rc::clone(car), x, RefCell::new(None)))),
-            Form::Nil            => Ok(Rc::new(Form::Pair(x, Rc::new(Form::Nil), RefCell::new(None)))),
+            Form::Pair(car, cdr) => cdr.append(x).map(|x| Rc::new(Form::Pair(Rc::clone(car), x))),
+            Form::Nil            => Ok(Rc::new(Form::Pair(x, Rc::new(Form::Nil)))),
             _                    => Err(anyhow!("append to not a pair")),
         }
     }
@@ -200,24 +200,26 @@ impl Env {
 enum Op {
     Guard { const_value: Rc<Form>, side: (Option<Rc<Form>>, Rc<Cont>) },
     Debug,
-    Define  { sym: String },
-    Const   { con: Rc<Form> },
-    Lookup  { sym: String },
-    Call(Vec<usize>),
+    Define     { sym: String },
+    Const      { con: Rc<Form> },
+    Lookup     { sym: String },
+    InlinePrim { prim: Prim, params: Vec<usize> },
+    Call       { params: Vec<usize>, nc: Rc<Cont> },
     Loop(Vec<usize>),
     Return,
 }
 impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Op::Guard   { const_value, side } => write!(f, "Guard({const_value})"),
-            Op::Debug                         => write!(f, "Debug"),
-            Op::Define  { sym }               => write!(f, "Define({sym})"),
-            Op::Const   { con }               => write!(f, "Const_{con}"),
-            Op::Lookup  { sym }               => write!(f, "Lookup({sym})"),
-            Op::Call(params)                  => write!(f, "Call({:?})", params),
-            Op::Loop(params)                  => write!(f, "Loop({:?})", params),
-            Op::Return                        => write!(f, "Return"),
+            Op::Guard       { const_value, side } => write!(f, "Guard({const_value})"),
+            Op::Debug                             => write!(f, "Debug"),
+            Op::Define      { sym }               => write!(f, "Define({sym})"),
+            Op::Const       { con }               => write!(f, "Const_{con}"),
+            Op::Lookup      { sym }               => write!(f, "Lookup({sym})"),
+            Op::InlinePrim  { prim, params }      => write!(f, "{:?}({:?})", prim, params),
+            Op::Call        { params, nc }        => write!(f, "Call({:?})", params),
+            Op::Loop(params)                      => write!(f, "Loop({:?})", params),
+            Op::Return                            => write!(f, "Return"),
         }
     }
 }
@@ -300,7 +302,7 @@ impl Ctx {
     //          use return stack, and count the post-return as it's own trace?
     //              weirder, but would eventually jive with continuations better?
     //              eh for now use trace stack in ctx and cont stack out, have them match?
-    fn trace_call_start(&mut self, arg_len: usize, id: Option<ID>) {
+    fn trace_call_start(&mut self, arg_len: usize, id: Option<ID>, nc: &Rc<Cont>) {
 
         // Needs to take and use parameters for mid-trace
         //  needs to guard on function called if non-constant
@@ -332,7 +334,9 @@ impl Ctx {
                 }
             }
             // either inline (prim/closure) or dynamic call
-            trace.ops.push(Op::Call(f_params));
+            //trace.ops.push(Op::Call(f_params));
+            //InlinePrim { prim: Prim, params: Vec<usize> },
+            //Call       { params: Vec<usize>, nc: Rc<Cont> },
         }
     }
     fn trace_call_end(&mut self, id: ID) {
@@ -383,10 +387,10 @@ impl Ctx {
 #[derive(Clone,Debug)]
 enum Cont {
     MetaRet,
-    Ret  { e: Rc<RefCell<Env>>,   id: ID,          c: Rc<Cont> },
+    Ret  {                        id: ID,                      },
     Eval {                                         c: Rc<Cont> }, 
     Prim { s: &'static str,       to_go: Rc<Form>, c: Rc<Cont> },
-    Call { evaled: Vec<Rc<Form>>, to_go: Rc<Form>, c: Rc<Cont> },
+    Call {                        to_go: Rc<Form>, c: Rc<Cont> },
 }
 
 pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
@@ -395,6 +399,9 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
     let mut e = Env::root_env();
     let mut c = Cont::Eval { c: Rc::new(Cont::MetaRet) };
 
+    let mut ret_stack: Vec<(Rc<RefCell<Env>>, Rc<Cont>)> = vec![];
+    let mut tmp_stack: Vec<Vec<Rc<Form>>> = vec![];
+
     loop {
         match c {
             Cont::MetaRet => {
@@ -402,7 +409,8 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                 assert!(!ctx.trace_running());
                 return Ok(f);
             }
-            Cont::Ret { e: ne, id, c: nc } => {
+            Cont::Ret {        id,       } => {
+                let (ne, nc) = ret_stack.pop().unwrap();
                 ctx.trace_call_end(id);
                 e = ne;
                 c = (*nc).clone();
@@ -467,10 +475,32 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                     }
                 }
             },
-            Cont::Call { mut evaled, to_go, c: nc } => {
+            // If we pull out temporaries from Cont::Call &
+            // change Ret to be bare, and then put the temps
+            // and the return continuation on a stack Frame
+            // outside the loop, then the built continuation is
+            // exactly what the trace will need to continue,
+            // and the stack can store the trace the continuation
+            // is a continuation of also, for tracking/tracing
+            //
+            // The trace will also have to figure out it's representation
+            // for temps vs the index offsets currently (or maybe go through
+            // offsets back to (now pruned, optimized) stack? is it the offsets that aren't
+            // constants?)
+            //
+            // Actually, I think we can move all computation into Wasm-Esque bytecode generation
+            // in the trace, with the trace functions returning the computed values and passed in
+            // &mut stack? Then optimization is walking the trace backwards, basically
+            // re-linearizeing the induced tree structure, swapping out consts for sub-trees.
+            // I think a Wasm like bytecode would be easy to compile to wasm, and should be easy
+            // to compile w/ cranelyft (I mean, they do) but also just because abstract interp of a
+            // stack machine should be quite easy, right?
+            Cont::Call { to_go, c: nc } => {
+                let evaled: &mut Vec<Rc<Form>> = tmp_stack.last_mut().unwrap();
                 ctx.trace_call_bit();
                 evaled.push(f);
                 if to_go.is_nil() {
+                    let evaled = tmp_stack.pop().unwrap();
                     // do call
                     let arg_len = evaled.len() - 1;
                     let mut evaled_iter = evaled.into_iter();
@@ -484,13 +514,14 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                             for (name, value) in ps.iter().zip(evaled_iter) {
                                 new_env.borrow_mut().define(name.to_string(), value);
                             }
-                            ctx.trace_call_start(arg_len, Some(*id));
-                            c = Cont::Eval { c: Rc::new(Cont::Ret { e: Rc::clone(&e), id: *id, c: nc }) };
+                            ctx.trace_call_start(arg_len, Some(*id), &nc);
+                            ret_stack.push((Rc::clone(&e), nc));
+                            c = Cont::Eval { c: Rc::new(Cont::Ret { id: *id }) };
                             f = Rc::clone(&b);
                             e = new_env;
                         },
                         Form::Prim(p) => {
-                            ctx.trace_call_start(arg_len, None);
+                            ctx.trace_call_start(arg_len, None, &nc);
                             let a = evaled_iter.next().unwrap();
                             f = match comb.prim().unwrap() {
                                 Prim::Car => a.car()?,
@@ -517,55 +548,55 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                     }
                 } else {
                     f = to_go.car()?;
-                    c = Cont::Eval { c: Rc::new(Cont::Call { evaled, to_go: to_go.cdr()?, c: nc }) };
+                    c = Cont::Eval { c: Rc::new(Cont::Call { to_go: to_go.cdr()?, c: nc }) };
                 }
             }
             Cont::Eval { c: nc } => {
                 let tmp = f;
                 match &*tmp {
-                    Form::Symbol(s, _id) => {
+                    Form::Symbol(s) => {
                         ctx.trace_lookup(s);
                         f = e.borrow().lookup(s)?;
                         c = (*nc).clone();
                     },
-                    Form::Pair(car, cdr, _id) => {
+                    Form::Pair(car, cdr) => {
                         match &**car {
-                            Form::Symbol(s, _id) if s == "if" => {
+                            Form::Symbol(s) if s == "if" => {
                                 f = cdr.car()?;
                                 c = Cont::Eval { c: Rc::new(Cont::Prim { s: "if", to_go: cdr.cdr()?, c: nc }) };
                             }
                             // and/or has to short-circut, so special form
                             // just like Scheme (bad ;) )
-                            Form::Symbol(s, _id) if s == "or" => {
+                            Form::Symbol(s) if s == "or" => {
                                 f = cdr.car()?;
                                 c = Cont::Eval { c: Rc::new(Cont::Prim { s: "or", to_go: cdr.cdr()?, c: nc }) };
                             }
-                            Form::Symbol(s, _id) if s == "and" => {
+                            Form::Symbol(s) if s == "and" => {
                                 f = cdr.car()?;
                                 c = Cont::Eval { c: Rc::new(Cont::Prim { s: "and", to_go: cdr.cdr()?, c: nc }) };
                             }
-                            Form::Symbol(s, _id) if s == "begin" => {
+                            Form::Symbol(s) if s == "begin" => {
                                 f = cdr.car()?;
                                 c = Cont::Eval { c: Rc::new(Cont::Prim { s: "begin", to_go: cdr.cdr()?, c: nc }) };
                             }
-                            Form::Symbol(s, _id) if s == "debug" => {
+                            Form::Symbol(s) if s == "debug" => {
                                 f = cdr.car()?;
                                 c = Cont::Eval { c: Rc::new(Cont::Prim { s: "debug", to_go: cdr.cdr()?, c: nc }) };
                             }
                             // This is a fast and loose ~simple lisp~, so just go for it
                             // and can have convention that this is always top levelish
-                            Form::Symbol(s, _id) if s == "define" => {
+                            Form::Symbol(s) if s == "define" => {
                                 // note the swap, evaluating the second not the first (define a value..)
                                 f = cdr.cdr()?.car()?;
                                 c = Cont::Eval { c: Rc::new(Cont::Prim { s: "define", to_go: cdr.car()?, c: nc }) };
                             }
-                            Form::Symbol(s, _id) if s == "quote" => {
+                            Form::Symbol(s) if s == "quote" => {
                                 f = cdr.car()?;
                                 ctx.trace_constant(&f);
                                 c = (*nc).clone();
                             }
                             // (lambda (a b) body)
-                            Form::Symbol(s, _id) if s == "lambda" => {
+                            Form::Symbol(s) if s == "lambda" => {
                                 let mut params_vec = vec![];
                                 let mut params = cdr.car()?;
                                 while let Ok((ncar, ncdr)) = params.pair() {
@@ -581,7 +612,8 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                             }
                             _ => {
                                 f = Rc::clone(car);
-                                c = Cont::Eval { c: Rc::new(Cont::Call { evaled: vec![], to_go: Rc::clone(cdr), c: nc }) };
+                                tmp_stack.push(vec![]);
+                                c = Cont::Eval { c: Rc::new(Cont::Call { to_go: Rc::clone(cdr), c: nc }) };
                             }
                         }
                     },
@@ -602,13 +634,13 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
 // Symbol ID's could actually be used for environment lookups
 //  this is just interning
 // todo, strings not symbols?
-impl From<String> for Form { fn from(item: String) -> Self { Form::Symbol(item, RefCell::new(None)) } }
-impl From<&str>   for Form { fn from(item: &str)   -> Self { Form::Symbol(item.to_owned(), RefCell::new(None)) } }
+impl From<String> for Form { fn from(item: String) -> Self { Form::Symbol(item) } }
+impl From<&str>   for Form { fn from(item: &str)   -> Self { Form::Symbol(item.to_owned()) } }
 impl From<i32>    for Form { fn from(item: i32)    -> Self { Form::Int(item) } }
 impl From<bool>   for Form { fn from(item: bool)   -> Self { Form::Bool(item) } }
 impl<A: Into<Form>, B: Into<Form>> From<(A, B)> for Form {
     fn from(item: (A, B)) -> Self {
-        Form::Pair(Rc::new(item.0.into()), Rc::new(item.1.into()), RefCell::new(None))
+        Form::Pair(Rc::new(item.0.into()), Rc::new(item.1.into()))
     }
 }
 
@@ -618,13 +650,13 @@ impl fmt::Display for Form {
             Form::Nil                   => write!(f, "nil"),
             Form::Int(i)                => write!(f, "{i}"),
             Form::Bool(b)               => write!(f, "{b}"),
-            Form::Symbol(s, _id)        => write!(f, "'{s}"),
-            Form::Pair(car, cdr, _id)   => {
+            Form::Symbol(s)             => write!(f, "'{s}"),
+            Form::Pair(car, cdr)   => {
                 write!(f, "({}", car)?;
                 let mut traverse: Rc<Form> = Rc::clone(cdr);
                 loop {
                     match &*traverse {
-                        Form::Pair(ref carp, ref cdrp, ref _id) => {
+                        Form::Pair(ref carp, ref cdrp) => {
                             write!(f, " {}", carp)?;
                             traverse = Rc::clone(cdrp);
                         },
