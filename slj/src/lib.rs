@@ -40,7 +40,7 @@ pub enum Form {
     Bool(bool),
     Symbol(String),
     Pair(Rc<Form>, Rc<Form>),
-    Closure(Vec<String>, Rc<RefCell<Env>>, Rc<Form>, ID),
+    Closure(Vec<String>, Rc<Form>, Rc<Form>, ID),
     Prim(Prim),
 }
 
@@ -81,7 +81,7 @@ impl Form {
     fn new_bool(b: bool) -> Rc<Form> {
         Rc::new(Form::Bool(b))
     }
-    fn new_closure(params: Vec<String>, env: Rc<RefCell<Env>>, body: Rc<Form>, ctx: &mut Ctx) -> Rc<Form> {
+    fn new_closure(params: Vec<String>, env: Rc<Form>, body: Rc<Form>, ctx: &mut Ctx) -> Rc<Form> {
         Rc::new(Form::Closure(params, env, body, ctx.alloc_id()))
     }
     fn truthy(&self) -> bool {
@@ -146,21 +146,9 @@ impl Form {
             _                    => Err(anyhow!("append to not a pair")),
         }
     }
-}
-
-#[derive(Debug)]
-pub struct Env {
-    u: Option<Rc<RefCell<Env>>>,
-    // split  this into
-    // BTreeMap<String, usize>
-    // Vec<usize> so that traced code can refer by index
-    m: BTreeMap<String, Rc<Form>>
-}
-impl Env {
-    pub fn root_env() -> Rc<RefCell<Env>> {
-        Rc::new(RefCell::new(Env {
-            u: None,
-            m: [
+    pub fn root_env() -> Rc<Form> {
+        let mut e = Form::new_nil();
+        for (s, v) in [
                 ("+",    Rc::new(Form::Prim(Prim::Add))),
                 ("-",    Rc::new(Form::Prim(Prim::Sub))),
                 ("*",    Rc::new(Form::Prim(Prim::Mul))),
@@ -171,68 +159,82 @@ impl Env {
                 ("car",  Rc::new(Form::Prim(Prim::Car))),
                 ("=",    Rc::new(Form::Prim(Prim::Eq))),
                 ("nil",  Form::new_nil()),
-            ].into_iter().map(|(s,p)| (s.to_owned(), p)).collect()
-        }))
+        ] {
+            e = e.define(s.to_string(), v);
+        }
+        e
     }
-    pub fn chain(o: &Rc<RefCell<Env>>) -> Rc<RefCell<Env>> {
-        Rc::new(RefCell::new(Env {
-            u: Some(Rc::clone(o)),
-            m: BTreeMap::new(),
-        }))
-    }
-    pub fn lookup(&self, s: &str) -> Result<Rc<Form>> {
-        if let Some(r) = self.m.get(s) {
-            Ok(Rc::clone(r))
-        } else if let Some(u) = &self.u {
-            u.borrow().lookup(s)
-        } else {
-            bail!("lookup of {s} failed")
+    pub fn lookup(self: &Rc<Self>, s: &str) -> Result<Rc<Form>> {
+        let mut e = Rc::clone(self);
+        loop {
+            let (kv, ne) = e.pair()?;
+            let (sp, v) = kv.pair()?;
+            if sp.sym()? == s {
+                return Ok(v);
+            }
+            e = ne;
         }
     }
-    pub fn define(&mut self, s: String, v: Rc<Form>) {
-        // no mutation, shadowing in inner scope ok
-        assert!(!self.m.contains_key(&s));
-        self.m.insert(s, v);
+    pub fn define(self: &Rc<Self>, s: String, v: Rc<Form>) -> Rc<Form> {
+        Form::new_pair(Form::new_pair(Rc::new(Form::Symbol(s)), v), Rc::clone(self))
     }
 }
 
-#[derive(Debug)]
-enum Op {
-    Guard { const_value: Rc<Form>, side: (Option<Rc<Form>>, Rc<Cont>) },
-    Debug,
-    Define     { sym: String },
-    Const      { con: Rc<Form> },
-    Lookup     { sym: String },
-    InlinePrim { prim: Prim, params: Vec<usize> },
-    Call       { params: Vec<usize>, nc: Rc<Cont> },
-    Loop(Vec<usize>),
-    Return,
-}
+// JIT Decisions
+//  JIT Closure vs JIT Closure-Template
+//      That is, do you treat the closed-over variables as constant
+//      Or maybe more specifically, which closed over variables do you treat as constant
+//          This will later inform optimistic inlining of primitives, I imagine
+//  Inline or not
+//  Rejoin branches or not
+
 impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Op::Guard       { const_value, side } => write!(f, "Guard({const_value})"),
-            Op::Debug                             => write!(f, "Debug"),
-            Op::Define      { sym }               => write!(f, "Define({sym})"),
-            Op::Const       { con }               => write!(f, "Const_{con}"),
-            Op::Lookup      { sym }               => write!(f, "Lookup({sym})"),
-            Op::InlinePrim  { prim, params }      => write!(f, "{:?}({:?})", prim, params),
-            Op::Call        { params, nc }        => write!(f, "Call({:?})", params),
-            Op::Loop(params)                      => write!(f, "Loop({:?})", params),
-            Op::Return                            => write!(f, "Return"),
+            Op::Guard       { const_value, side_val, side_cont, side_id } => write!(f, "Guard{side_id}({const_value})"),
+            Op::Debug                                                     => write!(f, "Debug"),
+            Op::Define      { sym }                                       => write!(f, "Define({sym})"),
+            Op::Const       ( con )                                       => write!(f, "Const_{con}"),
+            Op::Lookup      { sym }                                       => write!(f, "Lookup({sym})"),
+            Op::Call        { len, nc, nc_id, statik }                    => write!(f, "Call{nc_id}({len},{statik:?})"),
+            Op::InlinePrim(prim)                                          => write!(f, "{prim:?}"),
+            Op::Tail(len,oid)                                             => write!(f, "Tail({len},{oid:?})"),
+            Op::Loop(len)                                                 => write!(f, "Loop({len})"),
+            Op::Return                                                    => write!(f, "Return"),
         }
     }
+}
+impl Op {
+    fn cnst(&self) -> Result<Rc<Form>> {
+        match self {
+            Op::Const(c) => Ok(Rc::clone(c)),
+            _            => Err(anyhow!("const on not a const")),
+        }
+    }
+}
+#[derive(Debug)]
+enum Op {
+    Guard            { const_value: Rc<Form>, side_val: Option<Rc<Form>>, side_cont: Rc<Cont>, side_id: ID },
+    Debug,
+    Define           { sym: String },
+    Const            (      Rc<Form> ),
+    Lookup           { sym: String },
+    Call             { len: usize, statik: Option<ID>, nc: Rc<Cont>, nc_id: ID },
+    InlinePrim(Prim),
+    Tail(usize,Option<ID>),
+    Loop(usize),
+    Return,
 }
 #[derive(Debug)]
 struct Trace {
     id: ID,
     // needs to track which are constants
     ops: Vec<Op>,
-    param_stack: Vec<usize>,
+    stack_const: Vec<bool>,
 }
 impl Trace {
     fn new(id: ID) -> Self {
-        Trace { id, ops: vec![], param_stack: vec![] }
+        Trace { id, ops: vec![], stack_const: vec![] }
     }
 }
 impl fmt::Display for Trace {
@@ -242,9 +244,9 @@ impl fmt::Display for Trace {
             write!(f, " {}", op)?;
         }
         write!(f, " ]")?;
-        if !self.param_stack.is_empty() {
+        if !self.stack_const.is_empty() {
             write!(f, "[")?;
-            for s in &self.param_stack {
+            for s in &self.stack_const {
                 write!(f, " {}", s)?;
             }
             write!(f, " ]")?;
@@ -256,7 +258,7 @@ impl fmt::Display for Trace {
 #[derive(Debug)]
 struct Ctx {
     id_counter: i64,
-    func_calls: BTreeMap<ID, i64>,
+    cont_count: BTreeMap<ID, i64>,
     tracing: Option<Trace>,
     traces: BTreeMap<ID, Trace>,
 }
@@ -269,7 +271,7 @@ impl Ctx {
     fn new() -> Ctx {
         Ctx {
             id_counter: 0,
-            func_calls: BTreeMap::new(),
+            cont_count: BTreeMap::new(),
             tracing: None,
             traces: BTreeMap::new(),
         }
@@ -280,66 +282,106 @@ impl Ctx {
     }
     fn trace_running(&self) -> bool { self.tracing.is_some() }
 
-    fn trace_call_bit(&mut self) {
-        if let Some(trace) = &mut self.tracing {
-            trace.param_stack.push(trace.ops.len()-1);
-        }
-    }
     // Though I guess that means call start should recieve the parameters
     //  also, for like variables, it should guard on what function
     //      if dynamic, interacts with the constant tracking
-    //  7 options
+    //  8 options
     //      - not tracing, closure        - do stats
     //      - not tracing, prim           - do nothing
-    //      - tracing, Constant Prim      - inline prim
-    //      - tracing, Constant Closure   - inline call
+    //      - tracing, Static Prim        - inline prim
+    //      - tracing, Static non-self    - inline call
     //      - tracing, Static, tail-self  - emit loop
-    //      - tracing, Static,nontail-self- emit call
-    //      - tracing, Dynamic, other     - emit call
+    //      - tracing, Static,nontail-self- emit call  (do we need to differentiate between static and dynamic?)
+    //      - tracing, Dynamic,     tail  - emit tail
+    //      - tracing, Dynamic, non-tail  - emit call
     //
     //      inline call is slightly tricky, have to add our own Env accounting
-    //      emit call is trickier, because we either have to stop or postpone tracing
-    //          use return stack, and count the post-return as it's own trace?
-    //              weirder, but would eventually jive with continuations better?
-    //              eh for now use trace stack in ctx and cont stack out, have them match?
-    fn trace_call_start(&mut self, arg_len: usize, id: Option<ID>, nc: &Rc<Cont>) {
+    fn trace_call(&mut self, call_len: usize, tmp_stack: &Vec<Rc<Form>>, nc: &Rc<Cont>) -> Option<ID> {
+        let trace_id = self.tracing.as_ref().map(|x| x.id);
 
         // Needs to take and use parameters for mid-trace
         //  needs to guard on function called if non-constant
+        println!("trace_call call_len={call_len},trace={:?}", self.tracing);
+        if let Some(trace) = &mut self.tracing {
 
-        if let Some(id) = id {
-            let entry = self.func_calls.entry(id).or_insert(0);
-            println!("tracing call start for {id}, has been called {} times so far", *entry);
-            *entry += 1;
-            if *entry > 1 && self.tracing.is_none() && self.traces.get(&id).is_none() {
-                self.tracing = Some(Trace::new(id));
-                return; // don't record self, of course
+            let statik = if trace.stack_const[trace.stack_const.len()-call_len] {
+                // const - for now, inline or Loop
+                match &*tmp_stack[tmp_stack.len()-call_len] {
+                    Form::Prim(p) => {
+                        // pop and push consts
+                        if (&trace.stack_const[tmp_stack.len()-call_len..]).iter().all(|x| *x) {
+                            trace.stack_const.truncate(1+tmp_stack.len()-call_len);
+                            let b = trace.ops.pop().unwrap().cnst().unwrap();
+                            let (a,f) = if call_len == 3 {
+                                (Some(trace.ops.pop().unwrap().cnst().unwrap()), p)
+                            } else { (None, p) };
+                            trace.ops.pop().unwrap();
+                            trace.ops.push(Op::Const(eval_prim(*f, b, a).unwrap()));
+                        } else { 
+                            trace.ops.push(Op::InlinePrim(*p));
+                            trace.stack_const.truncate(tmp_stack.len()-call_len);
+                            trace.stack_const.push(false);
+                        }
+
+                        return None;
+                    },
+                    Form::Closure(ps, e, b, id) => {
+                        if nc.is_ret() {
+                            if *id == trace.id {
+                                trace.ops.push(Op::Loop(call_len));
+                            } else {
+                                // should be inline
+                                trace.ops.push(Op::Tail(call_len, Some(*id)));
+                            }
+                            // end call
+                            println!("Ending trace at loop/tail recursive call!");
+                            println!("\t{}", trace);
+                            self.traces.insert(trace.id, self.tracing.take().unwrap());
+                            return None;
+                        }
+                        // fall through, though also would normally be inline
+                        Some(*id)
+                    },
+                    b => panic!("bad func {b:?}"),
+                }
+            } else { None };
+
+            // not const or has tmps - Call or TailCall
+            if nc.is_ret() {
+                trace.ops.push(Op::Tail(call_len,statik));
+                println!("Ending trace at tail recursive call!");
+                println!("\t{}", trace);
+                self.traces.insert(trace.id, self.tracing.take().unwrap());
+                return None;
+            } else {
+                self.id_counter += 1; let nc_id = ID { id: self.id_counter }; // HACK - I can't use the method cuz trace is borrowed
+                trace.ops.push(Op::Call { len: call_len, statik, nc: Rc::clone(nc), nc_id });
+                println!("Ending trace at call!");
+                println!("\t{}", trace);
+                self.traces.insert(trace.id, self.tracing.take().unwrap());
             }
         }
-        if let Some(trace) = &mut self.tracing {
-            let f_params = trace.param_stack.split_off(trace.param_stack.len()-arg_len-1); // include function
-            if let Some(id) = id {
-                if trace.id == id {
-                    // check for tail recursion
-                    if trace.param_stack.is_empty() {
-                        trace.ops.push(Op::Loop(f_params));
-                        println!("Ending trace at tail recursive call!");
-                        println!("\t{}", trace);
-                        self.traces.insert(id, self.tracing.take().unwrap());
-                        return;
-                    } else {
-                        // call, and also we have to suspend tracing?
-                        // can treat same as dynamic call if suspend, same thing really
-                    }
-                }
+        trace_id
+    }
+    fn trace_frame(&mut self, syms: &Vec<String>, id: ID) {
+        let inline = self.tracing.is_some();
+        let entry = self.cont_count.entry(id).or_insert(0);
+        println!("tracing call start for {id}, has been called {} times so far", *entry);
+        *entry += 1;
+        if *entry > 1 && self.tracing.is_none() && self.traces.get(&id).is_none() {
+            self.tracing = Some(Trace::new(id));
+        }
+
+        for s in syms.iter().rev() {
+            self.trace_define(s, inline);
+        }
+        if inline {
+            if let Some(trace) = &mut self.tracing {
+                trace.stack_const.pop().unwrap(); // for the func value
             }
-            // either inline (prim/closure) or dynamic call
-            //trace.ops.push(Op::Call(f_params));
-            //InlinePrim { prim: Prim, params: Vec<usize> },
-            //Call       { params: Vec<usize>, nc: Rc<Cont> },
         }
     }
-    fn trace_call_end(&mut self, id: ID) {
+    fn trace_call_end(&mut self, id: ID, follow_on_trace_id: Option<ID>) {
         // associate with it or something
         println!("tracing call end for {id}");
         if let Some(trace) = &mut self.tracing {
@@ -350,11 +392,21 @@ impl Ctx {
                 self.traces.insert(id, self.tracing.take().unwrap());
             }
         }
+        if self.tracing.is_none() {
+            if let Some(follow_id) = follow_on_trace_id {
+                println!("starting follow-on trace {follow_id}");
+                self.tracing = Some(Trace::new(follow_id));
+            }
+        }
     }
-    fn trace_guard<T: Into<Form> + std::fmt::Debug >(&mut self, value: T, other: impl Fn()->(Option<Rc<Form>>,Rc<Cont>)) {
+    // As it is right now, other's replacement being Some means drop the checked value
+    fn trace_guard<T: Into<Form> + std::fmt::Debug>(&mut self, value: T, other: impl Fn()->(Option<Rc<Form>>,Rc<Cont>)) {
         println!("Tracing guard {value:?}");
         if let Some(trace) = &mut self.tracing {
-            trace.ops.push(Op::Guard { const_value: Rc::new(value.into()), side: other() });
+            // guard also needs the param stack
+            let (side_val, side_cont) = other();
+            self.id_counter += 1; let side_id = ID { id: self.id_counter }; // HACK - I can't use the method cuz trace is borrowed
+            trace.ops.push(Op::Guard { const_value: Rc::new(value.into()), side_val, side_cont, side_id });
         }
     }
     fn trace_debug(&mut self) {
@@ -362,7 +414,7 @@ impl Ctx {
             trace.ops.push(Op::Debug);
         }
     }
-    fn trace_define(&mut self, sym: &str) {
+    fn trace_define(&mut self, sym: &str, pop: bool) {
         if let Some(trace) = &mut self.tracing {
             trace.ops.push(Op::Define { sym: sym.to_owned() });
         }
@@ -370,37 +422,51 @@ impl Ctx {
     fn trace_lookup(&mut self, s: &str) {
         if let Some(trace) = &mut self.tracing {
             trace.ops.push(Op::Lookup { sym: s.to_owned() });
-            // constant depends on which env
+            // constant depends on which env, and I think this is the only spot that cares for
+            // closure jit vs lambda jit
+            trace.stack_const.push(false);
         }
     }
     fn trace_constant(&mut self, c: &Rc<Form>) {
         if let Some(trace) = &mut self.tracing {
-            trace.ops.push(Op::Const { con: Rc::clone(c) });
+            trace.ops.push(Op::Const(Rc::clone(c)));
+            trace.stack_const.push(true);
         }
     }
-    fn trace_lambda(&mut self, params: &[String], e: &Rc<RefCell<Env>>, body: &Rc<Form>) {
+    fn trace_lambda(&mut self, params: &[String], e: &Rc<Form>, body: &Rc<Form>) {
         if let Some(trace) = &mut self.tracing {
             // TODO
+            // kinda both also
+            unimplemented!("trace lambda");
         }
     }
 }
 #[derive(Clone,Debug)]
 enum Cont {
     MetaRet,
-    Ret  {                        id: ID,                      },
-    Eval {                                         c: Rc<Cont> }, 
-    Prim { s: &'static str,       to_go: Rc<Form>, c: Rc<Cont> },
-    Call {                        to_go: Rc<Form>, c: Rc<Cont> },
+    Ret   {                        id: ID,                      },
+    Eval  {                                         c: Rc<Cont> }, 
+    Prim  { s: &'static str,       to_go: Rc<Form>, c: Rc<Cont> },
+    Call  { n: usize,              to_go: Rc<Form>, c: Rc<Cont> },
+    Frame { syms: Vec<String>,     id: ID,          c: Rc<Cont> },
+}
+impl Cont {
+    fn is_ret(&self) -> bool {
+        match self {
+            Cont::Ret { id } => true,
+            _                => false,
+        }
+    }
 }
 
 pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
     let mut ctx = Ctx::new();
     let mut f = f;
-    let mut e = Env::root_env();
+    let mut e = Form::root_env();
     let mut c = Cont::Eval { c: Rc::new(Cont::MetaRet) };
 
-    let mut ret_stack: Vec<(Rc<RefCell<Env>>, Rc<Cont>)> = vec![];
-    let mut tmp_stack: Vec<Vec<Rc<Form>>> = vec![];
+    let mut ret_stack: Vec<(Rc<Form>, Rc<Cont>, Option<ID>)> = vec![];
+    let mut tmp_stack: Vec<Rc<Form>> = vec![];
 
     loop {
         match c {
@@ -410,8 +476,8 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                 return Ok(f);
             }
             Cont::Ret {        id,       } => {
-                let (ne, nc) = ret_stack.pop().unwrap();
-                ctx.trace_call_end(id);
+                let (ne, nc, resume_id) = ret_stack.pop().unwrap();
+                ctx.trace_call_end(id, resume_id);
                 e = ne;
                 c = (*nc).clone();
             },
@@ -466,8 +532,8 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                     },
                     "define" => {
                         let sym = to_go.sym()?.to_string();
-                        ctx.trace_define(&sym);
-                        e.borrow_mut().define(sym, Rc::clone(&f));
+                        ctx.trace_define(&sym, true);
+                        e = e.define(sym, Rc::clone(&f));
                         c = (*nc).clone();
                     },
                     _ => {
@@ -475,88 +541,49 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                     }
                 }
             },
-            // If we pull out temporaries from Cont::Call &
-            // change Ret to be bare, and then put the temps
-            // and the return continuation on a stack Frame
-            // outside the loop, then the built continuation is
-            // exactly what the trace will need to continue,
-            // and the stack can store the trace the continuation
-            // is a continuation of also, for tracking/tracing
-            //
-            // The trace will also have to figure out it's representation
-            // for temps vs the index offsets currently (or maybe go through
-            // offsets back to (now pruned, optimized) stack? is it the offsets that aren't
-            // constants?)
-            //
-            // Actually, I think we can move all computation into Wasm-Esque bytecode generation
-            // in the trace, with the trace functions returning the computed values and passed in
-            // &mut stack? Then optimization is walking the trace backwards, basically
-            // re-linearizeing the induced tree structure, swapping out consts for sub-trees.
-            // I think a Wasm like bytecode would be easy to compile to wasm, and should be easy
-            // to compile w/ cranelyft (I mean, they do) but also just because abstract interp of a
-            // stack machine should be quite easy, right?
-            Cont::Call { to_go, c: nc } => {
-                let evaled: &mut Vec<Rc<Form>> = tmp_stack.last_mut().unwrap();
-                ctx.trace_call_bit();
-                evaled.push(f);
+            Cont::Call { n, to_go, c: nc } => {
+                tmp_stack.push(f);
                 if to_go.is_nil() {
-                    let evaled = tmp_stack.pop().unwrap();
-                    // do call
-                    let arg_len = evaled.len() - 1;
-                    let mut evaled_iter = evaled.into_iter();
-                    let comb = evaled_iter.next().unwrap();
-                    match &*comb {
+                    let resume_id = ctx.trace_call(n, &mut tmp_stack, &nc);
+                    match &*Rc::clone(&tmp_stack[tmp_stack.len()-n]) {
                         Form::Closure(ps, ie, b, id) => {
-                            if ps.len() != arg_len {
+                            if ps.len() != n-1 {
                                 bail!("arguments length doesn't match");
                             }
-                            let new_env = Env::chain(&ie);
-                            for (name, value) in ps.iter().zip(evaled_iter) {
-                                new_env.borrow_mut().define(name.to_string(), value);
-                            }
-                            ctx.trace_call_start(arg_len, Some(*id), &nc);
-                            ret_stack.push((Rc::clone(&e), nc));
-                            c = Cont::Eval { c: Rc::new(Cont::Ret { id: *id }) };
+                            ret_stack.push((Rc::clone(&e), nc, resume_id));
+                            c = Cont::Frame { syms: ps.clone(), id: *id, c: Rc::new(Cont::Eval { c: Rc::new(Cont::Ret { id: *id }) }) };
                             f = Rc::clone(&b);
-                            e = new_env;
                         },
                         Form::Prim(p) => {
-                            ctx.trace_call_start(arg_len, None, &nc);
-                            let a = evaled_iter.next().unwrap();
-                            f = match comb.prim().unwrap() {
-                                Prim::Car => a.car()?,
-                                Prim::Cdr => a.cdr()?,
-                                _ => {
-                                    let b = evaled_iter.next().unwrap();
-                                    match comb.prim().unwrap() {
-                                        Prim::Add  => Form::new_int(a.int()? + b.int()?),
-                                        Prim::Sub  => Form::new_int(a.int()? - b.int()?),
-                                        Prim::Mul  => Form::new_int(a.int()? * b.int()?),
-                                        Prim::Div  => Form::new_int(a.int()? / b.int()?),
-                                        Prim::Mod  => Form::new_int(a.int()? % b.int()?),
-                                        Prim::Cons => Form::new_pair(a, b),
-                                        Prim::Eq   => Form::new_bool(a.my_eq(&b)),
-                                        _ => unreachable!(),
-                                    }
-                                }
-                            };
+                            let b = tmp_stack.pop().unwrap();
+                            let a = if n == 2 { None } else { assert!(n == 3); Some(tmp_stack.pop().unwrap()) };
+                            f = eval_prim(*p, b, a)?;
+                            tmp_stack.pop().unwrap(); // for the prim itself
                             c = (*nc).clone();
                         },
-                        _ => {
-                            bail!("tried to call a non-comb {}", comb)
+                        ncomb => {
+                            bail!("tried to call a non-comb {ncomb}")
                         },
                     }
                 } else {
                     f = to_go.car()?;
-                    c = Cont::Eval { c: Rc::new(Cont::Call { to_go: to_go.cdr()?, c: nc }) };
+                    c = Cont::Eval { c: Rc::new(Cont::Call { n: n+1, to_go: to_go.cdr()?, c: nc }) };
                 }
+            }
+            Cont::Frame { syms, id, c: nc } => {
+                ctx.trace_frame(&syms, id);
+                for s in syms.into_iter().rev() {
+                    e = e.define(s, tmp_stack.pop().unwrap());
+                }
+                tmp_stack.pop().unwrap(); // for the func value
+                c = (*nc).clone();
             }
             Cont::Eval { c: nc } => {
                 let tmp = f;
                 match &*tmp {
                     Form::Symbol(s) => {
                         ctx.trace_lookup(s);
-                        f = e.borrow().lookup(s)?;
+                        f = e.lookup(s)?;
                         c = (*nc).clone();
                     },
                     Form::Pair(car, cdr) => {
@@ -612,8 +639,7 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                             }
                             _ => {
                                 f = Rc::clone(car);
-                                tmp_stack.push(vec![]);
-                                c = Cont::Eval { c: Rc::new(Cont::Call { to_go: Rc::clone(cdr), c: nc }) };
+                                c = Cont::Eval { c: Rc::new(Cont::Call { n: 1, to_go: Rc::clone(cdr), c: nc }) };
                             }
                         }
                     },
@@ -628,12 +654,26 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
         }
     }
 }
+fn eval_prim(f: Prim, b: Rc<Form>, a: Option<Rc<Form>>) -> Result<Rc<Form>> {
+    Ok(match f {
+         Prim::Car => b.car()?,
+         Prim::Cdr => b.cdr()?,
+         _ => {
+             let a = a.unwrap();
+             match f {
+                 Prim::Add  => Form::new_int(a.int()? + b.int()?),
+                 Prim::Sub  => Form::new_int(a.int()? - b.int()?),
+                 Prim::Mul  => Form::new_int(a.int()? * b.int()?),
+                 Prim::Div  => Form::new_int(a.int()? / b.int()?),
+                 Prim::Mod  => Form::new_int(a.int()? % b.int()?),
+                 Prim::Cons => Form::new_pair(a, b),
+                 Prim::Eq   => Form::new_bool(a.my_eq(&b)),
+                 _ => unreachable!(),
+             }
+         }
+     })
+}
 
-// optimized as a function based off side table of id keyed -> opt
-// that id might be nice for debugging too
-// Symbol ID's could actually be used for environment lookups
-//  this is just interning
-// todo, strings not symbols?
 impl From<String> for Form { fn from(item: String) -> Self { Form::Symbol(item) } }
 impl From<&str>   for Form { fn from(item: &str)   -> Self { Form::Symbol(item.to_owned()) } }
 impl From<i32>    for Form { fn from(item: i32)    -> Self { Form::Int(item) } }
