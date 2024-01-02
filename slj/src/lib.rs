@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use std::collections::BTreeMap;
+use std::collections::{BTreeSet,BTreeMap};
 use std::fmt;
 use std::cell::RefCell;
 
@@ -191,16 +191,17 @@ impl Form {
 impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Op::Guard       { const_value, side_val, side_cont, side_id } => write!(f, "Guard{side_id}({const_value})"),
-            Op::Debug                                                     => write!(f, "Debug"),
-            Op::Define      { sym }                                       => write!(f, "Define({sym})"),
-            Op::Const       ( con )                                       => write!(f, "Const_{con}"),
-            Op::Lookup      { sym }                                       => write!(f, "Lookup({sym})"),
-            Op::Call        { len, nc, nc_id, statik }                    => write!(f, "Call{nc_id}({len},{statik:?})"),
-            Op::InlinePrim(prim)                                          => write!(f, "{prim:?}"),
-            Op::Tail(len,oid)                                             => write!(f, "Tail({len},{oid:?})"),
-            Op::Loop(len)                                                 => write!(f, "Loop({len})"),
-            Op::Return                                                    => write!(f, "Return"),
+            Op::Guard       { const_value, side_val, side_cont, side_id, tbk } => write!(f, "Guard{side_id}({const_value})"),
+            Op::Debug                                                          => write!(f, "Debug"),
+            Op::Define      { sym }                                            => write!(f, "Define({sym})"),
+            Op::Const       ( con )                                            => write!(f, "Const_{con}"),
+            Op::Drop                                                           => write!(f, "Drop"),
+            Op::Lookup      { sym }                                            => write!(f, "Lookup({sym})"),
+            Op::Call        { len, nc, nc_id, statik }                         => write!(f, "Call{nc_id}({len},{statik:?})"),
+            Op::InlinePrim(prim)                                               => write!(f, "{prim:?}"),
+            Op::Tail(len,oid)                                                  => write!(f, "Tail({len},{oid:?})"),
+            Op::Loop(len)                                                      => write!(f, "Loop({len})"),
+            Op::Return                                                         => write!(f, "Return"),
         }
     }
 }
@@ -212,12 +213,18 @@ impl Op {
         }
     }
 }
+#[derive(Debug,Clone)]
+struct TraceBookkeeping {
+    stack_const: Vec<bool>,
+    defined_names: BTreeSet<String>,
+}
 #[derive(Debug)]
 enum Op {
-    Guard            { const_value: Rc<Form>, side_val: Option<Rc<Form>>, side_cont: Rc<Cont>, side_id: ID },
+    Guard            { const_value: Rc<Form>, side_val: Option<Rc<Form>>, side_cont: Rc<Cont>, side_id: ID, tbk: TraceBookkeeping },
     Debug,
     Define           { sym: String },
     Const            (      Rc<Form> ),
+    Drop,
     Lookup           { sym: String },
     Call             { len: usize, statik: Option<ID>, nc: Rc<Cont>, nc_id: ID },
     InlinePrim(Prim),
@@ -225,16 +232,20 @@ enum Op {
     Loop(usize),
     Return,
 }
+
 #[derive(Debug)]
 struct Trace {
     id: ID,
     // needs to track which are constants
     ops: Vec<Op>,
-    stack_const: Vec<bool>,
+    tbk: TraceBookkeeping,
 }
 impl Trace {
     fn new(id: ID) -> Self {
-        Trace { id, ops: vec![], stack_const: vec![] }
+        Trace { id, ops: vec![], tbk: TraceBookkeeping { stack_const: vec![], defined_names: BTreeSet::new() } }
+    }
+    fn follow_on(id: ID, tbk: TraceBookkeeping) -> Self {
+        Trace { id, ops: vec![], tbk }
     }
 }
 impl fmt::Display for Trace {
@@ -244,9 +255,9 @@ impl fmt::Display for Trace {
             write!(f, " {}", op)?;
         }
         write!(f, " ]")?;
-        if !self.stack_const.is_empty() {
+        if !self.tbk.stack_const.is_empty() {
             write!(f, "[")?;
-            for s in &self.stack_const {
+            for s in &self.tbk.stack_const {
                 write!(f, " {}", s)?;
             }
             write!(f, " ]")?;
@@ -296,31 +307,34 @@ impl Ctx {
     //      - tracing, Dynamic, non-tail  - emit call
     //
     //      inline call is slightly tricky, have to add our own Env accounting
-    fn trace_call(&mut self, call_len: usize, tmp_stack: &Vec<Rc<Form>>, nc: &Rc<Cont>) -> Option<ID> {
-        let trace_id = self.tracing.as_ref().map(|x| x.id);
+    fn trace_call(&mut self, call_len: usize, tmp_stack: &Vec<Rc<Form>>, nc: &Rc<Cont>) -> Option<(ID,TraceBookkeeping)> {
 
         // Needs to take and use parameters for mid-trace
         //  needs to guard on function called if non-constant
-        println!("trace_call call_len={call_len},trace={:?}", self.tracing);
+        println!("trace_call call_len={call_len},trace={:?}, tmp_stack {tmp_stack:?}", self.tracing);
         if let Some(trace) = &mut self.tracing {
 
-            let statik = if trace.stack_const[trace.stack_const.len()-call_len] {
+            let statik = if trace.tbk.stack_const[trace.tbk.stack_const.len()-call_len] {
                 // const - for now, inline or Loop
                 match &*tmp_stack[tmp_stack.len()-call_len] {
                     Form::Prim(p) => {
-                        // pop and push consts
-                        if (&trace.stack_const[tmp_stack.len()-call_len..]).iter().all(|x| *x) {
-                            trace.stack_const.truncate(1+tmp_stack.len()-call_len);
-                            let b = trace.ops.pop().unwrap().cnst().unwrap();
+                        if (&trace.tbk.stack_const[trace.tbk.stack_const.len()-call_len..]).iter().all(|x| *x) {
+                            trace.tbk.stack_const.truncate(trace.tbk.stack_const.len()-call_len);
+                            let b = trace.ops[trace.ops.len()-1].cnst().unwrap();
                             let (a,f) = if call_len == 3 {
-                                (Some(trace.ops.pop().unwrap().cnst().unwrap()), p)
+                                (Some(trace.ops[trace.ops.len()-2].cnst().unwrap()), p)
                             } else { (None, p) };
-                            trace.ops.pop().unwrap();
+                            for _ in 0..call_len {
+                                trace.ops.push(Op::Drop);
+                            }
+
                             trace.ops.push(Op::Const(eval_prim(*f, b, a).unwrap()));
+                            trace.tbk.stack_const.push(true);
                         } else { 
+                            trace.tbk.stack_const.truncate(trace.tbk.stack_const.len()-call_len);
+                            //have to remove the const prim instruction, but we don't know where it is
                             trace.ops.push(Op::InlinePrim(*p));
-                            trace.stack_const.truncate(tmp_stack.len()-call_len);
-                            trace.stack_const.push(false);
+                            trace.tbk.stack_const.push(false);
                         }
 
                         return None;
@@ -354,14 +368,21 @@ impl Ctx {
                 self.traces.insert(trace.id, self.tracing.take().unwrap());
                 return None;
             } else {
+                trace.tbk.stack_const.truncate(trace.tbk.stack_const.len()-call_len);
                 self.id_counter += 1; let nc_id = ID { id: self.id_counter }; // HACK - I can't use the method cuz trace is borrowed
+                                                                              // also, we need to
+                                                                              // store the const
+                                                                              // stack and defined
+                                                                              // names
                 trace.ops.push(Op::Call { len: call_len, statik, nc: Rc::clone(nc), nc_id });
                 println!("Ending trace at call!");
                 println!("\t{}", trace);
+                let trace_data = (trace.id,trace.tbk.clone());
                 self.traces.insert(trace.id, self.tracing.take().unwrap());
+                return Some(trace_data);
             }
         }
-        trace_id
+        None
     }
     fn trace_frame(&mut self, syms: &Vec<String>, id: ID) {
         let inline = self.tracing.is_some();
@@ -377,11 +398,11 @@ impl Ctx {
         }
         if inline {
             if let Some(trace) = &mut self.tracing {
-                trace.stack_const.pop().unwrap(); // for the func value
+                trace.tbk.stack_const.pop().unwrap(); // for the func value
             }
         }
     }
-    fn trace_call_end(&mut self, id: ID, follow_on_trace_id: Option<ID>) {
+    fn trace_call_end(&mut self, id: ID, follow_on_trace_data: Option<(ID,TraceBookkeeping)>) {
         // associate with it or something
         println!("tracing call end for {id}");
         if let Some(trace) = &mut self.tracing {
@@ -393,9 +414,13 @@ impl Ctx {
             }
         }
         if self.tracing.is_none() {
-            if let Some(follow_id) = follow_on_trace_id {
-                println!("starting follow-on trace {follow_id}");
-                self.tracing = Some(Trace::new(follow_id));
+            if let Some((follow_id,follow_tbk)) = follow_on_trace_data {
+                println!("starting follow-on trace {follow_id}, {follow_tbk:?}");
+                let mut trace = Trace::follow_on(follow_id,follow_tbk);
+                trace.tbk.stack_const.push(false); // fix with actual, if this ends up being a
+                                                   // static call with static param list that isn't
+                                                   // inlined for whatever reason...
+                self.tracing = Some(trace);
             }
         }
     }
@@ -405,8 +430,11 @@ impl Ctx {
         if let Some(trace) = &mut self.tracing {
             // guard also needs the param stack
             let (side_val, side_cont) = other();
+            if side_val.is_some() {
+                trace.tbk.stack_const.pop().unwrap(); // for the func value
+            }
             self.id_counter += 1; let side_id = ID { id: self.id_counter }; // HACK - I can't use the method cuz trace is borrowed
-            trace.ops.push(Op::Guard { const_value: Rc::new(value.into()), side_val, side_cont, side_id });
+            trace.ops.push(Op::Guard { const_value: Rc::new(value.into()), side_val, side_cont, side_id, tbk: trace.tbk.clone() });
         }
     }
     fn trace_debug(&mut self) {
@@ -417,20 +445,37 @@ impl Ctx {
     fn trace_define(&mut self, sym: &str, pop: bool) {
         if let Some(trace) = &mut self.tracing {
             trace.ops.push(Op::Define { sym: sym.to_owned() });
+            trace.tbk.defined_names.insert(sym.to_owned());
+            if pop {
+                trace.tbk.stack_const.pop().unwrap();
+            }
+
         }
     }
-    fn trace_lookup(&mut self, s: &str) {
+    fn trace_lookup(&mut self, s: &str, f: &Rc<Form>) {
         if let Some(trace) = &mut self.tracing {
-            trace.ops.push(Op::Lookup { sym: s.to_owned() });
             // constant depends on which env, and I think this is the only spot that cares for
             // closure jit vs lambda jit
-            trace.stack_const.push(false);
+            if trace.tbk.defined_names.contains(s) {
+                trace.ops.push(Op::Lookup { sym: s.to_owned() });
+                trace.tbk.stack_const.push(false);
+            } else {
+                trace.ops.push(Op::Const(Rc::clone(f)));
+                trace.tbk.stack_const.push(true);
+            }
         }
     }
+    fn trace_drop(&mut self) {
+        if let Some(trace) = &mut self.tracing {
+            trace.ops.push(Op::Drop);
+            trace.tbk.stack_const.pop().unwrap();
+        }
+    }
+
     fn trace_constant(&mut self, c: &Rc<Form>) {
         if let Some(trace) = &mut self.tracing {
             trace.ops.push(Op::Const(Rc::clone(c)));
-            trace.stack_const.push(true);
+            trace.tbk.stack_const.push(true);
         }
     }
     fn trace_lambda(&mut self, params: &[String], e: &Rc<Form>, body: &Rc<Form>) {
@@ -465,7 +510,7 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
     let mut e = Form::root_env();
     let mut c = Cont::Eval { c: Rc::new(Cont::MetaRet) };
 
-    let mut ret_stack: Vec<(Rc<Form>, Rc<Cont>, Option<ID>)> = vec![];
+    let mut ret_stack: Vec<(Rc<Form>, Rc<Cont>, Option<(ID,TraceBookkeeping)>)> = vec![];
     let mut tmp_stack: Vec<Rc<Form>> = vec![];
 
     loop {
@@ -476,8 +521,8 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                 return Ok(f);
             }
             Cont::Ret {        id,       } => {
-                let (ne, nc, resume_id) = ret_stack.pop().unwrap();
-                ctx.trace_call_end(id, resume_id);
+                let (ne, nc, resume_data) = ret_stack.pop().unwrap();
+                ctx.trace_call_end(id, resume_data);
                 e = ne;
                 c = (*nc).clone();
             },
@@ -521,6 +566,7 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                         if to_go.is_nil() {
                             c = (*nc).clone();
                         } else {
+                            ctx.trace_drop();
                             f = to_go.car()?;
                             c = Cont::Eval { c: Rc::new(Cont::Prim { s: "begin", to_go: to_go.cdr()?, c: nc }) };
                         }
@@ -544,13 +590,13 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
             Cont::Call { n, to_go, c: nc } => {
                 tmp_stack.push(f);
                 if to_go.is_nil() {
-                    let resume_id = ctx.trace_call(n, &mut tmp_stack, &nc);
+                    let resume_data = ctx.trace_call(n, &mut tmp_stack, &nc);
                     match &*Rc::clone(&tmp_stack[tmp_stack.len()-n]) {
                         Form::Closure(ps, ie, b, id) => {
                             if ps.len() != n-1 {
                                 bail!("arguments length doesn't match");
                             }
-                            ret_stack.push((Rc::clone(&e), nc, resume_id));
+                            ret_stack.push((Rc::clone(&e), nc, resume_data));
                             c = Cont::Frame { syms: ps.clone(), id: *id, c: Rc::new(Cont::Eval { c: Rc::new(Cont::Ret { id: *id }) }) };
                             f = Rc::clone(&b);
                         },
@@ -582,8 +628,8 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                 let tmp = f;
                 match &*tmp {
                     Form::Symbol(s) => {
-                        ctx.trace_lookup(s);
                         f = e.lookup(s)?;
+                        ctx.trace_lookup(s, &f);
                         c = (*nc).clone();
                     },
                     Form::Pair(car, cdr) => {
