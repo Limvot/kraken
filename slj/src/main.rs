@@ -54,7 +54,8 @@ fn main() -> Result<()> {
         ;(debug b)
         ;(debug (car b))
         ;(debug (cdr b))
-        (if (= 1 2) (+ 2 3) (* 2 2))
+        ;(if (= 1 2) (+ 2 3) (* 2 2))
+        (or false false )
     )
         ";
     let parsed_input = Rc::new(grammar::TermParser::new().parse(input)?);

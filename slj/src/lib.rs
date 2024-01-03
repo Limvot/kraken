@@ -56,6 +56,33 @@ pub enum Prim {
     Car,
     Cdr,
 }
+impl Prim {
+    fn two_params(self) -> bool {
+        match self {
+            Prim::Car | Prim::Cdr => false,
+            _                     => true,
+        }
+    }
+}
+fn eval_prim(f: Prim, b: Rc<Form>, a: Option<Rc<Form>>) -> Result<Rc<Form>> {
+    Ok(match f {
+         Prim::Car => b.car()?,
+         Prim::Cdr => b.cdr()?,
+         _ => {
+             let a = a.unwrap();
+             match f {
+                 Prim::Add  => Form::new_int(a.int()? + b.int()?),
+                 Prim::Sub  => Form::new_int(a.int()? - b.int()?),
+                 Prim::Mul  => Form::new_int(a.int()? * b.int()?),
+                 Prim::Div  => Form::new_int(a.int()? / b.int()?),
+                 Prim::Mod  => Form::new_int(a.int()? % b.int()?),
+                 Prim::Cons => Form::new_pair(a, b),
+                 Prim::Eq   => Form::new_bool(a.my_eq(&b)),
+                 _ => unreachable!(),
+             }
+         }
+     })
+}
 
 impl Form {
     fn my_eq(&self, o: &Rc<Form>) -> bool {
@@ -69,16 +96,16 @@ impl Form {
             Form::Prim(p)               => match &**o { Form::Prim(op) => p == op, _ => false },
         }
     }
-    fn new_pair(car: Rc<Form>, cdr: Rc<Form>) -> Rc<Form> {
+    pub fn new_pair(car: Rc<Form>, cdr: Rc<Form>) -> Rc<Form> {
         Rc::new(Form::Pair(car, cdr))
     }
-    fn new_nil() -> Rc<Form> {
+    pub fn new_nil() -> Rc<Form> {
         Rc::new(Form::Nil)
     }
-    fn new_int(i: i32) -> Rc<Form> {
+    pub fn new_int(i: i32) -> Rc<Form> {
         Rc::new(Form::Int(i))
     }
-    fn new_bool(b: bool) -> Rc<Form> {
+    pub fn new_bool(b: bool) -> Rc<Form> {
         Rc::new(Form::Bool(b))
     }
     fn new_closure(params: Vec<String>, env: Rc<Form>, body: Rc<Form>, ctx: &mut Ctx) -> Rc<Form> {
@@ -197,7 +224,7 @@ impl fmt::Display for Op {
             Op::Const       ( con )                                            => write!(f, "Const_{con}"),
             Op::Drop                                                           => write!(f, "Drop"),
             Op::Lookup      { sym }                                            => write!(f, "Lookup({sym})"),
-            Op::Call        { len, nc, nc_id, statik }                         => write!(f, "Call{nc_id}({len},{statik:?})"),
+            Op::Call        { len, nc, nc_id, statik, tbk }                    => write!(f, "Call{nc_id}({len},{statik:?})"),
             Op::InlinePrim(prim)                                               => write!(f, "{prim:?}"),
             Op::Tail(len,oid)                                                  => write!(f, "Tail({len},{oid:?})"),
             Op::Loop(len)                                                      => write!(f, "Loop({len})"),
@@ -226,7 +253,7 @@ enum Op {
     Const            (      Rc<Form> ),
     Drop,
     Lookup           { sym: String },
-    Call             { len: usize, statik: Option<ID>, nc: Rc<Cont>, nc_id: ID },
+    Call             { len: usize, statik: Option<ID>, nc: Rc<Cont>, nc_id: ID, tbk: TraceBookkeeping },
     InlinePrim(Prim),
     Tail(usize,Option<ID>),
     Loop(usize),
@@ -374,7 +401,11 @@ impl Ctx {
                                                                               // store the const
                                                                               // stack and defined
                                                                               // names
-                trace.ops.push(Op::Call { len: call_len, statik, nc: Rc::clone(nc), nc_id });
+                trace.ops.push(Op::Call { len: call_len, statik, nc: Rc::clone(nc), nc_id, tbk: trace.tbk.clone() }); // TODO:
+                                                                                              // if we put the contuinuation trace data
+                                                                                              // here, then can keep pushing it on interior
+                                                                                              // stacks.  (so we can continue from innermost return)
+                                                                                              // probs just id and a Ctx member map to the full data
                 println!("Ending trace at call!");
                 println!("\t{}", trace);
                 let trace_data = (trace.id,trace.tbk.clone());
@@ -396,11 +427,7 @@ impl Ctx {
         for s in syms.iter().rev() {
             self.trace_define(s, inline);
         }
-        if inline {
-            if let Some(trace) = &mut self.tracing {
-                trace.tbk.stack_const.pop().unwrap(); // for the func value
-            }
-        }
+        self.trace_drop(inline);
     }
     fn trace_call_end(&mut self, id: ID, follow_on_trace_data: Option<(ID,TraceBookkeeping)>) {
         // associate with it or something
@@ -430,9 +457,6 @@ impl Ctx {
         if let Some(trace) = &mut self.tracing {
             // guard also needs the param stack
             let (side_val, side_cont) = other();
-            if side_val.is_some() {
-                trace.tbk.stack_const.pop().unwrap(); // for the func value
-            }
             self.id_counter += 1; let side_id = ID { id: self.id_counter }; // HACK - I can't use the method cuz trace is borrowed
             trace.ops.push(Op::Guard { const_value: Rc::new(value.into()), side_val, side_cont, side_id, tbk: trace.tbk.clone() });
         }
@@ -465,10 +489,12 @@ impl Ctx {
             }
         }
     }
-    fn trace_drop(&mut self) {
+    fn trace_drop(&mut self, pop: bool) {
         if let Some(trace) = &mut self.tracing {
             trace.ops.push(Op::Drop);
-            trace.tbk.stack_const.pop().unwrap();
+            if pop {
+                trace.tbk.stack_const.pop().unwrap();
+            }
         }
     }
 
@@ -483,6 +509,99 @@ impl Ctx {
             // TODO
             // kinda both also
             unimplemented!("trace lambda");
+        }
+    }
+
+    fn execute_trace_if_exists(&mut self,
+                                  id: ID, 
+                                  e: &Rc<Form>,
+                                  tmp_stack: &mut Vec<Rc<Form>>, 
+                                  ret_stack: &mut Vec<(Rc<Form>, Rc<Cont>, Option<(ID,TraceBookkeeping)>)>) -> Result<Option<(Rc<Form>, Rc<Form>, Cont)>> {
+        if self.trace_running() {
+            println!("Not playing back trace because recording trace");
+            return Ok(None); // can't trace while running a trace for now (we don't inline now anyway),
+                             // in the future it should just tack on the opcodes while jugging the proper 
+                             // bookkeeping stacks
+        }
+        if let Some(trace) = self.traces.get(&id) {
+            println!("Starting trace playback");
+            let mut e = Rc::clone(e);
+            println!("Running trace {trace}");
+            for b in trace.ops.iter() {
+                match b {
+                    Op::Guard       { const_value, side_val, side_cont, side_id, tbk } => {
+                        println!("Guard(op) {const_value}");
+                        if !const_value.my_eq(tmp_stack.last().unwrap()) {
+                            if let Some(side_val) = side_val {
+                                *tmp_stack.last_mut().unwrap() = Rc::clone(side_val);
+                            }
+                            println!("\tending playback b/c failed guard");
+                            return Ok(Some((tmp_stack.pop().unwrap(), e, (**side_cont).clone())));
+                        }
+                    }
+                    Op::Debug                                                          => {
+                        println!("Debug(op) {}", tmp_stack.last().unwrap());
+                    }
+                    Op::Define      { sym }                                            => {
+                        let v = tmp_stack.pop().unwrap();
+                        println!("Define(op) {sym} = {}", v);
+                        e = e.define(sym.clone(), v);
+                    }
+                    Op::Const       ( con )                                            => {
+                        println!("Const(op) {con}");
+                        tmp_stack.push(Rc::clone(con));
+                    }
+                    Op::Drop                                                           => {
+                        println!("Drop(op) {}", tmp_stack.last().unwrap());
+                        tmp_stack.pop().unwrap();
+                    }
+                    Op::Lookup      { sym }                                            => {
+                        println!("Lookup(op) {sym}");
+                        tmp_stack.push(e.lookup(sym)?);
+                    }
+                    Op::InlinePrim(prim)                                               => {
+                        println!("InlinePrim(op) {prim:?}");
+                        let b = tmp_stack.pop().unwrap();
+                        let a = if prim.two_params() { Some(tmp_stack.pop().unwrap()) } else { None };
+                        tmp_stack.pop().unwrap(); // pop the prim
+                        tmp_stack.push(eval_prim(*prim, b, a)?);
+                    }
+                    Op::Call        { len, nc, nc_id, statik, tbk }                    => {
+                        println!("Call(op)");
+                        println!("\tending playback b/c Call");
+                        // TODO: This should be more efficent, but for now
+                        // toss back into interpreter via a constructed frame
+                        // (esp if statik!)
+                        // TODO TODO Also we need to get tbk on the ret stack when we do hanlde the
+                        // call here (even if we throw back to interp)
+                        return Ok(Some((tmp_stack.pop().unwrap(), e, Cont::Call { n: *len, to_go: Form::new_nil(), c: Rc::clone(nc) })));
+                    }
+                    Op::Tail(len,oid)                                                  => {
+                        println!("Tail(op)");
+                        // Huh, this actually has to know how many envs we pushed on so we can pop
+                        // them off
+                        // (also this should really be a stack)
+                        unimplemented!();
+                    }
+                    Op::Loop(len)                                                      => {
+                        println!("Loop(op)");
+                        // Huh, this actually has to know how many envs we pushed on so we can pop
+                        // them off
+                        // (also this should really be a stack)
+                        unimplemented!();
+                    }
+                    Op::Return                                                         => {
+                        println!("Return(op)");
+                        println!("\tending playback b/c Call");
+                        let (ne, nc, resume_data) = ret_stack.pop().unwrap();
+                        // TODO We also have to handle resume data here, as well
+                        return Ok(Some((tmp_stack.pop().unwrap(), ne, (*nc).clone())));
+                    }
+                }
+            }
+            unreachable!();
+        } else {
+            Ok(None)
         }
     }
 }
@@ -520,12 +639,6 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                 assert!(!ctx.trace_running());
                 return Ok(f);
             }
-            Cont::Ret {        id,       } => {
-                let (ne, nc, resume_data) = ret_stack.pop().unwrap();
-                ctx.trace_call_end(id, resume_data);
-                e = ne;
-                c = (*nc).clone();
-            },
             Cont::Prim { s, to_go, c: nc } => {
                 match s {
                     "if" => {
@@ -533,9 +646,11 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                         let els = to_go.cdr()?.car()?;
                         if f.truthy() {
                             ctx.trace_guard(true, || (Some(Rc::clone(&els)), Rc::new(Cont::Eval { c: Rc::clone(&nc) })));
+                            ctx.trace_drop(true);
                             f = thn;
                         } else {
                             ctx.trace_guard(false, ||(Some(Rc::clone(&thn)), Rc::new(Cont::Eval { c: Rc::clone(&nc) })));
+                            ctx.trace_drop(true);
                             f = els;
                         }
                         c = Cont::Eval { c: nc };
@@ -544,6 +659,7 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                         let other = to_go.car()?;
                         if !f.truthy() {
                             ctx.trace_guard(false, || (None, nc.clone()));
+                            ctx.trace_drop(true);
                             f = other;
                             c = Cont::Eval { c: nc };
                         } else {
@@ -555,6 +671,7 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                         let other = to_go.car()?;
                         if f.truthy() {
                             ctx.trace_guard(true, || (None, nc.clone()));
+                            ctx.trace_drop(true);
                             f = other;
                             c = Cont::Eval { c: nc };
                         } else {
@@ -566,7 +683,7 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                         if to_go.is_nil() {
                             c = (*nc).clone();
                         } else {
-                            ctx.trace_drop();
+                            ctx.trace_drop(true);
                             f = to_go.car()?;
                             c = Cont::Eval { c: Rc::new(Cont::Prim { s: "begin", to_go: to_go.cdr()?, c: nc }) };
                         }
@@ -587,6 +704,12 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                     }
                 }
             },
+            Cont::Ret {        id,       } => {
+                let (ne, nc, resume_data) = ret_stack.pop().unwrap();
+                ctx.trace_call_end(id, resume_data);
+                e = ne;
+                c = (*nc).clone();
+            },
             Cont::Call { n, to_go, c: nc } => {
                 tmp_stack.push(f);
                 if to_go.is_nil() {
@@ -597,8 +720,15 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                                 bail!("arguments length doesn't match");
                             }
                             ret_stack.push((Rc::clone(&e), nc, resume_data));
-                            c = Cont::Frame { syms: ps.clone(), id: *id, c: Rc::new(Cont::Eval { c: Rc::new(Cont::Ret { id: *id }) }) };
-                            f = Rc::clone(&b);
+                            if let Some((fp, ep, cp)) = ctx.execute_trace_if_exists(*id, &e, &mut tmp_stack, &mut ret_stack)? {
+                                f = fp;
+                                e = ep;
+                                c = cp;
+                                println!("After executing trace, f={f}, tmp_stack is {tmp_stack:?}");
+                            } else {
+                                c = Cont::Frame { syms: ps.clone(), id: *id, c: Rc::new(Cont::Eval { c: Rc::new(Cont::Ret { id: *id }) }) };
+                                f = Rc::clone(&b);
+                            }
                         },
                         Form::Prim(p) => {
                             let b = tmp_stack.pop().unwrap();
@@ -608,6 +738,7 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                             c = (*nc).clone();
                         },
                         ncomb => {
+                            println!("Current stack is {tmp_stack:?}");
                             bail!("tried to call a non-comb {ncomb}")
                         },
                     }
@@ -699,25 +830,6 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
             }
         }
     }
-}
-fn eval_prim(f: Prim, b: Rc<Form>, a: Option<Rc<Form>>) -> Result<Rc<Form>> {
-    Ok(match f {
-         Prim::Car => b.car()?,
-         Prim::Cdr => b.cdr()?,
-         _ => {
-             let a = a.unwrap();
-             match f {
-                 Prim::Add  => Form::new_int(a.int()? + b.int()?),
-                 Prim::Sub  => Form::new_int(a.int()? - b.int()?),
-                 Prim::Mul  => Form::new_int(a.int()? * b.int()?),
-                 Prim::Div  => Form::new_int(a.int()? / b.int()?),
-                 Prim::Mod  => Form::new_int(a.int()? % b.int()?),
-                 Prim::Cons => Form::new_pair(a, b),
-                 Prim::Eq   => Form::new_bool(a.my_eq(&b)),
-                 _ => unreachable!(),
-             }
-         }
-     })
 }
 
 impl From<String> for Form { fn from(item: String) -> Self { Form::Symbol(item) } }
