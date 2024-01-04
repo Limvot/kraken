@@ -299,6 +299,7 @@ struct Ctx {
     cont_count: BTreeMap<ID, i64>,
     tracing: Option<Trace>,
     traces: BTreeMap<ID, Trace>,
+    trace_resume_data: BTreeMap<ID, TraceBookkeeping>,
 }
 impl fmt::Display for Ctx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -312,6 +313,7 @@ impl Ctx {
             cont_count: BTreeMap::new(),
             tracing: None,
             traces: BTreeMap::new(),
+            trace_resume_data: BTreeMap::new(),
         }
     }
     fn alloc_id(&mut self) -> ID {
@@ -334,7 +336,7 @@ impl Ctx {
     //      - tracing, Dynamic, non-tail  - emit call
     //
     //      inline call is slightly tricky, have to add our own Env accounting
-    fn trace_call(&mut self, call_len: usize, tmp_stack: &Vec<Rc<Form>>, nc: &Rc<Cont>) -> Option<(ID,TraceBookkeeping)> {
+    fn trace_call(&mut self, call_len: usize, tmp_stack: &Vec<Rc<Form>>, nc: &Rc<Cont>) -> Option<ID> {
 
         // Needs to take and use parameters for mid-trace
         //  needs to guard on function called if non-constant
@@ -408,7 +410,8 @@ impl Ctx {
                                                                                               // probs just id and a Ctx member map to the full data
                 println!("Ending trace at call!");
                 println!("\t{}", trace);
-                let trace_data = (trace.id,trace.tbk.clone());
+                self.trace_resume_data.insert(trace.id, trace.tbk.clone());
+                let trace_data = trace.id;
                 self.traces.insert(trace.id, self.tracing.take().unwrap());
                 return Some(trace_data);
             }
@@ -429,7 +432,7 @@ impl Ctx {
         }
         self.trace_drop(inline);
     }
-    fn trace_call_end(&mut self, id: ID, follow_on_trace_data: Option<(ID,TraceBookkeeping)>) {
+    fn trace_call_end(&mut self, id: ID, follow_on_trace_data: Option<ID>) {
         // associate with it or something
         println!("tracing call end for {id}");
         if let Some(trace) = &mut self.tracing {
@@ -441,7 +444,8 @@ impl Ctx {
             }
         }
         if self.tracing.is_none() {
-            if let Some((follow_id,follow_tbk)) = follow_on_trace_data {
+            if let Some(follow_id) = follow_on_trace_data {
+                let follow_tbk = self.trace_resume_data.remove(&follow_id).unwrap();
                 println!("starting follow-on trace {follow_id}, {follow_tbk:?}");
                 let mut trace = Trace::follow_on(follow_id,follow_tbk);
                 trace.tbk.stack_const.push(false); // fix with actual, if this ends up being a
@@ -516,7 +520,7 @@ impl Ctx {
                                   id: ID, 
                                   e: &Rc<Form>,
                                   tmp_stack: &mut Vec<Rc<Form>>, 
-                                  ret_stack: &mut Vec<(Rc<Form>, Rc<Cont>, Option<(ID,TraceBookkeeping)>)>) -> Result<Option<(Rc<Form>, Rc<Form>, Cont)>> {
+                                  ret_stack: &mut Vec<(Rc<Form>, Rc<Cont>, Option<ID>)>) -> Result<Option<(Rc<Form>, Rc<Form>, Cont)>> {
         if self.trace_running() {
             println!("Not playing back trace because recording trace");
             return Ok(None); // can't trace while running a trace for now (we don't inline now anyway),
@@ -629,7 +633,7 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
     let mut e = Form::root_env();
     let mut c = Cont::Eval { c: Rc::new(Cont::MetaRet) };
 
-    let mut ret_stack: Vec<(Rc<Form>, Rc<Cont>, Option<(ID,TraceBookkeeping)>)> = vec![];
+    let mut ret_stack: Vec<(Rc<Form>, Rc<Cont>, Option<ID>)> = vec![];
     let mut tmp_stack: Vec<Rc<Form>> = vec![];
 
     loop {
