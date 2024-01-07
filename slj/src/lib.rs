@@ -13,16 +13,9 @@ use anyhow::{anyhow,bail,Result};
 //
 // Figuring out GC between a JIT and Rust will be tricky.
 // Can start with a like tracing-JIT-into-bytecode
-// Replcing Env with pairs or somesuch would make JIT interop easier I think, because we wouldn't
-// have to deal with refcell, but then we would again for mutation.
-// Maybe doing all allocation on the Rust side with #[no_mangle] functions would make things easier
-// mmmm no let's make our own Box, Rc, maybe Arc, Vec too?
+// let's make our own Box, Rc, maybe Arc, Vec too?
 // rustonomicon
 
-// What if we're cute and use the ID
-// like we will eventually use value tagging
-// like, use the same encoding
-// interned symbols and all
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
 pub struct ID {
     id: i64
@@ -210,10 +203,17 @@ impl Form {
 // JIT Decisions
 //  JIT Closure vs JIT Closure-Template
 //      That is, do you treat the closed-over variables as constant
+//          currently we do! if a lookup is not to one of our in-func defined variables, it's a
+//          constant. done in trace_lookup
 //      Or maybe more specifically, which closed over variables do you treat as constant
 //          This will later inform optimistic inlining of primitives, I imagine
 //  Inline or not
 //  Rejoin branches or not
+//      currently we trace into extended basic blocks, in the future stitch those together + const
+//      prop to do more standard traces (after longer warm-up)
+//
+//      currently we basically just have lazy EBB bytecode construction
+//          which I like!
 
 impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -224,10 +224,9 @@ impl fmt::Display for Op {
             Op::Const       ( con )                                            => write!(f, "Const_{con}"),
             Op::Drop                                                           => write!(f, "Drop"),
             Op::Lookup      { sym }                                            => write!(f, "Lookup({sym})"),
-            Op::Call        { len, nc, nc_id, statik, tbk }                    => write!(f, "Call{nc_id}({len},{statik:?})"),
+            Op::Call        { len, nc, nc_id, statik }                         => write!(f, "Call{nc_id}({len},{statik:?})"),
             Op::InlinePrim(prim)                                               => write!(f, "{prim:?}"),
             Op::Tail(len,oid)                                                  => write!(f, "Tail({len},{oid:?})"),
-            Op::Loop(len)                                                      => write!(f, "Loop({len})"),
             Op::Return                                                         => write!(f, "Return"),
         }
     }
@@ -242,6 +241,7 @@ impl Op {
 }
 #[derive(Debug,Clone)]
 struct TraceBookkeeping {
+    func_id: ID,
     stack_const: Vec<bool>,
     defined_names: BTreeSet<String>,
 }
@@ -253,23 +253,21 @@ enum Op {
     Const            (      Rc<Form> ),
     Drop,
     Lookup           { sym: String },
-    Call             { len: usize, statik: Option<ID>, nc: Rc<Cont>, nc_id: ID, tbk: TraceBookkeeping },
+    Call             { len: usize, statik: Option<ID>, nc: Rc<Cont>, nc_id: ID },
     InlinePrim(Prim),
     Tail(usize,Option<ID>),
-    Loop(usize),
     Return,
 }
 
 #[derive(Debug)]
 struct Trace {
     id: ID,
-    // needs to track which are constants
     ops: Vec<Op>,
     tbk: TraceBookkeeping,
 }
 impl Trace {
-    fn new(id: ID) -> Self {
-        Trace { id, ops: vec![], tbk: TraceBookkeeping { stack_const: vec![], defined_names: BTreeSet::new() } }
+    fn new(id: ID, func_id: ID) -> Self {
+        Trace { id, ops: vec![], tbk: TraceBookkeeping { stack_const: vec![], defined_names: BTreeSet::new(), func_id } }
     }
     fn follow_on(id: ID, tbk: TraceBookkeeping) -> Self {
         Trace { id, ops: vec![], tbk }
@@ -277,7 +275,7 @@ impl Trace {
 }
 impl fmt::Display for Trace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Trace for {} [", self.id)?;
+        write!(f, "Trace for {} (func {}) [", self.id, self.tbk.func_id)?;
         for op in &self.ops {
             write!(f, " {}", op)?;
         }
@@ -329,13 +327,11 @@ impl Ctx {
     //      - not tracing, closure        - do stats
     //      - not tracing, prim           - do nothing
     //      - tracing, Static Prim        - inline prim
-    //      - tracing, Static non-self    - inline call
-    //      - tracing, Static, tail-self  - emit loop
-    //      - tracing, Static,nontail-self- emit call  (do we need to differentiate between static and dynamic?)
+    //      - tracing, Static non-self    - inline call? (currently static call)
+    //      - tracing, Static, tail-self  - emit tail (static) (we removed loop because it's a static jump back to the head trace regardless)
+    //      - tracing, Static,nontail-self- emit call (static)
     //      - tracing, Dynamic,     tail  - emit tail
     //      - tracing, Dynamic, non-tail  - emit call
-    //
-    //      inline call is slightly tricky, have to add our own Env accounting
     fn trace_call(&mut self, call_len: usize, tmp_stack: &Vec<Rc<Form>>, nc: &Rc<Cont>) -> Option<ID> {
 
         // Needs to take and use parameters for mid-trace
@@ -344,7 +340,9 @@ impl Ctx {
         if let Some(trace) = &mut self.tracing {
 
             let statik = if trace.tbk.stack_const[trace.tbk.stack_const.len()-call_len] {
-                // const - for now, inline or Loop
+                // const - TODO: for now, we don't inline but we will want to later (based on what
+                // metrics? can we run them simultaniously, heirarchially? with our new approach on
+                // prims maybe (heck we may need to go farther, and remove the InlinePrim!)
                 match &*tmp_stack[tmp_stack.len()-call_len] {
                     Form::Prim(p) => {
                         if (&trace.tbk.stack_const[trace.tbk.stack_const.len()-call_len..]).iter().all(|x| *x) {
@@ -361,7 +359,6 @@ impl Ctx {
                             trace.tbk.stack_const.push(true);
                         } else { 
                             trace.tbk.stack_const.truncate(trace.tbk.stack_const.len()-call_len);
-                            //have to remove the const prim instruction, but we don't know where it is
                             trace.ops.push(Op::InlinePrim(*p));
                             trace.tbk.stack_const.push(false);
                         }
@@ -370,26 +367,27 @@ impl Ctx {
                     },
                     Form::Closure(ps, e, b, id) => {
                         if nc.is_ret() {
-                            if *id == trace.id {
-                                trace.ops.push(Op::Loop(call_len));
+                            if *id == trace.tbk.func_id {
+                                // we removed the loop opcode because this trace needs to know the
+                                // func header trace id anyway
+                                trace.ops.push(Op::Tail(call_len, Some(*id)));
                             } else {
                                 // should be inline
                                 trace.ops.push(Op::Tail(call_len, Some(*id)));
                             }
-                            // end call
                             println!("Ending trace at loop/tail recursive call!");
                             println!("\t{}", trace);
                             self.traces.insert(trace.id, self.tracing.take().unwrap());
                             return None;
                         }
-                        // fall through, though also would normally be inline
+                        // fall through to be a static call, though also would normally be inline
                         Some(*id)
                     },
                     b => panic!("bad func {b:?}"),
                 }
             } else { None };
 
-            // not const or has tmps - Call or TailCall
+            // (normally not const) or has tmps - Call or TailCall
             if nc.is_ret() {
                 trace.ops.push(Op::Tail(call_len,statik));
                 println!("Ending trace at tail recursive call!");
@@ -399,21 +397,12 @@ impl Ctx {
             } else {
                 trace.tbk.stack_const.truncate(trace.tbk.stack_const.len()-call_len);
                 self.id_counter += 1; let nc_id = ID { id: self.id_counter }; // HACK - I can't use the method cuz trace is borrowed
-                                                                              // also, we need to
-                                                                              // store the const
-                                                                              // stack and defined
-                                                                              // names
-                trace.ops.push(Op::Call { len: call_len, statik, nc: Rc::clone(nc), nc_id, tbk: trace.tbk.clone() }); // TODO:
-                                                                                              // if we put the contuinuation trace data
-                                                                                              // here, then can keep pushing it on interior
-                                                                                              // stacks.  (so we can continue from innermost return)
-                                                                                              // probs just id and a Ctx member map to the full data
+                trace.ops.push(Op::Call { len: call_len, statik, nc: Rc::clone(nc), nc_id });
                 println!("Ending trace at call!");
                 println!("\t{}", trace);
-                self.trace_resume_data.insert(trace.id, trace.tbk.clone());
-                let trace_data = trace.id;
+                self.trace_resume_data.insert(nc_id, trace.tbk.clone());
                 self.traces.insert(trace.id, self.tracing.take().unwrap());
-                return Some(trace_data);
+                return Some(nc_id);
             }
         }
         None
@@ -424,7 +413,7 @@ impl Ctx {
         println!("tracing call start for {id}, has been called {} times so far", *entry);
         *entry += 1;
         if *entry > 1 && self.tracing.is_none() && self.traces.get(&id).is_none() {
-            self.tracing = Some(Trace::new(id));
+            self.tracing = Some(Trace::new(id, id));
         }
 
         for s in syms.iter().rev() {
@@ -433,19 +422,23 @@ impl Ctx {
         self.trace_drop(inline);
     }
     fn trace_call_end(&mut self, id: ID, follow_on_trace_data: Option<ID>) {
-        // associate with it or something
-        println!("tracing call end for {id}");
+        println!("tracing call end for {id} followon {follow_on_trace_data:?}");
         if let Some(trace) = &mut self.tracing {
-            if trace.id == id {
+            if trace.tbk.func_id == id {
                 trace.ops.push(Op::Return);
                 println!("Ending trace at end of call!");
                 println!("\t{}", trace);
-                self.traces.insert(id, self.tracing.take().unwrap());
+                self.traces.insert(trace.id, self.tracing.take().unwrap());
             }
         }
         if self.tracing.is_none() {
-            if let Some(follow_id) = follow_on_trace_data {
-                let follow_tbk = self.trace_resume_data.remove(&follow_id).unwrap();
+            self.try_resume_trace(follow_on_trace_data);
+        }
+    }
+    fn try_resume_trace(&mut self, follow_on_trace_data: Option<ID>) {
+        if let Some(follow_id) = follow_on_trace_data {
+            println!("looking follow-on trace {follow_id} in {:?}", self.trace_resume_data);
+            if let Some(follow_tbk) = self.trace_resume_data.remove(&follow_id) {
                 println!("starting follow-on trace {follow_id}, {follow_tbk:?}");
                 let mut trace = Trace::follow_on(follow_id,follow_tbk);
                 trace.tbk.stack_const.push(false); // fix with actual, if this ends up being a
@@ -455,11 +448,9 @@ impl Ctx {
             }
         }
     }
-    // As it is right now, other's replacement being Some means drop the checked value
     fn trace_guard<T: Into<Form> + std::fmt::Debug>(&mut self, value: T, other: impl Fn()->(Option<Rc<Form>>,Rc<Cont>)) {
         println!("Tracing guard {value:?}");
         if let Some(trace) = &mut self.tracing {
-            // guard also needs the param stack
             let (side_val, side_cont) = other();
             self.id_counter += 1; let side_id = ID { id: self.id_counter }; // HACK - I can't use the method cuz trace is borrowed
             trace.ops.push(Op::Guard { const_value: Rc::new(value.into()), side_val, side_cont, side_id, tbk: trace.tbk.clone() });
@@ -516,6 +507,7 @@ impl Ctx {
         }
     }
 
+    // returns f, e, c for interp
     fn execute_trace_if_exists(&mut self,
                                   id: ID, 
                                   e: &Rc<Form>,
@@ -527,83 +519,132 @@ impl Ctx {
                              // in the future it should just tack on the opcodes while jugging the proper 
                              // bookkeeping stacks
         }
-        if let Some(trace) = self.traces.get(&id) {
+        if let Some(mut trace) = self.traces.get(&id) {
             println!("Starting trace playback");
             let mut e = Rc::clone(e);
-            println!("Running trace {trace}");
-            for b in trace.ops.iter() {
-                match b {
-                    Op::Guard       { const_value, side_val, side_cont, side_id, tbk } => {
-                        println!("Guard(op) {const_value}");
-                        if !const_value.my_eq(tmp_stack.last().unwrap()) {
-                            if let Some(side_val) = side_val {
-                                *tmp_stack.last_mut().unwrap() = Rc::clone(side_val);
+            loop {
+                println!("Running trace {trace}, \n\ttmp_stack:{tmp_stack:?}");
+                for b in trace.ops.iter() {
+                    match b {
+                        Op::Guard       { const_value, side_val, side_cont, side_id, tbk } => {
+                            println!("Guard(op) {const_value}");
+                            if !const_value.my_eq(tmp_stack.last().unwrap()) {
+                                if let Some(new_trace) = self.traces.get(side_id) {
+                                    if side_val.is_some() {
+                                        tmp_stack.pop().unwrap();
+                                    }
+                                    println!("\tchaining trace to side trace");
+                                    trace = new_trace;
+                                    break; // break out of this trace and let infinate loop spin
+                                } else {
+                                    println!("\tending playback b/c failed guard");
+                                    assert!(self.tracing.is_none());
+                                    let mut ntrace = Trace::follow_on(*side_id,tbk.clone());
+                                    if let Some(side_val) = side_val {
+                                        *tmp_stack.last_mut().unwrap() = Rc::clone(side_val);
+                                        *ntrace.tbk.stack_const.last_mut().unwrap() = false; // this might be able to be
+                                                                                             // more precise, actually
+                                    }
+                                    self.tracing = Some(ntrace);
+                                    return Ok(Some((tmp_stack.pop().unwrap(), e, (**side_cont).clone())));
+                                }
                             }
-                            println!("\tending playback b/c failed guard");
-                            return Ok(Some((tmp_stack.pop().unwrap(), e, (**side_cont).clone())));
                         }
-                    }
-                    Op::Debug                                                          => {
-                        println!("Debug(op) {}", tmp_stack.last().unwrap());
-                    }
-                    Op::Define      { sym }                                            => {
-                        let v = tmp_stack.pop().unwrap();
-                        println!("Define(op) {sym} = {}", v);
-                        e = e.define(sym.clone(), v);
-                    }
-                    Op::Const       ( con )                                            => {
-                        println!("Const(op) {con}");
-                        tmp_stack.push(Rc::clone(con));
-                    }
-                    Op::Drop                                                           => {
-                        println!("Drop(op) {}", tmp_stack.last().unwrap());
-                        tmp_stack.pop().unwrap();
-                    }
-                    Op::Lookup      { sym }                                            => {
-                        println!("Lookup(op) {sym}");
-                        tmp_stack.push(e.lookup(sym)?);
-                    }
-                    Op::InlinePrim(prim)                                               => {
-                        println!("InlinePrim(op) {prim:?}");
-                        let b = tmp_stack.pop().unwrap();
-                        let a = if prim.two_params() { Some(tmp_stack.pop().unwrap()) } else { None };
-                        tmp_stack.pop().unwrap(); // pop the prim
-                        tmp_stack.push(eval_prim(*prim, b, a)?);
-                    }
-                    Op::Call        { len, nc, nc_id, statik, tbk }                    => {
-                        println!("Call(op)");
-                        println!("\tending playback b/c Call");
-                        // TODO: This should be more efficent, but for now
-                        // toss back into interpreter via a constructed frame
-                        // (esp if statik!)
-                        // TODO TODO Also we need to get tbk on the ret stack when we do hanlde the
-                        // call here (even if we throw back to interp)
-                        return Ok(Some((tmp_stack.pop().unwrap(), e, Cont::Call { n: *len, to_go: Form::new_nil(), c: Rc::clone(nc) })));
-                    }
-                    Op::Tail(len,oid)                                                  => {
-                        println!("Tail(op)");
-                        // Huh, this actually has to know how many envs we pushed on so we can pop
-                        // them off
-                        // (also this should really be a stack)
-                        unimplemented!();
-                    }
-                    Op::Loop(len)                                                      => {
-                        println!("Loop(op)");
-                        // Huh, this actually has to know how many envs we pushed on so we can pop
-                        // them off
-                        // (also this should really be a stack)
-                        unimplemented!();
-                    }
-                    Op::Return                                                         => {
-                        println!("Return(op)");
-                        println!("\tending playback b/c Call");
-                        let (ne, nc, resume_data) = ret_stack.pop().unwrap();
-                        // TODO We also have to handle resume data here, as well
-                        return Ok(Some((tmp_stack.pop().unwrap(), ne, (*nc).clone())));
+                        Op::Debug                                                          => {
+                            println!("Debug(op) {}", tmp_stack.last().unwrap());
+                        }
+                        Op::Define      { sym }                                            => {
+                            let v = tmp_stack.pop().unwrap();
+                            println!("Define(op) {sym} = {}", v);
+                            e = e.define(sym.clone(), v);
+                        }
+                        Op::Const       ( con )                                            => {
+                            println!("Const(op) {con}");
+                            tmp_stack.push(Rc::clone(con));
+                        }
+                        Op::Drop                                                           => {
+                            println!("Drop(op) {}", tmp_stack.last().unwrap());
+                            tmp_stack.pop().unwrap();
+                        }
+                        Op::Lookup      { sym }                                            => {
+                            println!("Lookup(op) {sym}");
+                            tmp_stack.push(e.lookup(sym)?);
+                        }
+                        Op::InlinePrim(prim)                                               => {
+                            println!("InlinePrim(op) {prim:?}");
+                            let b = tmp_stack.pop().unwrap();
+                            let a = if prim.two_params() { Some(tmp_stack.pop().unwrap()) } else { None };
+                            tmp_stack.pop().unwrap(); // pop the prim
+                            tmp_stack.push(eval_prim(*prim, b, a)?);
+                        }
+                        Op::Call        { len, nc, nc_id, statik }                    => {
+                            println!("Call(op)");
+                            if let Some(static_call_id) = statik {
+                                if let Some(new_trace) = self.traces.get(static_call_id) {
+                                    ret_stack.push((Rc::clone(&e), (*nc).clone(), Some(*nc_id)));
+                                    println!("\tchaining to call trace b/c Call with statik");
+                                    trace = new_trace;
+                                    break; // break out of this trace and let infinate loop spin
+                                }
+                            }
+                            match &*Rc::clone(&tmp_stack[tmp_stack.len()-*len]) {
+                                Form::Closure(ps, ie, b, call_id) => {
+                                    if ps.len() != *len-1 {
+                                        bail!("arguments length doesn't match");
+                                    }
+                                    ret_stack.push((Rc::clone(&e), (*nc).clone(), Some(*nc_id)));
+                                    if let Some(new_trace) = self.traces.get(call_id) {
+                                        println!("\tchaining to call trace b/c Call with dyamic but traced");
+                                        trace = new_trace;
+                                        break; // break out of this trace and let infinate loop spin
+                                    } else {
+                                        return Ok(Some((Rc::clone(&b), e, Cont::Frame { syms: ps.clone(), id: *call_id, c: Rc::new(Cont::Eval { c: Rc::new(Cont::Ret { id: *call_id }) }) })));
+                                    }
+                                },
+                                Form::Prim(p) => {
+                                    let b = tmp_stack.pop().unwrap();
+                                    let a = if *len == 2 { None } else { assert!(*len == 3); Some(tmp_stack.pop().unwrap()) };
+                                    let result = eval_prim(*p, b, a)?;
+                                    if let Some(new_trace) = self.traces.get(nc_id) {
+                                        *tmp_stack.last_mut().unwrap() = result; // for the prim itself
+                                        println!("\tchaining to ret trace b/c Call with dyamic but primitive and next traced");
+                                        trace = new_trace;
+                                        break; // break out of this trace and let infinate loop spin
+                                    } else {
+                                        println!("\tstopping playback to ret b/c Call with dyamic but primitive and next not-traced");
+                                        tmp_stack.pop().unwrap(); // for the prim itself
+                                        return Ok(Some((result, e, (**nc).clone())));
+                                    }
+                                },
+                                ncomb => {
+                                    println!("Current stack is {tmp_stack:?}");
+                                    bail!("tried to call a non-comb {ncomb}")
+                                },
+                            }
+                        }
+                        Op::Tail(len,oid)                                                  => {
+                            println!("Tail(op)");
+                            // Huh, this actually has to know how many envs we pushed on so we can pop
+                            // them off
+                            unimplemented!();
+                        }
+                        Op::Return                                                         => {
+                            println!("Return(op)");
+                            let (e, nc, resume_data) = ret_stack.pop().unwrap();
+                            if let Some(resume_id) = resume_data {
+                                if let Some(new_trace) = self.traces.get(&resume_id) {
+                                    println!("\tchaining to return trace b/c Return {resume_id} - {new_trace:?}");
+                                    trace = new_trace;
+                                    break; // break out of this trace and let infinate loop spin
+                                }
+                            }
+                            println!("\tending playback b/c Return, attempting to resume trace");
+                            self.try_resume_trace(resume_data);
+                            return Ok(Some((tmp_stack.pop().unwrap(), e, (*nc).clone())));
+                        }
                     }
                 }
             }
-            unreachable!();
         } else {
             Ok(None)
         }
@@ -712,6 +753,18 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                 let (ne, nc, resume_data) = ret_stack.pop().unwrap();
                 ctx.trace_call_end(id, resume_data);
                 e = ne;
+                if let Some(nc_id) = resume_data {
+                    tmp_stack.push(f); // ugly dance pt 1
+                    if let Some((fp, ep, cp)) = ctx.execute_trace_if_exists(nc_id, &e, &mut tmp_stack, &mut ret_stack)? {
+                        f = fp;
+                        e = ep;
+                        c = cp;
+                        println!("After executing return trace, f={f}, tmp_stack is {tmp_stack:?}");
+                        continue;
+                    } else {
+                        f = tmp_stack.pop().unwrap(); //ugly dance pt2
+                    }
+                }
                 c = (*nc).clone();
             },
             Cont::Call { n, to_go, c: nc } => {
@@ -791,8 +844,6 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                                 f = cdr.car()?;
                                 c = Cont::Eval { c: Rc::new(Cont::Prim { s: "debug", to_go: cdr.cdr()?, c: nc }) };
                             }
-                            // This is a fast and loose ~simple lisp~, so just go for it
-                            // and can have convention that this is always top levelish
                             Form::Symbol(s) if s == "define" => {
                                 // note the swap, evaluating the second not the first (define a value..)
                                 f = cdr.cdr()?.car()?;
@@ -812,8 +863,6 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                                     params = ncdr;
                                 }
                                 let body = cdr.cdr()?.car()?;
-                                // Later on, the id of the closure should maybe be augmented
-                                // or replaced with the id of the code it was made out of?
                                 ctx.trace_lambda(&params_vec, &e, &body);
                                 f = Form::new_closure(params_vec, Rc::clone(&e), body, &mut ctx);
                                 c = (*nc).clone();
