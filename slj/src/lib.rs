@@ -1,7 +1,6 @@
 use std::rc::Rc;
 use std::collections::{BTreeSet,BTreeMap};
 use std::fmt;
-use std::cell::RefCell;
 
 use anyhow::{anyhow,bail,Result};
 
@@ -138,12 +137,12 @@ impl Form {
     fn pair(&self) -> Result<(Rc<Form>,Rc<Form>)> {
         match self {
             Form::Pair(car, cdr) => Ok((Rc::clone(car),Rc::clone(cdr))),
-            _ => Err(anyhow!("pair on not a pair")),
+            _ => Err(anyhow!("pair on not a pair {self}")),
         }
     }
     fn car(&self) -> Result<Rc<Form>> {
         match self {
-            Form::Pair(car, cdr) => Ok(Rc::clone(car)),
+            Form::Pair(car, _cdr) => Ok(Rc::clone(car)),
             _ => Err(anyhow!("car on not a pair")),
         }
     }
@@ -218,13 +217,13 @@ impl Form {
 impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Op::Guard       { const_value, side_val, side_cont, side_id, tbk } => write!(f, "Guard{side_id}({const_value})"),
+            Op::Guard       { const_value, side_val:_, side_cont:_, side_id, tbk:_ } => write!(f, "Guard{side_id}({const_value})"),
             Op::Debug                                                          => write!(f, "Debug"),
             Op::Define      { sym }                                            => write!(f, "Define({sym})"),
             Op::Const       ( con )                                            => write!(f, "Const_{con}"),
             Op::Drop                                                           => write!(f, "Drop"),
             Op::Lookup      { sym }                                            => write!(f, "Lookup({sym})"),
-            Op::Call        { len, nc, nc_id, statik }                         => write!(f, "Call{nc_id}({len},{statik:?})"),
+            Op::Call        { len, nc:_, nc_id, statik }                       => write!(f, "Call{nc_id}({len},{statik:?})"),
             Op::InlinePrim(prim)                                               => write!(f, "{prim:?}"),
             Op::Tail(len,oid)                                                  => write!(f, "Tail({len},{oid:?})"),
             Op::Return                                                         => write!(f, "Return"),
@@ -365,7 +364,7 @@ impl Ctx {
 
                         return None;
                     },
-                    Form::Closure(ps, e, b, id) => {
+                    Form::Closure(_ps, _e, _b, id) => {
                         if nc.is_ret() {
                             if *id == trace.tbk.func_id {
                                 // we removed the loop opcode because this trace needs to know the
@@ -499,8 +498,8 @@ impl Ctx {
             trace.tbk.stack_const.push(true);
         }
     }
-    fn trace_lambda(&mut self, params: &[String], e: &Rc<Form>, body: &Rc<Form>) {
-        if let Some(trace) = &mut self.tracing {
+    fn trace_lambda(&mut self, _params: &[String], _e: &Rc<Form>, _body: &Rc<Form>) {
+        if let Some(_trace) = &mut self.tracing {
             // TODO
             // kinda both also
             unimplemented!("trace lambda");
@@ -595,10 +594,11 @@ impl Ctx {
                                     ret_stack.push((Rc::clone(&e), (*nc).clone(), Some(*nc_id)));
                                     if let Some(new_trace) = self.traces.get(call_id) {
                                         println!("\tchaining to call trace b/c Call with dyamic but traced");
+                                        e = Rc::clone(ie);
                                         trace = new_trace;
                                         break; // break out of this trace and let infinate loop spin
                                     } else {
-                                        return Ok(Some((Rc::clone(&b), e, Cont::Frame { syms: ps.clone(), id: *call_id, c: Rc::new(Cont::Eval { c: Rc::new(Cont::Ret { id: *call_id }) }) })));
+                                        return Ok(Some((Rc::clone(&b), Rc::clone(ie), Cont::Frame { syms: ps.clone(), id: *call_id, c: Rc::new(Cont::Eval { c: Rc::new(Cont::Ret { id: *call_id }) }) })));
                                     }
                                 },
                                 Form::Prim(p) => {
@@ -622,7 +622,7 @@ impl Ctx {
                                 },
                             }
                         }
-                        Op::Tail(len,oid)                                                  => {
+                        Op::Tail(_len,_oid)                                                  => {
                             println!("Tail(op)");
                             // Huh, this actually has to know how many envs we pushed on so we can pop
                             // them off
@@ -662,8 +662,8 @@ enum Cont {
 impl Cont {
     fn is_ret(&self) -> bool {
         match self {
-            Cont::Ret { id } => true,
-            _                => false,
+            Cont::Ret { id: _ } => true,
+            _                   => false,
         }
     }
 }
@@ -777,12 +777,14 @@ pub fn eval(f: Rc<Form>) -> Result<Rc<Form>> {
                                 bail!("arguments length doesn't match");
                             }
                             ret_stack.push((Rc::clone(&e), nc, resume_data));
-                            if let Some((fp, ep, cp)) = ctx.execute_trace_if_exists(*id, &e, &mut tmp_stack, &mut ret_stack)? {
+                            if let Some((fp, ep, cp)) = ctx.execute_trace_if_exists(*id, ie, &mut tmp_stack, &mut ret_stack)? {
                                 f = fp;
                                 e = ep;
                                 c = cp;
                                 println!("After executing trace, f={f}, tmp_stack is {tmp_stack:?}");
                             } else {
+                                println!("replacing {e} with {ie}");
+                                e = Rc::clone(ie);
                                 c = Cont::Frame { syms: ps.clone(), id: *id, c: Rc::new(Cont::Eval { c: Rc::new(Cont::Ret { id: *id }) }) };
                                 f = Rc::clone(&b);
                             }
@@ -922,7 +924,7 @@ impl fmt::Display for Form {
                     }
                 }
             },
-            Form::Closure(params, inner_env, code, id) => {
+            Form::Closure(params, _inner_env, _code, id) => {
                 write!(f, "<closure{} {:?}>", id, params)
             }
             Form::Prim(p) => {

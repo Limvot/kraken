@@ -1,10 +1,11 @@
 #[macro_use] extern crate lalrpop_util;
 lalrpop_mod!(pub grammar);
 
-use std::rc::Rc;
 use anyhow::Result;
+use std::rc::Rc;
 
 use sl::eval;
+
 
 fn main() -> Result<()> {
     let input = "
@@ -28,7 +29,9 @@ fn main() -> Result<()> {
 
 
 
-        (define faft (lambda (n) (if (= n 1) (debug 1) (+ n (faft (- n 1))))))
+        (define faft_h (lambda (faft_h n) (if (= n 1) (debug 1) (+ n (faft_h faft_h (- n 1))))))
+        (define faft (lambda (n) (faft_h faft_h n)))
+
         (debug 'gonna_faft_it)
         (debug faft)
         (debug (faft 6))
