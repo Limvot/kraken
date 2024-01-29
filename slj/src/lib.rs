@@ -4,7 +4,7 @@ use std::fmt;
 use anyhow::{anyhow,bail,Result};
 use std::sync::Mutex;
 use std::marker::PhantomData;
-use std::ops::Deref;
+use std::ops::{Deref,DerefMut};
 use std::ptr::{self, NonNull};
 use std::mem::{self, ManuallyDrop};
 use std::alloc::{self, Layout};
@@ -85,6 +85,13 @@ impl<T> Deref for Cvec<T> {
     fn deref(&self) -> &[T] {
         unsafe {
             std::slice::from_raw_parts(self.ptr.as_ptr(), self.len)
+        }
+    }
+}
+impl<T> DerefMut for Cvec<T> {
+    fn deref_mut(&mut self) -> &mut [T] {
+        unsafe {
+            std::slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len)
         }
     }
 }
@@ -933,8 +940,6 @@ impl Ctx {
                                   e: &Form,
                                   tmp_stack: &mut Cvec<Form>, 
                                   ret_stack: &mut Cvec<(Form, Crc<Cont>, Option<ID>)>) -> Result<Option<(Form, Form, Cont)>> {
-        Ok(None)
-        /*
         if self.trace_running() {
             println!("Not playing back trace because recording trace");
             return Ok(None); // can't trace while running a trace for now (we don't inline now anyway),
@@ -943,14 +948,14 @@ impl Ctx {
         }
         if let Some(mut trace) = self.traces.get(&id) {
             println!("Starting trace playback");
-            let mut e = Crc::clone(e);
+            let mut e = e.clone();
             loop {
                 println!("Running trace {trace}, \n\ttmp_stack:{tmp_stack:?}");
                 for b in trace.ops.iter() {
                     match b {
                         Op::Guard       { const_value, side_val, side_cont, side_id, tbk } => {
                             println!("Guard(op) {const_value}");
-                            if !const_value.my_eq(tmp_stack.last().unwrap()) {
+                            if const_value != tmp_stack.last().unwrap() {
                                 if let Some(new_trace) = self.traces.get(side_id) {
                                     if side_val.is_some() {
                                         tmp_stack.pop().unwrap();
@@ -963,7 +968,7 @@ impl Ctx {
                                     assert!(self.tracing.is_none());
                                     let mut ntrace = Trace::follow_on(*side_id,tbk.clone());
                                     if let Some(side_val) = side_val {
-                                        *tmp_stack.last_mut().unwrap() = Crc::clone(side_val);
+                                        *tmp_stack.last_mut().unwrap() = side_val.clone();
                                         *ntrace.tbk.stack_const.last_mut().unwrap() = false; // this might be able to be
                                                                                              // more precise, actually
                                     }
@@ -978,11 +983,11 @@ impl Ctx {
                         Op::Define      { sym }                                            => {
                             let v = tmp_stack.pop().unwrap();
                             println!("Define(op) {sym} = {}", v);
-                            e = e.define(sym.clone(), v);
+                            e = e.define(sym, v);
                         }
                         Op::Const       ( con )                                            => {
                             println!("Const(op) {con}");
-                            tmp_stack.push(Crc::clone(con));
+                            tmp_stack.push(con.clone());
                         }
                         Op::Drop                                                           => {
                             println!("Drop(op) {}", tmp_stack.last().unwrap());
@@ -990,7 +995,7 @@ impl Ctx {
                         }
                         Op::Lookup      { sym }                                            => {
                             println!("Lookup(op) {sym}");
-                            tmp_stack.push(e.lookup(sym)?);
+                            tmp_stack.push(e.lookup(sym)?.clone());
                         }
                         Op::InlinePrim(prim)                                               => {
                             println!("InlinePrim(op) {prim:?}");
@@ -1003,31 +1008,19 @@ impl Ctx {
                             println!("Call(op)");
                             if let Some(static_call_id) = statik {
                                 if let Some(new_trace) = self.traces.get(static_call_id) {
-                                    ret_stack.push((Crc::clone(&e), (*nc).clone(), Some(*nc_id)));
+                                    ret_stack.push((e.clone(), (*nc).clone(), Some(*nc_id)));
                                     println!("\tchaining to call trace b/c Call with statik");
                                     trace = new_trace;
                                     break; // break out of this trace and let infinate loop spin
                                 }
                             }
-                            match &*Crc::clone(&tmp_stack[tmp_stack.len()-*len]) {
-                                Form::Closure(ps, ie, b, call_id) => {
-                                    if ps.len() != *len-1 {
-                                        bail!("arguments length doesn't match");
-                                    }
-                                    ret_stack.push((Crc::clone(&e), (*nc).clone(), Some(*nc_id)));
-                                    if let Some(new_trace) = self.traces.get(call_id) {
-                                        println!("\tchaining to call trace b/c Call with dyamic but traced");
-                                        e = Crc::clone(ie);
-                                        trace = new_trace;
-                                        break; // break out of this trace and let infinate loop spin
-                                    } else {
-                                        return Ok(Some((Crc::clone(&b), Crc::clone(ie), Cont::Frame { syms: ps.clone(), id: *call_id, c: Crc::new(Cont::Eval { c: Crc::new(Cont::Ret { id: *call_id }) }) })));
-                                    }
-                                },
-                                Form::Prim(p) => {
+                            let func = &tmp_stack[tmp_stack.len()-*len];
+                            match func.data as usize & TAG_MASK {
+                                TAG_PRIM => {
+                                    let p = func.prim().unwrap();
                                     let b = tmp_stack.pop().unwrap();
                                     let a = if *len == 2 { None } else { assert!(*len == 3); Some(tmp_stack.pop().unwrap()) };
-                                    let result = eval_prim(*p, b, a)?;
+                                    let result = eval_prim(p, b, a)?;
                                     if let Some(new_trace) = self.traces.get(nc_id) {
                                         *tmp_stack.last_mut().unwrap() = result; // for the prim itself
                                         println!("\tchaining to ret trace b/c Call with dyamic but primitive and next traced");
@@ -1037,6 +1030,21 @@ impl Ctx {
                                         println!("\tstopping playback to ret b/c Call with dyamic but primitive and next not-traced");
                                         tmp_stack.pop().unwrap(); // for the prim itself
                                         return Ok(Some((result, e, (**nc).clone())));
+                                    }
+                                },
+                                TAG_CLOSURE => {
+                                    let Closure { params: ps, e: ie, body: b, id: call_id, } = func.closure().unwrap();
+                                    if ps.len() != *len-1 {
+                                        bail!("arguments length doesn't match");
+                                    }
+                                    ret_stack.push((e.clone(), (*nc).clone(), Some(*nc_id)));
+                                    if let Some(new_trace) = self.traces.get(call_id) {
+                                        println!("\tchaining to call trace b/c Call with dyamic but traced");
+                                        e = ie.clone();
+                                        trace = new_trace;
+                                        break; // break out of this trace and let infinate loop spin
+                                    } else {
+                                        return Ok(Some((b.clone(), ie.clone(), Cont::Frame { syms: ps.clone(), id: *call_id, c: Crc::new(Cont::Eval { c: Crc::new(Cont::Ret { id: *call_id }) }) })));
                                     }
                                 },
                                 ncomb => {
@@ -1071,7 +1079,6 @@ impl Ctx {
         } else {
             Ok(None)
         }
-        */
     }
 }
 

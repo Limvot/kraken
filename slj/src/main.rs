@@ -59,6 +59,14 @@ fn main() -> Result<()> {
     }
     println!("{my_vec}");
 
+    my_vec[3] = Form::new_symbol("replaced");
+
+    println!(" from vec {}", my_vec[3]);
+    for i in my_vec.iter() {
+        println!(" from vec {}", i);
+    }
+    println!("{my_vec}");
+
 
 
     let input = "
