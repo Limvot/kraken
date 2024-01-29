@@ -1,24 +1,23 @@
 use std::str::FromStr;
-use std::rc::Rc;
 use sl::Form;
 
 grammar;
 
-pub Term: Rc<Form> = {
+pub Term: Form = {
     "true" => Form::new_bool(true),
     "false" => Form::new_bool(false),
-    NUM => Form::new_int(i32::from_str(<>).unwrap()),
-    SYM => Rc::new(Form::Symbol(<>.to_owned())),
+    NUM => Form::new_int(isize::from_str(<>).unwrap()),
+    SYM => Form::new_symbol(<>),
 	"(" <ListInside?> ")" => <>.unwrap_or(Form::new_nil()),
-	"'" <Term> => Rc::new(Form::Pair(Rc::new(Form::Symbol("quote".to_owned())), Rc::new(Form::Pair(<>, Form::new_nil())))),
+	"'" <Term> => Form::new_pair(Form::new_symbol("quote"), Form::new_pair(<>, Form::new_nil())),
 	"!" <h: Term> <t: Term> => {
         h.append(t).unwrap()
      },
 };
-ListInside: Rc<Form> = {
-	<Term> => Rc::new(Form::Pair(<>, Form::new_nil())),
-	<h: Term> <t: ListInside> => Rc::new(Form::Pair(h, t)),
-	<a: Term> "." <d: Term> => Rc::new(Form::Pair(a, d)),
+ListInside: Form = {
+	<Term> =>Form::new_pair(<>, Form::new_nil()),
+	<h: Term> <t: ListInside> => Form::new_pair(h, t),
+	<a: Term> "." <d: Term> => Form::new_pair(a, d),
 }
 match {
     "true",
