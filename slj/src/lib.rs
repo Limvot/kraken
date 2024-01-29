@@ -16,6 +16,7 @@ use anyhow::{anyhow,bail,Result};
 // rustonomicon
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
+#[repr(transparent)]
 pub struct ID {
     id: i64
 }
