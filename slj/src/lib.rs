@@ -723,7 +723,7 @@ struct Ctx {
     id_counter: i64,
     cont_count: BTreeMap<ID, i64>,
     tracing: Option<Trace>,
-    traces: BTreeMap<ID, Trace>,
+    traces: BTreeMap<ID, Vec<Op>>,
     trace_resume_data: BTreeMap<ID, TraceBookkeeping>,
 }
 impl fmt::Display for Ctx {
@@ -806,7 +806,7 @@ impl Ctx {
                             }
                             println!("Ending trace at loop/tail recursive call!");
                             println!("\t{}", trace);
-                            self.traces.insert(trace.id, self.tracing.take().unwrap());
+                            self.traces.insert(trace.id, self.tracing.take().unwrap().ops);
                             return None;
                         }
                         // fall through to be a static call, though also would normally be inline
@@ -821,7 +821,7 @@ impl Ctx {
                 trace.ops.push(Op::Tail(call_len,statik));
                 println!("Ending trace at tail recursive call!");
                 println!("\t{}", trace);
-                self.traces.insert(trace.id, self.tracing.take().unwrap());
+                self.traces.insert(trace.id, self.tracing.take().unwrap().ops);
                 return None;
             } else {
                 trace.tbk.stack_const.truncate(trace.tbk.stack_const.len()-call_len);
@@ -830,7 +830,7 @@ impl Ctx {
                 println!("Ending trace at call!");
                 println!("\t{}", trace);
                 self.trace_resume_data.insert(nc_id, trace.tbk.clone());
-                self.traces.insert(trace.id, self.tracing.take().unwrap());
+                self.traces.insert(trace.id, self.tracing.take().unwrap().ops);
                 return Some(nc_id);
             }
         }
@@ -875,7 +875,7 @@ impl Ctx {
                 trace.ops.push(Op::Return);
                 println!("Ending trace at end of call!");
                 println!("\t{}", trace);
-                self.traces.insert(trace.id, self.tracing.take().unwrap());
+                self.traces.insert(trace.id, self.tracing.take().unwrap().ops);
             }
         }
         if self.tracing.is_none() {
@@ -950,8 +950,8 @@ impl Ctx {
             println!("Starting trace playback");
             let mut e = e.clone();
             loop {
-                println!("Running trace {trace}, \n\ttmp_stack:{tmp_stack:?}");
-                for b in trace.ops.iter() {
+                println!("Running trace {trace:?}, \n\ttmp_stack:{tmp_stack:?}");
+                for b in trace.iter() {
                     match b {
                         Op::Guard       { const_value, side_val, side_cont, side_id, tbk } => {
                             println!("Guard(op) {const_value}");
