@@ -5,175 +5,28 @@ use std::mem;
 
 use anyhow::Result;
 
-use cranelift::codegen::ir::UserFuncName;
-use cranelift::prelude::*;
-use cranelift_codegen::settings::{self, Configurable};
-use cranelift_jit::{JITBuilder, JITModule};
-use cranelift_module::{default_libcall_names, Linkage, Module};
-
-use sl::{eval,Form,Crc,Cvec,Prim,ID};
-
-extern "C" fn rust_add1(x: Form, y: Form) -> Form {
-    println!("Add 1");
-    Form::new_int(x.int().unwrap() + y.int().unwrap())
-}
-extern "C" fn rust_add2(x: isize, y: isize) -> isize {
-    println!("Add 2");
-    x + y
-}
+use sl::{eval,Form,Crc,Cvec,Prim,ID,JIT};
 
 fn main() -> Result<()> {
     // our Form shennigins will only work on 64 bit platforms
     assert!(std::mem::size_of::<usize>() == 8);
 
-    // started from
-    // https://github.com/bytecodealliance/wasmtime/blob/main/cranelift/jit/examples/jit-minimal.rs
-    let mut flag_builder = settings::builder();
-    flag_builder.set("use_colocated_libcalls", "false").unwrap(); //?
-    flag_builder.set("is_pic", "false").unwrap();
-    flag_builder.set("preserve_frame_pointers", "true").unwrap(); // needed for Tail CallConv
-    //println!("{:?}", flag_builder.iter().collect::<Vec<_>>());
-    //flag_builder.set("tail", "true").unwrap();
-    let isa_builder = cranelift_native::builder().unwrap_or_else(|msg| {
-        panic!("host machine is not supported: {}", msg);
-    });
-    let isa = isa_builder.finish(settings::Flags::new(flag_builder)).unwrap();
-    let mut jb = JITBuilder::with_isa(isa, default_libcall_names());
-    jb.symbol("rust_add1", rust_add1 as *const u8);
-    jb.symbol("rust_add2", rust_add2 as *const u8);
-    let mut module = JITModule::new(jb);
-    let int = module.target_config().pointer_type();
-    let mut ctx = module.make_context();
-    let mut func_ctx = FunctionBuilderContext::new();
-
-    let mut sig_a = module.make_signature();
-    sig_a.call_conv = isa::CallConv::Tail;
-    sig_a.params.push(AbiParam::new(int));
-    sig_a.returns.push(AbiParam::new(int));
-    let func_a = module.declare_function("a", Linkage::Local, &sig_a).unwrap();
-
-    let mut sig_b = module.make_signature();
-    sig_b.call_conv = isa::CallConv::Tail;
-    sig_b.returns.push(AbiParam::new(int));
-    let func_b = module.declare_function("b", Linkage::Local, &sig_b).unwrap();
-
-    let mut sig_c = module.make_signature();
-    //sig_b.call_conv = isa::CallConv::Tail;
-    sig_c.params.push(AbiParam::new(int));
-    sig_c.returns.push(AbiParam::new(int));
-    let func_c = module.declare_function("c", Linkage::Local, &sig_c).unwrap();
-
-    ctx.func.signature = sig_a;
-    ctx.func.name = UserFuncName::user(0, func_a.as_u32());
-    {
-        let mut bcx: FunctionBuilder = FunctionBuilder::new(&mut ctx.func, &mut func_ctx);
-        let block = bcx.create_block();
-        bcx.switch_to_block(block);
-        bcx.append_block_params_for_function_params(block);
-        let param = bcx.block_params(block)[0];
-
-        let cst = bcx.ins().iconst(int, 3 << 3);
-        let add = bcx.ins().iadd(cst, param);
-        let cr = {
-            let mut sig = module.make_signature();
-            sig.params.push(AbiParam::new(int));
-            sig.params.push(AbiParam::new(int));
-            sig.returns.push(AbiParam::new(int));
-            //let callee = module.declare_function("rust_add1", Linkage::Import, &sig).unwrap();
-            let callee = module.declare_function("rust_add2", Linkage::Import, &sig).unwrap();
-            let local_callee = module.declare_func_in_func(callee, bcx.func);
-            let call = bcx.ins().call(local_callee, &[add, add]);
-            bcx.inst_results(call)[0]
-        };
-        bcx.ins().return_(&[cr]);
-
-        //let sh = bcx.ins().sshr_imm(param, 3);
-        //bcx.ins().return_(&[sh]);
-
-        bcx.seal_all_blocks();
-        bcx.finalize();
-    }
-    module.define_function(func_a, &mut ctx).unwrap();
-    module.clear_context(&mut ctx);
-    //module.finalize_definitions().unwrap(); can be done multiple times
-
-    ctx.func.signature = sig_b;
-    ctx.func.name = UserFuncName::user(0, func_b.as_u32());
-    {
-        let mut bcx: FunctionBuilder = FunctionBuilder::new(&mut ctx.func, &mut func_ctx);
-        let block = bcx.create_block();
-        bcx.switch_to_block(block);
-        let local_func = module.declare_func_in_func(func_a, &mut bcx.func);
-        let arg = bcx.ins().iconst(int, 30 << 3);
-        bcx.ins().return_call(local_func, &[arg]);
-        /*
-        let call = bcx.ins().call(local_func, &[arg]);
-        let value = {
-            let results = bcx.inst_results(call);
-            assert_eq!(results.len(), 1);
-            results[0].clone()
-        };
-        bcx.ins().return_(&[value]);
-        */
-        bcx.seal_all_blocks();
-        bcx.finalize();
-    }
-
-    module.define_function(func_b, &mut ctx).unwrap();
-    module.clear_context(&mut ctx);
-
-    ctx.func.signature = sig_c;
-    ctx.func.name = UserFuncName::user(0, func_c.as_u32());
-    {
-        let mut bcx: FunctionBuilder = FunctionBuilder::new(&mut ctx.func, &mut func_ctx);
-        let block = bcx.create_block();
-        bcx.switch_to_block(block);
-        bcx.append_block_params_for_function_params(block);
-        let param = bcx.block_params(block)[0];
-
-        let local_func = module.declare_func_in_func(func_a, &mut bcx.func);
-        let call = bcx.ins().call(local_func, &[param]);
-        let value = {
-            let results = bcx.inst_results(call);
-            assert_eq!(results.len(), 1);
-            results[0].clone()
-        };
-        bcx.ins().return_(&[value]);
-
-        bcx.seal_all_blocks();
-        bcx.finalize();
-    }
-    module.define_function(func_c, &mut ctx).unwrap();
-    module.clear_context(&mut ctx);
-
-
-
-    // perform linking
-    module.finalize_definitions().unwrap();
-
-    let code_a = module.get_finalized_function(func_a);
-    let ptr_a = unsafe { mem::transmute::<_, extern "C" fn (Form) -> Form>(code_a) };
-
-    let code_b = module.get_finalized_function(func_b);
-    let ptr_b = unsafe { mem::transmute::<_, extern "C" fn () -> Form>(code_b) };
-
-    let code_c = module.get_finalized_function(func_c);
-    let ptr_c = unsafe { mem::transmute::<_, extern "C" fn (Form) -> Form>(code_c) };
-
     //let res = ptr_b();
     //println!("sucessful run with result {res}");
     //let res = ptr_a(23);
     //println!("sucessful 2 run with result {res}");
-    let res = ptr_a(Form::new_int(1337));
+    let mut jit = JIT::new();
+    let (inner_id, outer_func) = jit.compile_with_wrapper();
+    let res = outer_func(Form::new_int(1337));
     println!("sucessful 1 run with result {res}");
 
-    let res = ptr_b();
-    println!("sucessful 2 run with result {res}");
+    //let res = ptr_b();
+    //println!("sucessful 2 run with result {res}");
 
-    let res = ptr_c(Form::new_int(1337));
-    println!("sucessful 3 run with result {res}");
+    //let res = ptr_c(Form::new_int(1337));
+    //println!("sucessful 3 run with result {res}");
 
-    //return Ok(());
+    return Ok(());
 
     fn alias(a: Crc<u64>, b: Crc<u64>) {
         println!("a: {}, b: {}", *a, *b);
