@@ -305,6 +305,13 @@ impl<T> Crc<T> {
             phantom: PhantomData,
         }
     }
+    pub fn from_ptr_clone(ptr: *mut CrcInner<T>) -> Self {
+        unsafe { (*ptr).increment(); }
+        Crc {
+            ptr: NonNull::new(ptr).unwrap(),
+            phantom: PhantomData,
+        }
+    }
 }
 unsafe impl<T: Sync+Send> Send for Crc<T> {}
 unsafe impl<T: Sync+Send> Sync for Crc<T> {}
@@ -856,6 +863,7 @@ struct Ctx {
     cont_count: BTreeMap<ID, i64>,
     tracing: Option<Trace>,
     traces: BTreeMap<ID, Vec<Op>>,
+    compiled_traces: BTreeMap<ID, extern "C" fn(&mut Form, &mut Cvec<Form>, &mut Cvec<(Form, Crc<Cont>, Option<ID>)>) -> *mut CrcInner<Cont>>,
     trace_resume_data: BTreeMap<ID, TraceBookkeeping>,
 }
 impl fmt::Display for Ctx {
@@ -870,6 +878,7 @@ impl Ctx {
             cont_count: BTreeMap::new(),
             tracing: None,
             traces: BTreeMap::new(),
+            compiled_traces: BTreeMap::new(),
             trace_resume_data: BTreeMap::new(),
         }
     }
@@ -1078,7 +1087,15 @@ impl Ctx {
                              // in the future it should just tack on the opcodes while jugging the proper 
                              // bookkeeping stacks
         }
-        if let Some(mut trace) = self.traces.get(&id) {
+        if let Some(f) = self.compiled_traces.get(&id) {
+            let mut e = e.clone();
+            let trace_ret = f(&mut e, tmp_stack, ret_stack);
+            if trace_ret != std::ptr::null_mut() {
+                 return Ok(Some((tmp_stack.pop().unwrap(), e, (*Crc::from_ptr_clone(trace_ret)).clone())));
+            } else {
+                bail!("some sort of error in compiled trace. Got to figure out how to report this better");
+            }
+        } else if let Some(mut trace) = self.traces.get(&id) {
             println!("Starting trace playback");
             let mut e = e.clone();
             loop {
