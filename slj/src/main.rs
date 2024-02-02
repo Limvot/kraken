@@ -26,7 +26,7 @@ fn main() -> Result<()> {
     //let res = ptr_c(Form::new_int(1337));
     //println!("sucessful 3 run with result {res}");
 
-    return Ok(());
+    //return Ok(());
 
     fn alias(a: Crc<u64>, b: Crc<u64>) {
         println!("a: {}, b: {}", *a, *b);
