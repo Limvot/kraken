@@ -66,7 +66,7 @@ impl JIT {
         
         Self { module, ctx, func_ctx, int, compiled: BTreeMap::new() }
     }
-    fn comple_trace(&mut self, id: ID, ops: &Vec<Op>) -> extern "C" fn(&mut Form, &mut Cvec<Form>, &mut Cvec<(Form, Crc<Cont>, Option<ID>)>) -> usize {
+    fn comple_trace(&mut self, id: ID, ops: &Vec<Op>) -> extern "C" fn(&mut Form, &mut Cvec<Form>, &mut Cvec<RetStackEntry>) -> usize {
         let mut sig_a = self.module.make_signature();
         sig_a.call_conv = isa::CallConv::Tail;
         sig_a.params.push(AbiParam::new(self.int));
@@ -1221,7 +1221,7 @@ struct Ctx {
     cont_count: BTreeMap<ID, i64>,
     tracing: Option<Trace>,
     traces: BTreeMap<ID, Vec<Op>>,
-    compiled_traces: BTreeMap<ID, extern "C" fn(&mut Form, &mut Cvec<Form>, &mut Cvec<(Form, Crc<Cont>, Option<ID>)>) -> usize>,
+    compiled_traces: BTreeMap<ID, extern "C" fn(&mut Form, &mut Cvec<Form>, &mut Cvec<RetStackEntry>) -> usize>,
     trace_resume_data: BTreeMap<ID, TraceBookkeeping>,
     jit: JIT,
 }
@@ -1440,7 +1440,7 @@ impl Ctx {
                                   mut id: ID,
                                   mut e: Form,
                                   tmp_stack: &mut Cvec<Form>, 
-                                  ret_stack: &mut Cvec<(Form, Crc<Cont>, Option<ID>)>) -> Result<Option<(Form, Form, Cont)>> {
+                                  ret_stack: &mut Cvec<RetStackEntry>) -> Result<Option<(Form, Form, Cont)>> {
         if self.trace_running() {
             println!("Not playing back trace because recording trace");
             return Ok(None); // can't trace while running a trace for now (we don't inline now anyway),
@@ -1535,7 +1535,7 @@ impl Ctx {
                             println!("Call(op)");
                             if let Some(static_call_id) = statik {
                                 if self.traces.contains_key(static_call_id) {
-                                    ret_stack.push((e.clone(), (*nc).clone(), Some(*nc_id)));
+                                    ret_stack.push(RetStackEntry { e: e.clone(), c: (*nc).clone(), i: Some(*nc_id) });
                                     println!("\tchaining to call trace b/c Call with statik");
                                     id = *static_call_id;
                                     offset = 0;
@@ -1566,7 +1566,7 @@ impl Ctx {
                                     if ps.len() != *len-1 {
                                         bail!("arguments length doesn't match");
                                     }
-                                    ret_stack.push((e.clone(), (*nc).clone(), Some(*nc_id)));
+                                    ret_stack.push(RetStackEntry { e: e.clone(), c: (*nc).clone(), i: Some(*nc_id) });
                                     if self.traces.contains_key(call_id) {
                                         println!("\tchaining to call trace b/c Call with dyamic but traced");
                                         e = ie.clone();
@@ -1591,7 +1591,7 @@ impl Ctx {
                         }
                         Op::Return                                                         => {
                             println!("Return(op)");
-                            let (ne, nc, resume_data) = ret_stack.pop().unwrap();
+                            let RetStackEntry { e: ne, c: nc, i: resume_data } = ret_stack.pop().unwrap();
                             e = ne;
                             if let Some(resume_id) = resume_data {
                                 if self.traces.contains_key(&resume_id) {
@@ -1613,13 +1613,19 @@ impl Ctx {
     }
 }
 
+#[repr(C)]
+struct RetStackEntry {
+    e: Form,
+    c: Crc<Cont>,
+    i: Option<ID>
+}
 pub fn eval(f: Form) -> Result<Form> {
     let mut ctx = Ctx::new();
     let mut f = f;
     let mut e = Form::root_env();
     let mut c = Cont::Eval { c: Crc::new(Cont::MetaRet) };
 
-    let mut ret_stack: Cvec<(Form, Crc<Cont>, Option<ID>)> = Cvec::new();
+    let mut ret_stack: Cvec<RetStackEntry> = Cvec::new();
     let mut tmp_stack: Cvec<Form> = Cvec::new();
 
     loop {
@@ -1695,7 +1701,7 @@ pub fn eval(f: Form) -> Result<Form> {
                 }
             },
             Cont::Ret {        id,       } => {
-                let (ne, nc, resume_data) = ret_stack.pop().unwrap();
+                let RetStackEntry { e: ne, c: nc, i: resume_data } = ret_stack.pop().unwrap();
                 ctx.trace_call_end(id, resume_data);
                 e = ne;
                 if let Some(nc_id) = resume_data {
@@ -1731,7 +1737,7 @@ pub fn eval(f: Form) -> Result<Form> {
                             if ps.len() != n-1 {
                                 bail!("arguments length doesn't match");
                             }
-                            ret_stack.push((e.clone(), nc, resume_data));
+                            ret_stack.push(RetStackEntry { e: e.clone(), c: nc, i: resume_data });
                             if let Some((fp, ep, cp)) = ctx.execute_trace_if_exists(*id, ie.clone(), &mut tmp_stack, &mut ret_stack)? {
                                 f = fp;
                                 e = ep;
