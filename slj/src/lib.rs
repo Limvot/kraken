@@ -1,7 +1,6 @@
 use std::collections::{BTreeSet,BTreeMap};
 use std::fmt;
 
-use anyhow::{anyhow,bail,Result};
 use std::sync::Mutex;
 use std::marker::PhantomData;
 use std::ops::{Deref,DerefMut};
@@ -9,6 +8,7 @@ use std::ptr::{self, NonNull};
 use std::mem::{self, ManuallyDrop};
 use std::alloc::{self, Layout};
 use std::cell::Cell;
+use std::num::NonZeroI64;
 
 use cranelift::codegen::ir::{UserFuncName,FuncRef};
 use cranelift::prelude::*;
@@ -16,6 +16,7 @@ use cranelift_codegen::settings::{self, Configurable};
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{default_libcall_names, Linkage, Module, FuncId};
 
+use anyhow::{anyhow,bail,Result};
 use once_cell::sync::Lazy;
 
 const TRACE_LEVEL: i64 = 1;
@@ -445,7 +446,7 @@ impl JIT {
                         // quit out of trace!
                         println!("compiling back to interp because we can't compile {op:?}");
                         assert!(offset <= TRACE_OFFSET_MASK);
-                        let cst = bcx.ins().iconst(self.int, (id.id << TRACE_ID_OFFSET) | offset as i64);
+                        let cst = bcx.ins().iconst(self.int, (id.id.get() << TRACE_ID_OFFSET) | offset as i64);
                         bcx.ins().return_(&[cst]);
                         break;
                     }
@@ -704,7 +705,7 @@ impl<T> Drop for Crc<T> {
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
 #[repr(transparent)]
 pub struct ID {
-    pub id: i64
+    pub id: NonZeroI64
 }
 impl fmt::Display for ID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1243,7 +1244,7 @@ impl Ctx {
     }
     fn alloc_id(&mut self) -> ID {
         self.id_counter += 1;
-        ID { id: self.id_counter }
+        ID { id: NonZeroI64::new(self.id_counter).unwrap() }
     }
     fn trace_running(&self) -> bool { self.tracing.is_some() }
 
@@ -1325,7 +1326,7 @@ impl Ctx {
                 return None;
             } else {
                 trace.tbk.stack_const.truncate(trace.tbk.stack_const.len()-call_len);
-                self.id_counter += 1; let nc_id = ID { id: self.id_counter }; // HACK - I can't use the method cuz trace is borrowed
+                self.id_counter += 1; let nc_id = ID { id: NonZeroI64::new(self.id_counter).unwrap() }; // HACK - I can't use the method cuz trace is borrowed
                 trace.ops.push(Op::Call { len: call_len, statik, nc: Crc::clone(nc), nc_id });
                 println!("Ending trace at call!");
                 println!("\t{}", trace);
@@ -1399,7 +1400,7 @@ impl Ctx {
         println!("Tracing guard {value:?}");
         if let Some(trace) = &mut self.tracing {
             let (side_val, side_cont) = other();
-            self.id_counter += 1; let side_id = ID { id: self.id_counter }; // HACK - I can't use the method cuz trace is borrowed
+            self.id_counter += 1; let side_id = ID { id: NonZeroI64::new(self.id_counter).unwrap() }; // HACK - I can't use the method cuz trace is borrowed
             trace.ops.push(Op::Guard { const_value: value.into(), side_val, side_cont, side_id, tbk: trace.tbk.clone() });
         }
     }
@@ -1452,7 +1453,7 @@ impl Ctx {
                 if let Some(f) = self.compiled_traces.get(&id) {
                     println!("Calling JIT function {id}, tmp_stack is {:?}!", tmp_stack);
                     let trace_ret = f(&mut e, tmp_stack, ret_stack);
-                    let new_id = ID { id: (trace_ret >> TRACE_ID_OFFSET) as i64 };
+                    let new_id = ID { id: NonZeroI64::new((trace_ret >> TRACE_ID_OFFSET) as i64).unwrap() };
                     offset     = trace_ret &  TRACE_OFFSET_MASK;
                     println!("\tresult of call is new_id {new_id} and offset {offset}, tmp_stack is {:?}!", tmp_stack);
                     // if we've returned a new trace to start, do so,

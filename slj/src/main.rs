@@ -10,6 +10,8 @@ use sl::{eval,Form,Crc,Cvec,Prim,ID,JIT};
 fn main() -> Result<()> {
     // our Form shennigins will only work on 64 bit platforms
     assert!(std::mem::size_of::<usize>() == 8);
+    assert!(std::mem::size_of::<ID>() == 8);
+    assert!(std::mem::size_of::<Option<ID>>() == 8);
 
     //let res = ptr_b();
     //println!("sucessful run with result {res}");
