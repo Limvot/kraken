@@ -10,7 +10,7 @@ use std::mem::{self, ManuallyDrop};
 use std::alloc::{self, Layout};
 use std::cell::Cell;
 
-use cranelift::codegen::ir::UserFuncName;
+use cranelift::codegen::ir::{UserFuncName,FuncRef};
 use cranelift::prelude::*;
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_jit::{JITBuilder, JITModule};
@@ -21,13 +21,8 @@ use once_cell::sync::Lazy;
 const TRACE_LEVEL: i64 = 1;
 const JIT_LEVEL:   i64 = 5;
 
-extern "C" fn rust_add1(x: Form, y: Form) -> Form {
-    println!("Add 1");
-    Form::new_int(x.int().unwrap() + y.int().unwrap())
-}
-extern "C" fn rust_add2(x: isize, y: isize) -> isize {
-    println!("Add 2");
-    x + y
+extern "C" fn rust_print_form(x: Form) {
+    println!("from jit print: {x}");
 }
 
 const TRACE_ID_OFFSET:   usize = 32;
@@ -38,6 +33,7 @@ pub struct JIT {
     ctx: codegen::Context,
     func_ctx: FunctionBuilderContext,
     int: Type,
+    compiled: BTreeMap<ID, (FuncId,FuncId)>,
 }
 impl JIT {
     pub fn new() -> Self {
@@ -52,16 +48,15 @@ impl JIT {
         });
         let isa = isa_builder.finish(settings::Flags::new(flag_builder)).unwrap();
         let mut jb = JITBuilder::with_isa(isa, default_libcall_names());
-        jb.symbol("rust_add1", rust_add1 as *const u8);
-        jb.symbol("rust_add2", rust_add2 as *const u8);
+        jb.symbol("rust_print_form", rust_print_form as *const u8);
         let mut module = JITModule::new(jb);
         let int = module.target_config().pointer_type();
         let mut ctx = module.make_context();
         let mut func_ctx = FunctionBuilderContext::new();
         
-        Self { module, ctx, func_ctx, int }
+        Self { module, ctx, func_ctx, int, compiled: BTreeMap::new() }
     }
-    fn comple_trace(&mut self, id: ID, ops: &Vec<Op>) -> (FuncId, extern "C" fn(&mut Form, &mut Cvec<Form>, &mut Cvec<(Form, Crc<Cont>, Option<ID>)>) -> usize) {
+    fn comple_trace(&mut self, id: ID, ops: &Vec<Op>) -> extern "C" fn(&mut Form, &mut Cvec<Form>, &mut Cvec<(Form, Crc<Cont>, Option<ID>)>) -> usize {
         let mut sig_a = self.module.make_signature();
         sig_a.call_conv = isa::CallConv::Tail;
         sig_a.params.push(AbiParam::new(self.int));
@@ -84,10 +79,219 @@ impl JIT {
             let block = bcx.create_block();
             bcx.switch_to_block(block);
             bcx.append_block_params_for_function_params(block);
-            let param = bcx.block_params(block)[0];
+            let params = bcx.block_params(block).iter().cloned().collect::<Vec<_>>();
 
-            let cst = bcx.ins().iconst(self.int, id.id << TRACE_ID_OFFSET);
-            bcx.ins().return_(&[cst]);
+            let e_ptr = params[0];
+            let tmp_stack_ptr = params[1]; //pub struct Cvec<T> { ptr: NonNull<T>, cap: usize, len: usize, }
+            let ret_stack_ptr = params[2];
+
+            let mut print_sig = self.module.make_signature();
+            print_sig.params.push(AbiParam::new(self.int));
+            let print_func = self.module.declare_function("rust_print_form", Linkage::Import, &print_sig).unwrap();
+            let local_print_func = self.module.declare_func_in_func(print_func, bcx.func);
+            //let call = bcx.ins().call(local_callee, &[add, add]);
+            //bcx.inst_results(call)[0]
+
+            fn type_assert(bcx: &mut FunctionBuilder, x: Value, tag: usize, local_print_func: FuncRef, int: Type) {
+                let t = bcx.ins().band_imm(x, TAG_MASK as i64);
+                let ok = bcx.ins().icmp_imm(IntCC::Equal, t, tag as i64);
+                bcx.ins().trapz(ok, TrapCode::User(0));
+            }
+            fn stack_pop_norc(bcx: &mut FunctionBuilder, int: Type, tmp_stack_ptr: Value, local_print_func: FuncRef) -> Value {
+                let len = bcx.ins().load(int, MemFlags::trusted(), tmp_stack_ptr, CVEC_LEN_OFFSET as i32);
+                let new_len = bcx.ins().iadd_imm(len, -1);
+                bcx.ins().store(MemFlags::trusted(), new_len, tmp_stack_ptr, CVEC_LEN_OFFSET as i32);
+                let ptr = bcx.ins().load(int, MemFlags::trusted(), tmp_stack_ptr, CVEC_PTR_OFFSET as i32);
+                let offset = bcx.ins().ishl_imm(new_len, 3);
+                let item_ptr = bcx.ins().iadd(ptr, offset);
+                let r = bcx.ins().load(int, MemFlags::trusted(), item_ptr, 0);
+                r
+
+            }
+            fn stack_pop_int(bcx: &mut FunctionBuilder, int: Type, tmp_stack_ptr: Value, local_print_func: FuncRef) -> Value {
+                let loaded = stack_pop_norc(bcx, int, tmp_stack_ptr, local_print_func);
+                type_assert(bcx, loaded, TAG_INT, local_print_func, int);
+                loaded
+            }
+            fn stack_pop_prim(bcx: &mut FunctionBuilder, int: Type, tmp_stack_ptr: Value, local_print_func: FuncRef) -> Value {
+                let loaded = stack_pop_norc(bcx, int, tmp_stack_ptr, local_print_func);
+                type_assert(bcx, loaded, TAG_PRIM, local_print_func, int);
+                loaded
+            }
+            fn gen_stack_push_norc_nocap(bcx: &mut FunctionBuilder, int: Type, tmp_stack_ptr: Value, x: Value, local_print_func: FuncRef) {
+                let len = bcx.ins().load(int, MemFlags::trusted(), tmp_stack_ptr, CVEC_LEN_OFFSET as i32);
+                let new_len = bcx.ins().iadd_imm(len, 1);
+                bcx.ins().store(MemFlags::trusted(), new_len, tmp_stack_ptr, CVEC_LEN_OFFSET as i32);
+                let ptr = bcx.ins().load(int, MemFlags::trusted(), tmp_stack_ptr, CVEC_PTR_OFFSET as i32);
+                let offset = bcx.ins().ishl_imm(len, 3);
+                let item_ptr = bcx.ins().iadd(ptr, offset);
+                bcx.ins().store(MemFlags::trusted(), x, item_ptr, 0);
+            }
+
+            let mut offset = 0;
+            for op in ops {
+                match op {
+                    /*
+                    Op::Guard       { const_value, side_val, side_cont, side_id, tbk } => {
+                        println!("Guard(op) {const_value}");
+                        if const_value != tmp_stack.last().unwrap() {
+                            if self.traces.contains_key(side_id) {
+                                if side_val.is_some() {
+                                    tmp_stack.pop().unwrap();
+                                }
+                                println!("\tchaining trace to side trace");
+                                id = *side_id;
+                                offset = 0;
+                                break; // break out of this trace and let infinate loop spin
+                            } else {
+                                println!("\tending playback b/c failed guard");
+                                assert!(self.tracing.is_none());
+                                let mut ntrace = Trace::follow_on(*side_id,tbk.clone());
+                                if let Some(side_val) = side_val {
+                                    *tmp_stack.last_mut().unwrap() = side_val.clone();
+                                    *ntrace.tbk.stack_const.last_mut().unwrap() = false; // this might be able to be
+                                                                                         // more precise, actually
+                                }
+                                self.tracing = Some(ntrace);
+                                return Ok(Some((tmp_stack.pop().unwrap(), e, (**side_cont).clone())));
+                            }
+                        }
+                    }
+                    Op::Debug                                                          => {
+                        println!("Debug(op) {}", tmp_stack.last().unwrap());
+                    }
+                    Op::Define      { sym }                                            => {
+                        let v = tmp_stack.pop().unwrap();
+                        println!("Define(op) {sym} = {}", v);
+                        e = e.define(sym, v);
+                    }
+                    Op::Const       ( con )                                            => {
+                        println!("Const(op) {con}");
+                        tmp_stack.push(con.clone());
+                    }
+                    Op::Drop                                                           => {
+                        println!("Drop(op) {}", tmp_stack.last().unwrap());
+                        tmp_stack.pop().unwrap();
+                    }
+                    Op::Lookup      { sym }                                            => {
+                        println!("Lookup(op) {sym}");
+                        tmp_stack.push(e.lookup(sym)?.clone());
+                    }
+                    Op::InlinePrim(prim)                                               => {
+                        println!("InlinePrim(op) {prim:?}");
+                        let b = tmp_stack.pop().unwrap();
+                        let a = if prim.two_params() { Some(tmp_stack.pop().unwrap()) } else { None };
+                        tmp_stack.pop().unwrap(); // pop the prim
+                        tmp_stack.push(eval_prim(*prim, b, a)?);
+                    }
+                    Op::Call        { len, nc, nc_id, statik }                    => {
+                        println!("Call(op)");
+                        if let Some(static_call_id) = statik {
+                            if self.traces.contains_key(static_call_id) {
+                                ret_stack.push((e.clone(), (*nc).clone(), Some(*nc_id)));
+                                println!("\tchaining to call trace b/c Call with statik");
+                                id = *static_call_id;
+                                offset = 0;
+                                break; // break out of this trace and let infinate loop spin
+                            }
+                        }
+                        let func = &tmp_stack[tmp_stack.len()-*len];
+                        match func.data as usize & TAG_MASK {
+                            TAG_PRIM => {
+                                let p = func.prim().unwrap();
+                                let b = tmp_stack.pop().unwrap();
+                                let a = if *len == 2 { None } else { assert!(*len == 3); Some(tmp_stack.pop().unwrap()) };
+                                let result = eval_prim(p, b, a)?;
+                                if self.traces.contains_key(nc_id) {
+                                    *tmp_stack.last_mut().unwrap() = result; // for the prim itself
+                                    println!("\tchaining to ret trace b/c Call with dyamic but primitive and next traced");
+                                    id = *nc_id;
+                                    offset = 0;
+                                    break; // break out of this trace and let infinate loop spin
+                                } else {
+                                    println!("\tstopping playback to ret b/c Call with dyamic but primitive and next not-traced");
+                                    tmp_stack.pop().unwrap(); // for the prim itself
+                                    return Ok(Some((result, e, (**nc).clone())));
+                                }
+                            },
+                            TAG_CLOSURE => {
+                                let Closure { params: ps, e: ie, body: b, id: call_id, } = func.closure().unwrap();
+                                if ps.len() != *len-1 {
+                                    bail!("arguments length doesn't match");
+                                }
+                                ret_stack.push((e.clone(), (*nc).clone(), Some(*nc_id)));
+                                if self.traces.contains_key(call_id) {
+                                    println!("\tchaining to call trace b/c Call with dyamic but traced");
+                                    e = ie.clone();
+                                    id = *call_id;
+                                    offset = 0;
+                                    break; // break out of this trace and let infinate loop spin
+                                } else {
+                                    return Ok(Some((b.clone(), ie.clone(), Cont::Frame { syms: ps.clone(), id: *call_id, c: Crc::new(Cont::Eval { c: Crc::new(Cont::Ret { id: *call_id }) }) })));
+                                }
+                            },
+                            ncomb => {
+                                println!("Current stack is {tmp_stack:?}");
+                                bail!("tried to call a non-comb {ncomb}")
+                            },
+                        }
+                    }
+                    Op::Tail(_len,_oid)                                                  => {
+                        println!("Tail(op)");
+                        // Huh, this actually has to know how many envs we pushed on so we can pop
+                        // them off
+                        unimplemented!();
+                    }
+                    Op::Return                                                         => {
+                        println!("Return(op)");
+                        let (e, nc, resume_data) = ret_stack.pop().unwrap();
+                        if let Some(resume_id) = resume_data {
+                            if self.traces.contains_key(&resume_id) {
+                                id = resume_id;
+                                offset = 0;
+                                break; // break out of this trace and let infinate loop spin
+                            }
+                        }
+                        println!("\tending playback b/c Return, attempting to resume trace");
+                        self.try_resume_trace(resume_data);
+                        return Ok(Some((tmp_stack.pop().unwrap(), e, (*nc).clone())));
+                    }
+                    */
+                    Op::InlinePrim(Prim::Add)                                               => {
+                        /*
+                        let b = tmp_stack.pop().unwrap();
+                        let a = tmp_stack.pop().unwrap();
+                        tmp_stack.pop().unwrap(); // pop the prim
+                        tmp_stack.push(Form::new_int(a.int()? + b.int()?));
+                        */
+                        let cst = bcx.ins().iconst(self.int, 1337 << 3);
+                        let _ = bcx.ins().call(local_print_func, &[cst]);
+
+                        let b = stack_pop_int(&mut bcx, self.int, tmp_stack_ptr, local_print_func);
+                        let _ = bcx.ins().call(local_print_func, &[cst]);
+
+                        let a = stack_pop_int(&mut bcx, self.int, tmp_stack_ptr, local_print_func);
+                        let _ = bcx.ins().call(local_print_func, &[cst]);
+
+                        let _ = stack_pop_prim(&mut bcx, self.int, tmp_stack_ptr, local_print_func);
+                        let _ = bcx.ins().call(local_print_func, &[cst]);
+
+                        let result = bcx.ins().iadd(a, b);
+                        let _ = bcx.ins().call(local_print_func, &[result]);
+                        gen_stack_push_norc_nocap(&mut bcx, self.int, tmp_stack_ptr, result, local_print_func); // we just popped, so cap
+                                                                         // is fine, and ints dont
+                                                                         // rc
+                        offset += 1;
+                    }
+                    _ => {
+                        // quit out of trace!
+                        assert!(offset <= TRACE_OFFSET_MASK);
+                        let cst = bcx.ins().iconst(self.int, (id.id << TRACE_ID_OFFSET) | offset as i64);
+                        bcx.ins().return_(&[cst]);
+                        break;
+                    }
+                }
+            }
 
             bcx.seal_all_blocks();
             bcx.finalize();
@@ -123,93 +327,10 @@ impl JIT {
 
         let code_b = self.module.get_finalized_function(func_b);
         let ptr_b = unsafe { mem::transmute::<_, _>(code_b) };
-        (func_a, ptr_b)
+        self.compiled.insert(id, (func_a, func_b));
+        ptr_b
     }
     // returns the id for the inner and the pointer for the outer
-    pub fn compile_with_wrapper(&mut self) -> (FuncId, extern "C" fn (Form) -> Form) {
-        let mut sig_a = self.module.make_signature();
-        sig_a.call_conv = isa::CallConv::Tail;
-        sig_a.params.push(AbiParam::new(self.int));
-        sig_a.returns.push(AbiParam::new(self.int));
-        let func_a = self.module.declare_function("a", Linkage::Local, &sig_a).unwrap();
-
-        let mut sig_b = self.module.make_signature();
-        //sig_b.call_conv = isa::CallConv::Tail;
-        sig_b.params.push(AbiParam::new(self.int));
-        sig_b.returns.push(AbiParam::new(self.int));
-        let func_b = self.module.declare_function("b", Linkage::Local, &sig_b).unwrap();
-
-        self.ctx.func.signature = sig_a;
-        self.ctx.func.name = UserFuncName::user(0, func_a.as_u32());
-        {
-            let mut bcx: FunctionBuilder = FunctionBuilder::new(&mut self.ctx.func, &mut self.func_ctx);
-            let block = bcx.create_block();
-            bcx.switch_to_block(block);
-            bcx.append_block_params_for_function_params(block);
-            let param = bcx.block_params(block)[0];
-
-            let cst = bcx.ins().iconst(self.int, 3 << 3);
-            let add = bcx.ins().iadd(cst, param);
-            let cr = {
-                let mut sig = self.module.make_signature();
-                sig.params.push(AbiParam::new(self.int));
-                sig.params.push(AbiParam::new(self.int));
-                sig.returns.push(AbiParam::new(self.int));
-                //let callee = module.declare_function("rust_add1", Linkage::Import, &sig).unwrap();
-                let callee = self.module.declare_function("rust_add2", Linkage::Import, &sig).unwrap();
-                let local_callee = self.module.declare_func_in_func(callee, bcx.func);
-                let call = bcx.ins().call(local_callee, &[add, add]);
-                bcx.inst_results(call)[0]
-            };
-            bcx.ins().return_(&[cr]);
-
-            //let sh = bcx.ins().sshr_imm(param, 3);
-            //bcx.ins().return_(&[sh]);
-
-            bcx.seal_all_blocks();
-            bcx.finalize();
-        }
-        self.module.define_function(func_a, &mut self.ctx).unwrap();
-        self.module.clear_context(&mut self.ctx);
-        //module.finalize_definitions().unwrap(); can be done multiple times
-
-        self.ctx.func.signature = sig_b;
-        self.ctx.func.name = UserFuncName::user(0, func_b.as_u32());
-        {
-            let mut bcx: FunctionBuilder = FunctionBuilder::new(&mut self.ctx.func, &mut self.func_ctx);
-            let block = bcx.create_block();
-            bcx.switch_to_block(block);
-            bcx.append_block_params_for_function_params(block);
-            let arg = bcx.block_params(block)[0];
-            let local_func = self.module.declare_func_in_func(func_a, &mut bcx.func);
-            //let arg = bcx.ins().iconst(self.int, 30 << 3);
-            /*
-            bcx.ins().return_call(local_func, &[arg]);
-            */
-            let call = bcx.ins().call(local_func, &[arg]);
-            let value = {
-                let results = bcx.inst_results(call);
-                assert_eq!(results.len(), 1);
-                results[0].clone()
-            };
-            bcx.ins().return_(&[value]);
-            bcx.seal_all_blocks();
-            bcx.finalize();
-        }
-
-        self.module.define_function(func_b, &mut self.ctx).unwrap();
-        self.module.clear_context(&mut self.ctx);
-
-        // perform linking
-        self.module.finalize_definitions().unwrap();
-
-        //let code_a = self.module.get_finalized_function(func_a);
-        //let ptr_a = unsafe { mem::transmute::<_, extern "C" fn (Form) -> Form>(code_a) };
-
-        let code_b = self.module.get_finalized_function(func_b);
-        let ptr_b = unsafe { mem::transmute::<_, extern "C" fn (Form) -> Form>(code_b) };
-        (func_a, ptr_b)
-    }
 }
 
 #[repr(C)]
@@ -218,6 +339,9 @@ pub struct Cvec<T> {
     cap: usize,
     len: usize,
 }
+const CVEC_PTR_OFFSET:   usize = 8*0;
+const CVEC_CAP_OFFSET:   usize = 8*1;
+const CVEC_LEN_OFFSET:   usize = 8*2;
 unsafe impl<T: Send> Send for Cvec<T> {}
 unsafe impl<T: Sync> Sync for Cvec<T> {}
 impl<T> Cvec<T> {
@@ -1160,11 +1284,11 @@ impl Ctx {
         loop {
             if offset == 0 {
                 if let Some(f) = self.compiled_traces.get(&id) {
-                    println!("Calling JIT function {id}!");
+                    println!("Calling JIT function {id}, tmp_stack is {:?}!", tmp_stack);
                     let trace_ret = f(&mut e, tmp_stack, ret_stack);
                     let new_id = ID { id: (trace_ret >> TRACE_ID_OFFSET) as i64 };
                     offset     = trace_ret &  TRACE_OFFSET_MASK;
-                    println!("\tresult of call is new_id {new_id} and offset {offset}");
+                    println!("\tresult of call is new_id {new_id} and offset {offset}, tmp_stack is {:?}!", tmp_stack);
                     // if we've returned a new trace to start, do so,
                     // otherwise fall through to trace interpretation immediately
                     if new_id != id {
@@ -1179,7 +1303,7 @@ impl Ctx {
                 *entry += 1;
                 if *entry > JIT_LEVEL && !self.compiled_traces.contains_key(&id) {
                     println!("Compiling trace for {id}!");
-                    let (inner_id, outer_ptr) = self.jit.comple_trace(id, trace);
+                    let outer_ptr = self.jit.comple_trace(id, trace);
                     self.compiled_traces.insert(id, outer_ptr);
                     continue;
                 }

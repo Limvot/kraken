@@ -15,10 +15,6 @@ fn main() -> Result<()> {
     //println!("sucessful run with result {res}");
     //let res = ptr_a(23);
     //println!("sucessful 2 run with result {res}");
-    let mut jit = JIT::new();
-    let (inner_id, outer_func) = jit.compile_with_wrapper();
-    let res = outer_func(Form::new_int(1337));
-    println!("sucessful 1 run with result {res}");
 
     //let res = ptr_b();
     //println!("sucessful 2 run with result {res}");
