@@ -267,14 +267,18 @@ impl JIT {
                 bcx.switch_to_block(merge_block);
             }
 
+            fn gen_cr_unchecked_norc(bcx: &mut FunctionBuilder, int: Type, x: Value, is_cdr: bool) -> Value {
+                let crc_inner_ptr = bcx.ins().band_imm(x, (!TAG_MASK) as i64);
+                bcx.ins().load(int, MemFlags::trusted(), crc_inner_ptr, (CRC_INNER_DATA_OFFSET + if is_cdr { FORM_PAIR_CDR_OFFSET } else { FORM_PAIR_CAR_OFFSET }) as i32)
+            }
+
             fn gen_cr(bcx: &mut FunctionBuilder, int: Type, x: Value, is_cdr: bool, local_drop_rc_form_func: FuncRef, local_print_func: FuncRef) -> Value {
                 type_assert(bcx, x, TAG_PAIR, local_print_func, int);
                 // need to RC increment whatever we get
                 // and RC decrement this pair
-                let crc_inner_ptr = bcx.ins().band_imm(x, (!TAG_MASK) as i64);
-                let result = bcx.ins().load(int, MemFlags::trusted(), crc_inner_ptr, (CRC_INNER_DATA_OFFSET + if is_cdr { FORM_PAIR_CDR_OFFSET } else { FORM_PAIR_CAR_OFFSET }) as i32);
+                let result = gen_cr_unchecked_norc(bcx, int, x, is_cdr);
                 increment(bcx, int, result, local_print_func);
-                decrement_unchecked(bcx, int, x, local_print_func, local_print_func);
+                decrement_unchecked(bcx, int, x, local_drop_rc_form_func, local_print_func);
                 result
                 //const CRC_INNER_DATA_OFFSET:   usize = 8*1;
                 //const FORM_PAIR_CAR_OFFSET:   usize = 8*0;
@@ -482,6 +486,46 @@ impl JIT {
                         println!("Const(op) {con}");
                         tmp_stack.push(con.clone());
                         */
+                    }
+                    Op::Lookup      { sym }                                            => {
+                        let e = bcx.ins().load(self.int, MemFlags::trusted(), e_ptr, 0);
+
+                        let header_block = bcx.create_block();
+                        bcx.append_block_param(header_block, self.int);
+
+                        let body_block = bcx.create_block();
+                        bcx.append_block_param(body_block, self.int);
+
+                        let return_block = bcx.create_block();
+                        bcx.append_block_param(return_block, self.int);
+
+                        let error_block = bcx.create_block();
+
+                        bcx.ins().jump(header_block, &[e]);
+                        bcx.switch_to_block(header_block);
+                        let e = bcx.block_params(header_block)[0].clone();
+
+                        let is_nil = bcx.ins().icmp_imm(IntCC::Equal, e, TAG_NIL as i64);
+                        bcx.ins().brif(is_nil, error_block, &[], body_block, &[e]);
+
+                        bcx.switch_to_block(body_block);
+                        let e = bcx.block_params(body_block)[0].clone();
+                        let kv = gen_cr_unchecked_norc(&mut bcx, self.int, e,  false);
+                        let k  = gen_cr_unchecked_norc(&mut bcx, self.int, kv, false);
+                        let ne = gen_cr_unchecked_norc(&mut bcx, self.int, e,  true);
+                        let is_sym = bcx.ins().icmp_imm(IntCC::Equal, k, unsafe { *((&mut Form::new_symbol(sym)) as *mut Form as *mut usize) } as i64);
+                        bcx.ins().brif(is_sym, return_block, &[kv], header_block, &[ne]);
+
+                        bcx.switch_to_block(error_block);
+                        let cst = bcx.ins().iconst(self.int, (id.id.get() << TRACE_ID_OFFSET) | offset as i64);
+                        bcx.ins().return_(&[cst]);
+
+                        bcx.switch_to_block(return_block);
+                        let kv = bcx.block_params(return_block)[0].clone();
+                        let v  = gen_cr_unchecked_norc(&mut bcx, self.int, kv, true);
+                        increment(&mut bcx, self.int, v, local_print_func);
+                        gen_stack_push(&mut bcx, self.int, tmp_stack_ptr, v, local_cvec_form_grow_func, local_print_func);
+                        offset += 1;
                     }
                     _ => {
                         // quit out of trace!
