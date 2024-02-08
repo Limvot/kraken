@@ -29,7 +29,7 @@ extern "C" fn rust_cons(car: Form, cdr: Form) -> Form {
     Form::new_pair(car, cdr)
 }
 extern "C" fn rust_eq(a: Form, b: Form) -> Form {
-    Form::new_bool(a == b)
+    Form::new_bool(ManuallyDrop::new(a) == ManuallyDrop::new(b))
 }
 extern "C" fn rust_cvec_form_grow(ptr: &mut Cvec<Form>) {
     ptr.grow()
@@ -139,23 +139,24 @@ impl JIT {
                 let ok = bcx.ins().icmp_imm(IntCC::Equal, t, tag as i64);
                 bcx.ins().trapz(ok, TrapCode::User(0));
             }
-            fn stack_pop(bcx: &mut FunctionBuilder, int: Type, tmp_stack_ptr: Value, local_print_func: FuncRef) -> Value {
+            fn stack_pop(bcx: &mut FunctionBuilder, int: Type, tmp_stack_ptr: Value, local_print_func: FuncRef, peek_only: bool) -> Value {
                 let len = bcx.ins().load(int, MemFlags::trusted(), tmp_stack_ptr, CVEC_LEN_OFFSET as i32);
                 let new_len = bcx.ins().iadd_imm(len, -1);
-                bcx.ins().store(MemFlags::trusted(), new_len, tmp_stack_ptr, CVEC_LEN_OFFSET as i32);
+                if !peek_only {
+                    bcx.ins().store(MemFlags::trusted(), new_len, tmp_stack_ptr, CVEC_LEN_OFFSET as i32);
+                }
                 let ptr = bcx.ins().load(int, MemFlags::trusted(), tmp_stack_ptr, CVEC_PTR_OFFSET as i32);
                 let offset = bcx.ins().ishl_imm(new_len, 3);
                 let item_ptr = bcx.ins().iadd(ptr, offset);
                 let r = bcx.ins().load(int, MemFlags::trusted(), item_ptr, 0);
                 r
-
             }
             fn stack_pop_prim(bcx: &mut FunctionBuilder, int: Type, tmp_stack_ptr: Value, local_print_func: FuncRef) -> Value {
-                let loaded = stack_pop(bcx, int, tmp_stack_ptr, local_print_func);
+                let loaded = stack_pop(bcx, int, tmp_stack_ptr, local_print_func, false);
                 type_assert(bcx, loaded, TAG_PRIM, local_print_func, int);
                 loaded
             }
-            fn gen_stack_push(bcx: &mut FunctionBuilder, int: Type, tmp_stack_ptr: Value, x: Value, local_cvec_form_grow_func: FuncRef, local_print_func: FuncRef) {
+            fn stack_push(bcx: &mut FunctionBuilder, int: Type, tmp_stack_ptr: Value, x: Value, local_cvec_form_grow_func: FuncRef, local_print_func: FuncRef) {
                 let len = bcx.ins().load(int, MemFlags::trusted(), tmp_stack_ptr, CVEC_LEN_OFFSET as i32);
                 let new_len = bcx.ins().iadd_imm(len, 1);
                 let cap = bcx.ins().load(int, MemFlags::trusted(), tmp_stack_ptr, CVEC_CAP_OFFSET as i32);
@@ -170,9 +171,9 @@ impl JIT {
                 bcx.ins().call(local_cvec_form_grow_func, &[tmp_stack_ptr]);
                 bcx.ins().jump(merge_block, &[]);
                 bcx.switch_to_block(merge_block);
-                gen_stack_push_nocap(bcx, int, tmp_stack_ptr, x, local_print_func);
+                stack_push_nocap(bcx, int, tmp_stack_ptr, x, local_print_func);
             }
-            fn gen_stack_push_nocap(bcx: &mut FunctionBuilder, int: Type, tmp_stack_ptr: Value, x: Value, local_print_func: FuncRef) {
+            fn stack_push_nocap(bcx: &mut FunctionBuilder, int: Type, tmp_stack_ptr: Value, x: Value, local_print_func: FuncRef) {
                 let len = bcx.ins().load(int, MemFlags::trusted(), tmp_stack_ptr, CVEC_LEN_OFFSET as i32);
                 let new_len = bcx.ins().iadd_imm(len, 1);
                 bcx.ins().store(MemFlags::trusted(), new_len, tmp_stack_ptr, CVEC_LEN_OFFSET as i32);
@@ -182,6 +183,7 @@ impl JIT {
                 bcx.ins().store(MemFlags::trusted(), x, item_ptr, 0);
             }
 
+            // DOESN'T RC
             fn gen_eq(bcx: &mut FunctionBuilder, int: Type, a: Value, b: Value, local_eq_func: FuncRef, local_print_func: FuncRef) -> Value {
                 let at = bcx.ins().band_imm(a, TAG_RC as i64);
                 let bt = bcx.ins().band_imm(b, TAG_RC as i64);
@@ -402,10 +404,6 @@ impl JIT {
                         self.try_resume_trace(resume_data);
                         return Ok(Some((tmp_stack.pop().unwrap(), e, (*nc).clone())));
                     }
-                    Op::Lookup      { sym }                                            => {
-                        println!("Lookup(op) {sym}");
-                        tmp_stack.push(e.lookup(sym)?.clone());
-                    }
                     */
                     Op::InlinePrim(p)                                               => {
                         /*
@@ -416,8 +414,8 @@ impl JIT {
                         let cst = bcx.ins().iconst(self.int, 1337 << 3);
                         let _ = bcx.ins().call(local_print_func, &[cst]);
                         */
-                        let b = stack_pop(&mut bcx, self.int, tmp_stack_ptr, local_print_func);
-                        let a = if p.two_params() { Some(stack_pop(&mut bcx, self.int, tmp_stack_ptr, local_print_func)) } else { None };
+                        let b = stack_pop(&mut bcx, self.int, tmp_stack_ptr, local_print_func, false);
+                        let a = if p.two_params() { Some(stack_pop(&mut bcx, self.int, tmp_stack_ptr, local_print_func, false)) } else { None };
                         let result = match p {
                             Prim::Car  => { gen_cr(&mut bcx, self.int, b, false, local_drop_rc_form_func, local_print_func) },
                             Prim::Cdr  => { gen_cr(&mut bcx, self.int, b, true,  local_drop_rc_form_func, local_print_func) },
@@ -434,16 +432,23 @@ impl JIT {
                                     _ => unreachable!(),
                                 }
                             },
-                            Prim::Eq   => { gen_eq(&mut bcx, self.int, a.unwrap(), b, local_eq_func, local_print_func) },
+                            Prim::Eq   => {
+                                // eq doesn't RC
+                                let a = a.unwrap();
+                                let r = gen_eq(&mut bcx, self.int, a, b, local_eq_func, local_print_func);
+                                decrement(&mut bcx, self.int, a, local_drop_rc_form_func, local_print_func);
+                                decrement(&mut bcx, self.int, b, local_drop_rc_form_func, local_print_func);
+                                r
+                            },
                             Prim::Cons => { let call = bcx.ins().call(local_cons_func, &[a.unwrap(), b]); bcx.inst_results(call)[0].clone() },
                         };
                         let _ = stack_pop_prim(&mut bcx, self.int, tmp_stack_ptr, local_print_func);
-                        gen_stack_push_nocap(&mut bcx, self.int, tmp_stack_ptr, result, local_print_func); // we just popped, so cap is fine
+                        stack_push_nocap(&mut bcx, self.int, tmp_stack_ptr, result, local_print_func); // we just popped, so cap is fine
                         offset += 1;
                     }
                     Op::Define      { sym }                                            => {
                         let s = bcx.ins().iconst(self.int, unsafe { *((&mut Form::new_symbol(sym)) as *mut Form as *mut usize) } as i64);
-                        let v = stack_pop(&mut bcx, self.int, tmp_stack_ptr, local_print_func);
+                        let v = stack_pop(&mut bcx, self.int, tmp_stack_ptr, local_print_func, false);
 
                         let e = bcx.ins().load(self.int, MemFlags::trusted(), e_ptr, 0);
                         let kv = {
@@ -465,7 +470,7 @@ impl JIT {
                         //e = e.define(sym, v);
                     }
                     Op::Drop                                                           => {
-                        let v = stack_pop(&mut bcx, self.int, tmp_stack_ptr, local_print_func);
+                        let v = stack_pop(&mut bcx, self.int, tmp_stack_ptr, local_print_func, false);
                         decrement(&mut bcx, self.int, v, local_drop_rc_form_func, local_print_func);
                         offset += 1;
                         //println!("Drop(op) {}", tmp_stack.last().unwrap());
@@ -480,7 +485,7 @@ impl JIT {
                         if con_rc {
                             increment_unchecked(&mut bcx, self.int, con, local_print_func);
                         }
-                        gen_stack_push(&mut bcx, self.int, tmp_stack_ptr, con, local_cvec_form_grow_func, local_print_func);
+                        stack_push(&mut bcx, self.int, tmp_stack_ptr, con, local_cvec_form_grow_func, local_print_func);
                         offset += 1;
                         /*
                         println!("Const(op) {con}");
@@ -524,8 +529,53 @@ impl JIT {
                         let kv = bcx.block_params(return_block)[0].clone();
                         let v  = gen_cr_unchecked_norc(&mut bcx, self.int, kv, true);
                         increment(&mut bcx, self.int, v, local_print_func);
-                        gen_stack_push(&mut bcx, self.int, tmp_stack_ptr, v, local_cvec_form_grow_func, local_print_func);
+                        stack_push(&mut bcx, self.int, tmp_stack_ptr, v, local_cvec_form_grow_func, local_print_func);
                         offset += 1;
+                    }
+                    Op::Guard       { const_value, side_val, side_cont, side_id, tbk } => {
+                        let pass_block = bcx.create_block();
+                        let fail_block = bcx.create_block();
+
+                        const_value.increment();
+                        let const_value = bcx.ins().iconst(self.int, unsafe { *(const_value as *const Form as *const usize) } as i64);
+                        // NOTE THIS IS A PEEK NOT A POP
+                        let v = stack_pop(&mut bcx, self.int, tmp_stack_ptr, local_print_func, true);
+                        let eq_val = gen_eq(&mut bcx, self.int, v, const_value, local_eq_func, local_print_func); // doesn't RC
+                        let eq = bcx.ins().icmp_imm(IntCC::Equal, eq_val, TAG_BOOL_TRUE as i64);
+                        bcx.ins().brif(eq, pass_block, &[], fail_block, &[]);
+                        bcx.switch_to_block(fail_block);
+
+                        // for now, failed guards drop back to interpreter
+                        let cst = bcx.ins().iconst(self.int, (id.id.get() << TRACE_ID_OFFSET) | offset as i64);
+                        bcx.ins().return_(&[cst]);
+                        bcx.switch_to_block(pass_block);
+                        offset += 1;
+
+                        /*
+                        println!("Guard(op) {const_value}");
+                        if const_value != tmp_stack.last().unwrap() {
+                            if self.traces.contains_key(side_id) {
+                                if side_val.is_some() {
+                                    tmp_stack.pop().unwrap();
+                                }
+                                println!("\tchaining trace to side trace");
+                                id = *side_id;
+                                offset = 0;
+                                break; // break out of this trace and let infinate loop spin
+                            } else {
+                                println!("\tending playback b/c failed guard");
+                                assert!(self.tracing.is_none());
+                                let mut ntrace = Trace::follow_on(*side_id,tbk.clone());
+                                if let Some(side_val) = side_val {
+                                    *tmp_stack.last_mut().unwrap() = side_val.clone();
+                                    *ntrace.tbk.stack_const.last_mut().unwrap() = false; // this might be able to be
+                                                                                         // more precise, actually
+                                }
+                                self.tracing = Some(ntrace);
+                                return Ok(Some((tmp_stack.pop().unwrap(), e, (**side_cont).clone())));
+                            }
+                        }
+                        */
                     }
                     _ => {
                         // quit out of trace!
